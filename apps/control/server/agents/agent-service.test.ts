@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createAgentSchema } from "@tasklattice/contracts";
-import { agentSandboxName } from "./agent-service";
+import { agentSandboxName, applyObservedState } from "./agent-service";
 import { AgentService } from "./agent-service";
 import { AgentStore } from "../data/agent-store";
 import type { LiteLLMAdminClient } from "../providers/litellm-client";
@@ -23,6 +23,58 @@ describe("Agent sandbox naming", () => {
     expect(
       agentSandboxName("研究助手", "abcdef01-1234-4000-8000-123456789abc"),
     ).toBe("tali-agent-abcdef01");
+  });
+});
+
+describe("Instance lifecycle reconciliation", () => {
+  const now = new Date().toISOString();
+  const agent = {
+    id: "agent-a",
+    name: "Research Assistant",
+    description: "",
+    runtime: "openshell" as const,
+    agentPlatform: "openclaw" as const,
+    modelDeploymentId: "model-a",
+    providerAccountId: "provider-a",
+    providerName: "DeepSeek",
+    model: "deepseek-chat",
+    modelType: "llm" as const,
+    costKeyAlias: "tali-research:deepseek-chat",
+    sandboxName: "tali-research",
+    status: "PROVISIONING" as const,
+    provisioningStage: "QUEUED" as const,
+    policyId: "restricted" as const,
+    systemPrompt: "Research the request and report the resulting evidence.",
+    createdAt: now,
+    updatedAt: now,
+    logs: ["Instance creation accepted."],
+  };
+
+  it("preserves initialization logs when a recovered Runner has none", () => {
+    expect(applyObservedState(agent, {
+      name: agent.sandboxName,
+      agentPlatform: "openclaw",
+      phase: "PROVISIONING",
+      provisioningStage: "POD",
+      logs: [],
+    })).toMatchObject({
+      status: "PROVISIONING",
+      provisioningStage: "POD",
+      logs: ["Instance creation accepted."],
+    });
+  });
+
+  it("records a useful failure when the Sandbox disappears", () => {
+    expect(applyObservedState(agent, {
+      name: agent.sandboxName,
+      agentPlatform: "openclaw",
+      phase: "NOT_FOUND",
+      logs: [],
+    })).toMatchObject({
+      status: "FAILED",
+      runtimePhase: "NOT_FOUND",
+      error: expect.stringContaining("OpenShell Sandbox was not found"),
+    });
   });
 });
 

@@ -21,7 +21,7 @@ export function agentSandboxName(name: string, id: string): string {
   return `tali-${slug}-${id.slice(0, 8)}`;
 }
 
-function applyObservedState(agent: Agent, observed: RunnerSandbox): Agent {
+export function applyObservedState(agent: Agent, observed: RunnerSandbox): Agent {
   const status: Agent["status"] =
     observed.phase === "READY"
       ? "READY"
@@ -30,7 +30,11 @@ function applyObservedState(agent: Agent, observed: RunnerSandbox): Agent {
         : observed.phase === "DESTROYING"
           ? "DESTROYING"
           : "PROVISIONING";
-  const { httpEndpoint: _previousHttpEndpoint, ...current } = agent;
+  const {
+    error: _previousError,
+    httpEndpoint: _previousHttpEndpoint,
+    ...current
+  } = agent;
   return {
     ...current,
     status,
@@ -38,13 +42,20 @@ function applyObservedState(agent: Agent, observed: RunnerSandbox): Agent {
     ...(observed.provisioningStage
       ? { provisioningStage: observed.provisioningStage }
       : {}),
-    logs: observed.logs,
+    logs: observed.logs.length > 0 ? observed.logs : agent.logs,
     ...(observed.httpEndpoint
       ? { httpEndpoint: observed.httpEndpoint }
       : {}),
     updatedAt: new Date().toISOString(),
     ...(observed.operationId ? { operationId: observed.operationId } : {}),
-    ...(observed.error ? { error: observed.error } : {}),
+    ...(observed.error
+      ? { error: observed.error }
+      : observed.phase === "NOT_FOUND"
+        ? {
+            error:
+              "The OpenShell Sandbox was not found while reconciling the Instance lifecycle.",
+          }
+        : {}),
   };
 }
 

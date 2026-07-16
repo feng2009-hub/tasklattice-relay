@@ -46,6 +46,11 @@ const mode = process.env.NEMOCLAW_RUNNER_MODE ?? "nemoclaw";
 const isOpenShell = mode === "openshell-kubernetes";
 const states = new Map<string, SandboxState>();
 const activeProvisions = new Set<string>();
+const provisionTasks = new Map<string, Promise<void>>();
+const shutdownTimeoutMs = Number(
+  process.env.NEMOCLAW_RUNNER_SHUTDOWN_TIMEOUT_MS ?? "540000",
+);
+let shuttingDown = false;
 const agentPlatformSchema = z.enum(agentPlatformIds);
 const createSchema = z.object({
   name: z.string().regex(/^[a-z][a-z0-9-]{0,61}[a-z0-9]$/),
@@ -225,6 +230,10 @@ app.use((request, response, next) =>
 
 app.post("/v1/sandboxes", (request, response, next) => {
   try {
+    if (shuttingDown)
+      return void response
+        .status(503)
+        .json({ error: "Runtime Runner is draining for shutdown." });
     const parsedInput = createSchema.parse(request.body);
     const input: ProvisionInput = {
       name: parsedInput.name,
@@ -250,7 +259,10 @@ app.post("/v1/sandboxes", (request, response, next) => {
       logs: ["NemoClaw provisioning queued."],
     };
     states.set(input.name, state);
-    void provision(input, operationId);
+    const task = provision(input, operationId).finally(() => {
+      provisionTasks.delete(input.name);
+    });
+    provisionTasks.set(input.name, task);
     response.status(202).json(responseState(state));
   } catch (error) {
     next(error);
@@ -310,7 +322,9 @@ app.get("/v1/sandboxes/:name", async (request, response, next) => {
           ? { provisioningStage: "READY" as const }
           : local?.provisioningStage
             ? { provisioningStage: local.provisioningStage }
-            : {}),
+            : phase === "PROVISIONING"
+              ? { provisioningStage: "POD" as const }
+              : {}),
         ...(local?.operationId ? { operationId: local.operationId } : {}),
         logs: local?.logs ?? [],
         ...(httpEndpoint ? { httpEndpoint } : {}),
@@ -532,3 +546,33 @@ app.use(
 server.listen(port, host, () =>
   console.log(`TaskLattice Runtime Runner listening on ${host}:${port} (${mode})`),
 );
+
+async function gracefulShutdown(signal: NodeJS.Signals): Promise<void> {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  server.close();
+  console.info(
+    `${signal} received; draining ${provisionTasks.size} active provisioning task(s).`,
+  );
+
+  let timeout: NodeJS.Timeout | undefined;
+  const drained = await Promise.race([
+    Promise.allSettled([...provisionTasks.values()]).then(() => true),
+    new Promise<false>((resolve) => {
+      timeout = setTimeout(() => resolve(false), shutdownTimeoutMs);
+      timeout.unref();
+    }),
+  ]);
+  if (timeout) clearTimeout(timeout);
+
+  for (const client of sockets.clients) client.close(1012, "Runner restarting");
+  server.closeAllConnections();
+  if (!drained)
+    console.error(
+      `Runner shutdown timed out with ${provisionTasks.size} provisioning task(s) still active.`,
+    );
+  process.exit(drained ? 0 : 1);
+}
+
+process.once("SIGTERM", () => void gracefulShutdown("SIGTERM"));
+process.once("SIGINT", () => void gracefulShutdown("SIGINT"));

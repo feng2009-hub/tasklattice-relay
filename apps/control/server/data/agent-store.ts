@@ -6,17 +6,54 @@ import type {
   SandboxPolicy,
 } from "@tasklattice/contracts";
 
-const legacyDataError =
-  "Legacy Provider Connection data is unsupported. Register the Provider and its models again.";
+interface LegacyAgent extends Partial<Agent> {
+  providerConnectionId?: string;
+  provider?: string;
+}
 
-function parseAgent(payload: string): Agent {
-  const agent = JSON.parse(payload) as Agent;
-  if (!agent.modelDeploymentId) throw new Error(legacyDataError);
+function legacyReference(kind: "account" | "model", id: string): string {
+  return `legacy-${kind}:${id}`;
+}
+
+export function parseAgent(payload: string): Agent {
+  const agent = JSON.parse(payload) as LegacyAgent;
+  if (
+    typeof agent.id !== "string" ||
+    typeof agent.name !== "string" ||
+    typeof agent.sandboxName !== "string" ||
+    typeof agent.model !== "string" ||
+    typeof agent.systemPrompt !== "string" ||
+    typeof agent.createdAt !== "string" ||
+    typeof agent.updatedAt !== "string" ||
+    !Array.isArray(agent.logs)
+  )
+    throw new Error("Stored Instance data is incomplete.");
+
+  const legacyId = agent.providerConnectionId ?? agent.id;
+  const providerName = agent.providerName ?? agent.provider ?? "Legacy provider";
   return {
     ...agent,
+    id: agent.id,
+    name: agent.name,
+    description: agent.description ?? "",
     runtime: "openshell",
     agentPlatform: agent.agentPlatform ?? "openclaw",
     policyId: agent.policyId ?? "restricted",
+    systemPrompt: agent.systemPrompt,
+    modelDeploymentId:
+      agent.modelDeploymentId ?? legacyReference("model", legacyId),
+    providerAccountId:
+      agent.providerAccountId ?? legacyReference("account", legacyId),
+    providerName,
+    model: agent.model,
+    modelType: "llm",
+    costKeyAlias:
+      agent.costKeyAlias ?? `${agent.sandboxName}:${agent.model}`,
+    sandboxName: agent.sandboxName,
+    status: agent.status ?? "FAILED",
+    createdAt: agent.createdAt,
+    updatedAt: agent.updatedAt,
+    logs: agent.logs,
   };
 }
 

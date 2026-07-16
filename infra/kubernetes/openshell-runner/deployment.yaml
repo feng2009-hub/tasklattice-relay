@@ -8,6 +8,11 @@ metadata:
     app.kubernetes.io/part-of: tasklattice
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: tasklattice-openshell-runner
@@ -17,6 +22,7 @@ spec:
         app.kubernetes.io/name: tasklattice-openshell-runner
         app.kubernetes.io/part-of: tasklattice
     spec:
+      terminationGracePeriodSeconds: 600
       automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
@@ -47,6 +53,8 @@ spec:
               value: tasklattice-nemoclaw-sandbox:0.3.0
             - name: OPENSHELL_HERMES_SANDBOX_IMAGE
               value: tasklattice-nemoclaw-hermes-sandbox:0.3.0
+            - name: NEMOCLAW_RUNNER_SHUTDOWN_TIMEOUT_MS
+              value: "540000"
           readinessProbe:
             httpGet:
               path: /health

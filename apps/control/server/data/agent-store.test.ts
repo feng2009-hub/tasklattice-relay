@@ -1,7 +1,37 @@
 import { describe, expect, it } from "vitest";
-import { AgentStore } from "./agent-store";
+import { AgentStore, parseAgent } from "./agent-store";
 
 describe("AgentStore", () => {
+  it("migrates legacy Provider Connection Instances without poisoning the list", () => {
+    const now = new Date().toISOString();
+    const agent = parseAgent(JSON.stringify({
+      id: "legacy-agent",
+      name: "Legacy research",
+      description: "",
+      runtime: "nemoclaw",
+      agentPlatform: "openclaw",
+      providerConnectionId: "connection-a",
+      provider: "deepseek",
+      model: "deepseek-chat",
+      policyId: "restricted",
+      systemPrompt: "Research the request and report the evidence.",
+      sandboxName: "tali-legacy-agent",
+      status: "FAILED",
+      createdAt: now,
+      updatedAt: now,
+      logs: ["Legacy provisioning failed."],
+    }));
+
+    expect(agent).toMatchObject({
+      runtime: "openshell",
+      modelDeploymentId: "legacy-model:connection-a",
+      providerAccountId: "legacy-account:connection-a",
+      providerName: "deepseek",
+      modelType: "llm",
+      costKeyAlias: "tali-legacy-agent:deepseek-chat",
+    });
+  });
+
   it("persists the NemoClaw agent resource", () => {
     const store = new AgentStore();
     const now = new Date().toISOString();
