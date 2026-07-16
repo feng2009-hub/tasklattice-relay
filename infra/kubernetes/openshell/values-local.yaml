@@ -8,6 +8,9 @@ supervisor:
     tag: 0.0.82
   sideloadMethod: init-container
 
+service:
+  type: LoadBalancer
+
 server:
   disableTls: true
   auth:
