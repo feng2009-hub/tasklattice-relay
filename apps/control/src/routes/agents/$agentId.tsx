@@ -1,9 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { AlertTriangle, ArrowRight, Bot, Box, Container, Cpu, ExternalLink, FileLock2, Globe2, ScrollText, type LucideIcon } from "lucide-react";
+import { ArrowRight, Bot, Box, Container, Cpu, ExternalLink, FileLock2, Globe2, type LucideIcon } from "lucide-react";
 import { sandboxPolicies } from "@tasklattice/contracts";
 import { AgentStatusBadge } from "@/components/agents/agent-status-badge";
-import { ProvisioningLog } from "@/components/agents/provisioning-log";
+import { ProvisioningActivity } from "@/components/agents/provisioning-activity";
 import { AgentTerminal } from "@/components/terminal";
 import { PageHeader } from "@/components/layout/page-header";
 import { DetailCard } from "@/components/shared/detail-card";
@@ -15,7 +15,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { api } from "@/lib/api";
 
 export const Route = createFileRoute("/agents/$agentId")({
@@ -55,8 +54,6 @@ function AgentDetail() {
       </div>
     );
 
-  const progress =
-    agent.data.status === "READY" || agent.data.status === "FAILED" ? 100 : 56;
   const policy = sandboxPolicies.find(
     (item) => item.id === (agent.data.policyId ?? "restricted"),
   );
@@ -94,34 +91,13 @@ function AgentDetail() {
         ))}
       </div>
       {agent.data.status !== "READY" ? (
-        <Card>
-          <CardHeader className="border-b">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <ScrollText className="size-4" />
-              Provisioning
-            </CardTitle>
-            <CardDescription className="flex flex-wrap items-center justify-between gap-3">
-              <span>Logs remain visible while the Instance is being created or needs recovery.</span>
-              <Link to="/sandboxes" className="font-medium text-foreground underline underline-offset-4">Open Sandbox audit</Link>
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4 py-5">
-            <div className="mb-3 flex items-center justify-between text-sm">
-              <span>Sandbox provisioning</span>
-              <span className="text-muted-foreground">
-                {agent.data.runtimePhase ?? "PROVISIONING"}
-              </span>
-            </div>
-            <Progress value={progress} />
-            {agent.data.error ? (
-              <p className="mt-3 flex gap-2 text-sm text-destructive">
-                <AlertTriangle className="size-4" />
-                {agent.data.error}
-              </p>
-            ) : null}
-            <ProvisioningLog lines={agent.data.logs} />
-          </CardContent>
-        </Card>
+        <ProvisioningActivity
+          status={agent.data.status}
+          logs={agent.data.logs}
+          {...(agent.data.provisioningStage ? { stage: agent.data.provisioningStage } : {})}
+          {...(agent.data.error ? { error: agent.data.error } : {})}
+          action={<Link to="/agent/sandboxes/runtime" className="min-h-11 content-center text-xs font-medium text-foreground underline underline-offset-4">Open Sandbox audit</Link>}
+        />
       ) : null}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <DetailCard icon={Box} label="Runtime" value="NemoClaw / OpenClaw" />

@@ -40,46 +40,89 @@ type WorkspaceRoute =
   | "/dashboard"
   | "/instances"
   | "/requests/new"
-  | "/sandboxes"
+  | "/agent/sandboxes/runtime"
+  | "/agent/sandboxes/policy"
   | "/knowledge"
   | "/mcp"
-  | "/policy"
   | "/skills"
   | "/tickets";
 
+type RuntimeState = {
+  label: string;
+  tone: "danger" | "neutral" | "success" | "warning";
+};
+
+type NavStatusKey = "openShellRuntime";
+
+type NavItemDefinition = {
+  children?: Array<{
+    description: string;
+    icon: LucideIcon;
+    label: string;
+    statusKey?: NavStatusKey;
+    to: WorkspaceRoute;
+  }>;
+  icon: LucideIcon;
+  label: string;
+  match?: "exact" | "prefix";
+  statusKey?: NavStatusKey;
+  to: WorkspaceRoute;
+};
+
 const navGroups: Array<{
-  items: Array<[LucideIcon, string, WorkspaceRoute]>;
+  items: NavItemDefinition[];
   label: string;
 }> = [
-  { label: "Overview", items: [[LayoutDashboard, "Workspace", "/dashboard"]] },
-  { label: "Provider", items: [[Gauge, "Providers", "/providers"]] },
+  { label: "Overview", items: [{ icon: LayoutDashboard, label: "Workspace", to: "/dashboard" }] },
+  { label: "Provider", items: [{ icon: Gauge, label: "Providers", to: "/providers" }] },
   {
     label: "Agent",
     items: [
-      [Boxes, "Instances", "/instances"],
-      [ShieldEllipsis, "Sandboxes", "/sandboxes"],
-      [FileLock2, "Policy", "/policy"],
+      { icon: Boxes, label: "Instances", to: "/instances" },
+      {
+        children: [
+          {
+            description: "Sandbox execution layer",
+            icon: ShieldEllipsis,
+            label: "OpenShell runtime",
+            statusKey: "openShellRuntime",
+            to: "/agent/sandboxes/runtime",
+          },
+          {
+            description: "OpenShell access rules",
+            icon: FileLock2,
+            label: "Policy",
+            to: "/agent/sandboxes/policy",
+          },
+        ],
+        icon: ShieldEllipsis,
+        label: "Sandboxes",
+        match: "prefix",
+        statusKey: "openShellRuntime",
+        to: "/agent/sandboxes/runtime",
+      },
     ],
   },
   {
     label: "Extensions",
     items: [
-      [Sparkles, "Skills", "/skills"],
-      [ServerCog, "MCP Servers", "/mcp"],
-      [Network, "Knowledge Base", "/knowledge"],
+      { icon: Sparkles, label: "Skills", to: "/skills" },
+      { icon: ServerCog, label: "MCP Servers", to: "/mcp" },
+      { icon: Network, label: "Knowledge Base", to: "/knowledge" },
     ],
   },
   {
     label: "Approval",
     items: [
-      [FilePlus2, "Raise Request", "/requests/new"],
-      [ListChecks, "Ticket List", "/tickets"],
+      { icon: FilePlus2, label: "Raise Request", to: "/requests/new" },
+      { icon: ListChecks, label: "Ticket List", to: "/tickets" },
     ],
   },
 ];
 
 const routeLabels: Record<string, string> = {
   agents: "Instances",
+  agent: "Agent",
   providers: "Providers",
   dashboard: "Overview",
   instances: "Instances",
@@ -88,6 +131,7 @@ const routeLabels: Record<string, string> = {
   policy: "Policy",
   new: "Create Instance",
   requests: "Requests",
+  runtime: "Runtime",
   sandboxes: "Sandboxes",
   skills: "Skills",
   tickets: "Ticket List",
@@ -104,20 +148,21 @@ function NavGroup({ children, collapsed, label }: { children: ReactNode; collaps
   );
 }
 
-function NavItem({ active, collapsed, icon: Icon, label, onNavigate, runtimeState, to }: {
+function NavItem({ active, collapsed, current, icon: Icon, label, onNavigate, runtimeState, to }: {
   active: boolean;
   collapsed: boolean;
+  current: boolean;
   icon: LucideIcon;
   label: string;
   onNavigate: () => void;
-  runtimeState?: { label: string; tone: "danger" | "neutral" | "success" | "warning" };
+  runtimeState?: RuntimeState;
   to: WorkspaceRoute;
 }) {
   const link = (
     <Link
       to={to}
       onClick={onNavigate}
-      aria-current={active ? "page" : undefined}
+      aria-current={current ? "page" : undefined}
       className={cn(
         "group flex min-h-11 items-center rounded-md border-l-2 border-transparent text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px]",
         collapsed ? "justify-center px-2" : "gap-3 px-3",
@@ -150,6 +195,52 @@ function NavItem({ active, collapsed, icon: Icon, label, onNavigate, runtimeStat
   return collapsed ? (
     <Tooltip><TooltipTrigger asChild>{link}</TooltipTrigger><TooltipContent side="right">{label}</TooltipContent></Tooltip>
   ) : link;
+}
+
+function NavSubItem({ active, description, icon: Icon, label, onNavigate, runtimeState, to }: {
+  active: boolean;
+  description: string;
+  icon: LucideIcon;
+  label: string;
+  onNavigate: () => void;
+  runtimeState?: RuntimeState;
+  to: WorkspaceRoute;
+}) {
+  return (
+    <Link
+      to={to}
+      onClick={onNavigate}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "group grid min-h-14 grid-cols-[1rem_minmax(0,1fr)] gap-x-2 border-l py-2 pl-3 pr-2 text-[11px] leading-4 transition-colors focus-visible:outline-2",
+        active
+          ? "border-primary bg-sidebar-accent/45 text-sidebar-foreground"
+          : "border-sidebar-border text-muted-foreground hover:border-foreground/50 hover:bg-sidebar-accent/35 hover:text-sidebar-foreground",
+      )}
+    >
+      <Icon className={cn("mt-0.5 size-3.5", active && "text-primary")} />
+      <span className="min-w-0">
+        <span className="flex items-center justify-between gap-2">
+          <strong className="truncate font-medium text-sidebar-foreground">{label}</strong>
+          {runtimeState ? (
+            <span className="inline-flex shrink-0 items-center gap-1.5 font-normal text-muted-foreground">
+              <span
+                className={cn(
+                  "size-1.5 rounded-full",
+                  runtimeState.tone === "success" && "bg-emerald-500",
+                  runtimeState.tone === "warning" && "bg-amber-500",
+                  runtimeState.tone === "danger" && "bg-destructive",
+                  runtimeState.tone === "neutral" && "bg-muted-foreground/50",
+                )}
+              />
+              {runtimeState.label}
+            </span>
+          ) : null}
+        </span>
+        <span className="mt-0.5 block truncate">{description}</span>
+      </span>
+    </Link>
+  );
 }
 
 function DisabledNav({ collapsed, icon: Icon, label }: { collapsed: boolean; icon: LucideIcon; label: string }) {
@@ -210,7 +301,12 @@ export function AppShell() {
       : runtime.error
         ? { label: "Unavailable", tone: "danger" as const }
         : { label: "Unavailable", tone: "warning" as const };
-  const isActive = (to: WorkspaceRoute) => {
+  const runtimeStates: Record<NavStatusKey, RuntimeState> = {
+    openShellRuntime,
+  };
+  const isActive = (item: Pick<NavItemDefinition, "match" | "to">) => {
+    if (item.match === "prefix") return pathname.startsWith("/agent/sandboxes/");
+    const { to } = item;
     if (to === "/instances") return pathname === "/instances" || pathname.startsWith("/agents");
     return pathname === to;
   };
@@ -256,41 +352,33 @@ export function AppShell() {
       <nav className="flex-1 space-y-6 overflow-y-auto overflow-x-hidden p-3" aria-label="Workspace navigation">
         {navGroups.map((group) => (
           <NavGroup key={group.label} label={group.label} collapsed={isCollapsed}>
-            {group.items.map(([Icon, label, to]) => (
-              <div key={to}>
+            {group.items.map((item) => (
+              <div key={item.to}>
                 <NavItem
-                  active={isActive(to)}
+                  active={isActive(item)}
                   collapsed={isCollapsed}
-                  icon={Icon}
-                  label={label}
+                  current={pathname === item.to}
+                  icon={item.icon}
+                  label={item.label}
                   onNavigate={() => setMobileOpen(false)}
-                  {...(to === "/sandboxes" ? { runtimeState: openShellRuntime } : {})}
-                  to={to}
+                  {...(item.statusKey ? { runtimeState: runtimeStates[item.statusKey] } : {})}
+                  to={item.to}
                 />
-                {to === "/sandboxes" && !isCollapsed ? (
-                  <Link
-                    to="/sandboxes"
-                    onClick={() => setMobileOpen(false)}
-                    className="mx-3 mb-2 mt-1 block border-l border-sidebar-border py-1.5 pl-3 text-[11px] leading-4 text-muted-foreground transition-colors hover:border-foreground/50 hover:text-sidebar-foreground focus-visible:outline-2"
-                    aria-label={`OpenShell runtime ${openShellRuntime.label}. Open Sandboxes.`}
-                  >
-                    <span className="flex items-center justify-between gap-2">
-                      <span className="font-medium text-sidebar-foreground">OpenShell runtime</span>
-                      <span className="inline-flex items-center gap-1.5">
-                        <span
-                          className={cn(
-                            "size-1.5 rounded-full",
-                            openShellRuntime.tone === "success" && "bg-emerald-500",
-                            openShellRuntime.tone === "warning" && "bg-amber-500",
-                            openShellRuntime.tone === "danger" && "bg-destructive",
-                            openShellRuntime.tone === "neutral" && "bg-muted-foreground/50",
-                          )}
-                        />
-                        {openShellRuntime.label}
-                      </span>
-                    </span>
-                    <span className="mt-0.5 block">Sandbox execution layer</span>
-                  </Link>
+                {item.children && !isCollapsed ? (
+                  <div className="mx-3 mb-2 mt-1 space-y-1">
+                    {item.children.map((child) => (
+                      <NavSubItem
+                        key={child.to}
+                        active={pathname === child.to}
+                        description={child.description}
+                        icon={child.icon}
+                        label={child.label}
+                        onNavigate={() => setMobileOpen(false)}
+                        {...(child.statusKey ? { runtimeState: runtimeStates[child.statusKey] } : {})}
+                        to={child.to}
+                      />
+                    ))}
+                  </div>
                 ) : null}
               </div>
             ))}

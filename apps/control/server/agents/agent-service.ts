@@ -37,6 +37,9 @@ function applyObservedState(agent: Agent, observed: RunnerSandbox): Agent {
     ...current,
     status,
     runtimePhase: observed.phase,
+    ...(observed.provisioningStage
+      ? { provisioningStage: observed.provisioningStage }
+      : {}),
     logs: observed.logs,
     ...(observed.httpEndpoint
       ? { httpEndpoint: observed.httpEndpoint }
@@ -93,6 +96,7 @@ export class AgentService {
       model: connection.model,
       sandboxName: agentSandboxName(input.name, id),
       status: "PROVISIONING",
+      provisioningStage: "QUEUED",
       createdAt: now,
       updatedAt: now,
       logs: ["Agent request accepted. Waiting for the NemoClaw Runtime Host."],
@@ -157,6 +161,7 @@ export class AgentService {
       providerConnectionId: localDeepSeekConnectionId,
       sandboxName: agentSandboxName("DeepSeek NemoClaw Demo", demoAgentId),
       status: "PROVISIONING",
+      provisioningStage: "QUEUED",
       provider: "deepseek",
       model: "deepseek-chat",
       policyId: "restricted",

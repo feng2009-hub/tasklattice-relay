@@ -25,6 +25,8 @@ import { Route as RequestsNewRouteImport } from './routes/requests/new'
 import { Route as AuthSsoCompleteRouteImport } from './routes/auth/sso-complete'
 import { Route as AgentsNewRouteImport } from './routes/agents/new'
 import { Route as AgentsAgentIdRouteImport } from './routes/agents/$agentId'
+import { Route as AgentSandboxesRuntimeRouteImport } from './routes/agent/sandboxes/runtime'
+import { Route as AgentSandboxesPolicyRouteImport } from './routes/agent/sandboxes/policy'
 
 const TicketsRoute = TicketsRouteImport.update({
   id: '/tickets',
@@ -106,6 +108,16 @@ const AgentsAgentIdRoute = AgentsAgentIdRouteImport.update({
   path: '/agents/$agentId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AgentSandboxesRuntimeRoute = AgentSandboxesRuntimeRouteImport.update({
+  id: '/agent/sandboxes/runtime',
+  path: '/agent/sandboxes/runtime',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AgentSandboxesPolicyRoute = AgentSandboxesPolicyRouteImport.update({
+  id: '/agent/sandboxes/policy',
+  path: '/agent/sandboxes/policy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -124,6 +136,8 @@ export interface FileRoutesByFullPath {
   '/auth/sso-complete': typeof AuthSsoCompleteRoute
   '/requests/new': typeof RequestsNewRoute
   '/agents/': typeof AgentsIndexRoute
+  '/agent/sandboxes/policy': typeof AgentSandboxesPolicyRoute
+  '/agent/sandboxes/runtime': typeof AgentSandboxesRuntimeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -142,6 +156,8 @@ export interface FileRoutesByTo {
   '/auth/sso-complete': typeof AuthSsoCompleteRoute
   '/requests/new': typeof RequestsNewRoute
   '/agents': typeof AgentsIndexRoute
+  '/agent/sandboxes/policy': typeof AgentSandboxesPolicyRoute
+  '/agent/sandboxes/runtime': typeof AgentSandboxesRuntimeRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -161,6 +177,8 @@ export interface FileRoutesById {
   '/auth/sso-complete': typeof AuthSsoCompleteRoute
   '/requests/new': typeof RequestsNewRoute
   '/agents/': typeof AgentsIndexRoute
+  '/agent/sandboxes/policy': typeof AgentSandboxesPolicyRoute
+  '/agent/sandboxes/runtime': typeof AgentSandboxesRuntimeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -181,6 +199,8 @@ export interface FileRouteTypes {
     | '/auth/sso-complete'
     | '/requests/new'
     | '/agents/'
+    | '/agent/sandboxes/policy'
+    | '/agent/sandboxes/runtime'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -199,6 +219,8 @@ export interface FileRouteTypes {
     | '/auth/sso-complete'
     | '/requests/new'
     | '/agents'
+    | '/agent/sandboxes/policy'
+    | '/agent/sandboxes/runtime'
   id:
     | '__root__'
     | '/'
@@ -217,6 +239,8 @@ export interface FileRouteTypes {
     | '/auth/sso-complete'
     | '/requests/new'
     | '/agents/'
+    | '/agent/sandboxes/policy'
+    | '/agent/sandboxes/runtime'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -236,6 +260,8 @@ export interface RootRouteChildren {
   AuthSsoCompleteRoute: typeof AuthSsoCompleteRoute
   RequestsNewRoute: typeof RequestsNewRoute
   AgentsIndexRoute: typeof AgentsIndexRoute
+  AgentSandboxesPolicyRoute: typeof AgentSandboxesPolicyRoute
+  AgentSandboxesRuntimeRoute: typeof AgentSandboxesRuntimeRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -352,6 +378,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AgentsAgentIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/agent/sandboxes/runtime': {
+      id: '/agent/sandboxes/runtime'
+      path: '/agent/sandboxes/runtime'
+      fullPath: '/agent/sandboxes/runtime'
+      preLoaderRoute: typeof AgentSandboxesRuntimeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/agent/sandboxes/policy': {
+      id: '/agent/sandboxes/policy'
+      path: '/agent/sandboxes/policy'
+      fullPath: '/agent/sandboxes/policy'
+      preLoaderRoute: typeof AgentSandboxesPolicyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -372,6 +412,8 @@ const rootRouteChildren: RootRouteChildren = {
   AuthSsoCompleteRoute: AuthSsoCompleteRoute,
   RequestsNewRoute: RequestsNewRoute,
   AgentsIndexRoute: AgentsIndexRoute,
+  AgentSandboxesPolicyRoute: AgentSandboxesPolicyRoute,
+  AgentSandboxesRuntimeRoute: AgentSandboxesRuntimeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

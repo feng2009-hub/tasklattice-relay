@@ -1,6 +1,7 @@
 import express from "express";
 import {
   parseTerminalResize,
+  type ProvisioningStage,
   type RunnerSandbox,
 } from "@tasklattice/contracts";
 import { createServer } from "node:http";
@@ -57,6 +58,15 @@ function responseState(state: SandboxState): SandboxState {
   return state;
 }
 
+function updateProvisioningStage(
+  state: SandboxState,
+  stage: ProvisioningStage,
+  message?: string,
+): void {
+  state.provisioningStage = stage;
+  if (message && state.logs.at(-1) !== message) state.logs.push(message);
+}
+
 function rejectTerminalUpgrade(
   socket: Duplex,
   status: number,
@@ -83,6 +93,7 @@ async function readySandboxState(
   const recovered: SandboxState = {
     name,
     phase: "READY",
+    provisioningStage: "READY",
     logs: local?.logs ?? [],
   };
   states.set(name, recovered);
@@ -106,23 +117,39 @@ async function provision(
       state.logs.push("DeepSeek provider preflight succeeded through AI SDK.");
     }
     if (mode === "fixture") {
-      await new Promise((resolve) => setTimeout(resolve, 350));
+      const fixtureStages: ReadonlyArray<[ProvisioningStage, string]> = [
+        ["PROVIDER", "Fixture provider configuration accepted."],
+        ["SANDBOX", "Fixture Sandbox policy applied."],
+        ["POD", "Fixture Kubernetes Pod created and initializing."],
+        ["RUNTIME", "Fixture NemoClaw services starting inside the Pod."],
+        ["ENDPOINT", "Fixture Web UI endpoint publishing."],
+      ];
+      const fixtureDelayMs = Number(
+        process.env.NEMOCLAW_FIXTURE_PROVISION_DELAY_MS ?? "350",
+      );
+      for (const [stage, message] of fixtureStages) {
+        updateProvisioningStage(state, stage, message);
+        await new Promise((resolve) =>
+          setTimeout(resolve, fixtureDelayMs / fixtureStages.length),
+        );
+      }
       state.logs.push(
         "Fixture host accepted the typed NemoClaw provisioning request.",
         "Sandbox phase: Ready",
       );
     } else if (isOpenShell) {
-      state.logs.push(
-        "Configuring DeepSeek inference through the OpenShell gateway.",
-        "Creating an Agent Sandbox resource and its Kubernetes Pod.",
-      );
-      state.logs.push(...(await provisionOpenShellSandbox(input)));
+      await provisionOpenShellSandbox(input, {
+        onStage: (stage, message) => updateProvisioningStage(state, stage, message),
+        onLog: (lines) => state.logs.push(...lines),
+      });
+      updateProvisioningStage(state, "RUNTIME", "Initializing NemoClaw services inside the Pod.");
       state.logs.push(
         "OpenClaw Agent instructions uploaded to the sandbox workspace.",
         "NemoClaw supervisor started the OpenClaw Agent gateway.",
         "OpenClaw gateway health check: Ready",
       );
       try {
+        updateProvisioningStage(state, "ENDPOINT", "Publishing the OpenClaw Web UI endpoint.");
         httpEndpoint = {
           kind: "openclaw-webui",
           status: "READY",
@@ -141,8 +168,8 @@ async function provision(
         state.logs.push(`OpenClaw Web UI unavailable: ${httpEndpoint.reason}`);
       }
     } else {
+      updateProvisioningStage(state, "RUNTIME", "Starting NemoClaw non-interactive onboarding.");
       const command = onboardCommand(input);
-      state.logs.push("Starting NemoClaw non-interactive onboarding.");
       const result = await runCommand("nemoclaw", command.args, command.env);
       state.logs.push(...result.stdout.split("\n").filter(Boolean).slice(-100));
       if (result.exitCode !== 0)
@@ -157,6 +184,7 @@ async function provision(
     states.set(input.name, {
       ...state,
       phase: "READY",
+      provisioningStage: "READY",
       operationId,
       ...(httpEndpoint ? { httpEndpoint } : {}),
     });
@@ -199,6 +227,7 @@ app.post("/v1/sandboxes", (request, response, next) => {
     const state: SandboxState = {
       name: input.name,
       phase: "PROVISIONING",
+      provisioningStage: "QUEUED",
       operationId,
       logs: ["NemoClaw provisioning queued."],
     };
@@ -254,6 +283,12 @@ app.get("/v1/sandboxes/:name", async (request, response, next) => {
       const next: SandboxState = {
         name,
         phase,
+        ...(phase === "READY"
+          ? { provisioningStage: "READY" as const }
+          : local?.provisioningStage
+            ? { provisioningStage: local.provisioningStage }
+            : {}),
+        ...(local?.operationId ? { operationId: local.operationId } : {}),
         logs: local?.logs ?? [],
         ...(httpEndpoint ? { httpEndpoint } : {}),
       };

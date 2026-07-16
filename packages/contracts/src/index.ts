@@ -7,6 +7,16 @@ export const agentStatuses = [
   "DESTROYING",
 ] as const;
 
+export const provisioningStages = [
+  "QUEUED",
+  "PROVIDER",
+  "SANDBOX",
+  "POD",
+  "RUNTIME",
+  "ENDPOINT",
+  "READY",
+] as const;
+
 export const agentModels = ["deepseek-chat", "deepseek-reasoner"] as const;
 
 export const sandboxPolicies = [
@@ -123,6 +133,7 @@ export const createAgentSchema = z.object({
 });
 
 export type AgentStatus = (typeof agentStatuses)[number];
+export type ProvisioningStage = (typeof provisioningStages)[number];
 export type AgentModel = (typeof agentModels)[number];
 export type SandboxPolicyId = (typeof sandboxPolicyIds)[number];
 export type SandboxPolicy = (typeof sandboxPolicies)[number];
@@ -160,6 +171,7 @@ export interface Agent extends CreateAgentInput {
   updatedAt: string;
   operationId?: string;
   runtimePhase?: string;
+  provisioningStage?: ProvisioningStage;
   logs: string[];
   httpEndpoint?: HttpEndpoint;
   error?: string;
@@ -181,6 +193,7 @@ export interface RunnerSandbox {
     | "NOT_FOUND"
     | "DESTROYING";
   operationId?: string;
+  provisioningStage?: ProvisioningStage;
   logs: string[];
   httpEndpoint?: HttpEndpoint;
   error?: string;

@@ -261,6 +261,7 @@ export const openApiDocument = {
               updatedAt: { type: "string", format: "date-time" },
               operationId: { type: "string" },
               runtimePhase: { type: "string" },
+              provisioningStage: { type: "string", enum: ["QUEUED", "PROVIDER", "SANDBOX", "POD", "RUNTIME", "ENDPOINT", "READY"] },
               logs: { type: "array", items: { type: "string" } },
               httpEndpoint: { $ref: "#/components/schemas/HttpEndpoint" },
               error: { type: "string" },

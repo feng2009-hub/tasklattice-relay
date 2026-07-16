@@ -65,7 +65,7 @@ function Overview() {
           <CardContent className="grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
             <div><div className="text-xs text-muted-foreground">Desired Agent</div><div className="mt-1 font-medium">NemoClaw · {primaryAgent.model}</div></div>
             <div><div className="text-xs text-muted-foreground">Runtime Sandbox</div><div className="mt-1 font-mono text-sm">{primaryAgent.sandboxName}</div></div>
-            <div className="flex flex-wrap gap-2"><Button variant="outline" asChild><Link to="/agents/$agentId" params={{ agentId: primaryAgent.id }}>Open Instance</Link></Button><Button variant="ghost" asChild><Link to="/sandboxes"><ShieldEllipsis />Audit Sandbox</Link></Button></div>
+            <div className="flex flex-wrap gap-2"><Button variant="outline" asChild><Link to="/agents/$agentId" params={{ agentId: primaryAgent.id }}>Open Instance</Link></Button><Button variant="ghost" asChild><Link to="/agent/sandboxes/runtime"><ShieldEllipsis />Audit Sandbox</Link></Button></div>
           </CardContent>
         </Card>
       ) : null}

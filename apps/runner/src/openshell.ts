@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { SandboxAuditEvent } from "@tasklattice/contracts";
+import type { ProvisioningStage, SandboxAuditEvent } from "@tasklattice/contracts";
 import { runCommand, type ProvisionInput } from "./nemoclaw.js";
 
 const providerName = process.env.OPENSHELL_DEEPSEEK_PROVIDER ?? "tasklattice-deepseek";
@@ -39,6 +39,11 @@ exec env "NEMOCLAW_DASHBOARD_PORT=$dashboard_port" /usr/local/bin/nemoclaw-start
 export interface OpenShellSandbox {
   name: string;
   phase: string;
+}
+
+export interface ProvisioningObserver {
+  onLog?: (lines: string[]) => void;
+  onStage?: (stage: ProvisioningStage, message: string) => void;
 }
 
 export function openShellBinary(): string {
@@ -364,6 +369,7 @@ async function createOpenShellNemoClawSandbox(
   instructionsFile: string,
   bootstrapFile: string,
   policyFile: string,
+  observer?: ProvisioningObserver,
 ): Promise<string[]> {
   const timeoutMs = Number(process.env.NEMOCLAW_START_TIMEOUT_MS ?? "180000");
   return new Promise((resolve, reject) => {
@@ -378,19 +384,32 @@ async function createOpenShellNemoClawSandbox(
       { env: process.env, stdio: ["ignore", "pipe", "pipe"] },
     );
     let output = "";
+    let pendingLine = "";
     let settled = false;
     let probing = false;
     const append = (data: Buffer) => {
-      output = (output + data.toString()).slice(-64_000);
+      const chunk = data.toString();
+      output = (output + chunk).slice(-64_000);
+      const parts = `${pendingLine}${chunk}`.split(/\r?\n/);
+      pendingLine = parts.pop() ?? "";
+      const lines = parts.filter(Boolean);
+      if (lines.length) observer?.onLog?.(lines);
     };
     child.stdout.on("data", append);
     child.stderr.on("data", append);
+
+    const flushPendingLine = () => {
+      if (!pendingLine) return;
+      observer?.onLog?.([pendingLine]);
+      pendingLine = "";
+    };
 
     const finish = (error?: Error) => {
       if (settled) return;
       settled = true;
       clearInterval(probeTimer);
       clearTimeout(timeoutTimer);
+      flushPendingLine();
       if (error) reject(error);
       else resolve(output.split("\n").filter(Boolean).slice(-100));
     };
@@ -410,6 +429,7 @@ async function createOpenShellNemoClawSandbox(
           settled = true;
           clearInterval(probeTimer);
           clearTimeout(timeoutTimer);
+          flushPendingLine();
           child.kill("SIGTERM");
           resolve(output.split("\n").filter(Boolean).slice(-100));
         }
@@ -473,9 +493,12 @@ async function ensureDeepSeekProvider(input: ProvisionInput): Promise<void> {
 
 export async function provisionOpenShellSandbox(
   input: ProvisionInput,
+  observer?: ProvisioningObserver,
 ): Promise<string[]> {
+  observer?.onStage?.("PROVIDER", "Preparing the shared DeepSeek provider.");
   await ensureDeepSeekProvider(input);
 
+  observer?.onStage?.("SANDBOX", "Validating inference and applying the OpenShell policy.");
   const inference = await runCommand(
     openShellBinary(),
     openShellArguments([
@@ -508,11 +531,13 @@ export async function provisionOpenShellSandbox(
     await writeFile(policyFile, input.policyYaml ?? "version: 1\n", {
       mode: 0o600,
     });
+    observer?.onStage?.("POD", "Creating the OpenShell Sandbox and starting its Kubernetes Pod.");
     return await createOpenShellNemoClawSandbox(
       input,
       instructionsFile,
       bootstrapFile,
       policyFile,
+      observer,
     );
   } catch (error) {
     await deleteOpenShellSandbox(input.name).catch(() => undefined);

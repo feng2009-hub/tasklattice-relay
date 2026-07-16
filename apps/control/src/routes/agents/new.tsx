@@ -3,7 +3,8 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { sandboxPolicies } from "@tasklattice/contracts";
-import { ArrowLeft, ArrowRight, Bot, Check, Cpu, LockKeyhole, Network, ServerCog, Sparkles, type LucideIcon } from "lucide-react";
+import { ArrowLeft, ArrowRight, Bot, Check, Cpu, LockKeyhole, Network, ServerCog, Sparkles } from "lucide-react";
+import { BlueprintRow, CreateInstanceLayout, InstanceBlueprint, type CreateInstanceStep } from "@/components/agents/create-instance-layout";
 import { PageHeader } from "@/components/layout/page-header";
 import { api } from "@/lib/api";
 import { mcpServerPreviews, skillPreviews } from "@/lib/preview-data";
@@ -19,12 +20,12 @@ import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/agents/new")({ component: CreateAgent });
 
-const steps = [
-  ["Identity", "Name and instruct the Agent"],
-  ["Runtime", "Choose a validated model"],
-  ["Extensions", "Attach Skills and MCP"],
-  ["Review", "Confirm and create"],
-] as const;
+const steps: readonly CreateInstanceStep[] = [
+  { label: "Identity", description: "Name and instruct the Agent" },
+  { label: "Runtime", description: "Choose a validated model" },
+  { label: "Extensions", description: "Attach Skills and MCP" },
+  { label: "Review", description: "Confirm and create" },
+];
 
 function CreateAgent() {
   const navigate = useNavigate();
@@ -69,18 +70,20 @@ function CreateAgent() {
   return (
     <div className="space-y-7">
       <PageHeader eyebrow="Agent / Instance / Create" title="Create Instance" badge={<Badge variant="outline">UAT</Badge>} description="Build a specialized Agent from a runtime, reusable Skills, and connected MCP tools." />
-      <div className="grid gap-6 xl:grid-cols-[220px_minmax(0,1fr)_320px]">
-        <aside className="space-y-1" aria-label="Create Instance progress">
-          {steps.map(([label, description], index) => (
-            <button key={label} type="button" disabled={index > step} onClick={() => setStep(index)} className={cn("flex min-h-16 w-full items-start gap-3 px-3 py-3 text-left text-sm transition-colors focus-visible:outline-2", index === step ? "bg-primary text-primary-foreground" : index < step ? "text-foreground hover:bg-muted" : "cursor-not-allowed text-muted-foreground/55")}>
-              <span className={cn("grid size-6 shrink-0 place-items-center rounded-full border text-xs", index < step && "border-primary bg-primary text-primary-foreground", index === step && "border-primary-foreground/40 bg-primary-foreground/15")}>{index < step ? <Check className="size-3" /> : index + 1}</span>
-              <span><strong className="block font-medium">{label}</strong><span className={cn("mt-1 block text-xs", index === step ? "text-primary-foreground/75" : "text-muted-foreground")}>{description}</span></span>
-            </button>
-          ))}
-          <Separator className="my-4" />
-          <div className="border bg-muted/40 p-3 text-xs leading-5 text-muted-foreground"><LockKeyhole className="mb-2 size-4" />Credentials stay attached to validated Providers and managed extension references.</div>
-        </aside>
-
+      <CreateInstanceLayout
+        steps={steps}
+        currentStep={step}
+        onStepChange={setStep}
+        blueprint={
+          <InstanceBlueprint>
+            <BlueprintRow icon={Cpu} label="Runtime" value="NemoClaw" />
+            <BlueprintRow icon={Network} label="Provider" value={selectedConnection?.name ?? "Required"} />
+            <form.Subscribe selector={(state) => state.values.policyId}>{(policyId) => <BlueprintRow icon={LockKeyhole} label="Policy" value={sandboxPolicies.find((policy) => policy.id === policyId)?.name ?? String(policyId)} />}</form.Subscribe>
+            <BlueprintRow icon={Sparkles} label="Skills" value={`${selectedSkills.length} selected`} />
+            <BlueprintRow icon={ServerCog} label="MCP Servers" value={`${selectedMcps.length} selected`} />
+          </InstanceBlueprint>
+        }
+      >
         <form onSubmit={(event) => { event.preventDefault(); void form.handleSubmit(); }} className="space-y-5">
           {step === 0 ? (
             <Card>
@@ -107,7 +110,7 @@ function CreateAgent() {
                 <form.Field name="policyId">
                   {(field) => (
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between gap-3"><Label>OpenShell policy</Label><Link to="/policy" className="text-xs font-medium underline underline-offset-4">Inspect policies</Link></div>
+                      <div className="flex items-center justify-between gap-3"><Label>OpenShell policy</Label><Link to="/agent/sandboxes/policy" className="text-xs font-medium underline underline-offset-4">Inspect policies</Link></div>
                       <Select value={field.state.value} onValueChange={(value) => field.handleChange(value as typeof field.state.value)}>
                         <SelectTrigger aria-label="OpenShell policy" className="min-h-12 h-auto"><SelectValue /></SelectTrigger>
                         <SelectContent>{sandboxPolicies.map((policy) => <SelectItem key={policy.id} value={policy.id}>{policy.name} · {policy.networkAccess}</SelectItem>)}</SelectContent>
@@ -172,28 +175,9 @@ function CreateAgent() {
             )}
           </div>
         </form>
-
-        <aside>
-          <Card className="sticky top-24">
-            <CardHeader><CardTitle className="text-base">Instance blueprint</CardTitle><CardDescription>Live summary of the specialized Agent you are assembling.</CardDescription></CardHeader>
-            <CardContent className="space-y-4 text-sm">
-              <BlueprintRow icon={Cpu} label="Runtime" value="NemoClaw" />
-              <BlueprintRow icon={Network} label="Provider" value={selectedConnection?.name ?? "Required"} />
-              <form.Subscribe selector={(state) => state.values.policyId}>{(policyId) => <BlueprintRow icon={LockKeyhole} label="Policy" value={sandboxPolicies.find((policy) => policy.id === policyId)?.name ?? String(policyId)} />}</form.Subscribe>
-              <BlueprintRow icon={Sparkles} label="Skills" value={`${selectedSkills.length} selected`} />
-              <BlueprintRow icon={ServerCog} label="MCP Servers" value={`${selectedMcps.length} selected`} />
-              <Separator />
-              <p className="text-xs leading-5 text-muted-foreground">Runtime provisioning remains asynchronous. Extension installation and binding are not implemented in this preview.</p>
-            </CardContent>
-          </Card>
-        </aside>
-      </div>
+      </CreateInstanceLayout>
     </div>
   );
-}
-
-function BlueprintRow({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
-  return <div className="flex items-center gap-3"><span className="grid size-9 place-items-center border bg-muted/40"><Icon className="size-4 text-primary" /></span><span className="min-w-0"><span className="block text-xs text-muted-foreground">{label}</span><strong className="block truncate text-sm">{value}</strong></span></div>;
 }
 
 function ReviewSection({ children, title }: { children: ReactNode; title: string }) {

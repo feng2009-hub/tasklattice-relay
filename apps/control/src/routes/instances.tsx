@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Boxes, Plus, Search, SquareTerminal } from "lucide-react";
@@ -24,6 +24,7 @@ function Instances() {
   const queryClient = useQueryClient();
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string>();
+  const selectedTriggerRef = useRef<HTMLButtonElement>(null);
   const agents = useQuery({
     queryKey: ["agents"],
     queryFn: api.listAgents,
@@ -92,7 +93,10 @@ function Instances() {
                     type="button"
                     aria-label={`Open actions for ${agent.name}`}
                     aria-pressed={selected?.id === agent.id}
-                    onClick={() => setSelectedId(agent.id)}
+                    onClick={(event) => {
+                      selectedTriggerRef.current = event.currentTarget;
+                      setSelectedId(agent.id);
+                    }}
                     className="absolute inset-0 z-0 focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
                   />
                   <span className="pointer-events-none relative z-10 min-w-0">
@@ -128,6 +132,7 @@ function Instances() {
         {...(remove.error ? { deleteError: remove.error.message } : {})}
         onClose={() => setSelectedId(undefined)}
         onDelete={() => selected && remove.mutate(selected.id)}
+        returnFocusRef={selectedTriggerRef}
       />
     </div>
   );
