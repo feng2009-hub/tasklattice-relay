@@ -74,21 +74,25 @@ creation the private runner request provides it to OpenShell, which creates the
 `tasklattice-deepseek` OpenAI-compatible provider and validates
 `deepseek-chat`/`deepseek-reasoner` through `inference set`.
 
-Expose the control API and the OpenShell service router in two terminals:
+Expose the control API:
 
 ```sh
 kubectl -n tasklattice-sandboxes port-forward service/tasklattice-control 18081:80
 ```
 
-```sh
-kubectl -n openshell port-forward service/openshell 8080:8080
-```
+The local OpenShell Helm values create its gateway Service as a
+`LoadBalancer`. OrbStack exposes LoadBalancer ports directly on localhost, so
+the per-Instance `http://<sandbox>--webui.openshell.localhost:8080/` URL works
+without a second port-forward. The runner uses `OPENSHELL_SERVICE_BASE_URL` to
+install that exact routed Origin before NemoClaw seals and validates its
+configuration, then returns an authenticated URL whose token stays in the URL
+fragment.
 
-Then run the proof path. The second forward makes the per-Instance
-`http://<sandbox>--webui.openshell.localhost:8080/` URL reachable from the
-browser and validator. The runner uses `OPENSHELL_SERVICE_BASE_URL` to install
-that exact routed Origin before NemoClaw seals and validates its configuration,
-then returns an authenticated URL whose token stays in the URL fragment:
+Confirm that OrbStack assigned the gateway address, then run the proof path:
+
+```sh
+kubectl -n openshell get service openshell
+```
 
 ```sh
 TALI_BASE_URL=http://127.0.0.1:18081 TALI_EXPECT_NEMOCLAW_RUNTIME=1 npm run validate:core
