@@ -50,7 +50,7 @@ const created = await request("/api/v1/agents", {
   body: JSON.stringify({
     name: `validation-${Date.now().toString().slice(-6)}`,
     description: "REST and terminal contract validation",
-    runtime: "nemoclaw",
+    runtime: "openshell",
     agentPlatform: "openclaw",
     modelDeploymentId: validatedModel.id,
     systemPrompt: "You are a validation agent. Report runtime evidence clearly.",
@@ -58,8 +58,8 @@ const created = await request("/api/v1/agents", {
 });
 
 let agent = created;
-for (let attempt = 0; attempt < 120 && agent.status === "PROVISIONING"; attempt += 1) {
-  await new Promise((resolve) => setTimeout(resolve, 500));
+for (let attempt = 0; attempt < 180 && agent.status === "PROVISIONING"; attempt += 1) {
+  await new Promise((resolve) => setTimeout(resolve, 1_000));
   agent = await request(`/api/v1/agents/${created.id}`);
 }
 if (agent.status !== "READY") throw new Error(`Agent did not become READY: ${JSON.stringify(agent)}`);
