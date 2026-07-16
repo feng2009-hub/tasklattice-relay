@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/card";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { getAgentPlatformPresentation } from "@/lib/agent-platforms";
 
 export const Route = createFileRoute("/agent/sandboxes/runtime")({ component: OpenShellRuntimePage });
 
@@ -138,6 +139,7 @@ function OpenShellRuntimePage() {
               <dl className="text-xs">
                 {[
                   ["Runtime layer", "OpenShell"],
+                  ["Agent platform", getAgentPlatformPresentation(selected.agentPlatform).name],
                   ["Stable identity", selected.sandboxName],
                   ["Instance", selected.id.slice(0, 8)],
                   ["Pod", selected.status === "READY" ? "1 / 1" : "0 / 1"],

@@ -51,6 +51,7 @@ const created = await request("/api/v1/agents", {
     name: `validation-${Date.now().toString().slice(-6)}`,
     description: "REST and terminal contract validation",
     runtime: "nemoclaw",
+    agentPlatform: "openclaw",
     providerConnectionId: validatedProvider.id,
     provider: "deepseek",
     model: "deepseek-chat",

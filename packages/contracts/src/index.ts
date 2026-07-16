@@ -19,6 +19,38 @@ export const provisioningStages = [
 
 export const agentModels = ["deepseek-chat", "deepseek-reasoner"] as const;
 
+export const agentPlatformIds = ["openclaw", "hermes"] as const;
+
+export const agentPlatforms = [
+  {
+    id: "openclaw",
+    name: "OpenClaw",
+    description: "Gateway-based Agent with a plugin ecosystem and browser UI.",
+    terminalLabel: "OpenClaw TUI",
+    endpointLabel: "OpenClaw Web UI",
+    isDefault: true,
+  },
+  {
+    id: "hermes",
+    name: "Hermes",
+    description: "Self-improving Agent with durable memory and a learning loop.",
+    terminalLabel: "Hermes TUI",
+    endpointLabel: "Hermes dashboard",
+    isDefault: false,
+  },
+] as const satisfies ReadonlyArray<{
+  description: string;
+  endpointLabel: string;
+  id: (typeof agentPlatformIds)[number];
+  isDefault: boolean;
+  name: string;
+  terminalLabel: string;
+}>;
+
+export const defaultAgentPlatformId = agentPlatforms.find(
+  (platform) => platform.isDefault,
+)!.id;
+
 export const sandboxPolicies = [
   {
     id: "restricted",
@@ -125,6 +157,7 @@ export const createAgentSchema = z.object({
   name: z.string().trim().min(3).max(48),
   description: z.string().trim().max(240).default(""),
   runtime: z.literal("nemoclaw"),
+  agentPlatform: z.enum(agentPlatformIds).default(defaultAgentPlatformId),
   providerConnectionId: z.string().trim().min(1),
   provider: z.literal("deepseek"),
   model: z.enum(agentModels),
@@ -135,6 +168,8 @@ export const createAgentSchema = z.object({
 export type AgentStatus = (typeof agentStatuses)[number];
 export type ProvisioningStage = (typeof provisioningStages)[number];
 export type AgentModel = (typeof agentModels)[number];
+export type AgentPlatformId = (typeof agentPlatformIds)[number];
+export type AgentPlatform = (typeof agentPlatforms)[number];
 export type SandboxPolicyId = (typeof sandboxPolicyIds)[number];
 export type SandboxPolicy = (typeof sandboxPolicies)[number];
 export type ProviderConnectionStatus =
@@ -178,7 +213,7 @@ export interface Agent extends CreateAgentInput {
 }
 
 export interface HttpEndpoint {
-  kind: "openclaw-webui";
+  kind: "openclaw-webui" | "hermes-dashboard";
   status: "READY" | "UNAVAILABLE";
   url?: string;
   reason?: string;
@@ -186,6 +221,7 @@ export interface HttpEndpoint {
 
 export interface RunnerSandbox {
   name: string;
+  agentPlatform: AgentPlatformId;
   phase:
     | "PROVISIONING"
     | "READY"

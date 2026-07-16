@@ -14,7 +14,7 @@ Everything else in the historical marketplace design is later scope. The UI keep
 
 ## Agent resource and runtime boundary
 
-The Agent is a first-class TaskLattice resource. It is not the sandbox itself: TaskLattice persists the desired Agent identity and configuration, then projects that resource into one NemoClaw sandbox containing the running OpenClaw Agent process.
+The Agent is a first-class TaskLattice resource. It is not the sandbox itself: TaskLattice persists the desired Agent identity, platform, and configuration, then projects that resource into one NemoClaw sandbox containing the selected OpenClaw or Hermes Agent process.
 
 ```mermaid
 flowchart TD
@@ -25,7 +25,7 @@ flowchart TD
     ADAPTER --> CONTROL["NemoClaw Control"]
     CONTROL --> GATEWAY["OpenShell Gateway"]
     GATEWAY --> SANDBOX["NemoClaw Sandbox"]
-    SANDBOX --> AGENT["OpenClaw Agent Process"]
+    SANDBOX --> AGENT["Selected Agent Process<br/>OpenClaw or Hermes"]
     GATEWAY --> INFERENCE["DeepSeek compatible API"]
 ```
 
@@ -48,12 +48,12 @@ sequenceDiagram
     Runner-->>API: 202 provisioning operation
     API-->>UI: 202 Agent resource
     Runner->>OS: Create Sandbox Pod with pinned NemoClaw image
-    OS->>SB: Upload AGENTS.md and launch nemoclaw-start
-    SB->>SB: Start OpenClaw gateway and load NemoClaw plugin
+    OS->>SB: Upload platform instructions and launch nemoclaw-start
+    SB->>SB: Start selected Agent platform services
     loop Observe until terminal state
         UI->>API: GET /api/v1/agents/{id}
         API->>Runner: GET observed sandbox
-        Runner->>OS: Observe Sandbox and probe gateway /health
+        Runner->>OS: Observe Sandbox and run platform health probe
         API-->>UI: desired and observed state
     end
     User->>UI: Open terminal
@@ -61,8 +61,8 @@ sequenceDiagram
     API-->>UI: Short-lived WebSocket URL
     UI->>API: WebSocket input/output
     API->>Runner: Authenticated WebSocket proxy
-    Runner->>OS: openshell sandbox exec --tty -- openclaw tui
-    OS->>SB: Gateway-backed TUI in the running Agent Pod
+    Runner->>OS: Open platform TUI through openshell sandbox exec --tty
+    OS->>SB: Full-screen-capable TUI in the running Agent Pod
 ```
 
 ## Frontend organization
@@ -99,19 +99,23 @@ Disabled actions use native `disabled` behavior, reduced contrast, a not-allowed
   "name": "research-assistant",
   "description": "Internal research assistant",
   "runtime": "nemoclaw",
+  "agentPlatform": "openclaw",
   "provider": "deepseek",
   "model": "deepseek-chat",
   "systemPrompt": "You are a focused internal assistant..."
 }
 ```
 
-The API rejects any runtime other than `nemoclaw`, any provider other than `deepseek`, and any model outside `deepseek-chat` and `deepseek-reasoner`.
+The API rejects any runtime other than `nemoclaw`, any Agent platform outside
+`openclaw` and `hermes`, any provider other than `deepseek`, and any model
+outside `deepseek-chat` and `deepseek-reasoner`. OpenClaw remains the default
+when older clients omit `agentPlatform`.
 
 The REST response is the durable Agent resource, not raw NemoClaw CLI output. Desired configuration and observed runtime fields are separate.
 
 During creation, the runner uploads the submitted instruction section to the
-NemoClaw image's OpenClaw workspace before starting `nemoclaw-start`. READY is
-published only after the OpenClaw gateway health endpoint responds.
+selected platform's workspace before starting `nemoclaw-start`. READY is
+published only after that platform's health endpoint responds.
 
 ## DeepSeek provider boundary
 

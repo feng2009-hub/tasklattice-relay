@@ -43,3 +43,27 @@ describe("OpenShell policy assignment", () => {
     ).toBe("github-full-access");
   });
 });
+
+describe("Agent platform selection", () => {
+  const input = {
+    name: "Research Assistant",
+    description: "",
+    runtime: "nemoclaw" as const,
+    providerConnectionId: "provider-a",
+    provider: "deepseek" as const,
+    model: "deepseek-chat" as const,
+    policyId: "restricted" as const,
+    systemPrompt: "Research the request and report the resulting evidence.",
+  };
+
+  it("keeps OpenClaw as the backward-compatible default", () => {
+    expect(createAgentSchema.parse(input).agentPlatform).toBe("openclaw");
+  });
+
+  it("accepts Hermes as an explicit NemoClaw Agent platform", () => {
+    expect(
+      createAgentSchema.parse({ ...input, agentPlatform: "hermes" })
+        .agentPlatform,
+    ).toBe("hermes");
+  });
+});

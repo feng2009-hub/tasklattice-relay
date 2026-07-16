@@ -2,7 +2,7 @@
 
 TaskLattice is a multi-agent orchestration platform for scheduling, isolating, and operating Agent workloads on Kubernetes.
 
-The current product slice creates one type of Agent: an OpenClaw Agent running in an NVIDIA NemoClaw/OpenShell sandbox with DeepSeek inference.
+The current product slice creates NemoClaw Agents with either OpenClaw (the default) or Hermes inside an OpenShell sandbox with DeepSeek inference.
 
 ```text
 TanStack + shadcn/ui
@@ -13,7 +13,7 @@ TaskLattice Control API + Runtime Runner on Kubernetes
         |
         | OpenShell gRPC lifecycle + exec relay
         v
-Agent Sandbox CR -> OpenClaw Sandbox Pod + workspace PVC
+Agent Sandbox CR -> NemoClaw Sandbox Pod + workspace PVC
 ```
 
 The current source of truth is [docs/mvp-core-flow.md](docs/mvp-core-flow.md). The larger marketplace documents describe later product scope; their unused UI actions are intentionally disabled.
@@ -70,12 +70,12 @@ The Kubernetes local overlay enables this seed automatically. The seeded credent
 The preferred MVP path creates the sandbox itself as a Kubernetes Pod. The
 runner invokes OpenShell's Kubernetes driver and allocates terminals with
 `openshell sandbox exec --tty`; it does not run Docker-in-Docker or mount a
-Docker socket. Pod creation launches `nemoclaw-start` as the long-lived
-OpenShell-managed process; readiness is not published until the in-sandbox
-OpenClaw gateway answers its `/health` probe. Browser sessions open the
-Gateway-backed `openclaw tui`; the local fixture exposes an explicitly labeled
-interactive shell because it validates transport without pretending to run the
-NemoClaw stack.
+Docker socket. Pod creation launches the selected platform's `nemoclaw-start`
+supervisor as the long-lived OpenShell-managed process. Readiness is not
+published until its platform-specific health probe succeeds. Browser terminal
+sessions open either the Gateway-backed `openclaw tui` or `hermes --tui`; the
+local fixture rejects TUI allocation because it validates control contracts
+without pretending to run the NemoClaw stack.
 
 The default sandbox request is 1 CPU and 2 GiB memory. The complete NemoClaw
 runtime can be OOM-killed during gateway/plugin startup at the former 1 GiB
@@ -135,6 +135,12 @@ TALI_BASE_URL=http://127.0.0.1:18081 npm run validate:core
 See [docs/openshell-kubernetes-runtime.md](docs/openshell-kubernetes-runtime.md)
 for the topology, version pins, security boundary, and production gaps.
 
+`npm run images:build` builds both Agent platform images. Use
+`npm run images:build:sandbox:openclaw` or
+`npm run images:build:sandbox:hermes` when iterating on one platform. The
+runner resolves their image names through `OPENSHELL_SANDBOX_IMAGE` and
+`OPENSHELL_HERMES_SANDBOX_IMAGE`, respectively.
+
 ## Legacy Docker-host NemoClaw runner
 
 The alternative `nemoclaw` runner mode belongs on a dedicated runtime host with
@@ -160,7 +166,12 @@ COMPATIBLE_API_KEY=<DeepSeek secret on Runtime Host>
 ```
 
 The key is never accepted by the public REST API and never placed in process arguments. Production resolves it on the Runtime Host. The explicitly enabled local test seed is the sole exception: it loads the key from `.env`, stores it in SQLite, and sends it over the private runner API.
-After onboarding, the runner merges the submitted `systemPrompt` into `/sandbox/.openclaw/workspace/AGENTS.md` through NemoClaw's supported download/upload commands, so the configuration becomes an actual OpenClaw instruction rather than control-plane metadata only.
+After onboarding, the runner installs the submitted `systemPrompt` in the
+selected platform's supported instruction location: OpenClaw's
+`/sandbox/.openclaw/workspace/AGENTS.md` or Hermes'
+`/sandbox/.hermes/SOUL.md`. Platform-specific paths, terminal commands, probes,
+images, and endpoint types live in one runner adapter registry rather than in
+the REST or UI layers.
 
 ## Fixture-only Kubernetes control plane
 

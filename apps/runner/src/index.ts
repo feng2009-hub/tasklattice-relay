@@ -1,6 +1,8 @@
 import express from "express";
 import {
+  agentPlatformIds,
   parseTerminalResize,
+  type AgentPlatformId,
   type ProvisioningStage,
   type RunnerSandbox,
 } from "@tasklattice/contracts";
@@ -9,6 +11,7 @@ import type { Duplex } from "node:stream";
 import * as pty from "node-pty";
 import { WebSocket, WebSocketServer } from "ws";
 import { z } from "zod";
+import { getAgentPlatformRuntime } from "./agent-platform.js";
 import {
   installAgentInstructions,
   nemoClawTerminalArguments,
@@ -42,8 +45,10 @@ const mode = process.env.NEMOCLAW_RUNNER_MODE ?? "nemoclaw";
 const isOpenShell = mode === "openshell-kubernetes";
 const states = new Map<string, SandboxState>();
 const activeProvisions = new Set<string>();
+const agentPlatformSchema = z.enum(agentPlatformIds);
 const createSchema = z.object({
   name: z.string().regex(/^[a-z][a-z0-9-]{0,61}[a-z0-9]$/),
+  agentPlatform: agentPlatformSchema.default("openclaw"),
   provider: z.literal("deepseek"),
   model: z.enum(["deepseek-chat", "deepseek-reasoner"]),
   systemPrompt: z.string().min(10).max(8000),
@@ -83,6 +88,7 @@ function rejectTerminalUpgrade(
 
 async function readySandboxState(
   name: string,
+  agentPlatform: AgentPlatformId,
 ): Promise<SandboxState | undefined> {
   const local = states.get(name);
   if (local?.phase === "READY") return local;
@@ -92,6 +98,7 @@ async function readySandboxState(
   if (observed?.phase.toLowerCase() !== "ready") return undefined;
   const recovered: SandboxState = {
     name,
+    agentPlatform,
     phase: "READY",
     provisioningStage: "READY",
     logs: local?.logs ?? [],
@@ -112,6 +119,7 @@ async function provision(
   }
   try {
     let httpEndpoint: RunnerSandbox["httpEndpoint"];
+    const platformRuntime = getAgentPlatformRuntime(input.agentPlatform);
     if (process.env.DEEPSEEK_VERIFY_ON_CREATE === "1") {
       await verifyDeepSeek(input);
       state.logs.push("DeepSeek provider preflight succeeded through AI SDK.");
@@ -143,27 +151,32 @@ async function provision(
         onLog: (lines) => state.logs.push(...lines),
       });
       updateProvisioningStage(state, "RUNTIME", "Initializing NemoClaw services inside the Pod.");
-      state.logs.push(
-        "OpenClaw Agent instructions uploaded to the sandbox workspace.",
-        "NemoClaw supervisor started the OpenClaw Agent gateway.",
-        "OpenClaw gateway health check: Ready",
-      );
+      state.logs.push(...platformRuntime.startupLogs);
       try {
-        updateProvisioningStage(state, "ENDPOINT", "Publishing the OpenClaw Web UI endpoint.");
+        updateProvisioningStage(
+          state,
+          "ENDPOINT",
+          `Publishing the ${input.agentPlatform} browser endpoint.`,
+        );
         httpEndpoint = {
-          kind: "openclaw-webui",
+          kind: platformRuntime.endpointKind,
           status: "READY",
-          url: await ensureOpenShellWebUiEndpoint(input.name),
+          url: await ensureOpenShellWebUiEndpoint(
+            input.name,
+            input.agentPlatform,
+          ),
         };
-        state.logs.push("OpenClaw Web UI exposed through OpenShell service routing.");
+        state.logs.push(
+          `${input.agentPlatform} browser endpoint exposed through OpenShell service routing.`,
+        );
       } catch (error) {
         httpEndpoint = {
-          kind: "openclaw-webui",
+          kind: platformRuntime.endpointKind,
           status: "UNAVAILABLE",
           reason:
             error instanceof Error
               ? error.message
-              : "Unable to expose the OpenClaw Web UI.",
+              : `Unable to expose the ${input.agentPlatform} browser endpoint.`,
         };
         state.logs.push(`OpenClaw Web UI unavailable: ${httpEndpoint.reason}`);
       }
@@ -178,7 +191,7 @@ async function provision(
         );
       await installAgentInstructions(input);
       state.logs.push(
-        "Agent instructions installed in the OpenClaw workspace.",
+        `Agent instructions installed for ${input.agentPlatform}.`,
       );
     }
     states.set(input.name, {
@@ -213,6 +226,7 @@ app.post("/v1/sandboxes", (request, response, next) => {
     const parsedInput = createSchema.parse(request.body);
     const input: ProvisionInput = {
       name: parsedInput.name,
+      agentPlatform: parsedInput.agentPlatform,
       provider: parsedInput.provider,
       model: parsedInput.model,
       systemPrompt: parsedInput.systemPrompt,
@@ -226,6 +240,7 @@ app.post("/v1/sandboxes", (request, response, next) => {
     const operationId = crypto.randomUUID();
     const state: SandboxState = {
       name: input.name,
+      agentPlatform: input.agentPlatform,
       phase: "PROVISIONING",
       provisioningStage: "QUEUED",
       operationId,
@@ -242,6 +257,9 @@ app.post("/v1/sandboxes", (request, response, next) => {
 app.get("/v1/sandboxes/:name", async (request, response, next) => {
   try {
     const name = z.string().parse(request.params.name);
+    const agentPlatform = agentPlatformSchema.parse(
+      request.query.agentPlatform ?? "openclaw",
+    );
     const local = states.get(name);
     if (
       local?.phase === "FAILED" ||
@@ -249,7 +267,7 @@ app.get("/v1/sandboxes/:name", async (request, response, next) => {
       activeProvisions.has(name)
     )
       return void response.json(
-        local ?? { name, phase: "NOT_FOUND", logs: [] },
+        local ?? { name, agentPlatform, phase: "NOT_FOUND", logs: [] },
       );
     if (isOpenShell) {
       const observed = await observeOpenShellSandbox(name);
@@ -262,26 +280,28 @@ app.get("/v1/sandboxes/:name", async (request, response, next) => {
             ? "FAILED"
             : "PROVISIONING";
       let httpEndpoint = local?.httpEndpoint;
+      const platformRuntime = getAgentPlatformRuntime(agentPlatform);
       if (phase === "READY" && httpEndpoint?.status !== "READY") {
         try {
           httpEndpoint = {
-            kind: "openclaw-webui",
+            kind: platformRuntime.endpointKind,
             status: "READY",
-            url: await ensureOpenShellWebUiEndpoint(name),
+            url: await ensureOpenShellWebUiEndpoint(name, agentPlatform),
           };
         } catch (error) {
           httpEndpoint = {
-            kind: "openclaw-webui",
+            kind: platformRuntime.endpointKind,
             status: "UNAVAILABLE",
             reason:
               error instanceof Error
                 ? error.message
-                : "Unable to expose the OpenClaw Web UI.",
+                : `Unable to expose the ${agentPlatform} browser endpoint.`,
           };
         }
       }
       const next: SandboxState = {
         name,
+        agentPlatform,
         phase,
         ...(phase === "READY"
           ? { provisioningStage: "READY" as const }
@@ -305,6 +325,7 @@ app.get("/v1/sandboxes/:name", async (request, response, next) => {
     if (result.exitCode !== 0 && !result.stdout)
       return void response.json({
         name,
+        agentPlatform,
         phase: "FAILED",
         logs: [],
         error: result.stderr.trim(),
@@ -322,7 +343,7 @@ app.get("/v1/sandboxes/:name", async (request, response, next) => {
           : observedPhase === "failed" || observedPhase === "error"
             ? "FAILED"
             : "PROVISIONING";
-    response.json({ name, phase, logs: local?.logs ?? [] });
+    response.json({ name, agentPlatform, phase, logs: local?.logs ?? [] });
   } catch (error) {
     next(error);
   }
@@ -341,8 +362,12 @@ app.get("/v1/sandboxes/:name/audit", async (request, response, next) => {
 app.delete("/v1/sandboxes/:name", async (request, response, next) => {
   try {
     const name = z.string().parse(request.params.name);
+    const agentPlatform = agentPlatformSchema.parse(
+      request.query.agentPlatform ?? "openclaw",
+    );
     const current = states.get(name) ?? {
       name,
+      agentPlatform,
       phase: "DESTROYING" as const,
       logs: [],
     };
@@ -358,6 +383,7 @@ app.delete("/v1/sandboxes/:name", async (request, response, next) => {
     states.delete(name);
     response.status(202).json({
       name,
+      agentPlatform,
       phase: "NOT_FOUND",
       logs: [...current.logs, "Sandbox destroyed."],
     });
@@ -377,9 +403,15 @@ server.on("upgrade", async (request, socket, head) => {
   if (!match)
     return void rejectTerminalUpgrade(socket, 409, "Unknown terminal path.");
   const sandboxName = match[1] ?? "";
+  const parsedAgentPlatform = agentPlatformSchema.safeParse(
+    url.searchParams.get("agentPlatform") ?? "openclaw",
+  );
+  if (!parsedAgentPlatform.success)
+    return void rejectTerminalUpgrade(socket, 409, "Unknown Agent platform.");
+  const agentPlatform = parsedAgentPlatform.data;
   let state: SandboxState | undefined;
   try {
-    state = await readySandboxState(sandboxName);
+    state = await readySandboxState(sandboxName, agentPlatform);
   } catch (error) {
     console.error(
       `[terminal ${sandboxName}] unable to recover sandbox state: ${error instanceof Error ? error.message : "unknown error"}`,
@@ -407,8 +439,8 @@ server.on("upgrade", async (request, socket, head) => {
       const terminal = pty.spawn(
         isOpenShell ? openShellBinary() : "nemoclaw",
         isOpenShell
-          ? openShellTerminalArguments(state.name)
-          : nemoClawTerminalArguments(state.name),
+          ? openShellTerminalArguments(state.name, agentPlatform)
+          : nemoClawTerminalArguments(state.name, agentPlatform),
         {
           name: "xterm-256color",
           cols: 100,
@@ -429,13 +461,15 @@ server.on("upgrade", async (request, socket, head) => {
       terminal.onData((data) => {
         if (!receivedOutput) {
           receivedOutput = true;
-          console.info(`[terminal ${connectionId}] OpenClaw TUI produced output`);
+          console.info(
+            `[terminal ${connectionId}] ${agentPlatform} TUI produced output`,
+          );
         }
         if (webSocket.readyState === WebSocket.OPEN) webSocket.send(data);
       });
       webSocket.send(
         `Connected to NemoClaw runtime ${state.name}\r\n` +
-          "Opening the OpenClaw TUI through the in-sandbox Gateway…\r\n",
+          `Opening the ${agentPlatform} TUI inside the Sandbox…\r\n`,
       );
       terminal.onExit(({ exitCode }) => {
         console.info(

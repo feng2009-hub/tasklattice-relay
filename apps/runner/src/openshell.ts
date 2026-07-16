@@ -3,38 +3,13 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ProvisioningStage, SandboxAuditEvent } from "@tasklattice/contracts";
+import type { AgentPlatformId } from "@tasklattice/contracts";
+import { getAgentPlatformRuntime } from "./agent-platform.js";
 import { runCommand, type ProvisionInput } from "./nemoclaw.js";
 
 const providerName = process.env.OPENSHELL_DEEPSEEK_PROVIDER ?? "tasklattice-deepseek";
-const nemoClawSandboxImage =
-  process.env.OPENSHELL_SANDBOX_IMAGE ?? "tasklattice-nemoclaw-sandbox:0.3.0";
 const nemoClawGatewayPort = process.env.NEMOCLAW_DASHBOARD_PORT ?? "18789";
 const nemoClawWebUiService = "webui";
-const nemoClawBootstrapScript = `#!/usr/bin/env bash
-set -euo pipefail
-
-readonly cors_origin="\${1:?OpenClaw Web UI origin is required}"
-readonly dashboard_port="\${2:?OpenClaw dashboard port is required}"
-readonly config_file=/sandbox/.openclaw/openclaw.json
-readonly hash_file=/sandbox/.openclaw/.config-hash
-
-node - "$config_file" "$cors_origin" <<'NODE'
-const fs = require("node:fs");
-const [configFile, corsOrigin] = process.argv.slice(2);
-const config = JSON.parse(fs.readFileSync(configFile, "utf8"));
-const controlUi = (config.gateway ??= {}).controlUi ??= {};
-const origins = Array.isArray(controlUi.allowedOrigins)
-  ? controlUi.allowedOrigins
-  : [];
-controlUi.allowedOrigins = [...new Set([...origins, corsOrigin])];
-fs.writeFileSync(configFile, JSON.stringify(config, null, 2) + "\\n", {
-  mode: 0o660,
-});
-NODE
-
-(cd "$(dirname "$config_file")" && sha256sum "$(basename "$config_file")" >"$hash_file")
-exec env "NEMOCLAW_DASHBOARD_PORT=$dashboard_port" /usr/local/bin/nemoclaw-start
-`;
 
 export interface OpenShellSandbox {
   name: string;
@@ -165,13 +140,14 @@ export function openShellSandboxCreateArguments(
   bootstrapFile: string,
   policyFile: string,
 ): string[] {
+  const runtime = getAgentPlatformRuntime(input.agentPlatform);
   return openShellArguments([
     "sandbox",
     "create",
     "--name",
     input.name,
     "--from",
-    nemoClawSandboxImage,
+    runtime.sandboxImage(),
     "--cpu",
     process.env.OPENSHELL_SANDBOX_CPU ?? "1",
     "--memory",
@@ -183,19 +159,21 @@ export function openShellSandboxCreateArguments(
     "--label",
     "tasklattice.ai/managed=true",
     "--upload",
-    `${instructionsFile}:/sandbox/.openclaw/workspace/AGENTS.md`,
+    `${instructionsFile}:${runtime.instructionsPath}`,
     "--upload",
     `${bootstrapFile}:/tmp/tali-nemoclaw-start`,
     "--no-tty",
     "--",
     "/bin/bash",
     "/tmp/tali-nemoclaw-start",
-    openShellWebUiOrigin(input.name),
-    nemoClawGatewayPort,
   ]);
 }
 
-export function openShellNemoClawProbeArguments(name: string): string[] {
+export function openShellNemoClawProbeArguments(
+  name: string,
+  agentPlatform: AgentPlatformId,
+): string[] {
+  const runtime = getAgentPlatformRuntime(agentPlatform);
   return openShellArguments([
     "sandbox",
     "exec",
@@ -204,11 +182,15 @@ export function openShellNemoClawProbeArguments(name: string): string[] {
     "--",
     "/bin/sh",
     "-lc",
-    `test -x /usr/local/bin/nemoclaw-start && test -f /sandbox/.openclaw/openclaw.json && curl -fsS --max-time 3 http://127.0.0.1:${nemoClawGatewayPort}/health >/dev/null`,
+    runtime.healthProbe(nemoClawGatewayPort),
   ]);
 }
 
-export function openShellTerminalArguments(name: string): string[] {
+export function openShellTerminalArguments(
+  name: string,
+  agentPlatform: AgentPlatformId,
+): string[] {
+  const runtime = getAgentPlatformRuntime(agentPlatform);
   return openShellArguments([
     "sandbox",
     "exec",
@@ -224,7 +206,7 @@ export function openShellTerminalArguments(name: string): string[] {
     "--",
     "/bin/bash",
     "-lc",
-    "exec openclaw tui",
+    runtime.terminalCommand,
   ]);
 }
 
@@ -318,6 +300,7 @@ export function parseOpenShellServiceUrl(output: string): string | undefined {
 
 export async function ensureOpenShellWebUiEndpoint(
   name: string,
+  agentPlatform: AgentPlatformId,
 ): Promise<string> {
   const existing = await runCommand(
     openShellBinary(),
@@ -337,6 +320,8 @@ export async function ensureOpenShellWebUiEndpoint(
           "OpenShell did not return a NemoClaw Web UI endpoint.",
       );
   }
+
+  if (agentPlatform === "hermes") return endpointUrl;
 
   if (new URL(endpointUrl).origin !== openShellWebUiOrigin(name))
     throw new Error(
@@ -420,7 +405,10 @@ async function createOpenShellNemoClawSandbox(
       try {
         const probe = await runCommand(
           openShellBinary(),
-          openShellNemoClawProbeArguments(input.name),
+          openShellNemoClawProbeArguments(
+            input.name,
+            input.agentPlatform,
+          ),
         );
         if (probe.exitCode === 0) {
           // The startup command is intentionally long-lived. Match NemoClaw's
@@ -518,6 +506,7 @@ export async function provisionOpenShellSandbox(
     );
 
   const temporaryDirectory = await mkdtemp(join(tmpdir(), "tasklattice-openshell-"));
+  const runtime = getAgentPlatformRuntime(input.agentPlatform);
   const instructionsFile = join(temporaryDirectory, "AGENTS.md");
   const bootstrapFile = join(temporaryDirectory, "tali-nemoclaw-start");
   const policyFile = join(temporaryDirectory, "openshell-policy.yaml");
@@ -527,7 +516,14 @@ export async function provisionOpenShellSandbox(
       `## TaskLattice Agent Instructions\n\n${input.systemPrompt.trim()}\n`,
       { mode: 0o600 },
     );
-    await writeFile(bootstrapFile, nemoClawBootstrapScript, { mode: 0o600 });
+    await writeFile(
+      bootstrapFile,
+      runtime.bootstrapScript(
+        openShellWebUiOrigin(input.name),
+        nemoClawGatewayPort,
+      ),
+      { mode: 0o600 },
+    );
     await writeFile(policyFile, input.policyYaml ?? "version: 1\n", {
       mode: 0o600,
     });

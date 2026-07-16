@@ -36,9 +36,12 @@ export default defineHandler(async (event) => {
         },
         { status: 409 },
       );
-    return jsonResponse(createTerminalSession(id, agent.sandboxName), {
-      status: 201,
-    });
+    return jsonResponse(
+      createTerminalSession(id, agent.sandboxName, agent.agentPlatform),
+      {
+        status: 201,
+      },
+    );
   } catch (error) {
     return errorResponse(error);
   }

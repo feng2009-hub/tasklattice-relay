@@ -235,11 +235,18 @@ export const openApiDocument = {
       CreateAgentInput: {
         type: "object",
         additionalProperties: false,
-        required: ["name", "runtime", "providerConnectionId", "provider", "model", "policyId", "systemPrompt"],
+        required: ["name", "runtime", "agentPlatform", "providerConnectionId", "provider", "model", "policyId", "systemPrompt"],
         properties: {
           name: { type: "string", minLength: 3, maxLength: 48 },
           description: { type: "string", maxLength: 240, default: "" },
           runtime: { type: "string", const: "nemoclaw" },
+          agentPlatform: {
+            type: "string",
+            enum: ["openclaw", "hermes"],
+            default: "openclaw",
+            description:
+              "Agent implementation provisioned inside the NemoClaw runtime.",
+          },
           providerConnectionId: { type: "string", description: "Validated Provider connection selected for this Instance." },
           provider: { type: "string", const: "deepseek" },
           model: { type: "string", enum: ["deepseek-chat", "deepseek-reasoner"] },
@@ -273,7 +280,10 @@ export const openApiDocument = {
         type: "object",
         required: ["kind", "status"],
         properties: {
-          kind: { type: "string", const: "openclaw-webui" },
+          kind: {
+            type: "string",
+            enum: ["openclaw-webui", "hermes-dashboard"],
+          },
           status: { type: "string", enum: ["READY", "UNAVAILABLE"] },
           url: { type: "string", format: "uri" },
           reason: { type: "string" },

@@ -1,4 +1,5 @@
 import type {
+  AgentPlatformId,
   AgentModel,
   RunnerHealth,
   RunnerSandbox,
@@ -7,6 +8,7 @@ import type {
 
 export interface CreateSandboxInput {
   name: string;
+  agentPlatform: AgentPlatformId;
   provider: "deepseek";
   model: AgentModel;
   policyYaml: string;
@@ -53,9 +55,12 @@ export class NemoClawRunnerClient {
     });
   }
 
-  getSandbox(name: string): Promise<RunnerSandbox> {
+  getSandbox(
+    name: string,
+    agentPlatform: AgentPlatformId,
+  ): Promise<RunnerSandbox> {
     return this.request<RunnerSandbox>(
-      `/v1/sandboxes/${encodeURIComponent(name)}`,
+      `/v1/sandboxes/${encodeURIComponent(name)}?agentPlatform=${agentPlatform}`,
     );
   }
 
@@ -67,9 +72,12 @@ export class NemoClawRunnerClient {
     ).data;
   }
 
-  destroySandbox(name: string): Promise<RunnerSandbox> {
+  destroySandbox(
+    name: string,
+    agentPlatform: AgentPlatformId,
+  ): Promise<RunnerSandbox> {
     return this.request<RunnerSandbox>(
-      `/v1/sandboxes/${encodeURIComponent(name)}`,
+      `/v1/sandboxes/${encodeURIComponent(name)}?agentPlatform=${agentPlatform}`,
       { method: "DELETE" },
     );
   }
@@ -78,10 +86,14 @@ export class NemoClawRunnerClient {
     return this.request<RunnerHealth>("/health");
   }
 
-  terminalWebSocketUrl(name: string): string {
+  terminalWebSocketUrl(
+    name: string,
+    agentPlatform: AgentPlatformId,
+  ): string {
     const url = new URL(this.baseUrl);
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
     url.pathname = `/v1/sandboxes/${encodeURIComponent(name)}/terminal`;
+    url.searchParams.set("agentPlatform", agentPlatform);
     return url.toString();
   }
 

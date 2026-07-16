@@ -10,6 +10,7 @@ describe("AgentStore", () => {
       name: "Research",
       description: "",
       runtime: "nemoclaw",
+      agentPlatform: "openclaw",
       providerConnectionId: "provider-a",
       sandboxName: "tasklattice-research-a",
       status: "PROVISIONING",

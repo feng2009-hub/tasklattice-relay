@@ -3,6 +3,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Terminal as Xterm } from "@xterm/xterm";
 import {
   encodeTerminalResize,
+  type AgentPlatformId,
   type RuntimeStatus,
 } from "@tasklattice/contracts";
 import "@xterm/xterm/css/xterm.css";
@@ -22,6 +23,8 @@ import {
   type TerminalSession,
   type TerminalSessionEvent,
 } from "@/lib/terminal-session";
+import { getAgentPlatformPresentation } from "@/lib/agent-platforms";
+import { cn } from "@/lib/utils";
 
 export type TerminalConnectionState =
   | "idle"
@@ -33,19 +36,24 @@ export type TerminalConnectionState =
 
 export function AgentTerminal({
   agentId,
+  agentPlatform,
   enabled,
+  fill = false,
   onRecheckRuntime,
   runtimeChecking,
   runtimeError,
   runtimeStatus,
 }: {
   agentId: string;
+  agentPlatform: AgentPlatformId;
   enabled: boolean;
+  fill?: boolean;
   onRecheckRuntime: () => void;
   runtimeChecking: boolean;
   runtimeError?: string | undefined;
   runtimeStatus?: RuntimeStatus | undefined;
 }) {
+  const platform = getAgentPlatformPresentation(agentPlatform);
   const container = useRef<HTMLDivElement>(null);
   const [connectionState, setConnectionState] =
     useState<TerminalConnectionState>("idle");
@@ -77,7 +85,9 @@ export function AgentTerminal({
     const fit = new FitAddon();
     terminal.loadAddon(fit);
     terminal.open(container.current);
-    terminal.writeln("\x1b[2mOpening the NemoClaw TUI for this Agent…\x1b[0m");
+    terminal.writeln(
+      `\x1b[2mOpening ${platform.terminalLabel} for this Agent…\x1b[0m`,
+    );
     terminal.writeln(
       "\x1b[2mDetecting the Sandbox runtime before opening its terminal…\x1b[0m",
     );
@@ -91,7 +101,7 @@ export function AgentTerminal({
     const connectionTimer = window.setTimeout(() => {
       if (disposed || session?.connected) return;
       const message =
-        "NemoClaw TUI connection timed out. Reconnect the TUI or inspect Sandbox activity.";
+        `${platform.terminalLabel} connection timed out. Reconnect the TUI or inspect Sandbox activity.`;
       setError(message);
       setConnectionState("error");
       terminal.writeln(`\r\n\x1b[31m${message}\x1b[0m`);
@@ -117,7 +127,7 @@ export function AgentTerminal({
       runtimeTimer = window.setTimeout(() => {
         if (disposed || session?.interactive) return;
         const message =
-          "NemoClaw connected, but OpenClaw TUI did not produce a frame. Reconnect the TUI or inspect Sandbox activity.";
+          `NemoClaw connected, but ${platform.terminalLabel} did not produce a frame. Reconnect the TUI or inspect Sandbox activity.`;
         setError(message);
         setConnectionState("error");
         terminal.writeln(`\r\n\x1b[31m${message}\x1b[0m`);
@@ -125,7 +135,7 @@ export function AgentTerminal({
           session?.socket.readyState === WebSocket.OPEN ||
           session?.socket.readyState === WebSocket.CONNECTING
         )
-          session.socket.close(4000, "OpenClaw TUI frame timed out");
+          session.socket.close(4000, `${platform.name} TUI frame timed out`);
       }, 20_000);
     };
 
@@ -164,7 +174,7 @@ export function AgentTerminal({
           if (disposed) return;
           if (event.type === "open") {
             terminal.writeln(
-              "\x1b[2mSession connected; launching openclaw tui inside the Sandbox…\x1b[0m",
+              `\x1b[2mSession connected; launching ${platform.terminalLabel} inside the Sandbox…\x1b[0m`,
             );
             sendResize();
             terminal.focus();
@@ -223,7 +233,7 @@ export function AgentTerminal({
       inputSubscription.dispose();
       terminal.dispose();
     };
-  }, [agentId, attempt, requested]);
+  }, [agentId, attempt, platform.name, platform.terminalLabel, requested]);
 
   const retry = () => {
     resetTerminalSession(`agent/${agentId}`);
@@ -234,12 +244,12 @@ export function AgentTerminal({
 
   if (runtimeError || (runtimeStatus && !runtimeStatus.terminal.available)) {
     return (
-      <div className="grid min-h-[300px] border bg-muted/20 md:grid-cols-[1.15fr_0.85fr]">
+      <div className={cn("grid min-h-[300px] border bg-muted/20 md:grid-cols-[1.15fr_0.85fr]", fill && "h-full min-h-0")}>
         <div className="flex flex-col justify-between gap-8 border-b p-5 md:border-r md:border-b-0">
           <div>
             <div className="flex items-center gap-2 font-medium">
               <AlertTriangle className="size-4 text-amber-600" />
-              NemoClaw TUI unavailable
+              {platform.terminalLabel} unavailable
             </div>
             <p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground">
               {runtimeError ?? runtimeStatus?.terminal.reason}
@@ -283,7 +293,7 @@ export function AgentTerminal({
 
   if (!runtimeStatus || !enabled || !requested)
     return (
-      <div className="grid min-h-[300px] place-items-center border bg-muted/20 px-6 text-center">
+      <div className={cn("grid min-h-[300px] place-items-center border bg-muted/20 px-6 text-center", fill && "h-full min-h-0")}>
         <div>
           <SquareTerminal className="mx-auto size-6 text-muted-foreground" />
           <p className="mt-3 text-sm font-medium">
@@ -291,7 +301,7 @@ export function AgentTerminal({
               ? "Checking NemoClaw runtime…"
               : !enabled
                 ? "Waiting for the Sandbox to become ready…"
-                : "Preparing NemoClaw TUI…"}
+                : `Preparing ${platform.terminalLabel}…`}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             The TUI opens only after the in-sandbox Gateway is available.
@@ -302,15 +312,15 @@ export function AgentTerminal({
 
   const ready = connectionState === "ready";
   const status = ready
-    ? "OpenClaw TUI ready — connected through the NemoClaw Gateway"
+    ? `${platform.terminalLabel} ready — connected through NemoClaw`
     : connectionState === "starting"
-      ? "NemoClaw connected — waiting for the first OpenClaw TUI frame…"
+      ? `NemoClaw connected — waiting for the first ${platform.name} TUI frame…`
       : connectionState === "closed"
         ? "Terminal session closed"
         : (error ?? "Connecting to the NemoClaw Sandbox…");
 
   return (
-    <div>
+    <div className={cn("flex min-h-0 flex-col", fill && "h-full")}>
       <div className="mb-2 flex min-h-11 flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
         <span className="flex items-center gap-2">
           <span
@@ -332,8 +342,11 @@ export function AgentTerminal({
       </div>
       <div
         ref={container}
-        aria-label="Interactive NemoClaw OpenClaw TUI"
-        className="h-[360px] cursor-text overflow-hidden rounded-sm border bg-[#0b0f0e] p-2"
+        aria-label={`Interactive NemoClaw ${platform.name} TUI`}
+        className={cn(
+          "cursor-text overflow-hidden rounded-sm border bg-[#0b0f0e] p-2",
+          fill ? "min-h-0 flex-1" : "h-[min(58vh,560px)] min-h-[420px]",
+        )}
       />
     </div>
   );

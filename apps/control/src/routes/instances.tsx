@@ -17,6 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { getAgentPlatformPresentation } from "@/lib/agent-platforms";
 
 export const Route = createFileRoute("/instances")({ component: Instances });
 
@@ -33,7 +34,7 @@ function Instances() {
   const filtered = useMemo(
     () =>
       (agents.data ?? []).filter((agent) =>
-        `${agent.name} ${agent.id} ${agent.sandboxName}`
+        `${agent.name} ${agent.id} ${agent.sandboxName} ${getAgentPlatformPresentation(agent.agentPlatform).name}`
           .toLowerCase()
           .includes(query.trim().toLowerCase()),
       ),
@@ -101,7 +102,7 @@ function Instances() {
                   />
                   <span className="pointer-events-none relative z-10 min-w-0">
                     <strong className="block truncate font-medium">{agent.name}</strong>
-                    <span className="mt-1 block truncate font-mono text-xs text-muted-foreground">{agent.id.slice(0, 8)}</span>
+                    <span className="mt-1 block truncate font-mono text-xs text-muted-foreground">{agent.id.slice(0, 8)} · {getAgentPlatformPresentation(agent.agentPlatform).name}</span>
                   </span>
                   <span className="pointer-events-none relative z-10 hidden truncate font-mono text-xs sm:block">{agent.sandboxName}</span>
                   <span className="pointer-events-none relative z-10 hidden text-xs text-muted-foreground sm:block">

@@ -15,10 +15,13 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { useMediaQuery } from "@/hooks/use-media-query";
+import { getAgentPlatformPresentation } from "@/lib/agent-platforms";
 
 function InstanceFacts({ instance }: { instance: Agent }) {
+  const platform = getAgentPlatformPresentation(instance.agentPlatform);
   const facts = [
-    { label: "Runtime", value: "NemoClaw / OpenClaw" },
+    { label: "Runtime", value: platform.runtimeName },
+    { label: "Agent platform", value: platform.name },
     { label: "Model", value: instance.model },
     { label: "OpenShell Sandbox", value: instance.sandboxName },
     { label: "Observed", value: instance.runtimePhase ?? instance.status },
@@ -38,6 +41,7 @@ function InstanceFacts({ instance }: { instance: Agent }) {
 }
 
 function InstanceActions({ instance }: { instance: Agent }) {
+  const platform = getAgentPlatformPresentation(instance.agentPlatform);
   const endpointReady = instance.httpEndpoint?.status === "READY" && Boolean(instance.httpEndpoint.url);
 
   return (
@@ -45,16 +49,16 @@ function InstanceActions({ instance }: { instance: Agent }) {
       {endpointReady && instance.httpEndpoint?.url ? (
         <Button asChild className="h-11">
           <a href={instance.httpEndpoint.url} target="_blank" rel="noreferrer">
-            <Globe2 /> Open HTTP Endpoint <ExternalLink className="ml-auto" />
+            <Globe2 /> Open {platform.endpointLabel} <ExternalLink className="ml-auto" />
           </a>
         </Button>
       ) : (
         <>
-          <Button variant="outline" className="h-11" disabled><Globe2 /> HTTP Endpoint</Button>
+          <Button variant="outline" className="h-11" disabled><Globe2 /> {platform.endpointLabel}</Button>
           <p className="text-xs leading-5 text-muted-foreground">
             {instance.status === "READY"
-              ? instance.httpEndpoint?.reason ?? "OpenShell has not published the Web UI endpoint yet."
-              : "The Web UI endpoint becomes available when this Instance is Ready."}
+              ? instance.httpEndpoint?.reason ?? `OpenShell has not published the ${platform.endpointLabel} yet.`
+              : `The ${platform.endpointLabel} becomes available when this Instance is Ready.`}
           </p>
         </>
       )}

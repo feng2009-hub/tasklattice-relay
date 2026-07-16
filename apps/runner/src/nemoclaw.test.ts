@@ -24,6 +24,7 @@ describe("NemoClaw command contract", () => {
     vi.stubEnv("DEEPSEEK_API_KEY", "host-secret-value");
     const command = onboardCommand({
       name: "tasklattice-research-a1b2c3d4",
+      agentPlatform: "openclaw",
       provider: "deepseek",
       model: "deepseek-chat",
       systemPrompt: "You are a research agent.",
@@ -35,11 +36,26 @@ describe("NemoClaw command contract", () => {
     expect(command.env.NEMOCLAW_ENDPOINT_URL).toBe("https://api.deepseek.com");
     expect(command.env.COMPATIBLE_API_KEY).toBe("database-secret-value");
   });
+
+  it("selects Hermes through the same NemoClaw onboarding contract", () => {
+    const command = onboardCommand({
+      name: "tasklattice-hermes-a1b2c3d4",
+      agentPlatform: "hermes",
+      provider: "deepseek",
+      model: "deepseek-chat",
+      systemPrompt: "You are a research agent.",
+      apiKey: "database-secret-value",
+    });
+
+    expect(command.args).toContain("hermes");
+    expect(command.args).not.toContain("openclaw");
+  });
 });
 
 describe("OpenShell Kubernetes command contract", () => {
   const input = {
     name: "tasklattice-research-a1b2c3d4",
+    agentPlatform: "openclaw" as const,
     provider: "deepseek" as const,
     model: "deepseek-chat" as const,
     systemPrompt: "You are a research agent.",
@@ -73,11 +89,9 @@ describe("OpenShell Kubernetes command contract", () => {
     expect(args).toContain("/tmp/openshell-policy.yaml");
     expect(args).toContain("1");
     expect(args).toContain("2Gi");
-    expect(args.slice(-4)).toEqual([
+    expect(args.slice(-2)).toEqual([
       "/bin/bash",
       "/tmp/tali-nemoclaw-start",
-      "http://tasklattice-research-a1b2c3d4--webui.openshell.localhost:8080",
-      "18789",
     ]);
   });
 
@@ -108,7 +122,10 @@ describe("OpenShell Kubernetes command contract", () => {
   });
 
   it("only marks the runtime healthy after the NemoClaw gateway responds", () => {
-    const args = openShellNemoClawProbeArguments(input.name);
+    const args = openShellNemoClawProbeArguments(
+      input.name,
+      input.agentPlatform,
+    );
     expect(args).toContain(input.name);
     expect(args.at(-1)).toContain("/usr/local/bin/nemoclaw-start");
     expect(args.at(-1)).toContain("/sandbox/.openclaw/openclaw.json");
@@ -116,7 +133,7 @@ describe("OpenShell Kubernetes command contract", () => {
   });
 
   it("opens only the Gateway-backed OpenClaw TUI", () => {
-    const args = openShellTerminalArguments(input.name);
+    const args = openShellTerminalArguments(input.name, input.agentPlatform);
     expect(args).toContain(input.name);
     expect(args).toContain("--tty");
     expect(args).toContain("--timeout");
@@ -127,7 +144,7 @@ describe("OpenShell Kubernetes command contract", () => {
   });
 
   it("launches the OpenClaw TUI through a NemoClaw exec PTY", () => {
-    const args = nemoClawTerminalArguments(input.name);
+    const args = nemoClawTerminalArguments(input.name, input.agentPlatform);
     expect(args.slice(0, 7)).toEqual([
       input.name,
       "exec",
@@ -138,6 +155,37 @@ describe("OpenShell Kubernetes command contract", () => {
       "--",
     ]);
     expect(args.at(-1)).toBe("exec openclaw tui");
+  });
+
+  it("uses the Hermes image, state path, health probe, and TUI adapter", () => {
+    const hermesInput = { ...input, agentPlatform: "hermes" as const };
+    const createArgs = openShellSandboxCreateArguments(
+      hermesInput,
+      "/tmp/SOUL.md",
+      "/tmp/tali-nemoclaw-start",
+      "/tmp/openshell-policy.yaml",
+    );
+
+    expect(createArgs).toContain("tasklattice-nemoclaw-hermes-sandbox:0.3.0");
+    expect(createArgs).toContain("/tmp/SOUL.md:/sandbox/.hermes/SOUL.md");
+    expect(
+      openShellNemoClawProbeArguments(
+        hermesInput.name,
+        hermesInput.agentPlatform,
+      ).at(-1),
+    ).toContain("127.0.0.1:8642/health");
+    expect(
+      openShellTerminalArguments(
+        hermesInput.name,
+        hermesInput.agentPlatform,
+      ).at(-1),
+    ).toBe("exec hermes --tui");
+    expect(
+      nemoClawTerminalArguments(
+        hermesInput.name,
+        hermesInput.agentPlatform,
+      ).at(-1),
+    ).toBe("exec hermes --tui");
   });
 
   it("exposes the NemoClaw Web UI as a named OpenShell service", () => {

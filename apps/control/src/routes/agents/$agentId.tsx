@@ -4,18 +4,12 @@ import { ArrowRight, Bot, Box, Container, Cpu, ExternalLink, FileLock2, Globe2, 
 import { sandboxPolicies } from "@tasklattice/contracts";
 import { AgentStatusBadge } from "@/components/agents/agent-status-badge";
 import { ProvisioningActivity } from "@/components/agents/provisioning-activity";
-import { AgentTerminal } from "@/components/terminal";
+import { AgentTerminalWorkspace } from "@/components/agents/agent-terminal-workspace";
 import { PageHeader } from "@/components/layout/page-header";
 import { DetailCard } from "@/components/shared/detail-card";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
+import { getAgentPlatformPresentation } from "@/lib/agent-platforms";
 
 export const Route = createFileRoute("/agents/$agentId")({
   component: AgentDetail,
@@ -25,7 +19,7 @@ function endpointDisplayUrl(value: string): string {
   try {
     return new URL(value).origin;
   } catch {
-    return "OpenClaw Web UI";
+    return "Agent endpoint";
   }
 }
 
@@ -57,6 +51,7 @@ function AgentDetail() {
   const policy = sandboxPolicies.find(
     (item) => item.id === (agent.data.policyId ?? "restricted"),
   );
+  const platform = getAgentPlatformPresentation(agent.data.agentPlatform);
   const hierarchy: Array<{ icon: LucideIcon; label: string; value: string }> = [
     { icon: Bot, label: "Agent", value: "Desired identity" },
     { icon: Cpu, label: "Instance", value: agent.data.id.slice(0, 8) },
@@ -99,8 +94,21 @@ function AgentDetail() {
           action={<Link to="/agent/sandboxes/runtime" className="min-h-11 content-center text-xs font-medium text-foreground underline underline-offset-4">Open Sandbox audit</Link>}
         />
       ) : null}
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <DetailCard icon={Box} label="Runtime" value="NemoClaw / OpenClaw" />
+      <AgentTerminalWorkspace
+        agentId={agentId}
+        agentName={agent.data.name}
+        agentPlatform={agent.data.agentPlatform}
+        enabled={agent.data.status === "READY"}
+        runtimeStatus={runtime.data}
+        runtimeError={
+          runtime.error instanceof Error ? runtime.error.message : undefined
+        }
+        runtimeChecking={runtime.isFetching}
+        onRecheckRuntime={() => void runtime.refetch()}
+      />
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <DetailCard icon={Box} label="Runtime" value={platform.runtimeName} />
+        <DetailCard icon={Bot} label="Agent platform" value={platform.name} />
         <DetailCard
           icon={Cpu}
           label="Provider"
@@ -124,10 +132,11 @@ function AgentDetail() {
         <div className="min-w-0">
           <h2 id="http-endpoint-title" className="flex items-center gap-2 text-base font-semibold">
             <Globe2 className="size-4" />
-            HTTP Endpoint
+            {platform.endpointLabel}
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Open the NemoClaw / OpenClaw Web UI exposed through OpenShell service routing.
+            Open the {platform.name} browser surface exposed through OpenShell
+            service routing.
           </p>
           {agent.data.httpEndpoint?.status === "READY" && agent.data.httpEndpoint.url ? (
             <p className="mt-2 truncate font-mono text-xs text-muted-foreground">
@@ -137,7 +146,7 @@ function AgentDetail() {
             <p role="status" className="mt-2 text-xs text-muted-foreground">
               {agent.data.status === "READY"
                 ? agent.data.httpEndpoint?.reason ??
-                  "OpenShell has not published the Web UI endpoint yet."
+                  `OpenShell has not published the ${platform.endpointLabel} yet.`
                 : "Available after the Instance reaches Ready."}
             </p>
           )}
@@ -149,40 +158,15 @@ function AgentDetail() {
               target="_blank"
               rel="noreferrer"
             >
-              Open Web UI <ExternalLink />
+              Open {platform.endpointLabel} <ExternalLink />
             </a>
           </Button>
         ) : (
           <Button className="h-11" disabled>
-            Open Web UI
+            Open {platform.endpointLabel}
           </Button>
         )}
       </section>
-      <Card id="terminal" className="scroll-mt-24">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Container className="size-4" />
-            NemoClaw TUI
-          </CardTitle>
-          <CardDescription>
-            Interactive OpenClaw client attached to this Agent&apos;s in-sandbox
-            Gateway through OpenShell. This surface never falls back to the
-            runner host shell.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <AgentTerminal
-            agentId={agentId}
-            enabled={agent.data.status === "READY"}
-            runtimeStatus={runtime.data}
-            runtimeError={
-              runtime.error instanceof Error ? runtime.error.message : undefined
-            }
-            runtimeChecking={runtime.isFetching}
-            onRecheckRuntime={() => void runtime.refetch()}
-          />
-        </CardContent>
-      </Card>
     </div>
   );
 }

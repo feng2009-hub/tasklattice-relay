@@ -3,7 +3,11 @@ import type { Agent, ProviderConnection } from "@tasklattice/contracts";
 
 function parseAgent(payload: string): Agent {
   const agent = JSON.parse(payload) as Agent;
-  return agent.policyId ? agent : { ...agent, policyId: "restricted" };
+  return {
+    ...agent,
+    agentPlatform: agent.agentPlatform ?? "openclaw",
+    policyId: agent.policyId ?? "restricted",
+  };
 }
 
 function parseProviderConnection(payload: string): ProviderConnection {

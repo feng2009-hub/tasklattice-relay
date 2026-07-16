@@ -108,6 +108,7 @@ export class AgentService {
           agent,
           await this.runner.createSandbox({
             name: agent.sandboxName,
+            agentPlatform: agent.agentPlatform,
             provider: connection.provider,
             model: connection.model,
             policyYaml: policy.policyYaml,
@@ -138,7 +139,7 @@ export class AgentService {
       status: "DESTROYING",
       updatedAt: new Date().toISOString(),
     });
-    await this.runner.destroySandbox(agent.sandboxName);
+    await this.runner.destroySandbox(agent.sandboxName, agent.agentPlatform);
     this.store.delete(id);
     return true;
   }
@@ -158,6 +159,7 @@ export class AgentService {
       name: "DeepSeek NemoClaw Demo",
       description: "Seeded local Agent for the NemoClaw core-flow test.",
       runtime: "nemoclaw",
+      agentPlatform: "openclaw",
       providerConnectionId: localDeepSeekConnectionId,
       sandboxName: agentSandboxName("DeepSeek NemoClaw Demo", demoAgentId),
       status: "PROVISIONING",
@@ -178,6 +180,7 @@ export class AgentService {
     try {
       const request = {
         name: agent.sandboxName,
+        agentPlatform: agent.agentPlatform,
         provider: agent.provider,
         model: agent.model,
         policyYaml: sandboxPolicies[0].policyYaml,
@@ -193,7 +196,10 @@ export class AgentService {
           !error.message.includes("already exists")
         )
           throw error;
-        observed = await this.runner.getSandbox(agent.sandboxName);
+        observed = await this.runner.getSandbox(
+          agent.sandboxName,
+          agent.agentPlatform,
+        );
       }
       agent = this.store.save(applyObservedState(agent, observed));
     } catch (error) {
@@ -215,7 +221,7 @@ export class AgentService {
       return this.store.save(
         applyObservedState(
           agent,
-          await this.runner.getSandbox(agent.sandboxName),
+          await this.runner.getSandbox(agent.sandboxName, agent.agentPlatform),
         ),
       );
     } catch (error) {

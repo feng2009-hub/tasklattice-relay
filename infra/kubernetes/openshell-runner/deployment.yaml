@@ -45,6 +45,8 @@ spec:
               value: http://openshell.localhost:8080
             - name: OPENSHELL_SANDBOX_IMAGE
               value: tasklattice-nemoclaw-sandbox:0.3.0
+            - name: OPENSHELL_HERMES_SANDBOX_IMAGE
+              value: tasklattice-nemoclaw-hermes-sandbox:0.3.0
           readinessProbe:
             httpGet:
               path: /health

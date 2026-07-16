@@ -2,9 +2,14 @@ import { useEffect, useState, type ReactNode } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { sandboxPolicies } from "@tasklattice/contracts";
+import {
+  defaultAgentPlatformId,
+  sandboxPolicies,
+  type AgentPlatformId,
+} from "@tasklattice/contracts";
 import { ArrowLeft, ArrowRight, Bot, Check, Cpu, LockKeyhole, Network, ServerCog, Sparkles } from "lucide-react";
 import { BlueprintRow, CreateInstanceLayout, InstanceBlueprint, type CreateInstanceStep } from "@/components/agents/create-instance-layout";
+import { AgentPlatformPicker } from "@/components/agents/agent-platform-picker";
 import { PageHeader } from "@/components/layout/page-header";
 import { api } from "@/lib/api";
 import { mcpServerPreviews, skillPreviews } from "@/lib/preview-data";
@@ -18,12 +23,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { getAgentPlatformPresentation } from "@/lib/agent-platforms";
 
 export const Route = createFileRoute("/agents/new")({ component: CreateAgent });
 
 const steps: readonly CreateInstanceStep[] = [
   { label: "Identity", description: "Name and instruct the Agent" },
-  { label: "Runtime", description: "Choose a validated model" },
+  { label: "Runtime", description: "Choose an Agent platform and model" },
   { label: "Extensions", description: "Attach Skills and MCP" },
   { label: "Review", description: "Confirm and create" },
 ];
@@ -53,6 +59,7 @@ function CreateAgent() {
       name: "",
       description: "",
       runtime: "nemoclaw" as const,
+      agentPlatform: defaultAgentPlatformId as AgentPlatformId,
       providerConnectionId: "",
       provider: "deepseek" as const,
       model: "deepseek-chat" as "deepseek-chat" | "deepseek-reasoner",
@@ -84,6 +91,15 @@ function CreateAgent() {
         blueprint={
           <InstanceBlueprint>
             <BlueprintRow icon={Cpu} label="Runtime" value="NemoClaw" />
+            <form.Subscribe selector={(state) => state.values.agentPlatform}>
+              {(agentPlatform) => (
+                <BlueprintRow
+                  icon={Bot}
+                  label="Agent platform"
+                  value={getAgentPlatformPresentation(agentPlatform).name}
+                />
+              )}
+            </form.Subscribe>
             <BlueprintRow icon={Network} label="Provider" value={selectedConnection?.name ?? "Required"} />
             <form.Subscribe selector={(state) => state.values.policyId}>{(policyId) => <BlueprintRow icon={LockKeyhole} label="Policy" value={sandboxPolicies.find((policy) => policy.id === policyId)?.name ?? String(policyId)} />}</form.Subscribe>
             <BlueprintRow icon={Sparkles} label="Skills" value={`${selectedSkills.length} selected`} />
@@ -109,8 +125,16 @@ function CreateAgent() {
             <Card>
               <CardHeader><CardTitle className="flex items-center gap-2"><Cpu className="size-5" /> Runtime & model</CardTitle><CardDescription>The core provisioning flow exposes only validated Provider choices.</CardDescription></CardHeader>
               <CardContent className="space-y-5">
+                <form.Field name="agentPlatform">
+                  {(field) => (
+                    <AgentPlatformPicker
+                      value={field.state.value}
+                      onValueChange={field.handleChange}
+                    />
+                  )}
+                </form.Field>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2"><Label>Agent runtime</Label><Select value="nemoclaw"><SelectTrigger><span className="flex items-center gap-2"><img src="/assets/brands/nvidia-logo-square.png" alt="" className="size-5 object-contain" />NemoClaw</span></SelectTrigger><SelectContent><SelectItem value="nemoclaw">NemoClaw · OpenClaw in OpenShell</SelectItem><SelectItem value="hermes" disabled>Hermes Agent · Coming later</SelectItem></SelectContent></Select></div>
+                  <div className="space-y-2"><Label>Agent runtime</Label><div className="flex min-h-12 items-center gap-3 border bg-muted/25 px-3"><img src="/assets/brands/nvidia-logo-square.png" alt="" className="size-6 object-contain" /><span><strong className="block text-sm">NemoClaw</strong><span className="block text-xs text-muted-foreground">OpenShell-managed execution runtime</span></span></div></div>
                   <div className="space-y-2"><Label>Provider connection</Label><Select value={providerConnectionId} disabled={!validatedConnections.length} onValueChange={(value) => { const connection = validatedConnections.find((item) => item.id === value); if (!connection) return; setProviderConnectionId(value); form.setFieldValue("providerConnectionId", value); form.setFieldValue("provider", connection.provider); form.setFieldValue("model", connection.model); }}><SelectTrigger><SelectValue placeholder="Select a validated Provider" /></SelectTrigger><SelectContent>{validatedConnections.map((connection) => <SelectItem key={connection.id} value={connection.id}>{connection.name} · {connection.model}</SelectItem>)}</SelectContent></Select></div>
                 </div>
                 {selectedConnection ? <div className="grid gap-3 border-y py-4 text-xs sm:grid-cols-3"><div><span className="text-muted-foreground">Endpoint</span><strong className="mt-1 block truncate font-mono">{selectedConnection.endpoint}</strong></div><div><span className="text-muted-foreground">Model</span><strong className="mt-1 block">{selectedConnection.model}</strong></div><div><span className="text-muted-foreground">Credential</span><strong className="mt-1 block">Stored by platform</strong></div></div> : <p role="alert" className="border-l-2 border-amber-500 bg-amber-500/5 px-3 py-3 text-xs">No validated Provider is available. <Link to="/providers" className="font-semibold underline underline-offset-4">Register and validate a connection first.</Link></p>}
@@ -169,7 +193,7 @@ function CreateAgent() {
                   <CardContent className="space-y-6">
                     <div className="grid gap-5 sm:grid-cols-2">
                       <ReviewSection title="Agent"><ReviewRow label="Name" value={values.name} /><ReviewRow label="Description" value={values.description || "None"} /></ReviewSection>
-                      <ReviewSection title="Runtime"><ReviewRow label="Runtime" value="NemoClaw" /><ReviewRow label="Provider" value={selectedConnection?.name ?? "Not selected"} /><ReviewRow label="Model" value={selectedConnection?.model ?? "—"} /><ReviewRow label="Policy" value={sandboxPolicies.find((policy) => policy.id === values.policyId)?.name ?? values.policyId} /></ReviewSection>
+                      <ReviewSection title="Runtime"><ReviewRow label="Runtime" value="NemoClaw" /><ReviewRow label="Agent platform" value={getAgentPlatformPresentation(values.agentPlatform).name} /><ReviewRow label="Provider" value={selectedConnection?.name ?? "Not selected"} /><ReviewRow label="Model" value={selectedConnection?.model ?? "—"} /><ReviewRow label="Policy" value={sandboxPolicies.find((policy) => policy.id === values.policyId)?.name ?? values.policyId} /></ReviewSection>
                     </div>
                     <Separator />
                     <div className="grid gap-5 sm:grid-cols-2">

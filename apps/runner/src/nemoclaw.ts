@@ -4,9 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createDeepSeek } from "@ai-sdk/deepseek";
 import { generateText } from "ai";
+import type { AgentPlatformId } from "@tasklattice/contracts";
+import { getAgentPlatformRuntime } from "./agent-platform.js";
 
 export interface ProvisionInput {
   name: string;
+  agentPlatform: AgentPlatformId;
   provider: "deepseek";
   model: "deepseek-chat" | "deepseek-reasoner";
   policyYaml?: string;
@@ -33,7 +36,7 @@ export function onboardCommand(input: ProvisionInput): {
       "--name",
       input.name,
       "--agent",
-      "openclaw",
+      input.agentPlatform,
       "--no-gpu",
       "--no-sandbox-gpu",
       "--tool-disclosure",
@@ -53,7 +56,10 @@ export function onboardCommand(input: ProvisionInput): {
   };
 }
 
-export function nemoClawTerminalArguments(name: string): string[] {
+export function nemoClawTerminalArguments(
+  name: string,
+  agentPlatform: AgentPlatformId,
+): string[] {
   return [
     name,
     "exec",
@@ -64,7 +70,7 @@ export function nemoClawTerminalArguments(name: string): string[] {
     "--",
     "/bin/bash",
     "-lc",
-    "exec openclaw tui",
+    getAgentPlatformRuntime(agentPlatform).terminalCommand,
   ];
 }
 
@@ -92,11 +98,12 @@ export async function installAgentInstructions(
     join(tmpdir(), "tasklattice-agent-instructions-"),
   );
   const instructionsFile = join(temporaryDirectory, "AGENTS.md");
+  const runtime = getAgentPlatformRuntime(input.agentPlatform);
   try {
     const download = await runCommand("nemoclaw", [
       input.name,
       "download",
-      "/sandbox/.openclaw/workspace/AGENTS.md",
+      runtime.instructionsPath,
       instructionsFile,
     ]);
     const existing =
@@ -113,7 +120,7 @@ export async function installAgentInstructions(
       input.name,
       "upload",
       instructionsFile,
-      "/sandbox/.openclaw/workspace/AGENTS.md",
+      runtime.instructionsPath,
     ]);
     if (upload.exitCode !== 0)
       throw new Error(

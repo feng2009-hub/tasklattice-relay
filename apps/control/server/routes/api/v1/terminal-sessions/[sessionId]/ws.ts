@@ -40,7 +40,10 @@ export default defineWebSocketHandler({
       `[terminal ${connectionId}] browser connected; opening runner terminal for ${session.sandboxName}`,
     );
     const upstream = new WebSocket(
-      service.runner.terminalWebSocketUrl(session.sandboxName),
+      service.runner.terminalWebSocketUrl(
+        session.sandboxName,
+        session.agentPlatform,
+      ),
       { headers: service.runner.authorizationHeaders() },
     );
     const timeout = setTimeout(() => {

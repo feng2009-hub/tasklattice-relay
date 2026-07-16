@@ -1,8 +1,12 @@
 import { randomUUID } from "node:crypto";
-import type { TerminalSessionResponse } from "@tasklattice/contracts";
+import type {
+  AgentPlatformId,
+  TerminalSessionResponse,
+} from "@tasklattice/contracts";
 
 export interface TerminalSessionRecord {
   agentId: string;
+  agentPlatform: AgentPlatformId;
   sandboxName: string;
   expiresAt: number;
 }
@@ -12,11 +16,17 @@ const sessions = new Map<string, TerminalSessionRecord>();
 export function createTerminalSession(
   agentId: string,
   sandboxName: string,
+  agentPlatform: AgentPlatformId,
 ): TerminalSessionResponse {
   const id = randomUUID();
   const token = randomUUID();
   const expiresAt = Date.now() + 5 * 60_000;
-  sessions.set(`${id}:${token}`, { agentId, sandboxName, expiresAt });
+  sessions.set(`${id}:${token}`, {
+    agentId,
+    agentPlatform,
+    sandboxName,
+    expiresAt,
+  });
   return {
     id,
     expiresAt: new Date(expiresAt).toISOString(),
