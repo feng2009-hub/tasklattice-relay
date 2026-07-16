@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Box, Eye, ScrollText } from "lucide-react";
-import { sandboxPolicies } from "@tasklattice/contracts";
 import { AgentStatusBadge } from "@/components/agents/agent-status-badge";
 import { PageHeader } from "@/components/layout/page-header";
 import { SandboxAuditDrawer } from "@/components/sandboxes/sandbox-audit-drawer";
@@ -36,6 +35,7 @@ function OpenShellRuntimePage() {
     staleTime: 10_000,
     refetchInterval: 30_000,
   });
+  const policies = useQuery({ queryKey: ["sandbox-policies"], queryFn: api.listPolicies });
   const openShellAvailable =
     runtime.data?.terminal.available &&
     runtime.data.terminal.transport === "openshell";
@@ -139,12 +139,12 @@ function OpenShellRuntimePage() {
               <dl className="text-xs">
                 {[
                   ["Runtime layer", "OpenShell"],
-                  ["Agent platform", getAgentPlatformPresentation(selected.agentPlatform).name],
+                  ["Agent", getAgentPlatformPresentation(selected.agentPlatform).name],
                   ["Stable identity", selected.sandboxName],
                   ["Instance", selected.id.slice(0, 8)],
                   ["Pod", selected.status === "READY" ? "1 / 1" : "0 / 1"],
                   ["Workspace", "Persistent PVC"],
-                  ["Policy", sandboxPolicies.find((policy) => policy.id === (selected.policyId ?? "restricted"))?.name ?? selected.policyId ?? "Restricted"],
+                  ["Policy", policies.data?.policies.find((policy) => policy.id === selected.policyId)?.name ?? selected.policyId],
                 ].map(([label, value]) => (
                   <div
                     key={label}

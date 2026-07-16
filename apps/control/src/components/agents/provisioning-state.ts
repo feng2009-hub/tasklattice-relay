@@ -7,7 +7,7 @@ export const provisioningStageDefinitions = [
   { id: "PROVIDER", label: "Provider", description: "Prepare inference", progress: 20 },
   { id: "SANDBOX", label: "Sandbox", description: "Apply isolation policy", progress: 38 },
   { id: "POD", label: "Pod", description: "Create and initialize Pod", progress: 58 },
-  { id: "RUNTIME", label: "Runtime", description: "Start NemoClaw services", progress: 78 },
+  { id: "RUNTIME", label: "Runtime", description: "Start Agent services in OpenShell", progress: 78 },
   { id: "ENDPOINT", label: "Endpoint", description: "Publish Web UI", progress: 92 },
   { id: "READY", label: "Ready", description: "Runtime available", progress: 100 },
 ] as const satisfies ReadonlyArray<{

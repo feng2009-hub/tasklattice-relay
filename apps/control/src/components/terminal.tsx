@@ -298,7 +298,7 @@ export function AgentTerminal({
           <SquareTerminal className="mx-auto size-6 text-muted-foreground" />
           <p className="mt-3 text-sm font-medium">
             {!runtimeStatus
-              ? "Checking NemoClaw runtime…"
+              ? "Checking OpenShell runtime…"
               : !enabled
                 ? "Waiting for the Sandbox to become ready…"
                 : `Preparing ${platform.terminalLabel}…`}
@@ -317,7 +317,7 @@ export function AgentTerminal({
       ? `NemoClaw connected — waiting for the first ${platform.name} TUI frame…`
       : connectionState === "closed"
         ? "Terminal session closed"
-        : (error ?? "Connecting to the NemoClaw Sandbox…");
+        : (error ?? "Connecting to the OpenShell Sandbox…");
 
   return (
     <div className={cn("flex min-h-0 flex-col", fill && "h-full")}>
@@ -342,7 +342,7 @@ export function AgentTerminal({
       </div>
       <div
         ref={container}
-        aria-label={`Interactive NemoClaw ${platform.name} TUI`}
+        aria-label={`Interactive ${platform.name} TUI in OpenShell`}
         className={cn(
           "cursor-text overflow-hidden rounded-sm border bg-[#0b0f0e] p-2",
           fill ? "min-h-0 flex-1" : "h-[min(58vh,560px)] min-h-[420px]",

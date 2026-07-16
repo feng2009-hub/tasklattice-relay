@@ -39,7 +39,7 @@ function Agents() {
         <EmptyState
           icon={Bot}
           title="No Agent instances yet"
-          description="Create a NemoClaw Agent to populate this workspace."
+          description="Create a NemoClaw-configured Agent in OpenShell to populate this workspace."
         />
       ) : null}
     </div>

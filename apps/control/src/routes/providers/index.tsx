@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { providerPresets, type ModelDeployment, type ProviderAccount } from "@tasklattice/contracts";
-import { BarChart3, Boxes, CheckCircle2, CircleX, Plus, RefreshCw, Server } from "lucide-react";
+import { BarChart3, Boxes, CheckCircle2, CircleX, Plus, RefreshCw, Server, Trash2 } from "lucide-react";
 import { ProviderIcon } from "@/components/providers/provider-icon";
 import { ProviderRegistrationDrawer } from "@/components/providers/provider-registration-drawer";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -78,7 +78,17 @@ function ProviderAccountCard({
   const preset = providerPresets.find((item) => item.id === account.presetId)!;
   const revalidate = useMutation({
     mutationFn: () => api.revalidateProviderAccount(account.id),
-    onSuccess: async () => queryClient.invalidateQueries({ queryKey: ["provider-accounts"] }),
+    onSuccess: async () => Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["provider-accounts"] }),
+      queryClient.invalidateQueries({ queryKey: ["model-deployments"] }),
+    ]),
+  });
+  const remove = useMutation({
+    mutationFn: () => api.deleteProviderAccount(account.id),
+    onSuccess: async () => Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["provider-accounts"] }),
+      queryClient.invalidateQueries({ queryKey: ["model-deployments"] }),
+    ]),
   });
   return (
     <Card>
@@ -92,11 +102,23 @@ function ProviderAccountCard({
             <Badge variant={account.status === "VALIDATED" ? "secondary" : "destructive"}>{account.status === "VALIDATED" ? <CheckCircle2 /> : <CircleX />}{account.status}</Badge>
             <Button size="sm" onClick={onAddModel} disabled={account.status !== "VALIDATED"}><Plus />Add model</Button>
             <Button size="sm" variant="outline" onClick={() => revalidate.mutate()} disabled={revalidate.isPending}>{revalidate.isPending ? <Spinner /> : <RefreshCw />}Revalidate</Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-destructive hover:text-destructive"
+              disabled={remove.isPending}
+              onClick={() => {
+                if (window.confirm(`Delete ${account.name} and its model configurations?`)) remove.mutate();
+              }}
+            >
+              {remove.isPending ? <Spinner /> : <Trash2 />}Delete
+            </Button>
           </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="border-l-2 border-border px-3 text-xs leading-5 text-muted-foreground">{account.validationMessage}</p>
+        {remove.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 px-3 py-2 text-xs text-destructive">{remove.error.message}</p> : null}
         <div className="grid gap-2 sm:grid-cols-3">
           {account.checks.map((check) => <div key={check.id} className="flex min-h-10 items-center justify-between border px-3 text-xs"><span>{check.label}</span><strong className={check.status === "FAIL" ? "text-destructive" : "text-emerald-600"}>{check.status}</strong></div>)}
         </div>
@@ -111,8 +133,10 @@ function ProviderAccountCard({
 
 function ModelRow({ model }: { model: ModelDeployment }) {
   const price = model.modelType === "speech-to-text"
-    ? `$${(model.feePerAudioMinute ?? 0).toFixed(4)} / audio min`
-    : `$${(model.inputFeePerMillionTokens ?? 0).toFixed(2)} input${model.modelType === "llm" ? ` · $${(model.outputFeePerMillionTokens ?? 0).toFixed(2)} output` : ""} / 1M`;
+    ? model.feePerAudioMinute === undefined ? "Provider-managed pricing" : `$${model.feePerAudioMinute.toFixed(4)} / audio min`
+    : model.inputFeePerMillionTokens === undefined
+      ? "Provider-managed pricing"
+      : `$${model.inputFeePerMillionTokens.toFixed(3)} input${model.modelType === "llm" && model.outputFeePerMillionTokens !== undefined ? ` · $${model.outputFeePerMillionTokens.toFixed(3)} output` : ""} / 1M`;
   return (
     <div className="grid min-h-16 gap-2 px-3 py-3 text-xs sm:grid-cols-[minmax(0,1fr)_9rem_13rem_auto] sm:items-center">
       <div><strong className="block text-sm">{model.displayName}</strong><span className="font-mono text-muted-foreground">{model.modelId}</span></div>

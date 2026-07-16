@@ -4,12 +4,11 @@ import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   defaultAgentPlatformId,
-  sandboxPolicies,
   type AgentPlatformId,
 } from "@tasklattice/contracts";
-import { ArrowLeft, ArrowRight, Bot, Check, Cpu, LockKeyhole, Network, ServerCog, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Bot, Check, LockKeyhole, Network, ServerCog, Sparkles } from "lucide-react";
 import { BlueprintRow, CreateInstanceLayout, InstanceBlueprint, type CreateInstanceStep } from "@/components/agents/create-instance-layout";
-import { AgentPlatformPicker } from "@/components/agents/agent-platform-picker";
+import { AgentSelect } from "@/components/agents/agent-select";
 import { PageHeader } from "@/components/layout/page-header";
 import { api } from "@/lib/api";
 import { mcpServerPreviews, skillPreviews } from "@/lib/preview-data";
@@ -29,7 +28,7 @@ export const Route = createFileRoute("/agents/new")({ component: CreateAgent });
 
 const steps: readonly CreateInstanceStep[] = [
   { label: "Identity", description: "Name and instruct the Agent" },
-  { label: "Runtime", description: "Choose an Agent platform and model" },
+  { label: "Agent & model", description: "Choose an Agent and validated model" },
   { label: "Extensions", description: "Attach Skills and MCP" },
   { label: "Review", description: "Confirm and create" },
 ];
@@ -49,6 +48,7 @@ function CreateAgent() {
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [selectedMcps, setSelectedMcps] = useState<string[]>([]);
   const deployments = useQuery({ queryKey: ["model-deployments"], queryFn: api.listModelDeployments });
+  const policies = useQuery({ queryKey: ["sandbox-policies"], queryFn: api.listPolicies });
   const validatedDeployments = (deployments.data ?? []).filter((deployment) => deployment.status === "VALIDATED" && deployment.modelType === "llm");
   const mutation = useMutation({
     mutationFn: api.createAgent,
@@ -58,11 +58,11 @@ function CreateAgent() {
     defaultValues: {
       name: "",
       description: "",
-      runtime: "nemoclaw" as const,
+      runtime: "openshell" as const,
       agentPlatform: defaultAgentPlatformId as AgentPlatformId,
       modelDeploymentId: "",
-      policyId: "restricted" as const,
-      systemPrompt: "You are a focused internal assistant. Complete the user's request inside the NemoClaw sandbox and explain the evidence clearly.",
+      policyId: "",
+      systemPrompt: "You are a focused internal assistant. Complete the user's request inside the OpenShell sandbox and explain the evidence clearly.",
     },
     onSubmit: ({ value }) => mutation.mutateAsync(value),
   });
@@ -73,31 +73,38 @@ function CreateAgent() {
     setModelDeploymentId(first.id);
     form.setFieldValue("modelDeploymentId", first.id);
   }, [form, modelDeploymentId, validatedDeployments]);
+  useEffect(() => {
+    if (!policies.data?.defaultPolicyId || form.state.values.policyId) return;
+    form.setFieldValue("policyId", policies.data.defaultPolicyId);
+  }, [form, policies.data?.defaultPolicyId]);
+
+  const policyName = (id: string) =>
+    policies.data?.policies.find((policy) => policy.id === id)?.name
+    ?? (id || "Loading…");
 
   const toggle = (id: string, values: string[], update: (next: string[]) => void) =>
     update(values.includes(id) ? values.filter((item) => item !== id) : [...values, id]);
 
   return (
     <div className="space-y-7">
-      <PageHeader eyebrow="Agent / Instance / Create" title="Create Instance" badge={<Badge variant="outline">UAT</Badge>} description="Build a specialized Agent from a runtime, reusable Skills, and connected MCP tools." />
+      <PageHeader title="Create Instance" badge={<Badge variant="outline">UAT</Badge>} description="Build a specialized Agent in the OpenShell runtime with reusable Skills and connected MCP tools." />
       <CreateInstanceLayout
         steps={steps}
         currentStep={step}
         onStepChange={setStep}
         blueprint={
           <InstanceBlueprint>
-            <BlueprintRow icon={Cpu} label="Runtime" value="NemoClaw" />
             <form.Subscribe selector={(state) => state.values.agentPlatform}>
               {(agentPlatform) => (
                 <BlueprintRow
                   icon={Bot}
-                  label="Agent platform"
+                  label="Agent"
                   value={getAgentPlatformPresentation(agentPlatform).name}
                 />
               )}
             </form.Subscribe>
             <BlueprintRow icon={Network} label="Provider" value={selectedDeployment ? `${selectedDeployment.providerName} · ${selectedDeployment.displayName}` : "Required"} />
-            <form.Subscribe selector={(state) => state.values.policyId}>{(policyId) => <BlueprintRow icon={LockKeyhole} label="Policy" value={sandboxPolicies.find((policy) => policy.id === policyId)?.name ?? String(policyId)} />}</form.Subscribe>
+            <form.Subscribe selector={(state) => state.values.policyId}>{(policyId) => <BlueprintRow icon={LockKeyhole} label="Policy" value={policyName(String(policyId))} />}</form.Subscribe>
             <BlueprintRow icon={Sparkles} label="Skills" value={`${selectedSkills.length} selected`} />
             <BlueprintRow icon={ServerCog} label="MCP Servers" value={`${selectedMcps.length} selected`} />
           </InstanceBlueprint>
@@ -119,18 +126,18 @@ function CreateAgent() {
 
           {step === 1 ? (
             <Card>
-              <CardHeader><CardTitle className="flex items-center gap-2"><Cpu className="size-5" /> Runtime & model</CardTitle><CardDescription>The core provisioning flow exposes only validated Provider choices.</CardDescription></CardHeader>
+              <CardHeader><CardTitle className="flex items-center gap-2"><Bot className="size-5" /> Agent & model</CardTitle><CardDescription>Choose the Agent for this Instance and a validated language model.</CardDescription></CardHeader>
               <CardContent className="space-y-5">
-                <form.Field name="agentPlatform">
-                  {(field) => (
-                    <AgentPlatformPicker
-                      value={field.state.value}
-                      onValueChange={field.handleChange}
-                    />
-                  )}
-                </form.Field>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2"><Label>Agent runtime</Label><div className="flex min-h-12 items-center gap-3 border bg-muted/25 px-3"><img src="/assets/brands/nvidia-logo-square.png" alt="" className="size-6 object-contain" /><span><strong className="block text-sm">NemoClaw</strong><span className="block text-xs text-muted-foreground">OpenShell-managed execution runtime</span></span></div></div>
+                  <form.Field name="agentPlatform">
+                    {(field) => (
+                      <div className="space-y-2">
+                        <Label htmlFor="instance-agent">Agent</Label>
+                        <AgentSelect id="instance-agent" value={field.state.value} onValueChange={field.handleChange} />
+                        <p className="text-xs text-muted-foreground">OpenClaw is selected by default. NemoClaw configures the chosen Agent during provisioning.</p>
+                      </div>
+                    )}
+                  </form.Field>
                   <div className="space-y-2"><Label>LLM deployment</Label><Select value={modelDeploymentId} disabled={!validatedDeployments.length} onValueChange={(value) => { setModelDeploymentId(value); form.setFieldValue("modelDeploymentId", value); }}><SelectTrigger><SelectValue placeholder="Select a validated LLM" /></SelectTrigger><SelectContent>{validatedDeployments.map((deployment) => <SelectItem key={deployment.id} value={deployment.id}>{deployment.providerName} · {deployment.displayName}</SelectItem>)}</SelectContent></Select></div>
                 </div>
                 {selectedDeployment ? <div className="grid gap-3 border-y py-4 text-xs sm:grid-cols-3"><div><span className="text-muted-foreground">Endpoint</span><strong className="mt-1 block truncate font-mono">{selectedDeployment.endpoint}</strong></div><div><span className="text-muted-foreground">Model</span><strong className="mt-1 block">{selectedDeployment.modelId}</strong></div><div><span className="text-muted-foreground">Cost attribution</span><strong className="mt-1 block">Dedicated Instance key</strong></div></div> : <p role="alert" className="border-l-2 border-amber-500 bg-amber-500/5 px-3 py-3 text-xs">No validated LLM deployment is available. <Link to="/providers" className="font-semibold underline underline-offset-4">Register a Provider and model first.</Link></p>}
@@ -138,11 +145,11 @@ function CreateAgent() {
                   {(field) => (
                     <div className="space-y-2">
                       <div className="flex items-center justify-between gap-3"><Label>OpenShell policy</Label><Link to="/agent/sandboxes/policy" className="text-xs font-medium underline underline-offset-4">Inspect policies</Link></div>
-                      <Select value={field.state.value} onValueChange={(value) => field.handleChange(value as typeof field.state.value)}>
-                        <SelectTrigger aria-label="OpenShell policy" className="min-h-12 h-auto"><SelectValue /></SelectTrigger>
-                        <SelectContent>{sandboxPolicies.map((policy) => <SelectItem key={policy.id} value={policy.id}>{policy.name} · {policy.networkAccess}</SelectItem>)}</SelectContent>
+                      <Select value={field.state.value} disabled={policies.isPending || Boolean(policies.error)} onValueChange={field.handleChange}>
+                        <SelectTrigger aria-label="OpenShell policy" className="min-h-12 h-auto"><SelectValue placeholder={policies.isPending ? "Loading Policy catalog…" : "Select a Policy"} /></SelectTrigger>
+                        <SelectContent>{policies.data?.policies.map((policy) => <SelectItem key={policy.id} value={policy.id}>{policy.name} · {policy.networkAccess}</SelectItem>)}</SelectContent>
                       </Select>
-                      <p className="text-xs leading-5 text-muted-foreground">Applied at sandbox creation through the OpenShell policy file boundary.</p>
+                      {policies.error ? <p role="alert" className="text-xs text-destructive">{policies.error.message}</p> : <p className="text-xs leading-5 text-muted-foreground">Applied at Sandbox creation through the OpenShell policy boundary. The deployment default is selected automatically.</p>}
                     </div>
                   )}
                 </form.Field>
@@ -185,11 +192,11 @@ function CreateAgent() {
             <form.Subscribe selector={(state) => state.values}>
               {(values) => (
                 <Card>
-                  <CardHeader><CardTitle className="flex items-center gap-2"><Check className="size-5" /> Review & create</CardTitle><CardDescription>Confirm the runtime blueprint before provisioning the NemoClaw Instance.</CardDescription></CardHeader>
+                  <CardHeader><CardTitle className="flex items-center gap-2"><Check className="size-5" /> Review & create</CardTitle><CardDescription>Confirm the Agent and OpenShell runtime blueprint before provisioning.</CardDescription></CardHeader>
                   <CardContent className="space-y-6">
                     <div className="grid gap-5 sm:grid-cols-2">
                       <ReviewSection title="Agent"><ReviewRow label="Name" value={values.name} /><ReviewRow label="Description" value={values.description || "None"} /></ReviewSection>
-                      <ReviewSection title="Runtime"><ReviewRow label="Runtime" value="NemoClaw" /><ReviewRow label="Agent platform" value={getAgentPlatformPresentation(values.agentPlatform).name} /><ReviewRow label="Provider" value={selectedDeployment?.providerName ?? "Not selected"} /><ReviewRow label="Model" value={selectedDeployment?.displayName ?? "—"} /><ReviewRow label="Policy" value={sandboxPolicies.find((policy) => policy.id === values.policyId)?.name ?? values.policyId} /></ReviewSection>
+                      <ReviewSection title="Agent & model"><ReviewRow label="Agent" value={getAgentPlatformPresentation(values.agentPlatform).name} /><ReviewRow label="Provider" value={selectedDeployment?.providerName ?? "Not selected"} /><ReviewRow label="Model" value={selectedDeployment?.displayName ?? "—"} /><ReviewRow label="Policy" value={policyName(values.policyId)} /></ReviewSection>
                     </div>
                     <Separator />
                     <div className="grid gap-5 sm:grid-cols-2">
@@ -207,11 +214,11 @@ function CreateAgent() {
           <div className="flex items-center justify-between gap-3">
             <Button type="button" variant="outline" disabled={step === 0 || mutation.isPending} onClick={() => setStep((current) => Math.max(0, current - 1))}><ArrowLeft /> Back</Button>
             {step < 3 ? (
-              <form.Subscribe selector={(state) => [state.values.name, state.values.systemPrompt, state.values.modelDeploymentId]}>
-                {([name, prompt, connection]) => <Button type="button" disabled={(step === 0 && (String(name).trim().length < 3 || String(prompt).trim().length < 10)) || (step === 1 && !String(connection))} onClick={() => setStep((current) => Math.min(3, current + 1))}>Continue <ArrowRight /></Button>}
+              <form.Subscribe selector={(state) => [state.values.name, state.values.systemPrompt, state.values.modelDeploymentId, state.values.policyId]}>
+                {([name, prompt, connection, policyId]) => <Button type="button" disabled={(step === 0 && (String(name).trim().length < 3 || String(prompt).trim().length < 10)) || (step === 1 && (!String(connection) || !String(policyId)))} onClick={() => setStep((current) => Math.min(3, current + 1))}>Continue <ArrowRight /></Button>}
               </form.Subscribe>
             ) : (
-              <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting]}>{([canSubmit, isSubmitting]) => <Button size="lg" type="submit" disabled={!canSubmit || Boolean(isSubmitting) || mutation.isPending}>{mutation.isPending ? "Creating NemoClaw sandbox…" : "Create Instance"}</Button>}</form.Subscribe>
+              <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting]}>{([canSubmit, isSubmitting]) => <Button size="lg" type="submit" disabled={!canSubmit || Boolean(isSubmitting) || mutation.isPending}>{mutation.isPending ? "Creating OpenShell sandbox…" : "Create Instance"}</Button>}</form.Subscribe>
             )}
           </div>
         </form>

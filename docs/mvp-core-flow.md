@@ -100,15 +100,15 @@ Disabled actions use native `disabled` behavior, reduced contrast, a not-allowed
   "description": "Internal research assistant",
   "runtime": "nemoclaw",
   "agentPlatform": "openclaw",
-  "provider": "deepseek",
-  "model": "deepseek-chat",
+  "modelDeploymentId": "validated-model-id",
+  "policyId": "unrestricted",
   "systemPrompt": "You are a focused internal assistant..."
 }
 ```
 
-The API rejects any runtime other than `nemoclaw`, any Agent platform outside
-`openclaw` and `hermes`, any provider other than `deepseek`, and any model
-outside `deepseek-chat` and `deepseek-reasoner`. OpenClaw remains the default
+The API rejects any runtime other than `nemoclaw` and any Agent platform outside
+`openclaw` and `hermes`. Agent creation accepts only a validated LLM deployment
+registered under a validated Provider Account. OpenClaw remains the default
 when older clients omit `agentPlatform`.
 
 The REST response is the durable Agent resource, not raw NemoClaw CLI output. Desired configuration and observed runtime fields are separate.
@@ -117,13 +117,11 @@ During creation, the runner uploads the submitted instruction section to the
 selected platform's workspace before starting `nemoclaw-start`. READY is
 published only after that platform's health endpoint responds.
 
-## DeepSeek provider boundary
+## Provider and cost boundary
 
-`@ai-sdk/deepseek` supplies the mature provider implementation for an optional Runtime Host preflight. The Host Runner then maps the accepted provider to NemoClaw's compatible-endpoint configuration.
+Provider Accounts group one Endpoint and credential with multiple categorized model deployments. Endpoint, credential, model catalog, and inference checks must pass before a model can be selected for an Agent. LiteLLM issues a model-scoped key per Instance and attributes spend to that key; the public API never returns Provider or Instance credentials. Startup does not create Provider data, so local and deployed environments use the same registration path.
 
-In production, the public API stores provider identity, model ID, and non-secret configuration only. `DEEPSEEK_API_KEY` stays on the Runtime Host. NemoClaw receives it through the supported `COMPATIBLE_API_KEY` environment binding; it never enters argv, logs, SQLite, browser state, or the Kubernetes control API.
-
-The local Kubernetes overlay deliberately enables a test-only exception: startup seeds one DeepSeek credential into SQLite and passes it only across the private Control API to Runtime Host request. The public REST resource and Provider catalog never return the credential. This seed is disabled in the base/production manifest.
+OpenShell built-in Policies are deployment configuration. Kustomize stores the catalog in a ConfigMap, the control Pod mounts it read-only, and the API exposes those entries as immutable. The catalog default is `unrestricted`, which allows arbitrary shell and file operations in Sandbox-owned writable paths and includes `/dev/null`; OpenShell still disallows root execution and undeclared global network egress.
 
 ## REST and terminal protocols
 

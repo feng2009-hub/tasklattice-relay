@@ -5,12 +5,10 @@ import type {
   RunnerSandbox,
   SandboxAuditEvent,
 } from "@tasklattice/contracts";
-import { sandboxPolicies } from "@tasklattice/contracts";
 import { AgentStore } from "../data/agent-store";
 import { NemoClawRunnerClient, type RunnerClient } from "../runtime/nemoclaw-runner-client";
 import { LiteLLMClient, type LiteLLMAdminClient } from "../providers/litellm-client";
-
-const demoAgentId = "00000000-0000-4000-8000-000000000001";
+import { PolicyService } from "../policies/policy-service";
 
 export function agentSandboxName(name: string, id: string): string {
   const slug =
@@ -55,6 +53,7 @@ export class AgentService {
     readonly store = new AgentStore(),
     readonly runner: RunnerClient = new NemoClawRunnerClient(),
     readonly litellm: LiteLLMAdminClient = new LiteLLMClient(),
+    readonly policies = new PolicyService(store),
   ) {}
 
   async list(): Promise<Agent[]> {
@@ -82,8 +81,7 @@ export class AgentService {
     const account = this.store.getProviderAccount(deployment.providerAccountId);
     if (!account || account.status !== "VALIDATED")
       throw new Error("The model's Provider Account is no longer validated.");
-    const policy = sandboxPolicies.find((item) => item.id === input.policyId);
-    if (!policy) throw new Error("Select a supported OpenShell policy.");
+    const policy = this.policies.resolve(input.policyId);
     const id = randomUUID();
     const now = new Date().toISOString();
     const sandboxName = agentSandboxName(input.name, id);
@@ -97,6 +95,7 @@ export class AgentService {
     let agent: Agent = {
       id,
       ...input,
+      policyId: policy.id,
       providerAccountId: account.id,
       providerName: deployment.providerName,
       model: deployment.modelId,
@@ -156,14 +155,6 @@ export class AgentService {
     this.store.deleteAgentCostKey(id);
     this.store.delete(id);
     return true;
-  }
-
-  async seedLocalDemo(): Promise<void> {
-    if (process.env.TALI_ENABLE_TEST_SEED !== "1") return;
-    if (!this.store.get(demoAgentId))
-      throw new Error(
-        "TALI_ENABLE_TEST_SEED no longer creates legacy Provider Connections. Register a Provider Account and model before running the core-flow seed.",
-      );
   }
 
   private async refresh(agent: Agent): Promise<Agent> {

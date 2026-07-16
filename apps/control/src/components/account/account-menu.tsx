@@ -15,7 +15,6 @@ import { cn } from "@/lib/utils";
 type AccountMenuProps = {
   collapsed?: boolean;
   onLogout: () => void | Promise<void>;
-  placement: "header" | "sidebar";
   user: AuthUser | null;
 };
 
@@ -52,14 +51,11 @@ function UserAvatar({
 export function AccountMenu({
   collapsed = false,
   onLogout,
-  placement,
   user,
 }: AccountMenuProps) {
   const displayName = user?.displayName || user?.username || "User";
   const accountLabel =
     user?.provider === "sso" ? "SSO account" : "Local account";
-  const isHeader = placement === "header";
-
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -68,14 +64,12 @@ export function AccountMenu({
           aria-label={`Open account menu for ${displayName}`}
           className={cn(
             "group flex min-h-11 items-center rounded-md outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/40 data-[state=open]:bg-accent",
-            isHeader
-              ? "justify-center px-1.5 hover:bg-muted"
-              : "w-full hover:bg-sidebar-accent",
-            !isHeader && (collapsed ? "justify-center" : "gap-3 px-2"),
+            "w-full hover:bg-sidebar-accent",
+            collapsed ? "justify-center" : "gap-3 px-2",
           )}
         >
           <UserAvatar user={user} />
-          {isHeader || collapsed ? null : (
+          {collapsed ? null : (
             <>
               <span className="min-w-0 flex-1 text-left">
                 <strong className="block truncate text-xs">{displayName}</strong>
@@ -89,8 +83,8 @@ export function AccountMenu({
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
-        align={isHeader ? "end" : collapsed ? "start" : "center"}
-        side={isHeader ? "bottom" : collapsed ? "right" : "top"}
+        align={collapsed ? "start" : "center"}
+        side={collapsed ? "right" : "top"}
         className="w-64"
       >
         <DropdownMenuLabel className="flex items-center gap-3 py-2 font-normal">

@@ -3,6 +3,7 @@ import type {
   Agent,
   ModelDeployment,
   ProviderAccount,
+  SandboxPolicy,
 } from "@tasklattice/contracts";
 
 const legacyDataError =
@@ -13,6 +14,7 @@ function parseAgent(payload: string): Agent {
   if (!agent.modelDeploymentId) throw new Error(legacyDataError);
   return {
     ...agent,
+    runtime: "openshell",
     agentPlatform: agent.agentPlatform ?? "openclaw",
     policyId: agent.policyId ?? "restricted",
   };
@@ -24,6 +26,10 @@ function parseProviderAccount(payload: string): ProviderAccount {
 
 function parseModelDeployment(payload: string): ModelDeployment {
   return JSON.parse(payload) as ModelDeployment;
+}
+
+function parseSandboxPolicy(payload: string): SandboxPolicy {
+  return JSON.parse(payload) as SandboxPolicy;
 }
 
 export class AgentStore {
@@ -60,6 +66,11 @@ export class AgentStore {
         token_id TEXT NOT NULL,
         created_at TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS sandbox_policies (
+        id TEXT PRIMARY KEY,
+        payload TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
     `);
   }
 
@@ -93,15 +104,23 @@ export class AgentStore {
     ).map((row) => parseAgent(row.payload));
   }
 
-  delete(id: string): void {
-    this.database.prepare("DELETE FROM agents WHERE id = ?").run(id);
+  listAgentsForReporting(): Array<Pick<Agent, "id" | "name" | "sandboxName">> {
+    const rows = this.database
+      .prepare("SELECT payload FROM agents ORDER BY created_at DESC")
+      .all() as Array<{ payload: string }>;
+    return rows.flatMap((row) => {
+      const agent = JSON.parse(row.payload) as Partial<Agent>;
+      if (
+        typeof agent.id !== "string" ||
+        typeof agent.name !== "string" ||
+        typeof agent.sandboxName !== "string"
+      ) return [];
+      return [{ id: agent.id, name: agent.name, sandboxName: agent.sandboxName }];
+    });
   }
 
-  assertNoLegacyProviderData(): void {
-    const row = this.database
-      .prepare("SELECT COUNT(*) AS count FROM provider_connections")
-      .get() as { count: number };
-    if (row.count > 0) throw new Error(legacyDataError);
+  delete(id: string): void {
+    this.database.prepare("DELETE FROM agents WHERE id = ?").run(id);
   }
 
   saveProviderAccount(
@@ -139,7 +158,6 @@ export class AgentStore {
   }
 
   listProviderAccounts(): ProviderAccount[] {
-    this.assertNoLegacyProviderData();
     return (
       this.database
         .prepare(
@@ -180,7 +198,10 @@ export class AgentStore {
   }
 
   listModelDeployments(providerAccountId?: string): ModelDeployment[] {
-    this.assertNoLegacyProviderData();
+    return this.listModelDeploymentsForReporting(providerAccountId);
+  }
+
+  listModelDeploymentsForReporting(providerAccountId?: string): ModelDeployment[] {
     const rows = providerAccountId
       ? this.database
           .prepare(
@@ -193,6 +214,38 @@ export class AgentStore {
     return (rows as Array<{ payload: string }>).map((row) =>
       parseModelDeployment(row.payload),
     );
+  }
+
+  deleteModelDeployment(id: string): boolean {
+    return this.database
+      .prepare("DELETE FROM model_deployments WHERE id = ?")
+      .run(id).changes > 0;
+  }
+
+  listAgentIdsUsingModelDeployments(modelDeploymentIds: readonly string[]): string[] {
+    if (!modelDeploymentIds.length) return [];
+    const deploymentIds = new Set(modelDeploymentIds);
+    const rows = this.database
+      .prepare("SELECT payload FROM agents")
+      .all() as Array<{ payload: string }>;
+    return rows.flatMap(({ payload }) => {
+      const agent = JSON.parse(payload) as Partial<Agent>;
+      return typeof agent.id === "string" &&
+        typeof agent.modelDeploymentId === "string" &&
+        deploymentIds.has(agent.modelDeploymentId)
+        ? [agent.id]
+        : [];
+    });
+  }
+
+  deleteProviderAccount(id: string): boolean {
+    this.database
+      .prepare("DELETE FROM model_deployments WHERE provider_account_id = ?")
+      .run(id);
+    const result = this.database
+      .prepare("DELETE FROM provider_accounts WHERE id = ?")
+      .run(id);
+    return result.changes > 0;
   }
 
   saveAgentCostKey(agentId: string, tokenId: string): void {
@@ -214,6 +267,43 @@ export class AgentStore {
 
   deleteAgentCostKey(agentId: string): void {
     this.database.prepare("DELETE FROM agent_cost_keys WHERE agent_id = ?").run(agentId);
+  }
+
+  saveSandboxPolicy(policy: SandboxPolicy): SandboxPolicy {
+    this.database
+      .prepare(
+        `INSERT INTO sandbox_policies (id, payload, created_at)
+         VALUES (?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET payload = excluded.payload`,
+      )
+      .run(policy.id, JSON.stringify(policy), policy.createdAt ?? new Date().toISOString());
+    return policy;
+  }
+
+  getSandboxPolicy(id: string): SandboxPolicy | undefined {
+    const row = this.database
+      .prepare("SELECT payload FROM sandbox_policies WHERE id = ?")
+      .get(id) as { payload: string } | undefined;
+    return row ? parseSandboxPolicy(row.payload) : undefined;
+  }
+
+  listSandboxPolicies(): SandboxPolicy[] {
+    return (
+      this.database
+        .prepare("SELECT payload FROM sandbox_policies ORDER BY created_at DESC")
+        .all() as Array<{ payload: string }>
+    ).map((row) => parseSandboxPolicy(row.payload));
+  }
+
+  deleteSandboxPolicy(id: string): void {
+    this.database.prepare("DELETE FROM sandbox_policies WHERE id = ?").run(id);
+  }
+
+  isSandboxPolicyInUse(id: string): boolean {
+    const rows = this.database.prepare("SELECT payload FROM agents").all() as Array<{
+      payload: string;
+    }>;
+    return rows.some((row) => (JSON.parse(row.payload) as { policyId?: string }).policyId === id);
   }
 
 }

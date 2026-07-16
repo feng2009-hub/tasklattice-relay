@@ -1,0 +1,8 @@
+FROM ghcr.io/berriai/litellm-database:main-stable
+
+USER root
+RUN apk add --no-cache libatomic \
+    && chown -R 65532:65532 /app/.venv/lib/python3.13/site-packages/prisma
+
+USER 65532:65532
+RUN prisma generate --schema /app/.venv/lib/python3.13/site-packages/prisma/schema.prisma

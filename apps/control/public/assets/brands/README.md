@@ -1,5 +1,14 @@
 # Brand assets
 
+## OpenClaw
+
+- File: `openclaw-pixel-lobster.svg`
+- Source: OpenClaw official repository documentation assets
+- Source URL: https://github.com/openclaw/openclaw/blob/main/docs/assets/pixel-lobster.svg
+- Downloaded: 2026-07-16
+
+The OpenClaw mark is kept unmodified and is used only to identify the Agent.
+
 ## NVIDIA
 
 - File: `nvidia-logo-square.png`
@@ -21,5 +30,5 @@ NVIDIA runtime, and confirm authorization before public or commercial release.
 - Downloaded: 2026-07-15
 - SHA-256: `5fbced606189c9bfc2925a16f8903333041cabbf1f8699fe9fe9b3e24504048f`
 
-The Hermes Agent mark is used only to identify the disabled runtime placeholder.
+The Hermes Agent mark is used only to identify the Agent option.
 Keep it unmodified and do not imply Nous Research endorsement.

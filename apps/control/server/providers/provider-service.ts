@@ -24,6 +24,13 @@ const failedModelChecks = (): ProviderValidationCheck[] => [
   { id: "inference", label: "Model capability probe", status: "FAIL" },
 ];
 
+const catalogModelChecks = (): ProviderValidationCheck[] => [
+  { id: "endpoint", label: "Endpoint reachability", status: "PASS" },
+  { id: "credentials", label: "Credential authorization", status: "PASS" },
+  { id: "catalog", label: "Model catalog discovery", status: "PASS" },
+  { id: "inference", label: "Model catalog entitlement", status: "PASS" },
+];
+
 export class ProviderService {
   constructor(
     readonly store = new AgentStore(),
@@ -40,7 +47,6 @@ export class ProviderService {
   }
 
   async registerAccount(input: CreateProviderAccountInput): Promise<ProviderAccount> {
-    this.store.assertNoLegacyProviderData();
     const now = new Date().toISOString();
     const account: ProviderAccount = {
       id: randomUUID(),
@@ -56,14 +62,34 @@ export class ProviderService {
       updatedAt: now,
     };
     this.store.saveProviderAccount(account, input.apiKey);
-    return this.validateAccount(account, input.apiKey);
+    const validated = await this.validateAccount(account, input.apiKey);
+    return this.configurePresetModels(validated);
   }
 
   async revalidateAccount(id: string): Promise<ProviderAccount | undefined> {
     const account = this.store.getProviderAccount(id);
     const apiKey = this.store.getProviderAccountCredential(id);
     if (!account || !apiKey) return undefined;
-    return this.validateAccount(account, apiKey);
+    const validated = await this.validateAccount(account, apiKey);
+    return this.configurePresetModels(validated);
+  }
+
+  async deleteAccount(id: string): Promise<boolean> {
+    const account = this.store.getProviderAccount(id);
+    if (!account) return false;
+    const models = this.store.listModelDeployments(id);
+    const agentIds = this.store.listAgentIdsUsingModelDeployments(
+      models.map((model) => model.id),
+    );
+    if (agentIds.length)
+      throw new Error(
+        `Delete the ${agentIds.length} Instance${agentIds.length === 1 ? "" : "s"} using this Provider before deleting the account.`,
+      );
+    for (const model of models) {
+      if (model.status === "VALIDATED")
+        await this.litellm.deleteModel(model.litellmModelName);
+    }
+    return this.store.deleteProviderAccount(id);
   }
 
   async registerModel(input: CreateModelDeploymentInput): Promise<ModelDeployment> {
@@ -77,8 +103,19 @@ export class ProviderService {
     if (!(preset?.modelTypes as readonly string[] | undefined)?.includes(input.modelType))
       throw new Error(`${preset?.name ?? "This Provider"} does not support ${input.modelType} registrations.`);
 
+    if (!account.discoveredModels.includes(input.modelId))
+      throw new Error(
+        `${input.modelId} is not available to this credential. Revalidate the Provider catalog before registering it.`,
+      );
+    const matchingModels = this.store
+      .listModelDeployments(input.providerAccountId)
+      .filter((model) => model.modelId === input.modelId);
+    const existing = matchingModels.find((model) => model.status === "VALIDATED")
+      ?? matchingModels[0];
+    if (existing?.status === "VALIDATED") return existing;
+
     const now = new Date().toISOString();
-    const id = randomUUID();
+    const id = existing?.id ?? randomUUID();
     const base: ModelDeployment = {
       id,
       ...input,
@@ -89,16 +126,10 @@ export class ProviderService {
       status: "FAILED",
       checks: failedModelChecks(),
       validationMessage: "Validation has not completed.",
-      createdAt: now,
+      createdAt: existing?.createdAt ?? now,
       updatedAt: now,
     };
     try {
-      const validation = await this.validator.validateModel({
-        apiKey,
-        endpoint: account.endpoint,
-        modelId: input.modelId,
-        modelType: input.modelType,
-      });
       const litellmModelName = await this.litellm.registerModel({
         accountId: account.id,
         apiKey,
@@ -107,16 +138,20 @@ export class ProviderService {
         presetId: account.presetId,
       });
       const validatedAt = new Date().toISOString();
-      return this.store.saveModelDeployment({
+      const deployment = this.store.saveModelDeployment({
         ...base,
         litellmModelName,
         status: "VALIDATED",
-        checks: validation.checks,
-        validationMessage: `${validation.message} Registered in LiteLLM.`,
-        validationLatencyMs: validation.latencyMs,
+        checks: catalogModelChecks(),
+        validationMessage: `${input.modelId} is available to this credential and registered in LiteLLM.`,
         validatedAt,
         updatedAt: validatedAt,
       });
+      for (const duplicate of matchingModels) {
+        if (duplicate.id !== deployment.id && duplicate.status === "FAILED")
+          this.store.deleteModelDeployment(duplicate.id);
+      }
+      return deployment;
     } catch (error) {
       return this.store.saveModelDeployment({
         ...base,
@@ -124,6 +159,33 @@ export class ProviderService {
         updatedAt: new Date().toISOString(),
       });
     }
+  }
+
+  private async configurePresetModels(account: ProviderAccount): Promise<ProviderAccount> {
+    if (account.status !== "VALIDATED") return account;
+    const preset = providerPresets.find((item) => item.id === account.presetId);
+    if (!preset?.defaultModels.length) return account;
+    const availableModels = preset.defaultModels.filter((model) =>
+      account.discoveredModels.includes(model.modelId),
+    );
+    const configured: ModelDeployment[] = [];
+    for (const model of availableModels) {
+      configured.push(await this.registerModel({
+        providerAccountId: account.id,
+        ...model,
+      }));
+    }
+    const validatedCount = configured.filter(
+      (model) => model.status === "VALIDATED",
+    ).length;
+    const configuredMessage = availableModels.length
+      ? ` ${validatedCount} of ${availableModels.length} catalog models configured automatically.`
+      : " No catalog defaults were exposed to this credential.";
+    return this.store.saveProviderAccount({
+      ...account,
+      validationMessage: `${account.validationMessage}${configuredMessage}`,
+      updatedAt: new Date().toISOString(),
+    });
   }
 
   private async validateAccount(account: ProviderAccount, apiKey: string): Promise<ProviderAccount> {

@@ -4,9 +4,12 @@ import type {
   CostReport,
   CreateModelDeploymentInput,
   CreateProviderAccountInput,
+  CreateSandboxPolicyInput,
   ModelDeployment,
   ProviderAccount,
   RuntimeStatus,
+  SandboxPolicy,
+  SandboxPolicyCatalog,
   SandboxAuditEvent,
   TerminalSessionResponse,
 } from "@tasklattice/contracts";
@@ -49,6 +52,10 @@ export const api = {
       method: "POST",
       body: "{}",
     }),
+  deleteProviderAccount: (id: string) =>
+    request<{ message: string }>(`/api/v1/providers/${id}`, {
+      method: "DELETE",
+    }),
   listModelDeployments: async () =>
     (await request<{ data: ModelDeployment[] }>("/api/v1/providers/models")).data,
   registerModelDeployment: (input: CreateModelDeploymentInput) =>
@@ -58,6 +65,28 @@ export const api = {
     }),
   getCostReport: (from: string, to: string) =>
     request<CostReport>(`/api/v1/costs?${new URLSearchParams({ from, to })}`),
+  listPolicies: async (): Promise<SandboxPolicyCatalog> => {
+    const response = await request<{ defaultPolicyId: string; templatePolicyYaml: string; data: SandboxPolicy[] }>("/api/v1/policies");
+    return {
+      defaultPolicyId: response.defaultPolicyId,
+      templatePolicyYaml: response.templatePolicyYaml,
+      policies: response.data,
+    };
+  },
+  createPolicy: (input: CreateSandboxPolicyInput) =>
+    request<SandboxPolicy>("/api/v1/policies", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updatePolicy: (id: string, input: CreateSandboxPolicyInput) =>
+    request<SandboxPolicy>(`/api/v1/policies/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
+  deletePolicy: (id: string) =>
+    request<{ message: string }>(`/api/v1/policies/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    }),
   listAgents: async () =>
     (await request<{ data: Agent[] }>("/api/v1/agents")).data,
   getAgent: (id: string) => request<Agent>(`/api/v1/agents/${id}`),

@@ -45,12 +45,14 @@ spec:
                   name: tasklattice-runtime-runner
                   key: token
             - name: LITELLM_BASE_URL
-              value: http://tasklattice-litellm:4000
+              value: http://tasklattice-litellm.tasklattice-sandboxes.svc.cluster.local:4000
             - name: LITELLM_MASTER_KEY
               valueFrom:
                 secretKeyRef:
                   name: tasklattice-litellm
                   key: master-key
+            - name: TALI_BUILTIN_POLICIES_PATH
+              value: /etc/tasklattice/policies/catalog.yaml
           readinessProbe:
             httpGet:
               path: /api/health
@@ -80,6 +82,9 @@ spec:
               mountPath: /tmp
             - name: data
               mountPath: /data
+            - name: policies
+              mountPath: /etc/tasklattice/policies
+              readOnly: true
       volumes:
         - name: tmp
           emptyDir:
@@ -87,3 +92,6 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: tasklattice-control-data
+        - name: policies
+          configMap:
+            name: tasklattice-sandbox-policies

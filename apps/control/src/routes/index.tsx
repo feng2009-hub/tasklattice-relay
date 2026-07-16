@@ -18,7 +18,7 @@ export const Route = createFileRoute("/")({ component: LandingPage });
 
 const workflow = [
   { label: "Declare", detail: "Describe the agent and model boundary." },
-  { label: "Provision", detail: "Create an isolated NemoClaw sandbox." },
+  { label: "Provision", detail: "Create an isolated OpenShell sandbox." },
   { label: "Operate", detail: "Inspect state and enter the live terminal." },
 ];
 
@@ -102,7 +102,7 @@ function LandingPage() {
                     <Bot className="size-5 text-[#9c96ff]" />
                     <span className="text-lg font-medium text-white">research-operator</span>
                   </div>
-                  <p className="mt-2 font-mono text-xs text-white/42">deepseek-chat · nemoclaw</p>
+                  <p className="mt-2 font-mono text-xs text-white/42">deepseek-chat · openshell</p>
                 </div>
                 <div className="lattice-path" aria-hidden="true">
                   <span className="is-complete"><Check /></span>

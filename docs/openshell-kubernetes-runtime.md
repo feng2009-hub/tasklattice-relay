@@ -58,8 +58,6 @@ flowchart TD
 Requirements: Kubernetes 1.29+, Helm, Docker/OrbStack, `kubectl`, and Node.js 22.
 
 ```sh
-cp .env.example .env
-# Set DEEPSEEK_API_KEY in .env.
 npm run k8s:install-openshell
 npm run images:build
 npm run k8s:deploy:openshell
@@ -67,17 +65,20 @@ kubectl -n tasklattice-sandboxes rollout status deployment/tasklattice-control
 kubectl -n tasklattice-sandboxes rollout status deployment/tasklattice-openshell-runner
 ```
 
-The local deploy command creates an ignored Kubernetes Secret from `.env`.
-The test-only TaskLattice seed loads the DeepSeek key from that environment and stores
-it in SQLite. On first Agent
-creation the private runner request provides it to OpenShell, which creates the
-`tasklattice-deepseek` OpenAI-compatible provider and validates
-`deepseek-chat`/`deepseek-reasoner` through `inference set`.
+The overlay deploys LiteLLM and PostgreSQL with local-only credentials. Register
+a Provider Account and at least one LLM deployment in the console before
+creating an Agent. The control plane creates a model-scoped LiteLLM key for each
+Instance and gives OpenShell that key through the private runner request.
 
-Expose the control API:
+The same deployment generates the `tasklattice-sandbox-policies` ConfigMap from
+`infra/kubernetes/base/policy-catalog.yaml`. The control Pod mounts the catalog
+read-only, treats those Policies as immutable, and uses its `unrestricted`
+entry when Agent creation omits `policyId`.
+
+Resolve the control API LoadBalancer address:
 
 ```sh
-kubectl -n tasklattice-sandboxes port-forward service/tasklattice-control 18081:80
+kubectl -n tasklattice-sandboxes get service tasklattice-control
 ```
 
 The local OpenShell Helm values create its gateway Service as a
@@ -95,7 +96,7 @@ kubectl -n openshell get service openshell
 ```
 
 ```sh
-TALI_BASE_URL=http://127.0.0.1:18081 TALI_EXPECT_NEMOCLAW_RUNTIME=1 npm run validate:core
+TALI_BASE_URL=http://localhost TALI_EXPECT_NEMOCLAW_RUNTIME=1 npm run validate:core
 ```
 
 The validator proves all of the following before it deletes the Agent:

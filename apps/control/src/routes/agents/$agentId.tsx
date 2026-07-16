@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowRight, Bot, Box, Container, Cpu, ExternalLink, FileLock2, Globe2, type LucideIcon } from "lucide-react";
-import { sandboxPolicies } from "@tasklattice/contracts";
 import { AgentStatusBadge } from "@/components/agents/agent-status-badge";
 import { ProvisioningActivity } from "@/components/agents/provisioning-activity";
 import { AgentTerminalWorkspace } from "@/components/agents/agent-terminal-workspace";
@@ -40,6 +39,7 @@ function AgentDetail() {
     retry: 1,
     staleTime: 5_000,
   });
+  const policies = useQuery({ queryKey: ["sandbox-policies"], queryFn: api.listPolicies });
 
   if (!agent.data)
     return (
@@ -48,9 +48,7 @@ function AgentDetail() {
       </div>
     );
 
-  const policy = sandboxPolicies.find(
-    (item) => item.id === (agent.data.policyId ?? "restricted"),
-  );
+  const policy = policies.data?.policies.find((item) => item.id === agent.data.policyId);
   const platform = getAgentPlatformPresentation(agent.data.agentPlatform);
   const hierarchy: Array<{ icon: LucideIcon; label: string; value: string }> = [
     { icon: Bot, label: "Agent", value: "Desired identity" },
@@ -64,7 +62,7 @@ function AgentDetail() {
       <PageHeader
         eyebrow={`Agent / Instances / ${agent.data.id.slice(0, 8)}`}
         title={agent.data.name}
-        description={agent.data.description || "NemoClaw runtime Instance"}
+        description={agent.data.description || "OpenShell runtime Instance"}
         badge={<AgentStatusBadge status={agent.data.status} />}
       />
       <div className="grid items-stretch border-y text-xs sm:grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] sm:items-center">
@@ -108,7 +106,7 @@ function AgentDetail() {
       />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <DetailCard icon={Box} label="Runtime" value={platform.runtimeName} />
-        <DetailCard icon={Bot} label="Agent platform" value={platform.name} />
+        <DetailCard icon={Bot} label="Agent" value={platform.name} />
         <DetailCard
           icon={Cpu}
           label="Provider"
@@ -122,7 +120,7 @@ function AgentDetail() {
         <DetailCard
           icon={FileLock2}
           label="OpenShell Policy"
-          value={policy?.name ?? agent.data.policyId ?? "Restricted"}
+          value={policy?.name ?? agent.data.policyId}
         />
       </div>
       <section

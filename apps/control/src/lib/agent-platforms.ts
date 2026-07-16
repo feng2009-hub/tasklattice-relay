@@ -5,13 +5,26 @@ import {
 } from "@tasklattice/contracts";
 
 const platformBrandAssets: Partial<Record<AgentPlatformId, string>> = {
+  openclaw: "/assets/brands/openclaw-pixel-lobster.svg",
   hermes: "/assets/brands/hermes-agent-logo.png",
 };
+
+export const agentRuntimePresentation = {
+  name: "OpenShell",
+  description: "Sandbox execution and isolation runtime",
+} as const;
+
+export const agentConfigurationPresentation = {
+  name: "NemoClaw",
+  description: "Configures the selected Agent inside OpenShell",
+} as const;
 
 export const agentPlatformPresentations = agentPlatforms.map((platform) => ({
   ...platform,
   brandAsset: platformBrandAssets[platform.id],
-  runtimeName: "NemoClaw",
+  configurationLabel: `${agentConfigurationPresentation.name} configuration`,
+  configurationName: agentConfigurationPresentation.name,
+  runtimeName: agentRuntimePresentation.name,
 }));
 
 export type AgentPlatformPresentation =

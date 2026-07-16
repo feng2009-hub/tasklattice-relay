@@ -6,3 +6,8 @@ resources:
   - pvc.yaml
   - deployment.yaml
   - service.yaml
+configMapGenerator:
+  - name: tasklattice-sandbox-policies
+    namespace: tasklattice-sandboxes
+    files:
+      - catalog.yaml=policy-catalog.yaml

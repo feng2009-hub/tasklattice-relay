@@ -45,7 +45,7 @@ function Overview() {
           <CardDescription>Instance and Sandbox remain the implemented runtime slice; broader control surfaces are marked as previews.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 text-sm sm:grid-cols-3">
-          {[["Runtime", "NVIDIA NemoClaw"], ["Provider", "DeepSeek via AI SDK"], ["Evidence", "Sandbox activity + terminal"]].map(([label, value]) => (
+          {[["Runtime", "OpenShell"], ["Agent configuration", "NemoClaw"], ["Evidence", "Sandbox activity + terminal"]].map(([label, value]) => (
             <div key={label} className="rounded-xl border bg-muted/35 p-4">
               <span className="text-muted-foreground">{label}</span>
               <strong className="mt-2 block">{value}</strong>

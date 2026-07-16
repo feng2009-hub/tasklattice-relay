@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   modelTypes,
   providerPresets,
   type ModelType,
+  type ModelDeployment,
   type ProviderAccount,
   type ProviderPresetId,
 } from "@tasklattice/contracts";
-import { CheckCircle2, KeyRound, Plus, ShieldCheck } from "lucide-react";
+import { CheckCircle2, KeyRound, Plus, ServerCog, ShieldCheck } from "lucide-react";
 import { ProviderIcon } from "./provider-icon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -58,15 +59,18 @@ export function ProviderRegistrationDrawer({
 
   useEffect(() => {
     setEndpoint(preset.endpoint ?? "");
-    if (!name) setName(`${preset.name} production`);
-  }, [name, preset]);
+    setName(`${preset.name} production`);
+  }, [preset]);
 
   const registerAccount = useMutation({
     mutationFn: api.registerProviderAccount,
     onSuccess: async (created) => {
       setAccount(created);
       setApiKey("");
-      await queryClient.invalidateQueries({ queryKey: ["provider-accounts"] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["provider-accounts"] }),
+        queryClient.invalidateQueries({ queryKey: ["model-deployments"] }),
+      ]);
     },
   });
 
@@ -87,13 +91,13 @@ export function ProviderRegistrationDrawer({
           <DrawerDescription>
             {initialAccount
               ? "Reuse this validated Endpoint and credential while keeping model type and pricing explicit."
-              : "One Endpoint and credential can serve multiple categorized models. The account must pass validation before models can be added."}
+              : "Choose a managed Provider and enter its key. TaskLattice validates the credential and configures the models exposed to it."}
           </DrawerDescription>
         </DrawerHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-5">
           <div className="mb-6 grid grid-cols-3 border text-xs">
-            {["Choose provider", "Validate account", "Add models"].map((label, index) => (
+            {["Choose provider", "Validate & configure", "Ready"].map((label, index) => (
               <div key={label} className={cn("min-h-14 border-r p-3 last:border-r-0", (account ? 2 : registerAccount.isPending ? 1 : 0) === index && "bg-primary/5 text-foreground")}>
                 <span className="font-mono text-muted-foreground">0{index + 1}</span>
                 <strong className="ml-2">{label}</strong>
@@ -130,16 +134,32 @@ export function ProviderRegistrationDrawer({
                 </div>
               </fieldset>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="provider-account-name">Account name</Label>
-                  <Input id="provider-account-name" value={name} onChange={(event) => setName(event.target.value)} required minLength={3} />
+              {preset.endpoint ? (
+                <div className="space-y-3 border bg-muted/20 p-4">
+                  <div className="flex items-start gap-3">
+                    <ServerCog className="mt-0.5 size-5 text-primary" />
+                    <div>
+                      <strong className="text-sm">Managed Provider configuration</strong>
+                      <p className="mt-1 font-mono text-xs text-muted-foreground">{preset.endpoint}</p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {preset.defaultModels.map((model) => <Badge key={model.modelId} variant="outline">{model.displayName}</Badge>)}
+                  </div>
+                  <p className="text-xs leading-5 text-muted-foreground">Account name, Endpoint, model category, and known pricing are supplied by the Provider catalog. Only models returned for this key are configured.</p>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="provider-account-endpoint">Endpoint</Label>
-                  <Input id="provider-account-endpoint" type="url" value={endpoint} onChange={(event) => setEndpoint(event.target.value)} readOnly={Boolean(preset.endpoint)} required />
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="provider-account-name">Account name</Label>
+                    <Input id="provider-account-name" value={name} onChange={(event) => setName(event.target.value)} required minLength={3} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="provider-account-endpoint">Endpoint</Label>
+                    <Input id="provider-account-endpoint" type="url" value={endpoint} onChange={(event) => setEndpoint(event.target.value)} required />
+                  </div>
                 </div>
-              </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="provider-account-key">API key</Label>
                 <div className="relative">
@@ -151,9 +171,11 @@ export function ProviderRegistrationDrawer({
               {registerAccount.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 px-3 py-2 text-sm text-destructive">{registerAccount.error.message}</p> : null}
               <Button type="submit" className="h-11" disabled={registerAccount.isPending}>
                 {registerAccount.isPending ? <Spinner /> : <ShieldCheck />}
-                {registerAccount.isPending ? "Validating Endpoint + Key…" : "Validate account"}
+                {registerAccount.isPending ? "Validating and configuring models…" : "Validate key & configure"}
               </Button>
             </form>
+          ) : !initialAccount && account.presetId !== "custom-openai-compatible" ? (
+            <ProviderReady account={account} />
           ) : (
             <ModelRegistration account={account} />
           )}
@@ -166,12 +188,48 @@ export function ProviderRegistrationDrawer({
   );
 }
 
+function ProviderReady({ account }: { account: ProviderAccount }) {
+  const models = useQuery({
+    queryKey: ["model-deployments"],
+    queryFn: api.listModelDeployments,
+  });
+  const configuredModels = (models.data ?? []).filter(
+    (model) => model.providerAccountId === account.id,
+  );
+  return (
+    <div className="space-y-5">
+      <div className="flex items-start gap-3 border bg-emerald-500/5 p-4">
+        <CheckCircle2 className="mt-0.5 size-5 text-emerald-600" />
+        <div>
+          <strong className="text-sm">{account.name} is ready</strong>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">{account.validationMessage}</p>
+        </div>
+      </div>
+      <div className="divide-y border">
+        {configuredModels.map((model: ModelDeployment) => (
+          <div key={model.id} className="flex min-h-14 items-center justify-between gap-3 px-3 py-2 text-xs">
+            <span><strong className="block text-sm">{model.displayName}</strong><span className="font-mono text-muted-foreground">{model.modelId}</span></span>
+            <Badge variant={model.status === "VALIDATED" ? "secondary" : "destructive"}>{model.status}</Badge>
+          </div>
+        ))}
+      </div>
+      <p className="text-xs leading-5 text-muted-foreground">You can use every validated model when creating an Instance. Revalidate the account later to reconcile catalog changes.</p>
+    </div>
+  );
+}
+
 function ModelRegistration({ account }: { account: ProviderAccount }) {
   const queryClient = useQueryClient();
   const preset = providerPresets.find((item) => item.id === account.presetId)!;
   const supportedTypes = preset.modelTypes as readonly ModelType[];
   const [modelType, setModelType] = useState<ModelType>(supportedTypes[0] ?? "llm");
-  const suggestions = useMemo(() => [...new Set([...account.discoveredModels, ...preset.suggestedModels])], [account.discoveredModels, preset.suggestedModels]);
+  const suggestions = useMemo(
+    () => [...new Set([
+      ...account.discoveredModels,
+      ...preset.defaultModels.map((model) => model.modelId),
+    ])],
+    [account.discoveredModels, preset.defaultModels],
+  );
   const [modelId, setModelId] = useState(suggestions[0] ?? "");
   const [displayName, setDisplayName] = useState(suggestions[0] ?? "");
   const [inputFee, setInputFee] = useState(0);

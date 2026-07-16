@@ -21,12 +21,12 @@ function InstanceFacts({ instance }: { instance: Agent }) {
   const platform = getAgentPlatformPresentation(instance.agentPlatform);
   const facts = [
     { label: "Runtime", value: platform.runtimeName },
-    { label: "Agent platform", value: platform.name },
+    { label: "Agent configuration", value: platform.configurationName },
+    { label: "Agent", value: platform.name },
     { label: "Model", value: instance.model },
     { label: "OpenShell Sandbox", value: instance.sandboxName },
     { label: "Observed", value: instance.runtimePhase ?? instance.status },
     { label: "Provider", value: instance.providerName },
-    { label: "Model", value: instance.model },
   ];
 
   return (

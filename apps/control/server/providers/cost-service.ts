@@ -45,9 +45,11 @@ export class CostService {
 
   async report(from: string, to: string): Promise<CostReport> {
     const logs = await this.litellm.listSpendLogs(from, to);
-    const agents = new Map(this.store.list().map((agent) => [agent.id, agent]));
+    const agents = new Map(
+      this.store.listAgentsForReporting().map((agent) => [agent.id, agent]),
+    );
     const deployments = new Map(
-      this.store.listModelDeployments().map((deployment) => [deployment.litellmModelName, deployment]),
+      this.store.listModelDeploymentsForReporting().map((deployment) => [deployment.litellmModelName, deployment]),
     );
     const byInstance = new Map<string, MutableBreakdown>();
     const byModel = new Map<string, MutableBreakdown>();

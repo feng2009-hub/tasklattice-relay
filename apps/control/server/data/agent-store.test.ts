@@ -9,7 +9,7 @@ describe("AgentStore", () => {
       id: "a",
       name: "Research",
       description: "",
-      runtime: "nemoclaw",
+      runtime: "openshell",
       agentPlatform: "openclaw",
       modelDeploymentId: "model-a",
       providerAccountId: "provider-a",
@@ -25,7 +25,7 @@ describe("AgentStore", () => {
       updatedAt: now,
       logs: [],
     });
-    expect(store.get("a")?.runtime).toBe("nemoclaw");
+    expect(store.get("a")?.runtime).toBe("openshell");
     expect(store.list()).toHaveLength(1);
     store.saveProviderAccount(
       {

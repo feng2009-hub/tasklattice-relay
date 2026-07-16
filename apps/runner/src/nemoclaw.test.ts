@@ -5,6 +5,7 @@ import {
 } from "@tasklattice/contracts";
 import { nemoClawTerminalArguments, onboardCommand } from "./nemoclaw.js";
 import {
+  composeOpenShellInferencePolicy,
   deepSeekProviderCreateCommand,
   openShellNemoClawProbeArguments,
   openShellAuditArguments,
@@ -97,6 +98,34 @@ describe("OpenShell Kubernetes command contract", () => {
       "/bin/bash",
       "/tmp/tali-nemoclaw-start",
     ]);
+  });
+
+  it("composes the scoped LiteLLM route into every selected Sandbox Policy", () => {
+    const policy = composeOpenShellInferencePolicy(
+      "version: 1\nnetwork_policies:\n  github:\n    name: github\n",
+      "http://tasklattice-litellm.tasklattice-sandboxes.svc.cluster.local:4000/v1",
+      "openclaw",
+    );
+
+    expect(policy).toContain("github:");
+    expect(policy).toContain("tasklattice_inference_gateway:");
+    expect(policy).toContain(
+      "host: tasklattice-litellm.tasklattice-sandboxes.svc.cluster.local",
+    );
+    expect(policy).toContain("port: 4000");
+    expect(policy).toContain("path: /usr/local/bin/node");
+  });
+
+  it("uses the HTTPS default port and Hermes inference binaries", () => {
+    const policy = composeOpenShellInferencePolicy(
+      "version: 1\n",
+      "https://inference.example.com/v1",
+      "hermes",
+    );
+
+    expect(policy).toContain("port: 443");
+    expect(policy).toContain("path: /usr/local/bin/hermes");
+    expect(policy).toContain("path: /usr/local/bin/python3");
   });
 
   it("reads and parses OpenShell OCSF policy decisions", () => {

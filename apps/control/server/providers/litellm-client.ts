@@ -33,6 +33,7 @@ export interface LiteLLMAdminClient {
     endpoint: string;
     presetId: ProviderPresetId;
   }): Promise<string>;
+  deleteModel(modelName: string): Promise<void>;
   createInstanceKey(input: { agentId: string; alias: string; modelName: string }): Promise<LiteLLMVirtualKey>;
   revokeKey(tokenId: string): Promise<void>;
   listSpendLogs(from: string, to: string): Promise<LiteLLMSpendLog[]>;
@@ -83,6 +84,21 @@ export class LiteLLMClient implements LiteLLMAdminClient {
       }),
     });
     return modelName;
+  }
+
+  async deleteModel(modelName: string): Promise<void> {
+    this.assertConfigured();
+    const response = await this.request<{
+      data?: Array<{ model_name?: string; model_info?: { id?: string } }>;
+    }>("/model/info");
+    const modelId = response.data?.find(
+      (model) => model.model_name === modelName,
+    )?.model_info?.id;
+    if (!modelId) return;
+    await this.request("/model/delete", {
+      method: "POST",
+      body: JSON.stringify({ id: modelId }),
+    });
   }
 
   async createInstanceKey(input: {

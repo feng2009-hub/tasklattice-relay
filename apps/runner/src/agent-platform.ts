@@ -7,6 +7,7 @@ export interface AgentPlatformRuntime {
   id: AgentPlatformId;
   instructionsPath: string;
   terminalCommand: string;
+  inferenceBinaries: readonly string[];
   endpointKind: HttpEndpoint["kind"];
   sandboxImage: () => string;
   bootstrapScript: (
@@ -75,6 +76,7 @@ const agentPlatformRuntimeRegistry = {
     id: "openclaw",
     instructionsPath: "/sandbox/.openclaw/workspace/AGENTS.md",
     terminalCommand: "exec openclaw tui",
+    inferenceBinaries: ["/usr/local/bin/node"],
     endpointKind: "openclaw-webui",
     sandboxImage: () =>
       process.env.OPENSHELL_SANDBOX_IMAGE ??
@@ -92,6 +94,11 @@ const agentPlatformRuntimeRegistry = {
     id: "hermes",
     instructionsPath: "/sandbox/.hermes/SOUL.md",
     terminalCommand: "exec hermes --tui",
+    inferenceBinaries: [
+      "/usr/local/bin/hermes",
+      "/usr/local/bin/python",
+      "/usr/local/bin/python3",
+    ],
     endpointKind: "hermes-dashboard",
     sandboxImage: () =>
       process.env.OPENSHELL_HERMES_SANDBOX_IMAGE ??

@@ -27,6 +27,15 @@ export const providerPresetIds = [
 
 export const modelTypes = ["llm", "text-embedding", "speech-to-text"] as const;
 
+export interface ProviderPresetModel {
+  modelId: string;
+  displayName: string;
+  modelType: (typeof modelTypes)[number];
+  inputFeePerMillionTokens?: number;
+  outputFeePerMillionTokens?: number;
+  feePerAudioMinute?: number;
+}
+
 export const providerPresets = [
   {
     id: "deepseek",
@@ -35,7 +44,22 @@ export const providerPresets = [
     endpoint: "https://api.deepseek.com/v1",
     icon: "/assets/providers/deepseek.svg",
     modelTypes: ["llm"],
-    suggestedModels: ["deepseek-chat", "deepseek-reasoner"],
+    defaultModels: [
+      {
+        modelId: "deepseek-v4-flash",
+        displayName: "DeepSeek V4 Flash",
+        modelType: "llm",
+        inputFeePerMillionTokens: 0.14,
+        outputFeePerMillionTokens: 0.28,
+      },
+      {
+        modelId: "deepseek-v4-pro",
+        displayName: "DeepSeek V4 Pro",
+        modelType: "llm",
+        inputFeePerMillionTokens: 0.435,
+        outputFeePerMillionTokens: 0.87,
+      },
+    ],
   },
   {
     id: "openai",
@@ -44,7 +68,11 @@ export const providerPresets = [
     endpoint: "https://api.openai.com/v1",
     icon: "/assets/providers/openai.svg",
     modelTypes: ["llm", "text-embedding", "speech-to-text"],
-    suggestedModels: ["gpt-5.2", "text-embedding-3-large", "gpt-4o-transcribe"],
+    defaultModels: [
+      { modelId: "gpt-5.2", displayName: "GPT-5.2", modelType: "llm" },
+      { modelId: "text-embedding-3-large", displayName: "Text Embedding 3 Large", modelType: "text-embedding" },
+      { modelId: "gpt-4o-transcribe", displayName: "GPT-4o Transcribe", modelType: "speech-to-text" },
+    ],
   },
   {
     id: "kimi-cn",
@@ -53,7 +81,10 @@ export const providerPresets = [
     endpoint: "https://api.moonshot.cn/v1",
     icon: "/assets/providers/kimi.svg",
     modelTypes: ["llm"],
-    suggestedModels: ["kimi-k2.5", "moonshot-v1-128k"],
+    defaultModels: [
+      { modelId: "kimi-k2.5", displayName: "Kimi K2.5", modelType: "llm" },
+      { modelId: "moonshot-v1-128k", displayName: "Moonshot V1 128K", modelType: "llm" },
+    ],
   },
   {
     id: "kimi-global",
@@ -62,7 +93,10 @@ export const providerPresets = [
     endpoint: "https://api.moonshot.ai/v1",
     icon: "/assets/providers/kimi.svg",
     modelTypes: ["llm"],
-    suggestedModels: ["kimi-k2.5", "moonshot-v1-128k"],
+    defaultModels: [
+      { modelId: "kimi-k2.5", displayName: "Kimi K2.5", modelType: "llm" },
+      { modelId: "moonshot-v1-128k", displayName: "Moonshot V1 128K", modelType: "llm" },
+    ],
   },
   {
     id: "custom-openai-compatible",
@@ -71,7 +105,7 @@ export const providerPresets = [
     endpoint: null,
     icon: "/assets/providers/custom.svg",
     modelTypes: ["llm", "text-embedding", "speech-to-text"],
-    suggestedModels: [],
+    defaultModels: [],
   },
 ] as const satisfies ReadonlyArray<{
   id: (typeof providerPresetIds)[number];
@@ -80,7 +114,7 @@ export const providerPresets = [
   endpoint: string | null;
   icon: string;
   modelTypes: ReadonlyArray<(typeof modelTypes)[number]>;
-  suggestedModels: readonly string[];
+  defaultModels: readonly ProviderPresetModel[];
 }>;
 
 export const agentPlatformIds = ["openclaw", "hermes"] as const;
@@ -115,95 +149,22 @@ export const defaultAgentPlatformId = agentPlatforms.find(
   (platform) => platform.isDefault,
 )!.id;
 
-export const sandboxPolicies = [
-  {
-    id: "restricted",
-    name: "Restricted",
-    description:
-      "Default-deny egress with OpenShell's baseline filesystem and process isolation.",
-    enforcement: "ENFORCE",
-    networkAccess: "Managed inference only",
-    policyYaml: `version: 1
-network_policies: {}
-`,
-  },
-  {
-    id: "github-readonly",
-    name: "GitHub Read-only",
-    description:
-      "Allows gh and curl to read the GitHub API while write methods remain denied.",
-    enforcement: "ENFORCE",
-    networkAccess: "api.github.com · GET, HEAD, OPTIONS",
-    policyYaml: `version: 1
-network_policies:
-  github_api:
-    name: github-api
-    endpoints:
-      - host: api.github.com
-        port: 443
-        protocol: rest
-        enforcement: enforce
-        access: read-only
-    binaries:
-      - path: /usr/bin/gh
-      - path: /usr/bin/curl
-`,
-  },
-  {
-    id: "github-full-access",
-    name: "GitHub Full Access",
-    description:
-      "Example policy that allows any HTTP method and path on the declared GitHub API endpoint.",
-    enforcement: "ENFORCE",
-    networkAccess: "api.github.com · all methods and paths",
-    policyYaml: `version: 1
-network_policies:
-  github_api_full_access:
-    name: github-api-full-access
-    endpoints:
-      - host: api.github.com
-        port: 443
-        protocol: rest
-        enforcement: enforce
-        access: full
-    binaries:
-      - path: /usr/bin/gh
-      - path: /usr/bin/curl
-`,
-  },
-  {
-    id: "package-install",
-    name: "Package Install",
-    description:
-      "Allows package managers to reach the npm and Python package registries.",
-    enforcement: "ENFORCE",
-    networkAccess: "npmjs.org · pypi.org · pythonhosted.org",
-    policyYaml: `version: 1
-network_policies:
-  package_registries:
-    name: package-registries
-    endpoints:
-      - host: registry.npmjs.org
-        port: 443
-      - host: pypi.org
-        port: 443
-      - host: files.pythonhosted.org
-        port: 443
-    binaries:
-      - path: /usr/bin/npm
-      - path: /usr/bin/pip
-      - path: /usr/local/bin/pip
-      - path: /usr/local/bin/uv
-`,
-  },
-] as const;
+export const sandboxPolicyIdSchema = z
+  .string()
+  .trim()
+  .min(2)
+  .max(80)
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use lowercase letters, numbers, and hyphens.");
 
-export const sandboxPolicyIds = sandboxPolicies.map((policy) => policy.id) as [
-  "restricted",
-  "github-readonly",
-  "github-full-access",
-  "package-install",
-];
+export const sandboxPolicyInputSchema = z.object({
+  name: z.string().trim().min(3).max(80),
+  description: z.string().trim().min(10).max(320),
+  networkAccess: z.string().trim().min(3).max(160),
+  policyYaml: z.string().trim().min(10).max(64_000),
+});
+
+export const createSandboxPolicySchema = sandboxPolicyInputSchema;
+export const updateSandboxPolicySchema = sandboxPolicyInputSchema;
 
 export const providerResourceStatuses = ["VALIDATED", "FAILED"] as const;
 
@@ -235,10 +196,10 @@ export const createModelDeploymentSchema = z.object({
 export const createAgentSchema = z.object({
   name: z.string().trim().min(3).max(48),
   description: z.string().trim().max(240).default(""),
-  runtime: z.literal("nemoclaw"),
+  runtime: z.literal("openshell"),
   agentPlatform: z.enum(agentPlatformIds).default(defaultAgentPlatformId),
   modelDeploymentId: z.string().trim().min(1),
-  policyId: z.enum(sandboxPolicyIds).default("restricted"),
+  policyId: sandboxPolicyIdSchema.optional(),
   systemPrompt: z.string().trim().min(10).max(8000),
 });
 
@@ -248,12 +209,29 @@ export type ProviderPresetId = (typeof providerPresetIds)[number];
 export type ModelType = (typeof modelTypes)[number];
 export type AgentPlatformId = (typeof agentPlatformIds)[number];
 export type AgentPlatform = (typeof agentPlatforms)[number];
-export type SandboxPolicyId = (typeof sandboxPolicyIds)[number];
-export type SandboxPolicy = (typeof sandboxPolicies)[number];
+export type SandboxPolicyId = z.infer<typeof sandboxPolicyIdSchema>;
+export type SandboxPolicyInput = z.infer<typeof sandboxPolicyInputSchema>;
+export type CreateSandboxPolicyInput = z.infer<typeof createSandboxPolicySchema>;
+export type UpdateSandboxPolicyInput = z.infer<typeof updateSandboxPolicySchema>;
 export type ProviderResourceStatus = (typeof providerResourceStatuses)[number];
 export type CreateProviderAccountInput = z.infer<typeof createProviderAccountSchema>;
 export type CreateModelDeploymentInput = z.infer<typeof createModelDeploymentSchema>;
 export type CreateAgentInput = z.infer<typeof createAgentSchema>;
+
+export interface SandboxPolicy extends SandboxPolicyInput {
+  id: SandboxPolicyId;
+  enforcement: "ENFORCE";
+  source: "BUILT_IN" | "CUSTOM";
+  immutable: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface SandboxPolicyCatalog {
+  defaultPolicyId: SandboxPolicyId;
+  templatePolicyYaml: string;
+  policies: SandboxPolicy[];
+}
 
 export interface ProviderValidationCheck {
   id: "endpoint" | "catalog" | "credentials" | "inference";
@@ -317,8 +295,9 @@ export interface CostReport {
   daily: CostDailyPoint[];
 }
 
-export interface Agent extends CreateAgentInput {
+export interface Agent extends Omit<CreateAgentInput, "policyId"> {
   id: string;
+  policyId: SandboxPolicyId;
   providerAccountId: string;
   providerName: string;
   model: string;

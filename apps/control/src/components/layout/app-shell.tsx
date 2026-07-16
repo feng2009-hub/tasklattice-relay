@@ -1,38 +1,57 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import {
   Boxes,
+  ChevronRight,
   CircleDollarSign,
   CircleHelp,
-  FilePlus2,
+  CloudCog,
   FileLock2,
+  FilePlus2,
   Gauge,
   LayoutDashboard,
   ListChecks,
   Network,
-  Menu,
-  PanelLeftClose,
-  PanelLeftOpen,
   Search,
   ServerCog,
   Settings,
   ShieldEllipsis,
   Sparkles,
-  X,
   type LucideIcon,
 } from "lucide-react";
+import type { AuthUser } from "@/components/auth/auth-provider";
 import { useAuth } from "@/components/auth/auth-provider";
 import { AccountMenu } from "@/components/account/account-menu";
 import { BrandLogo } from "@/components/brand/brand-logo";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
+  SidebarProvider,
+  SidebarRail,
+  SidebarTrigger,
+  useSidebar,
+} from "@/components/ui/sidebar";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 type WorkspaceRoute =
   | "/providers"
@@ -54,26 +73,28 @@ type RuntimeState = {
 
 type NavStatusKey = "openShellRuntime";
 
-type NavItemDefinition = {
-  children?: Array<{
-    description: string;
-    icon: LucideIcon;
-    label: string;
-    statusKey?: NavStatusKey;
-    to: WorkspaceRoute;
-  }>;
+type NavChildDefinition = {
+  description: string;
   icon: LucideIcon;
   label: string;
-  match?: "exact" | "prefix";
   statusKey?: NavStatusKey;
   to: WorkspaceRoute;
 };
 
-const navGroups: Array<{
-  items: NavItemDefinition[];
+type NavItemDefinition = {
+  children?: NavChildDefinition[];
+  collapsible?: boolean;
+  icon: LucideIcon;
   label: string;
-}> = [
-  { label: "Overview", items: [{ icon: LayoutDashboard, label: "Workspace", to: "/dashboard" }] },
+  statusKey?: NavStatusKey;
+  to: WorkspaceRoute;
+};
+
+const navGroups: Array<{ items: NavItemDefinition[]; label: string }> = [
+  {
+    label: "Overview",
+    items: [{ icon: LayoutDashboard, label: "Workspace", to: "/dashboard" }],
+  },
   {
     label: "Provider",
     items: [{
@@ -81,9 +102,8 @@ const navGroups: Array<{
         { description: "Endpoint, key, and model registry", icon: Gauge, label: "Registry", to: "/providers" },
         { description: "LiteLLM spend by Instance and model", icon: CircleDollarSign, label: "Cost", to: "/providers/cost" },
       ],
-      icon: Gauge,
+      icon: CloudCog,
       label: "Providers",
-      match: "prefix",
       to: "/providers",
     }],
   },
@@ -107,9 +127,9 @@ const navGroups: Array<{
             to: "/agent/sandboxes/policy",
           },
         ],
+        collapsible: true,
         icon: ShieldEllipsis,
         label: "Sandboxes",
-        match: "prefix",
         statusKey: "openShellRuntime",
         to: "/agent/sandboxes/runtime",
       },
@@ -133,16 +153,16 @@ const navGroups: Array<{
 ];
 
 const routeLabels: Record<string, string> = {
-  agents: "Instances",
   agent: "Agent",
-  providers: "Providers",
+  agents: "Instances",
   cost: "Cost",
   dashboard: "Overview",
   instances: "Instances",
   knowledge: "Knowledge Base",
   mcp: "MCP Servers",
-  policy: "Policy",
   new: "Create Instance",
+  policy: "Policy",
+  providers: "Providers",
   requests: "Requests",
   runtime: "Runtime",
   sandboxes: "Sandboxes",
@@ -150,129 +170,170 @@ const routeLabels: Record<string, string> = {
   tickets: "Ticket List",
 };
 
-function NavGroup({ children, collapsed, label }: { children: ReactNode; collapsed: boolean; label: string }) {
+function itemIsActive(item: NavItemDefinition, pathname: string) {
+  if (item.to === "/instances") return pathname === "/instances" || pathname.startsWith("/agents");
+  return pathname === item.to || Boolean(item.children?.some((child) => pathname === child.to));
+}
+
+function RuntimeStatus({ compact = false, state }: { compact?: boolean; state: RuntimeState }) {
+  const toneClass = cn(
+    state.tone === "success" && "bg-emerald-500",
+    state.tone === "warning" && "bg-amber-500",
+    state.tone === "danger" && "bg-destructive",
+    state.tone === "neutral" && "bg-muted-foreground/50",
+  );
+  if (compact) {
+    return <span aria-hidden="true" className={cn("absolute -bottom-1 -right-1 size-2 rounded-full ring-2 ring-sidebar", toneClass)} />;
+  }
   return (
-    <div className="space-y-1">
-      {collapsed ? <div className="mx-auto mb-2 h-px w-7 bg-sidebar-border" /> : (
-        <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
-      )}
-      {children}
-    </div>
+    <span className="ml-auto inline-flex shrink-0 items-center gap-1.5 font-normal text-muted-foreground">
+      <span aria-hidden="true" className={cn("size-1.5 rounded-full", toneClass)} />
+      {state.label}
+    </span>
   );
 }
 
-function NavItem({ active, collapsed, current, icon: Icon, label, onNavigate, runtimeState, to }: {
-  active: boolean;
-  collapsed: boolean;
-  current: boolean;
-  icon: LucideIcon;
-  label: string;
-  onNavigate: () => void;
-  runtimeState?: RuntimeState;
-  to: WorkspaceRoute;
+function NavIcon({ active, icon: Icon, runtimeState }: { active: boolean; icon: LucideIcon; runtimeState?: RuntimeState }) {
+  return (
+    <span className="relative shrink-0">
+      <Icon className={cn(active && "text-primary")} />
+      {runtimeState ? <RuntimeStatus compact state={runtimeState} /> : null}
+    </span>
+  );
+}
+
+function NavChildren({ children, pathname, runtimeStates }: {
+  children: NavChildDefinition[];
+  pathname: string;
+  runtimeStates: Record<NavStatusKey, RuntimeState>;
 }) {
-  const link = (
-    <Link
-      to={to}
-      onClick={onNavigate}
-      aria-current={current ? "page" : undefined}
-      className={cn(
-        "group flex min-h-11 items-center rounded-md border-l-2 border-transparent text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px]",
-        collapsed ? "justify-center px-2" : "gap-3 px-3",
-        active
-          ? "border-primary bg-sidebar-accent/55 font-semibold text-sidebar-accent-foreground"
-          : "text-muted-foreground hover:bg-sidebar-accent/65 hover:text-sidebar-foreground",
-      )}
-    >
-      <span className="relative shrink-0">
-        <Icon className={cn("size-[18px]", active && "text-primary")} />
-        {runtimeState ? (
-          <span
-            aria-hidden="true"
-            className={cn(
-              "absolute -bottom-1 -right-1 size-2 rounded-full ring-2 ring-sidebar",
-              runtimeState.tone === "success" && "bg-emerald-500",
-              runtimeState.tone === "warning" && "bg-amber-500",
-              runtimeState.tone === "danger" && "bg-destructive",
-              runtimeState.tone === "neutral" && "bg-muted-foreground/50",
-            )}
-          />
-        ) : null}
-      </span>
-      {collapsed ? null : <span>{label}</span>}
-      {collapsed || !runtimeState ? null : (
-        <span className="sr-only">OpenShell runtime: {runtimeState.label}</span>
-      )}
-    </Link>
+  const { setOpenMobile } = useSidebar();
+  return (
+    <SidebarMenuSub>
+      {children.map((child) => {
+        const active = pathname === child.to;
+        const runtimeState = child.statusKey ? runtimeStates[child.statusKey] : undefined;
+        return (
+          <SidebarMenuSubItem key={child.to}>
+            <SidebarMenuSubButton asChild isActive={active}>
+              <Link to={child.to} onClick={() => setOpenMobile(false)} aria-current={active ? "page" : undefined}>
+                <child.icon className={cn(active && "text-primary")} />
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-2">
+                    <strong className="truncate font-medium">{child.label}</strong>
+                    {runtimeState ? <RuntimeStatus state={runtimeState} /> : null}
+                  </span>
+                  <span className="mt-0.5 block truncate text-muted-foreground">{child.description}</span>
+                </span>
+              </Link>
+            </SidebarMenuSubButton>
+          </SidebarMenuSubItem>
+        );
+      })}
+    </SidebarMenuSub>
   );
-  return collapsed ? (
-    <Tooltip><TooltipTrigger asChild>{link}</TooltipTrigger><TooltipContent side="right">{label}</TooltipContent></Tooltip>
-  ) : link;
 }
 
-function NavSubItem({ active, description, icon: Icon, label, onNavigate, runtimeState, to }: {
-  active: boolean;
-  description: string;
-  icon: LucideIcon;
-  label: string;
-  onNavigate: () => void;
-  runtimeState?: RuntimeState;
-  to: WorkspaceRoute;
+function NavigationItem({ item, pathname, runtimeStates }: {
+  item: NavItemDefinition;
+  pathname: string;
+  runtimeStates: Record<NavStatusKey, RuntimeState>;
 }) {
+  const { setOpenMobile } = useSidebar();
+  const active = itemIsActive(item, pathname);
+  const runtimeState = item.statusKey ? runtimeStates[item.statusKey] : undefined;
+  const [open, setOpen] = useState(active);
+
+  useEffect(() => {
+    if (active && item.collapsible) setOpen(true);
+  }, [active, item.collapsible, pathname]);
+
+  if (item.collapsible && item.children) {
+    return (
+      <Collapsible asChild open={open} onOpenChange={setOpen} className="group/collapsible">
+        <SidebarMenuItem>
+          <CollapsibleTrigger asChild>
+            <SidebarMenuButton type="button" isActive={active} tooltip={item.label} aria-expanded={open}>
+              <NavIcon active={active} icon={item.icon} {...(runtimeState ? { runtimeState } : {})} />
+              <span>{item.label}</span>
+              <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+            </SidebarMenuButton>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <NavChildren children={item.children} pathname={pathname} runtimeStates={runtimeStates} />
+          </CollapsibleContent>
+        </SidebarMenuItem>
+      </Collapsible>
+    );
+  }
+
   return (
-    <Link
-      to={to}
-      onClick={onNavigate}
-      aria-current={active ? "page" : undefined}
-      className={cn(
-        "group grid min-h-14 grid-cols-[1rem_minmax(0,1fr)] gap-x-2 border-l py-2 pl-3 pr-2 text-[11px] leading-4 transition-colors focus-visible:outline-2",
-        active
-          ? "border-primary bg-sidebar-accent/45 text-sidebar-foreground"
-          : "border-sidebar-border text-muted-foreground hover:border-foreground/50 hover:bg-sidebar-accent/35 hover:text-sidebar-foreground",
-      )}
-    >
-      <Icon className={cn("mt-0.5 size-3.5", active && "text-primary")} />
-      <span className="min-w-0">
-        <span className="flex items-center justify-between gap-2">
-          <strong className="truncate font-medium text-sidebar-foreground">{label}</strong>
-          {runtimeState ? (
-            <span className="inline-flex shrink-0 items-center gap-1.5 font-normal text-muted-foreground">
-              <span
-                className={cn(
-                  "size-1.5 rounded-full",
-                  runtimeState.tone === "success" && "bg-emerald-500",
-                  runtimeState.tone === "warning" && "bg-amber-500",
-                  runtimeState.tone === "danger" && "bg-destructive",
-                  runtimeState.tone === "neutral" && "bg-muted-foreground/50",
-                )}
-              />
-              {runtimeState.label}
-            </span>
-          ) : null}
-        </span>
-        <span className="mt-0.5 block truncate">{description}</span>
-      </span>
-    </Link>
+    <SidebarMenuItem>
+      <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
+        <Link to={item.to} onClick={() => setOpenMobile(false)} aria-current={pathname === item.to ? "page" : undefined}>
+          <NavIcon active={active} icon={item.icon} {...(runtimeState ? { runtimeState } : {})} />
+          <span>{item.label}</span>
+          {runtimeState ? <span className="sr-only">OpenShell runtime: {runtimeState.label}</span> : null}
+        </Link>
+      </SidebarMenuButton>
+      {item.children ? <NavChildren children={item.children} pathname={pathname} runtimeStates={runtimeStates} /> : null}
+    </SidebarMenuItem>
   );
 }
 
-function DisabledNav({ collapsed, icon: Icon, label }: { collapsed: boolean; icon: LucideIcon; label: string }) {
+function DisabledNav({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          disabled
-          className={cn(
-            "flex min-h-11 w-full cursor-not-allowed items-center rounded-md text-left text-sm text-muted-foreground/45",
-            collapsed ? "justify-center px-2" : "gap-3 px-3",
-          )}
-        >
-          <Icon className="size-[18px] shrink-0" />
-          {collapsed ? null : <><span>{label}</span><span className="ml-auto rounded-md bg-muted px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide">Later</span></>}
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="right">Not part of the current agent operating path.</TooltipContent>
-    </Tooltip>
+    <SidebarMenuItem>
+      <SidebarMenuButton disabled tooltip="Not part of the current Agent operating path.">
+        <Icon />
+        <span>{label}</span>
+        <span className="ml-auto bg-muted px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide group-data-[collapsible=icon]:hidden">Later</span>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
+}
+
+function WorkspaceSidebar({ logout, pathname, runtimeStates, user }: {
+  logout: () => void | Promise<void>;
+  pathname: string;
+  runtimeStates: Record<NavStatusKey, RuntimeState>;
+  user: AuthUser | null;
+}) {
+  const { isMobile, setOpenMobile, state } = useSidebar();
+  return (
+    <Sidebar collapsible="icon">
+      <SidebarHeader className="h-16 justify-center border-b border-sidebar-border px-4 group-data-[collapsible=icon]:px-2">
+        <Link to="/dashboard" onClick={() => setOpenMobile(false)} className="flex min-h-11 min-w-0 items-center gap-3 focus-visible:outline-2" aria-label="TaskLattice workspace">
+          <BrandLogo compact={!isMobile && state === "collapsed"} />
+        </Link>
+      </SidebarHeader>
+      <SidebarContent>
+        <nav aria-label="Workspace navigation" className="flex flex-col py-2">
+          {navGroups.map((group) => (
+            <SidebarGroup key={group.label}>
+              <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {group.items.map((item) => (
+                    <NavigationItem key={item.to} item={item} pathname={pathname} runtimeStates={runtimeStates} />
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          ))}
+        </nav>
+      </SidebarContent>
+      <SidebarFooter className="border-t border-sidebar-border p-3">
+        <SidebarMenu>
+          <DisabledNav icon={Settings} label="Platform settings" />
+          <DisabledNav icon={CircleHelp} label="Help & documentation" />
+        </SidebarMenu>
+        <div className="mt-1 border-t border-sidebar-border pt-3">
+          <AccountMenu collapsed={!isMobile && state === "collapsed"} onLogout={logout} user={user} />
+        </div>
+      </SidebarFooter>
+      <SidebarRail />
+    </Sidebar>
   );
 }
 
@@ -296,8 +357,7 @@ function Breadcrumbs({ pathname }: { pathname: string }) {
 export function AppShell() {
   const { logout, user } = useAuth();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const runtime = useQuery({
     queryKey: ["runtime-status"],
     queryFn: api.getRuntimeStatus,
@@ -305,133 +365,42 @@ export function AppShell() {
     staleTime: 10_000,
     refetchInterval: 30_000,
   });
-  const openShellRuntime = runtime.isPending
-    ? { label: "Checking", tone: "neutral" as const }
-    : runtime.data?.terminal.available &&
-        runtime.data.terminal.transport === "openshell"
-      ? { label: "Connected", tone: "success" as const }
+  const openShellRuntime: RuntimeState = runtime.isPending
+    ? { label: "Checking", tone: "neutral" }
+    : runtime.data?.terminal.available && runtime.data.terminal.transport === "openshell"
+      ? { label: "Connected", tone: "success" }
       : runtime.error
-        ? { label: "Unavailable", tone: "danger" as const }
-        : { label: "Unavailable", tone: "warning" as const };
-  const runtimeStates: Record<NavStatusKey, RuntimeState> = {
-    openShellRuntime,
-  };
-  const isActive = (item: Pick<NavItemDefinition, "match" | "to">) => {
-    if (item.match === "prefix") return pathname.startsWith("/agent/sandboxes/");
-    const { to } = item;
-    if (to === "/instances") return pathname === "/instances" || pathname.startsWith("/agents");
-    return pathname === to;
-  };
+        ? { label: "Unavailable", tone: "danger" }
+        : { label: "Unavailable", tone: "warning" };
+
   useEffect(() => {
-    const stored = window.localStorage.getItem("tasklattice.sidebar.collapsed");
-    setCollapsed(stored === "true");
+    setSidebarOpen(window.localStorage.getItem("tasklattice.sidebar.collapsed") !== "true");
   }, []);
 
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [pathname]);
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      setMobileOpen(false);
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
-
-  const toggleCollapsed = () => {
-    setCollapsed((value) => {
-      window.localStorage.setItem("tasklattice.sidebar.collapsed", String(!value));
-      return !value;
-    });
+  const handleSidebarOpenChange = (open: boolean) => {
+    setSidebarOpen(open);
+    window.localStorage.setItem("tasklattice.sidebar.collapsed", String(!open));
   };
-
-  const sidebarContent = (isCollapsed: boolean) => (
-    <>
-      <div className={cn("flex h-16 shrink-0 items-center border-b border-sidebar-border", isCollapsed ? "justify-center px-2" : "gap-3 px-4")}>
-        <Link to="/dashboard" className="flex min-h-11 min-w-0 items-center gap-3 rounded-sm focus-visible:outline-2" aria-label="TaskLattice workspace">
-          <BrandLogo compact={isCollapsed} />
-        </Link>
-      </div>
-      <nav className="flex-1 space-y-6 overflow-y-auto overflow-x-hidden p-3" aria-label="Workspace navigation">
-        {navGroups.map((group) => (
-          <NavGroup key={group.label} label={group.label} collapsed={isCollapsed}>
-            {group.items.map((item) => (
-              <div key={item.to}>
-                <NavItem
-                  active={isActive(item)}
-                  collapsed={isCollapsed}
-                  current={pathname === item.to}
-                  icon={item.icon}
-                  label={item.label}
-                  onNavigate={() => setMobileOpen(false)}
-                  {...(item.statusKey ? { runtimeState: runtimeStates[item.statusKey] } : {})}
-                  to={item.to}
-                />
-                {item.children && !isCollapsed ? (
-                  <div className="mx-3 mb-2 mt-1 space-y-1">
-                    {item.children.map((child) => (
-                      <NavSubItem
-                        key={child.to}
-                        active={pathname === child.to}
-                        description={child.description}
-                        icon={child.icon}
-                        label={child.label}
-                        onNavigate={() => setMobileOpen(false)}
-                        {...(child.statusKey ? { runtimeState: runtimeStates[child.statusKey] } : {})}
-                        to={child.to}
-                      />
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            ))}
-          </NavGroup>
-        ))}
-      </nav>
-      <div className="shrink-0 border-t border-sidebar-border p-3">
-        <DisabledNav collapsed={isCollapsed} icon={Settings} label="Platform settings" />
-        <DisabledNav collapsed={isCollapsed} icon={CircleHelp} label="Help & documentation" />
-        <div className="mt-2 border-t border-sidebar-border pt-3">
-          <AccountMenu
-            collapsed={isCollapsed}
-            onLogout={logout}
-            placement="sidebar"
-            user={user}
-          />
-        </div>
-      </div>
-    </>
-  );
 
   return (
     <TooltipProvider delayDuration={250}>
-      <div className="min-h-svh bg-background text-foreground">
-        <aside className={cn("fixed inset-y-0 left-0 z-40 hidden border-r border-sidebar-border bg-sidebar transition-[width] duration-200 lg:flex lg:flex-col", collapsed ? "w-[4.5rem]" : "w-[17.5rem]")}>
-          {sidebarContent(collapsed)}
-        </aside>
-
-        {mobileOpen ? <button aria-label="Close navigation" className="fixed inset-0 z-40 bg-black/35 backdrop-blur-[1px] lg:hidden" onClick={() => setMobileOpen(false)} /> : null}
-        <aside aria-hidden={!mobileOpen} className={cn("fixed inset-y-0 left-0 z-50 flex w-[min(88vw,20rem)] flex-col border-r bg-sidebar shadow-2xl transition-transform duration-200 lg:hidden", mobileOpen ? "translate-x-0" : "-translate-x-full")}>
-          <button type="button" aria-label="Close navigation" onClick={() => setMobileOpen(false)} className="absolute right-3 top-2.5 z-10 grid size-11 place-items-center rounded-lg hover:bg-sidebar-accent focus-visible:outline-2"><X className="size-5" /></button>
-          {sidebarContent(false)}
-        </aside>
-
-        <div className={cn("transition-[padding] duration-200", collapsed ? "lg:pl-[4.5rem]" : "lg:pl-[17.5rem]")}>
+      <SidebarProvider open={sidebarOpen} onOpenChange={handleSidebarOpenChange}>
+        <WorkspaceSidebar
+          logout={logout}
+          pathname={pathname}
+          runtimeStates={{ openShellRuntime }}
+          user={user}
+        />
+        <SidebarInset>
           <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-background/94 px-4 backdrop-blur-md sm:px-6 lg:px-8">
-            <button type="button" onClick={() => setMobileOpen(true)} aria-label="Open navigation" aria-expanded={mobileOpen} className="grid size-11 place-items-center rounded-xl hover:bg-muted focus-visible:outline-2 lg:hidden"><Menu className="size-5" /></button>
-            <button type="button" onClick={toggleCollapsed} aria-label={collapsed ? "Expand navigation" : "Collapse navigation"} aria-expanded={!collapsed} className="hidden size-11 place-items-center rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2 lg:grid">
-              {collapsed ? <PanelLeftOpen className="size-5" /> : <PanelLeftClose className="size-5" />}
-            </button>
+            <SidebarTrigger />
             <Breadcrumbs pathname={pathname} />
-            <button disabled className="ml-auto hidden min-h-10 w-64 cursor-not-allowed items-center gap-2 rounded-xl border bg-muted/30 px-3 text-sm text-muted-foreground/45 md:flex"><Search className="size-4" />Search workspace<span className="ml-auto text-[10px] uppercase">Later</span></button>
+            <button disabled className="ml-auto hidden min-h-10 w-64 cursor-not-allowed items-center gap-2 border bg-muted/30 px-3 text-sm text-muted-foreground/45 md:flex"><Search className="size-4" />Search workspace<span className="ml-auto text-[10px] uppercase">Later</span></button>
             <div className="ml-auto flex min-h-10 items-center gap-2 rounded-full border px-3 text-xs font-semibold md:ml-2"><span className="size-2 rounded-full bg-[#79a93b]" />UAT</div>
-            <AccountMenu onLogout={logout} placement="header" user={user} />
           </header>
           <main id="main-content" className="mx-auto w-full max-w-[1440px] p-5 sm:p-6 lg:p-8"><Outlet /></main>
-        </div>
-      </div>
+        </SidebarInset>
+      </SidebarProvider>
     </TooltipProvider>
   );
 }

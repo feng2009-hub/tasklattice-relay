@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ProvisioningStage, SandboxAuditEvent } from "@tasklattice/contracts";
 import type { AgentPlatformId } from "@tasklattice/contracts";
+import { parse, stringify } from "yaml";
 import { getAgentPlatformRuntime } from "./agent-platform.js";
 import { runCommand, type ProvisionInput } from "./nemoclaw.js";
 
@@ -135,6 +136,52 @@ export function deepSeekProviderCreateCommand(input: ProvisionInput): {
 
 export function openShellProviderName(sandboxName: string): string {
   return `tali-${sandboxName}`.slice(0, 63).replace(/-$/, "");
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export function composeOpenShellInferencePolicy(
+  policyYaml: string,
+  inferenceEndpoint: string,
+  agentPlatform: AgentPlatformId,
+): string {
+  const document = parse(policyYaml) as unknown;
+  if (!isRecord(document) || document.version !== 1)
+    throw new Error("OpenShell Policy YAML must be an object with version: 1.");
+
+  const endpoint = new URL(inferenceEndpoint);
+  if (endpoint.protocol !== "http:" && endpoint.protocol !== "https:")
+    throw new Error("The Instance inference endpoint must use HTTP or HTTPS.");
+  const port = endpoint.port
+    ? Number(endpoint.port)
+    : endpoint.protocol === "https:"
+      ? 443
+      : 80;
+  const networkPolicies = isRecord(document.network_policies)
+    ? document.network_policies
+    : {};
+  const runtime = getAgentPlatformRuntime(agentPlatform);
+
+  document.network_policies = {
+    ...networkPolicies,
+    tasklattice_inference_gateway: {
+      name: "tasklattice-inference-gateway",
+      endpoints: [
+        {
+          host: endpoint.hostname,
+          port,
+          protocol: "rest",
+          enforcement: "enforce",
+          access: "full",
+        },
+      ],
+      binaries: runtime.inferenceBinaries.map((path) => ({ path })),
+    },
+  };
+
+  return stringify(document, { lineWidth: 0 }).trimEnd() + "\n";
 }
 
 export function openShellSandboxCreateArguments(
@@ -513,9 +560,15 @@ export async function provisionOpenShellSandbox(
       ),
       { mode: 0o600 },
     );
-    await writeFile(policyFile, input.policyYaml ?? "version: 1\n", {
-      mode: 0o600,
-    });
+    await writeFile(
+      policyFile,
+      composeOpenShellInferencePolicy(
+        input.policyYaml ?? "version: 1\n",
+        input.inferenceEndpoint,
+        input.agentPlatform,
+      ),
+      { mode: 0o600 },
+    );
     observer?.onStage?.("POD", "Creating the OpenShell Sandbox and starting its Kubernetes Pod.");
     return await createOpenShellNemoClawSandbox(
       input,

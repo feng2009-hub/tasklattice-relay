@@ -66,7 +66,7 @@ export function AgentTerminalWorkspace({
               {platform.terminalLabel}
             </h2>
             <p className="truncate text-xs text-white/55">
-              {agentName} · NemoClaw / {platform.name}
+              {agentName} · OpenShell / NemoClaw / {platform.name}
             </p>
           </div>
         </div>

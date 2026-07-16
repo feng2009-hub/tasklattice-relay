@@ -11,7 +11,7 @@ describe("CostService", () => {
       id: "agent-a",
       name: "Research",
       description: "",
-      runtime: "nemoclaw",
+      runtime: "openshell",
       agentPlatform: "openclaw",
       modelDeploymentId: "model-a",
       providerAccountId: "provider-a",
@@ -46,6 +46,7 @@ describe("CostService", () => {
     const litellm: LiteLLMAdminClient = {
       baseUrl: "http://litellm:4000",
       registerModel: vi.fn(),
+      deleteModel: vi.fn(),
       createInstanceKey: vi.fn(),
       revokeKey: vi.fn(),
       listSpendLogs: vi.fn(async () => [
@@ -59,4 +60,37 @@ describe("CostService", () => {
     expect(report.byInstance[0]).toMatchObject({ id: "agent-a", label: "Research", spend: 2, requests: 2 });
     expect(report.byModel[0]).toMatchObject({ label: "DeepSeek Chat", detail: "DeepSeek · api.deepseek.com", spend: 2 });
   });
+
+  it("reports cost without treating stale Provider Connection rows as seed data", async () => {
+    const path = join(tmpdir(), `tasklattice-cost-${randomUUID()}.db`);
+    const store = new AgentStore(path);
+    const database = new DatabaseSync(path);
+    database.prepare(
+      "INSERT INTO provider_connections (id, payload, api_key, created_at) VALUES (?, ?, ?, ?)",
+    ).run("legacy", "{}", "legacy-secret", new Date().toISOString());
+    database.prepare(
+      "INSERT INTO agents (id, payload, created_at) VALUES (?, ?, ?)",
+    ).run(
+      "legacy-agent",
+      JSON.stringify({ id: "legacy-agent", name: "Legacy", sandboxName: "legacy-sandbox" }),
+      new Date().toISOString(),
+    );
+    database.close();
+    const litellm: LiteLLMAdminClient = {
+      baseUrl: "http://litellm:4000",
+      registerModel: vi.fn(),
+      deleteModel: vi.fn(),
+      createInstanceKey: vi.fn(),
+      revokeKey: vi.fn(),
+      listSpendLogs: vi.fn(async () => []),
+    };
+
+    await expect(new CostService(store, litellm).report("2026-07-01", "2026-07-16"))
+      .resolves.toMatchObject({ totalSpend: 0, byInstance: [], byModel: [] });
+    expect(store.listModelDeployments()).toEqual([]);
+  });
 });
+import { randomUUID } from "node:crypto";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";

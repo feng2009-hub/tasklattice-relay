@@ -16,6 +16,13 @@ const providerId = {
   schema: { type: "string" },
 } as const;
 
+const policyId = {
+  name: "policyId",
+  in: "path",
+  required: true,
+  schema: { type: "string", pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+} as const;
+
 export const openApiDocument = {
   openapi: "3.1.0",
   info: {
@@ -107,6 +114,17 @@ export const openApiDocument = {
         },
       },
     },
+    "/providers/{providerId}": {
+      parameters: [providerId],
+      delete: {
+        operationId: "deleteProviderAccount",
+        summary: "Delete an unused Provider Account and its LiteLLM models",
+        responses: {
+          "200": { description: "Provider Account deleted", ...json({ type: "object", required: ["message"], properties: { message: { type: "string" } } }) },
+          "404": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
     "/providers/models": {
       get: {
         operationId: "listModelDeployments",
@@ -129,6 +147,42 @@ export const openApiDocument = {
           { name: "to", in: "query", required: true, schema: { type: "string", format: "date" } },
         ],
         responses: { "200": { description: "Cost report", ...json({ $ref: "#/components/schemas/CostReport" }) } },
+      },
+    },
+    "/policies": {
+      get: {
+        operationId: "listSandboxPolicies",
+        summary: "List ConfigMap-managed and custom OpenShell Policies",
+        responses: { "200": { description: "Policy catalog", ...json({ $ref: "#/components/schemas/SandboxPolicyCatalog" }) } },
+      },
+      post: {
+        operationId: "createSandboxPolicy",
+        summary: "Create a custom OpenShell Policy",
+        requestBody: { required: true, ...json({ $ref: "#/components/schemas/SandboxPolicyInput" }) },
+        responses: {
+          "201": { description: "Custom Policy", ...json({ $ref: "#/components/schemas/SandboxPolicy" }) },
+          "400": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
+    "/policies/{policyId}": {
+      parameters: [policyId],
+      put: {
+        operationId: "updateSandboxPolicy",
+        summary: "Update a custom OpenShell Policy",
+        requestBody: { required: true, ...json({ $ref: "#/components/schemas/SandboxPolicyInput" }) },
+        responses: {
+          "200": { description: "Updated custom Policy", ...json({ $ref: "#/components/schemas/SandboxPolicy" }) },
+          "400": { $ref: "#/components/responses/Error" },
+        },
+      },
+      delete: {
+        operationId: "deleteSandboxPolicy",
+        summary: "Delete an unused custom OpenShell Policy",
+        responses: {
+          "200": { description: "Policy deleted", ...json({ type: "object", required: ["message"], properties: { message: { type: "string" } } }) },
+          "400": { $ref: "#/components/responses/Error" },
+        },
       },
     },
     "/runtime": {
@@ -259,20 +313,20 @@ export const openApiDocument = {
       CreateAgentInput: {
         type: "object",
         additionalProperties: false,
-        required: ["name", "runtime", "agentPlatform", "modelDeploymentId", "policyId", "systemPrompt"],
+        required: ["name", "runtime", "agentPlatform", "modelDeploymentId", "systemPrompt"],
         properties: {
           name: { type: "string", minLength: 3, maxLength: 48 },
           description: { type: "string", maxLength: 240, default: "" },
-          runtime: { type: "string", const: "nemoclaw" },
+          runtime: { type: "string", const: "openshell" },
           agentPlatform: {
             type: "string",
             enum: ["openclaw", "hermes"],
             default: "openclaw",
             description:
-              "Agent implementation provisioned inside the NemoClaw runtime.",
+              "Agent implementation configured by NemoClaw inside the OpenShell runtime.",
           },
           modelDeploymentId: { type: "string", description: "Validated LLM deployment selected for this Instance." },
-          policyId: { type: "string", enum: ["restricted", "github-readonly", "github-full-access", "package-install"], default: "restricted" },
+          policyId: { type: "string", pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$", description: "Catalog Policy ID. Omit to use the deployment ConfigMap default." },
           systemPrompt: { type: "string", minLength: 10, maxLength: 8000 },
         },
       },
@@ -281,9 +335,10 @@ export const openApiDocument = {
           { $ref: "#/components/schemas/CreateAgentInput" },
           {
             type: "object",
-            required: ["id", "providerAccountId", "providerName", "model", "modelType", "costKeyAlias", "sandboxName", "status", "createdAt", "updatedAt", "logs"],
+            required: ["id", "policyId", "providerAccountId", "providerName", "model", "modelType", "costKeyAlias", "sandboxName", "status", "createdAt", "updatedAt", "logs"],
             properties: {
               id: { type: "string", format: "uuid" },
+              policyId: { type: "string" },
               providerAccountId: { type: "string" },
               providerName: { type: "string" },
               model: { type: "string" },
@@ -325,6 +380,43 @@ export const openApiDocument = {
           presetId: { type: "string", enum: ["deepseek", "openai", "kimi-cn", "kimi-global", "custom-openai-compatible"] },
           endpoint: { type: "string", format: "uri" },
           apiKey: { type: "string", minLength: 8, writeOnly: true },
+        },
+      },
+      SandboxPolicyInput: {
+        type: "object",
+        additionalProperties: false,
+        required: ["name", "description", "networkAccess", "policyYaml"],
+        properties: {
+          name: { type: "string", minLength: 3, maxLength: 80 },
+          description: { type: "string", minLength: 10, maxLength: 320 },
+          networkAccess: { type: "string", minLength: 3, maxLength: 160 },
+          policyYaml: { type: "string", minLength: 10, maxLength: 64000 },
+        },
+      },
+      SandboxPolicy: {
+        allOf: [
+          { $ref: "#/components/schemas/SandboxPolicyInput" },
+          {
+            type: "object",
+            required: ["id", "enforcement", "source", "immutable"],
+            properties: {
+              id: { type: "string" },
+              enforcement: { type: "string", const: "ENFORCE" },
+              source: { type: "string", enum: ["BUILT_IN", "CUSTOM"] },
+              immutable: { type: "boolean" },
+              createdAt: { type: "string", format: "date-time" },
+              updatedAt: { type: "string", format: "date-time" },
+            },
+          },
+        ],
+      },
+      SandboxPolicyCatalog: {
+        type: "object",
+        required: ["defaultPolicyId", "templatePolicyYaml", "data"],
+        properties: {
+          defaultPolicyId: { type: "string" },
+          templatePolicyYaml: { type: "string" },
+          data: { type: "array", items: { $ref: "#/components/schemas/SandboxPolicy" } },
         },
       },
       CreateModelDeploymentInput: {

@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { createAgentSchema, sandboxPolicies } from "@tasklattice/contracts";
+import { createAgentSchema } from "@tasklattice/contracts";
 import { agentSandboxName } from "./agent-service";
 import { AgentService } from "./agent-service";
 import { AgentStore } from "../data/agent-store";
 import type { LiteLLMAdminClient } from "../providers/litellm-client";
 import type { RunnerClient } from "../runtime/nemoclaw-runner-client";
+import { PolicyService } from "../policies/policy-service";
 
 describe("Agent sandbox naming", () => {
   it("stays within the OpenShell service-routing limit", () => {
@@ -26,10 +27,8 @@ describe("Agent sandbox naming", () => {
 });
 
 describe("OpenShell policy assignment", () => {
-  it("offers a full-access GitHub example that can be assigned to an Agent", () => {
-    const policy = sandboxPolicies.find(
-      (item) => item.id === "github-full-access",
-    );
+  it("loads the full-access GitHub example from the deployment catalog", () => {
+    const policy = new PolicyService().resolve("github-full-access");
 
     expect(policy?.policyYaml).toContain("host: api.github.com");
     expect(policy?.policyYaml).toContain("access: full");
@@ -37,7 +36,7 @@ describe("OpenShell policy assignment", () => {
       createAgentSchema.parse({
         name: "GitHub Operator",
         description: "",
-        runtime: "nemoclaw",
+        runtime: "openshell",
         modelDeploymentId: "model-a",
         policyId: "github-full-access",
         systemPrompt: "Operate on GitHub and report the resulting evidence.",
@@ -46,11 +45,11 @@ describe("OpenShell policy assignment", () => {
   });
 });
 
-describe("Agent platform selection", () => {
+describe("Agent selection", () => {
   const input = {
     name: "Research Assistant",
     description: "",
-    runtime: "nemoclaw" as const,
+    runtime: "openshell" as const,
     modelDeploymentId: "model-a",
     policyId: "restricted" as const,
     systemPrompt: "Research the request and report the resulting evidence.",
@@ -60,7 +59,7 @@ describe("Agent platform selection", () => {
     expect(createAgentSchema.parse(input).agentPlatform).toBe("openclaw");
   });
 
-  it("accepts Hermes as an explicit NemoClaw Agent platform", () => {
+  it("accepts Hermes as an Agent configured by NemoClaw", () => {
     expect(
       createAgentSchema.parse({ ...input, agentPlatform: "hermes" })
         .agentPlatform,
@@ -113,6 +112,7 @@ describe("Instance cost key lifecycle", () => {
     const litellm: LiteLLMAdminClient = {
       baseUrl: "http://litellm:4000",
       registerModel: vi.fn(),
+      deleteModel: vi.fn(),
       createInstanceKey: vi.fn(async () => ({ secret: "sk-instance", tokenId: "hashed-token" })),
       revokeKey: vi.fn(async () => undefined),
       listSpendLogs: vi.fn(),
@@ -121,7 +121,7 @@ describe("Instance cost key lifecycle", () => {
     const agent = await service.create({
       name: "Research Assistant",
       description: "",
-      runtime: "nemoclaw",
+      runtime: "openshell",
       agentPlatform: "openclaw",
       modelDeploymentId: "model-a",
       policyId: "restricted",
@@ -130,6 +130,7 @@ describe("Instance cost key lifecycle", () => {
 
     expect(litellm.createInstanceKey).toHaveBeenCalledWith(expect.objectContaining({ agentId: agent.id, modelName: "tali/provider/deepseek-chat" }));
     expect(runner.createSandbox).toHaveBeenCalledWith(expect.objectContaining({ apiKey: "sk-instance", inferenceEndpoint: "http://litellm:4000/v1" }));
+    expect(runner.createSandbox).toHaveBeenCalledWith(expect.objectContaining({ policyYaml: expect.stringContaining("/dev/null") }));
     await service.destroy(agent.id);
     expect(litellm.revokeKey).toHaveBeenCalledWith("hashed-token");
   });

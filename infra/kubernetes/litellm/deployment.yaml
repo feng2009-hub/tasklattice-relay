@@ -8,6 +8,8 @@ metadata:
     app.kubernetes.io/part-of: tasklattice
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: tasklattice-litellm
@@ -20,17 +22,23 @@ spec:
       automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
         seccompProfile:
           type: RuntimeDefault
       containers:
         - name: litellm
-          image: ghcr.io/berriai/litellm-database:main-stable
+          image: tasklattice-litellm:0.2.0
           imagePullPolicy: IfNotPresent
-          args: ["--port", "4000", "--num_workers", "2"]
+          args: ["--port", "4000", "--num_workers", "2", "--use_v2_migration_resolver"]
           ports:
             - name: http
               containerPort: 4000
           env:
+            - name: LITELLM_MIGRATION_DIR
+              value: /tmp/litellm-migrations
+            - name: STORE_MODEL_IN_DB
+              value: "True"
             - name: LITELLM_MASTER_KEY
               valueFrom:
                 secretKeyRef:
@@ -41,6 +49,12 @@ spec:
                 secretKeyRef:
                   name: tasklattice-litellm
                   key: database-url
+          startupProbe:
+            httpGet:
+              path: /health/liveliness
+              port: http
+            periodSeconds: 5
+            failureThreshold: 60
           readinessProbe:
             httpGet:
               path: /health/readiness
@@ -56,10 +70,10 @@ spec:
           resources:
             requests:
               cpu: 100m
-              memory: 256Mi
+              memory: 512Mi
             limits:
               cpu: "1"
-              memory: 1Gi
+              memory: 4Gi
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

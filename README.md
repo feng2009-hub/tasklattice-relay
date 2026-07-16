@@ -2,7 +2,7 @@
 
 TaskLattice is a multi-agent orchestration platform for scheduling, isolating, and operating Agent workloads on Kubernetes.
 
-The current product slice creates NemoClaw Agents with either OpenClaw (the default) or Hermes inside an OpenShell sandbox with DeepSeek inference.
+The current product slice creates NemoClaw Agents with either OpenClaw (the default) or Hermes inside an OpenShell sandbox using a validated Provider Account and LLM deployment.
 
 ```text
 TanStack + shadcn/ui
@@ -55,15 +55,7 @@ Terminal 3:
 npm run validate:core
 ```
 
-The validation creates an Agent through REST, waits for `READY`, creates a short-lived terminal session, and proves bidirectional terminal I/O with `TALI_TERMINAL_OK`.
-
-To seed the visible `DeepSeek NemoClaw Demo` Agent and the local test credential when running the API directly:
-
-```sh
-TALI_ENABLE_TEST_SEED=1 DATABASE_PATH=/tmp/tasklattice.db PORT=18080 npm run dev:control
-```
-
-The Kubernetes local overlay enables this seed automatically. The seeded credential is stored in SQLite, but is never returned by the REST API.
+The validation uses an already validated LLM deployment, creates an Agent through REST, waits for `READY`, creates a short-lived terminal session, and proves bidirectional terminal I/O with `TALI_TERMINAL_OK`. Register a Provider Account and model in the console before running it; startup no longer inserts legacy Provider Connection seed data.
 
 ## Run the Kubernetes Sandbox runtime
 
@@ -83,19 +75,16 @@ limit; override these defaults with `OPENSHELL_SANDBOX_CPU` and
 `OPENSHELL_SANDBOX_MEMORY` on the runner when the cluster has a validated
 capacity profile.
 
-Create the ignored local environment file before starting the API, runner, or
-local Kubernetes deployment:
+Create the ignored local environment file before starting the API or runner:
 
 ```sh
 cp .env.example .env
-# Set DEEPSEEK_API_KEY in .env.
 ```
 
 `npm run dev:control` and `npm run dev:runner` load this root `.env` through
-Node.js. The Kubernetes deploy commands create the local
-`tasklattice-provider-credentials` Secret from the same file before applying the
-selected overlay. The real `.env` is excluded from Git and Docker build
-contexts.
+Node.js. Provider credentials are registered and validated through the Provider Account API, stored server-side, and never returned to the browser. The real `.env` is excluded from Git and Docker build contexts.
+
+Built-in OpenShell Policies live in `infra/kubernetes/base/policy-catalog.yaml`. Kustomize publishes that file as the `tasklattice-sandbox-policies` ConfigMap and mounts it read-only in the control Pod. `unrestricted` is the deployment default and preserves `/dev/null`, `/sandbox`, and `/tmp` for OpenClaw startup; custom Policies are stored in SQLite.
 
 ## Authentication
 
@@ -128,8 +117,8 @@ not use the local development defaults.
 npm run k8s:install-openshell
 npm run images:build
 npm run k8s:deploy:openshell
-kubectl -n tasklattice-sandboxes port-forward service/tasklattice-control 18081:80
-TALI_BASE_URL=http://127.0.0.1:18081 npm run validate:core
+kubectl -n tasklattice-sandboxes get service tasklattice-control
+TALI_BASE_URL=http://localhost npm run validate:core
 ```
 
 See [docs/openshell-kubernetes-runtime.md](docs/openshell-kubernetes-runtime.md)
@@ -165,7 +154,7 @@ NEMOCLAW_MODEL=deepseek-chat or deepseek-reasoner
 COMPATIBLE_API_KEY=<DeepSeek secret on Runtime Host>
 ```
 
-The key is never accepted by the public REST API and never placed in process arguments. Production resolves it on the Runtime Host. The explicitly enabled local test seed is the sole exception: it loads the key from `.env`, stores it in SQLite, and sends it over the private runner API.
+The legacy host-runner key is never placed in process arguments. The Kubernetes control flow instead validates a Provider Account, registers its model through LiteLLM, and gives each Instance a model-scoped key.
 After onboarding, the runner installs the submitted `systemPrompt` in the
 selected platform's supported instruction location: OpenClaw's
 `/sandbox/.openclaw/workspace/AGENTS.md` or Hermes'
@@ -182,7 +171,7 @@ HOST=0.0.0.0 NEMOCLAW_RUNNER_MODE=fixture npm run dev:runner
 npm run images:build
 npm run k8s:deploy
 kubectl -n tasklattice-sandboxes rollout status deployment/tasklattice-control
-kubectl -n tasklattice-sandboxes port-forward service/tasklattice-control 8080:80
+kubectl -n tasklattice-sandboxes get service tasklattice-control
 ```
 
 The `local` overlay targets `http://host.docker.internal:9090` and is retained

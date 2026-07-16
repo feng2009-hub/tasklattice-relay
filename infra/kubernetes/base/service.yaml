@@ -4,6 +4,7 @@ metadata:
   name: tasklattice-control
   namespace: tasklattice-sandboxes
 spec:
+  type: LoadBalancer
   selector:
     app.kubernetes.io/name: tasklattice-control
   ports:
