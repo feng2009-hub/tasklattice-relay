@@ -20,20 +20,21 @@ import {
 } from "./openshell.js";
 
 describe("NemoClaw command contract", () => {
-  it("maps DeepSeek to the compatible endpoint without putting the key in argv", () => {
+  it("maps the scoped LiteLLM endpoint without putting the key in argv", () => {
     vi.stubEnv("DEEPSEEK_API_KEY", "host-secret-value");
     const command = onboardCommand({
       name: "tasklattice-research-a1b2c3d4",
       agentPlatform: "openclaw",
-      provider: "deepseek",
-      model: "deepseek-chat",
+      providerName: "DeepSeek",
+      model: "tali/provider/deepseek-chat",
+      inferenceEndpoint: "http://tasklattice-litellm:4000/v1",
       systemPrompt: "You are a research agent.",
       apiKey: "database-secret-value",
     });
     expect(command.args).toContain("openclaw");
     expect(command.args.join(" ")).not.toContain("database-secret-value");
     expect(command.env.NEMOCLAW_PROVIDER).toBe("custom");
-    expect(command.env.NEMOCLAW_ENDPOINT_URL).toBe("https://api.deepseek.com");
+    expect(command.env.NEMOCLAW_ENDPOINT_URL).toBe("http://tasklattice-litellm:4000/v1");
     expect(command.env.COMPATIBLE_API_KEY).toBe("database-secret-value");
   });
 
@@ -41,8 +42,9 @@ describe("NemoClaw command contract", () => {
     const command = onboardCommand({
       name: "tasklattice-hermes-a1b2c3d4",
       agentPlatform: "hermes",
-      provider: "deepseek",
-      model: "deepseek-chat",
+      providerName: "DeepSeek",
+      model: "tali/provider/deepseek-chat",
+      inferenceEndpoint: "http://tasklattice-litellm:4000/v1",
       systemPrompt: "You are a research agent.",
       apiKey: "database-secret-value",
     });
@@ -56,16 +58,18 @@ describe("OpenShell Kubernetes command contract", () => {
   const input = {
     name: "tasklattice-research-a1b2c3d4",
     agentPlatform: "openclaw" as const,
-    provider: "deepseek" as const,
-    model: "deepseek-chat" as const,
+    providerName: "DeepSeek",
+    model: "tali/provider/deepseek-chat",
+    inferenceEndpoint: "http://tasklattice-litellm:4000/v1",
     systemPrompt: "You are a research agent.",
     apiKey: "database-secret-value",
   };
 
-  it("passes the DeepSeek key through the provider environment only", () => {
+  it("passes the virtual key through the Provider environment only", () => {
     const command = deepSeekProviderCreateCommand(input);
     expect(command.args.join(" ")).not.toContain("database-secret-value");
     expect(command.args).toContain("OPENAI_API_KEY");
+    expect(command.args).toContain("OPENAI_BASE_URL=http://tasklattice-litellm:4000/v1");
     expect(command.env.OPENAI_API_KEY).toBe("database-secret-value");
   });
 
@@ -84,7 +88,7 @@ describe("OpenShell Kubernetes command contract", () => {
     expect(args).toContain(
       "/tmp/tali-nemoclaw-start:/tmp/tali-nemoclaw-start",
     );
-    expect(args).toContain("tasklattice-deepseek");
+    expect(args).toContain("tali-tasklattice-research-a1b2c3d4");
     expect(args).toContain("--policy");
     expect(args).toContain("/tmp/openshell-policy.yaml");
     expect(args).toContain("1");

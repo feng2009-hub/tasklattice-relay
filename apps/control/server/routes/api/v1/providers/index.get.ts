@@ -1,7 +1,7 @@
 import { defineHandler } from "nitro";
 import { requireAuth, unauthorizedResponse } from "../../../../auth/auth";
 import { errorResponse, jsonResponse } from "../../../../http/responses";
-import { getProviderConnectionService } from "../../../../services";
+import { getProviderService } from "../../../../services";
 
 export default defineHandler(async (event) => {
   try {
@@ -11,7 +11,7 @@ export default defineHandler(async (event) => {
   }
   try {
     return jsonResponse({
-      data: (await getProviderConnectionService()).list(),
+      data: (await getProviderService()).listAccounts(),
     });
   } catch (error) {
     return errorResponse(error);

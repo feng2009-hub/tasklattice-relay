@@ -44,12 +44,13 @@ spec:
                 secretKeyRef:
                   name: tasklattice-runtime-runner
                   key: token
-            - name: DEEPSEEK_API_KEY
+            - name: LITELLM_BASE_URL
+              value: http://tasklattice-litellm:4000
+            - name: LITELLM_MASTER_KEY
               valueFrom:
                 secretKeyRef:
-                  name: tasklattice-provider-credentials
-                  key: DEEPSEEK_API_KEY
-                  optional: true
+                  name: tasklattice-litellm
+                  key: master-key
           readinessProbe:
             httpGet:
               path: /api/health

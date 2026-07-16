@@ -11,8 +11,6 @@
   },
   "dependencies": {
     "@tasklattice/contracts": "0.1.0",
-    "@ai-sdk/deepseek": "^3.0.9",
-    "ai": "^7.0.26",
     "express": "^5.2.1",
     "node-pty": "^1.1.0",
     "ws": "^8.21.0",

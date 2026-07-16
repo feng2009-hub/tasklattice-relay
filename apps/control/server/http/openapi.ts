@@ -80,18 +80,18 @@ export const openApiDocument = {
     },
     "/providers": {
       get: {
-        operationId: "listProviderConnections",
-        summary: "List registered model Provider connections",
+        operationId: "listProviderAccounts",
+        summary: "List validated Endpoint and credential accounts",
         responses: {
-          "200": { description: "Provider connection collection", ...json({ $ref: "#/components/schemas/ProviderConnectionCollection" }) },
+          "200": { description: "Provider Account collection", ...json({ $ref: "#/components/schemas/ProviderAccountCollection" }) },
         },
       },
       post: {
-        operationId: "registerProviderConnection",
-        summary: "Register and validate a model Provider connection with Pi",
-        requestBody: { required: true, ...json({ $ref: "#/components/schemas/CreateProviderConnectionInput" }) },
+        operationId: "registerProviderAccount",
+        summary: "Register and validate a Provider Endpoint and credential",
+        requestBody: { required: true, ...json({ $ref: "#/components/schemas/CreateProviderAccountInput" }) },
         responses: {
-          "201": { description: "Provider registered with validation result", ...json({ $ref: "#/components/schemas/ProviderConnection" }) },
+          "201": { description: "Provider Account with validation result", ...json({ $ref: "#/components/schemas/ProviderAccount" }) },
           "400": { $ref: "#/components/responses/Error" },
         },
       },
@@ -99,12 +99,36 @@ export const openApiDocument = {
     "/providers/{providerId}/validate": {
       parameters: [providerId],
       post: {
-        operationId: "revalidateProviderConnection",
-        summary: "Re-run Pi validation for a stored Provider connection",
+        operationId: "revalidateProviderAccount",
+        summary: "Re-run Endpoint, credential, and catalog validation",
         responses: {
-          "200": { description: "Updated validation result", ...json({ $ref: "#/components/schemas/ProviderConnection" }) },
+          "200": { description: "Updated validation result", ...json({ $ref: "#/components/schemas/ProviderAccount" }) },
           "404": { $ref: "#/components/responses/Error" },
         },
+      },
+    },
+    "/providers/models": {
+      get: {
+        operationId: "listModelDeployments",
+        summary: "List categorized model deployments",
+        responses: { "200": { description: "Model deployment collection", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/ModelDeployment" } } } }) } },
+      },
+      post: {
+        operationId: "registerModelDeployment",
+        summary: "Validate a typed model and register it in LiteLLM",
+        requestBody: { required: true, ...json({ $ref: "#/components/schemas/CreateModelDeploymentInput" }) },
+        responses: { "201": { description: "Model validation result", ...json({ $ref: "#/components/schemas/ModelDeployment" }) } },
+      },
+    },
+    "/costs": {
+      get: {
+        operationId: "getCostReport",
+        summary: "Aggregate LiteLLM spend by Instance key and model Endpoint",
+        parameters: [
+          { name: "from", in: "query", required: true, schema: { type: "string", format: "date" } },
+          { name: "to", in: "query", required: true, schema: { type: "string", format: "date" } },
+        ],
+        responses: { "200": { description: "Cost report", ...json({ $ref: "#/components/schemas/CostReport" }) } },
       },
     },
     "/runtime": {
@@ -235,7 +259,7 @@ export const openApiDocument = {
       CreateAgentInput: {
         type: "object",
         additionalProperties: false,
-        required: ["name", "runtime", "agentPlatform", "providerConnectionId", "provider", "model", "policyId", "systemPrompt"],
+        required: ["name", "runtime", "agentPlatform", "modelDeploymentId", "policyId", "systemPrompt"],
         properties: {
           name: { type: "string", minLength: 3, maxLength: 48 },
           description: { type: "string", maxLength: 240, default: "" },
@@ -247,9 +271,7 @@ export const openApiDocument = {
             description:
               "Agent implementation provisioned inside the NemoClaw runtime.",
           },
-          providerConnectionId: { type: "string", description: "Validated Provider connection selected for this Instance." },
-          provider: { type: "string", const: "deepseek" },
-          model: { type: "string", enum: ["deepseek-chat", "deepseek-reasoner"] },
+          modelDeploymentId: { type: "string", description: "Validated LLM deployment selected for this Instance." },
           policyId: { type: "string", enum: ["restricted", "github-readonly", "github-full-access", "package-install"], default: "restricted" },
           systemPrompt: { type: "string", minLength: 10, maxLength: 8000 },
         },
@@ -259,9 +281,14 @@ export const openApiDocument = {
           { $ref: "#/components/schemas/CreateAgentInput" },
           {
             type: "object",
-            required: ["id", "sandboxName", "status", "createdAt", "updatedAt", "logs"],
+            required: ["id", "providerAccountId", "providerName", "model", "modelType", "costKeyAlias", "sandboxName", "status", "createdAt", "updatedAt", "logs"],
             properties: {
               id: { type: "string", format: "uuid" },
+              providerAccountId: { type: "string" },
+              providerName: { type: "string" },
+              model: { type: "string" },
+              modelType: { type: "string", const: "llm" },
+              costKeyAlias: { type: "string" },
               sandboxName: { type: "string" },
               status: { type: "string", enum: ["PROVISIONING", "READY", "FAILED", "DESTROYING"] },
               createdAt: { type: "string", format: "date-time" },
@@ -289,18 +316,29 @@ export const openApiDocument = {
           reason: { type: "string" },
         },
       },
-      CreateProviderConnectionInput: {
+      CreateProviderAccountInput: {
         type: "object",
         additionalProperties: false,
-        required: ["name", "provider", "endpoint", "model", "inputFeePerMillionTokens", "outputFeePerMillionTokens", "apiKey"],
+        required: ["name", "presetId", "endpoint", "apiKey"],
         properties: {
           name: { type: "string", minLength: 3, maxLength: 48 },
-          provider: { type: "string", const: "deepseek" },
+          presetId: { type: "string", enum: ["deepseek", "openai", "kimi-cn", "kimi-global", "custom-openai-compatible"] },
           endpoint: { type: "string", format: "uri" },
-          model: { type: "string", enum: ["deepseek-chat", "deepseek-reasoner"] },
+          apiKey: { type: "string", minLength: 8, writeOnly: true },
+        },
+      },
+      CreateModelDeploymentInput: {
+        type: "object",
+        additionalProperties: false,
+        required: ["providerAccountId", "modelId", "displayName", "modelType"],
+        properties: {
+          providerAccountId: { type: "string" },
+          modelId: { type: "string" },
+          displayName: { type: "string" },
+          modelType: { type: "string", enum: ["llm", "text-embedding", "speech-to-text"] },
           inputFeePerMillionTokens: { type: "number", minimum: 0 },
           outputFeePerMillionTokens: { type: "number", minimum: 0 },
-          apiKey: { type: "string", minLength: 8, writeOnly: true },
+          feePerAudioMinute: { type: "number", minimum: 0 },
         },
       },
       SandboxAuditEvent: {
@@ -318,27 +356,27 @@ export const openApiDocument = {
           raw: { type: "string" },
         },
       },
-      ProviderConnectionValidationCheck: {
+      ProviderValidationCheck: {
         type: "object",
         required: ["id", "label", "status"],
         properties: {
-          id: { type: "string", enum: ["endpoint", "model", "credentials", "inference"] },
+          id: { type: "string", enum: ["endpoint", "catalog", "credentials", "inference"] },
           label: { type: "string" },
           status: { type: "string", enum: ["PASS", "FAIL"] },
         },
       },
-      ProviderConnection: {
+      ProviderAccount: {
         type: "object",
-        required: ["id", "name", "provider", "endpoint", "model", "credentialState", "status", "checks", "validationMessage", "createdAt", "updatedAt"],
+        required: ["id", "name", "presetId", "endpoint", "discoveredModels", "credentialState", "status", "checks", "validationMessage", "createdAt", "updatedAt"],
         properties: {
           id: { type: "string" },
           name: { type: "string" },
-          provider: { type: "string", const: "deepseek" },
+          presetId: { type: "string" },
           endpoint: { type: "string", format: "uri" },
-          model: { type: "string", enum: ["deepseek-chat", "deepseek-reasoner"] },
+          discoveredModels: { type: "array", items: { type: "string" } },
           credentialState: { type: "string", const: "STORED" },
           status: { type: "string", enum: ["VALIDATED", "FAILED"] },
-          checks: { type: "array", items: { $ref: "#/components/schemas/ProviderConnectionValidationCheck" } },
+          checks: { type: "array", items: { $ref: "#/components/schemas/ProviderValidationCheck" } },
           validationMessage: { type: "string" },
           validationLatencyMs: { type: "integer" },
           validatedAt: { type: "string", format: "date-time" },
@@ -346,10 +384,25 @@ export const openApiDocument = {
           updatedAt: { type: "string", format: "date-time" },
         },
       },
-      ProviderConnectionCollection: {
+      ProviderAccountCollection: {
         type: "object",
         required: ["data"],
-        properties: { data: { type: "array", items: { $ref: "#/components/schemas/ProviderConnection" } } },
+        properties: { data: { type: "array", items: { $ref: "#/components/schemas/ProviderAccount" } } },
+      },
+      ModelDeployment: {
+        allOf: [
+          { $ref: "#/components/schemas/CreateModelDeploymentInput" },
+          { type: "object", required: ["id", "providerPresetId", "providerName", "endpoint", "litellmModelName", "status", "checks", "validationMessage", "createdAt", "updatedAt"], properties: {
+            id: { type: "string" }, providerPresetId: { type: "string" }, providerName: { type: "string" }, endpoint: { type: "string", format: "uri" }, litellmModelName: { type: "string" }, status: { type: "string", enum: ["VALIDATED", "FAILED"] }, checks: { type: "array", items: { $ref: "#/components/schemas/ProviderValidationCheck" } }, validationMessage: { type: "string" }, validationLatencyMs: { type: "integer" }, validatedAt: { type: "string", format: "date-time" }, createdAt: { type: "string", format: "date-time" }, updatedAt: { type: "string", format: "date-time" },
+          } },
+        ],
+      },
+      CostReport: {
+        type: "object",
+        required: ["currency", "from", "to", "totalSpend", "requestCount", "inputTokens", "outputTokens", "byInstance", "byModel", "daily"],
+        properties: {
+          currency: { type: "string", const: "USD" }, from: { type: "string", format: "date" }, to: { type: "string", format: "date" }, totalSpend: { type: "number" }, requestCount: { type: "integer" }, inputTokens: { type: "integer" }, outputTokens: { type: "integer" }, byInstance: { type: "array", items: { type: "object" } }, byModel: { type: "array", items: { type: "object" } }, daily: { type: "array", items: { type: "object" } },
+        },
       },
       AgentCollection: {
         type: "object",

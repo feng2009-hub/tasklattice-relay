@@ -11,11 +11,14 @@ describe("AgentStore", () => {
       description: "",
       runtime: "nemoclaw",
       agentPlatform: "openclaw",
-      providerConnectionId: "provider-a",
+      modelDeploymentId: "model-a",
+      providerAccountId: "provider-a",
+      providerName: "DeepSeek",
+      costKeyAlias: "tasklattice-research-a:deepseek-chat",
       sandboxName: "tasklattice-research-a",
       status: "PROVISIONING",
-      provider: "deepseek",
       model: "deepseek-chat",
+      modelType: "llm",
       policyId: "restricted",
       systemPrompt: "You are a research agent.",
       createdAt: now,
@@ -24,15 +27,13 @@ describe("AgentStore", () => {
     });
     expect(store.get("a")?.runtime).toBe("nemoclaw");
     expect(store.list()).toHaveLength(1);
-    store.saveProviderConnection(
+    store.saveProviderAccount(
       {
         id: "provider-a",
         name: "DeepSeek validated",
-        provider: "deepseek",
-        endpoint: "https://api.deepseek.com",
-        model: "deepseek-chat",
-        inputFeePerMillionTokens: 0,
-        outputFeePerMillionTokens: 0,
+        presetId: "deepseek",
+        endpoint: "https://api.deepseek.com/v1",
+        discoveredModels: ["deepseek-chat"],
         credentialState: "STORED",
         status: "VALIDATED",
         checks: [],
@@ -42,11 +43,9 @@ describe("AgentStore", () => {
       },
       "provider-secret-value",
     );
-    expect(store.listProviderConnections()).toHaveLength(1);
-    expect(store.getProviderConnectionCredential("provider-a")).toBe(
+    expect(store.listProviderAccounts()).toHaveLength(1);
+    expect(store.getProviderAccountCredential("provider-a")).toBe(
       "provider-secret-value",
     );
-    store.saveProviderCredential("deepseek", "test-secret-value");
-    expect(store.getProviderCredential("deepseek")).toBe("test-secret-value");
   });
 });

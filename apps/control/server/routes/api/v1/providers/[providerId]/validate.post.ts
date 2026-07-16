@@ -1,7 +1,7 @@
 import { defineHandler } from "nitro";
 import { requireAuth, unauthorizedResponse } from "../../../../../auth/auth";
 import { errorResponse, jsonResponse } from "../../../../../http/responses";
-import { getProviderConnectionService } from "../../../../../services";
+import { getProviderService } from "../../../../../services";
 
 export default defineHandler(async (event) => {
   try {
@@ -17,8 +17,8 @@ export default defineHandler(async (event) => {
         { status: 400 },
       );
     const connection = await (
-      await getProviderConnectionService()
-    ).revalidate(providerId);
+      await getProviderService()
+    ).revalidateAccount(providerId);
     if (!connection)
       return jsonResponse(
         { error: "Provider connection not found." },

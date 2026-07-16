@@ -17,7 +17,71 @@ export const provisioningStages = [
   "READY",
 ] as const;
 
-export const agentModels = ["deepseek-chat", "deepseek-reasoner"] as const;
+export const providerPresetIds = [
+  "deepseek",
+  "openai",
+  "kimi-cn",
+  "kimi-global",
+  "custom-openai-compatible",
+] as const;
+
+export const modelTypes = ["llm", "text-embedding", "speech-to-text"] as const;
+
+export const providerPresets = [
+  {
+    id: "deepseek",
+    name: "DeepSeek",
+    description: "DeepSeek's OpenAI-compatible language model API.",
+    endpoint: "https://api.deepseek.com/v1",
+    icon: "/assets/providers/deepseek.svg",
+    modelTypes: ["llm"],
+    suggestedModels: ["deepseek-chat", "deepseek-reasoner"],
+  },
+  {
+    id: "openai",
+    name: "OpenAI",
+    description: "OpenAI language, embedding, and transcription models.",
+    endpoint: "https://api.openai.com/v1",
+    icon: "/assets/providers/openai.svg",
+    modelTypes: ["llm", "text-embedding", "speech-to-text"],
+    suggestedModels: ["gpt-5.2", "text-embedding-3-large", "gpt-4o-transcribe"],
+  },
+  {
+    id: "kimi-cn",
+    name: "Kimi China",
+    description: "Moonshot AI's mainland China OpenAI-compatible endpoint.",
+    endpoint: "https://api.moonshot.cn/v1",
+    icon: "/assets/providers/kimi.svg",
+    modelTypes: ["llm"],
+    suggestedModels: ["kimi-k2.5", "moonshot-v1-128k"],
+  },
+  {
+    id: "kimi-global",
+    name: "Kimi Global",
+    description: "Moonshot AI's global OpenAI-compatible endpoint.",
+    endpoint: "https://api.moonshot.ai/v1",
+    icon: "/assets/providers/kimi.svg",
+    modelTypes: ["llm"],
+    suggestedModels: ["kimi-k2.5", "moonshot-v1-128k"],
+  },
+  {
+    id: "custom-openai-compatible",
+    name: "Custom",
+    description: "Any OpenAI-compatible endpoint managed by your organization.",
+    endpoint: null,
+    icon: "/assets/providers/custom.svg",
+    modelTypes: ["llm", "text-embedding", "speech-to-text"],
+    suggestedModels: [],
+  },
+] as const satisfies ReadonlyArray<{
+  id: (typeof providerPresetIds)[number];
+  name: string;
+  description: string;
+  endpoint: string | null;
+  icon: string;
+  modelTypes: ReadonlyArray<(typeof modelTypes)[number]>;
+  suggestedModels: readonly string[];
+}>;
 
 export const agentPlatformIds = ["openclaw", "hermes"] as const;
 
@@ -141,16 +205,31 @@ export const sandboxPolicyIds = sandboxPolicies.map((policy) => policy.id) as [
   "package-install",
 ];
 
-export const providerConnectionStatuses = ["VALIDATED", "FAILED"] as const;
+export const providerResourceStatuses = ["VALIDATED", "FAILED"] as const;
 
-export const createProviderConnectionSchema = z.object({
+export const createProviderAccountSchema = z.object({
   name: z.string().trim().min(3).max(48),
-  provider: z.literal("deepseek"),
+  presetId: z.enum(providerPresetIds),
   endpoint: z.string().trim().url(),
-  model: z.enum(agentModels),
-  inputFeePerMillionTokens: z.number().min(0).max(1_000_000).default(0),
-  outputFeePerMillionTokens: z.number().min(0).max(1_000_000).default(0),
   apiKey: z.string().trim().min(8).max(512),
+}).superRefine((input, context) => {
+  const preset = providerPresets.find((item) => item.id === input.presetId);
+  if (preset?.endpoint && input.endpoint.replace(/\/+$/, "") !== preset.endpoint)
+    context.addIssue({
+      code: "custom",
+      path: ["endpoint"],
+      message: `The ${preset.name} endpoint is managed by the platform catalog.`,
+    });
+});
+
+export const createModelDeploymentSchema = z.object({
+  providerAccountId: z.string().trim().min(1),
+  modelId: z.string().trim().min(1).max(160),
+  displayName: z.string().trim().min(1).max(160),
+  modelType: z.enum(modelTypes),
+  inputFeePerMillionTokens: z.number().min(0).max(1_000_000).optional(),
+  outputFeePerMillionTokens: z.number().min(0).max(1_000_000).optional(),
+  feePerAudioMinute: z.number().min(0).max(1_000_000).optional(),
 });
 
 export const createAgentSchema = z.object({
@@ -158,38 +237,35 @@ export const createAgentSchema = z.object({
   description: z.string().trim().max(240).default(""),
   runtime: z.literal("nemoclaw"),
   agentPlatform: z.enum(agentPlatformIds).default(defaultAgentPlatformId),
-  providerConnectionId: z.string().trim().min(1),
-  provider: z.literal("deepseek"),
-  model: z.enum(agentModels),
+  modelDeploymentId: z.string().trim().min(1),
   policyId: z.enum(sandboxPolicyIds).default("restricted"),
   systemPrompt: z.string().trim().min(10).max(8000),
 });
 
 export type AgentStatus = (typeof agentStatuses)[number];
 export type ProvisioningStage = (typeof provisioningStages)[number];
-export type AgentModel = (typeof agentModels)[number];
+export type ProviderPresetId = (typeof providerPresetIds)[number];
+export type ModelType = (typeof modelTypes)[number];
 export type AgentPlatformId = (typeof agentPlatformIds)[number];
 export type AgentPlatform = (typeof agentPlatforms)[number];
 export type SandboxPolicyId = (typeof sandboxPolicyIds)[number];
 export type SandboxPolicy = (typeof sandboxPolicies)[number];
-export type ProviderConnectionStatus =
-  (typeof providerConnectionStatuses)[number];
-export type CreateProviderConnectionInput = z.infer<
-  typeof createProviderConnectionSchema
->;
+export type ProviderResourceStatus = (typeof providerResourceStatuses)[number];
+export type CreateProviderAccountInput = z.infer<typeof createProviderAccountSchema>;
+export type CreateModelDeploymentInput = z.infer<typeof createModelDeploymentSchema>;
 export type CreateAgentInput = z.infer<typeof createAgentSchema>;
 
-export interface ProviderConnectionValidationCheck {
-  id: "endpoint" | "model" | "credentials" | "inference";
+export interface ProviderValidationCheck {
+  id: "endpoint" | "catalog" | "credentials" | "inference";
   label: string;
   status: "PASS" | "FAIL";
 }
 
-export interface ProviderConnection
-  extends Omit<CreateProviderConnectionInput, "apiKey"> {
+export interface ProviderAccount extends Omit<CreateProviderAccountInput, "apiKey"> {
   id: string;
-  status: ProviderConnectionStatus;
-  checks: ProviderConnectionValidationCheck[];
+  discoveredModels: string[];
+  status: ProviderResourceStatus;
+  checks: ProviderValidationCheck[];
   credentialState: "STORED";
   validationMessage: string;
   validationLatencyMs?: number;
@@ -198,8 +274,56 @@ export interface ProviderConnection
   updatedAt: string;
 }
 
+export interface ModelDeployment extends CreateModelDeploymentInput {
+  id: string;
+  providerPresetId: ProviderPresetId;
+  providerName: string;
+  endpoint: string;
+  litellmModelName: string;
+  status: ProviderResourceStatus;
+  checks: ProviderValidationCheck[];
+  validationMessage: string;
+  validationLatencyMs?: number;
+  validatedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CostBreakdownItem {
+  id: string;
+  label: string;
+  detail: string;
+  spend: number;
+  requests: number;
+  inputTokens: number;
+  outputTokens: number;
+}
+
+export interface CostDailyPoint {
+  date: string;
+  spend: number;
+}
+
+export interface CostReport {
+  currency: "USD";
+  from: string;
+  to: string;
+  totalSpend: number;
+  requestCount: number;
+  inputTokens: number;
+  outputTokens: number;
+  byInstance: CostBreakdownItem[];
+  byModel: CostBreakdownItem[];
+  daily: CostDailyPoint[];
+}
+
 export interface Agent extends CreateAgentInput {
   id: string;
+  providerAccountId: string;
+  providerName: string;
+  model: string;
+  modelType: "llm";
+  costKeyAlias: string;
   sandboxName: string;
   status: AgentStatus;
   createdAt: string;

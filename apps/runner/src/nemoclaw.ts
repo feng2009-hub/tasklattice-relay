@@ -2,16 +2,15 @@ import { spawn } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createDeepSeek } from "@ai-sdk/deepseek";
-import { generateText } from "ai";
 import type { AgentPlatformId } from "@tasklattice/contracts";
 import { getAgentPlatformRuntime } from "./agent-platform.js";
 
 export interface ProvisionInput {
   name: string;
   agentPlatform: AgentPlatformId;
-  provider: "deepseek";
-  model: "deepseek-chat" | "deepseek-reasoner";
+  providerName: string;
+  model: string;
+  inferenceEndpoint: string;
   policyYaml?: string;
   systemPrompt: string;
   apiKey?: string;
@@ -46,8 +45,7 @@ export function onboardCommand(input: ProvisionInput): {
     env: {
       ...process.env,
       NEMOCLAW_PROVIDER: "custom",
-      NEMOCLAW_ENDPOINT_URL:
-        process.env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com",
+      NEMOCLAW_ENDPOINT_URL: input.inferenceEndpoint,
       NEMOCLAW_MODEL: input.model,
       NEMOCLAW_PREFERRED_API: "completions",
       NEMOCLAW_WEB_SEARCH_PROVIDER: "none",
@@ -76,19 +74,20 @@ export function nemoClawTerminalArguments(
 
 export async function verifyDeepSeek(input: ProvisionInput): Promise<void> {
   if (process.env.DEEPSEEK_VERIFY_ON_CREATE !== "1") return;
-  const apiKey = input.apiKey ?? process.env.DEEPSEEK_API_KEY;
-  if (!apiKey) throw new Error("DEEPSEEK_API_KEY is required.");
-  const provider = createDeepSeek({
-    apiKey,
-    ...(process.env.DEEPSEEK_BASE_URL
-      ? { baseURL: process.env.DEEPSEEK_BASE_URL }
-      : {}),
+  const apiKey = input.apiKey;
+  if (!apiKey) throw new Error("An Instance inference key is required.");
+  const response = await fetch(`${input.inferenceEndpoint.replace(/\/+$/, "")}/chat/completions`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      model: input.model,
+      messages: [{ role: "user", content: "Reply with READY only." }],
+      max_tokens: 1,
+    }),
+    signal: AbortSignal.timeout(15_000),
   });
-  await generateText({
-    model: provider(input.model),
-    prompt: "Reply with READY only.",
-    maxOutputTokens: 8,
-  });
+  if (!response.ok)
+    throw new Error(`Instance inference preflight returned ${response.status}.`);
 }
 
 export async function installAgentInstructions(

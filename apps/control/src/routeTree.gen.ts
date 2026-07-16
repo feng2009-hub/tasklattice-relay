@@ -20,8 +20,10 @@ import { Route as KnowledgeRouteImport } from './routes/knowledge'
 import { Route as InstancesRouteImport } from './routes/instances'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ProvidersIndexRouteImport } from './routes/providers/index'
 import { Route as AgentsIndexRouteImport } from './routes/agents/index'
 import { Route as RequestsNewRouteImport } from './routes/requests/new'
+import { Route as ProvidersCostRouteImport } from './routes/providers/cost'
 import { Route as AuthSsoCompleteRouteImport } from './routes/auth/sso-complete'
 import { Route as AgentsNewRouteImport } from './routes/agents/new'
 import { Route as AgentsAgentIdRouteImport } from './routes/agents/$agentId'
@@ -83,6 +85,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProvidersIndexRoute = ProvidersIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ProvidersRoute,
+} as any)
 const AgentsIndexRoute = AgentsIndexRouteImport.update({
   id: '/agents/',
   path: '/agents/',
@@ -92,6 +99,11 @@ const RequestsNewRoute = RequestsNewRouteImport.update({
   id: '/requests/new',
   path: '/requests/new',
   getParentRoute: () => rootRouteImport,
+} as any)
+const ProvidersCostRoute = ProvidersCostRouteImport.update({
+  id: '/cost',
+  path: '/cost',
+  getParentRoute: () => ProvidersRoute,
 } as any)
 const AuthSsoCompleteRoute = AuthSsoCompleteRouteImport.update({
   id: '/auth/sso-complete',
@@ -127,15 +139,17 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
   '/policy': typeof PolicyRoute
-  '/providers': typeof ProvidersRoute
+  '/providers': typeof ProvidersRouteWithChildren
   '/sandboxes': typeof SandboxesRoute
   '/skills': typeof SkillsRoute
   '/tickets': typeof TicketsRoute
   '/agents/$agentId': typeof AgentsAgentIdRoute
   '/agents/new': typeof AgentsNewRoute
   '/auth/sso-complete': typeof AuthSsoCompleteRoute
+  '/providers/cost': typeof ProvidersCostRoute
   '/requests/new': typeof RequestsNewRoute
   '/agents/': typeof AgentsIndexRoute
+  '/providers/': typeof ProvidersIndexRoute
   '/agent/sandboxes/policy': typeof AgentSandboxesPolicyRoute
   '/agent/sandboxes/runtime': typeof AgentSandboxesRuntimeRoute
 }
@@ -147,15 +161,16 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
   '/policy': typeof PolicyRoute
-  '/providers': typeof ProvidersRoute
   '/sandboxes': typeof SandboxesRoute
   '/skills': typeof SkillsRoute
   '/tickets': typeof TicketsRoute
   '/agents/$agentId': typeof AgentsAgentIdRoute
   '/agents/new': typeof AgentsNewRoute
   '/auth/sso-complete': typeof AuthSsoCompleteRoute
+  '/providers/cost': typeof ProvidersCostRoute
   '/requests/new': typeof RequestsNewRoute
   '/agents': typeof AgentsIndexRoute
+  '/providers': typeof ProvidersIndexRoute
   '/agent/sandboxes/policy': typeof AgentSandboxesPolicyRoute
   '/agent/sandboxes/runtime': typeof AgentSandboxesRuntimeRoute
 }
@@ -168,15 +183,17 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
   '/policy': typeof PolicyRoute
-  '/providers': typeof ProvidersRoute
+  '/providers': typeof ProvidersRouteWithChildren
   '/sandboxes': typeof SandboxesRoute
   '/skills': typeof SkillsRoute
   '/tickets': typeof TicketsRoute
   '/agents/$agentId': typeof AgentsAgentIdRoute
   '/agents/new': typeof AgentsNewRoute
   '/auth/sso-complete': typeof AuthSsoCompleteRoute
+  '/providers/cost': typeof ProvidersCostRoute
   '/requests/new': typeof RequestsNewRoute
   '/agents/': typeof AgentsIndexRoute
+  '/providers/': typeof ProvidersIndexRoute
   '/agent/sandboxes/policy': typeof AgentSandboxesPolicyRoute
   '/agent/sandboxes/runtime': typeof AgentSandboxesRuntimeRoute
 }
@@ -197,8 +214,10 @@ export interface FileRouteTypes {
     | '/agents/$agentId'
     | '/agents/new'
     | '/auth/sso-complete'
+    | '/providers/cost'
     | '/requests/new'
     | '/agents/'
+    | '/providers/'
     | '/agent/sandboxes/policy'
     | '/agent/sandboxes/runtime'
   fileRoutesByTo: FileRoutesByTo
@@ -210,15 +229,16 @@ export interface FileRouteTypes {
     | '/login'
     | '/mcp'
     | '/policy'
-    | '/providers'
     | '/sandboxes'
     | '/skills'
     | '/tickets'
     | '/agents/$agentId'
     | '/agents/new'
     | '/auth/sso-complete'
+    | '/providers/cost'
     | '/requests/new'
     | '/agents'
+    | '/providers'
     | '/agent/sandboxes/policy'
     | '/agent/sandboxes/runtime'
   id:
@@ -237,8 +257,10 @@ export interface FileRouteTypes {
     | '/agents/$agentId'
     | '/agents/new'
     | '/auth/sso-complete'
+    | '/providers/cost'
     | '/requests/new'
     | '/agents/'
+    | '/providers/'
     | '/agent/sandboxes/policy'
     | '/agent/sandboxes/runtime'
   fileRoutesById: FileRoutesById
@@ -251,7 +273,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   McpRoute: typeof McpRoute
   PolicyRoute: typeof PolicyRoute
-  ProvidersRoute: typeof ProvidersRoute
+  ProvidersRoute: typeof ProvidersRouteWithChildren
   SandboxesRoute: typeof SandboxesRoute
   SkillsRoute: typeof SkillsRoute
   TicketsRoute: typeof TicketsRoute
@@ -343,6 +365,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/providers/': {
+      id: '/providers/'
+      path: '/'
+      fullPath: '/providers/'
+      preLoaderRoute: typeof ProvidersIndexRouteImport
+      parentRoute: typeof ProvidersRoute
+    }
     '/agents/': {
       id: '/agents/'
       path: '/agents'
@@ -356,6 +385,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/requests/new'
       preLoaderRoute: typeof RequestsNewRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/providers/cost': {
+      id: '/providers/cost'
+      path: '/cost'
+      fullPath: '/providers/cost'
+      preLoaderRoute: typeof ProvidersCostRouteImport
+      parentRoute: typeof ProvidersRoute
     }
     '/auth/sso-complete': {
       id: '/auth/sso-complete'
@@ -395,6 +431,20 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface ProvidersRouteChildren {
+  ProvidersCostRoute: typeof ProvidersCostRoute
+  ProvidersIndexRoute: typeof ProvidersIndexRoute
+}
+
+const ProvidersRouteChildren: ProvidersRouteChildren = {
+  ProvidersCostRoute: ProvidersCostRoute,
+  ProvidersIndexRoute: ProvidersIndexRoute,
+}
+
+const ProvidersRouteWithChildren = ProvidersRoute._addFileChildren(
+  ProvidersRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRoute,
@@ -403,7 +453,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   McpRoute: McpRoute,
   PolicyRoute: PolicyRoute,
-  ProvidersRoute: ProvidersRoute,
+  ProvidersRoute: ProvidersRouteWithChildren,
   SandboxesRoute: SandboxesRoute,
   SkillsRoute: SkillsRoute,
   TicketsRoute: TicketsRoute,

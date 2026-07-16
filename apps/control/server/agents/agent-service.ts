@@ -7,8 +7,8 @@ import type {
 } from "@tasklattice/contracts";
 import { sandboxPolicies } from "@tasklattice/contracts";
 import { AgentStore } from "../data/agent-store";
-import { NemoClawRunnerClient } from "../runtime/nemoclaw-runner-client";
-import { localDeepSeekConnectionId } from "../providers/provider-connection-service";
+import { NemoClawRunnerClient, type RunnerClient } from "../runtime/nemoclaw-runner-client";
+import { LiteLLMClient, type LiteLLMAdminClient } from "../providers/litellm-client";
 
 const demoAgentId = "00000000-0000-4000-8000-000000000001";
 
@@ -53,7 +53,8 @@ function applyObservedState(agent: Agent, observed: RunnerSandbox): Agent {
 export class AgentService {
   constructor(
     readonly store = new AgentStore(),
-    readonly runner = new NemoClawRunnerClient(),
+    readonly runner: RunnerClient = new NemoClawRunnerClient(),
+    readonly litellm: LiteLLMAdminClient = new LiteLLMClient(),
   ) {}
 
   async list(): Promise<Agent[]> {
@@ -73,28 +74,35 @@ export class AgentService {
   }
 
   async create(input: CreateAgentInput): Promise<Agent> {
-    const connection = this.store.getProviderConnection(
-      input.providerConnectionId,
-    );
-    if (!connection || connection.status !== "VALIDATED")
+    const deployment = this.store.getModelDeployment(input.modelDeploymentId);
+    if (!deployment || deployment.status !== "VALIDATED" || deployment.modelType !== "llm")
       throw new Error(
-        "Select a validated provider connection before creating an Instance.",
+        "Select a validated LLM deployment before creating an Instance.",
       );
-    const apiKey = this.store.getProviderConnectionCredential(connection.id);
-    if (!apiKey)
-      throw new Error(
-        "The selected provider connection no longer has a backend credential.",
-      );
+    const account = this.store.getProviderAccount(deployment.providerAccountId);
+    if (!account || account.status !== "VALIDATED")
+      throw new Error("The model's Provider Account is no longer validated.");
     const policy = sandboxPolicies.find((item) => item.id === input.policyId);
     if (!policy) throw new Error("Select a supported OpenShell policy.");
     const id = randomUUID();
     const now = new Date().toISOString();
+    const sandboxName = agentSandboxName(input.name, id);
+    const costKeyAlias = `${sandboxName}:${deployment.modelId}`;
+    const costKey = await this.litellm.createInstanceKey({
+      agentId: id,
+      alias: costKeyAlias,
+      modelName: deployment.litellmModelName,
+    });
+    this.store.saveAgentCostKey(id, costKey.tokenId);
     let agent: Agent = {
       id,
       ...input,
-      provider: connection.provider,
-      model: connection.model,
-      sandboxName: agentSandboxName(input.name, id),
+      providerAccountId: account.id,
+      providerName: deployment.providerName,
+      model: deployment.modelId,
+      modelType: "llm",
+      costKeyAlias,
+      sandboxName,
       status: "PROVISIONING",
       provisioningStage: "QUEUED",
       createdAt: now,
@@ -109,15 +117,18 @@ export class AgentService {
           await this.runner.createSandbox({
             name: agent.sandboxName,
             agentPlatform: agent.agentPlatform,
-            provider: connection.provider,
-            model: connection.model,
+            providerName: deployment.providerName,
+            model: deployment.litellmModelName,
+            inferenceEndpoint: `${this.litellm.baseUrl}/v1`,
             policyYaml: policy.policyYaml,
             systemPrompt: input.systemPrompt,
-            apiKey,
+            apiKey: costKey.secret,
           }),
         ),
       );
     } catch (error) {
+      await this.litellm.revokeKey(costKey.tokenId).catch(() => undefined);
+      this.store.deleteAgentCostKey(id);
       agent = this.store.save({
         ...agent,
         status: "FAILED",
@@ -140,79 +151,19 @@ export class AgentService {
       updatedAt: new Date().toISOString(),
     });
     await this.runner.destroySandbox(agent.sandboxName, agent.agentPlatform);
+    const tokenId = this.store.getAgentCostKey(id);
+    if (tokenId) await this.litellm.revokeKey(tokenId);
+    this.store.deleteAgentCostKey(id);
     this.store.delete(id);
     return true;
   }
 
   async seedLocalDemo(): Promise<void> {
     if (process.env.TALI_ENABLE_TEST_SEED !== "1") return;
-    const apiKey = process.env.DEEPSEEK_API_KEY;
-    if (!apiKey)
+    if (!this.store.get(demoAgentId))
       throw new Error(
-        "DEEPSEEK_API_KEY is required when TALI_ENABLE_TEST_SEED=1.",
+        "TALI_ENABLE_TEST_SEED no longer creates legacy Provider Connections. Register a Provider Account and model before running the core-flow seed.",
       );
-    this.store.saveProviderCredential("deepseek", apiKey);
-    const existing = this.store.get(demoAgentId);
-    const now = new Date().toISOString();
-    let agent: Agent = {
-      id: demoAgentId,
-      name: "DeepSeek NemoClaw Demo",
-      description: "Seeded local Agent for the NemoClaw core-flow test.",
-      runtime: "nemoclaw",
-      agentPlatform: "openclaw",
-      providerConnectionId: localDeepSeekConnectionId,
-      sandboxName: agentSandboxName("DeepSeek NemoClaw Demo", demoAgentId),
-      status: "PROVISIONING",
-      provisioningStage: "QUEUED",
-      provider: "deepseek",
-      model: "deepseek-chat",
-      policyId: "restricted",
-      systemPrompt:
-        "You are the seeded TaskLattice test Agent. Complete requests inside the NemoClaw sandbox and report concise execution evidence.",
-      createdAt: existing?.createdAt ?? now,
-      updatedAt: now,
-      logs: [
-        "Local test seed loaded from SQLite.",
-        "DeepSeek credential resolved from the test credential record.",
-      ],
-    };
-    this.store.save(agent);
-    try {
-      const request = {
-        name: agent.sandboxName,
-        agentPlatform: agent.agentPlatform,
-        provider: agent.provider,
-        model: agent.model,
-        policyYaml: sandboxPolicies[0].policyYaml,
-        systemPrompt: agent.systemPrompt,
-        apiKey,
-      } as const;
-      let observed: RunnerSandbox;
-      try {
-        observed = await this.runner.createSandbox(request);
-      } catch (error) {
-        if (
-          !(error instanceof Error) ||
-          !error.message.includes("already exists")
-        )
-          throw error;
-        observed = await this.runner.getSandbox(
-          agent.sandboxName,
-          agent.agentPlatform,
-        );
-      }
-      agent = this.store.save(applyObservedState(agent, observed));
-    } catch (error) {
-      this.store.save({
-        ...agent,
-        status: "FAILED",
-        updatedAt: new Date().toISOString(),
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unable to provision the seeded test Agent.",
-      });
-    }
   }
 
   private async refresh(agent: Agent): Promise<Agent> {

@@ -36,13 +36,13 @@ const login = await request("/api/v1/auth/local", {
 });
 authToken = login.token;
 
-const providers = await request("/api/v1/providers");
-const validatedProvider = providers.data.find(
-  (provider) => provider.status === "VALIDATED",
+const models = await request("/api/v1/providers/models");
+const validatedModel = models.data.find(
+  (model) => model.status === "VALIDATED" && model.modelType === "llm",
 );
-if (!validatedProvider)
+if (!validatedModel)
   throw new Error(
-    "No validated Provider connection is available for Instance creation.",
+    "No validated LLM deployment is available for Instance creation.",
   );
 
 const created = await request("/api/v1/agents", {
@@ -52,9 +52,7 @@ const created = await request("/api/v1/agents", {
     description: "REST and terminal contract validation",
     runtime: "nemoclaw",
     agentPlatform: "openclaw",
-    providerConnectionId: validatedProvider.id,
-    provider: "deepseek",
-    model: "deepseek-chat",
+    modelDeploymentId: validatedModel.id,
     systemPrompt: "You are a validation agent. Report runtime evidence clearly.",
   }),
 });
@@ -148,7 +146,7 @@ console.log(JSON.stringify({
   sandboxName: agent.sandboxName,
   status: agent.status,
   runtime: agent.runtime,
-  provider: agent.provider,
+  provider: agent.providerName,
   httpEndpointEvidence,
   terminalEvidence: String(terminalEvidence).replace(/\u001b\[[0-9;?]*[A-Za-z]/g, "").trim(),
   deleteEvidence: `${destroyed.status} / Agent GET ${deletedResource.status} / Endpoint GET ${deletedEndpoint?.status ?? "N/A"}`,

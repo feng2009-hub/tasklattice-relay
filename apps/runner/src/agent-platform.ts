@@ -9,7 +9,12 @@ export interface AgentPlatformRuntime {
   terminalCommand: string;
   endpointKind: HttpEndpoint["kind"];
   sandboxImage: () => string;
-  bootstrapScript: (dashboardOrigin: string, dashboardPort: string) => string;
+  bootstrapScript: (
+    dashboardOrigin: string,
+    dashboardPort: string,
+    inferenceEndpoint: string,
+    model: string,
+  ) => string;
   healthProbe: (dashboardPort: string) => string;
   startupLogs: readonly string[];
 }
@@ -17,21 +22,32 @@ export interface AgentPlatformRuntime {
 const openClawBootstrapScript = (
   dashboardOrigin: string,
   dashboardPort: string,
+  inferenceEndpoint: string,
+  model: string,
 ) => `#!/usr/bin/env bash
 set -euo pipefail
 
 readonly config_file=/sandbox/.openclaw/openclaw.json
 readonly hash_file=/sandbox/.openclaw/.config-hash
 
-node - "$config_file" "${dashboardOrigin}" <<'NODE'
+node - "$config_file" "${dashboardOrigin}" "${inferenceEndpoint}" "${model}" <<'NODE'
 const fs = require("node:fs");
-const [configFile, corsOrigin] = process.argv.slice(2);
+const [configFile, corsOrigin, inferenceEndpoint, modelId] = process.argv.slice(2);
 const config = JSON.parse(fs.readFileSync(configFile, "utf8"));
 const controlUi = (config.gateway ??= {}).controlUi ??= {};
 const origins = Array.isArray(controlUi.allowedOrigins)
   ? controlUi.allowedOrigins
   : [];
 controlUi.allowedOrigins = [...new Set([...origins, corsOrigin])];
+const provider = config.models.providers.inference;
+provider.baseUrl = inferenceEndpoint;
+provider.apiKey = process.env.OPENAI_API_KEY || "OPENAI_API_KEY";
+provider.models = [{
+  ...provider.models[0],
+  id: modelId,
+  name: "inference/" + modelId,
+}];
+config.agents.defaults.model.primary = "inference/" + modelId;
 fs.writeFileSync(configFile, JSON.stringify(config, null, 2) + "\\n", {
   mode: 0o660,
 });
@@ -44,10 +60,14 @@ exec env "NEMOCLAW_DASHBOARD_PORT=${dashboardPort}" /usr/local/bin/nemoclaw-star
 const hermesBootstrapScript = (
   _dashboardOrigin: string,
   dashboardPort: string,
+  inferenceEndpoint: string,
+  model: string,
 ) => `#!/usr/bin/env bash
 set -euo pipefail
 
-exec env "NEMOCLAW_DASHBOARD_PORT=${dashboardPort}" /usr/local/bin/nemoclaw-start
+readonly config_file=/sandbox/.hermes/config.yaml
+sed -i "s#https://inference.local/v1#${inferenceEndpoint}#g; s#deepseek-chat#${model}#g" "$config_file"
+exec env "NEMOCLAW_DASHBOARD_PORT=${dashboardPort}" "NEMOCLAW_MODEL_OVERRIDE=${model}" /usr/local/bin/nemoclaw-start
 `;
 
 const agentPlatformRuntimeRegistry = {

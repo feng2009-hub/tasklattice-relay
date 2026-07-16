@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: tasklattice-litellm
+  namespace: tasklattice-sandboxes
+spec:
+  selector:
+    app.kubernetes.io/name: tasklattice-litellm
+  ports:
+    - name: http
+      port: 4000
+      targetPort: http

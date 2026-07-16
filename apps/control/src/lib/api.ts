@@ -1,8 +1,11 @@
 import type {
   Agent,
-  CreateProviderConnectionInput,
   CreateAgentInput,
-  ProviderConnection,
+  CostReport,
+  CreateModelDeploymentInput,
+  CreateProviderAccountInput,
+  ModelDeployment,
+  ProviderAccount,
   RuntimeStatus,
   SandboxAuditEvent,
   TerminalSessionResponse,
@@ -34,18 +37,27 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  listProviderConnections: async () =>
-    (await request<{ data: ProviderConnection[] }>("/api/v1/providers")).data,
-  registerProviderConnection: (input: CreateProviderConnectionInput) =>
-    request<ProviderConnection>("/api/v1/providers", {
+  listProviderAccounts: async () =>
+    (await request<{ data: ProviderAccount[] }>("/api/v1/providers")).data,
+  registerProviderAccount: (input: CreateProviderAccountInput) =>
+    request<ProviderAccount>("/api/v1/providers", {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  revalidateProviderConnection: (id: string) =>
-    request<ProviderConnection>(`/api/v1/providers/${id}/validate`, {
+  revalidateProviderAccount: (id: string) =>
+    request<ProviderAccount>(`/api/v1/providers/${id}/validate`, {
       method: "POST",
       body: "{}",
     }),
+  listModelDeployments: async () =>
+    (await request<{ data: ModelDeployment[] }>("/api/v1/providers/models")).data,
+  registerModelDeployment: (input: CreateModelDeploymentInput) =>
+    request<ModelDeployment>("/api/v1/providers/models", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  getCostReport: (from: string, to: string) =>
+    request<CostReport>(`/api/v1/costs?${new URLSearchParams({ from, to })}`),
   listAgents: async () =>
     (await request<{ data: Agent[] }>("/api/v1/agents")).data,
   getAgent: (id: string) => request<Agent>(`/api/v1/agents/${id}`),

@@ -1,24 +1,30 @@
 import { AgentService } from "./agents/agent-service";
 import { AgentStore } from "./data/agent-store";
-import { ProviderConnectionService } from "./providers/provider-connection-service";
+import { CostService } from "./providers/cost-service";
+import { LiteLLMClient } from "./providers/litellm-client";
+import { ProviderService } from "./providers/provider-service";
 
 const store = new AgentStore();
-const agentService = new AgentService(store);
-const providerConnectionService = new ProviderConnectionService(store);
+const litellm = new LiteLLMClient();
+const agentService = new AgentService(store, undefined, litellm);
+const providerService = new ProviderService(store, undefined, litellm);
+const costService = new CostService(store, litellm);
 let startup: Promise<void> | undefined;
 
 export async function getAgentService(): Promise<AgentService> {
   startup ??= (async () => {
-    const apiKey = process.env.DEEPSEEK_API_KEY;
-    if (process.env.TALI_ENABLE_TEST_SEED === "1" && apiKey)
-      providerConnectionService.seedLocalValidated(apiKey);
     await agentService.seedLocalDemo();
   })();
   await startup;
   return agentService;
 }
 
-export async function getProviderConnectionService(): Promise<ProviderConnectionService> {
+export async function getProviderService(): Promise<ProviderService> {
   await getAgentService();
-  return providerConnectionService;
+  return providerService;
+}
+
+export async function getCostService(): Promise<CostService> {
+  await getAgentService();
+  return costService;
 }

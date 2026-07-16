@@ -1,6 +1,5 @@
 import type {
   AgentPlatformId,
-  AgentModel,
   RunnerHealth,
   RunnerSandbox,
   SandboxAuditEvent,
@@ -9,14 +8,25 @@ import type {
 export interface CreateSandboxInput {
   name: string;
   agentPlatform: AgentPlatformId;
-  provider: "deepseek";
-  model: AgentModel;
+  providerName: string;
+  model: string;
+  inferenceEndpoint: string;
   policyYaml: string;
   systemPrompt: string;
   apiKey?: string;
 }
 
-export class NemoClawRunnerClient {
+export interface RunnerClient {
+  createSandbox(input: CreateSandboxInput): Promise<RunnerSandbox>;
+  getSandbox(name: string, agentPlatform: AgentPlatformId): Promise<RunnerSandbox>;
+  getSandboxAudit(name: string): Promise<SandboxAuditEvent[]>;
+  destroySandbox(name: string, agentPlatform: AgentPlatformId): Promise<RunnerSandbox>;
+  getHealth(): Promise<RunnerHealth>;
+  terminalWebSocketUrl(name: string, agentPlatform: AgentPlatformId): string;
+  authorizationHeaders(): Record<string, string>;
+}
+
+export class NemoClawRunnerClient implements RunnerClient {
   readonly baseUrl: string;
 
   constructor(

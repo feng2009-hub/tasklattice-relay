@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import {
   Boxes,
+  CircleDollarSign,
   CircleHelp,
   FilePlus2,
   FileLock2,
@@ -35,6 +36,7 @@ import { api } from "@/lib/api";
 
 type WorkspaceRoute =
   | "/providers"
+  | "/providers/cost"
   | "/dashboard"
   | "/instances"
   | "/requests/new"
@@ -72,7 +74,19 @@ const navGroups: Array<{
   label: string;
 }> = [
   { label: "Overview", items: [{ icon: LayoutDashboard, label: "Workspace", to: "/dashboard" }] },
-  { label: "Provider", items: [{ icon: Gauge, label: "Providers", to: "/providers" }] },
+  {
+    label: "Provider",
+    items: [{
+      children: [
+        { description: "Endpoint, key, and model registry", icon: Gauge, label: "Registry", to: "/providers" },
+        { description: "LiteLLM spend by Instance and model", icon: CircleDollarSign, label: "Cost", to: "/providers/cost" },
+      ],
+      icon: Gauge,
+      label: "Providers",
+      match: "prefix",
+      to: "/providers",
+    }],
+  },
   {
     label: "Agent",
     items: [
@@ -122,6 +136,7 @@ const routeLabels: Record<string, string> = {
   agents: "Instances",
   agent: "Agent",
   providers: "Providers",
+  cost: "Cost",
   dashboard: "Overview",
   instances: "Instances",
   knowledge: "Knowledge Base",

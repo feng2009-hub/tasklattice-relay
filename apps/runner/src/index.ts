@@ -22,6 +22,7 @@ import {
 } from "./nemoclaw.js";
 import {
   deleteOpenShellSandbox,
+  deleteOpenShellProvider,
   deleteOpenShellWebUiEndpoint,
   ensureOpenShellWebUiEndpoint,
   getOpenShellAuditEvents,
@@ -49,8 +50,9 @@ const agentPlatformSchema = z.enum(agentPlatformIds);
 const createSchema = z.object({
   name: z.string().regex(/^[a-z][a-z0-9-]{0,61}[a-z0-9]$/),
   agentPlatform: agentPlatformSchema.default("openclaw"),
-  provider: z.literal("deepseek"),
-  model: z.enum(["deepseek-chat", "deepseek-reasoner"]),
+  providerName: z.string().min(1).max(80),
+  model: z.string().min(1).max(200),
+  inferenceEndpoint: z.string().url(),
   systemPrompt: z.string().min(10).max(8000),
   policyYaml: z.string().min(10).max(64_000),
   apiKey: z.string().min(16).max(512).optional(),
@@ -227,8 +229,9 @@ app.post("/v1/sandboxes", (request, response, next) => {
     const input: ProvisionInput = {
       name: parsedInput.name,
       agentPlatform: parsedInput.agentPlatform,
-      provider: parsedInput.provider,
+      providerName: parsedInput.providerName,
       model: parsedInput.model,
+      inferenceEndpoint: parsedInput.inferenceEndpoint,
       systemPrompt: parsedInput.systemPrompt,
       policyYaml: parsedInput.policyYaml,
       ...(parsedInput.apiKey ? { apiKey: parsedInput.apiKey } : {}),
@@ -375,6 +378,7 @@ app.delete("/v1/sandboxes/:name", async (request, response, next) => {
     if (isOpenShell) {
       await deleteOpenShellWebUiEndpoint(name);
       await deleteOpenShellSandbox(name);
+      await deleteOpenShellProvider(name);
     } else if (mode !== "fixture") {
       const result = await runCommand("nemoclaw", [name, "destroy", "--yes"]);
       if (result.exitCode !== 0)

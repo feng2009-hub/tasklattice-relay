@@ -25,7 +25,8 @@ function InstanceFacts({ instance }: { instance: Agent }) {
     { label: "Model", value: instance.model },
     { label: "OpenShell Sandbox", value: instance.sandboxName },
     { label: "Observed", value: instance.runtimePhase ?? instance.status },
-    { label: "Provider", value: instance.providerConnectionId },
+    { label: "Provider", value: instance.providerName },
+    { label: "Model", value: instance.model },
   ];
 
   return (

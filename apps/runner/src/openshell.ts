@@ -7,7 +7,6 @@ import type { AgentPlatformId } from "@tasklattice/contracts";
 import { getAgentPlatformRuntime } from "./agent-platform.js";
 import { runCommand, type ProvisionInput } from "./nemoclaw.js";
 
-const providerName = process.env.OPENSHELL_DEEPSEEK_PROVIDER ?? "tasklattice-deepseek";
 const nemoClawGatewayPort = process.env.NEMOCLAW_DASHBOARD_PORT ?? "18789";
 const nemoClawWebUiService = "webui";
 
@@ -113,25 +112,29 @@ export function deepSeekProviderCreateCommand(input: ProvisionInput): {
   args: string[];
   env: NodeJS.ProcessEnv;
 } {
-  const apiKey = input.apiKey ?? process.env.DEEPSEEK_API_KEY;
+  const apiKey = input.apiKey;
   return {
     args: openShellArguments([
       "provider",
       "create",
       "--name",
-      providerName,
+      openShellProviderName(input.name),
       "--type",
       "openai",
       "--credential",
       "OPENAI_API_KEY",
       "--config",
-      `OPENAI_BASE_URL=${process.env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com/v1"}`,
+      `OPENAI_BASE_URL=${input.inferenceEndpoint}`,
     ]),
     env: {
       ...process.env,
       ...(apiKey ? { OPENAI_API_KEY: apiKey } : {}),
     },
   };
+}
+
+export function openShellProviderName(sandboxName: string): string {
+  return `tali-${sandboxName}`.slice(0, 63).replace(/-$/, "");
 }
 
 export function openShellSandboxCreateArguments(
@@ -153,7 +156,7 @@ export function openShellSandboxCreateArguments(
     "--memory",
     process.env.OPENSHELL_SANDBOX_MEMORY ?? "2Gi",
     "--provider",
-    providerName,
+    openShellProviderName(input.name),
     "--policy",
     policyFile,
     "--label",
@@ -447,17 +450,18 @@ async function createOpenShellNemoClawSandbox(
   });
 }
 
-async function ensureDeepSeekProvider(input: ProvisionInput): Promise<void> {
+async function ensureInstanceProvider(input: ProvisionInput): Promise<void> {
+  const providerName = openShellProviderName(input.name);
   const existing = await runCommand(
     openShellBinary(),
     openShellArguments(["provider", "get", providerName]),
   );
   if (existing.exitCode === 0) return;
 
-  const apiKey = input.apiKey ?? process.env.DEEPSEEK_API_KEY;
+  const apiKey = input.apiKey;
   if (!apiKey)
     throw new Error(
-      "A DeepSeek API key is required to create the OpenShell provider.",
+      "A LiteLLM virtual key is required to create the OpenShell provider.",
     );
 
   const command = deepSeekProviderCreateCommand(input);
@@ -474,7 +478,7 @@ async function ensureDeepSeekProvider(input: ProvisionInput): Promise<void> {
     );
     if (retry.exitCode !== 0)
       throw new Error(
-        created.stderr.trim() || "Unable to configure the DeepSeek provider.",
+        created.stderr.trim() || "Unable to configure the Instance Provider.",
       );
   }
 }
@@ -483,27 +487,10 @@ export async function provisionOpenShellSandbox(
   input: ProvisionInput,
   observer?: ProvisioningObserver,
 ): Promise<string[]> {
-  observer?.onStage?.("PROVIDER", "Preparing the shared DeepSeek provider.");
-  await ensureDeepSeekProvider(input);
+  observer?.onStage?.("PROVIDER", "Creating an isolated LiteLLM Provider for this Instance.");
+  await ensureInstanceProvider(input);
 
-  observer?.onStage?.("SANDBOX", "Validating inference and applying the OpenShell policy.");
-  const inference = await runCommand(
-    openShellBinary(),
-    openShellArguments([
-      "inference",
-      "set",
-      "--provider",
-      providerName,
-      "--model",
-      input.model,
-      "--timeout",
-      process.env.OPENSHELL_INFERENCE_TIMEOUT ?? "120",
-    ]),
-  );
-  if (inference.exitCode !== 0)
-    throw new Error(
-      inference.stderr.trim() || "OpenShell inference validation failed.",
-    );
+  observer?.onStage?.("SANDBOX", "Applying the OpenShell policy and scoped Provider attachment.");
 
   const temporaryDirectory = await mkdtemp(join(tmpdir(), "tasklattice-openshell-"));
   const runtime = getAgentPlatformRuntime(input.agentPlatform);
@@ -521,6 +508,8 @@ export async function provisionOpenShellSandbox(
       runtime.bootstrapScript(
         openShellWebUiOrigin(input.name),
         nemoClawGatewayPort,
+        input.inferenceEndpoint,
+        input.model,
       ),
       { mode: 0o600 },
     );
@@ -537,10 +526,23 @@ export async function provisionOpenShellSandbox(
     );
   } catch (error) {
     await deleteOpenShellSandbox(input.name).catch(() => undefined);
+    await deleteOpenShellProvider(input.name).catch(() => undefined);
     throw error;
   } finally {
     await rm(temporaryDirectory, { recursive: true, force: true });
   }
+}
+
+export async function deleteOpenShellProvider(name: string): Promise<void> {
+  const result = await runCommand(
+    openShellBinary(),
+    openShellArguments(["provider", "delete", openShellProviderName(name)]),
+  );
+  if (
+    result.exitCode !== 0 &&
+    !`${result.stdout}\n${result.stderr}`.toLowerCase().includes("not found")
+  )
+    throw new Error(result.stderr.trim() || "OpenShell Provider deletion failed.");
 }
 
 export async function observeOpenShellSandbox(

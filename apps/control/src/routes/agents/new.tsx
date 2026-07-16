@@ -45,11 +45,11 @@ const publishedSkillOptions: MultiSelectOption[] = publishedSkills.map((skill) =
 function CreateAgent() {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
-  const [providerConnectionId, setProviderConnectionId] = useState("");
+  const [modelDeploymentId, setModelDeploymentId] = useState("");
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [selectedMcps, setSelectedMcps] = useState<string[]>([]);
-  const connections = useQuery({ queryKey: ["provider-connections"], queryFn: api.listProviderConnections });
-  const validatedConnections = (connections.data ?? []).filter((connection) => connection.status === "VALIDATED");
+  const deployments = useQuery({ queryKey: ["model-deployments"], queryFn: api.listModelDeployments });
+  const validatedDeployments = (deployments.data ?? []).filter((deployment) => deployment.status === "VALIDATED" && deployment.modelType === "llm");
   const mutation = useMutation({
     mutationFn: api.createAgent,
     onSuccess: (agent) => void navigate({ to: "/agents/$agentId", params: { agentId: agent.id } }),
@@ -60,23 +60,19 @@ function CreateAgent() {
       description: "",
       runtime: "nemoclaw" as const,
       agentPlatform: defaultAgentPlatformId as AgentPlatformId,
-      providerConnectionId: "",
-      provider: "deepseek" as const,
-      model: "deepseek-chat" as "deepseek-chat" | "deepseek-reasoner",
+      modelDeploymentId: "",
       policyId: "restricted" as const,
       systemPrompt: "You are a focused internal assistant. Complete the user's request inside the NemoClaw sandbox and explain the evidence clearly.",
     },
     onSubmit: ({ value }) => mutation.mutateAsync(value),
   });
-  const selectedConnection = validatedConnections.find((connection) => connection.id === providerConnectionId);
+  const selectedDeployment = validatedDeployments.find((deployment) => deployment.id === modelDeploymentId);
   useEffect(() => {
-    const first = validatedConnections[0];
-    if (!first || providerConnectionId) return;
-    setProviderConnectionId(first.id);
-    form.setFieldValue("providerConnectionId", first.id);
-    form.setFieldValue("provider", first.provider);
-    form.setFieldValue("model", first.model);
-  }, [form, providerConnectionId, validatedConnections]);
+    const first = validatedDeployments[0];
+    if (!first || modelDeploymentId) return;
+    setModelDeploymentId(first.id);
+    form.setFieldValue("modelDeploymentId", first.id);
+  }, [form, modelDeploymentId, validatedDeployments]);
 
   const toggle = (id: string, values: string[], update: (next: string[]) => void) =>
     update(values.includes(id) ? values.filter((item) => item !== id) : [...values, id]);
@@ -100,7 +96,7 @@ function CreateAgent() {
                 />
               )}
             </form.Subscribe>
-            <BlueprintRow icon={Network} label="Provider" value={selectedConnection?.name ?? "Required"} />
+            <BlueprintRow icon={Network} label="Provider" value={selectedDeployment ? `${selectedDeployment.providerName} · ${selectedDeployment.displayName}` : "Required"} />
             <form.Subscribe selector={(state) => state.values.policyId}>{(policyId) => <BlueprintRow icon={LockKeyhole} label="Policy" value={sandboxPolicies.find((policy) => policy.id === policyId)?.name ?? String(policyId)} />}</form.Subscribe>
             <BlueprintRow icon={Sparkles} label="Skills" value={`${selectedSkills.length} selected`} />
             <BlueprintRow icon={ServerCog} label="MCP Servers" value={`${selectedMcps.length} selected`} />
@@ -135,9 +131,9 @@ function CreateAgent() {
                 </form.Field>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2"><Label>Agent runtime</Label><div className="flex min-h-12 items-center gap-3 border bg-muted/25 px-3"><img src="/assets/brands/nvidia-logo-square.png" alt="" className="size-6 object-contain" /><span><strong className="block text-sm">NemoClaw</strong><span className="block text-xs text-muted-foreground">OpenShell-managed execution runtime</span></span></div></div>
-                  <div className="space-y-2"><Label>Provider connection</Label><Select value={providerConnectionId} disabled={!validatedConnections.length} onValueChange={(value) => { const connection = validatedConnections.find((item) => item.id === value); if (!connection) return; setProviderConnectionId(value); form.setFieldValue("providerConnectionId", value); form.setFieldValue("provider", connection.provider); form.setFieldValue("model", connection.model); }}><SelectTrigger><SelectValue placeholder="Select a validated Provider" /></SelectTrigger><SelectContent>{validatedConnections.map((connection) => <SelectItem key={connection.id} value={connection.id}>{connection.name} · {connection.model}</SelectItem>)}</SelectContent></Select></div>
+                  <div className="space-y-2"><Label>LLM deployment</Label><Select value={modelDeploymentId} disabled={!validatedDeployments.length} onValueChange={(value) => { setModelDeploymentId(value); form.setFieldValue("modelDeploymentId", value); }}><SelectTrigger><SelectValue placeholder="Select a validated LLM" /></SelectTrigger><SelectContent>{validatedDeployments.map((deployment) => <SelectItem key={deployment.id} value={deployment.id}>{deployment.providerName} · {deployment.displayName}</SelectItem>)}</SelectContent></Select></div>
                 </div>
-                {selectedConnection ? <div className="grid gap-3 border-y py-4 text-xs sm:grid-cols-3"><div><span className="text-muted-foreground">Endpoint</span><strong className="mt-1 block truncate font-mono">{selectedConnection.endpoint}</strong></div><div><span className="text-muted-foreground">Model</span><strong className="mt-1 block">{selectedConnection.model}</strong></div><div><span className="text-muted-foreground">Credential</span><strong className="mt-1 block">Stored by platform</strong></div></div> : <p role="alert" className="border-l-2 border-amber-500 bg-amber-500/5 px-3 py-3 text-xs">No validated Provider is available. <Link to="/providers" className="font-semibold underline underline-offset-4">Register and validate a connection first.</Link></p>}
+                {selectedDeployment ? <div className="grid gap-3 border-y py-4 text-xs sm:grid-cols-3"><div><span className="text-muted-foreground">Endpoint</span><strong className="mt-1 block truncate font-mono">{selectedDeployment.endpoint}</strong></div><div><span className="text-muted-foreground">Model</span><strong className="mt-1 block">{selectedDeployment.modelId}</strong></div><div><span className="text-muted-foreground">Cost attribution</span><strong className="mt-1 block">Dedicated Instance key</strong></div></div> : <p role="alert" className="border-l-2 border-amber-500 bg-amber-500/5 px-3 py-3 text-xs">No validated LLM deployment is available. <Link to="/providers" className="font-semibold underline underline-offset-4">Register a Provider and model first.</Link></p>}
                 <form.Field name="policyId">
                   {(field) => (
                     <div className="space-y-2">
@@ -193,7 +189,7 @@ function CreateAgent() {
                   <CardContent className="space-y-6">
                     <div className="grid gap-5 sm:grid-cols-2">
                       <ReviewSection title="Agent"><ReviewRow label="Name" value={values.name} /><ReviewRow label="Description" value={values.description || "None"} /></ReviewSection>
-                      <ReviewSection title="Runtime"><ReviewRow label="Runtime" value="NemoClaw" /><ReviewRow label="Agent platform" value={getAgentPlatformPresentation(values.agentPlatform).name} /><ReviewRow label="Provider" value={selectedConnection?.name ?? "Not selected"} /><ReviewRow label="Model" value={selectedConnection?.model ?? "—"} /><ReviewRow label="Policy" value={sandboxPolicies.find((policy) => policy.id === values.policyId)?.name ?? values.policyId} /></ReviewSection>
+                      <ReviewSection title="Runtime"><ReviewRow label="Runtime" value="NemoClaw" /><ReviewRow label="Agent platform" value={getAgentPlatformPresentation(values.agentPlatform).name} /><ReviewRow label="Provider" value={selectedDeployment?.providerName ?? "Not selected"} /><ReviewRow label="Model" value={selectedDeployment?.displayName ?? "—"} /><ReviewRow label="Policy" value={sandboxPolicies.find((policy) => policy.id === values.policyId)?.name ?? values.policyId} /></ReviewSection>
                     </div>
                     <Separator />
                     <div className="grid gap-5 sm:grid-cols-2">
@@ -211,7 +207,7 @@ function CreateAgent() {
           <div className="flex items-center justify-between gap-3">
             <Button type="button" variant="outline" disabled={step === 0 || mutation.isPending} onClick={() => setStep((current) => Math.max(0, current - 1))}><ArrowLeft /> Back</Button>
             {step < 3 ? (
-              <form.Subscribe selector={(state) => [state.values.name, state.values.systemPrompt, state.values.providerConnectionId]}>
+              <form.Subscribe selector={(state) => [state.values.name, state.values.systemPrompt, state.values.modelDeploymentId]}>
                 {([name, prompt, connection]) => <Button type="button" disabled={(step === 0 && (String(name).trim().length < 3 || String(prompt).trim().length < 10)) || (step === 1 && !String(connection))} onClick={() => setStep((current) => Math.min(3, current + 1))}>Continue <ArrowRight /></Button>}
               </form.Subscribe>
             ) : (
