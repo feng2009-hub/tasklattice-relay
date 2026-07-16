@@ -5,6 +5,7 @@ set -euo pipefail
 # Each platform pins its upstream revision and base image independently because
 # OpenClaw and Hermes publish different integration manifests and image lines.
 readonly AGENT_PLATFORM="${NEMOCLAW_AGENT_PLATFORM:-openclaw}"
+readonly REPOSITORY_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 case "$AGENT_PLATFORM" in
   openclaw)
@@ -31,6 +32,24 @@ trap 'rm -rf "$build_context"' EXIT
 git clone --quiet --filter=blob:none https://github.com/NVIDIA/NemoClaw.git "$build_context"
 git -C "$build_context" checkout --quiet "$NEMOCLAW_REVISION"
 
+resolved_base_image="$NEMOCLAW_BASE_IMAGE"
+if ! docker image inspect "$resolved_base_image" >/dev/null 2>&1 \
+  && ! docker pull "$resolved_base_image"; then
+  if [ "$AGENT_PLATFORM" != "hermes" ]; then
+    echo "Unable to resolve sandbox base image: $resolved_base_image" >&2
+    exit 1
+  fi
+
+  resolved_base_image="tasklattice-nemoclaw-hermes-base:${NEMOCLAW_REVISION:0:12}"
+  if ! docker image inspect "$resolved_base_image" >/dev/null 2>&1; then
+    echo "Hermes base image is unavailable from GHCR; building the pinned local fallback."
+    docker build \
+      --file "$build_context/agents/hermes/Dockerfile.base" \
+      --tag "$resolved_base_image" \
+      "$build_context"
+  fi
+fi
+
 platform_build_args=()
 if [ "$AGENT_PLATFORM" = "openclaw" ]; then
   platform_build_args+=(
@@ -44,9 +63,14 @@ else
   )
 fi
 
+upstream_image="$NEMOCLAW_IMAGE"
+if [ "$AGENT_PLATFORM" = "hermes" ]; then
+  upstream_image="tasklattice-nemoclaw-hermes-upstream:${NEMOCLAW_REVISION:0:12}"
+fi
+
 docker build \
-  --file "$DOCKERFILE" \
-  --build-arg "BASE_IMAGE=$NEMOCLAW_BASE_IMAGE" \
+  --file "$build_context/$DOCKERFILE" \
+  --build-arg "BASE_IMAGE=$resolved_base_image" \
   --build-arg NEMOCLAW_MODEL=deepseek-chat \
   --build-arg NEMOCLAW_PROVIDER_KEY=inference \
   --build-arg NEMOCLAW_INFERENCE_BASE_URL=https://inference.local/v1 \
@@ -54,5 +78,13 @@ docker build \
   --build-arg NEMOCLAW_CONTEXT_WINDOW=65536 \
   --build-arg NEMOCLAW_WEB_SEARCH_ENABLED=0 \
   "${platform_build_args[@]}" \
-  --tag "$NEMOCLAW_IMAGE" \
+  --tag "$upstream_image" \
   "$build_context"
+
+if [ "$AGENT_PLATFORM" = "hermes" ]; then
+  docker build \
+    --file "$REPOSITORY_ROOT/infra/docker/Dockerfile.nemoclaw-hermes" \
+    --build-arg "BASE_IMAGE=$upstream_image" \
+    --tag "$NEMOCLAW_IMAGE" \
+    "$REPOSITORY_ROOT"
+fi

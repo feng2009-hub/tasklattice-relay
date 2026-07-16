@@ -5,6 +5,7 @@ basePolicy:
     include_workdir: true
     read_only:
       - /usr
+      - /opt
       - /lib
       - /proc
       - /dev/urandom

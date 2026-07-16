@@ -66,8 +66,46 @@ const hermesBootstrapScript = (
 ) => `#!/usr/bin/env bash
 set -euo pipefail
 
-readonly config_file=/sandbox/.hermes/config.yaml
-sed -i "s#https://inference.local/v1#${inferenceEndpoint}#g; s#deepseek-chat#${model}#g" "$config_file"
+readonly hermes_dir=/sandbox/.hermes
+readonly config_file="$hermes_dir/config.yaml"
+readonly hash_file="$hermes_dir/.config-hash"
+readonly config_bootstrap=/usr/local/lib/tasklattice/bootstrap-hermes-config.py
+
+# OpenShell provisions the persistent workspace root with a setgid, writable
+# mode so uploaded files can be staged before the workload starts. Hermes
+# deliberately accepts a narrower posture. Only normalize the mount when the
+# current sandbox identity owns it; otherwise fail closed and leave the
+# upstream boundary validator to report the unexpected ownership.
+if [ "$(id -u)" -ne 0 ]; then
+  readonly sandbox_identity="$(id -u):$(id -g)"
+  readonly workspace_identity="$(stat -c '%u:%g' /sandbox)"
+  readonly hermes_identity="$(stat -c '%u:%g' /sandbox/.hermes)"
+  if [ "$workspace_identity" != "$sandbox_identity" ]; then
+    echo "Refusing to normalize /sandbox owned by $workspace_identity for $sandbox_identity" >&2
+    exit 1
+  fi
+  if [ "$hermes_identity" != "$sandbox_identity" ]; then
+    echo "Refusing to normalize /sandbox/.hermes owned by $hermes_identity for $sandbox_identity" >&2
+    exit 1
+  fi
+  chmod 0770 /sandbox
+  chmod g-s /sandbox
+  chmod 3770 /sandbox/.hermes
+fi
+
+printf '[bootstrap] Hermes identity current=%s account=%s workspace=%s state=%s\n' \
+  "$(id -u):$(id -g)" \
+  "$(id -u sandbox):$(id -g sandbox)" \
+  "$(stat -c '%u:%g:%a' /sandbox)" \
+  "$(stat -c '%u:%g:%a' /sandbox/.hermes)" >&2
+
+"$config_bootstrap" \
+  --config "$config_file" \
+  --hash-file "$hash_file" \
+  --endpoint "${inferenceEndpoint}" \
+  --model "${model}" \
+  --template-endpoint https://inference.local/v1 \
+  --template-model deepseek-chat
 exec env "NEMOCLAW_DASHBOARD_PORT=${dashboardPort}" "NEMOCLAW_MODEL_OVERRIDE=${model}" /usr/local/bin/nemoclaw-start
 `;
 
@@ -98,6 +136,7 @@ const agentPlatformRuntimeRegistry = {
       "/usr/local/bin/hermes",
       "/usr/local/bin/python",
       "/usr/local/bin/python3",
+      "/usr/bin/python3.*",
     ],
     endpointKind: "hermes-dashboard",
     sandboxImage: () =>

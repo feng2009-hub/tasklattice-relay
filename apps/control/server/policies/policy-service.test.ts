@@ -29,6 +29,7 @@ describe("PolicyService", () => {
     expect(policy).toMatchObject({ source: "BUILT_IN", immutable: true });
     expect(policy?.policyYaml).toContain("/dev/null");
     expect(policy?.policyYaml).toContain("/sandbox");
+    expect(policy?.policyYaml).toContain("/opt");
   });
 
   it("creates, updates, and deletes custom policies", () => {

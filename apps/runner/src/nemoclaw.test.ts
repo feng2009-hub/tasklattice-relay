@@ -4,6 +4,7 @@ import {
   parseTerminalResize,
 } from "@tasklattice/contracts";
 import { nemoClawTerminalArguments, onboardCommand } from "./nemoclaw.js";
+import { getAgentPlatformRuntime } from "./agent-platform.js";
 import {
   composeOpenShellInferencePolicy,
   deepSeekProviderCreateCommand,
@@ -112,7 +113,10 @@ describe("OpenShell Kubernetes command contract", () => {
     expect(policy).toContain(
       "host: tasklattice-litellm.tasklattice-sandboxes.svc.cluster.local",
     );
+    expect(policy).toContain('host: "**.svc.cluster.local"');
     expect(policy).toContain("port: 4000");
+    expect(policy).toContain("allowed_ips:");
+    expect(policy).toContain("- 192.168.0.0/16");
     expect(policy).toContain("path: /usr/local/bin/node");
   });
 
@@ -126,6 +130,9 @@ describe("OpenShell Kubernetes command contract", () => {
     expect(policy).toContain("port: 443");
     expect(policy).toContain("path: /usr/local/bin/hermes");
     expect(policy).toContain("path: /usr/local/bin/python3");
+    expect(policy).toContain("path: /usr/bin/python3.*");
+    expect(policy).not.toContain("**.svc.cluster.local");
+    expect(policy).not.toContain("allowed_ips:");
   });
 
   it("reads and parses OpenShell OCSF policy decisions", () => {
@@ -219,6 +226,27 @@ describe("OpenShell Kubernetes command contract", () => {
         hermesInput.agentPlatform,
       ).at(-1),
     ).toBe("exec hermes --tui");
+  });
+
+  it("normalizes only a sandbox-owned Hermes workspace mount", () => {
+    const bootstrap = getAgentPlatformRuntime("hermes").bootstrapScript(
+      "http://hermes.example.test",
+      "18789",
+      "http://inference.example.test/v1",
+      "deepseek-chat",
+    );
+
+    expect(bootstrap).toContain("workspace_identity=\"$(stat -c '%u:%g' /sandbox)\"");
+    expect(bootstrap).toContain('[ "$workspace_identity" != "$sandbox_identity" ]');
+    expect(bootstrap).toContain("chmod 0770 /sandbox");
+    expect(bootstrap).toContain("chmod g-s /sandbox");
+    expect(bootstrap).toContain("chmod 3770 /sandbox/.hermes");
+    expect(bootstrap).toContain("[bootstrap] Hermes identity");
+    expect(bootstrap).toContain("bootstrap-hermes-config.py");
+    expect(bootstrap).not.toContain("sed -i");
+    expect(bootstrap.indexOf("chmod 0770 /sandbox")).toBeLessThan(
+      bootstrap.indexOf("/usr/local/bin/nemoclaw-start"),
+    );
   });
 
   it("exposes the NemoClaw Web UI as a named OpenShell service", () => {

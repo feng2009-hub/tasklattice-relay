@@ -53,6 +53,8 @@ spec:
               value: tasklattice-nemoclaw-sandbox:0.3.0
             - name: OPENSHELL_HERMES_SANDBOX_IMAGE
               value: tasklattice-nemoclaw-hermes-sandbox:0.3.0
+            - name: OPENSHELL_KUBERNETES_SERVICE_CIDRS
+              value: 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
             - name: NEMOCLAW_RUNNER_SHUTDOWN_TIMEOUT_MS
               value: "540000"
           readinessProbe:

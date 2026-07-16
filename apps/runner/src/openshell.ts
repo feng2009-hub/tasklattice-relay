@@ -10,6 +10,31 @@ import { runCommand, type ProvisionInput } from "./nemoclaw.js";
 
 const nemoClawGatewayPort = process.env.NEMOCLAW_DASHBOARD_PORT ?? "18789";
 const nemoClawWebUiService = "webui";
+const kubernetesServiceDnsSuffix = "svc.cluster.local";
+const defaultKubernetesServiceCidrs = [
+  "10.0.0.0/8",
+  "172.16.0.0/12",
+  "192.168.0.0/16",
+] as const;
+
+interface OpenShellNetworkEndpoint {
+  host: string;
+  port: number;
+  protocol: "rest";
+  enforcement: "enforce";
+  access: "full";
+  allowed_ips?: string[];
+}
+
+function kubernetesServiceCidrs(): string[] {
+  return (
+    process.env.OPENSHELL_KUBERNETES_SERVICE_CIDRS
+      ?.split(",")
+      .map((cidr) => cidr.trim())
+      .filter(Boolean)
+    ?? [...defaultKubernetesServiceCidrs]
+  );
+}
 
 export interface OpenShellSandbox {
   name: string;
@@ -163,20 +188,37 @@ export function composeOpenShellInferencePolicy(
     ? document.network_policies
     : {};
   const runtime = getAgentPlatformRuntime(agentPlatform);
+  const isKubernetesService =
+    endpoint.hostname === kubernetesServiceDnsSuffix
+    || endpoint.hostname.endsWith(`.${kubernetesServiceDnsSuffix}`);
+  const allowedIps = isKubernetesService ? kubernetesServiceCidrs() : undefined;
+  const endpoints: OpenShellNetworkEndpoint[] = [
+    {
+      host: endpoint.hostname,
+      port,
+      protocol: "rest",
+      enforcement: "enforce",
+      access: "full",
+      ...(allowedIps ? { allowed_ips: allowedIps } : {}),
+    },
+  ];
+
+  if (isKubernetesService) {
+    endpoints.push({
+      host: `**.${kubernetesServiceDnsSuffix}`,
+      port,
+      protocol: "rest",
+      enforcement: "enforce",
+      access: "full",
+      allowed_ips: allowedIps ?? [],
+    });
+  }
 
   document.network_policies = {
     ...networkPolicies,
     tasklattice_inference_gateway: {
       name: "tasklattice-inference-gateway",
-      endpoints: [
-        {
-          host: endpoint.hostname,
-          port,
-          protocol: "rest",
-          enforcement: "enforce",
-          access: "full",
-        },
-      ],
+      endpoints,
       binaries: runtime.inferenceBinaries.map((path) => ({ path })),
     },
   };
