@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MultiSelectCombobox, type MultiSelectOption } from "@/components/ui/multi-select-combobox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
@@ -26,6 +27,14 @@ const steps: readonly CreateInstanceStep[] = [
   { label: "Extensions", description: "Attach Skills and MCP" },
   { label: "Review", description: "Confirm and create" },
 ];
+
+const publishedSkills = skillPreviews.filter((item) => item.status === "PUBLISHED");
+const publishedSkillOptions: MultiSelectOption[] = publishedSkills.map((skill) => ({
+  value: skill.id,
+  label: skill.name,
+  description: skill.description,
+  meta: `${skill.category} · v${skill.version}`,
+}));
 
 function CreateAgent() {
   const navigate = useNavigate();
@@ -53,8 +62,6 @@ function CreateAgent() {
     onSubmit: ({ value }) => mutation.mutateAsync(value),
   });
   const selectedConnection = validatedConnections.find((connection) => connection.id === providerConnectionId);
-  const publishedSkills = skillPreviews.filter((item) => item.status === "PUBLISHED");
-
   useEffect(() => {
     const first = validatedConnections[0];
     if (!first || providerConnectionId) return;
@@ -84,7 +91,7 @@ function CreateAgent() {
           </InstanceBlueprint>
         }
       >
-        <form onSubmit={(event) => { event.preventDefault(); void form.handleSubmit(); }} className="space-y-5">
+        <form onSubmit={(event) => { event.preventDefault(); void form.handleSubmit(); }} className="min-w-0 space-y-5">
           {step === 0 ? (
             <Card>
               <CardHeader><CardTitle className="flex items-center gap-2"><Bot className="size-5" /> Identity</CardTitle><CardDescription>Name the desired Agent resource and define its operating instructions.</CardDescription></CardHeader>
@@ -127,8 +134,21 @@ function CreateAgent() {
             <div className="space-y-5">
               <Card>
                 <CardHeader><div className="flex items-center justify-between gap-3"><div><CardTitle className="flex items-center gap-2"><Sparkles className="size-5" /> Skills</CardTitle><CardDescription className="mt-2">Choose one or more verified capability packages.</CardDescription></div><Badge variant="outline">{selectedSkills.length} selected</Badge></div></CardHeader>
-                <CardContent className="grid gap-3 sm:grid-cols-2">
-                  {publishedSkills.map((skill) => { const active = selectedSkills.includes(skill.id); return <button key={skill.id} type="button" aria-pressed={active} onClick={() => toggle(skill.id, selectedSkills, setSelectedSkills)} className={cn("min-h-32 border p-4 text-left transition-colors hover:bg-muted/50 focus-visible:outline-2", active && "border-primary bg-primary/5 shadow-[inset_3px_0_0_var(--primary)]")}><span className="flex items-start justify-between gap-3"><span><strong className="block">{skill.name}</strong><span className="mt-1 block text-[10px] uppercase tracking-wide text-muted-foreground">{skill.category} · v{skill.version}</span></span><span className={cn("grid size-6 place-items-center rounded-full border", active && "border-primary bg-primary text-primary-foreground")}>{active ? <Check className="size-3" /> : null}</span></span><span className="mt-3 block text-xs leading-5 text-muted-foreground">{skill.description}</span></button>; })}
+                <CardContent className="space-y-3">
+                  <Label htmlFor="instance-skills">Available Skills</Label>
+                  <MultiSelectCombobox
+                    id="instance-skills"
+                    ariaLabel="Select Skills"
+                    emptyMessage="No Skills start with"
+                    onValueChange={setSelectedSkills}
+                    options={publishedSkillOptions}
+                    placeholder="Select one or more Skills…"
+                    searchPlaceholder="Add another Skill…"
+                    value={selectedSkills}
+                  />
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    {publishedSkills.length} published {publishedSkills.length === 1 ? "Skill is" : "Skills are"} available. Type the beginning of a Skill name to filter the list.
+                  </p>
                 </CardContent>
               </Card>
               <Card>

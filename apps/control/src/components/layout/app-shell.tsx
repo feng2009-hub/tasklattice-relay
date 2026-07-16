@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import {
   Boxes,
-  ChevronDown,
   CircleHelp,
   FilePlus2,
   FileLock2,
@@ -11,7 +10,6 @@ import {
   LayoutDashboard,
   ListChecks,
   Network,
-  LogOut,
   Menu,
   PanelLeftClose,
   PanelLeftOpen,
@@ -20,11 +18,11 @@ import {
   Settings,
   ShieldEllipsis,
   Sparkles,
-  UserRound,
   X,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-provider";
+import { AccountMenu } from "@/components/account/account-menu";
 import { BrandLogo } from "@/components/brand/brand-logo";
 import {
   Tooltip,
@@ -285,7 +283,6 @@ export function AppShell() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [accountOpen, setAccountOpen] = useState(false);
   const runtime = useQuery({
     queryKey: ["runtime-status"],
     queryFn: api.getRuntimeStatus,
@@ -310,11 +307,6 @@ export function AppShell() {
     if (to === "/instances") return pathname === "/instances" || pathname.startsWith("/agents");
     return pathname === to;
   };
-  const initials = useMemo(
-    () => (user?.displayName || user?.username || "User").split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase(),
-    [user],
-  );
-
   useEffect(() => {
     const stored = window.localStorage.getItem("tasklattice.sidebar.collapsed");
     setCollapsed(stored === "true");
@@ -322,14 +314,12 @@ export function AppShell() {
 
   useEffect(() => {
     setMobileOpen(false);
-    setAccountOpen(false);
   }, [pathname]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       setMobileOpen(false);
-      setAccountOpen(false);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -388,22 +378,13 @@ export function AppShell() {
       <div className="shrink-0 border-t border-sidebar-border p-3">
         <DisabledNav collapsed={isCollapsed} icon={Settings} label="Platform settings" />
         <DisabledNav collapsed={isCollapsed} icon={CircleHelp} label="Help & documentation" />
-        <div className="relative mt-2 border-t border-sidebar-border pt-3">
-          <button
-            type="button"
-            aria-expanded={accountOpen}
-            onClick={() => setAccountOpen((value) => !value)}
-            className={cn("flex min-h-12 w-full items-center rounded-md hover:bg-sidebar-accent focus-visible:outline-2", isCollapsed ? "justify-center" : "gap-3 px-2")}
-          >
-            <span className="grid size-8 shrink-0 place-items-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">{initials}</span>
-            {isCollapsed ? null : <><span className="min-w-0 flex-1 text-left"><strong className="block truncate text-xs">{user?.displayName}</strong><span className="block truncate text-[10px] text-muted-foreground">{user?.provider === "sso" ? "SSO account" : "Local account"}</span></span><ChevronDown className={cn("size-4 text-muted-foreground transition-transform", accountOpen && "rotate-180")} /></>}
-          </button>
-          {accountOpen ? (
-            <div className={cn("absolute bottom-[calc(100%+0.5rem)] z-50 rounded-md border bg-popover p-2 text-popover-foreground shadow-md", isCollapsed ? "left-0 w-56" : "inset-x-0")}>
-              <div className="px-2 py-2"><p className="text-xs font-semibold">{user?.displayName}</p><p className="mt-1 truncate text-[11px] text-muted-foreground">{user?.email || user?.username}</p></div>
-              <button type="button" onClick={() => void logout()} className="flex min-h-11 w-full items-center gap-2 rounded-sm px-2 text-sm text-destructive hover:bg-destructive/10 focus-visible:outline-2"><LogOut className="size-4" />Sign out</button>
-            </div>
-          ) : null}
+        <div className="mt-2 border-t border-sidebar-border pt-3">
+          <AccountMenu
+            collapsed={isCollapsed}
+            onLogout={logout}
+            placement="sidebar"
+            user={user}
+          />
         </div>
       </div>
     </>
@@ -431,7 +412,7 @@ export function AppShell() {
             <Breadcrumbs pathname={pathname} />
             <button disabled className="ml-auto hidden min-h-10 w-64 cursor-not-allowed items-center gap-2 rounded-xl border bg-muted/30 px-3 text-sm text-muted-foreground/45 md:flex"><Search className="size-4" />Search workspace<span className="ml-auto text-[10px] uppercase">Later</span></button>
             <div className="ml-auto flex min-h-10 items-center gap-2 rounded-full border px-3 text-xs font-semibold md:ml-2"><span className="size-2 rounded-full bg-[#79a93b]" />UAT</div>
-            <div className="grid size-9 place-items-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground" aria-label={`Signed in as ${user?.displayName}`}><UserRound className="size-4" /></div>
+            <AccountMenu onLogout={logout} placement="header" user={user} />
           </header>
           <main id="main-content" className="mx-auto w-full max-w-[1440px] p-5 sm:p-6 lg:p-8"><Outlet /></main>
         </div>
