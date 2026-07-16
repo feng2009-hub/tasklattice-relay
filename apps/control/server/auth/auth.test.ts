@@ -31,10 +31,22 @@ describe("TaskLattice authentication", () => {
 
   it("authenticates a configured local user and resolves the bearer identity", async () => {
     const response = await handleLocalLogin(localRequest("correct-horse"));
-    const body = (await response.json()) as { token: string };
+    const body = (await response.json()) as {
+      token: string;
+      user: Record<string, unknown>;
+    };
 
     expect(response.status).toBe(200);
+    expect(body.user).toEqual({
+      displayName: "Local Administrator",
+      email: "",
+      provider: "local",
+      username: "operator",
+    });
+    expect(body.user).not.toHaveProperty("password");
+    expect(body.user).not.toHaveProperty("passwordHash");
     expect(verifyAuthToken(body.token).sub).toBe("operator");
+    expect(verifyAuthToken(body.token).user).toEqual(body.user);
 
     const me = handleAuthMe(
       new Request("http://tasklattice.local/api/v1/auth/me", {

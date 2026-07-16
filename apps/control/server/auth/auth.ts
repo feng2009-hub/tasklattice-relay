@@ -152,12 +152,18 @@ function signature(value: string, secret: string): string {
 }
 
 export function signAuthToken(
-  user: AuthUser,
+  authUser: AuthUser,
   remember = false,
   idToken = "",
 ): { expiresAt: string; token: string; user: AuthUser } {
   const config = getAuthConfig();
   const now = Math.floor(Date.now() / 1_000);
+  const user: AuthUser = {
+    displayName: authUser.displayName,
+    email: authUser.email,
+    provider: authUser.provider,
+    username: authUser.username,
+  };
   const payload: AuthPayload = {
     exp: now + (remember ? 30 * 86_400 : 8 * 3_600),
     iat: now,

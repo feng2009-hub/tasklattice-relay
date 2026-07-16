@@ -111,7 +111,7 @@ cp .env.example .env
 ```
 
 Never commit `.env`. The local Kubernetes overlay generates development-only
-runner, LiteLLM, and PostgreSQL Secrets from
+control authentication, runner, LiteLLM, and PostgreSQL Secrets from
 [`infra/kubernetes/overlays/openshell/kustomization.yaml`](infra/kubernetes/overlays/openshell/kustomization.yaml).
 Replace that mechanism with managed Secrets before using a shared cluster.
 
@@ -208,9 +208,11 @@ The health response must include:
 ```
 
 Open the control console at [http://localhost](http://localhost). The local-only
-login is `admin / admin`. These credentials are application fallbacks because
-the local Kubernetes manifest does not configure production authentication;
-never expose this deployment to an untrusted network.
+login is `admin / admin`. The local overlays supply the bcrypt password hash and
+JWT signing value through the reusable
+[`local-auth` Kustomize component](infra/kubernetes/components/local-auth/kustomization.yaml).
+These checked-in credentials are only for a trusted local cluster; never expose
+this deployment to an untrusted network.
 
 If `EXTERNAL-IP` remains `Pending`, the cluster does not provide a
 LoadBalancer implementation. Install one, use a cluster-specific tunnel, or
@@ -403,6 +405,22 @@ OpenShell overlay:
 npm run k8s:deploy:openshell
 ```
 
+### `TALI_AUTH_LOCAL_PASSWORD_HASH is required in production`
+
+The control image runs with `NODE_ENV=production`, including on a local
+cluster. Deploy the complete local or OpenShell overlay so the local auth
+component generates `tasklattice-control-auth` and injects the password hash
+and JWT signing value:
+
+```sh
+npm run k8s:deploy:openshell
+kubectl -n tasklattice-sandboxes rollout status deployment/tasklattice-control --timeout=180s
+```
+
+Do not solve this by disabling the production check. For a shared environment,
+replace the local component with a managed Secret and a unique password hash
+and JWT signing value.
+
 ### LiteLLM remains unready
 
 Wait for PostgreSQL first, then inspect both logs:
@@ -454,8 +472,10 @@ kubectl -n openshell get sandboxes,pods,pvc
 
 ## Authentication and production boundary
 
-Local development falls back to `admin / admin`. Host development can configure
-local authentication through `.env`:
+Host development falls back to `admin / admin` when `NODE_ENV` is not
+`production`. The local Kubernetes overlays run the production image and
+explicitly configure the same local login through a bcrypt hash. Host
+development can configure local authentication through `.env`:
 
 ```text
 TALI_AUTH_MODE=local
