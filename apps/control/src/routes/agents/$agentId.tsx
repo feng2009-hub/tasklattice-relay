@@ -60,7 +60,6 @@ function AgentDetail() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow={`Agent / Instances / ${agent.data.id.slice(0, 8)}`}
         title={agent.data.name}
         description={agent.data.description || "OpenShell runtime Instance"}
         badge={<AgentStatusBadge status={agent.data.status} />}

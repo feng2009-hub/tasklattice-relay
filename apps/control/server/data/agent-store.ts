@@ -3,6 +3,7 @@ import type {
   Agent,
   ModelDeployment,
   ProviderAccount,
+  ProviderKind,
   SandboxPolicy,
 } from "@tasklattice/contracts";
 
@@ -58,7 +59,33 @@ export function parseAgent(payload: string): Agent {
 }
 
 function parseProviderAccount(payload: string): ProviderAccount {
-  return JSON.parse(payload) as ProviderAccount;
+  const account = JSON.parse(payload) as Partial<ProviderAccount> & {
+    presetId?: string;
+    endpoint?: string;
+  };
+  const legacyKind: ProviderKind = account.presetId === "kimi-cn" || account.presetId === "kimi-global"
+    ? "moonshot"
+    : (account.presetId as ProviderKind | undefined) ?? "custom-openai-compatible";
+  return {
+    ...account,
+    id: account.id ?? "",
+    name: account.name ?? "Legacy Provider",
+    providerKind: account.providerKind ?? legacyKind,
+    presetId: (account.presetId as ProviderAccount["presetId"] | undefined) ?? legacyKind,
+    endpoint: account.endpoint ?? "",
+    config: account.config ?? {
+      endpoint: account.endpoint ?? "",
+      ...(account.presetId === "kimi-cn" ? { region: "cn" } : {}),
+      ...(account.presetId === "kimi-global" ? { region: "global" } : {}),
+    },
+    discoveredModels: account.discoveredModels ?? [],
+    credentialState: "STORED",
+    status: account.status ?? "FAILED",
+    checks: account.checks ?? [],
+    validationMessage: account.validationMessage ?? "Legacy Provider data requires revalidation.",
+    createdAt: account.createdAt ?? new Date(0).toISOString(),
+    updatedAt: account.updatedAt ?? account.createdAt ?? new Date(0).toISOString(),
+  };
 }
 
 function parseModelDeployment(payload: string): ModelDeployment {
@@ -162,10 +189,10 @@ export class AgentStore {
 
   saveProviderAccount(
     account: ProviderAccount,
-    apiKey?: string,
+    credentialPayload?: string,
   ): ProviderAccount {
     const existingKey = this.getProviderAccountCredential(account.id);
-    const credential = apiKey ?? existingKey;
+    const credential = credentialPayload ?? existingKey;
     if (!credential)
       throw new Error("An API credential is required for a new Provider Account.");
     this.database

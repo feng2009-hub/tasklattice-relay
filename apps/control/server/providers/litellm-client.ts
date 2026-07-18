@@ -1,4 +1,4 @@
-import type { CreateModelDeploymentInput, ProviderPresetId } from "@tasklattice/contracts";
+import type { ModelType, ProviderKind, ProviderModelSelection } from "@tasklattice/contracts";
 
 interface LiteLLMVirtualKeyResponse {
   key: string;
@@ -28,24 +28,16 @@ export interface LiteLLMAdminClient {
   readonly baseUrl: string;
   registerModel(input: {
     accountId: string;
-    apiKey: string;
-    deployment: CreateModelDeploymentInput;
-    endpoint: string;
-    presetId: ProviderPresetId;
+    providerKind: ProviderKind;
+    model: ProviderModelSelection;
+    litellmParams: Record<string, unknown>;
   }): Promise<string>;
   deleteModel(modelName: string): Promise<void>;
+  probeModel(modelName: string, modelType: ModelType): Promise<void>;
   createInstanceKey(input: { agentId: string; alias: string; modelName: string }): Promise<LiteLLMVirtualKey>;
   revokeKey(tokenId: string): Promise<void>;
   listSpendLogs(from: string, to: string): Promise<LiteLLMSpendLog[]>;
 }
-
-const providerPrefix: Record<ProviderPresetId, string> = {
-  deepseek: "deepseek",
-  openai: "openai",
-  "kimi-cn": "openai",
-  "kimi-global": "openai",
-  "custom-openai-compatible": "openai",
-};
 
 export class LiteLLMClient implements LiteLLMAdminClient {
   readonly baseUrl: string;
@@ -59,27 +51,28 @@ export class LiteLLMClient implements LiteLLMAdminClient {
 
   async registerModel(input: {
     accountId: string;
-    apiKey: string;
-    deployment: CreateModelDeploymentInput;
-    endpoint: string;
-    presetId: ProviderPresetId;
+    providerKind: ProviderKind;
+    model: ProviderModelSelection;
+    litellmParams: Record<string, unknown>;
   }): Promise<string> {
     this.assertConfigured();
-    const modelName = `tali/${input.accountId.slice(0, 8)}/${input.deployment.modelId}`;
+    const modelName = `tali/${input.accountId.slice(0, 8)}/${input.model.modelId}`;
     await this.request("/model/new", {
       method: "POST",
       body: JSON.stringify({
         model_name: modelName,
         litellm_params: {
-          model: `${providerPrefix[input.presetId]}/${input.deployment.modelId}`,
-          api_base: input.endpoint,
-          api_key: input.apiKey,
-          ...(input.deployment.inputFeePerMillionTokens !== undefined
-            ? { input_cost_per_token: input.deployment.inputFeePerMillionTokens / 1_000_000 }
+          ...input.litellmParams,
+          ...(input.model.inputFeePerMillionTokens !== undefined
+            ? { input_cost_per_token: input.model.inputFeePerMillionTokens / 1_000_000 }
             : {}),
-          ...(input.deployment.outputFeePerMillionTokens !== undefined
-            ? { output_cost_per_token: input.deployment.outputFeePerMillionTokens / 1_000_000 }
+          ...(input.model.outputFeePerMillionTokens !== undefined
+            ? { output_cost_per_token: input.model.outputFeePerMillionTokens / 1_000_000 }
             : {}),
+        },
+        model_info: {
+          tasklatticeProviderAccountId: input.accountId,
+          providerKind: input.providerKind,
         },
       }),
     });
@@ -99,6 +92,32 @@ export class LiteLLMClient implements LiteLLMAdminClient {
       method: "POST",
       body: JSON.stringify({ id: modelId }),
     });
+  }
+
+  async probeModel(modelName: string, modelType: ModelType): Promise<void> {
+    this.assertConfigured();
+    if (modelType === "llm") {
+      await this.request("/chat/completions", {
+        method: "POST",
+        body: JSON.stringify({
+          model: modelName,
+          messages: [{ role: "user", content: "Reply with OK." }],
+          max_tokens: 1,
+        }),
+      });
+      return;
+    }
+    if (modelType === "text-embedding") {
+      await this.request("/embeddings", {
+        method: "POST",
+        body: JSON.stringify({ model: modelName, input: "TaskLattice validation" }),
+      });
+      return;
+    }
+    const form = new FormData();
+    form.set("model", modelName);
+    form.set("file", new Blob([silentWav()], { type: "audio/wav" }), "validation.wav");
+    await this.request("/audio/transcriptions", { method: "POST", body: form });
   }
 
   async createInstanceKey(input: {
@@ -146,11 +165,12 @@ export class LiteLLMClient implements LiteLLMAdminClient {
   }
 
   private async request<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
+    const formData = typeof FormData !== "undefined" && init.body instanceof FormData;
     const response = await fetch(`${this.baseUrl}${path}`, {
       ...init,
       headers: {
         authorization: `Bearer ${this.masterKey}`,
-        "content-type": "application/json",
+        ...(!formData ? { "content-type": "application/json" } : {}),
         ...init.headers,
       },
       signal: AbortSignal.timeout(20_000),
@@ -160,4 +180,26 @@ export class LiteLLMClient implements LiteLLMAdminClient {
       throw new Error(`LiteLLM returned ${response.status}${body ? `: ${body.slice(0, 320)}` : "."}`);
     return (body ? JSON.parse(body) : undefined) as T;
   }
+}
+
+function silentWav(): ArrayBuffer {
+  const buffer = new ArrayBuffer(44 + 1_600);
+  const view = new DataView(buffer);
+  const write = (offset: number, value: string) =>
+    [...value].forEach((character, index) =>
+      view.setUint8(offset + index, character.charCodeAt(0)),
+    );
+  write(0, "RIFF");
+  view.setUint32(4, 36 + 1_600, true);
+  write(8, "WAVEfmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, 16_000, true);
+  view.setUint32(28, 16_000, true);
+  view.setUint16(32, 1, true);
+  view.setUint16(34, 8, true);
+  write(36, "data");
+  view.setUint32(40, 1_600, true);
+  return buffer;
 }

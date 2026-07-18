@@ -61,8 +61,10 @@ describe("AgentStore", () => {
       {
         id: "provider-a",
         name: "DeepSeek validated",
+        providerKind: "deepseek",
         presetId: "deepseek",
         endpoint: "https://api.deepseek.com/v1",
+        config: { endpoint: "https://api.deepseek.com/v1" },
         discoveredModels: ["deepseek-chat"],
         credentialState: "STORED",
         status: "VALIDATED",

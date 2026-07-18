@@ -44,7 +44,6 @@ function PolicyPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Agent / Sandboxes / OpenShell"
         title="Policy"
         description="Manage reusable OpenShell boundaries. Built-in policies come from the deployment ConfigMap; custom policies are managed here."
         actions={<Button className="h-11" onClick={() => setEditor({ open: true })}><Plus />Create Policy</Button>}

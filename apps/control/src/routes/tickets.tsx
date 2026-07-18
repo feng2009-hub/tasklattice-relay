@@ -46,7 +46,6 @@ function Tickets() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Approval"
         title="Ticket List"
         badge={<PreviewBadge />}
         description="Follow requests you submitted, who needs to act, and whether an approved change was applied."

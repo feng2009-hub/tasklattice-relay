@@ -9,7 +9,8 @@ export function ProviderIcon({
   presetId: ProviderPresetId;
   className?: string;
 }) {
-  const preset = providerPresets.find((item) => item.id === presetId);
+  const normalized = presetId === "kimi-cn" || presetId === "kimi-global" ? "moonshot" : presetId;
+  const preset = providerPresets.find((item) => item.id === normalized);
   if (!preset) return <ServerCog aria-hidden="true" className={cn("size-6", className)} />;
   return (
     <span className={cn("grid size-11 shrink-0 place-items-center border bg-background", className)}>

@@ -2,6 +2,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 components:
   - ../../components/local-auth
+  - ../../components/litellm-admin-loadbalancer
 resources:
   - ../../base
   - ../../litellm
@@ -16,6 +17,9 @@ secretGenerator:
       - master-key=sk-tasklattice-local
       - postgres-password=tasklattice-local
       - database-url=postgresql://litellm:tasklattice-local@tasklattice-litellm-postgres:5432/litellm
+      - ui-username=admin
+      - ui-password=tasklattice-local-admin
+      - salt-key=tasklattice-local-litellm-salt-v1
 patches:
   - target:
       kind: Deployment

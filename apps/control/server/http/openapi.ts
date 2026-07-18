@@ -95,10 +95,21 @@ export const openApiDocument = {
       },
       post: {
         operationId: "registerProviderAccount",
-        summary: "Register and validate a Provider Endpoint and credential",
-        requestBody: { required: true, ...json({ $ref: "#/components/schemas/CreateProviderAccountInput" }) },
+        summary: "Register a Provider connection and selected LiteLLM models",
+        requestBody: { required: true, ...json({ $ref: "#/components/schemas/CreateProviderConnectionInput" }) },
         responses: {
-          "201": { description: "Provider Account with validation result", ...json({ $ref: "#/components/schemas/ProviderAccount" }) },
+          "201": { description: "Provider connection creation result", ...json({ $ref: "#/components/schemas/ProviderConnectionCreationResult" }) },
+          "400": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
+    "/providers/discover": {
+      post: {
+        operationId: "discoverProviderModels",
+        summary: "Validate a Provider draft and discover models without persisting credentials",
+        requestBody: { required: true, ...json({ $ref: "#/components/schemas/ProviderConnectionDraft" }) },
+        responses: {
+          "200": { description: "Provider discovery result", ...json({ $ref: "#/components/schemas/ProviderDiscoveryResult" }) },
           "400": { $ref: "#/components/responses/Error" },
         },
       },
@@ -371,15 +382,31 @@ export const openApiDocument = {
           reason: { type: "string" },
         },
       },
-      CreateProviderAccountInput: {
+      ProviderConnectionDraft: {
         type: "object",
         additionalProperties: false,
-        required: ["name", "presetId", "endpoint", "apiKey"],
+        required: ["provider", "name", "config", "credentials"],
         properties: {
           name: { type: "string", minLength: 3, maxLength: 48 },
-          presetId: { type: "string", enum: ["deepseek", "openai", "kimi-cn", "kimi-global", "custom-openai-compatible"] },
-          endpoint: { type: "string", format: "uri" },
-          apiKey: { type: "string", minLength: 8, writeOnly: true },
+          provider: { type: "string", enum: ["openai", "anthropic", "gemini", "deepseek", "qwen", "moonshot", "zai", "minimax", "baidu-qianfan", "volcengine", "nvidia-nim", "azure-openai", "aws-bedrock", "vertex-ai", "openrouter", "ollama", "vllm", "huggingface", "custom-openai-compatible", "custom-anthropic-compatible"] },
+          config: { type: "object", additionalProperties: true },
+          credentials: { type: "object", additionalProperties: true, writeOnly: true },
+        },
+      },
+      CreateProviderConnectionInput: {
+        type: "object",
+        additionalProperties: false,
+        required: ["connection", "models"],
+        properties: {
+          connection: { $ref: "#/components/schemas/ProviderConnectionDraft" },
+          models: { type: "array", minItems: 1, maxItems: 100, items: { $ref: "#/components/schemas/ProviderModelSelection" } },
+        },
+      },
+      ProviderModelSelection: {
+        type: "object",
+        required: ["modelId", "displayName", "modelType"],
+        properties: {
+          modelId: { type: "string" }, displayName: { type: "string" }, modelType: { type: "string", enum: ["llm", "text-embedding", "speech-to-text"] }, inputFeePerMillionTokens: { type: "number", minimum: 0 }, outputFeePerMillionTokens: { type: "number", minimum: 0 }, feePerAudioMinute: { type: "number", minimum: 0 },
         },
       },
       SandboxPolicyInput: {
@@ -454,20 +481,22 @@ export const openApiDocument = {
         properties: {
           id: { type: "string", enum: ["endpoint", "catalog", "credentials", "inference"] },
           label: { type: "string" },
-          status: { type: "string", enum: ["PASS", "FAIL"] },
+          status: { type: "string", enum: ["PASS", "FAIL", "SKIP"] },
         },
       },
       ProviderAccount: {
         type: "object",
-        required: ["id", "name", "presetId", "endpoint", "discoveredModels", "credentialState", "status", "checks", "validationMessage", "createdAt", "updatedAt"],
+        required: ["id", "name", "providerKind", "presetId", "endpoint", "config", "discoveredModels", "credentialState", "status", "checks", "validationMessage", "createdAt", "updatedAt"],
         properties: {
           id: { type: "string" },
           name: { type: "string" },
+          providerKind: { type: "string" },
           presetId: { type: "string" },
           endpoint: { type: "string", format: "uri" },
+          config: { type: "object", additionalProperties: true },
           discoveredModels: { type: "array", items: { type: "string" } },
           credentialState: { type: "string", const: "STORED" },
-          status: { type: "string", enum: ["VALIDATED", "FAILED"] },
+          status: { type: "string", enum: ["VALIDATED", "DEGRADED", "FAILED"] },
           checks: { type: "array", items: { $ref: "#/components/schemas/ProviderValidationCheck" } },
           validationMessage: { type: "string" },
           validationLatencyMs: { type: "integer" },
@@ -481,19 +510,29 @@ export const openApiDocument = {
         required: ["data"],
         properties: { data: { type: "array", items: { $ref: "#/components/schemas/ProviderAccount" } } },
       },
+      ProviderDiscoveryResult: {
+        type: "object",
+        required: ["providerKind", "mode", "models", "checks", "message"],
+        properties: { providerKind: { type: "string" }, mode: { type: "string", enum: ["remote", "suggested", "manual"] }, models: { type: "array", items: { $ref: "#/components/schemas/ProviderModelSelection" } }, checks: { type: "array", items: { $ref: "#/components/schemas/ProviderValidationCheck" } }, message: { type: "string" }, latencyMs: { type: "integer" } },
+      },
+      ProviderConnectionCreationResult: {
+        type: "object",
+        required: ["account", "models", "failures"],
+        properties: { account: { $ref: "#/components/schemas/ProviderAccount" }, models: { type: "array", items: { $ref: "#/components/schemas/ModelDeployment" } }, failures: { type: "array", items: { type: "object", required: ["model", "message"], properties: { model: { $ref: "#/components/schemas/ProviderModelSelection" }, message: { type: "string" } } } } },
+      },
       ModelDeployment: {
         allOf: [
           { $ref: "#/components/schemas/CreateModelDeploymentInput" },
           { type: "object", required: ["id", "providerPresetId", "providerName", "endpoint", "litellmModelName", "status", "checks", "validationMessage", "createdAt", "updatedAt"], properties: {
-            id: { type: "string" }, providerPresetId: { type: "string" }, providerName: { type: "string" }, endpoint: { type: "string", format: "uri" }, litellmModelName: { type: "string" }, status: { type: "string", enum: ["VALIDATED", "FAILED"] }, checks: { type: "array", items: { $ref: "#/components/schemas/ProviderValidationCheck" } }, validationMessage: { type: "string" }, validationLatencyMs: { type: "integer" }, validatedAt: { type: "string", format: "date-time" }, createdAt: { type: "string", format: "date-time" }, updatedAt: { type: "string", format: "date-time" },
+            id: { type: "string" }, providerPresetId: { type: "string" }, providerName: { type: "string" }, endpoint: { type: "string", format: "uri" }, litellmModelName: { type: "string" }, status: { type: "string", enum: ["VALIDATED", "DEGRADED", "FAILED"] }, checks: { type: "array", items: { $ref: "#/components/schemas/ProviderValidationCheck" } }, validationMessage: { type: "string" }, validationLatencyMs: { type: "integer" }, validatedAt: { type: "string", format: "date-time" }, createdAt: { type: "string", format: "date-time" }, updatedAt: { type: "string", format: "date-time" },
           } },
         ],
       },
       CostReport: {
         type: "object",
-        required: ["currency", "from", "to", "totalSpend", "requestCount", "inputTokens", "outputTokens", "byInstance", "byModel", "daily"],
+        required: ["currency", "from", "to", "totalSpend", "requestCount", "inputTokens", "outputTokens", "byInstance", "byModel", "byProviderAccount", "daily"],
         properties: {
-          currency: { type: "string", const: "USD" }, from: { type: "string", format: "date" }, to: { type: "string", format: "date" }, totalSpend: { type: "number" }, requestCount: { type: "integer" }, inputTokens: { type: "integer" }, outputTokens: { type: "integer" }, byInstance: { type: "array", items: { type: "object" } }, byModel: { type: "array", items: { type: "object" } }, daily: { type: "array", items: { type: "object" } },
+          currency: { type: "string", const: "USD" }, from: { type: "string", format: "date" }, to: { type: "string", format: "date" }, totalSpend: { type: "number" }, requestCount: { type: "integer" }, inputTokens: { type: "integer" }, outputTokens: { type: "integer" }, byInstance: { type: "array", items: { type: "object" } }, byModel: { type: "array", items: { type: "object" } }, byProviderAccount: { type: "array", items: { type: "object" } }, daily: { type: "array", items: { type: "object" } },
         },
       },
       AgentCollection: {

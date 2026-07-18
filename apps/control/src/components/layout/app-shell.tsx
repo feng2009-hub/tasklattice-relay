@@ -6,7 +6,6 @@ import {
   ChevronRight,
   CircleDollarSign,
   CircleHelp,
-  CloudCog,
   FileLock2,
   FilePlus2,
   Gauge,
@@ -97,15 +96,10 @@ const navGroups: Array<{ items: NavItemDefinition[]; label: string }> = [
   },
   {
     label: "Provider",
-    items: [{
-      children: [
-        { description: "Endpoint, key, and model registry", icon: Gauge, label: "Registry", to: "/providers" },
-        { description: "LiteLLM spend by Instance and model", icon: CircleDollarSign, label: "Cost", to: "/providers/cost" },
-      ],
-      icon: CloudCog,
-      label: "Providers",
-      to: "/providers",
-    }],
+    items: [
+      { icon: Gauge, label: "Registry", to: "/providers" },
+      { icon: CircleDollarSign, label: "Cost", to: "/providers/cost" },
+    ],
   },
   {
     label: "Agent",

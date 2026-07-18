@@ -37,6 +37,14 @@ function add(
   map.set(key, current);
 }
 
+function endpointHost(endpoint: string): string {
+  try {
+    return new URL(endpoint).host;
+  } catch {
+    return endpoint || "provider-managed endpoint";
+  }
+}
+
 export class CostService {
   constructor(
     readonly store = new AgentStore(),
@@ -51,8 +59,12 @@ export class CostService {
     const deployments = new Map(
       this.store.listModelDeploymentsForReporting().map((deployment) => [deployment.litellmModelName, deployment]),
     );
+    const accounts = new Map(
+      this.store.listProviderAccounts().map((account) => [account.id, account]),
+    );
     const byInstance = new Map<string, MutableBreakdown>();
     const byModel = new Map<string, MutableBreakdown>();
+    const byProviderAccount = new Map<string, MutableBreakdown>();
     const daily = new Map<string, number>();
 
     for (const log of logs) {
@@ -73,8 +85,17 @@ export class CostService {
         modelName,
         deployment?.displayName ?? modelName,
         deployment
-          ? `${deployment.providerName} · ${new URL(deployment.endpoint).host}`
+          ? `${deployment.providerName} · ${endpointHost(deployment.endpoint)}`
           : "Unregistered LiteLLM model",
+        log,
+      );
+      const account = deployment ? accounts.get(deployment.providerAccountId) : undefined;
+      const providerAccountId = deployment?.providerAccountId ?? "unassigned-provider";
+      add(
+        byProviderAccount,
+        providerAccountId,
+        account?.name ?? "Unassigned Provider",
+        deployment?.providerName ?? "Unregistered LiteLLM model",
         log,
       );
 
@@ -94,6 +115,7 @@ export class CostService {
       outputTokens: logs.reduce((sum, log) => sum + number(log.completion_tokens), 0),
       byInstance: sort(byInstance),
       byModel: sort(byModel),
+      byProviderAccount: sort(byProviderAccount),
       daily: [...daily.entries()]
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([date, spend]) => ({ date, spend })),

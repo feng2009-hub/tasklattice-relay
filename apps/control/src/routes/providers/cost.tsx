@@ -23,7 +23,7 @@ function money(value: number): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: value < 1 ? 4 : 2, maximumFractionDigits: 4 }).format(value);
 }
 
-export function ProviderCostPage() {
+function ProviderCostPage() {
   const [days, setDays] = useState(30);
   const range = useMemo(() => dateRange(days), [days]);
   const report = useQuery({ queryKey: ["provider-cost", range], queryFn: () => api.getCostReport(range.from, range.to) });
@@ -33,7 +33,6 @@ export function ProviderCostPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Provider / Cost"
         title="Model cost"
         description="LiteLLM spend is attributed to the dedicated virtual key created for each Instance, then grouped by Instance and registered model Endpoint."
         actions={<div className="flex items-center gap-2"><CalendarDays className="size-4 text-muted-foreground" /><Select value={String(days)} onValueChange={(value) => setDays(Number(value))}><SelectTrigger className="w-36"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="7">Last 7 days</SelectItem><SelectItem value="30">Last 30 days</SelectItem><SelectItem value="90">Last 90 days</SelectItem></SelectContent></Select></div>}

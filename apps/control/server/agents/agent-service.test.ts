@@ -126,8 +126,10 @@ describe("Instance cost key lifecycle", () => {
     store.saveProviderAccount({
       id: "provider-a",
       name: "DeepSeek",
+      providerKind: "deepseek",
       presetId: "deepseek",
       endpoint: "https://api.deepseek.com/v1",
+      config: { endpoint: "https://api.deepseek.com/v1" },
       discoveredModels: ["deepseek-chat"],
       status: "VALIDATED",
       checks: [],
@@ -165,6 +167,7 @@ describe("Instance cost key lifecycle", () => {
       baseUrl: "http://litellm:4000",
       registerModel: vi.fn(),
       deleteModel: vi.fn(),
+      probeModel: vi.fn(),
       createInstanceKey: vi.fn(async () => ({ secret: "sk-instance", tokenId: "hashed-token" })),
       revokeKey: vi.fn(async () => undefined),
       listSpendLogs: vi.fn(),

@@ -50,7 +50,6 @@ function OpenShellRuntimePage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Agent / Sandboxes / Runtime"
         title="OpenShell runtime"
         description="Inspect the OpenShell isolation boundary for each Agent Instance, then follow its current Sandbox and Pod realization."
         badge={

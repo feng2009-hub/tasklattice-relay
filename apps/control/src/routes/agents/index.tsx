@@ -19,7 +19,6 @@ function Agents() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Agents"
         title="Agent instances"
         actions={
           <Button asChild>

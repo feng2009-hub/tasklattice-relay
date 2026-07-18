@@ -128,7 +128,6 @@ function Skills() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Extensions / Skills"
         title="Skills"
         badge={<PreviewBadge />}
         description="Discover reusable agent capabilities, register a remote package, and review its verified immutable cache metadata."

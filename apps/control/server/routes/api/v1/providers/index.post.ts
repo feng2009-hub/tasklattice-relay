@@ -1,4 +1,4 @@
-import { createProviderAccountSchema } from "@tasklattice/contracts";
+import { createProviderConnectionSchema } from "@tasklattice/contracts";
 import { defineHandler } from "nitro";
 import { requireAuth, unauthorizedResponse } from "../../../../auth/auth";
 import { errorResponse, jsonResponse } from "../../../../http/responses";
@@ -11,11 +11,11 @@ export default defineHandler(async (event) => {
     return unauthorizedResponse(error);
   }
   try {
-    const input = createProviderAccountSchema.parse(await event.req.json());
-    const account = await (await getProviderService()).registerAccount(input);
-    return jsonResponse(account, {
+    const input = createProviderConnectionSchema.parse(await event.req.json());
+    const result = await (await getProviderService()).createConnection(input);
+    return jsonResponse(result, {
       status: 201,
-      headers: { location: `/api/v1/providers/${account.id}` },
+      headers: { location: `/api/v1/providers/${result.account.id}` },
     });
   } catch (error) {
     return errorResponse(error);

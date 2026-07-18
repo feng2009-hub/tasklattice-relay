@@ -65,6 +65,21 @@ The account control stays at the bottom of navigation and exposes the actual
 identity provider plus sign out. The top bar contains route context, the
 environment, and intentionally disabled future search.
 
+### Workspace page hierarchy
+
+The top-bar breadcrumb is the only route-context label. Workspace pages must
+not repeat that context as an eyebrow above the page title.
+
+Every workspace route begins with the shared `PageHeader` structure:
+
+1. a page-specific `h1` title with an optional status badge;
+2. a concise task or scope description when it adds useful context;
+3. page-level actions aligned with the title block.
+
+`PageHeader` accepts `title`, `description`, `badge`, and `actions`. It does not
+accept an eyebrow or breadcrumb prop. Breadcrumb construction remains owned by
+`AppShell`, so route hierarchy cannot drift between the top bar and page body.
+
 ## Authentication contract
 
 The login page supports configured local credentials and optional OIDC SSO.

@@ -52,7 +52,6 @@ function Instances() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Agent / Instance"
         title="Instances"
         description="Select a row to open its Agent endpoint, terminal, or full Instance detail."
         actions={

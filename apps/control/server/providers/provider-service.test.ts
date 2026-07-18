@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { AgentStore } from "../data/agent-store";
 import type { LiteLLMAdminClient } from "./litellm-client";
 import type { ConnectionValidationResult, ProviderValidator } from "./provider-validator";
@@ -24,6 +24,7 @@ function liteLLM(): LiteLLMAdminClient {
     baseUrl: "http://litellm:4000",
     registerModel: vi.fn(async () => "tali/account/deepseek-chat"),
     deleteModel: vi.fn(async () => undefined),
+    probeModel: vi.fn(async () => undefined),
     createInstanceKey: vi.fn(async () => ({ secret: "sk-instance", tokenId: "hashed-token" })),
     revokeKey: vi.fn(async () => undefined),
     listSpendLogs: vi.fn(async () => []),
@@ -31,6 +32,7 @@ function liteLLM(): LiteLLMAdminClient {
 }
 
 describe("ProviderService", () => {
+  afterEach(() => vi.unstubAllGlobals());
   it("allows new Provider Accounts to coexist with legacy Provider Connection rows", async () => {
     const path = join(tmpdir(), `tasklattice-provider-${randomUUID()}.db`);
     const store = new AgentStore(path);
@@ -82,7 +84,11 @@ describe("ProviderService", () => {
     ]));
     expect(service.listModels(account.id)).toHaveLength(2);
     expect(litellm.registerModel).toHaveBeenCalledTimes(2);
-    expect(store.getProviderAccountCredential(account.id)).toBe("provider-secret-value");
+    expect(JSON.parse(store.getProviderAccountCredential(account.id)!)).toMatchObject({
+      version: 1,
+      provider: "deepseek",
+      credentials: { apiKey: "provider-secret-value" },
+    });
     expect(JSON.stringify(service.listAccounts())).not.toContain("provider-secret-value");
   });
 
@@ -107,19 +113,48 @@ describe("ProviderService", () => {
     expect(service.listModels()).toEqual([]);
   });
 
-  it("keeps a rejected Endpoint + key unavailable", async () => {
+  it("does not persist a rejected Endpoint + key", async () => {
     const validator: ProviderValidator = {
       validateConnection: vi.fn(async () => { throw new Error("Provider rejected the credential."); }),
       validateModel: vi.fn(),
     };
     const service = new ProviderService(new AgentStore(), validator, liteLLM());
-    const account = await service.registerAccount({
+    await expect(service.registerAccount({
       name: "DeepSeek rejected",
       presetId: "deepseek",
       endpoint: "https://api.deepseek.com/v1",
       apiKey: "provider-secret-value",
+    })).rejects.toThrow("rejected");
+    expect(service.listAccounts()).toEqual([]);
+  });
+
+  it("keeps a validated connection when one selected model fails", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      data: [{ id: "gpt-5.2" }, { id: "text-embedding-3-large" }],
+    }), { status: 200 })));
+    const litellm = liteLLM();
+    vi.mocked(litellm.registerModel).mockImplementation(async ({ model }) => `tali/account/${model.modelId}`);
+    vi.mocked(litellm.probeModel)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("Embedding deployment is unavailable."));
+    const service = new ProviderService(new AgentStore(), undefined, litellm);
+    const result = await service.createConnection({
+      connection: {
+        provider: "openai",
+        name: "OpenAI production",
+        config: { endpoint: "https://api.openai.com/v1" },
+        credentials: { apiKey: "provider-secret-value" },
+      },
+      models: [
+        { modelId: "gpt-5.2", displayName: "GPT-5.2", modelType: "llm" },
+        { modelId: "text-embedding-3-large", displayName: "Embedding", modelType: "text-embedding" },
+      ],
     });
-    expect(account.status).toBe("FAILED");
-    expect(account.validationMessage).toContain("rejected");
+
+    expect(result.account.status).toBe("DEGRADED");
+    expect(result.models).toHaveLength(1);
+    expect(result.failures).toEqual([expect.objectContaining({ message: "Embedding deployment is unavailable." })]);
+    expect(service.listAccounts()).toHaveLength(1);
+    expect(litellm.deleteModel).toHaveBeenCalledWith("tali/account/text-embedding-3-large");
   });
 });

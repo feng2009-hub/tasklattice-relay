@@ -3,10 +3,13 @@ import type {
   CreateAgentInput,
   CostReport,
   CreateModelDeploymentInput,
-  CreateProviderAccountInput,
+  CreateProviderConnectionInput,
   CreateSandboxPolicyInput,
   ModelDeployment,
   ProviderAccount,
+  ProviderConnectionCreationResult,
+  ProviderConnectionDraft,
+  ProviderDiscoveryResult,
   RuntimeStatus,
   SandboxPolicy,
   SandboxPolicyCatalog,
@@ -42,8 +45,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   listProviderAccounts: async () =>
     (await request<{ data: ProviderAccount[] }>("/api/v1/providers")).data,
-  registerProviderAccount: (input: CreateProviderAccountInput) =>
-    request<ProviderAccount>("/api/v1/providers", {
+  discoverProviderModels: (input: ProviderConnectionDraft) =>
+    request<ProviderDiscoveryResult>("/api/v1/providers/discover", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  registerProviderAccount: (input: CreateProviderConnectionInput) =>
+    request<ProviderConnectionCreationResult>("/api/v1/providers", {
       method: "POST",
       body: JSON.stringify(input),
     }),

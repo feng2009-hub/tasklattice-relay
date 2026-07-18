@@ -193,6 +193,22 @@ kubectl -n tasklattice-sandboxes rollout status deployment/tasklattice-control -
 kubectl -n tasklattice-sandboxes get pods,service,pvc
 ```
 
+The `local` and `openshell` development overlays enable the reusable
+`litellm-admin-loadbalancer` component. It keeps the in-cluster DNS name used by
+TaskLattice and also exposes LiteLLM's management UI through a LoadBalancer:
+
+```bash
+kubectl -n tasklattice-sandboxes get service tasklattice-litellm \
+  -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+```
+
+Open `http://<load-balancer-address>:4000/ui` and sign in with the development
+credentials `admin` / `tasklattice-local-admin`. LoadBalancer address assignment
+depends on the local Kubernetes implementation and may remain pending when no
+LoadBalancer controller is installed. The reusable LiteLLM base stays
+ClusterIP-only; remove the component from a development overlay to disable
+external management access.
+
 On OrbStack, both LoadBalancer Services are reachable without port-forwarding:
 
 ```sh

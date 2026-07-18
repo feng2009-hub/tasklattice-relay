@@ -47,6 +47,7 @@ describe("CostService", () => {
       baseUrl: "http://litellm:4000",
       registerModel: vi.fn(),
       deleteModel: vi.fn(),
+      probeModel: vi.fn(),
       createInstanceKey: vi.fn(),
       revokeKey: vi.fn(),
       listSpendLogs: vi.fn(async () => [
@@ -59,6 +60,7 @@ describe("CostService", () => {
     expect(report.totalSpend).toBe(2);
     expect(report.byInstance[0]).toMatchObject({ id: "agent-a", label: "Research", spend: 2, requests: 2 });
     expect(report.byModel[0]).toMatchObject({ label: "DeepSeek Chat", detail: "DeepSeek · api.deepseek.com", spend: 2 });
+    expect(report.byProviderAccount[0]).toMatchObject({ id: "provider-a", label: "Unassigned Provider", detail: "DeepSeek", spend: 2 });
   });
 
   it("reports cost without treating stale Provider Connection rows as seed data", async () => {
@@ -80,13 +82,14 @@ describe("CostService", () => {
       baseUrl: "http://litellm:4000",
       registerModel: vi.fn(),
       deleteModel: vi.fn(),
+      probeModel: vi.fn(),
       createInstanceKey: vi.fn(),
       revokeKey: vi.fn(),
       listSpendLogs: vi.fn(async () => []),
     };
 
     await expect(new CostService(store, litellm).report("2026-07-01", "2026-07-16"))
-      .resolves.toMatchObject({ totalSpend: 0, byInstance: [], byModel: [] });
+      .resolves.toMatchObject({ totalSpend: 0, byInstance: [], byModel: [], byProviderAccount: [] });
     expect(store.listModelDeployments()).toEqual([]);
   });
 });

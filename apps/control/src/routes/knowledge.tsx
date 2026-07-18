@@ -68,7 +68,7 @@ function KnowledgeBase() {
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Extensions / Knowledge" title="Knowledge Base" badge={<PreviewBadge />} description="Describe retrieval endpoints that an Agent can query for grounded context. TaskLattice stores connection metadata, not the indexed corpus." actions={<Button className="h-11" onClick={() => openForm()}><Plus /> Add Endpoint</Button>} />
+      <PageHeader title="Knowledge Base" badge={<PreviewBadge />} description="Describe retrieval endpoints that an Agent can query for grounded context. TaskLattice stores connection metadata, not the indexed corpus." actions={<Button className="h-11" onClick={() => openForm()}><Plus /> Add Endpoint</Button>} />
       <div className="border-l-2 border-primary bg-primary/5 px-4 py-3 text-sm"><strong>Interaction preview.</strong> Endpoint checks and retrieval results are simulated; no agent or knowledge service is contacted.</div>
       {notice ? <p role="status" className="border-l-2 border-primary bg-muted/40 px-4 py-3 text-sm">{notice}</p> : null}
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">

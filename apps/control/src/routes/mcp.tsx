@@ -70,7 +70,7 @@ function McpServers() {
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Extensions / MCP" title="MCP Servers" badge={<PreviewBadge />} description="Register remote MCP servers, inspect discovered tools, and maintain connection parameters before attaching them to an Agent." actions={<Button className="h-11" onClick={() => openForm()}><Plus /> Register MCP</Button>} />
+      <PageHeader title="MCP Servers" badge={<PreviewBadge />} description="Register remote MCP servers, inspect discovered tools, and maintain connection parameters before attaching them to an Agent." actions={<Button className="h-11" onClick={() => openForm()}><Plus /> Register MCP</Button>} />
       <div className="border-l-2 border-primary bg-primary/5 px-4 py-3 text-sm"><strong>Interaction preview.</strong> Registration, checks, updates, and removal stay in this browser session and do not call a backend.</div>
       {notice ? <p role="status" className="border-l-2 border-primary bg-muted/40 px-4 py-3 text-sm">{notice}</p> : null}
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_400px]">

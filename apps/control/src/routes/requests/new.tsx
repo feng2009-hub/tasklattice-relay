@@ -85,7 +85,6 @@ function RaiseRequest() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Approval"
         title="Raise Request"
         badge={<PreviewBadge />}
         description="Submit a resource change for review, then follow its decision and application status."

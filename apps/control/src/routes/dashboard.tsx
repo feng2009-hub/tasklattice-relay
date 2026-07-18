@@ -25,7 +25,6 @@ function Overview() {
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="Workspace / UAT"
         title="Operations workspace"
         description="Manage Provider connections, runtime Instances, Sandboxes, Skills, approvals, and monitoring from one control path."
         actions={
