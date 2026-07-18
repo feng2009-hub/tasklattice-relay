@@ -5,8 +5,8 @@ import {
 } from "@tasklattice/contracts";
 
 const platformBrandAssets: Partial<Record<AgentPlatformId, string>> = {
-  openclaw: "/assets/brands/openclaw-pixel-lobster.svg",
-  hermes: "/assets/brands/hermes-agent-logo.png",
+  openclaw: "/assets/brands/openclaw-lobehub.webp",
+  hermes: "/assets/brands/hermesagent-lobehub.webp",
 };
 
 export const agentRuntimePresentation = {
@@ -24,6 +24,7 @@ export const agentPlatformPresentations = agentPlatforms.map((platform) => ({
   brandAsset: platformBrandAssets[platform.id],
   configurationLabel: `${agentConfigurationPresentation.name} configuration`,
   configurationName: agentConfigurationPresentation.name,
+  consoleLabel: `${platform.name} Console`,
   runtimeName: agentRuntimePresentation.name,
 }));
 

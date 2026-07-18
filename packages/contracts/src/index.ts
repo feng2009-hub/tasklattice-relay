@@ -61,7 +61,7 @@ export const providerPresets = [
     category: "Popular",
     description: "OpenAI language, embedding, and transcription models.",
     endpoint: "https://api.openai.com/v1",
-    icon: "/assets/providers/openai.svg",
+    icon: "/assets/providers/openai.webp",
     modelTypes: ["llm", "text-embedding", "speech-to-text"],
     defaultModels: [
       { modelId: "gpt-5.2", displayName: "GPT-5.2", modelType: "llm" },
@@ -75,7 +75,7 @@ export const providerPresets = [
     category: "Popular",
     description: "Claude models through Anthropic's native API.",
     endpoint: "https://api.anthropic.com",
-    icon: "/assets/providers/anthropic.svg",
+    icon: "/assets/providers/anthropic.webp",
     modelTypes: ["llm"],
     defaultModels: [
       { modelId: "claude-sonnet-4-5-20250929", displayName: "Claude Sonnet 4.5", modelType: "llm" },
@@ -87,7 +87,7 @@ export const providerPresets = [
     category: "Popular",
     description: "Gemini models through Google AI Studio.",
     endpoint: "https://generativelanguage.googleapis.com",
-    icon: "/assets/providers/gemini.svg",
+    icon: "/assets/providers/gemini.webp",
     modelTypes: ["llm", "text-embedding"],
     defaultModels: [
       { modelId: "gemini-2.5-pro", displayName: "Gemini 2.5 Pro", modelType: "llm" },
@@ -100,7 +100,7 @@ export const providerPresets = [
     category: "Popular",
     description: "DeepSeek's OpenAI-compatible language model API.",
     endpoint: "https://api.deepseek.com/v1",
-    icon: "/assets/providers/deepseek.svg",
+    icon: "/assets/providers/deepseek.webp",
     modelTypes: ["llm"],
     defaultModels: [
       {
@@ -125,7 +125,7 @@ export const providerPresets = [
     category: "Chinese Providers",
     description: "Qwen models through DashScope's regional endpoints.",
     endpoint: "https://dashscope.aliyuncs.com/compatible-mode/v1",
-    icon: "/assets/providers/qwen.svg",
+    icon: "/assets/providers/qwen.webp",
     modelTypes: ["llm", "text-embedding"],
     defaultModels: [
       { modelId: "qwen-plus", displayName: "Qwen Plus", modelType: "llm" },
@@ -138,7 +138,7 @@ export const providerPresets = [
     category: "Chinese Providers",
     description: "Kimi models through Moonshot's China or global endpoint.",
     endpoint: "https://api.moonshot.cn/v1",
-    icon: "/assets/providers/kimi.svg",
+    icon: "/assets/providers/kimi.webp",
     modelTypes: ["llm"],
     defaultModels: [
       { modelId: "kimi-k2.5", displayName: "Kimi K2.5", modelType: "llm" },
@@ -151,7 +151,7 @@ export const providerPresets = [
     category: "Chinese Providers",
     description: "GLM models through the Z.AI API.",
     endpoint: "https://api.z.ai/api/paas/v4",
-    icon: "/assets/providers/zai.svg",
+    icon: "/assets/providers/zai.webp",
     modelTypes: ["llm"],
     defaultModels: [
       { modelId: "glm-4.5", displayName: "GLM 4.5", modelType: "llm" },
@@ -163,7 +163,7 @@ export const providerPresets = [
     category: "Chinese Providers",
     description: "MiniMax language models through its native endpoint.",
     endpoint: "https://api.minimax.io/v1",
-    icon: "/assets/providers/minimax.svg",
+    icon: "/assets/providers/minimax.webp",
     modelTypes: ["llm"],
     defaultModels: [
       { modelId: "MiniMax-M2.1", displayName: "MiniMax M2.1", modelType: "llm" },
@@ -175,7 +175,7 @@ export const providerPresets = [
     category: "Chinese Providers",
     description: "ERNIE and partner models through Qianfan's OpenAI-compatible API.",
     endpoint: "https://qianfan.baidubce.com/v2",
-    icon: "/assets/providers/baidu.svg",
+    icon: "/assets/providers/baidu.webp",
     modelTypes: ["llm", "text-embedding"],
     defaultModels: [
       { modelId: "ernie-4.5-turbo-128k", displayName: "ERNIE 4.5 Turbo", modelType: "llm" },
@@ -187,7 +187,7 @@ export const providerPresets = [
     category: "Chinese Providers",
     description: "Doubao deployments hosted by Volcengine Ark.",
     endpoint: "https://ark.cn-beijing.volces.com/api/v3",
-    icon: "/assets/providers/volcengine.svg",
+    icon: "/assets/providers/volcengine.webp",
     modelTypes: ["llm", "text-embedding"],
     defaultModels: [],
   },
@@ -197,7 +197,7 @@ export const providerPresets = [
     category: "Infrastructure",
     description: "NVIDIA-hosted or self-hosted NIM inference endpoints.",
     endpoint: "https://integrate.api.nvidia.com/v1",
-    icon: "/assets/providers/nvidia.svg",
+    icon: "/assets/providers/nvidia.webp",
     modelTypes: ["llm", "text-embedding"],
     defaultModels: [
       { modelId: "meta/llama-3.3-70b-instruct", displayName: "Llama 3.3 70B Instruct", modelType: "llm" },
@@ -209,7 +209,7 @@ export const providerPresets = [
     category: "Infrastructure",
     description: "Azure OpenAI deployments with explicit API versioning.",
     endpoint: null,
-    icon: "/assets/providers/azure.svg",
+    icon: "/assets/providers/azure.webp",
     modelTypes: ["llm", "text-embedding", "speech-to-text"],
     defaultModels: [],
   },
@@ -219,7 +219,7 @@ export const providerPresets = [
     category: "Infrastructure",
     description: "Foundation models through AWS Bedrock Runtime.",
     endpoint: null,
-    icon: "/assets/providers/aws.svg",
+    icon: "/assets/providers/aws.webp",
     modelTypes: ["llm", "text-embedding"],
     defaultModels: [
       { modelId: "anthropic.claude-3-5-sonnet-20241022-v2:0", displayName: "Claude 3.5 Sonnet", modelType: "llm" },
@@ -231,7 +231,7 @@ export const providerPresets = [
     category: "Infrastructure",
     description: "Google Cloud-hosted foundation models through Vertex AI.",
     endpoint: null,
-    icon: "/assets/providers/vertex.svg",
+    icon: "/assets/providers/vertex.webp",
     modelTypes: ["llm", "text-embedding"],
     defaultModels: [
       { modelId: "gemini-2.5-pro", displayName: "Gemini 2.5 Pro", modelType: "llm" },
@@ -243,7 +243,7 @@ export const providerPresets = [
     category: "Infrastructure",
     description: "A unified endpoint for models from multiple providers.",
     endpoint: "https://openrouter.ai/api/v1",
-    icon: "/assets/providers/openrouter.svg",
+    icon: "/assets/providers/openrouter.webp",
     modelTypes: ["llm"],
     defaultModels: [
       { modelId: "openai/gpt-5", displayName: "GPT-5 via OpenRouter", modelType: "llm" },
@@ -255,7 +255,7 @@ export const providerPresets = [
     category: "Self-Hosted / Custom",
     description: "Models served by an Ollama runtime on your network.",
     endpoint: "http://host.docker.internal:11434",
-    icon: "/assets/providers/ollama.svg",
+    icon: "/assets/providers/ollama.webp",
     modelTypes: ["llm", "text-embedding"],
     defaultModels: [
       { modelId: "llama3.2", displayName: "Llama 3.2", modelType: "llm" },
@@ -267,7 +267,7 @@ export const providerPresets = [
     category: "Self-Hosted / Custom",
     description: "An OpenAI-compatible vLLM inference server.",
     endpoint: null,
-    icon: "/assets/providers/vllm.svg",
+    icon: "/assets/providers/vllm.webp",
     modelTypes: ["llm", "text-embedding"],
     defaultModels: [],
   },
@@ -277,7 +277,7 @@ export const providerPresets = [
     category: "Self-Hosted / Custom",
     description: "Serverless providers or a dedicated Hugging Face endpoint.",
     endpoint: null,
-    icon: "/assets/providers/huggingface.svg",
+    icon: "/assets/providers/huggingface.webp",
     modelTypes: ["llm", "text-embedding"],
     defaultModels: [
       { modelId: "meta-llama/Llama-3.3-70B-Instruct", displayName: "Llama 3.3 70B Instruct", modelType: "llm" },

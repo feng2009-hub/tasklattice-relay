@@ -7,15 +7,10 @@ import {
   type RuntimeStatus,
 } from "@tasklattice/contracts";
 import "@xterm/xterm/css/xterm.css";
-import {
-  AlertTriangle,
-  Box,
-  RefreshCw,
-  ShieldCheck,
-  SquareTerminal,
-} from "lucide-react";
+import { AlertTriangle, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import {
   acquireTerminalSession,
   releaseTerminalSession,
@@ -101,7 +96,7 @@ export function AgentTerminal({
     const connectionTimer = window.setTimeout(() => {
       if (disposed || session?.connected) return;
       const message =
-        `${platform.terminalLabel} connection timed out. Reconnect the TUI or inspect Sandbox activity.`;
+        `${platform.terminalLabel} connection timed out. Reconnect the console or inspect Sandbox activity.`;
       setError(message);
       setConnectionState("error");
       terminal.writeln(`\r\n\x1b[31m${message}\x1b[0m`);
@@ -127,7 +122,7 @@ export function AgentTerminal({
       runtimeTimer = window.setTimeout(() => {
         if (disposed || session?.interactive) return;
         const message =
-          `NemoClaw connected, but ${platform.terminalLabel} did not produce a frame. Reconnect the TUI or inspect Sandbox activity.`;
+          `NemoClaw connected, but ${platform.terminalLabel} did not produce a frame. Reconnect the console or inspect Sandbox activity.`;
         setError(message);
         setConnectionState("error");
         terminal.writeln(`\r\n\x1b[31m${message}\x1b[0m`);
@@ -244,19 +239,15 @@ export function AgentTerminal({
 
   if (runtimeError || (runtimeStatus && !runtimeStatus.terminal.available)) {
     return (
-      <div className={cn("grid min-h-[300px] border bg-muted/20 md:grid-cols-[1.15fr_0.85fr]", fill && "h-full min-h-0")}>
-        <div className="flex flex-col justify-between gap-8 border-b p-5 md:border-r md:border-b-0">
-          <div>
-            <div className="flex items-center gap-2 font-medium">
-              <AlertTriangle className="size-4 text-amber-600" />
-              {platform.terminalLabel} unavailable
-            </div>
-            <p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground">
-              {runtimeError ?? runtimeStatus?.terminal.reason}
-            </p>
-          </div>
+      <div className={cn("grid min-h-[300px] place-items-center bg-[#0b0f0e] p-6 text-center text-white", fill && "h-full min-h-0")}>
+        <div className="max-w-xl">
+          <AlertTriangle className="mx-auto size-5 text-amber-600" />
+          <p className="mt-3 text-sm font-medium">Console unavailable</p>
+          <p className="mt-2 text-sm leading-6 text-white/60">
+            {runtimeError ?? runtimeStatus?.terminal.reason}
+          </p>
           <Button
-            className="w-fit"
+            className="mt-5 border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white"
             disabled={runtimeChecking}
             variant="outline"
             onClick={onRecheckRuntime}
@@ -265,46 +256,21 @@ export function AgentTerminal({
             {runtimeChecking ? "Checking runtime…" : "Recheck runtime"}
           </Button>
         </div>
-        <dl className="grid content-center gap-5 p-5 text-xs">
-          <div>
-            <dt className="text-muted-foreground">Runner mode</dt>
-            <dd className="mt-1 font-mono font-medium">
-              {runtimeStatus?.mode ?? "unreachable"}
-            </dd>
-          </div>
-          <div>
-            <dt className="flex items-center gap-2 text-muted-foreground">
-              <Box className="size-3.5" />
-              TUI launch
-            </dt>
-            <dd className="mt-1 font-medium">Blocked before session creation</dd>
-          </div>
-          <div>
-            <dt className="flex items-center gap-2 text-muted-foreground">
-              <ShieldCheck className="size-3.5" />
-              Isolation boundary
-            </dt>
-            <dd className="mt-1 font-medium">Runner host shell is never exposed</dd>
-          </div>
-        </dl>
       </div>
     );
   }
 
   if (!runtimeStatus || !enabled || !requested)
     return (
-      <div className={cn("grid min-h-[300px] place-items-center border bg-muted/20 px-6 text-center", fill && "h-full min-h-0")}>
+      <div className={cn("grid min-h-[300px] place-items-center bg-[#0b0f0e] px-6 text-center text-white", fill && "h-full min-h-0")}>
         <div>
-          <SquareTerminal className="mx-auto size-6 text-muted-foreground" />
+          <Spinner className="mx-auto size-5 text-white/60" />
           <p className="mt-3 text-sm font-medium">
             {!runtimeStatus
               ? "Checking OpenShell runtime…"
               : !enabled
                 ? "Waiting for the Sandbox to become ready…"
-                : `Preparing ${platform.terminalLabel}…`}
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            The TUI opens only after the in-sandbox Gateway is available.
+                : "Preparing console…"}
           </p>
         </div>
       </div>
@@ -312,16 +278,16 @@ export function AgentTerminal({
 
   const ready = connectionState === "ready";
   const status = ready
-    ? `${platform.terminalLabel} ready — connected through NemoClaw`
+    ? "Console ready — connected through NemoClaw"
     : connectionState === "starting"
-      ? `NemoClaw connected — waiting for the first ${platform.name} TUI frame…`
+      ? "NemoClaw connected — waiting for console output…"
       : connectionState === "closed"
         ? "Terminal session closed"
         : (error ?? "Connecting to the OpenShell Sandbox…");
 
   return (
     <div className={cn("flex min-h-0 flex-col", fill && "h-full")}>
-      <div className="mb-2 flex min-h-11 flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+      <div className="mb-2 flex min-h-11 flex-wrap items-center justify-between gap-2 text-xs text-white/60">
         <span className="flex items-center gap-2">
           <span
             className={`size-2 rounded-full ${
@@ -335,14 +301,14 @@ export function AgentTerminal({
           {status}
         </span>
         {connectionState === "error" || connectionState === "closed" ? (
-          <Button className="h-11" size="sm" variant="outline" onClick={retry}>
-            Reconnect TUI
+          <Button className="h-11 border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white" size="sm" variant="outline" onClick={retry}>
+            Reconnect
           </Button>
         ) : null}
       </div>
       <div
         ref={container}
-        aria-label={`Interactive ${platform.name} TUI in OpenShell`}
+        aria-label={`Interactive ${platform.name} console in OpenShell`}
         className={cn(
           "cursor-text overflow-hidden rounded-sm border bg-[#0b0f0e] p-2",
           fill ? "min-h-0 flex-1" : "h-[min(58vh,560px)] min-h-[420px]",

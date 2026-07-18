@@ -74,7 +74,7 @@ function CreateAgent() {
     .filter((item) => item && item.status !== "HEALTHY");
   const mutation = useMutation({
     mutationFn: api.createAgent,
-    onSuccess: (agent) => void navigate({ to: "/agents/$agentId", params: { agentId: agent.id } }),
+    onSuccess: (agent) => void navigate({ to: "/instances", search: { created: agent.id } }),
   });
   const form = useForm({
     defaultValues: {

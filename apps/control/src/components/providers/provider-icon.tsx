@@ -13,8 +13,8 @@ export function ProviderIcon({
   const preset = providerPresets.find((item) => item.id === normalized);
   if (!preset) return <ServerCog aria-hidden="true" className={cn("size-6", className)} />;
   return (
-    <span className={cn("grid size-11 shrink-0 place-items-center border bg-background", className)}>
-      <img src={preset.icon} alt="" className="size-6 object-contain" />
+    <span className={cn("grid size-11 shrink-0 place-items-center rounded-md border bg-background shadow-xs", className)}>
+      <img src={preset.icon} alt="" className="size-7 rounded-[5px] object-contain" />
     </span>
   );
 }

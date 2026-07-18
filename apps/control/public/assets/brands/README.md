@@ -2,12 +2,14 @@
 
 ## OpenClaw
 
-- File: `openclaw-pixel-lobster.svg`
-- Source: OpenClaw official repository documentation assets
-- Source URL: https://github.com/openclaw/openclaw/blob/main/docs/assets/pixel-lobster.svg
-- Downloaded: 2026-07-16
+- File: `openclaw-lobehub.webp`
+- Source: LobeHub Lobe Icons static Avatar package
+- Catalog URL: https://lobehub.com/icons/openclaw
+- Repository URL: https://github.com/lobehub/lobe-icons/blob/master/packages/static-avatar/avatars/openclaw.webp
+- Downloaded: 2026-07-18
+- SHA-256: `10eebb3976f0543f12156aecac52fae603a8a425d6210fd485276d946080ef58`
 
-The OpenClaw mark is kept unmodified and is used only to identify the Agent.
+The OpenClaw Avatar is kept unmodified and is used only to identify the Agent.
 
 ## NVIDIA
 
@@ -24,11 +26,17 @@ NVIDIA runtime, and confirm authorization before public or commercial release.
 
 ## Hermes Agent
 
-- File: `hermes-agent-logo.png`
-- Source: Hermes Agent official website application icon
-- Source URL: https://hermes-agent.nousresearch.com/icon.png
-- Downloaded: 2026-07-15
-- SHA-256: `5fbced606189c9bfc2925a16f8903333041cabbf1f8699fe9fe9b3e24504048f`
+- File: `hermesagent-lobehub.webp`
+- Source: LobeHub Lobe Icons static Avatar package
+- Catalog URL: https://lobehub.com/icons/hermesagent
+- Repository URL: https://github.com/lobehub/lobe-icons/blob/master/packages/static-avatar/avatars/hermesagent.webp
+- Downloaded: 2026-07-18
+- SHA-256: `bb8d566743bca1255a6f67914920693d144f2e34810292dcf8b4c39c010f5d29`
 
-The Hermes Agent mark is used only to identify the Agent option.
+The Hermes Agent Avatar is used only to identify the Agent option.
 Keep it unmodified and do not imply Nous Research endorsement.
+
+## Legacy compatibility assets
+
+`openclaw-pixel-lobster.svg` and `hermes-agent-logo.png` remain available for
+older bookmarked asset URLs, but the control UI no longer references them.

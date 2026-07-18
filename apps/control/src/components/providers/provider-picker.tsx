@@ -46,7 +46,7 @@ export const ProviderPicker = forwardRef<HTMLButtonElement, ProviderPickerProps>
           className="flex h-11 w-full items-center gap-3 rounded-md border bg-background px-3 text-left text-sm shadow-xs transition-colors hover:bg-muted/35 focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {selected ? (
-            <ProviderIcon presetId={selected.id} className="size-7 rounded-md [&_img]:size-4" />
+            <ProviderIcon presetId={selected.id} className="size-7 [&_img]:size-5" />
           ) : (
             <span aria-hidden className="grid size-7 place-items-center rounded-md border bg-muted/25 text-muted-foreground">
               <Plus className="size-4" />
@@ -102,7 +102,7 @@ export const ProviderPicker = forwardRef<HTMLButtonElement, ProviderPickerProps>
                         value === provider.id && "border-primary/30 bg-primary/5",
                       )}
                     >
-                      <ProviderIcon presetId={provider.id} className="size-7 rounded-md [&_img]:size-4" />
+                      <ProviderIcon presetId={provider.id} className="size-7 [&_img]:size-5" />
                       <span className="whitespace-nowrap">{provider.name}</span>
                     </button>
                   ))}

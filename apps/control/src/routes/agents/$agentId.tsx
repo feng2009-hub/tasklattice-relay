@@ -36,6 +36,7 @@ function AgentDetail() {
   const runtime = useQuery({
     queryKey: ["runtime-status"],
     queryFn: api.getRuntimeStatus,
+    enabled: agent.data?.status === "READY",
     retry: 1,
     staleTime: 5_000,
   });
@@ -90,80 +91,79 @@ function AgentDetail() {
           {...(agent.data.error ? { error: agent.data.error } : {})}
           action={<Link to="/agent/sandboxes/runtime" className="min-h-11 content-center text-xs font-medium text-foreground underline underline-offset-4">Open Sandbox audit</Link>}
         />
-      ) : null}
-      <AgentTerminalWorkspace
-        agentId={agentId}
-        agentName={agent.data.name}
-        agentPlatform={agent.data.agentPlatform}
-        enabled={agent.data.status === "READY"}
-        runtimeStatus={runtime.data}
-        runtimeError={
-          runtime.error instanceof Error ? runtime.error.message : undefined
-        }
-        runtimeChecking={runtime.isFetching}
-        onRecheckRuntime={() => void runtime.refetch()}
-      />
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <DetailCard icon={Box} label="Runtime" value={platform.runtimeName} />
-        <DetailCard icon={Bot} label="Agent" value={platform.name} />
-        <DetailCard
-          icon={Cpu}
-          label="Provider"
-          value={`DeepSeek · ${agent.data.model}`}
-        />
-        <DetailCard
-          label="OpenShell Sandbox"
-          value={agent.data.sandboxName}
-          mono
-        />
-        <DetailCard
-          icon={FileLock2}
-          label="OpenShell Policy"
-          value={policy?.name ?? agent.data.policyId}
-        />
-      </div>
-      <section
-        aria-labelledby="http-endpoint-title"
-        className="grid gap-4 border-y px-1 py-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
-      >
-        <div className="min-w-0">
-          <h2 id="http-endpoint-title" className="flex items-center gap-2 text-base font-semibold">
-            <Globe2 className="size-4" />
-            {platform.endpointLabel}
-          </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Open the {platform.name} browser surface exposed through OpenShell
-            service routing.
-          </p>
-          {agent.data.httpEndpoint?.status === "READY" && agent.data.httpEndpoint.url ? (
-            <p className="mt-2 truncate font-mono text-xs text-muted-foreground">
-              {endpointDisplayUrl(agent.data.httpEndpoint.url)}
-            </p>
-          ) : (
-            <p role="status" className="mt-2 text-xs text-muted-foreground">
-              {agent.data.status === "READY"
-                ? agent.data.httpEndpoint?.reason ??
-                  `OpenShell has not published the ${platform.endpointLabel} yet.`
-                : "Available after the Instance reaches Ready."}
-            </p>
-          )}
-        </div>
-        {agent.data.httpEndpoint?.status === "READY" && agent.data.httpEndpoint.url ? (
-          <Button asChild className="h-11">
-            <a
-              href={agent.data.httpEndpoint.url}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Open {platform.endpointLabel} <ExternalLink />
-            </a>
-          </Button>
-        ) : (
-          <Button className="h-11" disabled>
-            Open {platform.endpointLabel}
-          </Button>
-        )}
-      </section>
+      ) : (
+        <>
+          <AgentTerminalWorkspace
+            agentId={agentId}
+            agentPlatform={agent.data.agentPlatform}
+            runtimeStatus={runtime.data}
+            runtimeError={
+              runtime.error instanceof Error ? runtime.error.message : undefined
+            }
+            runtimeChecking={runtime.isFetching}
+            onRecheckRuntime={() => void runtime.refetch()}
+          />
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            <DetailCard icon={Box} label="Runtime" value={platform.runtimeName} />
+            <DetailCard icon={Bot} label="Agent" value={platform.name} />
+            <DetailCard
+              icon={Cpu}
+              label="Provider"
+              value={`DeepSeek · ${agent.data.model}`}
+            />
+            <DetailCard
+              label="OpenShell Sandbox"
+              value={agent.data.sandboxName}
+              mono
+            />
+            <DetailCard
+              icon={FileLock2}
+              label="OpenShell Policy"
+              value={policy?.name ?? agent.data.policyId}
+            />
+          </div>
+          <section
+            aria-labelledby="http-endpoint-title"
+            className="grid gap-4 border-y px-1 py-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+          >
+            <div className="min-w-0">
+              <h2 id="http-endpoint-title" className="flex items-center gap-2 text-base font-semibold">
+                <Globe2 className="size-4" />
+                {platform.endpointLabel}
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Open the {platform.name} browser surface exposed through OpenShell
+                service routing.
+              </p>
+              {agent.data.httpEndpoint?.status === "READY" && agent.data.httpEndpoint.url ? (
+                <p className="mt-2 truncate font-mono text-xs text-muted-foreground">
+                  {endpointDisplayUrl(agent.data.httpEndpoint.url)}
+                </p>
+              ) : (
+                <p role="status" className="mt-2 text-xs text-muted-foreground">
+                  {agent.data.httpEndpoint?.reason ??
+                    `OpenShell has not published the ${platform.endpointLabel} yet.`}
+                </p>
+              )}
+            </div>
+            {agent.data.httpEndpoint?.status === "READY" && agent.data.httpEndpoint.url ? (
+              <Button asChild className="h-11">
+                <a
+                  href={agent.data.httpEndpoint.url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Open {platform.endpointLabel} <ExternalLink />
+                </a>
+              </Button>
+            ) : (
+              <Button className="h-11" disabled>
+                Open {platform.endpointLabel}
+              </Button>
+            )}
+          </section>
+        </>
+      )}
     </div>
   );
 }

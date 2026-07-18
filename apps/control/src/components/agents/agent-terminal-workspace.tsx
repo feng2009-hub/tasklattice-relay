@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { AgentPlatformId, RuntimeStatus } from "@tasklattice/contracts";
-import { Maximize2, Minimize2, SquareTerminal } from "lucide-react";
+import { Maximize2, Minimize2 } from "lucide-react";
 import { AgentTerminal } from "@/components/terminal";
 import { Button } from "@/components/ui/button";
 import { getAgentPlatformPresentation } from "@/lib/agent-platforms";
@@ -8,18 +8,14 @@ import { cn } from "@/lib/utils";
 
 export function AgentTerminalWorkspace({
   agentId,
-  agentName,
   agentPlatform,
-  enabled,
   onRecheckRuntime,
   runtimeChecking,
   runtimeError,
   runtimeStatus,
 }: {
   agentId: string;
-  agentName: string;
   agentPlatform: AgentPlatformId;
-  enabled: boolean;
   onRecheckRuntime: () => void;
   runtimeChecking: boolean;
   runtimeError?: string | undefined;
@@ -48,31 +44,18 @@ export function AgentTerminalWorkspace({
   return (
     <section
       id="terminal"
-      aria-label={`${platform.terminalLabel} workspace`}
+      aria-label={`${platform.name} console`}
       className={cn(
-        "flex scroll-mt-24 flex-col overflow-hidden border bg-[#080b0a]",
+        "flex scroll-mt-24 flex-col overflow-hidden border bg-[#0b0f0e]",
         fullScreen
           ? "fixed inset-0 z-[90] h-dvh w-screen"
-          : "h-[min(72vh,720px)] min-h-[560px]",
+          : "h-[min(68vh,680px)] min-h-[480px]",
       )}
     >
-      <header className="flex min-h-16 shrink-0 items-center justify-between gap-4 border-b border-white/10 bg-[#101513] px-4 text-white sm:px-5">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="grid size-9 shrink-0 place-items-center border border-white/15 bg-white/5">
-            <SquareTerminal className="size-4 text-[#b9f45a]" />
-          </span>
-          <div className="min-w-0">
-            <h2 className="truncate text-sm font-semibold">
-              {platform.terminalLabel}
-            </h2>
-            <p className="truncate text-xs text-white/55">
-              {agentName} · OpenShell / NemoClaw / {platform.name}
-            </p>
-          </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-3">
+      <div role="toolbar" aria-label="Console controls" className="flex min-h-12 shrink-0 items-center justify-end gap-3 border-b bg-background px-2 text-foreground">
+        <div className="flex items-center gap-3">
           {fullScreen ? (
-            <span className="hidden text-[11px] text-white/45 sm:inline">
+            <span className="hidden text-[11px] text-muted-foreground sm:inline">
               Esc to exit full screen
             </span>
           ) : null}
@@ -81,9 +64,9 @@ export function AgentTerminalWorkspace({
             type="button"
             variant="outline"
             size="sm"
-            aria-label={fullScreen ? "Exit full-screen TUI" : "Open full-screen TUI"}
+            aria-label={fullScreen ? "Exit full-screen console" : "Open full-screen console"}
             onClick={() => setFullScreen((current) => !current)}
-            className="border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white"
+            className="h-9"
           >
             {fullScreen ? <Minimize2 /> : <Maximize2 />}
             <span className="hidden sm:inline">
@@ -91,13 +74,13 @@ export function AgentTerminalWorkspace({
             </span>
           </Button>
         </div>
-      </header>
+      </div>
 
-      <div className="min-h-0 flex-1 p-2 sm:p-3">
+      <div className="min-h-0 flex-1 p-3">
         <AgentTerminal
           agentId={agentId}
           agentPlatform={agentPlatform}
-          enabled={enabled}
+          enabled
           fill
           runtimeStatus={runtimeStatus}
           runtimeError={runtimeError}

@@ -47,28 +47,22 @@ function InstanceActions({ instance }: { instance: Agent }) {
 
   return (
     <div className="mt-6 grid gap-2">
-      {endpointReady && instance.httpEndpoint?.url ? (
+      {instance.status === "READY" && endpointReady && instance.httpEndpoint?.url ? (
         <Button asChild className="h-11">
           <a href={instance.httpEndpoint.url} target="_blank" rel="noreferrer">
             <Globe2 /> Open {platform.endpointLabel} <ExternalLink className="ml-auto" />
           </a>
         </Button>
-      ) : (
+      ) : instance.status === "READY" ? (
         <>
-          <Button variant="outline" className="h-11" disabled><Globe2 /> {platform.endpointLabel}</Button>
-          <p className="text-xs leading-5 text-muted-foreground">
-            {instance.status === "READY"
-              ? instance.httpEndpoint?.reason ?? `OpenShell has not published the ${platform.endpointLabel} yet.`
-              : `The ${platform.endpointLabel} becomes available when this Instance is Ready.`}
-          </p>
+          <Button asChild className="h-11"><Link to="/agents/$agentId" params={{ agentId: instance.id }} hash="terminal"><SquareTerminal />Open {platform.consoleLabel}</Link></Button>
+          <p className="text-xs leading-5 text-muted-foreground">{instance.httpEndpoint?.reason ?? `No ${platform.endpointLabel} was published. Use the interactive terminal instead.`}</p>
         </>
+      ) : (
+        <Button asChild className="h-11"><Link to="/agents/$agentId" params={{ agentId: instance.id }}><Eye />{instance.status === "FAILED" ? "View failure details" : "View creation details"}</Link></Button>
       )}
-      <Button asChild variant="outline" className="h-11">
-        <Link to="/agents/$agentId" params={{ agentId: instance.id }} hash="terminal"><SquareTerminal /> Open terminal</Link>
-      </Button>
-      <Button asChild variant="outline" className="h-11">
-        <Link to="/agents/$agentId" params={{ agentId: instance.id }}><Eye /> View full detail</Link>
-      </Button>
+      {instance.status === "READY" && endpointReady ? <Button asChild variant="outline" className="h-11"><Link to="/agents/$agentId" params={{ agentId: instance.id }} hash="terminal"><SquareTerminal />Open {platform.consoleLabel}</Link></Button> : null}
+      {instance.status === "READY" ? <Button asChild variant="outline" className="h-11"><Link to="/agents/$agentId" params={{ agentId: instance.id }}><Eye />View full detail</Link></Button> : null}
       <Button variant="outline" className="h-11" disabled><Pencil /> Update Instance</Button>
       <p className="text-xs leading-5 text-muted-foreground">Update remains disabled until the runtime API can reconcile an edited Agent revision.</p>
     </div>

@@ -12,7 +12,7 @@ describe("providerUiRegistry", () => {
     expect(new Set(providerPresets.map((provider) => provider.icon)).size).toBe(20);
     for (const provider of providerPresets) {
       expect(providerUiRegistry[provider.id].Component.name).toMatch(/Provider$/);
-      expect(provider.icon).toMatch(/^\/assets\/providers\/.+\.svg$/);
+      expect(provider.icon).toMatch(/^\/assets\/providers\/.+\.(svg|webp)$/);
       expect(existsSync(fileURLToPath(new URL(`../../../public${provider.icon}`, import.meta.url)))).toBe(true);
       expect(providerUiRegistry[provider.id].createDraft().provider).toBe(provider.id);
     }

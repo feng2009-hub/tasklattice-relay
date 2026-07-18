@@ -1,5 +1,5 @@
 import type { AgentPlatformId } from "@tasklattice/contracts";
-import { Bot } from "lucide-react";
+import { AgentPlatformIcon } from "@/components/agents/agent-platform-icon";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { agentPlatformPresentations, getAgentPlatformPresentation } from "@/lib/agent-platforms";
 
@@ -40,13 +40,7 @@ function AgentIdentity({
 }) {
   return (
     <span className="flex min-w-0 items-center gap-3 text-left">
-      <span className="grid size-8 shrink-0 place-items-center border bg-background">
-        {platform.brandAsset ? (
-          <img src={platform.brandAsset} alt="" className="size-6 object-contain" />
-        ) : (
-          <Bot className="size-4" />
-        )}
-      </span>
+      <AgentPlatformIcon platform={platform} className="size-8 rounded-sm" imageClassName="size-6" />
       <span className="min-w-0">
         <span className="flex items-center gap-2">
           <strong className="text-sm">{platform.name}</strong>
