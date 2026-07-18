@@ -446,13 +446,17 @@ export const createModelDeploymentSchema = z.object({
 });
 
 export const createAgentSchema = z.object({
-  name: z.string().trim().min(3).max(48),
-  description: z.string().trim().max(240).default(""),
+  name: z.string().trim().min(3).max(64),
+  description: z.string().trim().max(300).default(""),
   runtime: z.literal("openshell"),
   agentPlatform: z.enum(agentPlatformIds).default(defaultAgentPlatformId),
   modelDeploymentId: z.string().trim().min(1),
   policyId: sandboxPolicyIdSchema.optional(),
   systemPrompt: z.string().trim().min(10).max(8000),
+  specializationId: z.string().trim().min(1).max(64).optional(),
+  skillIds: z.array(z.string().trim().min(1).max(160)).max(64).optional(),
+  mcpServerIds: z.array(z.string().trim().min(1).max(160)).max(64).optional(),
+  knowledgeSourceIds: z.array(z.string().trim().min(1).max(160)).max(64).optional(),
 });
 
 export type AgentStatus = (typeof agentStatuses)[number];

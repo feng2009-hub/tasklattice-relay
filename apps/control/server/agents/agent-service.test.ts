@@ -117,6 +117,21 @@ describe("Agent selection", () => {
         .agentPlatform,
     ).toBe("hermes");
   });
+
+  it("keeps specialization and capability references in the create contract", () => {
+    expect(createAgentSchema.parse({
+      ...input,
+      specializationId: "hr",
+      skillIds: ["employee-policy-search"],
+      mcpServerIds: ["workday"],
+      knowledgeSourceIds: ["company-hr-handbook"],
+    })).toMatchObject({
+      specializationId: "hr",
+      skillIds: ["employee-policy-search"],
+      mcpServerIds: ["workday"],
+      knowledgeSourceIds: ["company-hr-handbook"],
+    });
+  });
 });
 
 describe("Instance cost key lifecycle", () => {

@@ -29,6 +29,10 @@ describe("AgentStore", () => {
       providerName: "deepseek",
       modelType: "llm",
       costKeyAlias: "tali-legacy-agent:deepseek-chat",
+      specializationId: "general-purpose",
+      skillIds: [],
+      mcpServerIds: [],
+      knowledgeSourceIds: [],
     });
   });
 

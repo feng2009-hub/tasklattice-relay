@@ -10,7 +10,7 @@ import {
 import { Check, Search, X } from "lucide-react";
 
 import {
-  filterOptionsByPrefix,
+  filterMultiSelectOptions,
   type MultiSelectOption,
 } from "@/components/ui/multi-select-options";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
@@ -50,7 +50,7 @@ export function MultiSelectCombobox({
   const [activeIndex, setActiveIndex] = useState(0);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const filteredOptions = filterOptionsByPrefix(options, query);
+  const filteredOptions = filterMultiSelectOptions(options, query);
   const selectedOptions = value
     .map((selectedValue) =>
       options.find((option) => option.value === selectedValue),
@@ -120,7 +120,7 @@ export function MultiSelectCombobox({
               key={option.value}
               type="button"
               aria-label={`Remove ${option.label}`}
-              className="inline-flex min-h-11 max-w-full items-center gap-2 rounded-sm bg-muted pl-3 pr-2 text-xs font-medium text-foreground hover:bg-muted/70 focus-visible:outline-2"
+              className="inline-flex min-h-11 max-w-full items-center gap-2 rounded-sm border border-primary/30 bg-primary/10 pl-3 pr-2 text-xs font-medium text-primary transition-colors hover:bg-primary/15 focus-visible:outline-2"
               onClick={(event) => {
                 event.stopPropagation();
                 removeOption(option.value);
@@ -159,23 +159,33 @@ export function MultiSelectCombobox({
       </PopoverAnchor>
       <PopoverContent
         align="start"
-        className="w-(--radix-popover-trigger-width) max-w-[calc(100vw-2rem)] overflow-hidden p-0"
+        collisionPadding={10}
+        className="flex max-h-[min(32rem,var(--radix-popover-content-available-height))] w-(--radix-popover-trigger-width) max-w-[calc(100vw-2rem)] flex-col overflow-hidden p-0"
         onOpenAutoFocus={(event) => event.preventDefault()}
       >
         <div className="flex items-center gap-2 border-b px-3 py-2 text-xs text-muted-foreground">
           <Search className="size-4 shrink-0" />
-          <span aria-live="polite">
+          <span aria-live="polite" className="min-w-0 flex-1">
             {query
               ? `${filteredOptions.length} matching ${filteredOptions.length === 1 ? "option" : "options"}`
               : `${options.length} available ${options.length === 1 ? "option" : "options"}`}
           </span>
+          {value.length ? (
+            <button
+              type="button"
+              className="min-h-8 shrink-0 px-2 font-medium text-foreground hover:text-primary focus-visible:outline-2"
+              onClick={() => { onValueChange([]); setQuery(""); focusInput(); }}
+            >
+              Clear all
+            </button>
+          ) : null}
         </div>
         <div
           id={listboxId}
           role="listbox"
           aria-label={`${ariaLabel} options`}
           aria-multiselectable="true"
-          className="max-h-72 overflow-y-auto p-1"
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-1"
         >
           {filteredOptions.length ? (
             filteredOptions.map((option, index) => {
@@ -192,7 +202,9 @@ export function MultiSelectCombobox({
                   disabled={option.disabled}
                   className={cn(
                     "grid min-h-16 w-full grid-cols-[1.25rem_minmax(0,1fr)] gap-x-3 rounded-sm px-3 py-2.5 text-left outline-hidden transition-colors",
-                    active && "bg-accent text-accent-foreground",
+                    selected && "bg-primary/5 text-foreground",
+                    active && !selected && "bg-accent text-accent-foreground",
+                    active && selected && "bg-primary/10",
                     option.disabled && "cursor-not-allowed opacity-50",
                   )}
                   onClick={() => toggleOption(option)}
@@ -210,7 +222,18 @@ export function MultiSelectCombobox({
                     <span className="flex items-baseline justify-between gap-3">
                       <strong className="truncate text-sm font-medium">{option.label}</strong>
                       {option.meta ? (
-                        <span className="shrink-0 text-[10px] text-muted-foreground">
+                        <span className={cn(
+                          "inline-flex min-h-6 shrink-0 items-center gap-1.5 rounded-full bg-muted px-2 text-[10px] font-medium text-muted-foreground",
+                          option.metaTone === "success" && "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+                          option.metaTone === "warning" && "bg-amber-500/10 text-amber-800 dark:text-amber-200",
+                          option.metaTone === "danger" && "bg-destructive/10 text-destructive",
+                        )}>
+                          {option.metaTone ? <span className={cn(
+                            "size-1.5 rounded-full bg-current",
+                            option.metaTone === "success" && "bg-emerald-500",
+                            option.metaTone === "warning" && "bg-amber-500",
+                            option.metaTone === "danger" && "bg-destructive",
+                          )} /> : null}
                           {option.meta}
                         </span>
                       ) : null}

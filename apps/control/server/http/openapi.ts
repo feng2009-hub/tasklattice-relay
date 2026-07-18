@@ -326,8 +326,8 @@ export const openApiDocument = {
         additionalProperties: false,
         required: ["name", "runtime", "agentPlatform", "modelDeploymentId", "systemPrompt"],
         properties: {
-          name: { type: "string", minLength: 3, maxLength: 48 },
-          description: { type: "string", maxLength: 240, default: "" },
+          name: { type: "string", minLength: 3, maxLength: 64 },
+          description: { type: "string", maxLength: 300, default: "" },
           runtime: { type: "string", const: "openshell" },
           agentPlatform: {
             type: "string",
@@ -339,6 +339,10 @@ export const openApiDocument = {
           modelDeploymentId: { type: "string", description: "Validated LLM deployment selected for this Instance." },
           policyId: { type: "string", pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$", description: "Catalog Policy ID. Omit to use the deployment ConfigMap default." },
           systemPrompt: { type: "string", minLength: 10, maxLength: 8000 },
+          specializationId: { type: "string", minLength: 1, maxLength: 64 },
+          skillIds: { type: "array", maxItems: 64, items: { type: "string" } },
+          mcpServerIds: { type: "array", maxItems: 64, items: { type: "string" } },
+          knowledgeSourceIds: { type: "array", maxItems: 64, items: { type: "string" } },
         },
       },
       Agent: {

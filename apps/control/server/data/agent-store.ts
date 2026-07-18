@@ -41,6 +41,10 @@ export function parseAgent(payload: string): Agent {
     agentPlatform: agent.agentPlatform ?? "openclaw",
     policyId: agent.policyId ?? "restricted",
     systemPrompt: agent.systemPrompt,
+    specializationId: agent.specializationId ?? "general-purpose",
+    skillIds: agent.skillIds ?? [],
+    mcpServerIds: agent.mcpServerIds ?? [],
+    knowledgeSourceIds: agent.knowledgeSourceIds ?? [],
     modelDeploymentId:
       agent.modelDeploymentId ?? legacyReference("model", legacyId),
     providerAccountId:

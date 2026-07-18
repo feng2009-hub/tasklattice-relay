@@ -1,55 +1,77 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import {
-  defaultAgentPlatformId,
-  type AgentPlatformId,
-} from "@tasklattice/contracts";
-import { ArrowLeft, ArrowRight, Bot, Check, LockKeyhole, Network, ServerCog, Sparkles } from "lucide-react";
-import { BlueprintRow, CreateInstanceLayout, InstanceBlueprint, type CreateInstanceStep } from "@/components/agents/create-instance-layout";
+import { defaultAgentPlatformId, type AgentPlatformId, type CreateAgentInput } from "@tasklattice/contracts";
+import { ArrowLeft, ArrowRight, Bot, Boxes, Check, CircleAlert, Info, LockKeyhole, Network, ServerCog, Sparkles } from "lucide-react";
 import { AgentSelect } from "@/components/agents/agent-select";
+import { ChangeSpecializationDialog } from "@/components/agents/change-specialization-dialog";
+import {
+  changeSpecializationSelection,
+  previewSpecializationChange,
+  updateCapabilitySelection,
+  type SelectedCapability,
+} from "@/components/agents/capability-selection";
+import { BlueprintRow, CreateInstanceLayout, InstanceBlueprint, type CreateInstanceStep } from "@/components/agents/create-instance-layout";
+import { IdentityCapabilitiesStep } from "@/components/agents/identity-capabilities-step";
+import { getSpecialization, type SpecializationId } from "@/components/agents/specializations";
 import { PageHeader } from "@/components/layout/page-header";
-import { api } from "@/lib/api";
-import { mcpServerPreviews, skillPreviews } from "@/lib/preview-data";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MultiSelectCombobox, type MultiSelectOption } from "@/components/ui/multi-select-combobox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
+import { api } from "@/lib/api";
 import { getAgentPlatformPresentation } from "@/lib/agent-platforms";
+import { knowledgeSourcePreviews, mcpServerPreviews, skillPreviews } from "@/lib/preview-data";
 
 export const Route = createFileRoute("/agents/new")({ component: CreateAgent });
 
 const steps: readonly CreateInstanceStep[] = [
-  { label: "Identity", description: "Name and instruct the Agent" },
-  { label: "Agent & model", description: "Choose an Agent and validated model" },
-  { label: "Extensions", description: "Attach Skills and MCP" },
-  { label: "Review", description: "Confirm and create" },
+  { label: "Identity & Capabilities", description: "Define the Agent and its capabilities" },
+  { label: "Runtime & Model", description: "Choose runtime, model and provider" },
+  { label: "Review & Create", description: "Confirm and create the Agent" },
 ];
 
-const publishedSkills = skillPreviews.filter((item) => item.status === "PUBLISHED");
-const publishedSkillOptions: MultiSelectOption[] = publishedSkills.map((skill) => ({
-  value: skill.id,
-  label: skill.name,
-  description: skill.description,
-  meta: `${skill.category} · v${skill.version}`,
-}));
+function capabilityName(id: string): string {
+  return skillPreviews.find((item) => item.id === id)?.name
+    ?? mcpServerPreviews.find((item) => item.id === id)?.name
+    ?? id;
+}
+
+function displayAgentName(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) return "Unnamed Agent";
+  return trimmed.split(/[\s_-]+/).map((part) => part.length <= 2 ? part.toUpperCase() : `${part.charAt(0).toUpperCase()}${part.slice(1)}`).join(" ");
+}
+
+function selectedIds(items: readonly SelectedCapability[]): string[] {
+  return items.map((item) => item.id);
+}
 
 function CreateAgent() {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
   const [modelDeploymentId, setModelDeploymentId] = useState("");
-  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
-  const [selectedMcps, setSelectedMcps] = useState<string[]>([]);
+  const [specializationId, setSpecializationId] = useState<SpecializationId>("general-purpose");
+  const [customSystemPrompt, setCustomSystemPrompt] = useState("");
+  const [selectedSkills, setSelectedSkills] = useState<SelectedCapability[]>([]);
+  const [selectedMcps, setSelectedMcps] = useState<SelectedCapability[]>([]);
+  const [selectedKnowledgeSources, setSelectedKnowledgeSources] = useState<SelectedCapability[]>([]);
+  const [skillsTouched, setSkillsTouched] = useState(false);
+  const [mcpsTouched, setMcpsTouched] = useState(false);
+  const [pendingSpecializationId, setPendingSpecializationId] = useState<SpecializationId | null>(null);
+  const specialization = getSpecialization(specializationId);
+  const pendingSpecialization = pendingSpecializationId ? getSpecialization(pendingSpecializationId) : null;
   const deployments = useQuery({ queryKey: ["model-deployments"], queryFn: api.listModelDeployments });
   const policies = useQuery({ queryKey: ["sandbox-policies"], queryFn: api.listPolicies });
   const validatedDeployments = (deployments.data ?? []).filter((deployment) => deployment.status === "VALIDATED" && deployment.modelType === "llm");
+  const selectedDeployment = validatedDeployments.find((deployment) => deployment.id === modelDeploymentId);
+  const currentSystemPrompt = specialization.id === "custom" ? customSystemPrompt : specialization.systemPrompt;
+  const incompleteMcps = selectedIds(selectedMcps)
+    .map((id) => mcpServerPreviews.find((item) => item.id === id))
+    .filter((item) => item && item.status !== "HEALTHY");
   const mutation = useMutation({
     mutationFn: api.createAgent,
     onSuccess: (agent) => void navigate({ to: "/agents/$agentId", params: { agentId: agent.id } }),
@@ -62,28 +84,57 @@ function CreateAgent() {
       agentPlatform: defaultAgentPlatformId as AgentPlatformId,
       modelDeploymentId: "",
       policyId: "",
-      systemPrompt: "You are a focused internal assistant. Complete the user's request inside the OpenShell sandbox and explain the evidence clearly.",
+      systemPrompt: getSpecialization("general-purpose").systemPrompt,
     },
-    onSubmit: ({ value }) => mutation.mutateAsync(value),
+    onSubmit: ({ value }) => mutation.mutateAsync({
+      ...value,
+      systemPrompt: currentSystemPrompt,
+      specializationId,
+      skillIds: selectedIds(selectedSkills),
+      mcpServerIds: selectedIds(selectedMcps),
+      knowledgeSourceIds: selectedIds(selectedKnowledgeSources),
+    } satisfies CreateAgentInput),
   });
-  const selectedDeployment = validatedDeployments.find((deployment) => deployment.id === modelDeploymentId);
-  useEffect(() => {
-    const first = validatedDeployments[0];
-    if (!first || modelDeploymentId) return;
-    setModelDeploymentId(first.id);
-    form.setFieldValue("modelDeploymentId", first.id);
-  }, [form, modelDeploymentId, validatedDeployments]);
+
   useEffect(() => {
     if (!policies.data?.defaultPolicyId || form.state.values.policyId) return;
     form.setFieldValue("policyId", policies.data.defaultPolicyId);
   }, [form, policies.data?.defaultPolicyId]);
 
-  const policyName = (id: string) =>
-    policies.data?.policies.find((policy) => policy.id === id)?.name
-    ?? (id || "Loading…");
+  const policyName = (id: string) => policies.data?.policies.find((policy) => policy.id === id)?.name ?? (id || "Required");
 
-  const toggle = (id: string, values: string[], update: (next: string[]) => void) =>
-    update(values.includes(id) ? values.filter((item) => item !== id) : [...values, id]);
+  const applySpecialization = (id: SpecializationId) => {
+    const next = getSpecialization(id);
+    const nextSkills = changeSpecializationSelection(selectedSkills, next.defaultSkillIds);
+    const nextMcps = changeSpecializationSelection(selectedMcps, next.defaultMcpServerIds);
+    setSpecializationId(id);
+    setSelectedSkills(nextSkills);
+    setSelectedMcps(nextMcps);
+    setSelectedKnowledgeSources(changeSpecializationSelection(selectedKnowledgeSources, next.defaultKnowledgeSourceIds));
+    setSkillsTouched(nextSkills.some((item) => item.source === "manual"));
+    setMcpsTouched(nextMcps.some((item) => item.source === "manual"));
+    form.setFieldValue("systemPrompt", id === "custom" ? customSystemPrompt : next.systemPrompt);
+    setPendingSpecializationId(null);
+  };
+
+  const requestSpecializationChange = (id: SpecializationId) => {
+    if (id === specializationId) return;
+    if (skillsTouched || mcpsTouched) setPendingSpecializationId(id);
+    else applySpecialization(id);
+  };
+
+  const pendingChange = useMemo(() => {
+    if (!pendingSpecialization) return { add: [], keep: [], remove: [] };
+    const skillChange = previewSpecializationChange(selectedSkills, pendingSpecialization.defaultSkillIds);
+    const mcpChange = previewSpecializationChange(selectedMcps, pendingSpecialization.defaultMcpServerIds);
+    return {
+      add: [...skillChange.add, ...mcpChange.add].map(capabilityName),
+      keep: [...skillChange.keep, ...mcpChange.keep].map(capabilityName),
+      remove: [...skillChange.remove, ...mcpChange.remove].map(capabilityName),
+    };
+  }, [pendingSpecialization, selectedMcps, selectedSkills]);
+
+  const blueprintStatus = step === 2 ? "Ready to create" : step === 1 ? "Runtime configuration" : "Ready to configure";
 
   return (
     <div className="space-y-7">
@@ -93,136 +144,103 @@ function CreateAgent() {
         currentStep={step}
         onStepChange={setStep}
         blueprint={
-          <InstanceBlueprint>
-            <form.Subscribe selector={(state) => state.values.agentPlatform}>
-              {(agentPlatform) => (
-                <BlueprintRow
-                  icon={Bot}
-                  label="Agent"
-                  value={getAgentPlatformPresentation(agentPlatform).name}
-                />
-              )}
-            </form.Subscribe>
-            <BlueprintRow icon={Network} label="Provider" value={selectedDeployment ? `${selectedDeployment.providerName} · ${selectedDeployment.displayName}` : "Required"} />
-            <form.Subscribe selector={(state) => state.values.policyId}>{(policyId) => <BlueprintRow icon={LockKeyhole} label="Policy" value={policyName(String(policyId))} />}</form.Subscribe>
-            <BlueprintRow icon={Sparkles} label="Skills" value={`${selectedSkills.length} selected`} />
-            <BlueprintRow icon={ServerCog} label="MCP Servers" value={`${selectedMcps.length} selected`} />
+          <InstanceBlueprint
+            status={blueprintStatus}
+            footer={<p className="flex gap-2 rounded-md border border-primary/20 bg-primary/5 p-3 text-xs leading-5 text-primary"><Info className="mt-0.5 size-4 shrink-0" />{specialization.id === "custom" ? "Custom instructions and manually selected capabilities define this Agent." : "The specialization preconfigures instructions, Skills, MCP Servers, and knowledge sources. You can customize the selected capabilities for this Agent."}</p>}
+          >
+            <form.Subscribe selector={(state) => state.values.name}>{(name) => <BlueprintRow icon={Bot} label="Agent" value={displayAgentName(String(name))} />}</form.Subscribe>
+            <BlueprintRow icon={Sparkles} label="Specialization" value={specialization.name} />
+            <BlueprintRow icon={Boxes} label="Skills" value={`${selectedSkills.length} selected`} />
+            <BlueprintRow icon={ServerCog} label="MCP Servers" value={`${selectedMcps.length} selected${incompleteMcps.length ? ` · ${incompleteMcps.length} incomplete` : ""}`} />
+            <BlueprintRow icon={Network} label="Knowledge" value={`${selectedKnowledgeSources.length} ${selectedKnowledgeSources.length === 1 ? "source" : "sources"}`} />
+            <BlueprintRow icon={LockKeyhole} label="Runtime" value={step === 0 ? "Required" : "OpenShell (UAT)"} />
+            <BlueprintRow icon={Bot} label="Model" value={step === 0 ? "Required" : selectedDeployment ? `${selectedDeployment.displayName} · ${selectedDeployment.providerName}` : "Required"} />
           </InstanceBlueprint>
         }
       >
         <form onSubmit={(event) => { event.preventDefault(); void form.handleSubmit(); }} className="min-w-0 space-y-5">
           {step === 0 ? (
-            <Card>
-              <CardHeader><CardTitle className="flex items-center gap-2"><Bot className="size-5" /> Identity</CardTitle><CardDescription>Name the desired Agent resource and define its operating instructions.</CardDescription></CardHeader>
-              <CardContent className="space-y-5">
-                <form.Field name="name" validators={{ onChange: ({ value }) => value.trim().length < 3 ? "Use at least 3 characters." : undefined }}>
-                  {(field) => <div className="space-y-2"><Label htmlFor={field.name}>Agent name</Label><Input id={field.name} value={field.state.value} onBlur={field.handleBlur} onChange={(event) => field.handleChange(event.target.value)} placeholder="research-assistant" /><p className="min-h-4 text-xs text-destructive">{field.state.meta.errors.join(" ")}</p></div>}
-                </form.Field>
-                <form.Field name="description">{(field) => <div className="space-y-2"><Label htmlFor={field.name}>Description <span className="text-muted-foreground">(optional)</span></Label><Input id={field.name} value={field.state.value} onChange={(event) => field.handleChange(event.target.value)} placeholder="Summarizes internal research with citations" /></div>}</form.Field>
-                <form.Field name="systemPrompt">{(field) => <div className="space-y-2"><Label htmlFor={field.name}>System instructions</Label><Textarea id={field.name} className="min-h-40" value={field.state.value} onChange={(event) => field.handleChange(event.target.value)} /><div className="text-right text-xs text-muted-foreground">{field.state.value.length} / 8000</div></div>}</form.Field>
-              </CardContent>
-            </Card>
+            <form.Subscribe selector={(state) => state.values.name}>
+              {(name) => (
+                <IdentityCapabilitiesStep
+                  name={String(name)}
+                  specialization={specialization}
+                  customSystemPrompt={customSystemPrompt}
+                  selectedSkillIds={selectedIds(selectedSkills)}
+                  selectedMcpServerIds={selectedIds(selectedMcps)}
+                  selectedKnowledgeSourceIds={selectedIds(selectedKnowledgeSources)}
+                  onNameChange={(value) => form.setFieldValue("name", value)}
+                  onCustomSystemPromptChange={(value) => { setCustomSystemPrompt(value); form.setFieldValue("systemPrompt", value); }}
+                  onSpecializationChange={requestSpecializationChange}
+                  onSkillIdsChange={(ids) => { setSelectedSkills(updateCapabilitySelection(selectedSkills, ids)); setSkillsTouched(true); }}
+                  onMcpServerIdsChange={(ids) => { setSelectedMcps(updateCapabilitySelection(selectedMcps, ids)); setMcpsTouched(true); }}
+                />
+              )}
+            </form.Subscribe>
           ) : null}
 
           {step === 1 ? (
             <Card>
-              <CardHeader><CardTitle className="flex items-center gap-2"><Bot className="size-5" /> Agent & model</CardTitle><CardDescription>Choose the Agent for this Instance and a validated language model.</CardDescription></CardHeader>
+              <CardHeader><CardTitle className="flex items-center gap-2"><Bot className="size-5" /> Runtime & Model</CardTitle><CardDescription>Choose the Agent implementation, validated model, and OpenShell policy used for this Instance.</CardDescription></CardHeader>
               <CardContent className="space-y-5">
+                <div className="rounded-md border bg-muted/20 px-4 py-3 text-sm"><span className="text-xs text-muted-foreground">Runtime</span><strong className="mt-1 block">OpenShell (UAT)</strong></div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <form.Field name="agentPlatform">
-                    {(field) => (
-                      <div className="space-y-2">
-                        <Label htmlFor="instance-agent">Agent</Label>
-                        <AgentSelect id="instance-agent" value={field.state.value} onValueChange={field.handleChange} />
-                        <p className="text-xs text-muted-foreground">OpenClaw is selected by default. NemoClaw configures the chosen Agent during provisioning.</p>
-                      </div>
-                    )}
+                    {(field) => <div className="space-y-2"><Label htmlFor="instance-agent">Agent implementation</Label><AgentSelect id="instance-agent" value={field.state.value} onValueChange={field.handleChange} /><p className="text-xs leading-5 text-muted-foreground">Configured inside the OpenShell runtime during provisioning.</p></div>}
                   </form.Field>
-                  <div className="space-y-2"><Label>LLM deployment</Label><Select value={modelDeploymentId} disabled={!validatedDeployments.length} onValueChange={(value) => { setModelDeploymentId(value); form.setFieldValue("modelDeploymentId", value); }}><SelectTrigger><SelectValue placeholder="Select a validated LLM" /></SelectTrigger><SelectContent>{validatedDeployments.map((deployment) => <SelectItem key={deployment.id} value={deployment.id}>{deployment.providerName} · {deployment.displayName}</SelectItem>)}</SelectContent></Select></div>
+                  <div className="space-y-2"><Label>LLM deployment</Label><Select value={modelDeploymentId} disabled={!validatedDeployments.length} onValueChange={(value) => { setModelDeploymentId(value); form.setFieldValue("modelDeploymentId", value); }}><SelectTrigger className="min-h-12 h-auto"><SelectValue placeholder="Select a validated LLM" /></SelectTrigger><SelectContent>{validatedDeployments.map((deployment) => <SelectItem key={deployment.id} value={deployment.id}>{deployment.providerName} · {deployment.displayName}</SelectItem>)}</SelectContent></Select></div>
                 </div>
-                {selectedDeployment ? <div className="grid gap-3 border-y py-4 text-xs sm:grid-cols-3"><div><span className="text-muted-foreground">Endpoint</span><strong className="mt-1 block truncate font-mono">{selectedDeployment.endpoint}</strong></div><div><span className="text-muted-foreground">Model</span><strong className="mt-1 block">{selectedDeployment.modelId}</strong></div><div><span className="text-muted-foreground">Cost attribution</span><strong className="mt-1 block">Dedicated Instance key</strong></div></div> : <p role="alert" className="border-l-2 border-amber-500 bg-amber-500/5 px-3 py-3 text-xs">No validated LLM deployment is available. <Link to="/providers" className="font-semibold underline underline-offset-4">Register a Provider and model first.</Link></p>}
+                {selectedDeployment ? <div className="grid gap-3 border-y py-4 text-xs sm:grid-cols-3"><div><span className="text-muted-foreground">Endpoint</span><strong className="mt-1 block truncate font-mono">{selectedDeployment.endpoint}</strong></div><div><span className="text-muted-foreground">Model</span><strong className="mt-1 block">{selectedDeployment.modelId}</strong></div><div><span className="text-muted-foreground">Cost attribution</span><strong className="mt-1 block">Dedicated Instance key</strong></div></div> : <p role="alert" className="border-l-2 border-amber-500 bg-amber-500/5 px-3 py-3 text-xs">No model selected. {!validatedDeployments.length ? <><Link to="/providers" className="font-semibold underline underline-offset-4">Register a Provider and model first.</Link></> : "Choose a validated deployment to continue."}</p>}
                 <form.Field name="policyId">
-                  {(field) => (
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between gap-3"><Label>OpenShell policy</Label><Link to="/agent/sandboxes/policy" className="text-xs font-medium underline underline-offset-4">Inspect policies</Link></div>
-                      <Select value={field.state.value} disabled={policies.isPending || Boolean(policies.error)} onValueChange={field.handleChange}>
-                        <SelectTrigger aria-label="OpenShell policy" className="min-h-12 h-auto"><SelectValue placeholder={policies.isPending ? "Loading Policy catalog…" : "Select a Policy"} /></SelectTrigger>
-                        <SelectContent>{policies.data?.policies.map((policy) => <SelectItem key={policy.id} value={policy.id}>{policy.name} · {policy.networkAccess}</SelectItem>)}</SelectContent>
-                      </Select>
-                      {policies.error ? <p role="alert" className="text-xs text-destructive">{policies.error.message}</p> : <p className="text-xs leading-5 text-muted-foreground">Applied at Sandbox creation through the OpenShell policy boundary. The deployment default is selected automatically.</p>}
-                    </div>
-                  )}
+                  {(field) => <div className="space-y-2"><div className="flex items-center justify-between gap-3"><Label>OpenShell policy</Label><Link to="/agent/sandboxes/policy" className="text-xs font-medium underline underline-offset-4">Inspect policies</Link></div><Select value={field.state.value} disabled={policies.isPending || Boolean(policies.error)} onValueChange={field.handleChange}><SelectTrigger aria-label="OpenShell policy" className="min-h-12 h-auto"><SelectValue placeholder={policies.isPending ? "Loading Policy catalog…" : "Select a Policy"} /></SelectTrigger><SelectContent>{policies.data?.policies.map((policy) => <SelectItem key={policy.id} value={policy.id}>{policy.name} · {policy.networkAccess}</SelectItem>)}</SelectContent></Select>{policies.error ? <p role="alert" className="text-xs text-destructive">{policies.error.message}</p> : <p className="text-xs leading-5 text-muted-foreground">Applied at Sandbox creation through the OpenShell policy boundary.</p>}</div>}
                 </form.Field>
               </CardContent>
             </Card>
           ) : null}
 
           {step === 2 ? (
-            <div className="space-y-5">
-              <Card>
-                <CardHeader><div className="flex items-center justify-between gap-3"><div><CardTitle className="flex items-center gap-2"><Sparkles className="size-5" /> Skills</CardTitle><CardDescription className="mt-2">Choose one or more verified capability packages.</CardDescription></div><Badge variant="outline">{selectedSkills.length} selected</Badge></div></CardHeader>
-                <CardContent className="space-y-3">
-                  <Label htmlFor="instance-skills">Available Skills</Label>
-                  <MultiSelectCombobox
-                    id="instance-skills"
-                    ariaLabel="Select Skills"
-                    emptyMessage="No Skills start with"
-                    onValueChange={setSelectedSkills}
-                    options={publishedSkillOptions}
-                    placeholder="Select one or more Skills…"
-                    searchPlaceholder="Add another Skill…"
-                    value={selectedSkills}
-                  />
-                  <p className="text-xs leading-5 text-muted-foreground">
-                    {publishedSkills.length} published {publishedSkills.length === 1 ? "Skill is" : "Skills are"} available. Type the beginning of a Skill name to filter the list.
-                  </p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader><div className="flex items-center justify-between gap-3"><div><CardTitle className="flex items-center gap-2"><ServerCog className="size-5" /> MCP Servers</CardTitle><CardDescription className="mt-2">Choose one or more tool servers for this Agent.</CardDescription></div><Badge variant="outline">{selectedMcps.length} selected</Badge></div></CardHeader>
-                <CardContent className="grid gap-3 sm:grid-cols-2">
-                  {mcpServerPreviews.map((mcp) => { const active = selectedMcps.includes(mcp.id); return <button key={mcp.id} type="button" aria-pressed={active} onClick={() => toggle(mcp.id, selectedMcps, setSelectedMcps)} className={cn("min-h-28 border p-4 text-left transition-colors hover:bg-muted/50 focus-visible:outline-2", active && "border-primary bg-primary/5 shadow-[inset_3px_0_0_var(--primary)]")}><span className="flex items-start justify-between gap-3"><span><strong className="block">{mcp.name}</strong><span className="mt-1 block text-[10px] uppercase tracking-wide text-muted-foreground">{mcp.transport} · {mcp.tools} tools</span></span><span className={cn("grid size-6 place-items-center rounded-full border", active && "border-primary bg-primary text-primary-foreground")}>{active ? <Check className="size-3" /> : null}</span></span><span className="mt-3 block truncate font-mono text-xs text-muted-foreground">{mcp.endpoint}</span></button>; })}
-                </CardContent>
-              </Card>
-              <p className="border-l-2 border-primary bg-primary/5 px-4 py-3 text-xs leading-5"><strong>Preview behavior:</strong> selections appear in the review step but are not persisted or installed by the current backend.</p>
-            </div>
-          ) : null}
-
-          {step === 3 ? (
             <form.Subscribe selector={(state) => state.values}>
               {(values) => (
                 <Card>
-                  <CardHeader><CardTitle className="flex items-center gap-2"><Check className="size-5" /> Review & create</CardTitle><CardDescription>Confirm the Agent and OpenShell runtime blueprint before provisioning.</CardDescription></CardHeader>
+                  <CardHeader><CardTitle className="flex items-center gap-2"><Check className="size-5" /> Review & Create</CardTitle><CardDescription>Confirm the specialized Agent and OpenShell runtime blueprint before provisioning.</CardDescription></CardHeader>
                   <CardContent className="space-y-6">
                     <div className="grid gap-5 sm:grid-cols-2">
-                      <ReviewSection title="Agent"><ReviewRow label="Name" value={values.name} /><ReviewRow label="Description" value={values.description || "None"} /></ReviewSection>
-                      <ReviewSection title="Agent & model"><ReviewRow label="Agent" value={getAgentPlatformPresentation(values.agentPlatform).name} /><ReviewRow label="Provider" value={selectedDeployment?.providerName ?? "Not selected"} /><ReviewRow label="Model" value={selectedDeployment?.displayName ?? "—"} /><ReviewRow label="Policy" value={policyName(values.policyId)} /></ReviewSection>
+                      <ReviewSection title="Identity"><ReviewRow label="Name" value={values.name} /><ReviewRow label="Specialization" value={specialization.name} /><ReviewRow label="System instructions" value={specialization.id === "custom" ? "Custom instructions" : `Managed by ${specialization.name}`} /></ReviewSection>
+                      <ReviewSection title="Runtime & Model"><ReviewRow label="Runtime" value="OpenShell (UAT)" /><ReviewRow label="Agent" value={getAgentPlatformPresentation(values.agentPlatform).name} /><ReviewRow label="Provider" value={selectedDeployment?.providerName ?? "Not selected"} /><ReviewRow label="Model" value={selectedDeployment?.displayName ?? "Not selected"} /><ReviewRow label="Policy" value={policyName(values.policyId)} /></ReviewSection>
                     </div>
                     <Separator />
-                    <div className="grid gap-5 sm:grid-cols-2">
-                      <ReviewSection title={`Skills (${selectedSkills.length})`}>{selectedSkills.length ? selectedSkills.map((id) => <ReviewPill key={id} label={skillPreviews.find((item) => item.id === id)?.name ?? id} />) : <p className="text-xs text-muted-foreground">No Skills selected</p>}</ReviewSection>
-                      <ReviewSection title={`MCP Servers (${selectedMcps.length})`}>{selectedMcps.length ? selectedMcps.map((id) => <ReviewPill key={id} label={mcpServerPreviews.find((item) => item.id === id)?.name ?? id} />) : <p className="text-xs text-muted-foreground">No MCP servers selected</p>}</ReviewSection>
+                    <div className="grid gap-5 lg:grid-cols-3">
+                      <ReviewSection title={`Skills (${selectedSkills.length})`}>{selectedSkills.length ? selectedSkills.map((item) => <ReviewPill key={item.id} label={capabilityName(item.id)} />) : <EmptyReview label="No Skills selected" />}</ReviewSection>
+                      <ReviewSection title={`MCP Servers (${selectedMcps.length})`}>{selectedMcps.length ? selectedMcps.map((item) => <ReviewPill key={item.id} label={capabilityName(item.id)} />) : <EmptyReview label="No MCP Servers selected" />}</ReviewSection>
+                      <ReviewSection title={`Knowledge (${selectedKnowledgeSources.length})`}>{selectedKnowledgeSources.length ? selectedKnowledgeSources.map((item) => <ReviewPill key={item.id} label={knowledgeSourcePreviews.find((source) => source.id === item.id)?.name ?? item.id} />) : <EmptyReview label="No Knowledge selected" />}</ReviewSection>
                     </div>
-                    <p className="border bg-muted/40 p-3 text-xs leading-5 text-muted-foreground">The Instance will be created through the existing backend. Extension attachment is visual-only in this iteration and will not be included in the request payload.</p>
+                    {incompleteMcps.length ? <p role="alert" className="flex gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs leading-5"><CircleAlert className="mt-0.5 size-4 shrink-0" />Complete the connection or access request for {incompleteMcps.map((item) => item?.name).join(", ")} before relying on those tools.</p> : null}
+                    <p className="border bg-muted/30 p-3 text-xs leading-5 text-muted-foreground">Specialization and capability references are saved with this Instance. Runtime provisioning remains asynchronous and connected extension services govern final attachment.</p>
                   </CardContent>
                 </Card>
               )}
             </form.Subscribe>
           ) : null}
 
-          {mutation.error ? <p className="border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{mutation.error.message}</p> : null}
-          <div className="flex items-center justify-between gap-3">
-            <Button type="button" variant="outline" disabled={step === 0 || mutation.isPending} onClick={() => setStep((current) => Math.max(0, current - 1))}><ArrowLeft /> Back</Button>
-            {step < 3 ? (
-              <form.Subscribe selector={(state) => [state.values.name, state.values.systemPrompt, state.values.modelDeploymentId, state.values.policyId]}>
-                {([name, prompt, connection, policyId]) => <Button type="button" disabled={(step === 0 && (String(name).trim().length < 3 || String(prompt).trim().length < 10)) || (step === 1 && (!String(connection) || !String(policyId)))} onClick={() => setStep((current) => Math.min(3, current + 1))}>Continue <ArrowRight /></Button>}
+          {mutation.error ? <p role="alert" className="border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{mutation.error.message}</p> : null}
+          <div className="flex items-center justify-between gap-3 pt-2">
+            {step === 0 ? <Button asChild variant="outline"><Link to="/agents"><ArrowLeft /> Back</Link></Button> : <Button type="button" variant="outline" disabled={mutation.isPending} onClick={() => setStep((current) => Math.max(0, current - 1))}><ArrowLeft /> Back</Button>}
+            {step === 0 ? (
+              <form.Subscribe selector={(state) => state.values.name}>
+                {(name) => <Button type="button" disabled={String(name).trim().length < 3 || currentSystemPrompt.trim().length < 10} onClick={() => setStep(1)}>Next: Runtime & Model <ArrowRight /></Button>}
+              </form.Subscribe>
+            ) : step === 1 ? (
+              <form.Subscribe selector={(state) => state.values.policyId}>
+                {(policyId) => <Button type="button" disabled={!modelDeploymentId || !String(policyId)} onClick={() => setStep(2)}>Next: Review & Create <ArrowRight /></Button>}
               </form.Subscribe>
             ) : (
-              <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting]}>{([canSubmit, isSubmitting]) => <Button size="lg" type="submit" disabled={!canSubmit || Boolean(isSubmitting) || mutation.isPending}>{mutation.isPending ? "Creating OpenShell sandbox…" : "Create Instance"}</Button>}</form.Subscribe>
+              <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting, state.values.policyId]}>{([canSubmit, isSubmitting, policyId]) => <Button size="lg" type="submit" disabled={!canSubmit || Boolean(isSubmitting) || mutation.isPending || !modelDeploymentId || !String(policyId)}>{mutation.isPending ? "Creating OpenShell sandbox…" : "Create Instance"}</Button>}</form.Subscribe>
             )}
           </div>
         </form>
       </CreateInstanceLayout>
+
+      {pendingSpecialization ? <ChangeSpecializationDialog open add={pendingChange.add} keep={pendingChange.keep} remove={pendingChange.remove} fromName={specialization.name} toName={pendingSpecialization.name} onCancel={() => setPendingSpecializationId(null)} onConfirm={() => applySpecialization(pendingSpecialization.id)} /> : null}
     </div>
   );
 }
@@ -236,5 +254,9 @@ function ReviewRow({ label, value }: { label: string; value: string }) {
 }
 
 function ReviewPill({ label }: { label: string }) {
-  return <span className="mr-2 inline-flex min-h-8 items-center border bg-muted/40 px-3 text-xs font-medium">{label}</span>;
+  return <span className="mr-1.5 inline-flex min-h-8 items-center rounded-sm border bg-muted/40 px-2.5 text-xs font-medium">{label}</span>;
+}
+
+function EmptyReview({ label }: { label: string }) {
+  return <p className="text-xs text-muted-foreground">{label}</p>;
 }
