@@ -18,6 +18,13 @@ import type {
 } from "@tasklattice/contracts";
 import { clearAuthToken, getAuthToken } from "./auth-token";
 
+export class ApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = getAuthToken();
   const response = await fetch(path, {
@@ -34,10 +41,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     window.location.assign("/login");
   }
   if (!response.ok)
-    throw new Error(
+    throw new ApiError(
       "error" in (payload as object)
         ? (payload as { error: string }).error
         : `Request failed (${response.status})`,
+      response.status,
     );
   return payload as T;
 }

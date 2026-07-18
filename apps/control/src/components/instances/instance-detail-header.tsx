@@ -1,0 +1,69 @@
+import type { Agent } from "@tasklattice/contracts";
+import { Link } from "@tanstack/react-router";
+import { ArrowLeft, ExternalLink, FileText, MoreHorizontal, Pencil, RefreshCw, SquareTerminal, Trash2 } from "lucide-react";
+import { AgentPlatformIcon } from "@/components/agents/agent-platform-icon";
+import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import type { AgentPlatformPresentation } from "@/lib/agent-platforms";
+import type { InstanceAccessState } from "./instance-detail-model";
+import { InstanceStatusBadge, RelativeTime } from "./instance-detail-shared";
+
+function DisabledAction({ children, reason }: { children: React.ReactElement; reason: string }) {
+  return <Tooltip><TooltipTrigger asChild><span className="inline-flex">{children}</span></TooltipTrigger><TooltipContent>{reason}</TooltipContent></Tooltip>;
+}
+
+export function InstanceHeader({ access, agent, onDelete, platform }: {
+  access: InstanceAccessState;
+  agent: Agent;
+  onDelete: () => void;
+  platform: AgentPlatformPresentation;
+}) {
+  return (
+    <header className="border-b">
+      <div className="flex flex-col gap-5 pb-5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+          <Button asChild variant="ghost" size="icon" className="shrink-0"><Link to="/instances" aria-label="Back to Instances"><ArrowLeft /></Link></Button>
+          <AgentPlatformIcon platform={platform} className="size-14 bg-[#171717]" imageClassName="size-10" />
+          <div className="min-w-0">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <h1 className="truncate text-2xl font-semibold tracking-tight sm:text-3xl">{agent.name}</h1>
+              <InstanceStatusBadge status={agent.status} />
+            </div>
+            <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+              <span>{platform.name} Agent</span><span aria-hidden="true">·</span><span>{platform.runtimeName}</span><span aria-hidden="true">·</span><span>Updated <RelativeTime value={agent.updatedAt} /></span>
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 pl-14 sm:pl-[7.5rem] lg:pl-0">
+          {access.webUI.enabled && access.webUI.url ? (
+            <Button asChild><a href={access.webUI.url} target="_blank" rel="noopener noreferrer">Open Web UI <ExternalLink /></a></Button>
+          ) : (
+            <DisabledAction reason={access.webUI.disabledReason ?? "Web UI unavailable"}><Button disabled>Open Web UI <ExternalLink /></Button></DisabledAction>
+          )}
+          <span className="hidden sm:inline-flex">
+            {access.console.enabled ? (
+              <Button asChild variant="outline"><Link to="/agents/$agentId" params={{ agentId: agent.id }} search={{ tab: "runtime" }} hash="console"><SquareTerminal />Open Console</Link></Button>
+            ) : (
+              <DisabledAction reason={access.console.disabledReason ?? "Console unavailable"}><Button variant="outline" disabled><SquareTerminal />Open Console</Button></DisabledAction>
+            )}
+          </span>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild><Button variant="outline">More <MoreHorizontal /></Button></DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuItem disabled className="items-start"><Pencil className="mt-0.5" /><span><span className="block">Edit configuration</span><span className="block text-[10px] font-normal text-muted-foreground">Runtime reconciliation is not available.</span></span></DropdownMenuItem>
+              <DropdownMenuItem disabled className="items-start"><RefreshCw className="mt-0.5" /><span><span className="block">Restart Instance</span><span className="block text-[10px] font-normal text-muted-foreground">No restart API is configured.</span></span></DropdownMenuItem>
+              <DropdownMenuItem asChild><Link to="/agents/$agentId" params={{ agentId: agent.id }} search={{ tab: "activity" }} hash="provisioning-logs"><FileText />View provisioning logs</Link></DropdownMenuItem>
+              <span className="sm:hidden">
+                {access.console.enabled ? <DropdownMenuItem asChild><Link to="/agents/$agentId" params={{ agentId: agent.id }} search={{ tab: "runtime" }} hash="console"><SquareTerminal />Open Console</Link></DropdownMenuItem> : null}
+              </span>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={onDelete}><Trash2 />Delete Instance</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+    </header>
+  );
+}

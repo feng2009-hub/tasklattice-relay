@@ -1,169 +1,93 @@
-import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight, Bot, Box, Container, Cpu, ExternalLink, FileLock2, Globe2, type LucideIcon } from "lucide-react";
-import { AgentStatusBadge } from "@/components/agents/agent-status-badge";
-import { ProvisioningActivity } from "@/components/agents/provisioning-activity";
-import { AgentTerminalWorkspace } from "@/components/agents/agent-terminal-workspace";
-import { PageHeader } from "@/components/layout/page-header";
-import { DetailCard } from "@/components/shared/detail-card";
-import { Button } from "@/components/ui/button";
-import { api } from "@/lib/api";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, useNavigate, useRouterState } from "@tanstack/react-router";
+import { z } from "zod";
+import { AgentCreationExperience } from "@/components/agents/agent-creation-experience";
+import { DeleteInstanceDialog } from "@/components/instances/delete-instance-dialog";
+import { InstanceActivityTab } from "@/components/instances/instance-activity-tab";
+import { InstanceCapabilitiesTab } from "@/components/instances/instance-capabilities-tab";
+import { InstanceConfigurationTab } from "@/components/instances/instance-configuration-tab";
+import { InstanceHeader } from "@/components/instances/instance-detail-header";
+import { instanceDetailTabs, getInstanceAccessState, normalizeInstanceDetailTab } from "@/components/instances/instance-detail-model";
+import { InstanceDetailErrorState, InstanceDetailSkeleton, InstanceNotFoundState } from "@/components/instances/instance-detail-states";
+import { InstanceTabs } from "@/components/instances/instance-detail-tabs";
+import { InstanceOverviewTab } from "@/components/instances/instance-overview-tab";
+import { InstanceRuntimeTab } from "@/components/instances/instance-runtime-tab";
+import { ApiError, api } from "@/lib/api";
 import { getAgentPlatformPresentation } from "@/lib/agent-platforms";
+import { useState } from "react";
+
+const tabSearch = z.preprocess(
+  (value) => typeof value === "string" && instanceDetailTabs.includes(value as (typeof instanceDetailTabs)[number]) ? value : undefined,
+  z.enum(instanceDetailTabs).optional(),
+);
 
 export const Route = createFileRoute("/agents/$agentId")({
+  validateSearch: z.object({ creating: z.boolean().optional(), tab: tabSearch }),
   component: AgentDetail,
 });
 
-function endpointDisplayUrl(value: string): string {
-  try {
-    return new URL(value).origin;
-  } catch {
-    return "Agent endpoint";
-  }
-}
-
 function AgentDetail() {
   const { agentId } = Route.useParams();
+  const search = Route.useSearch();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const locationHash = useRouterState({ select: (state) => state.location.hash });
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const activeTab = normalizeInstanceDetailTab(search.tab);
+
   const agent = useQuery({
     queryKey: ["agent", agentId],
     queryFn: () => api.getAgent(agentId),
-    refetchInterval: (query) =>
-      query.state.data?.status === "READY" ||
-      query.state.data?.status === "FAILED"
-        ? false
-        : 1_000,
+    retry: (failureCount, error) => !(error instanceof ApiError && error.status === 404) && failureCount < 2,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      if (status !== "PROVISIONING" && status !== "DESTROYING") return false;
+      return typeof document !== "undefined" && document.visibilityState === "hidden" ? 15_000 : 5_000;
+    },
   });
   const runtime = useQuery({
     queryKey: ["runtime-status"],
     queryFn: api.getRuntimeStatus,
-    enabled: agent.data?.status === "READY",
+    enabled: agent.data?.status === "READY" && !search.creating,
     retry: 1,
     staleTime: 5_000,
   });
-  const policies = useQuery({ queryKey: ["sandbox-policies"], queryFn: api.listPolicies });
+  const audit = useQuery({
+    queryKey: ["agent-audit", agentId],
+    queryFn: () => api.getAgentAudit(agentId),
+    enabled: Boolean(agent.data) && !search.creating,
+    retry: 1,
+    staleTime: 10_000,
+  });
+  const remove = useMutation({
+    mutationFn: () => api.deleteAgent(agentId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["agents"] });
+      await navigate({ to: "/instances", replace: true });
+    },
+  });
 
-  if (!agent.data)
-    return (
-      <div className="py-20 text-center text-sm text-muted-foreground">
-        Loading Agent…
-      </div>
-    );
+  if (agent.isPending) return <InstanceDetailSkeleton />;
+  if (agent.error instanceof ApiError && agent.error.status === 404) return <InstanceNotFoundState />;
+  if (agent.isError || !agent.data) return <InstanceDetailErrorState onRetry={() => void agent.refetch()} />;
+  if (search.creating) return <AgentCreationExperience agent={agent.data} />;
 
-  const policy = policies.data?.policies.find((item) => item.id === agent.data.policyId);
   const platform = getAgentPlatformPresentation(agent.data.agentPlatform);
-  const hierarchy: Array<{ icon: LucideIcon; label: string; value: string }> = [
-    { icon: Bot, label: "Agent", value: "Desired identity" },
-    { icon: Cpu, label: "Instance", value: agent.data.id.slice(0, 8) },
-    { icon: Box, label: "OpenShell Sandbox", value: agent.data.sandboxName },
-    { icon: Container, label: "Pod", value: "Ephemeral realization" },
-  ];
+  const access = getInstanceAccessState(agent.data, runtime.data);
+  const auditError = audit.error instanceof Error ? audit.error.message : undefined;
+  const runtimeError = runtime.error instanceof Error ? runtime.error.message : undefined;
+  const showLogs = locationHash === "provisioning-logs" || locationHash === "#provisioning-logs";
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title={agent.data.name}
-        description={agent.data.description || "OpenShell runtime Instance"}
-        badge={<AgentStatusBadge status={agent.data.status} />}
-      />
-      <div className="grid items-stretch border-y text-xs sm:grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] sm:items-center">
-        {hierarchy.map(({ icon: Icon, label, value }, index) => (
-          <div key={label} className="contents">
-            <div className="min-w-0 px-3 py-3">
-              <div className="flex items-center gap-2 font-medium">
-                <Icon className="size-3.5" />
-                {label}
-              </div>
-              <div className="mt-1 truncate font-mono text-muted-foreground">
-                {value}
-              </div>
-            </div>
-            {index < 3 ? (
-              <ArrowRight className="mx-1 hidden size-3.5 text-muted-foreground sm:block" />
-            ) : null}
-          </div>
-        ))}
-      </div>
-      {agent.data.status !== "READY" ? (
-        <ProvisioningActivity
-          status={agent.data.status}
-          logs={agent.data.logs}
-          {...(agent.data.provisioningStage ? { stage: agent.data.provisioningStage } : {})}
-          {...(agent.data.error ? { error: agent.data.error } : {})}
-          action={<Link to="/agent/sandboxes/runtime" className="min-h-11 content-center text-xs font-medium text-foreground underline underline-offset-4">Open Sandbox audit</Link>}
-        />
-      ) : (
-        <>
-          <AgentTerminalWorkspace
-            agentId={agentId}
-            agentPlatform={agent.data.agentPlatform}
-            runtimeStatus={runtime.data}
-            runtimeError={
-              runtime.error instanceof Error ? runtime.error.message : undefined
-            }
-            runtimeChecking={runtime.isFetching}
-            onRecheckRuntime={() => void runtime.refetch()}
-          />
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-            <DetailCard icon={Box} label="Runtime" value={platform.runtimeName} />
-            <DetailCard icon={Bot} label="Agent" value={platform.name} />
-            <DetailCard
-              icon={Cpu}
-              label="Provider"
-              value={`DeepSeek · ${agent.data.model}`}
-            />
-            <DetailCard
-              label="OpenShell Sandbox"
-              value={agent.data.sandboxName}
-              mono
-            />
-            <DetailCard
-              icon={FileLock2}
-              label="OpenShell Policy"
-              value={policy?.name ?? agent.data.policyId}
-            />
-          </div>
-          <section
-            aria-labelledby="http-endpoint-title"
-            className="grid gap-4 border-y px-1 py-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
-          >
-            <div className="min-w-0">
-              <h2 id="http-endpoint-title" className="flex items-center gap-2 text-base font-semibold">
-                <Globe2 className="size-4" />
-                {platform.endpointLabel}
-              </h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Open the {platform.name} browser surface exposed through OpenShell
-                service routing.
-              </p>
-              {agent.data.httpEndpoint?.status === "READY" && agent.data.httpEndpoint.url ? (
-                <p className="mt-2 truncate font-mono text-xs text-muted-foreground">
-                  {endpointDisplayUrl(agent.data.httpEndpoint.url)}
-                </p>
-              ) : (
-                <p role="status" className="mt-2 text-xs text-muted-foreground">
-                  {agent.data.httpEndpoint?.reason ??
-                    `OpenShell has not published the ${platform.endpointLabel} yet.`}
-                </p>
-              )}
-            </div>
-            {agent.data.httpEndpoint?.status === "READY" && agent.data.httpEndpoint.url ? (
-              <Button asChild className="h-11">
-                <a
-                  href={agent.data.httpEndpoint.url}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Open {platform.endpointLabel} <ExternalLink />
-                </a>
-              </Button>
-            ) : (
-              <Button className="h-11" disabled>
-                Open {platform.endpointLabel}
-              </Button>
-            )}
-          </section>
-        </>
-      )}
+    <div>
+      <InstanceHeader access={access} agent={agent.data} platform={platform} onDelete={() => setDeleteOpen(true)} />
+      <InstanceTabs active={activeTab} agentId={agentId} />
+      {activeTab === "overview" ? <InstanceOverviewTab access={access} agent={agent.data} platform={platform} auditLoading={audit.isLoading} {...(audit.data ? { auditEvents: audit.data } : {})} {...(runtime.data ? { runtime: runtime.data } : {})} /> : null}
+      {activeTab === "configuration" ? <InstanceConfigurationTab agent={agent.data} platform={platform} /> : null}
+      {activeTab === "capabilities" ? <InstanceCapabilitiesTab agent={agent.data} /> : null}
+      {activeTab === "runtime" ? <InstanceRuntimeTab access={access} agent={agent.data} platform={platform} runtimeChecking={runtime.isFetching} onRecheckRuntime={() => void runtime.refetch()} {...(runtime.data ? { runtime: runtime.data } : {})} {...(runtimeError ? { runtimeError } : {})} /> : null}
+      {activeTab === "activity" ? <InstanceActivityTab agent={agent.data} auditLoading={audit.isLoading} showLogs={showLogs} {...(audit.data ? { auditEvents: audit.data } : {})} {...(auditError ? { auditError } : {})} /> : null}
+      <DeleteInstanceDialog open={deleteOpen} onOpenChange={setDeleteOpen} instanceName={agent.data.name} deleting={remove.isPending} onConfirm={() => remove.mutate()} {...(remove.error instanceof Error ? { error: remove.error.message } : {})} />
     </div>
   );
 }

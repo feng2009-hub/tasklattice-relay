@@ -1,12 +1,12 @@
-import { useMemo, useRef, useState, type ReactElement } from "react";
+import { useMemo, useState, type ReactElement } from "react";
 import type { Agent, AgentStatus } from "@tasklattice/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
-import { AlertTriangle, Boxes, Eye, Globe2, Info, MoreHorizontal, Plus, RefreshCw, Search, Settings2, SquareTerminal, X } from "lucide-react";
+import { AlertTriangle, Boxes, Eye, FileText, Globe2, Info, MoreHorizontal, Plus, RefreshCw, Search, SquareTerminal, Trash2, X } from "lucide-react";
 import { AgentPlatformIcon } from "@/components/agents/agent-platform-icon";
 import { resolveProvisioningState } from "@/components/agents/provisioning-state";
-import { InstanceDetailDrawer } from "@/components/instances/instance-detail-drawer";
+import { DeleteInstanceDialog } from "@/components/instances/delete-instance-dialog";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Badge } from "@/components/ui/badge";
@@ -101,7 +101,7 @@ function PrimaryInstanceAction({ instance }: { instance: Agent }) {
     return (
       <ActionTooltip label={`Open ${platform.consoleLabel}`}>
         <Button asChild variant="outline" size="icon">
-          <Link to="/agents/$agentId" params={{ agentId: instance.id }} hash="terminal" aria-label={`Open ${platform.consoleLabel} for ${instance.name}`}>
+          <Link to="/agents/$agentId" params={{ agentId: instance.id }} search={{ tab: "runtime" }} hash="console" aria-label={`Open ${platform.consoleLabel} for ${instance.name}`}>
             <SquareTerminal className="size-[18px]" />
           </Link>
         </Button>
@@ -128,7 +128,7 @@ function PrimaryInstanceAction({ instance }: { instance: Agent }) {
   );
 }
 
-function InstanceActions({ instance, onManage }: { instance: Agent; onManage: () => void }) {
+function InstanceActions({ instance, onDelete }: { instance: Agent; onDelete: () => void }) {
   const platform = getAgentPlatformPresentation(instance.agentPlatform);
   return (
     <DropdownMenu>
@@ -137,8 +137,10 @@ function InstanceActions({ instance, onManage }: { instance: Agent; onManage: ()
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem asChild><Link to="/agents/$agentId" params={{ agentId: instance.id }}><Eye />View details</Link></DropdownMenuItem>
-        {instance.status === "READY" ? <DropdownMenuItem asChild><Link to="/agents/$agentId" params={{ agentId: instance.id }} hash="terminal"><SquareTerminal />Open {platform.consoleLabel}</Link></DropdownMenuItem> : null}
-        <DropdownMenuItem onSelect={onManage}><Settings2 />Manage Instance</DropdownMenuItem>
+        {instance.status === "READY" ? <DropdownMenuItem asChild><Link to="/agents/$agentId" params={{ agentId: instance.id }} search={{ tab: "runtime" }} hash="console"><SquareTerminal />Open {platform.consoleLabel}</Link></DropdownMenuItem> : null}
+        <DropdownMenuItem asChild><Link to="/agents/$agentId" params={{ agentId: instance.id }} search={{ tab: "activity" }} hash="provisioning-logs"><FileText />View logs</Link></DropdownMenuItem>
+        <DropdownMenuItem disabled><RefreshCw />Restart unavailable</DropdownMenuItem>
+        <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={onDelete}><Trash2 />Delete Instance</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -150,18 +152,16 @@ function Instances() {
   const search = Route.useSearch();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<(typeof statusFilters)[number]>("ALL");
-  const [selectedId, setSelectedId] = useState<string>();
-  const selectedTriggerRef = useRef<HTMLButtonElement>(null);
+  const [deletingInstance, setDeletingInstance] = useState<Agent>();
   const agents = useQuery({ queryKey: ["agents"], queryFn: api.listAgents, refetchInterval: 2_000 });
   const filtered = useMemo(() => (agents.data ?? []).filter((agent) => {
     const matchesQuery = `${agent.name} ${agent.id} ${agent.sandboxName} ${getAgentPlatformPresentation(agent.agentPlatform).name}`.toLowerCase().includes(query.trim().toLowerCase());
     return matchesQuery && (status === "ALL" || agent.status === status);
   }), [agents.data, query, status]);
-  const selected = (agents.data ?? []).find((agent) => agent.id === selectedId);
   const remove = useMutation({
     mutationFn: api.deleteAgent,
     onSuccess: async () => {
-      setSelectedId(undefined);
+      setDeletingInstance(undefined);
       await queryClient.invalidateQueries({ queryKey: ["agents"] });
     },
   });
@@ -205,21 +205,20 @@ function Instances() {
                   <div key={agent.id} className={cn(
                     "group relative grid min-h-[5.25rem] grid-cols-[minmax(0,1fr)_2.75rem_2.75rem] items-center gap-3 border-b px-4 py-3 text-sm transition-colors last:border-b-0 hover:bg-muted/30 lg:grid-cols-[minmax(14rem,1.35fr)_minmax(10rem,1fr)_8rem_9rem_3.5rem_3rem]",
                     search.created === agent.id && "bg-primary/5 shadow-[inset_3px_0_0_var(--primary)]",
-                    selected?.id === agent.id && "bg-muted/60",
                   )}>
-                    <button type="button" aria-label={`Manage ${agent.name}`} aria-pressed={selected?.id === agent.id} onClick={(event) => { selectedTriggerRef.current = event.currentTarget; setSelectedId(agent.id); }} className="absolute inset-0 z-0 focus-visible:outline-2 focus-visible:outline-offset-[-2px]" />
+                    <Link to="/agents/$agentId" params={{ agentId: agent.id }} aria-label={`View details for ${agent.name}`} className="absolute inset-0 z-0 focus-visible:outline-2 focus-visible:outline-offset-[-2px]" />
                     <span className="pointer-events-none relative z-10 col-span-3 flex min-w-0 items-center gap-3 lg:col-span-1">
                       <AgentPlatformIcon platform={platform} className="transition-colors group-hover:border-primary/30 group-hover:bg-primary/5" />
                       <span className="min-w-0">
-                        <strong className="block truncate font-medium text-foreground">{agent.name}</strong>
+                        <Link to="/agents/$agentId" params={{ agentId: agent.id }} className="pointer-events-auto block truncate font-medium text-foreground hover:text-primary hover:underline">{agent.name}</Link>
                         <span className="mt-1 block truncate font-mono text-xs text-muted-foreground">{agent.id.slice(0, 8)} · {platform.name}</span>
                       </span>
                     </span>
                     <span className="pointer-events-none relative z-10 hidden min-w-0 lg:block"><strong className="block truncate text-xs font-medium">{platform.runtimeName}</strong><span className="mt-1 block truncate font-mono text-xs text-muted-foreground">{agent.sandboxName}</span></span>
                     <span className="pointer-events-none relative z-10 hidden text-xs text-muted-foreground lg:block">{relativeTime(agent.updatedAt)}</span>
-                    <span className="relative z-20"><InstanceLifecycleStatus instance={agent} /></span>
-                    <span className="relative z-20 justify-self-end lg:justify-self-start"><PrimaryInstanceAction instance={agent} /></span>
-                    <span className="relative z-20 justify-self-end"><InstanceActions instance={agent} onManage={() => setSelectedId(agent.id)} /></span>
+                    <span className="relative z-20" onClick={(event) => event.stopPropagation()}><InstanceLifecycleStatus instance={agent} /></span>
+                    <span className="relative z-20 justify-self-end lg:justify-self-start" onClick={(event) => event.stopPropagation()}><PrimaryInstanceAction instance={agent} /></span>
+                    <span className="relative z-20 justify-self-end" onClick={(event) => event.stopPropagation()}><InstanceActions instance={agent} onDelete={() => setDeletingInstance(agent)} /></span>
                   </div>
                 );
               })}
@@ -229,7 +228,7 @@ function Instances() {
       </Card>
       </TooltipProvider>
 
-      <InstanceDetailDrawer {...(selected ? { instance: selected } : {})} deleting={remove.isPending} {...(remove.error ? { deleteError: remove.error.message } : {})} onClose={() => setSelectedId(undefined)} onDelete={() => selected && remove.mutate(selected.id)} returnFocusRef={selectedTriggerRef} />
+      {deletingInstance ? <DeleteInstanceDialog open instanceName={deletingInstance.name} deleting={remove.isPending} onOpenChange={(open) => { if (!open) setDeletingInstance(undefined); }} onConfirm={() => remove.mutate(deletingInstance.id)} {...(remove.error instanceof Error ? { error: remove.error.message } : {})} /> : null}
     </div>
   );
 }

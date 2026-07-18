@@ -3,7 +3,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { defaultAgentPlatformId, type AgentPlatformId, type CreateAgentInput } from "@tasklattice/contracts";
-import { ArrowLeft, ArrowRight, Bot, Boxes, Check, CircleAlert, Info, LockKeyhole, Network, ServerCog, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Bot, Check, CircleAlert } from "lucide-react";
 import { AgentSelect } from "@/components/agents/agent-select";
 import { ChangeSpecializationDialog } from "@/components/agents/change-specialization-dialog";
 import {
@@ -12,11 +12,9 @@ import {
   updateCapabilitySelection,
   type SelectedCapability,
 } from "@/components/agents/capability-selection";
-import { BlueprintRow, CreateInstanceLayout, InstanceBlueprint, type CreateInstanceStep } from "@/components/agents/create-instance-layout";
+import { CreateInstanceLayout, type CreateInstanceStep } from "@/components/agents/create-instance-layout";
 import { IdentityCapabilitiesStep } from "@/components/agents/identity-capabilities-step";
 import { getSpecialization, type SpecializationId } from "@/components/agents/specializations";
-import { PageHeader } from "@/components/layout/page-header";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -38,12 +36,6 @@ function capabilityName(id: string): string {
   return skillPreviews.find((item) => item.id === id)?.name
     ?? mcpServerPreviews.find((item) => item.id === id)?.name
     ?? id;
-}
-
-function displayAgentName(name: string): string {
-  const trimmed = name.trim();
-  if (!trimmed) return "Unnamed Agent";
-  return trimmed.split(/[\s_-]+/).map((part) => part.length <= 2 ? part.toUpperCase() : `${part.charAt(0).toUpperCase()}${part.slice(1)}`).join(" ");
 }
 
 function selectedIds(items: readonly SelectedCapability[]): string[] {
@@ -74,7 +66,7 @@ function CreateAgent() {
     .filter((item) => item && item.status !== "HEALTHY");
   const mutation = useMutation({
     mutationFn: api.createAgent,
-    onSuccess: (agent) => void navigate({ to: "/instances", search: { created: agent.id } }),
+    onSuccess: (agent) => void navigate({ to: "/agents/$agentId", params: { agentId: agent.id }, search: { creating: true } }),
   });
   const form = useForm({
     defaultValues: {
@@ -134,29 +126,12 @@ function CreateAgent() {
     };
   }, [pendingSpecialization, selectedMcps, selectedSkills]);
 
-  const blueprintStatus = step === 2 ? "Ready to create" : step === 1 ? "Runtime configuration" : "Ready to configure";
-
   return (
     <div className="space-y-7">
-      <PageHeader title="Create Instance" badge={<Badge variant="outline">UAT</Badge>} description="Build a specialized Agent in the OpenShell runtime with reusable Skills and connected MCP tools." />
       <CreateInstanceLayout
         steps={steps}
         currentStep={step}
         onStepChange={setStep}
-        blueprint={
-          <InstanceBlueprint
-            status={blueprintStatus}
-            footer={<p className="flex gap-2 rounded-md border border-primary/20 bg-primary/5 p-3 text-xs leading-5 text-primary"><Info className="mt-0.5 size-4 shrink-0" />{specialization.id === "custom" ? "Custom instructions and manually selected capabilities define this Agent." : "The specialization preconfigures instructions, Skills, MCP Servers, and knowledge sources. You can customize the selected capabilities for this Agent."}</p>}
-          >
-            <form.Subscribe selector={(state) => state.values.name}>{(name) => <BlueprintRow icon={Bot} label="Agent" value={displayAgentName(String(name))} />}</form.Subscribe>
-            <BlueprintRow icon={Sparkles} label="Specialization" value={specialization.name} />
-            <BlueprintRow icon={Boxes} label="Skills" value={`${selectedSkills.length} selected`} />
-            <BlueprintRow icon={ServerCog} label="MCP Servers" value={`${selectedMcps.length} selected${incompleteMcps.length ? ` · ${incompleteMcps.length} incomplete` : ""}`} />
-            <BlueprintRow icon={Network} label="Knowledge" value={`${selectedKnowledgeSources.length} ${selectedKnowledgeSources.length === 1 ? "source" : "sources"}`} />
-            <BlueprintRow icon={LockKeyhole} label="Runtime" value={step === 0 ? "Required" : "OpenShell (UAT)"} />
-            <BlueprintRow icon={Bot} label="Model" value={step === 0 ? "Required" : selectedDeployment ? `${selectedDeployment.displayName} · ${selectedDeployment.providerName}` : "Required"} />
-          </InstanceBlueprint>
-        }
       >
         <form onSubmit={(event) => { event.preventDefault(); void form.handleSubmit(); }} className="min-w-0 space-y-5">
           {step === 0 ? (
@@ -174,6 +149,7 @@ function CreateAgent() {
                   onSpecializationChange={requestSpecializationChange}
                   onSkillIdsChange={(ids) => { setSelectedSkills(updateCapabilitySelection(selectedSkills, ids)); setSkillsTouched(true); }}
                   onMcpServerIdsChange={(ids) => { setSelectedMcps(updateCapabilitySelection(selectedMcps, ids)); setMcpsTouched(true); }}
+                  onKnowledgeSourceIdsChange={(ids) => setSelectedKnowledgeSources(updateCapabilitySelection(selectedKnowledgeSources, ids))}
                 />
               )}
             </form.Subscribe>
@@ -205,7 +181,7 @@ function CreateAgent() {
                   <CardHeader><CardTitle className="flex items-center gap-2"><Check className="size-5" /> Review & Create</CardTitle><CardDescription>Confirm the specialized Agent and OpenShell runtime blueprint before provisioning.</CardDescription></CardHeader>
                   <CardContent className="space-y-6">
                     <div className="grid gap-5 sm:grid-cols-2">
-                      <ReviewSection title="Identity"><ReviewRow label="Name" value={values.name} /><ReviewRow label="Specialization" value={specialization.name} /><ReviewRow label="System instructions" value={specialization.id === "custom" ? "Custom instructions" : `Managed by ${specialization.name}`} /></ReviewSection>
+                      <ReviewSection title="Identity"><ReviewRow label="Name" value={values.name} /><ReviewRow label="Role" value={specialization.name} /><ReviewRow label="System instructions" value={specialization.id === "custom" ? "Custom instructions" : `Managed by ${specialization.name}`} /></ReviewSection>
                       <ReviewSection title="Runtime & Model"><ReviewRow label="Runtime" value="OpenShell (UAT)" /><ReviewRow label="Agent" value={getAgentPlatformPresentation(values.agentPlatform).name} /><ReviewRow label="Provider" value={selectedDeployment?.providerName ?? "Not selected"} /><ReviewRow label="Model" value={selectedDeployment?.displayName ?? "Not selected"} /><ReviewRow label="Policy" value={policyName(values.policyId)} /></ReviewSection>
                     </div>
                     <Separator />
@@ -215,7 +191,7 @@ function CreateAgent() {
                       <ReviewSection title={`Knowledge (${selectedKnowledgeSources.length})`}>{selectedKnowledgeSources.length ? selectedKnowledgeSources.map((item) => <ReviewPill key={item.id} label={knowledgeSourcePreviews.find((source) => source.id === item.id)?.name ?? item.id} />) : <EmptyReview label="No Knowledge selected" />}</ReviewSection>
                     </div>
                     {incompleteMcps.length ? <p role="alert" className="flex gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs leading-5"><CircleAlert className="mt-0.5 size-4 shrink-0" />Complete the connection or access request for {incompleteMcps.map((item) => item?.name).join(", ")} before relying on those tools.</p> : null}
-                    <p className="border bg-muted/30 p-3 text-xs leading-5 text-muted-foreground">Specialization and capability references are saved with this Instance. Runtime provisioning remains asynchronous and connected extension services govern final attachment.</p>
+                    <p className="border bg-muted/30 p-3 text-xs leading-5 text-muted-foreground">Role and capability references are saved with this Instance. Runtime provisioning remains asynchronous and connected extension services govern final attachment.</p>
                   </CardContent>
                 </Card>
               )}
