@@ -6,10 +6,8 @@ export type TerminalSessionEvent =
 
 export interface TerminalSession {
   buffer: string[];
-  closeTimer: number | null;
-  connectionKind: "nemoclaw" | null;
+  closeFrame: number | null;
   connected: boolean;
-  interactive: boolean;
   listeners: Set<(event: TerminalSessionEvent) => void>;
   socket: WebSocket;
 }
@@ -18,9 +16,9 @@ const terminalSessions = new Map<string, TerminalSession>();
 const pendingSessions = new Map<string, Promise<TerminalSession>>();
 
 function reviveSession(session: TerminalSession): TerminalSession {
-  if (session.closeTimer) {
-    window.clearTimeout(session.closeTimer);
-    session.closeTimer = null;
+  if (session.closeFrame) {
+    window.cancelAnimationFrame(session.closeFrame);
+    session.closeFrame = null;
   }
   return session;
 }
@@ -36,27 +34,24 @@ async function websocketText(data: unknown): Promise<string> {
 function createTerminalSession(key: string, url: string): TerminalSession {
   const session: TerminalSession = {
     buffer: [],
-    closeTimer: null,
-    connectionKind: null,
+    closeFrame: null,
     connected: false,
-    interactive: false,
     listeners: new Set(),
     socket: new WebSocket(url),
   };
   const emit = (event: TerminalSessionEvent) =>
     session.listeners.forEach((listener) => listener(event));
 
-  session.socket.addEventListener("open", () => emit({ type: "open" }));
+  session.socket.addEventListener("open", () => {
+    session.connected = true;
+    emit({ type: "open" });
+  });
   session.socket.addEventListener("message", (event) => {
     void websocketText(event.data).then((data) => {
-      if (data.startsWith("Connected to NemoClaw runtime ")) {
-        session.connected = true;
-        session.connectionKind = "nemoclaw";
-      } else if (session.connected && data.length > 0) {
-        session.interactive = true;
+      if (session.listeners.size === 0) {
+        session.buffer.push(data);
+        if (session.buffer.length > 200) session.buffer.shift();
       }
-      session.buffer.push(data);
-      if (session.buffer.length > 5_000) session.buffer.shift();
       emit({ data, type: "message" });
     });
   });
@@ -94,20 +89,20 @@ export async function acquireTerminalSession(
 
 export function releaseTerminalSession(key: string): void {
   const session = terminalSessions.get(key);
-  if (!session || session.closeTimer) return;
-  session.closeTimer = window.setTimeout(() => {
+  if (!session || session.closeFrame) return;
+  session.closeFrame = window.requestAnimationFrame(() => {
     if (session.socket.readyState === WebSocket.OPEN)
       session.socket.close(1000, "terminal panel detached");
     else if (session.socket.readyState === WebSocket.CONNECTING)
       session.socket.close();
     terminalSessions.delete(key);
-  }, 5_000);
+  });
 }
 
 export function resetTerminalSession(key: string): void {
   const session = terminalSessions.get(key);
   if (!session) return;
-  if (session.closeTimer) window.clearTimeout(session.closeTimer);
+  if (session.closeFrame) window.cancelAnimationFrame(session.closeFrame);
   terminalSessions.delete(key);
   if (
     session.socket.readyState === WebSocket.OPEN ||

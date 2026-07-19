@@ -15,6 +15,7 @@ import type {
   SandboxPolicyCatalog,
   SandboxAuditEvent,
   TerminalSessionResponse,
+  TerminalTarget,
 } from "@tasklattice/contracts";
 import { clearAuthToken, getAuthToken } from "./auth-token";
 
@@ -113,6 +114,12 @@ export const api = {
       )
     ).data,
   getRuntimeStatus: () => request<RuntimeStatus>("/api/v1/runtime"),
+  getTerminalTargets: async (id: string) =>
+    (
+      await request<{ data: TerminalTarget[] }>(
+        `/api/v1/agents/${id}/terminal-targets`,
+      )
+    ).data,
   createAgent: (input: CreateAgentInput) =>
     request<Agent>("/api/v1/agents", {
       method: "POST",
@@ -120,9 +127,9 @@ export const api = {
     }),
   deleteAgent: (id: string) =>
     request<void>(`/api/v1/agents/${id}`, { method: "DELETE" }),
-  createTerminalSession: (id: string) =>
+  createTerminalSession: (id: string, targetId: string) =>
     request<TerminalSessionResponse>(
       `/api/v1/agents/${id}/terminal-sessions`,
-      { method: "POST", body: "{}" },
+      { method: "POST", body: JSON.stringify({ targetId }) },
     ),
 };

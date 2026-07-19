@@ -8,6 +8,7 @@ export interface TerminalSessionRecord {
   agentId: string;
   agentPlatform: AgentPlatformId;
   sandboxName: string;
+  targetId: string;
   expiresAt: number;
 }
 
@@ -17,6 +18,7 @@ export function createTerminalSession(
   agentId: string,
   sandboxName: string,
   agentPlatform: AgentPlatformId,
+  targetId: string,
 ): TerminalSessionResponse {
   const id = randomUUID();
   const token = randomUUID();
@@ -25,6 +27,7 @@ export function createTerminalSession(
     agentId,
     agentPlatform,
     sandboxName,
+    targetId,
     expiresAt,
   });
   return {

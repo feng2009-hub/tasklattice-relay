@@ -101,7 +101,7 @@ function PrimaryInstanceAction({ instance }: { instance: Agent }) {
     return (
       <ActionTooltip label={`Open ${platform.consoleLabel}`}>
         <Button asChild variant="outline" size="icon">
-          <Link to="/agents/$agentId" params={{ agentId: instance.id }} search={{ tab: "runtime" }} hash="console" aria-label={`Open ${platform.consoleLabel} for ${instance.name}`}>
+          <Link to="/agents/$agentId" params={{ agentId: instance.id }} search={{ tab: "terminal" }} aria-label={`Open ${platform.consoleLabel} for ${instance.name}`}>
             <SquareTerminal className="size-[18px]" />
           </Link>
         </Button>
@@ -137,8 +137,8 @@ function InstanceActions({ instance, onDelete }: { instance: Agent; onDelete: ()
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem asChild><Link to="/agents/$agentId" params={{ agentId: instance.id }}><Eye />View details</Link></DropdownMenuItem>
-        {instance.status === "READY" ? <DropdownMenuItem asChild><Link to="/agents/$agentId" params={{ agentId: instance.id }} search={{ tab: "runtime" }} hash="console"><SquareTerminal />Open {platform.consoleLabel}</Link></DropdownMenuItem> : null}
-        <DropdownMenuItem asChild><Link to="/agents/$agentId" params={{ agentId: instance.id }} search={{ tab: "activity" }} hash="provisioning-logs"><FileText />View logs</Link></DropdownMenuItem>
+        {instance.status === "READY" ? <DropdownMenuItem asChild><Link to="/agents/$agentId" params={{ agentId: instance.id }} search={{ tab: "terminal" }}><SquareTerminal />Open {platform.consoleLabel}</Link></DropdownMenuItem> : null}
+        <DropdownMenuItem asChild><Link to="/agents/$agentId" params={{ agentId: instance.id }} search={{ tab: "auditor-log" }} hash="provisioning-logs"><FileText />View logs</Link></DropdownMenuItem>
         <DropdownMenuItem disabled><RefreshCw />Restart unavailable</DropdownMenuItem>
         <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={onDelete}><Trash2 />Delete Instance</DropdownMenuItem>
       </DropdownMenuContent>

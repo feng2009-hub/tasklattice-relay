@@ -248,10 +248,22 @@ export const openApiDocument = {
       post: {
         operationId: "createTerminalSession",
         summary: "Create a short-lived, single-use terminal session",
+        requestBody: { required: true, ...json({ $ref: "#/components/schemas/CreateTerminalSessionInput" }) },
         responses: {
           "201": { description: "Terminal session", ...json({ $ref: "#/components/schemas/TerminalSession" }) },
           "404": { $ref: "#/components/responses/Error" },
           "409": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
+    "/agents/{agentId}/terminal-targets": {
+      parameters: [agentId],
+      get: {
+        operationId: "getTerminalTargets",
+        summary: "List interactive terminal targets for a running Agent",
+        responses: {
+          "200": { description: "Terminal targets", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/TerminalTarget" } } } }) },
+          "404": { $ref: "#/components/responses/Error" },
         },
       },
     },
@@ -551,6 +563,24 @@ export const openApiDocument = {
           id: { type: "string", format: "uuid" },
           expiresAt: { type: "string", format: "date-time" },
           websocketUrl: { type: "string", description: "Relative WebSocket upgrade path; valid once for five minutes." },
+        },
+      },
+      CreateTerminalSessionInput: {
+        type: "object",
+        required: ["targetId"],
+        properties: { targetId: { type: "string" } },
+      },
+      TerminalTarget: {
+        type: "object",
+        required: ["id", "containerName", "primary", "available", "shells"],
+        properties: {
+          id: { type: "string" },
+          containerName: { type: "string" },
+          displayName: { type: "string" },
+          primary: { type: "boolean" },
+          available: { type: "boolean" },
+          reason: { type: "string" },
+          shells: { type: "array", items: { type: "string" } },
         },
       },
       RuntimeStatus: {

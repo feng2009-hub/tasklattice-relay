@@ -1,4 +1,4 @@
-import type { Agent, RuntimeStatus, SandboxAuditEvent } from "@tasklattice/contracts";
+import type { Agent, SandboxAuditEvent } from "@tasklattice/contracts";
 import { Link } from "@tanstack/react-router";
 import { AlertTriangle, BookOpen, CheckCircle2, ChevronRight, ExternalLink, Globe2, Network, Sparkles, SquareTerminal } from "lucide-react";
 import { resolveProvisioningState } from "@/components/agents/provisioning-state";
@@ -56,7 +56,7 @@ function ProvisioningSummary({ agent }: { agent: Agent }) {
         <DetailCardHeader title="Instance creation failed" description="Provisioning stopped before the runtime became available." />
         <CardContent className="space-y-4">
           <p role="alert" className="flex gap-2 border-l-2 border-destructive bg-destructive/5 px-3 py-3 text-sm text-destructive"><AlertTriangle className="mt-0.5 size-4 shrink-0" />{agent.error ?? "The runtime did not return a failure summary."}</p>
-          <Button asChild variant="outline"><Link to="/agents/$agentId" params={{ agentId: agent.id }} search={{ tab: "activity" }} hash="provisioning-logs">View error details</Link></Button>
+          <Button asChild variant="outline"><Link to="/agents/$agentId" params={{ agentId: agent.id }} search={{ tab: "auditor-log" }} hash="provisioning-logs">View error details</Link></Button>
         </CardContent>
       </Card>
     );
@@ -67,19 +67,18 @@ function ProvisioningSummary({ agent }: { agent: Agent }) {
       <CardContent className="space-y-3">
         <div className="flex items-center justify-between text-xs"><span>{state.statusLabel}</span><span className="tabular-nums text-muted-foreground">{state.progress}%</span></div>
         <Progress value={state.progress} aria-label="Instance creation progress" aria-valuetext={`${state.progress}% complete`} />
-        <Button asChild variant="link" className="h-auto min-h-0 p-0"><Link to="/agents/$agentId" params={{ agentId: agent.id }} search={{ tab: "activity" }}>View activity</Link></Button>
+        <Button asChild variant="link" className="h-auto min-h-0 p-0"><Link to="/agents/$agentId" params={{ agentId: agent.id }} search={{ tab: "auditor-log" }}>View auditor log</Link></Button>
       </CardContent>
     </Card>
   );
 }
 
-export function InstanceOverviewTab({ access, agent, auditEvents, auditLoading, platform, runtime }: {
+export function InstanceOverviewTab({ access, agent, auditEvents, auditLoading, platform }: {
   access: InstanceAccessState;
   agent: Agent;
   auditEvents?: SandboxAuditEvent[];
   auditLoading: boolean;
   platform: AgentPlatformPresentation;
-  runtime?: RuntimeStatus;
 }) {
   const counts = getCapabilityCounts(agent);
   const activity = [
@@ -108,7 +107,7 @@ export function InstanceOverviewTab({ access, agent, auditEvents, auditLoading, 
             ]} />
             <div className="grid gap-3 border-t pt-4 sm:grid-cols-2">
               <AccessCard icon={Globe2} label="Agent Web UI" description="Interact with the running Agent." enabled={access.webUI.enabled} href={access.webUI.url} reason={access.webUI.disabledReason} external />
-              <AccessCard icon={SquareTerminal} label="Console" description="Access the runtime terminal." enabled={access.console.enabled} href={`/agents/${agent.id}?tab=runtime#console`} reason={access.console.disabledReason} />
+              <AccessCard icon={SquareTerminal} label="Terminal" description="Open an interactive terminal for the running Agent." enabled={access.terminal.enabled} href={`/agents/${agent.id}?tab=terminal`} reason={access.terminal.disabledReason} />
             </div>
           </CardContent>
         </Card>
@@ -160,7 +159,7 @@ export function InstanceOverviewTab({ access, agent, auditEvents, auditLoading, 
           <DetailCardHeader title="Health" description="Current health and performance." />
           <CardContent>
             <div className="flex min-h-44 flex-col items-center justify-center text-center">
-              {agent.status === "READY" && runtime?.terminal.available ? <CheckCircle2 className="size-6 text-emerald-600" /> : <AlertTriangle className="size-6 text-muted-foreground" />}
+              {access.terminal.enabled ? <CheckCircle2 className="size-6 text-emerald-600" /> : <AlertTriangle className="size-6 text-muted-foreground" />}
               <p className="mt-3 text-sm font-medium">Health metrics unavailable</p>
               <p className="mt-1 max-w-xs text-xs leading-5 text-muted-foreground">The current control API does not expose response time, error rate, or request metrics.</p>
             </div>
@@ -169,7 +168,7 @@ export function InstanceOverviewTab({ access, agent, auditEvents, auditLoading, 
       </div>
 
       <Card>
-        <DetailCardHeader title="Recent activity" description="Observed events and status changes." action={<Button asChild variant="outline" size="sm"><Link to="/agents/$agentId" params={{ agentId: agent.id }} search={{ tab: "activity" }}>View all activity <ExternalLink /></Link></Button>} />
+        <DetailCardHeader title="Recent activity" description="Observed events and status changes." action={<Button asChild variant="outline" size="sm"><Link to="/agents/$agentId" params={{ agentId: agent.id }} search={{ tab: "auditor-log" }}>View auditor log <ExternalLink /></Link></Button>} />
         <CardContent>
           {auditLoading && activity.length <= 1 ? <p className="py-5 text-sm text-muted-foreground">Loading observed activity…</p> : (
             <ol className="grid gap-4 py-2 sm:grid-cols-2 xl:grid-cols-4">

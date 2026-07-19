@@ -1,12 +1,21 @@
-import type { Agent, AgentStatus, RuntimeStatus } from "@tasklattice/contracts";
+import type { Agent, AgentStatus, TerminalTarget } from "@tasklattice/contracts";
 
-export const instanceDetailTabs = ["overview", "configuration", "capabilities", "runtime", "activity"] as const;
+export const instanceDetailTabs = ["overview", "configuration", "capabilities", "terminal", "auditor-log"] as const;
 export type InstanceDetailTab = (typeof instanceDetailTabs)[number];
+export const instanceDetailTabSearchValues = [...instanceDetailTabs, "activity"] as const;
 
 export function normalizeInstanceDetailTab(value: unknown): InstanceDetailTab {
+  if (value === "activity") return "auditor-log";
   return typeof value === "string" && instanceDetailTabs.includes(value as InstanceDetailTab)
     ? (value as InstanceDetailTab)
     : "overview";
+}
+
+export function resolveAvailableInstanceDetailTab(
+  tab: InstanceDetailTab,
+  terminal: InstanceAccessState["terminal"],
+): InstanceDetailTab {
+  return tab === "terminal" && !terminal.enabled ? "overview" : tab;
 }
 
 export type InstanceDisplayStatus = "creating" | "ready" | "failed" | "deleting";
@@ -27,10 +36,63 @@ export const instanceStatusConfig = {
 
 export type InstanceAccessState = {
   webUI: { enabled: boolean; url?: string; disabledReason?: string };
-  console: { enabled: boolean; disabledReason?: string };
+  terminal: { enabled: boolean; disabledReason?: string };
 };
 
-export function getInstanceAccessState(agent: Agent, runtime?: RuntimeStatus): InstanceAccessState {
+export function getTerminalAccessState(
+  agent: Agent,
+  targets?: TerminalTarget[],
+  options: {
+    canExecAgent?: boolean;
+    checking?: boolean;
+    unavailableReason?: string;
+  } = {},
+): InstanceAccessState["terminal"] {
+  if (options.canExecAgent === false)
+    return {
+      enabled: false,
+      disabledReason: "You do not have permission to open this terminal.",
+    };
+  if (agent.status === "PROVISIONING")
+    return {
+      enabled: false,
+      disabledReason: "Terminal is unavailable while the agent is starting.",
+    };
+  if (agent.status === "DESTROYING")
+    return {
+      enabled: false,
+      disabledReason: "Terminal is unavailable while the agent is stopping.",
+    };
+  if (agent.status !== "READY")
+    return {
+      enabled: false,
+      disabledReason:
+        "Terminal is unavailable because the agent is unhealthy.",
+    };
+  if (options.checking)
+    return {
+      enabled: false,
+      disabledReason: "Checking terminal availability…",
+    };
+  if (options.unavailableReason)
+    return {
+      enabled: false,
+      disabledReason: options.unavailableReason,
+    };
+  if (targets?.some((target) => target.available)) return { enabled: true };
+  return {
+    enabled: false,
+    disabledReason:
+      targets?.find((target) => target.reason)?.reason ??
+      "Terminal availability could not be verified.",
+  };
+}
+
+export function getInstanceAccessState(
+  agent: Agent,
+  targets?: TerminalTarget[],
+  terminalOptions: Parameters<typeof getTerminalAccessState>[2] = {},
+): InstanceAccessState {
   const ready = agent.status === "READY";
   const webUrl = agent.httpEndpoint?.status === "READY" ? agent.httpEndpoint.url : undefined;
   const webUI = ready && webUrl
@@ -41,15 +103,10 @@ export function getInstanceAccessState(agent: Agent, runtime?: RuntimeStatus): I
           ? "Web UI becomes available after the Instance is ready."
           : agent.httpEndpoint?.reason ?? "This Agent has not published a Web UI endpoint.",
       };
-  const console = ready && runtime?.terminal.available
-    ? { enabled: true }
-    : {
-        enabled: false,
-        disabledReason: !ready
-          ? "Console becomes available after the Instance is ready."
-          : runtime?.terminal.reason ?? "The active runtime cannot open an interactive console.",
-      };
-  return { webUI, console };
+  return {
+    webUI,
+    terminal: getTerminalAccessState(agent, targets, terminalOptions),
+  };
 }
 
 export function formatRelativeTime(value: string, now = Date.now()): string {

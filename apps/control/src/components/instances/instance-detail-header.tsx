@@ -1,6 +1,6 @@
 import type { Agent } from "@tasklattice/contracts";
 import { Link } from "@tanstack/react-router";
-import { ArrowLeft, ExternalLink, FileText, MoreHorizontal, Pencil, RefreshCw, SquareTerminal, Trash2 } from "lucide-react";
+import { ArrowLeft, ExternalLink, FileText, MoreHorizontal, Pencil, RefreshCw, Trash2 } from "lucide-react";
 import { AgentPlatformIcon } from "@/components/agents/agent-platform-icon";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -42,22 +42,12 @@ export function InstanceHeader({ access, agent, onDelete, platform }: {
           ) : (
             <DisabledAction reason={access.webUI.disabledReason ?? "Web UI unavailable"}><Button disabled>Open Web UI <ExternalLink /></Button></DisabledAction>
           )}
-          <span className="hidden sm:inline-flex">
-            {access.console.enabled ? (
-              <Button asChild variant="outline"><Link to="/agents/$agentId" params={{ agentId: agent.id }} search={{ tab: "runtime" }} hash="console"><SquareTerminal />Open Console</Link></Button>
-            ) : (
-              <DisabledAction reason={access.console.disabledReason ?? "Console unavailable"}><Button variant="outline" disabled><SquareTerminal />Open Console</Button></DisabledAction>
-            )}
-          </span>
           <DropdownMenu>
             <DropdownMenuTrigger asChild><Button variant="outline">More <MoreHorizontal /></Button></DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-64">
               <DropdownMenuItem disabled className="items-start"><Pencil className="mt-0.5" /><span><span className="block">Edit configuration</span><span className="block text-[10px] font-normal text-muted-foreground">Runtime reconciliation is not available.</span></span></DropdownMenuItem>
               <DropdownMenuItem disabled className="items-start"><RefreshCw className="mt-0.5" /><span><span className="block">Restart Instance</span><span className="block text-[10px] font-normal text-muted-foreground">No restart API is configured.</span></span></DropdownMenuItem>
-              <DropdownMenuItem asChild><Link to="/agents/$agentId" params={{ agentId: agent.id }} search={{ tab: "activity" }} hash="provisioning-logs"><FileText />View provisioning logs</Link></DropdownMenuItem>
-              <span className="sm:hidden">
-                {access.console.enabled ? <DropdownMenuItem asChild><Link to="/agents/$agentId" params={{ agentId: agent.id }} search={{ tab: "runtime" }} hash="console"><SquareTerminal />Open Console</Link></DropdownMenuItem> : null}
-              </span>
+              <DropdownMenuItem asChild><Link to="/agents/$agentId" params={{ agentId: agent.id }} search={{ tab: "auditor-log" }} hash="provisioning-logs"><FileText />View provisioning logs</Link></DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={onDelete}><Trash2 />Delete Instance</DropdownMenuItem>
             </DropdownMenuContent>

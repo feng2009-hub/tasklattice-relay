@@ -1,9 +1,11 @@
+import { createTerminalSessionInputSchema } from "@tasklattice/contracts";
 import { defineHandler } from "nitro";
 import { z } from "zod";
 import { requireAuth, unauthorizedResponse } from "../../../../../auth/auth";
 import { errorResponse, jsonResponse } from "../../../../../http/responses";
 import { getAgentService } from "../../../../../services";
 import { createTerminalSession } from "../../../../../terminal/terminal-sessions";
+import { primaryTerminalTargetId } from "../../../../../terminal/terminal-targets";
 import { runtimeStatusFromHealth } from "../../../../../runtime/runtime-status";
 
 export default defineHandler(async (event) => {
@@ -14,6 +16,7 @@ export default defineHandler(async (event) => {
   }
   try {
     const id = z.string().uuid().parse(event.context.params?.agentId);
+    const input = createTerminalSessionInputSchema.parse(await event.req.json());
     const service = await getAgentService();
     const agent = await service.get(id);
     if (!agent)
@@ -36,8 +39,18 @@ export default defineHandler(async (event) => {
         },
         { status: 409 },
       );
+    if (input.targetId !== primaryTerminalTargetId)
+      return jsonResponse(
+        { error: "The requested terminal target is not available." },
+        { status: 409 },
+      );
     return jsonResponse(
-      createTerminalSession(id, agent.sandboxName, agent.agentPlatform),
+      createTerminalSession(
+        id,
+        agent.sandboxName,
+        agent.agentPlatform,
+        input.targetId,
+      ),
       {
         status: 201,
       },

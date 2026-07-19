@@ -668,6 +668,24 @@ export interface TerminalSessionResponse {
   websocketUrl: string;
 }
 
+export interface TerminalTarget {
+  id: string;
+  containerName: string;
+  displayName?: string;
+  primary: boolean;
+  available: boolean;
+  reason?: string;
+  shells: string[];
+}
+
+export const createTerminalSessionInputSchema = z.object({
+  targetId: z.string().trim().min(1).max(128),
+});
+
+export type CreateTerminalSessionInput = z.infer<
+  typeof createTerminalSessionInputSchema
+>;
+
 const terminalResizePrefix = "\u0000TALI_RESIZE:";
 
 export interface TerminalResize {

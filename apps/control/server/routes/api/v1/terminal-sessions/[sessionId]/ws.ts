@@ -29,7 +29,13 @@ export default defineWebSocketHandler({
     const token = url.searchParams.get("token") ?? "";
     const session = consumeTerminalSession(sessionId, token);
     if (!session) throw new Response("Invalid terminal session.", { status: 401 });
-    await getAgentService();
+    const service = await getAgentService();
+    const agent = await service.get(session.agentId);
+    if (!agent || agent.status !== "READY")
+      throw new Response(
+        "Terminal is available only when the Agent is healthy and running.",
+        { status: 409 },
+      );
     return { context: { session } };
   },
   async open(peer) {
