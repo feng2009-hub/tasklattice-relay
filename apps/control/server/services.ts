@@ -1,5 +1,6 @@
 import { AgentService } from "./agents/agent-service";
 import { AgentStore } from "./data/agent-store";
+import { ExtensionCatalogService } from "./extensions/extension-catalog-service";
 import { CostService } from "./providers/cost-service";
 import { LiteLLMClient } from "./providers/litellm-client";
 import { ProviderService } from "./providers/provider-service";
@@ -11,6 +12,7 @@ const policyService = new PolicyService(store);
 const agentService = new AgentService(store, undefined, litellm, policyService);
 const providerService = new ProviderService(store, undefined, litellm);
 const costService = new CostService(store, litellm);
+const extensionCatalogService = new ExtensionCatalogService(store);
 
 export async function getAgentService(): Promise<AgentService> {
   return agentService;
@@ -27,4 +29,8 @@ export async function getCostService(): Promise<CostService> {
 
 export async function getPolicyService(): Promise<PolicyService> {
   return policyService;
+}
+
+export async function getExtensionCatalogService(): Promise<ExtensionCatalogService> {
+  return extensionCatalogService;
 }

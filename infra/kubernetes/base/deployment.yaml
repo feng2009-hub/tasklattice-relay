@@ -53,6 +53,8 @@ spec:
                   key: master-key
             - name: TALI_BUILTIN_POLICIES_PATH
               value: /etc/tasklattice/policies/catalog.yaml
+            - name: TALI_EXTENSION_CATALOG_SEED
+              value: development
           readinessProbe:
             httpGet:
               path: /api/health

@@ -1,10 +1,17 @@
 import type {
   Agent,
+  CreateKnowledgeSourceDefinitionInput,
   CreateAgentInput,
   CostReport,
+  CreateMcpServerDefinitionInput,
   CreateModelDeploymentInput,
   CreateProviderConnectionInput,
   CreateSandboxPolicyInput,
+  CreateSkillDefinitionInput,
+  ExtensionCatalog,
+  ExtensionResourceKind,
+  KnowledgeSourceDefinition,
+  McpServerDefinition,
   ModelDeployment,
   ProviderAccount,
   ProviderConnectionCreationResult,
@@ -16,6 +23,10 @@ import type {
   SandboxAuditEvent,
   TerminalSessionResponse,
   TerminalTarget,
+  SkillDefinition,
+  UpdateKnowledgeSourceDefinitionInput,
+  UpdateMcpServerDefinitionInput,
+  UpdateSkillDefinitionInput,
 } from "@tasklattice/contracts";
 import { clearAuthToken, getAuthToken } from "./auth-token";
 
@@ -52,6 +63,41 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  getExtensionCatalog: () => request<ExtensionCatalog>("/api/v1/extensions"),
+  createSkill: (input: CreateSkillDefinitionInput) =>
+    request<SkillDefinition>("/api/v1/extensions/skills", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateSkill: (id: string, input: UpdateSkillDefinitionInput) =>
+    request<SkillDefinition>(`/api/v1/extensions/skills/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
+  createMcpServer: (input: CreateMcpServerDefinitionInput) =>
+    request<McpServerDefinition>("/api/v1/extensions/mcp-servers", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateMcpServer: (id: string, input: UpdateMcpServerDefinitionInput) =>
+    request<McpServerDefinition>(`/api/v1/extensions/mcp-servers/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
+  createKnowledgeSource: (input: CreateKnowledgeSourceDefinitionInput) =>
+    request<KnowledgeSourceDefinition>("/api/v1/extensions/knowledge-sources", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateKnowledgeSource: (id: string, input: UpdateKnowledgeSourceDefinitionInput) =>
+    request<KnowledgeSourceDefinition>(`/api/v1/extensions/knowledge-sources/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
+  deleteExtension: (kind: ExtensionResourceKind, id: string) =>
+    request<{ message: string }>(`/api/v1/extensions/${kind}/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    }),
   listProviderAccounts: async () =>
     (await request<{ data: ProviderAccount[] }>("/api/v1/providers")).data,
   discoverProviderModels: (input: ProviderConnectionDraft) =>

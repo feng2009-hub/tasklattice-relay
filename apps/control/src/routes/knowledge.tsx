@@ -1,15 +1,16 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
+import type { CreateKnowledgeSourceDefinitionInput, KnowledgeSourceDefinition } from "@tasklattice/contracts";
 import { Database, FlaskConical, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
-import { PreviewBadge } from "@/components/shared/preview-badge";
 import { StatusDot } from "@/components/shared/status-dot";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { knowledgeSourcePreviews, type KnowledgeSourcePreview } from "@/lib/preview-data";
+import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/knowledge")({ component: KnowledgeBase });
@@ -18,14 +19,21 @@ const emptyDraft = {
   authReference: "",
   description: "",
   endpoint: "",
-  mode: "Hybrid" as KnowledgeSourcePreview["mode"],
+  mode: "Hybrid" as KnowledgeSourceDefinition["mode"],
   name: "",
   topK: 8,
 };
 
+function knowledgeSourceInput(source: KnowledgeSourceDefinition): CreateKnowledgeSourceDefinitionInput {
+  const { id: _id, ...input } = source;
+  return input;
+}
+
 function KnowledgeBase() {
-  const [items, setItems] = useState(knowledgeSourcePreviews);
-  const [selectedId, setSelectedId] = useState(items[0]!.id);
+  const queryClient = useQueryClient();
+  const catalog = useQuery({ queryKey: ["extension-catalog"], queryFn: api.getExtensionCatalog });
+  const items = catalog.data?.knowledgeSources ?? [];
+  const [selectedId, setSelectedId] = useState("");
   const [editing, setEditing] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState(emptyDraft);
@@ -33,7 +41,36 @@ function KnowledgeBase() {
   const [testQuery, setTestQuery] = useState("How are production incidents escalated?");
   const selected = items.find((item) => item.id === selectedId) ?? items[0];
 
-  const openForm = (item?: KnowledgeSourcePreview) => {
+  useEffect(() => {
+    if (items.length && !items.some((item) => item.id === selectedId)) setSelectedId(items[0]!.id);
+  }, [items, selectedId]);
+
+  const saveSource = useMutation({
+    mutationFn: ({ id, input }: { id?: string; input: CreateKnowledgeSourceDefinitionInput }) => id ? api.updateKnowledgeSource(id, input) : api.createKnowledgeSource(input),
+    onSuccess: async (source, variables) => {
+      setSelectedId(source.id);
+      setEditing(false);
+      setNotice(variables.id ? "Knowledge source saved to SQLite." : "Knowledge source added to SQLite.");
+      await queryClient.invalidateQueries({ queryKey: ["extension-catalog"] });
+    },
+  });
+  const checkSource = useMutation({
+    mutationFn: (source: KnowledgeSourceDefinition) => api.updateKnowledgeSource(source.id, { ...knowledgeSourceInput(source), status: "READY" }),
+    onSuccess: async (_source, input) => {
+      setNotice(`Retrieval check for “${testQuery.trim()}” recorded in SQLite with Top ${input.topK}. Remote retrieval remains simulated in development.`);
+      await queryClient.invalidateQueries({ queryKey: ["extension-catalog"] });
+    },
+  });
+  const deleteSource = useMutation({
+    mutationFn: (id: string) => api.deleteExtension("knowledge-sources", id),
+    onSuccess: async () => {
+      setSelectedId("");
+      setNotice("Knowledge source removed from SQLite.");
+      await queryClient.invalidateQueries({ queryKey: ["extension-catalog"] });
+    },
+  });
+
+  const openForm = (item?: KnowledgeSourceDefinition) => {
     setEditing(true);
     setEditingId(item?.id ?? null);
     setDraft(item ? { authReference: item.authReference, description: item.description, endpoint: item.endpoint, mode: item.mode, name: item.name, topK: item.topK } : emptyDraft);
@@ -41,35 +78,26 @@ function KnowledgeBase() {
   };
   const save = () => {
     if (!draft.name.trim() || !draft.endpoint.trim()) { setNotice("Name and retrieval endpoint are required."); return; }
-    if (editingId) {
-      setItems((current) => current.map((item) => item.id === editingId ? { ...item, ...draft, status: "UNCHECKED" } : item));
-      setSelectedId(editingId);
-      setNotice("Knowledge endpoint updated in this preview.");
-    } else {
-      const id = `kb-preview-${Date.now()}`;
-      setItems((current) => [...current, { ...draft, id, status: "UNCHECKED" }]);
-      setSelectedId(id);
-      setNotice("Knowledge endpoint added in this preview.");
-    }
-    setEditing(false);
+    void saveSource.mutate({
+      ...(editingId ? { id: editingId } : {}),
+      input: { ...draft, status: "UNCHECKED" },
+    });
   };
   const test = () => {
     if (!selected || !testQuery.trim()) { setNotice("Enter a test query first."); return; }
-    setItems((current) => current.map((item) => item.id === selected.id ? { ...item, status: "READY" } : item));
-    setNotice(`Retrieval preview returned ${selected.topK} simulated passages for “${testQuery.trim()}”.`);
+    checkSource.mutate(selected);
   };
   const remove = () => {
     if (!selected) return;
-    const remaining = items.filter((item) => item.id !== selected.id);
-    setItems(remaining);
-    setSelectedId(remaining[0]?.id ?? "");
-    setNotice("Knowledge endpoint removed from this preview.");
+    deleteSource.mutate(selected.id);
   };
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Knowledge Base" badge={<PreviewBadge />} description="Describe retrieval endpoints that an Agent can query for grounded context. TaskLattice stores connection metadata, not the indexed corpus." actions={<Button className="h-11" onClick={() => openForm()}><Plus /> Add Endpoint</Button>} />
-      <div className="border-l-2 border-primary bg-primary/5 px-4 py-3 text-sm"><strong>Interaction preview.</strong> Endpoint checks and retrieval results are simulated; no agent or knowledge service is contacted.</div>
+      <PageHeader title="Knowledge Base" description="Manage retrieval connection metadata stored in SQLite; indexed corpora remain in their source systems." actions={<Button className="h-11" onClick={() => openForm()}><Plus /> Add Endpoint</Button>} />
+      {catalog.isPending ? <p className="border p-4 text-sm text-muted-foreground">Loading Knowledge sources from SQLite…</p> : null}
+      {catalog.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">{catalog.error.message}</p> : null}
+      {saveSource.error || checkSource.error || deleteSource.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">{(saveSource.error ?? checkSource.error ?? deleteSource.error)?.message}</p> : null}
       {notice ? <p role="status" className="border-l-2 border-primary bg-muted/40 px-4 py-3 text-sm">{notice}</p> : null}
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
         <Card>
@@ -91,10 +119,10 @@ function KnowledgeBase() {
               <CardContent className="space-y-4">
                 <div className="space-y-2"><Label htmlFor="kb-name">Name</Label><Input id="kb-name" className="h-11" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="Engineering Handbook" /></div>
                 <div className="space-y-2"><Label htmlFor="kb-endpoint">Retrieval endpoint</Label><Input id="kb-endpoint" className="h-11" value={draft.endpoint} onChange={(event) => setDraft({ ...draft, endpoint: event.target.value })} placeholder="https://knowledge.example.com/search" /></div>
-                <div className="grid grid-cols-2 gap-3"><div className="space-y-2"><Label htmlFor="kb-mode">Mode</Label><select id="kb-mode" className="flex h-11 w-full border border-input bg-background px-3 text-sm" value={draft.mode} onChange={(event) => setDraft({ ...draft, mode: event.target.value as KnowledgeSourcePreview["mode"] })}><option>Hybrid</option><option>Vector</option><option>Keyword</option></select></div><div className="space-y-2"><Label htmlFor="kb-topk">Top K</Label><Input id="kb-topk" className="h-11" type="number" min={1} max={50} value={draft.topK} onChange={(event) => setDraft({ ...draft, topK: Number(event.target.value) })} /></div></div>
+                <div className="grid grid-cols-2 gap-3"><div className="space-y-2"><Label htmlFor="kb-mode">Mode</Label><select id="kb-mode" className="flex h-11 w-full border border-input bg-background px-3 text-sm" value={draft.mode} onChange={(event) => setDraft({ ...draft, mode: event.target.value as KnowledgeSourceDefinition["mode"] })}><option>Hybrid</option><option>Vector</option><option>Keyword</option></select></div><div className="space-y-2"><Label htmlFor="kb-topk">Top K</Label><Input id="kb-topk" className="h-11" type="number" min={1} max={50} value={draft.topK} onChange={(event) => setDraft({ ...draft, topK: Number(event.target.value) })} /></div></div>
                 <div className="space-y-2"><Label htmlFor="kb-auth">Credential reference</Label><Input id="kb-auth" className="h-11" value={draft.authReference} onChange={(event) => setDraft({ ...draft, authReference: event.target.value })} placeholder="vault://team/credential" /></div>
                 <div className="space-y-2"><Label htmlFor="kb-description">Description</Label><Textarea id="kb-description" value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></div>
-                <div className="flex gap-2"><Button className="flex-1" onClick={save}>{editingId ? "Save changes" : "Add Endpoint"}</Button><Button variant="outline" onClick={() => setEditing(false)}>Cancel</Button></div>
+                <div className="flex gap-2"><Button className="flex-1" disabled={saveSource.isPending} onClick={save}>{saveSource.isPending ? "Saving…" : editingId ? "Save changes" : "Add Endpoint"}</Button><Button variant="outline" onClick={() => setEditing(false)}>Cancel</Button></div>
               </CardContent>
             </>
           ) : selected ? (
@@ -103,7 +131,7 @@ function KnowledgeBase() {
               <CardContent className="space-y-4">
                 <dl className="text-xs">{[["Endpoint", selected.endpoint], ["Retrieval mode", selected.mode], ["Credential", selected.authReference || "None"]].map(([label, value]) => <div key={label} className="border-b py-3"><dt className="text-muted-foreground">{label}</dt><dd className="mt-1 break-all font-medium">{value}</dd></div>)}</dl>
                 <div className="space-y-2"><Label htmlFor="kb-test">Test retrieval</Label><div className="flex gap-2"><Input id="kb-test" value={testQuery} onChange={(event) => setTestQuery(event.target.value)} /><Button aria-label="Run test retrieval" onClick={test}><Search /></Button></div><p className="text-xs leading-5 text-muted-foreground">Runs a simulated request using this endpoint, mode, and Top K.</p></div>
-                <div className="grid gap-2"><Button onClick={test}><FlaskConical /> Check & preview query</Button><Button variant="outline" onClick={() => openForm(selected)}><Pencil /> Update endpoint</Button><Button variant="destructive" onClick={remove}><Trash2 /> Remove Endpoint</Button></div>
+                <div className="grid gap-2"><Button disabled={checkSource.isPending} onClick={test}><FlaskConical />{checkSource.isPending ? "Checking…" : "Check & preview query"}</Button><Button variant="outline" onClick={() => openForm(selected)}><Pencil /> Update endpoint</Button><Button variant="destructive" disabled={deleteSource.isPending} onClick={remove}><Trash2 />{deleteSource.isPending ? "Removing…" : "Remove Endpoint"}</Button></div>
               </CardContent>
             </>
           ) : <CardContent className="py-16 text-center"><strong>No endpoint selected</strong></CardContent>}

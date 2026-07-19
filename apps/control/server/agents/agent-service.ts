@@ -6,6 +6,7 @@ import type {
   SandboxAuditEvent,
 } from "@tasklattice/contracts";
 import { AgentStore } from "../data/agent-store";
+import { ExtensionCatalogService } from "../extensions/extension-catalog-service";
 import { NemoClawRunnerClient, type RunnerClient } from "../runtime/nemoclaw-runner-client";
 import { LiteLLMClient, type LiteLLMAdminClient } from "../providers/litellm-client";
 import { PolicyService } from "../policies/policy-service";
@@ -65,6 +66,7 @@ export class AgentService {
     readonly runner: RunnerClient = new NemoClawRunnerClient(),
     readonly litellm: LiteLLMAdminClient = new LiteLLMClient(),
     readonly policies = new PolicyService(store),
+    readonly extensions = new ExtensionCatalogService(store),
   ) {}
 
   async list(): Promise<Agent[]> {
@@ -84,6 +86,18 @@ export class AgentService {
   }
 
   async create(input: CreateAgentInput): Promise<Agent> {
+    const catalog = this.extensions.catalog();
+    if (input.specializationId && !catalog.specializations.some((item) => item.id === input.specializationId))
+      throw new Error("Select an available Agent Role before creating an Instance.");
+    const references: Array<[string, readonly string[] | undefined, Set<string>]> = [
+      ["Skill", input.skillIds, new Set(catalog.skills.map((item) => item.id))],
+      ["MCP server", input.mcpServerIds, new Set(catalog.mcpServers.map((item) => item.id))],
+      ["Knowledge source", input.knowledgeSourceIds, new Set(catalog.knowledgeSources.map((item) => item.id))],
+    ];
+    for (const [label, ids, available] of references) {
+      const missing = (ids ?? []).filter((id) => !available.has(id));
+      if (missing.length) throw new Error(`${label} configuration is unavailable: ${missing.join(", ")}.`);
+    }
     const deployment = this.store.getModelDeployment(input.modelDeploymentId);
     if (!deployment || deployment.status !== "VALIDATED" || deployment.modelType !== "llm")
       throw new Error(

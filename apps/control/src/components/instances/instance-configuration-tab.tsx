@@ -1,16 +1,18 @@
 import { useState } from "react";
 import type { Agent } from "@tasklattice/contracts";
+import { useQuery } from "@tanstack/react-query";
 import { Eye } from "lucide-react";
-import { specializations } from "@/components/agents/specializations";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { AgentPlatformPresentation } from "@/lib/agent-platforms";
+import { api } from "@/lib/api";
 import { DefinitionList, DetailCardHeader } from "./instance-detail-shared";
 import { InstanceInstructionsDialog } from "./instance-instructions-dialog";
 
 export function InstanceConfigurationTab({ agent, platform }: { agent: Agent; platform: AgentPlatformPresentation }) {
   const [instructionsOpen, setInstructionsOpen] = useState(false);
-  const role = specializations.find((item) => item.id === agent.specializationId);
+  const catalog = useQuery({ queryKey: ["extension-catalog"], queryFn: api.getExtensionCatalog });
+  const role = catalog.data?.specializations.find((item) => item.id === agent.specializationId);
   const managedBy = role?.name ?? (agent.specializationId ? agent.specializationId : "Custom");
   return (
     <div role="tabpanel" aria-label="Configuration" className="grid gap-4 pt-5 lg:grid-cols-2">

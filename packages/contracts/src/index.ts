@@ -420,6 +420,82 @@ export const updateSandboxPolicySchema = sandboxPolicyInputSchema;
 
 export const providerResourceStatuses = ["VALIDATED", "DEGRADED", "FAILED"] as const;
 
+export const skillCategories = [
+  "Customer Support",
+  "Data",
+  "Developer Tools",
+  "HR",
+  "Knowledge",
+  "Operations",
+  "Research",
+] as const;
+
+export const skillDefinitionSchema = z.object({
+  id: z.string().trim().min(1).max(160),
+  name: z.string().trim().min(3).max(120),
+  description: z.string().trim().min(10).max(500),
+  category: z.enum(skillCategories),
+  version: z.string().trim().min(1).max(40),
+  endpoint: z.string().trim().url(),
+  digest: z.string().trim().min(1).max(200),
+  owner: z.string().trim().min(1).max(120),
+  permissions: z.number().int().min(0).max(1_000),
+  bindings: z.number().int().min(0),
+  status: z.enum(["PUBLISHED", "DRAFT"]),
+});
+
+export const createSkillDefinitionSchema = skillDefinitionSchema.omit({
+  id: true,
+  bindings: true,
+});
+export const updateSkillDefinitionSchema = createSkillDefinitionSchema;
+
+export const mcpServerDefinitionSchema = z.object({
+  id: z.string().trim().min(1).max(160),
+  name: z.string().trim().min(3).max(120),
+  endpoint: z.string().trim().url(),
+  transport: z.enum(["Streamable HTTP", "SSE"]),
+  authReference: z.string().trim().max(500),
+  parameters: z.string().trim().min(2).max(64_000),
+  status: z.enum(["HEALTHY", "PERMISSION_REQUIRED", "UNCHECKED", "UNAVAILABLE"]),
+  tools: z.number().int().min(0).max(100_000),
+});
+
+export const createMcpServerDefinitionSchema = mcpServerDefinitionSchema.omit({ id: true });
+export const updateMcpServerDefinitionSchema = createMcpServerDefinitionSchema;
+
+export const knowledgeSourceDefinitionSchema = z.object({
+  id: z.string().trim().min(1).max(160),
+  name: z.string().trim().min(3).max(120),
+  description: z.string().trim().min(10).max(500),
+  endpoint: z.string().trim().url(),
+  mode: z.enum(["Hybrid", "Vector", "Keyword"]),
+  authReference: z.string().trim().max(500),
+  status: z.enum(["READY", "UNCHECKED"]),
+  topK: z.number().int().min(1).max(50),
+});
+
+export const createKnowledgeSourceDefinitionSchema = knowledgeSourceDefinitionSchema.omit({ id: true });
+export const updateKnowledgeSourceDefinitionSchema = createKnowledgeSourceDefinitionSchema;
+
+export const agentSpecializationDefinitionSchema = z.object({
+  id: z.string().trim().min(1).max(64),
+  name: z.string().trim().min(2).max(120),
+  roleLabel: z.string().trim().min(2).max(120),
+  description: z.string().trim().min(10).max(500),
+  icon: z.enum(["briefcase", "headphones", "settings", "sparkles", "telescope", "users"]),
+  systemPrompt: z.string().max(8_000),
+  defaultSkillIds: z.array(z.string().trim().min(1).max(160)).max(64),
+  defaultMcpServerIds: z.array(z.string().trim().min(1).max(160)).max(64),
+  defaultKnowledgeSourceIds: z.array(z.string().trim().min(1).max(160)).max(64),
+});
+
+export const extensionResourceKindSchema = z.enum([
+  "skills",
+  "mcp-servers",
+  "knowledge-sources",
+]);
+
 export const createProviderAccountSchema = z.object({
   name: z.string().trim().min(3).max(48),
   presetId: z.enum(providerPresetIds),
@@ -471,6 +547,17 @@ export type SandboxPolicyInput = z.infer<typeof sandboxPolicyInputSchema>;
 export type CreateSandboxPolicyInput = z.infer<typeof createSandboxPolicySchema>;
 export type UpdateSandboxPolicyInput = z.infer<typeof updateSandboxPolicySchema>;
 export type ProviderResourceStatus = (typeof providerResourceStatuses)[number];
+export type SkillDefinition = z.infer<typeof skillDefinitionSchema>;
+export type CreateSkillDefinitionInput = z.infer<typeof createSkillDefinitionSchema>;
+export type UpdateSkillDefinitionInput = z.infer<typeof updateSkillDefinitionSchema>;
+export type McpServerDefinition = z.infer<typeof mcpServerDefinitionSchema>;
+export type CreateMcpServerDefinitionInput = z.infer<typeof createMcpServerDefinitionSchema>;
+export type UpdateMcpServerDefinitionInput = z.infer<typeof updateMcpServerDefinitionSchema>;
+export type KnowledgeSourceDefinition = z.infer<typeof knowledgeSourceDefinitionSchema>;
+export type CreateKnowledgeSourceDefinitionInput = z.infer<typeof createKnowledgeSourceDefinitionSchema>;
+export type UpdateKnowledgeSourceDefinitionInput = z.infer<typeof updateKnowledgeSourceDefinitionSchema>;
+export type AgentSpecializationDefinition = z.infer<typeof agentSpecializationDefinitionSchema>;
+export type ExtensionResourceKind = z.infer<typeof extensionResourceKindSchema>;
 export type CreateProviderAccountInput = z.infer<typeof createProviderAccountSchema>;
 export type ProviderConnectionDraft = z.infer<typeof providerConnectionDraftSchema>;
 export type DiscoverProviderModelsInput = z.infer<typeof discoverProviderModelsSchema>;
@@ -478,6 +565,13 @@ export type ProviderModelSelection = z.infer<typeof providerModelSelectionSchema
 export type CreateProviderConnectionInput = z.infer<typeof createProviderConnectionSchema>;
 export type CreateModelDeploymentInput = z.infer<typeof createModelDeploymentSchema>;
 export type CreateAgentInput = z.infer<typeof createAgentSchema>;
+
+export interface ExtensionCatalog {
+  skills: SkillDefinition[];
+  mcpServers: McpServerDefinition[];
+  knowledgeSources: KnowledgeSourceDefinition[];
+  specializations: AgentSpecializationDefinition[];
+}
 
 export interface SandboxPolicy extends SandboxPolicyInput {
   id: SandboxPolicyId;

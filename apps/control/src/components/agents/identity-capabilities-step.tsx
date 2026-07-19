@@ -1,8 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
+import type { KnowledgeSourceDefinition, McpServerDefinition, SkillDefinition } from "@tasklattice/contracts";
 import { BookOpenText, Boxes, ChevronDown, Eye, Info, Network, Plus, ServerCog, X } from "lucide-react";
-import type { McpServerPreview, SkillPreview } from "@/lib/preview-data";
-import { knowledgeSourcePreviews, mcpServerPreviews, skillPreviews } from "@/lib/preview-data";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,10 +15,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { SpecializationIcon } from "./specialization-selector";
 import type { Specialization, SpecializationId } from "./specializations";
-import { specializations } from "./specializations";
 import { SystemPromptViewer } from "./system-prompt-viewer";
 
-function skillOption(skill: SkillPreview): MultiSelectOption {
+function skillOption(skill: SkillDefinition): MultiSelectOption {
   return {
     value: skill.id,
     label: skill.name,
@@ -28,48 +26,24 @@ function skillOption(skill: SkillPreview): MultiSelectOption {
   };
 }
 
-function mcpStatus(server: McpServerPreview): string {
+function mcpStatus(server: McpServerDefinition): string {
   if (server.status === "HEALTHY") return "Connected";
   if (server.status === "PERMISSION_REQUIRED") return "Permission required";
   if (server.status === "UNAVAILABLE") return "Unavailable";
   return "Not connected";
 }
 
-function mcpStatusTone(server: McpServerPreview): "danger" | "neutral" | "success" | "warning" {
+function mcpStatusTone(server: McpServerDefinition): "danger" | "neutral" | "success" | "warning" {
   if (server.status === "HEALTHY") return "success";
   if (server.status === "PERMISSION_REQUIRED") return "warning";
   if (server.status === "UNAVAILABLE") return "danger";
   return "neutral";
 }
 
-const skillOptions = skillPreviews.filter((skill) => skill.status === "PUBLISHED").map(skillOption);
-const mcpOptions: MultiSelectOption[] = mcpServerPreviews.map((server) => ({
-  value: server.id,
-  label: server.name,
-  description: `${server.transport} · ${server.tools} tools`,
-  meta: mcpStatus(server),
-  metaTone: mcpStatusTone(server),
-  disabled: server.status === "UNAVAILABLE",
-}));
-const knowledgeOptions: MultiSelectOption[] = knowledgeSourcePreviews.map((source) => ({
-  value: source.id,
-  label: source.name,
-  description: source.description,
-  meta: source.status === "READY" ? "Ready" : "Not checked",
-  metaTone: source.status === "READY" ? "success" : "neutral",
-}));
-
-const roleLabels: Record<SpecializationId, string> = {
-  "general-purpose": "General Assistant",
-  hr: "HR Specialist",
-  "research-analyst": "Research Analyst",
-  "devops-engineer": "DevOps Engineer",
-  "customer-support": "Customer Support Specialist",
-  custom: "Custom Agent",
-};
-
-export function IdentityCapabilitiesStep({ customSystemPrompt, name, onCustomSystemPromptChange, onKnowledgeSourceIdsChange, onMcpServerIdsChange, onNameChange, onSkillIdsChange, onSpecializationChange, selectedKnowledgeSourceIds, selectedMcpServerIds, selectedSkillIds, specialization }: {
+export function IdentityCapabilitiesStep({ customSystemPrompt, knowledgeSources, mcpServers, name, onCustomSystemPromptChange, onKnowledgeSourceIdsChange, onMcpServerIdsChange, onNameChange, onSkillIdsChange, onSpecializationChange, selectedKnowledgeSourceIds, selectedMcpServerIds, selectedSkillIds, skills, specialization, specializations }: {
   customSystemPrompt: string;
+  knowledgeSources: readonly KnowledgeSourceDefinition[];
+  mcpServers: readonly McpServerDefinition[];
   name: string;
   onCustomSystemPromptChange: (value: string) => void;
   onKnowledgeSourceIdsChange: (ids: string[]) => void;
@@ -80,15 +54,33 @@ export function IdentityCapabilitiesStep({ customSystemPrompt, name, onCustomSys
   selectedKnowledgeSourceIds: readonly string[];
   selectedMcpServerIds: readonly string[];
   selectedSkillIds: readonly string[];
+  skills: readonly SkillDefinition[];
   specialization: Specialization;
+  specializations: readonly Specialization[];
 }) {
   const [promptOpen, setPromptOpen] = useState(false);
   const [skillsOpen, setSkillsOpen] = useState(false);
   const [mcpOpen, setMcpOpen] = useState(false);
   const [knowledgeOpen, setKnowledgeOpen] = useState(false);
+  const skillOptions = skills.filter((skill) => skill.status === "PUBLISHED").map(skillOption);
+  const mcpOptions: MultiSelectOption[] = mcpServers.map((server) => ({
+    value: server.id,
+    label: server.name,
+    description: `${server.transport} · ${server.tools} tools`,
+    meta: mcpStatus(server),
+    metaTone: mcpStatusTone(server),
+    disabled: server.status === "UNAVAILABLE",
+  }));
+  const knowledgeOptions: MultiSelectOption[] = knowledgeSources.map((source) => ({
+    value: source.id,
+    label: source.name,
+    description: source.description,
+    meta: source.status === "READY" ? "Ready" : "Not checked",
+    metaTone: source.status === "READY" ? "success" : "neutral",
+  }));
   const incompleteMcpServers = selectedMcpServerIds
-    .map((id) => mcpServerPreviews.find((item) => item.id === id))
-    .filter((item): item is McpServerPreview => Boolean(item && item.status !== "HEALTHY"));
+    .map((id) => mcpServers.find((item) => item.id === id))
+    .filter((item): item is McpServerDefinition => Boolean(item && item.status !== "HEALTHY"));
 
   return (
     <div className="space-y-5">
@@ -110,7 +102,7 @@ export function IdentityCapabilitiesStep({ customSystemPrompt, name, onCustomSys
                 <SelectContent>
                   {specializations.map((item) => (
                     <SelectItem key={item.id} value={item.id} className="py-2.5">
-                      <span className="flex items-center gap-2"><SpecializationIcon specialization={item} /><span>{roleLabels[item.id]}</span></span>
+                      <span className="flex items-center gap-2"><SpecializationIcon specialization={item} /><span>{item.roleLabel}</span></span>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -138,10 +130,10 @@ export function IdentityCapabilitiesStep({ customSystemPrompt, name, onCustomSys
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
               <CardTitle>Capabilities</CardTitle>
-              <p className="text-xs text-muted-foreground">{specialization.id === "general-purpose" || specialization.id === "custom" ? "Add the tools and knowledge this Agent can use." : `Preselected by the ${roleLabels[specialization.id]} role. You can add or remove any item.`}</p>
+              <p className="text-xs text-muted-foreground">{specialization.id === "general-purpose" || specialization.id === "custom" ? "Add the tools and knowledge this Agent can use." : `Preselected by the ${specialization.roleLabel} role. You can add or remove any item.`}</p>
             </div>
             <DropdownMenu>
-              <DropdownMenuTrigger asChild><Button type="button" variant="outline" size="sm"><Plus /> Add capability <ChevronDown /></Button></DropdownMenuTrigger>
+              <DropdownMenuTrigger asChild><Button type="button" variant="outline" size="sm"><Plus /> Edit Capability <ChevronDown /></Button></DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onSelect={() => setSkillsOpen(true)}><Boxes /> Skills</DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => setMcpOpen(true)}><ServerCog /> MCP Servers</DropdownMenuItem>
@@ -185,7 +177,7 @@ export function IdentityCapabilitiesStep({ customSystemPrompt, name, onCustomSys
         </CardContent>
       </Card>
 
-      {specialization.id !== "custom" ? <SystemPromptViewer open={promptOpen} onOpenChange={setPromptOpen} specializationName={roleLabels[specialization.id]} prompt={specialization.systemPrompt} /> : null}
+      {specialization.id !== "custom" ? <SystemPromptViewer open={promptOpen} onOpenChange={setPromptOpen} specializationName={specialization.roleLabel} prompt={specialization.systemPrompt} /> : null}
     </div>
   );
 }

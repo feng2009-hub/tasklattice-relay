@@ -168,7 +168,7 @@ function Instances() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Instances" description="View and manage your Agent instances. Start new instances and monitor their status." actions={<Button asChild className="h-11"><Link to="/agents/new"><Plus />Create Instance</Link></Button>} />
+      <PageHeader title="Instances" description="View and manage your Agent instances. Start new instances and monitor their status." actions={<Button asChild className="h-11"><Link to="/agents/instace/new"><Plus />Create Instance</Link></Button>} />
 
       {search.created ? <CreationNotice onClose={() => void navigate({ to: "/instances", search: {}, replace: true })} /> : null}
 

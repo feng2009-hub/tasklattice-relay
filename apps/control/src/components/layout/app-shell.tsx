@@ -62,7 +62,7 @@ type WorkspaceRoute =
   | "/agent/sandboxes/policy"
   | "/knowledge"
   | "/mcp"
-  | "/skills"
+  | "/Extensions/skill"
   | "/tickets";
 
 type RuntimeState = {
@@ -132,7 +132,7 @@ const navGroups: Array<{ items: NavItemDefinition[]; label: string }> = [
   {
     label: "Extensions",
     items: [
-      { icon: Sparkles, label: "Skills", to: "/skills" },
+      { icon: Sparkles, label: "Skills", to: "/Extensions/skill" },
       { icon: ServerCog, label: "MCP Servers", to: "/mcp" },
       { icon: Network, label: "Knowledge Base", to: "/knowledge" },
     ],
@@ -147,11 +147,13 @@ const navGroups: Array<{ items: NavItemDefinition[]; label: string }> = [
 ];
 
 const routeLabels: Record<string, string> = {
+  Extensions: "Extensions",
   agent: "Agent",
   agents: "Instances",
   cost: "Cost",
   dashboard: "Overview",
   instances: "Instances",
+  instace: "Instances",
   knowledge: "Knowledge Base",
   mcp: "MCP Servers",
   new: "Create Instance",
@@ -160,6 +162,7 @@ const routeLabels: Record<string, string> = {
   requests: "Requests",
   runtime: "Runtime",
   sandboxes: "Sandboxes",
+  skill: "Skills",
   skills: "Skills",
   tickets: "Ticket List",
 };
@@ -334,6 +337,7 @@ function WorkspaceSidebar({ logout, pathname, runtimeStates, user }: {
 function Breadcrumbs({ pathname }: { pathname: string }) {
   const parts = pathname.split("/").filter(Boolean);
   const labels = parts.map((part, index) => {
+    if (index === 1 && parts[0] === "agents" && part === "instace") return "";
     if (index === 1 && parts[0] === "agents" && part !== "new") return "Agent detail";
     if (index === 1 && parts[0] === "requests" && part === "new") return "Raise Request";
     return routeLabels[part] ?? part;
@@ -341,7 +345,7 @@ function Breadcrumbs({ pathname }: { pathname: string }) {
   return (
     <nav aria-label="Breadcrumb" className="hidden items-center gap-2 text-xs text-muted-foreground sm:flex">
       <Link to="/dashboard" className="hover:text-foreground">Workspace</Link>
-      {labels.filter((label) => label !== "Overview").map((label) => (
+      {labels.filter((label) => label && label !== "Overview").map((label) => (
         <span key={label} className="flex items-center gap-2"><span aria-hidden="true">/</span><span className="font-medium text-foreground">{label}</span></span>
       ))}
     </nav>

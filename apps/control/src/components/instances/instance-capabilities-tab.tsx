@@ -1,8 +1,9 @@
 import type { Agent } from "@tasklattice/contracts";
+import { useQuery } from "@tanstack/react-query";
 import { BookOpen, Network, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { knowledgeSourcePreviews, mcpServerPreviews, skillPreviews } from "@/lib/preview-data";
+import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { DetailCardHeader } from "./instance-detail-shared";
 
@@ -11,9 +12,10 @@ function EmptyCapability({ label }: { label: string }) {
 }
 
 export function InstanceCapabilitiesTab({ agent }: { agent: Agent }) {
-  const skills = (agent.skillIds ?? []).map((id) => skillPreviews.find((item) => item.id === id) ?? { id, name: id, description: "Catalog details unavailable.", version: undefined });
-  const mcpServers = (agent.mcpServerIds ?? []).map((id) => mcpServerPreviews.find((item) => item.id === id) ?? { id, name: id, status: "UNCHECKED" as const, tools: undefined, transport: undefined });
-  const knowledgeBases = (agent.knowledgeSourceIds ?? []).map((id) => knowledgeSourcePreviews.find((item) => item.id === id) ?? { id, name: id, description: "Catalog details unavailable.", mode: undefined });
+  const catalog = useQuery({ queryKey: ["extension-catalog"], queryFn: api.getExtensionCatalog });
+  const skills = (agent.skillIds ?? []).map((id) => catalog.data?.skills.find((item) => item.id === id) ?? { id, name: id, description: "Catalog details unavailable.", version: undefined });
+  const mcpServers = (agent.mcpServerIds ?? []).map((id) => catalog.data?.mcpServers.find((item) => item.id === id) ?? { id, name: id, status: "UNCHECKED" as const, tools: undefined, transport: undefined });
+  const knowledgeBases = (agent.knowledgeSourceIds ?? []).map((id) => catalog.data?.knowledgeSources.find((item) => item.id === id) ?? { id, name: id, description: "Catalog details unavailable.", mode: undefined });
   return (
     <div role="tabpanel" aria-label="Capabilities" className="grid gap-4 pt-5 xl:grid-cols-3">
       <Card id="skills" className="scroll-mt-24">

@@ -348,6 +348,13 @@ Terminal 2:
 DATABASE_PATH=/tmp/tasklattice.db PORT=18080 npm run dev:control
 ```
 
+On first startup, the control service creates SQLite tables for Skills, MCP
+servers, Knowledge sources, and Agent Role mappings. With
+`TALI_EXTENSION_CATALOG_SEED=development` (the development and local Kubernetes
+default), missing catalog records are inserted without overwriting records that
+operators have already changed. Set the value to `none` to disable bootstrap
+seeding for a deployment-managed catalog.
+
 The fixture path still requires a validated Provider Account in that control
 database before `npm run validate:core` can create an Instance. It verifies the
 control contract and deliberately does not claim that an Agent TUI ran.

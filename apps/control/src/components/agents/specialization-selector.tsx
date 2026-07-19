@@ -2,7 +2,6 @@ import { BriefcaseBusiness, Eye, Headphones, Settings2, Sparkles, Telescope, Use
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Specialization, SpecializationId } from "./specializations";
-import { specializations } from "./specializations";
 
 const icons: Record<Specialization["icon"], LucideIcon> = {
   briefcase: BriefcaseBusiness,
@@ -18,7 +17,7 @@ export function SpecializationIcon({ specialization, className = "size-4" }: { s
   return <Icon className={className} />;
 }
 
-export function SpecializationSelector({ onChange, value }: { onChange: (id: SpecializationId) => void; value: Specialization }) {
+export function SpecializationSelector({ items, onChange, value }: { items: readonly Specialization[]; onChange: (id: SpecializationId) => void; value: Specialization }) {
   return (
     <div className="space-y-2">
       <label htmlFor="specialization-select" className="text-sm font-medium">Choose a specialization</label>
@@ -27,7 +26,7 @@ export function SpecializationSelector({ onChange, value }: { onChange: (id: Spe
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {specializations.map((item) => (
+          {items.map((item) => (
             <SelectItem key={item.id} value={item.id} className="py-2.5">
               <span className="flex items-center gap-2"><SpecializationIcon specialization={item} /><span>{item.name}</span></span>
             </SelectItem>

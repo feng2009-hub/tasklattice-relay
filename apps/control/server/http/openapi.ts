@@ -23,6 +23,20 @@ const policyId = {
   schema: { type: "string", pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
 } as const;
 
+const extensionKind = {
+  name: "kind",
+  in: "path",
+  required: true,
+  schema: { type: "string", enum: ["skills", "mcp-servers", "knowledge-sources"] },
+} as const;
+
+const extensionId = {
+  name: "extensionId",
+  in: "path",
+  required: true,
+  schema: { type: "string" },
+} as const;
+
 export const openApiDocument = {
   openapi: "3.1.0",
   info: {
@@ -81,6 +95,51 @@ export const openApiDocument = {
         summary: "Start OIDC Authorization Code with PKCE",
         responses: {
           "302": { description: "Redirect to the configured OIDC provider" },
+          "404": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
+    "/extensions": {
+      get: {
+        operationId: "getExtensionCatalog",
+        summary: "Read the SQLite-backed extension and Agent Role catalog",
+        responses: {
+          "200": { description: "Extension catalog", ...json({ $ref: "#/components/schemas/ExtensionCatalog" }) },
+        },
+      },
+    },
+    "/extensions/{kind}": {
+      parameters: [extensionKind],
+      post: {
+        operationId: "createExtension",
+        summary: "Create a Skill, MCP server, or Knowledge source",
+        requestBody: { required: true, ...json({ oneOf: [
+          { $ref: "#/components/schemas/SkillDefinitionInput" },
+          { $ref: "#/components/schemas/McpServerDefinitionInput" },
+          { $ref: "#/components/schemas/KnowledgeSourceDefinitionInput" },
+        ] }) },
+        responses: {
+          "201": { description: "Created extension", ...json({ type: "object" }) },
+          "400": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
+    "/extensions/{kind}/{extensionId}": {
+      parameters: [extensionKind, extensionId],
+      put: {
+        operationId: "updateExtension",
+        summary: "Update a persisted extension definition",
+        requestBody: { required: true, ...json({ type: "object" }) },
+        responses: {
+          "200": { description: "Updated extension", ...json({ type: "object" }) },
+          "400": { $ref: "#/components/responses/Error" },
+        },
+      },
+      delete: {
+        operationId: "deleteExtension",
+        summary: "Delete an extension that is not assigned to a Role or Instance",
+        responses: {
+          "200": { description: "Extension deleted", ...json({ type: "object", required: ["message"], properties: { message: { type: "string" } } }) },
           "404": { $ref: "#/components/responses/Error" },
         },
       },
@@ -331,6 +390,74 @@ export const openApiDocument = {
         properties: {
           identity: { type: "object", required: ["type", "username"], properties: { type: { type: "string", const: "authenticated" }, username: { type: "string" } } },
           user: { $ref: "#/components/schemas/AuthUser" },
+        },
+      },
+      SkillDefinitionInput: {
+        type: "object",
+        additionalProperties: false,
+        required: ["name", "description", "category", "version", "endpoint", "digest", "owner", "permissions", "status"],
+        properties: {
+          name: { type: "string" }, description: { type: "string" },
+          category: { type: "string", enum: ["Customer Support", "Data", "Developer Tools", "HR", "Knowledge", "Operations", "Research"] },
+          version: { type: "string" }, endpoint: { type: "string", format: "uri" }, digest: { type: "string" }, owner: { type: "string" },
+          permissions: { type: "integer", minimum: 0 }, status: { type: "string", enum: ["PUBLISHED", "DRAFT"] },
+        },
+      },
+      SkillDefinition: {
+        allOf: [
+          { $ref: "#/components/schemas/SkillDefinitionInput" },
+          { type: "object", required: ["id", "bindings"], properties: { id: { type: "string" }, bindings: { type: "integer", minimum: 0 } } },
+        ],
+      },
+      McpServerDefinitionInput: {
+        type: "object",
+        additionalProperties: false,
+        required: ["name", "endpoint", "transport", "authReference", "parameters", "status", "tools"],
+        properties: {
+          name: { type: "string" }, endpoint: { type: "string", format: "uri" }, transport: { type: "string", enum: ["Streamable HTTP", "SSE"] },
+          authReference: { type: "string" }, parameters: { type: "string", description: "Serialized JSON object." },
+          status: { type: "string", enum: ["HEALTHY", "PERMISSION_REQUIRED", "UNCHECKED", "UNAVAILABLE"] }, tools: { type: "integer", minimum: 0 },
+        },
+      },
+      McpServerDefinition: {
+        allOf: [
+          { $ref: "#/components/schemas/McpServerDefinitionInput" },
+          { type: "object", required: ["id"], properties: { id: { type: "string" } } },
+        ],
+      },
+      KnowledgeSourceDefinitionInput: {
+        type: "object",
+        additionalProperties: false,
+        required: ["name", "description", "endpoint", "mode", "authReference", "status", "topK"],
+        properties: {
+          name: { type: "string" }, description: { type: "string" }, endpoint: { type: "string", format: "uri" },
+          mode: { type: "string", enum: ["Hybrid", "Vector", "Keyword"] }, authReference: { type: "string" },
+          status: { type: "string", enum: ["READY", "UNCHECKED"] }, topK: { type: "integer", minimum: 1, maximum: 50 },
+        },
+      },
+      KnowledgeSourceDefinition: {
+        allOf: [
+          { $ref: "#/components/schemas/KnowledgeSourceDefinitionInput" },
+          { type: "object", required: ["id"], properties: { id: { type: "string" } } },
+        ],
+      },
+      AgentSpecializationDefinition: {
+        type: "object",
+        required: ["id", "name", "roleLabel", "description", "icon", "systemPrompt", "defaultSkillIds", "defaultMcpServerIds", "defaultKnowledgeSourceIds"],
+        properties: {
+          id: { type: "string" }, name: { type: "string" }, roleLabel: { type: "string" }, description: { type: "string" },
+          icon: { type: "string", enum: ["briefcase", "headphones", "settings", "sparkles", "telescope", "users"] }, systemPrompt: { type: "string" },
+          defaultSkillIds: { type: "array", items: { type: "string" } }, defaultMcpServerIds: { type: "array", items: { type: "string" } }, defaultKnowledgeSourceIds: { type: "array", items: { type: "string" } },
+        },
+      },
+      ExtensionCatalog: {
+        type: "object",
+        required: ["skills", "mcpServers", "knowledgeSources", "specializations"],
+        properties: {
+          skills: { type: "array", items: { $ref: "#/components/schemas/SkillDefinition" } },
+          mcpServers: { type: "array", items: { $ref: "#/components/schemas/McpServerDefinition" } },
+          knowledgeSources: { type: "array", items: { $ref: "#/components/schemas/KnowledgeSourceDefinition" } },
+          specializations: { type: "array", items: { $ref: "#/components/schemas/AgentSpecializationDefinition" } },
         },
       },
       CreateAgentInput: {

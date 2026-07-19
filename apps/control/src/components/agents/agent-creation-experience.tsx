@@ -118,7 +118,7 @@ function FailedState({ agent }: { agent: Agent }) {
       <h1 className="mt-7 text-3xl font-semibold tracking-tight">We couldn’t create this Agent</h1>
       <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">{agent.error ?? "Provisioning stopped before the runtime became available."}</p>
       <div className="mt-7 flex flex-wrap justify-center gap-3">
-        <Button asChild><Link to="/agents/new"><RotateCw /> Try again</Link></Button>
+        <Button asChild><Link to="/agents/instace/new"><RotateCw /> Try again</Link></Button>
         <Button asChild variant="outline"><Link to="/agents/$agentId" params={{ agentId: agent.id }}>Open Agent details</Link></Button>
       </div>
       <CreationDetails logs={agent.logs} state="failed" defaultOpen />

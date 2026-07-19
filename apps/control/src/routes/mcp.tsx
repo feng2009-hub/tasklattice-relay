@@ -1,15 +1,16 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
+import type { CreateMcpServerDefinitionInput, McpServerDefinition } from "@tasklattice/contracts";
 import { Activity, Braces, Pencil, Plus, ServerCog, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
-import { PreviewBadge } from "@/components/shared/preview-badge";
 import { StatusDot } from "@/components/shared/status-dot";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { mcpServerPreviews, type McpServerPreview } from "@/lib/preview-data";
+import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/mcp")({ component: McpServers });
@@ -19,19 +20,55 @@ const emptyDraft = {
   endpoint: "",
   name: "",
   parameters: "{}",
-  transport: "Streamable HTTP" as McpServerPreview["transport"],
+  transport: "Streamable HTTP" as McpServerDefinition["transport"],
 };
 
+function mcpInput(server: McpServerDefinition): CreateMcpServerDefinitionInput {
+  const { id: _id, ...input } = server;
+  return input;
+}
+
 function McpServers() {
-  const [items, setItems] = useState(mcpServerPreviews);
-  const [selectedId, setSelectedId] = useState(items[0]!.id);
+  const queryClient = useQueryClient();
+  const catalog = useQuery({ queryKey: ["extension-catalog"], queryFn: api.getExtensionCatalog });
+  const items = catalog.data?.mcpServers ?? [];
+  const [selectedId, setSelectedId] = useState("");
   const [editing, setEditing] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState(emptyDraft);
   const [notice, setNotice] = useState("");
   const selected = items.find((item) => item.id === selectedId) ?? items[0];
 
-  const openForm = (item?: McpServerPreview) => {
+  useEffect(() => {
+    if (items.length && !items.some((item) => item.id === selectedId)) setSelectedId(items[0]!.id);
+  }, [items, selectedId]);
+
+  const saveServer = useMutation({
+    mutationFn: ({ id, input }: { id?: string; input: CreateMcpServerDefinitionInput }) => id ? api.updateMcpServer(id, input) : api.createMcpServer(input),
+    onSuccess: async (server, variables) => {
+      setSelectedId(server.id);
+      setEditing(false);
+      setNotice(variables.id ? "MCP configuration saved to SQLite. Run a connection check next." : "MCP server registered in SQLite.");
+      await queryClient.invalidateQueries({ queryKey: ["extension-catalog"] });
+    },
+  });
+  const checkServer = useMutation({
+    mutationFn: (server: McpServerDefinition) => api.updateMcpServer(server.id, { ...mcpInput(server), status: "HEALTHY", tools: server.tools || 12 }),
+    onSuccess: async () => {
+      setNotice("Connection check result saved to SQLite. Tool discovery remains simulated in development.");
+      await queryClient.invalidateQueries({ queryKey: ["extension-catalog"] });
+    },
+  });
+  const deleteServer = useMutation({
+    mutationFn: (id: string) => api.deleteExtension("mcp-servers", id),
+    onSuccess: async () => {
+      setSelectedId("");
+      setNotice("MCP server removed from SQLite.");
+      await queryClient.invalidateQueries({ queryKey: ["extension-catalog"] });
+    },
+  });
+
+  const openForm = (item?: McpServerDefinition) => {
     setEditing(true);
     setEditingId(item?.id ?? null);
     setDraft(item ? { authReference: item.authReference, endpoint: item.endpoint, name: item.name, parameters: item.parameters, transport: item.transport } : emptyDraft);
@@ -43,35 +80,27 @@ function McpServers() {
       return;
     }
     try { JSON.parse(draft.parameters); } catch { setNotice("Parameters must be valid JSON."); return; }
-    if (editingId) {
-      setItems((current) => current.map((item) => item.id === editingId ? { ...item, ...draft, status: "UNCHECKED" } : item));
-      setSelectedId(editingId);
-      setNotice("MCP parameters updated in this preview. Run a connection check next.");
-    } else {
-      const id = `mcp-preview-${Date.now()}`;
-      setItems((current) => [...current, { ...draft, id, status: "UNCHECKED", tools: 0 }]);
-      setSelectedId(id);
-      setNotice("MCP server registered in this preview.");
-    }
-    setEditing(false);
+    const current = editingId ? items.find((item) => item.id === editingId) : undefined;
+    void saveServer.mutate({
+      ...(editingId ? { id: editingId } : {}),
+      input: { ...draft, status: "UNCHECKED", tools: current?.tools ?? 0 },
+    });
   };
   const check = () => {
     if (!selected) return;
-    setItems((current) => current.map((item) => item.id === selected.id ? { ...item, status: "HEALTHY", tools: item.tools || 12 } : item));
-    setNotice("Connection check passed. Tool discovery is simulated.");
+    checkServer.mutate(selected);
   };
   const remove = () => {
     if (!selected) return;
-    const remaining = items.filter((item) => item.id !== selected.id);
-    setItems(remaining);
-    setSelectedId(remaining[0]?.id ?? "");
-    setNotice("MCP server removed from this preview.");
+    deleteServer.mutate(selected.id);
   };
 
   return (
     <div className="space-y-6">
-      <PageHeader title="MCP Servers" badge={<PreviewBadge />} description="Register remote MCP servers, inspect discovered tools, and maintain connection parameters before attaching them to an Agent." actions={<Button className="h-11" onClick={() => openForm()}><Plus /> Register MCP</Button>} />
-      <div className="border-l-2 border-primary bg-primary/5 px-4 py-3 text-sm"><strong>Interaction preview.</strong> Registration, checks, updates, and removal stay in this browser session and do not call a backend.</div>
+      <PageHeader title="MCP Servers" description="Manage MCP connection metadata persisted in the workspace SQLite catalog." actions={<Button className="h-11" onClick={() => openForm()}><Plus /> Register MCP</Button>} />
+      {catalog.isPending ? <p className="border p-4 text-sm text-muted-foreground">Loading MCP servers from SQLite…</p> : null}
+      {catalog.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">{catalog.error.message}</p> : null}
+      {saveServer.error || checkServer.error || deleteServer.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">{(saveServer.error ?? checkServer.error ?? deleteServer.error)?.message}</p> : null}
       {notice ? <p role="status" className="border-l-2 border-primary bg-muted/40 px-4 py-3 text-sm">{notice}</p> : null}
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_400px]">
         <Card>
@@ -93,10 +122,10 @@ function McpServers() {
               <CardContent className="space-y-4">
                 <div className="space-y-2"><Label htmlFor="mcp-name">Name</Label><Input id="mcp-name" className="h-11" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="Issue Tracker" /></div>
                 <div className="space-y-2"><Label htmlFor="mcp-endpoint">Endpoint</Label><Input id="mcp-endpoint" className="h-11" value={draft.endpoint} onChange={(event) => setDraft({ ...draft, endpoint: event.target.value })} placeholder="https://mcp.example.com/mcp" /></div>
-                <div className="space-y-2"><Label htmlFor="mcp-transport">Transport</Label><select id="mcp-transport" className="flex h-11 w-full border border-input bg-background px-3 text-sm" value={draft.transport} onChange={(event) => setDraft({ ...draft, transport: event.target.value as McpServerPreview["transport"] })}><option>Streamable HTTP</option><option>SSE</option></select></div>
+                <div className="space-y-2"><Label htmlFor="mcp-transport">Transport</Label><select id="mcp-transport" className="flex h-11 w-full border border-input bg-background px-3 text-sm" value={draft.transport} onChange={(event) => setDraft({ ...draft, transport: event.target.value as McpServerDefinition["transport"] })}><option>Streamable HTTP</option><option>SSE</option></select></div>
                 <div className="space-y-2"><Label htmlFor="mcp-auth">Credential reference</Label><Input id="mcp-auth" className="h-11" value={draft.authReference} onChange={(event) => setDraft({ ...draft, authReference: event.target.value })} placeholder="vault://team/credential" /><p className="text-xs text-muted-foreground">Reference only. Never paste a secret into this form.</p></div>
                 <div className="space-y-2"><Label htmlFor="mcp-parameters">Parameters (JSON)</Label><Textarea id="mcp-parameters" className="min-h-32 font-mono text-xs" value={draft.parameters} onChange={(event) => setDraft({ ...draft, parameters: event.target.value })} /></div>
-                <div className="flex gap-2"><Button className="flex-1" onClick={save}>{editingId ? "Save parameters" : "Register"}</Button><Button variant="outline" onClick={() => setEditing(false)}>Cancel</Button></div>
+                <div className="flex gap-2"><Button className="flex-1" disabled={saveServer.isPending} onClick={save}>{saveServer.isPending ? "Saving…" : editingId ? "Save parameters" : "Register"}</Button><Button variant="outline" onClick={() => setEditing(false)}>Cancel</Button></div>
               </CardContent>
             </>
           ) : selected ? (
@@ -105,7 +134,7 @@ function McpServers() {
               <CardContent className="space-y-4">
                 <dl className="text-xs">{[["Transport", selected.transport], ["Credential", selected.authReference || "None"], ["Discovered tools", `${selected.tools}`]].map(([label, value]) => <div key={label} className="flex min-h-11 items-center justify-between gap-4 border-b"><dt className="text-muted-foreground">{label}</dt><dd className="break-all text-right font-medium">{value}</dd></div>)}</dl>
                 <div><p className="mb-2 flex items-center gap-2 text-xs font-semibold"><Braces className="size-4" /> Parameters</p><pre className="max-h-48 overflow-auto border bg-muted/40 p-3 text-xs leading-5">{selected.parameters}</pre></div>
-                <div className="grid gap-2"><Button onClick={check}><Activity /> Check connection</Button><Button variant="outline" onClick={() => openForm(selected)}><Pencil /> Update parameters</Button><Button variant="destructive" onClick={remove}><Trash2 /> Remove MCP</Button></div>
+                <div className="grid gap-2"><Button disabled={checkServer.isPending} onClick={check}><Activity />{checkServer.isPending ? "Checking…" : "Check connection"}</Button><Button variant="outline" onClick={() => openForm(selected)}><Pencil /> Update parameters</Button><Button variant="destructive" disabled={deleteServer.isPending} onClick={remove}><Trash2 />{deleteServer.isPending ? "Removing…" : "Remove MCP"}</Button></div>
               </CardContent>
             </>
           ) : <CardContent className="py-16 text-center"><strong>No server selected</strong></CardContent>}

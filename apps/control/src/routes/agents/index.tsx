@@ -22,7 +22,7 @@ function Agents() {
         title="Agent instances"
         actions={
           <Button asChild>
-            <Link to="/agents/new">
+            <Link to="/agents/instace/new">
               <Plus />
               Create Agent
             </Link>

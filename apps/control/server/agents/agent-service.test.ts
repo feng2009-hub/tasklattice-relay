@@ -132,6 +132,21 @@ describe("Agent selection", () => {
       knowledgeSourceIds: ["company-hr-handbook"],
     });
   });
+
+  it("resolves Role and capability references from the SQLite catalog", async () => {
+    const service = new AgentService(new AgentStore());
+    await expect(service.create({
+      ...input,
+      agentPlatform: "openclaw",
+      specializationId: "missing-role",
+    })).rejects.toThrow("available Agent Role");
+    await expect(service.create({
+      ...input,
+      agentPlatform: "openclaw",
+      specializationId: "general-purpose",
+      skillIds: ["missing-skill"],
+    })).rejects.toThrow("Skill configuration is unavailable");
+  });
 });
 
 describe("Instance cost key lifecycle", () => {
