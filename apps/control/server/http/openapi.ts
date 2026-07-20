@@ -208,6 +208,17 @@ export const openApiDocument = {
         responses: { "201": { description: "Model validation result", ...json({ $ref: "#/components/schemas/ModelDeployment" }) } },
       },
     },
+    "/providers/models/{modelId}/default": {
+      parameters: [{ name: "modelId", in: "path", required: true, schema: { type: "string" } }],
+      post: {
+        operationId: "markModelDeploymentAsDefault",
+        summary: "Mark one validated LLM deployment as the global default",
+        responses: {
+          "200": { description: "Default model deployment", ...json({ $ref: "#/components/schemas/ModelDeployment" }) },
+          "404": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
     "/costs": {
       get: {
         operationId: "getCostReport",
@@ -666,8 +677,8 @@ export const openApiDocument = {
       ModelDeployment: {
         allOf: [
           { $ref: "#/components/schemas/CreateModelDeploymentInput" },
-          { type: "object", required: ["id", "providerPresetId", "providerName", "endpoint", "litellmModelName", "status", "checks", "validationMessage", "createdAt", "updatedAt"], properties: {
-            id: { type: "string" }, providerPresetId: { type: "string" }, providerName: { type: "string" }, endpoint: { type: "string", format: "uri" }, litellmModelName: { type: "string" }, status: { type: "string", enum: ["VALIDATED", "DEGRADED", "FAILED"] }, checks: { type: "array", items: { $ref: "#/components/schemas/ProviderValidationCheck" } }, validationMessage: { type: "string" }, validationLatencyMs: { type: "integer" }, validatedAt: { type: "string", format: "date-time" }, createdAt: { type: "string", format: "date-time" }, updatedAt: { type: "string", format: "date-time" },
+          { type: "object", required: ["id", "isDefault", "providerPresetId", "providerName", "endpoint", "litellmModelName", "status", "checks", "validationMessage", "createdAt", "updatedAt"], properties: {
+            id: { type: "string" }, isDefault: { type: "boolean" }, providerPresetId: { type: "string" }, providerName: { type: "string" }, endpoint: { type: "string", format: "uri" }, litellmModelName: { type: "string" }, status: { type: "string", enum: ["VALIDATED", "DEGRADED", "FAILED"] }, checks: { type: "array", items: { $ref: "#/components/schemas/ProviderValidationCheck" } }, validationMessage: { type: "string" }, validationLatencyMs: { type: "integer" }, validatedAt: { type: "string", format: "date-time" }, createdAt: { type: "string", format: "date-time" }, updatedAt: { type: "string", format: "date-time" },
           } },
         ],
       },

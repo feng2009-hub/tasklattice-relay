@@ -128,6 +128,14 @@ export class ProviderService {
     return this.store.listModelDeployments(providerAccountId);
   }
 
+  markModelAsDefault(id: string): ModelDeployment | undefined {
+    const deployment = this.store.getModelDeployment(id);
+    if (!deployment) return undefined;
+    if (deployment.modelType !== "llm" || deployment.status !== "VALIDATED")
+      throw new Error("Only a validated LLM deployment can be marked as default.");
+    return this.store.setDefaultModelDeployment(id);
+  }
+
   discover(draft: ProviderConnectionDraft): Promise<ProviderDiscoveryResult> {
     return providerAdapter(draft.provider).discover(draft);
   }
@@ -203,6 +211,7 @@ export class ProviderService {
       } catch (error) {
         this.store.saveModelDeployment({
           ...model,
+          isDefault: false,
           status: "FAILED",
           checks: modelChecks("FAIL"),
           validationMessage: error instanceof Error ? error.message : "Model validation failed.",
@@ -267,6 +276,7 @@ export class ProviderService {
       return this.store.saveModelDeployment({
         id: randomUUID(),
         ...input,
+        isDefault: false,
         providerPresetId: account.presetId,
         providerName: catalog(draft.provider).name,
         endpoint: providerAdapter(draft.provider).endpoint(draft),
@@ -361,6 +371,7 @@ export class ProviderService {
         id: randomUUID(),
         providerAccountId: account.id,
         ...model,
+        isDefault: false,
         providerPresetId: account.presetId,
         providerName: catalog(draft.provider).name,
         endpoint: adapter.endpoint(draft),

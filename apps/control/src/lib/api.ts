@@ -126,6 +126,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify(input),
     }),
+  markModelDeploymentAsDefault: (id: string) =>
+    request<ModelDeployment>(`/api/v1/providers/models/${encodeURIComponent(id)}/default`, {
+      method: "POST",
+      body: "{}",
+    }),
   getCostReport: (from: string, to: string) =>
     request<CostReport>(`/api/v1/costs?${new URLSearchParams({ from, to })}`),
   listPolicies: async (): Promise<SandboxPolicyCatalog> => {

@@ -105,7 +105,11 @@ function parseProviderAccount(payload: string): ProviderAccount {
 }
 
 function parseModelDeployment(payload: string): ModelDeployment {
-  return JSON.parse(payload) as ModelDeployment;
+  const deployment = JSON.parse(payload) as Partial<ModelDeployment>;
+  return {
+    ...deployment,
+    isDefault: deployment.isDefault ?? false,
+  } as ModelDeployment;
 }
 
 function parseSandboxPolicy(payload: string): SandboxPolicy {
@@ -405,6 +409,28 @@ export class AgentStore {
         deployment.createdAt,
       );
     return deployment;
+  }
+
+  setDefaultModelDeployment(id: string): ModelDeployment | undefined {
+    const selected = this.getModelDeployment(id);
+    if (!selected) return undefined;
+    this.database.exec("BEGIN IMMEDIATE");
+    try {
+      for (const deployment of this.listModelDeployments()) {
+        const isDefault = deployment.id === id;
+        if (deployment.isDefault === isDefault) continue;
+        this.saveModelDeployment({
+          ...deployment,
+          isDefault,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+      this.database.exec("COMMIT");
+    } catch (error) {
+      this.database.exec("ROLLBACK");
+      throw error;
+    }
+    return this.getModelDeployment(id);
   }
 
   getModelDeployment(id: string): ModelDeployment | undefined {

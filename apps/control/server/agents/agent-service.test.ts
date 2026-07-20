@@ -170,6 +170,7 @@ describe("Instance cost key lifecycle", () => {
     }, "provider-secret-value");
     store.saveModelDeployment({
       id: "model-a",
+      isDefault: false,
       providerAccountId: "provider-a",
       providerPresetId: "deepseek",
       providerName: "DeepSeek",

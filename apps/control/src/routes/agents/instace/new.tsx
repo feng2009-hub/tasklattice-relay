@@ -3,7 +3,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { defaultAgentPlatformId, type AgentPlatformId, type CreateAgentInput } from "@tasklattice/contracts";
-import { ArrowLeft, ArrowRight, Bot, Check, CircleAlert } from "lucide-react";
+import { ArrowLeft, ArrowRight, Bot, Check, CircleAlert, Star } from "lucide-react";
 import { AgentSelect } from "@/components/agents/agent-select";
 import { ChangeSpecializationDialog } from "@/components/agents/change-specialization-dialog";
 import {
@@ -44,7 +44,6 @@ function selectedIds(items: readonly SelectedCapability[]): string[] {
 function CreateInstance() {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
-  const [modelDeploymentId, setModelDeploymentId] = useState("");
   const [specializationId, setSpecializationId] = useState<SpecializationId>("general-purpose");
   const [customSystemPrompt, setCustomSystemPrompt] = useState("");
   const [selectedSkills, setSelectedSkills] = useState<SelectedCapability[]>([]);
@@ -63,7 +62,8 @@ function CreateInstance() {
   const deployments = useQuery({ queryKey: ["model-deployments"], queryFn: api.listModelDeployments });
   const policies = useQuery({ queryKey: ["sandbox-policies"], queryFn: api.listPolicies });
   const validatedDeployments = (deployments.data ?? []).filter((deployment) => deployment.status === "VALIDATED" && deployment.modelType === "llm");
-  const selectedDeployment = validatedDeployments.find((deployment) => deployment.id === modelDeploymentId);
+  const selectedDeployment = validatedDeployments.find((deployment) => deployment.isDefault);
+  const modelDeploymentId = selectedDeployment?.id ?? "";
   const currentSystemPrompt = specialization?.id === "custom" ? customSystemPrompt : specialization?.systemPrompt ?? "";
   const incompleteMcps = selectedIds(selectedMcps)
     .map((id) => mcpServers.find((item) => item.id === id))
@@ -96,6 +96,11 @@ function CreateInstance() {
     if (!policies.data?.defaultPolicyId || form.state.values.policyId) return;
     form.setFieldValue("policyId", policies.data.defaultPolicyId);
   }, [form, policies.data?.defaultPolicyId]);
+
+  useEffect(() => {
+    if (form.state.values.modelDeploymentId === modelDeploymentId) return;
+    form.setFieldValue("modelDeploymentId", modelDeploymentId);
+  }, [form, modelDeploymentId]);
 
   useEffect(() => {
     if (!specialization || form.state.values.systemPrompt) return;
@@ -178,16 +183,16 @@ function CreateInstance() {
 
           {step === 1 ? (
             <Card>
-              <CardHeader><CardTitle className="flex items-center gap-2"><Bot className="size-5" /> Runtime & Model</CardTitle><CardDescription>Choose the Agent implementation, validated model, and OpenShell policy used for this Instance.</CardDescription></CardHeader>
+              <CardHeader><CardTitle className="flex items-center gap-2"><Bot className="size-5" /> Runtime & Model</CardTitle><CardDescription>Choose the Agent implementation and OpenShell policy. The default validated model is applied automatically.</CardDescription></CardHeader>
               <CardContent className="space-y-5">
                 <div className="rounded-md border bg-muted/20 px-4 py-3 text-sm"><span className="text-xs text-muted-foreground">Runtime</span><strong className="mt-1 block">OpenShell (UAT)</strong></div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <form.Field name="agentPlatform">
                     {(field) => <div className="space-y-2"><Label htmlFor="instance-agent">Agent implementation</Label><AgentSelect id="instance-agent" value={field.state.value} onValueChange={field.handleChange} /><p className="text-xs leading-5 text-muted-foreground">Configured inside the OpenShell runtime during provisioning.</p></div>}
                   </form.Field>
-                  <div className="space-y-2"><Label>LLM deployment</Label><Select value={modelDeploymentId} disabled={!validatedDeployments.length} onValueChange={(value) => { setModelDeploymentId(value); form.setFieldValue("modelDeploymentId", value); }}><SelectTrigger className="min-h-12 h-auto"><SelectValue placeholder="Select a validated LLM" /></SelectTrigger><SelectContent>{validatedDeployments.map((deployment) => <SelectItem key={deployment.id} value={deployment.id}>{deployment.providerName} · {deployment.displayName}</SelectItem>)}</SelectContent></Select></div>
+                  <div className="space-y-2"><Label>LLM deployment</Label>{deployments.isPending ? <div className="flex min-h-12 items-center border bg-muted/20 px-3 text-sm text-muted-foreground">Loading default LLM…</div> : selectedDeployment ? <div className="flex min-h-12 items-center gap-3 border bg-muted/20 px-3 py-2"><Star className="size-4 shrink-0 fill-current" /><span className="min-w-0"><strong className="block truncate text-sm">{selectedDeployment.providerName} · {selectedDeployment.displayName}</strong><span className="block text-xs text-muted-foreground">Default model · managed in Providers</span></span></div> : <div className="flex min-h-12 items-center border border-amber-500/30 bg-amber-500/5 px-3 text-xs">No default LLM configured</div>}<p className="text-xs leading-5 text-muted-foreground">Automatically selected from the default model configured in Providers.</p></div>
                 </div>
-                {selectedDeployment ? <div className="grid gap-3 border-y py-4 text-xs sm:grid-cols-3"><div><span className="text-muted-foreground">Endpoint</span><strong className="mt-1 block truncate font-mono">{selectedDeployment.endpoint}</strong></div><div><span className="text-muted-foreground">Model</span><strong className="mt-1 block">{selectedDeployment.modelId}</strong></div><div><span className="text-muted-foreground">Cost attribution</span><strong className="mt-1 block">Dedicated Instance key</strong></div></div> : <p role="alert" className="border-l-2 border-amber-500 bg-amber-500/5 px-3 py-3 text-xs">No model selected. {!validatedDeployments.length ? <><Link to="/providers" className="font-semibold underline underline-offset-4">Register a Provider and model first.</Link></> : "Choose a validated deployment to continue."}</p>}
+                {selectedDeployment ? <div className="grid gap-3 border-y py-4 text-xs sm:grid-cols-3"><div><span className="text-muted-foreground">Endpoint</span><strong className="mt-1 block truncate font-mono">{selectedDeployment.endpoint}</strong></div><div><span className="text-muted-foreground">Model</span><strong className="mt-1 block">{selectedDeployment.modelId}</strong></div><div><span className="text-muted-foreground">Cost attribution</span><strong className="mt-1 block">Dedicated Instance key</strong></div></div> : deployments.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 px-3 py-3 text-xs text-destructive">{deployments.error.message}</p> : !deployments.isPending ? <p role="alert" className="border-l-2 border-amber-500 bg-amber-500/5 px-3 py-3 text-xs"><Link to="/providers" className="font-semibold underline underline-offset-4">Mark a validated LLM as default in Providers</Link> to continue.</p> : null}
                 <form.Field name="policyId">
                   {(field) => <div className="space-y-2"><div className="flex items-center justify-between gap-3"><Label>OpenShell policy</Label><Link to="/agent/sandboxes/policy" className="text-xs font-medium underline underline-offset-4">Inspect policies</Link></div><Select value={field.state.value} disabled={policies.isPending || Boolean(policies.error)} onValueChange={field.handleChange}><SelectTrigger aria-label="OpenShell policy" className="min-h-12 h-auto"><SelectValue placeholder={policies.isPending ? "Loading Policy catalog…" : "Select a Policy"} /></SelectTrigger><SelectContent>{policies.data?.policies.map((policy) => <SelectItem key={policy.id} value={policy.id}>{policy.name} · {policy.networkAccess}</SelectItem>)}</SelectContent></Select>{policies.error ? <p role="alert" className="text-xs text-destructive">{policies.error.message}</p> : <p className="text-xs leading-5 text-muted-foreground">Applied at Sandbox creation through the OpenShell policy boundary.</p>}</div>}
                 </form.Field>

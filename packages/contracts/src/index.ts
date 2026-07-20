@@ -634,6 +634,7 @@ export interface ProviderConnectionCreationResult {
 
 export interface ModelDeployment extends CreateModelDeploymentInput {
   id: string;
+  isDefault: boolean;
   providerPresetId: ProviderPresetId;
   providerName: string;
   endpoint: string;

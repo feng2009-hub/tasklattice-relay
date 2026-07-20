@@ -92,6 +92,31 @@ describe("ProviderService", () => {
     expect(JSON.stringify(service.listAccounts())).not.toContain("provider-secret-value");
   });
 
+  it("persists exactly one validated LLM as the global default", async () => {
+    const validator: ProviderValidator = {
+      validateConnection: vi.fn(async () => connectionResult),
+      validateModel: vi.fn(),
+    };
+    const service = new ProviderService(new AgentStore(), validator, liteLLM());
+    const account = await service.registerAccount({
+      name: "DeepSeek defaults",
+      presetId: "deepseek",
+      endpoint: "https://api.deepseek.com/v1",
+      apiKey: "provider-secret-value",
+    });
+    const [first, second] = service.listModels(account.id);
+
+    expect(service.markModelAsDefault(first!.id)).toMatchObject({ id: first!.id, isDefault: true });
+    expect(service.listModels().filter((model) => model.isDefault)).toEqual([
+      expect.objectContaining({ id: first!.id }),
+    ]);
+
+    expect(service.markModelAsDefault(second!.id)).toMatchObject({ id: second!.id, isDefault: true });
+    expect(service.listModels().filter((model) => model.isDefault)).toEqual([
+      expect.objectContaining({ id: second!.id }),
+    ]);
+  });
+
   it("deletes an unused account and unregisters its LiteLLM models", async () => {
     const validator: ProviderValidator = {
       validateConnection: vi.fn(async () => connectionResult),

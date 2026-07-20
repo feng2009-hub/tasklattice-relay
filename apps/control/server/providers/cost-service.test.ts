@@ -29,6 +29,7 @@ describe("CostService", () => {
     });
     store.saveModelDeployment({
       id: "model-a",
+      isDefault: false,
       providerAccountId: "provider-a",
       providerPresetId: "deepseek",
       providerName: "DeepSeek",
