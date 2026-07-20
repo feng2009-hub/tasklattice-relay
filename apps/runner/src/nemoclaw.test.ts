@@ -18,6 +18,8 @@ import {
   openShellWebUiTokenArguments,
   parseOpenShellServiceUrl,
   parseOpenShellAuditLog,
+  taskLatticeLiteLlmProviderProfile,
+  taskLatticeLiteLlmProviderProfileId,
   tokenizedOpenClawUrl,
 } from "./openshell.js";
 
@@ -70,9 +72,30 @@ describe("OpenShell Kubernetes command contract", () => {
   it("passes the virtual key through the Provider environment only", () => {
     const command = deepSeekProviderCreateCommand(input);
     expect(command.args.join(" ")).not.toContain("database-secret-value");
+    expect(command.args).toContain(taskLatticeLiteLlmProviderProfileId);
     expect(command.args).toContain("OPENAI_API_KEY");
     expect(command.args).toContain("OPENAI_BASE_URL=http://tasklattice-litellm:4000/v1");
     expect(command.env.OPENAI_API_KEY).toBe("database-secret-value");
+  });
+
+  it("defines LiteLLM credential injection for OpenClaw and Hermes", () => {
+    const profile = taskLatticeLiteLlmProviderProfile(
+      "http://tasklattice-litellm.tasklattice-sandboxes.svc.cluster.local:4000/v1",
+    );
+
+    expect(profile).toContain("id: tasklattice-litellm");
+    expect(profile).toContain("env_vars:\n      - OPENAI_API_KEY");
+    expect(profile).toContain("auth_style: bearer");
+    expect(profile).toContain("header_name: authorization");
+    expect(profile).toContain(
+      "host: tasklattice-litellm.tasklattice-sandboxes.svc.cluster.local",
+    );
+    expect(profile).toContain("port: 4000");
+    expect(profile).toContain("access: full");
+    expect(profile).toContain("allowed_ips:");
+    expect(profile).toContain("- 192.168.0.0/16");
+    expect(profile).toContain("- /usr/local/bin/node");
+    expect(profile).toContain("- /opt/hermes/.venv/bin/python");
   });
 
   it("creates a managed Pod-backed sandbox with uploaded instructions", () => {
@@ -101,38 +124,26 @@ describe("OpenShell Kubernetes command contract", () => {
     ]);
   });
 
-  it("composes the scoped LiteLLM route into every selected Sandbox Policy", () => {
+  it("leaves inference routing to the attached Provider profile", () => {
     const policy = composeOpenShellInferencePolicy(
-      "version: 1\nnetwork_policies:\n  github:\n    name: github\n",
+      "version: 1\nnetwork_policies:\n  github:\n    name: github\n  tasklattice_inference_gateway:\n    name: legacy\n",
       "http://tasklattice-litellm.tasklattice-sandboxes.svc.cluster.local:4000/v1",
       "openclaw",
     );
 
     expect(policy).toContain("github:");
-    expect(policy).toContain("tasklattice_inference_gateway:");
-    expect(policy).toContain(
-      "host: tasklattice-litellm.tasklattice-sandboxes.svc.cluster.local",
-    );
-    expect(policy).toContain('host: "**.svc.cluster.local"');
-    expect(policy).toContain("port: 4000");
-    expect(policy).toContain("allowed_ips:");
-    expect(policy).toContain("- 192.168.0.0/16");
-    expect(policy).toContain("path: /usr/local/bin/node");
+    expect(policy).not.toContain("tasklattice_inference_gateway:");
+    expect(policy).not.toContain("tasklattice-litellm");
   });
 
-  it("uses the HTTPS default port and Hermes inference binaries", () => {
+  it("does not duplicate Provider routing in a minimal Hermes policy", () => {
     const policy = composeOpenShellInferencePolicy(
       "version: 1\n",
       "https://inference.example.com/v1",
       "hermes",
     );
 
-    expect(policy).toContain("port: 443");
-    expect(policy).toContain("path: /usr/local/bin/hermes");
-    expect(policy).toContain("path: /usr/local/bin/python3");
-    expect(policy).toContain("path: /usr/bin/python3.*");
-    expect(policy).not.toContain("**.svc.cluster.local");
-    expect(policy).not.toContain("allowed_ips:");
+    expect(policy).toBe("version: 1\n");
   });
 
   it("reads and parses OpenShell OCSF policy decisions", () => {

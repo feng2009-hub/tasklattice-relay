@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import type { ProvisioningStage, SandboxAuditEvent } from "@tasklattice/contracts";
 import type { AgentPlatformId } from "@tasklattice/contracts";
 import { parse, stringify } from "yaml";
@@ -16,15 +17,6 @@ const defaultKubernetesServiceCidrs = [
   "172.16.0.0/12",
   "192.168.0.0/16",
 ] as const;
-
-interface OpenShellNetworkEndpoint {
-  host: string;
-  port: number;
-  protocol: "rest";
-  enforcement: "enforce";
-  access: "full";
-  allowed_ips?: string[];
-}
 
 function kubernetesServiceCidrs(): string[] {
   return (
@@ -44,6 +36,77 @@ export interface OpenShellSandbox {
 export interface ProvisioningObserver {
   onLog?: (lines: string[]) => void;
   onStage?: (stage: ProvisioningStage, message: string) => void;
+}
+
+export const taskLatticeLiteLlmProviderProfileId = "tasklattice-litellm";
+
+export function taskLatticeLiteLlmProviderProfile(
+  inferenceEndpoint: string,
+  profileId = taskLatticeLiteLlmProviderProfileId,
+  resourceVersion?: number,
+): string {
+  const endpoint = new URL(inferenceEndpoint);
+  if (endpoint.protocol !== "http:" && endpoint.protocol !== "https:")
+    throw new Error("The Instance inference endpoint must use HTTP or HTTPS.");
+  const port = endpoint.port
+    ? Number(endpoint.port)
+    : endpoint.protocol === "https:"
+      ? 443
+      : 80;
+  const isKubernetesService =
+    endpoint.hostname === kubernetesServiceDnsSuffix ||
+    endpoint.hostname.endsWith(`.${kubernetesServiceDnsSuffix}`);
+  return stringify(
+    {
+      id: profileId,
+      ...(resourceVersion !== undefined
+        ? { resource_version: resourceVersion }
+        : {}),
+      display_name: "TaskLattice LiteLLM",
+      description:
+        "TaskLattice instance-scoped inference through the LiteLLM gateway",
+      category: "inference",
+      credentials: [
+        {
+          name: "api_key",
+          description: "TaskLattice Instance virtual key",
+          env_vars: ["OPENAI_API_KEY"],
+          required: true,
+          auth_style: "bearer",
+          header_name: "authorization",
+          query_param: "",
+        },
+      ],
+      endpoints: [
+        {
+          host: endpoint.hostname,
+          port,
+          protocol: "rest",
+          // OpenShell 0.0.82 does not expand the read-write shorthand for a
+          // provider-composed endpoint before enforcing the tunneled POST.
+          // The virtual key remains model-scoped; full only affects methods
+          // sent to this one exact LiteLLM host and port.
+          access: "full",
+          enforcement: "enforce",
+          ...(isKubernetesService
+            ? { allowed_ips: kubernetesServiceCidrs() }
+            : {}),
+        },
+      ],
+      binaries: [
+        "/usr/local/bin/node",
+        "/usr/local/bin/hermes",
+        "/opt/hermes/.venv/bin/python",
+        "/opt/hermes/.venv/bin/python3",
+        "/usr/local/bin/python",
+        "/usr/local/bin/python3",
+        "/usr/bin/python3.*",
+      ],
+      inference_capable: true,
+      discovery: { credentials: ["api_key"] },
+    },
+    { lineWidth: 0 },
+  ).trimEnd() + "\n";
 }
 
 export function openShellBinary(): string {
@@ -146,7 +209,7 @@ export function deepSeekProviderCreateCommand(input: ProvisionInput): {
       "--name",
       openShellProviderName(input.name),
       "--type",
-      "openai",
+      taskLatticeLiteLlmProviderProfileId,
       "--credential",
       "OPENAI_API_KEY",
       "--config",
@@ -159,6 +222,130 @@ export function deepSeekProviderCreateCommand(input: ProvisionInput): {
   };
 }
 
+async function ensureLiteLlmProviderProfile(
+  inferenceEndpoint: string,
+): Promise<void> {
+  const temporaryDirectory = await mkdtemp(
+    join(tmpdir(), "tasklattice-openshell-profile-"),
+  );
+  const profileFile = join(temporaryDirectory, "tasklattice-litellm.yaml");
+  try {
+    const existing = await runCommand(
+      openShellBinary(),
+      openShellArguments([
+        "provider",
+        "profile",
+        "export",
+        taskLatticeLiteLlmProviderProfileId,
+      ]),
+    );
+    let resourceVersion: number | undefined;
+    const desiredProfile = parse(
+      taskLatticeLiteLlmProviderProfile(inferenceEndpoint),
+    ) as unknown;
+    if (existing.exitCode === 0) {
+      const exported = parse(existing.stdout) as unknown;
+      if (!isRecord(exported) || !Number.isInteger(exported.resource_version))
+        throw new Error(
+          "OpenShell exported the TaskLattice LiteLLM Provider profile without a resource version.",
+        );
+      resourceVersion = exported.resource_version as number;
+      const currentProfile = { ...exported };
+      delete currentProfile.resource_version;
+      if (isDeepStrictEqual(currentProfile, desiredProfile)) return;
+    }
+    await writeFile(
+      profileFile,
+      taskLatticeLiteLlmProviderProfile(
+        inferenceEndpoint,
+        taskLatticeLiteLlmProviderProfileId,
+        resourceVersion,
+      ),
+      { mode: 0o600 },
+    );
+    if (existing.exitCode !== 0) {
+      const linted = await runCommand(
+        openShellBinary(),
+        openShellArguments([
+          "provider",
+          "profile",
+          "lint",
+          "--file",
+          profileFile,
+        ]),
+      );
+      if (linted.exitCode !== 0)
+        throw new Error(
+          linted.stderr.trim() ||
+            "OpenShell rejected the TaskLattice LiteLLM Provider profile.",
+        );
+    }
+    const profileCommand = resourceVersion !== undefined
+      ? [
+          "provider",
+          "profile",
+          "update",
+          taskLatticeLiteLlmProviderProfileId,
+          "--file",
+          profileFile,
+        ]
+      : ["provider", "profile", "import", "--file", profileFile];
+    let applied = await runCommand(
+      openShellBinary(),
+      openShellArguments(profileCommand),
+    );
+    if (applied.exitCode !== 0 && existing.exitCode !== 0) {
+      // A concurrent Instance may have imported the shared profile after the
+      // export probe. Re-enter once so its resource_version is preserved.
+      await ensureLiteLlmProviderProfile(inferenceEndpoint);
+      return;
+    }
+    if (applied.exitCode !== 0)
+      throw new Error(
+        applied.stderr.trim() ||
+          "Unable to register the TaskLattice LiteLLM Provider profile.",
+      );
+  } finally {
+    await rm(temporaryDirectory, { recursive: true, force: true });
+  }
+}
+
+async function ensureProviderPolicyCompositionEnabled(): Promise<void> {
+  const current = await runCommand(
+    openShellBinary(),
+    openShellArguments(["settings", "get", "--global", "--json"]),
+  );
+  if (current.exitCode !== 0)
+    throw new Error(
+      current.stderr.trim() || "Unable to read OpenShell global settings.",
+    );
+  const document = JSON.parse(current.stdout) as unknown;
+  if (
+    isRecord(document) &&
+    isRecord(document.settings) &&
+    document.settings.providers_v2_enabled === "true"
+  )
+    return;
+  const enabled = await runCommand(
+    openShellBinary(),
+    openShellArguments([
+      "settings",
+      "set",
+      "--global",
+      "--key",
+      "providers_v2_enabled",
+      "--value",
+      "true",
+      "--yes",
+    ]),
+  );
+  if (enabled.exitCode !== 0)
+    throw new Error(
+      enabled.stderr.trim() ||
+        "Unable to enable OpenShell Provider policy composition.",
+    );
+}
+
 export function openShellProviderName(sandboxName: string): string {
   return `tali-${sandboxName}`.slice(0, 63).replace(/-$/, "");
 }
@@ -169,59 +356,24 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 export function composeOpenShellInferencePolicy(
   policyYaml: string,
-  inferenceEndpoint: string,
-  agentPlatform: AgentPlatformId,
+  _inferenceEndpoint: string,
+  _agentPlatform: AgentPlatformId,
 ): string {
   const document = parse(policyYaml) as unknown;
   if (!isRecord(document) || document.version !== 1)
     throw new Error("OpenShell Policy YAML must be an object with version: 1.");
 
-  const endpoint = new URL(inferenceEndpoint);
-  if (endpoint.protocol !== "http:" && endpoint.protocol !== "https:")
-    throw new Error("The Instance inference endpoint must use HTTP or HTTPS.");
-  const port = endpoint.port
-    ? Number(endpoint.port)
-    : endpoint.protocol === "https:"
-      ? 443
-      : 80;
   const networkPolicies = isRecord(document.network_policies)
-    ? document.network_policies
+    ? { ...document.network_policies }
     : {};
-  const runtime = getAgentPlatformRuntime(agentPlatform);
-  const isKubernetesService =
-    endpoint.hostname === kubernetesServiceDnsSuffix
-    || endpoint.hostname.endsWith(`.${kubernetesServiceDnsSuffix}`);
-  const allowedIps = isKubernetesService ? kubernetesServiceCidrs() : undefined;
-  const endpoints: OpenShellNetworkEndpoint[] = [
-    {
-      host: endpoint.hostname,
-      port,
-      protocol: "rest",
-      enforcement: "enforce",
-      access: "full",
-      ...(allowedIps ? { allowed_ips: allowedIps } : {}),
-    },
-  ];
-
-  if (isKubernetesService) {
-    endpoints.push({
-      host: `**.${kubernetesServiceDnsSuffix}`,
-      port,
-      protocol: "rest",
-      enforcement: "enforce",
-      access: "full",
-      allowed_ips: allowedIps ?? [],
-    });
-  }
-
-  document.network_policies = {
-    ...networkPolicies,
-    tasklattice_inference_gateway: {
-      name: "tasklattice-inference-gateway",
-      endpoints,
-      binaries: runtime.inferenceBinaries.map((path) => ({ path })),
-    },
-  };
+  // Provider v2 composes the inference endpoint as an isolated `_provider_*`
+  // rule. Keeping the legacy direct rule in a business policy can match first
+  // and bypass credential resolution, so remove only TaskLattice's old entry.
+  delete networkPolicies.tasklattice_inference_gateway;
+  if (Object.keys(networkPolicies).length > 0)
+    document.network_policies = networkPolicies;
+  else
+    delete document.network_policies;
 
   return stringify(document, { lineWidth: 0 }).trimEnd() + "\n";
 }
@@ -540,12 +692,21 @@ async function createOpenShellNemoClawSandbox(
 }
 
 async function ensureInstanceProvider(input: ProvisionInput): Promise<void> {
+  await ensureProviderPolicyCompositionEnabled();
+  await ensureLiteLlmProviderProfile(input.inferenceEndpoint);
   const providerName = openShellProviderName(input.name);
   const existing = await runCommand(
     openShellBinary(),
     openShellArguments(["provider", "get", providerName]),
   );
-  if (existing.exitCode === 0) return;
+  if (existing.exitCode === 0) {
+    const plain = existing.stdout.replace(/\u001b\[[0-9;]*m/g, "");
+    const providerType = plain.match(/^\s*Type:\s*(\S+)/m)?.[1];
+    if (providerType === taskLatticeLiteLlmProviderProfileId) return;
+    throw new Error(
+      `Existing OpenShell Provider ${providerName} uses legacy type ${providerType ?? "unknown"}; migrate or remove it before reprovisioning this Instance.`,
+    );
+  }
 
   const apiKey = input.apiKey;
   if (!apiKey)

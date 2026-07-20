@@ -3,7 +3,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { defaultAgentPlatformId, type AgentPlatformId, type CreateAgentInput } from "@tasklattice/contracts";
-import { ArrowLeft, ArrowRight, Bot, Check, CircleAlert, Star } from "lucide-react";
+import { ArrowLeft, ArrowRight, Bot, Check, CircleAlert, ShieldCheck, Star } from "lucide-react";
 import { AgentSelect } from "@/components/agents/agent-select";
 import { ChangeSpecializationDialog } from "@/components/agents/change-specialization-dialog";
 import {
@@ -28,7 +28,7 @@ export const Route = createFileRoute("/agents/instace/new")({ component: CreateI
 const steps: readonly CreateInstanceStep[] = [
   { label: "Identity & Capabilities", description: "Define the Agent and its capabilities" },
   { label: "Runtime & Model", description: "Choose runtime, model and provider" },
-  { label: "Review & Create", description: "Confirm and create the Agent" },
+  { label: "Review & Approve", description: "Review and explicitly approve provisioning" },
 ];
 
 function capabilityName(id: string, skills: readonly { id: string; name: string }[], mcpServers: readonly { id: string; name: string }[]): string {
@@ -155,7 +155,7 @@ function CreateInstance() {
         currentStep={step}
         onStepChange={setStep}
       >
-        <form onSubmit={(event) => { event.preventDefault(); void form.handleSubmit(); }} className="min-w-0 space-y-5">
+        <form onSubmit={(event) => event.preventDefault()} className="min-w-0 space-y-5">
           {step === 0 ? (
             <form.Subscribe selector={(state) => state.values.name}>
               {(name) => (
@@ -204,7 +204,7 @@ function CreateInstance() {
             <form.Subscribe selector={(state) => state.values}>
               {(values) => (
                 <Card>
-                  <CardHeader><CardTitle className="flex items-center gap-2"><Check className="size-5" /> Review & Create</CardTitle><CardDescription>Confirm the specialized Agent and OpenShell runtime blueprint before provisioning.</CardDescription></CardHeader>
+                  <CardHeader><CardTitle className="flex items-center gap-2"><Check className="size-5" /> Review & Approve</CardTitle><CardDescription>Review the specialized Agent and OpenShell runtime blueprint. Provisioning will not begin until you explicitly approve it.</CardDescription></CardHeader>
                   <CardContent className="space-y-6">
                     <div className="grid gap-5 sm:grid-cols-2">
                       <ReviewSection title="Identity"><ReviewRow label="Name" value={values.name} /><ReviewRow label="Role" value={specialization.name} /><ReviewRow label="System instructions" value={specialization.id === "custom" ? "Custom instructions" : `Managed by ${specialization.name}`} /></ReviewSection>
@@ -233,10 +233,10 @@ function CreateInstance() {
               </form.Subscribe>
             ) : step === 1 ? (
               <form.Subscribe selector={(state) => state.values.policyId}>
-                {(policyId) => <Button type="button" disabled={!modelDeploymentId || !String(policyId)} onClick={() => setStep(2)}>Next: Review & Create <ArrowRight /></Button>}
+                {(policyId) => <Button key="next-review" type="button" disabled={!modelDeploymentId || !String(policyId)} onClick={() => setStep(2)}>Next: Review <ArrowRight /></Button>}
               </form.Subscribe>
             ) : (
-              <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting, state.values.policyId]}>{([canSubmit, isSubmitting, policyId]) => <Button size="lg" type="submit" disabled={!canSubmit || Boolean(isSubmitting) || mutation.isPending || !modelDeploymentId || !String(policyId)}>{mutation.isPending ? "Creating OpenShell sandbox…" : "Create Instance"}</Button>}</form.Subscribe>
+              <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting, state.values.policyId]}>{([canSubmit, isSubmitting, policyId]) => <Button key="approve-create" size="lg" type="button" disabled={!canSubmit || Boolean(isSubmitting) || mutation.isPending || !modelDeploymentId || !String(policyId)} onClick={() => void form.handleSubmit()}><ShieldCheck /> {mutation.isPending ? "Creating OpenShell sandbox…" : "Next: Approve to Create"}</Button>}</form.Subscribe>
             )}
           </div>
         </form>

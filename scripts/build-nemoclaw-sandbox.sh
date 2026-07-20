@@ -32,6 +32,11 @@ trap 'rm -rf "$build_context"' EXIT
 git clone --quiet --filter=blob:none https://github.com/NVIDIA/NemoClaw.git "$build_context"
 git -C "$build_context" checkout --quiet "$NEMOCLAW_REVISION"
 
+if [ "$AGENT_PLATFORM" = "openclaw" ]; then
+  node "$REPOSITORY_ROOT/scripts/patch-nemoclaw-openclaw-no-proxy.mjs" \
+    "$build_context/scripts/nemoclaw-start.sh"
+fi
+
 resolved_base_image="$NEMOCLAW_BASE_IMAGE"
 if ! docker image inspect "$resolved_base_image" >/dev/null 2>&1 \
   && ! docker pull "$resolved_base_image"; then

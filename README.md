@@ -453,6 +453,64 @@ kubectl -n tasklattice-sandboxes logs statefulset/tasklattice-litellm-postgres -
 kubectl -n tasklattice-sandboxes logs deployment/tasklattice-litellm --tail=200
 ```
 
+### OpenClaw tools report `gateway closed (1006 abnormal closure)`
+
+First confirm the error belongs to an OpenClaw Instance. A Hermes Sandbox has
+`/sandbox/.hermes`, serves its API on port `8642`, and uses `18789` only for
+the dashboard. An error that names `OPENCLAW_GATEWAY_URL` and
+`/sandbox/.openclaw/openclaw.json` comes from an OpenClaw Sandbox.
+
+For OpenClaw, compare the proxied and direct self-dialback health checks from
+the Sandbox. Replace the Pod name and interface address with the live values:
+
+```sh
+kubectl -n openshell exec <openclaw-pod> -- \
+  curl -i http://10.200.0.2:18789/health
+kubectl -n openshell exec <openclaw-pod> -- \
+  env NO_PROXY=10.200.0.2 no_proxy=10.200.0.2 \
+  curl -i http://10.200.0.2:18789/health
+```
+
+A `policy_denied` response followed by `200` with the temporary bypass means
+the Sandbox interface is missing from `NO_PROXY`. TaskLattice patches its
+pinned NemoClaw OpenClaw image at build time so `_GATEWAY_WS_HOST` bypasses the
+OpenShell HTTP proxy. Rebuild the OpenClaw image and recreate the development
+Instance; existing Sandboxes retain their startup environment.
+
+Do not use `openclaw doctor --fix` for this error. NemoClaw intentionally uses
+group-shared configuration permissions that differ from OpenClaw's standalone
+single-user recommendations.
+
+### Hermes receives `Invalid proxy server token` from LiteLLM
+
+Do not add the LiteLLM Service to every business Policy. TaskLattice enables
+OpenShell `providers_v2_enabled` once at gateway scope, registers the shared
+`tasklattice-litellm` Profile, and attaches one Provider containing a distinct
+LiteLLM virtual key to each Instance. OpenShell then composes an isolated
+`_provider_*` rule into that Sandbox's effective Policy.
+
+Hermes must persist the dynamic `openshell:resolve:env:v..._OPENAI_API_KEY`
+placeholder created for its attached Provider. It must not persist either the
+real LiteLLM key or NemoClaw's static `sk-OPENSHELL-PROXY-REWRITE` template.
+The bootstrap script performs this migration while updating Hermes' hash
+anchor. Check the global switch, attachment, and composed Policy:
+
+```sh
+kubectl -n tasklattice-sandboxes exec deployment/tasklattice-openshell-runner -- \
+  openshell settings get --global
+kubectl -n tasklattice-sandboxes exec deployment/tasklattice-openshell-runner -- \
+  openshell sandbox provider list <sandbox-name>
+kubectl -n tasklattice-sandboxes exec deployment/tasklattice-openshell-runner -- \
+  openshell policy get <sandbox-name> --full -o json
+```
+
+New Instances must use the `tasklattice-litellm` Provider type, and the full
+Policy must contain its `_provider_*` entry for the exact LiteLLM host and
+port. A legacy `openai` Provider stores a key but does not compose this custom
+Profile. Rebuild the Runner and Hermes Sandbox images before creating another
+Instance. An already-open Hermes TUI should be closed and reopened after a
+live configuration migration.
+
 LiteLLM runs Prisma migrations inside its own container; no Prisma Deployment
 should appear in `kubectl get pods`.
 
