@@ -32,6 +32,30 @@ spec:
         runAsGroup: 65532
         seccompProfile:
           type: RuntimeDefault
+      initContainers:
+        - name: wait-for-postgresql
+          image: {{ include "tasklattice.image" (dict "root" . "image" .Values.images.postgres) }}
+          imagePullPolicy: {{ .Values.images.postgres.pullPolicy }}
+          command: ["sh", "-ec"]
+          args:
+            - >-
+              until pg_isready
+              --host {{ include "tasklattice.componentName" (dict "root" . "component" "postgresql") }}
+              --port 5432
+              --username litellm
+              --dbname litellm;
+              do sleep 2; done
+          resources:
+            requests:
+              cpu: 5m
+              memory: 8Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
       containers:
         - name: litellm
           image: {{ include "tasklattice.image" (dict "root" . "image" .Values.images.litellm) }}
@@ -120,4 +144,3 @@ spec:
     - name: http
       port: {{ .Values.litellm.service.port }}
       targetPort: http
-
