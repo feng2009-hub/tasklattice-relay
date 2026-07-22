@@ -1,74 +1,88 @@
-# 镜像发布与 Helm 部署
+# Image Release and Helm Deployment
 
-## 镜像盘点
+## Image Inventory
 
-TaskLattice 需要发布 **5 个第一方镜像**：
+TaskLattice publishes **five first-party images**:
 
-| 镜像 | 构建入口 | 作用 | 发布架构 |
+| Image | Build entry point | Purpose | Published architectures |
 | --- | --- | --- | --- |
-| `tasklattice-control` | `infra/docker/Dockerfile`, target `control` | Web UI、REST/WebSocket API、SQLite 控制数据 | amd64、arm64 |
-| `tasklattice-openshell-runner` | `infra/docker/Dockerfile`, target `runner` | 调用 OpenShell 创建、观察、连接和销毁 Sandbox | amd64、arm64 |
-| `tasklattice-litellm` | `infra/docker/Dockerfile.litellm` | 模型网关、虚拟 Key、费用归集 | amd64、arm64 |
-| `tasklattice-nemoclaw-sandbox` | `scripts/build-nemoclaw-sandbox.sh` (`openclaw`) + `Dockerfile.nemoclaw-openclaw` | OpenClaw Agent 的动态 Sandbox | amd64、arm64 |
-| `tasklattice-nemoclaw-hermes-sandbox` | 同一脚本 (`hermes`) + `Dockerfile.nemoclaw-hermes` | Hermes Agent 的动态 Sandbox | amd64、arm64 |
+| `tasklattice-control` | `infra/docker/Dockerfile`, target `control` | Web UI, REST/WebSocket API, and SQLite control data | amd64, arm64 |
+| `tasklattice-openshell-runner` | `infra/docker/Dockerfile`, target `runner` | Invokes OpenShell to create, observe, connect to, and destroy Sandboxes | amd64, arm64 |
+| `tasklattice-litellm` | `infra/docker/Dockerfile.litellm` | Model gateway, virtual keys, and cost attribution | amd64, arm64 |
+| `tasklattice-nemoclaw-sandbox` | `scripts/build-nemoclaw-sandbox.sh` (`openclaw`) + `Dockerfile.nemoclaw-openclaw` | Dynamic Sandbox for the OpenClaw Agent | amd64, arm64 |
+| `tasklattice-nemoclaw-hermes-sandbox` | The same script (`hermes`) + `Dockerfile.nemoclaw-hermes` | Dynamic Sandbox for the Hermes Agent | amd64, arm64 |
 
-完整部署还会拉取 **4 个固定的第三方镜像**：PostgreSQL、OpenShell
-gateway、OpenShell supervisor 和 Agent Sandbox controller。因此，当
-OpenClaw 与 Hermes 实例都至少启动一个时，整套系统共有 **9 个唯一镜像**。
-刚安装而尚未创建 Agent 实例时，两个 Agent 镜像和 supervisor 还不会形成
-常驻 Pod，但 runner 已经保存了它们的 released image 引用。
+A complete deployment also pulls **four pinned third-party images**: PostgreSQL,
+the OpenShell gateway, the OpenShell supervisor, and the Agent Sandbox
+controller. The full system therefore uses **nine unique images** when at least
+one OpenClaw Instance and one Hermes Instance are running. The two Agent images
+and the supervisor do not create long-lived Pods immediately after installation
+and before an Agent Instance is created, but the runner already retains their
+released image references.
 
-## 构建关系
+## Build Relationships
 
-`control` 与 `runner` 共享 Node 22 依赖和 TypeScript 编译阶段；runner 额外
-下载固定版本的 OpenShell CLI。LiteLLM 以固定的 database variant 为基础，
-提前执行 UI 初始化和 Prisma generate，使运行容器可以保持非 root。
+`control` and `runner` share the Node 22 dependency and TypeScript compilation
+stages. The runner also downloads a pinned OpenShell CLI release. LiteLLM uses a
+pinned database variant and runs UI initialization and Prisma generation in
+advance so that its runtime container can remain non-root.
 
-两个 Agent 镜像都从固定 NemoClaw commit 构建，再经过仓库内各自的薄包装层
-生成最终发布镜像。OpenClaw 在上游构建前应用仓库内的 no-proxy 补丁，并由
-`Dockerfile.nemoclaw-openclaw` 提供后续 TaskLattice 定制边界；Hermes 在上游
-镜像不可匿名拉取时先构建固定的 base fallback，再用
-`Dockerfile.nemoclaw-hermes` 对齐 OpenShell 要求的 UID/GID 并加入配置
-bootstrap。发布工作流按 amd64/arm64 独立构建这两条链，最后合并为
-multi-arch manifest。
+Both Agent images are built from pinned NemoClaw commits and then passed through
+their respective thin, repository-owned wrapper layers to produce the final
+published images. OpenClaw applies the repository's no-proxy patch before the
+upstream build, while `Dockerfile.nemoclaw-openclaw` provides the customization
+boundary for future TaskLattice changes. If the upstream Hermes image cannot be
+pulled anonymously, the Hermes build first creates its pinned base fallback and
+then uses `Dockerfile.nemoclaw-hermes` to align the UID/GID with OpenShell's
+requirements and add the configuration bootstrap. The release workflow builds
+both pipelines independently for amd64 and arm64, then combines them into
+multi-architecture manifests.
 
-每条 Agent 构建链遵循同一个分层约定：
+Every Agent build pipeline follows the same layering convention:
 
 ```text
-固定上游源码 + 固定 base digest
-  -> tasklattice-nemoclaw-<agent>-upstream:<revision>（仅构建中使用）
+pinned upstream source + pinned base digest
+  -> tasklattice-nemoclaw-<agent>-upstream:<revision> (build-time only)
   -> infra/docker/Dockerfile.nemoclaw-<agent>
   -> ghcr.io/<owner>/tasklattice-nemoclaw-<agent>-sandbox:<release>
 ```
 
-上游 Dockerfile 不复制到本仓库，以免与固定 NemoClaw revision 的实现漂移；
-TaskLattice 自有的启动脚本、配置 bootstrap、身份适配和运行时扩展只进入包装层。
-新增 Agent runtime 时应沿用独立包装 Dockerfile，而不是把平台定制继续堆入
-`build-nemoclaw-sandbox.sh`。OpenClaw 为兼容现有部署保留历史发布名
-`tasklattice-nemoclaw-sandbox`，其内部 upstream 标签仍显式包含 `openclaw`。
+The upstream Dockerfiles are not copied into this repository, which prevents
+them from drifting away from the pinned NemoClaw revisions. TaskLattice-owned
+startup scripts, configuration bootstraps, identity adaptations, and runtime
+extensions belong only in the wrapper layers. New Agent runtimes should follow
+the same convention with a dedicated wrapper Dockerfile instead of accumulating
+platform-specific customization in `build-nemoclaw-sandbox.sh`. OpenClaw retains
+the historical published name `tasklattice-nemoclaw-sandbox` for compatibility
+with existing deployments, while its internal upstream tag explicitly includes
+`openclaw`.
 
 ## GitHub Actions Release
 
-`.github/workflows/release.yml` 只响应语义化 tag，例如：
+`.github/workflows/release.yml` responds only to semantic version tags, for
+example:
 
 ```bash
 git tag v0.3.0
 git push origin v0.3.0
 ```
 
-流程会先运行测试、类型检查和 Helm render，再并行构建 5 个 GHCR 镜像。
-每个镜像发布 `X.Y.Z`、`sha-<12位提交>`，稳定版本同时更新 `latest`；预发布
-tag（如 `v0.3.0-rc.1`）不会更新 `latest`。成功后它会：
+The workflow runs tests, type checking, and Helm rendering before building the
+five GHCR images in parallel. Each image publishes `X.Y.Z` and
+`sha-<12-character-commit>`. Stable releases also update `latest`, while
+prerelease tags such as `v0.3.0-rc.1` do not. After a successful build, the
+workflow:
 
-1. 发布 `oci://ghcr.io/<owner>/charts/tasklattice:X.Y.Z`；
-2. 创建 GitHub Release；
-3. 将自包含的 `tasklattice-X.Y.Z.tgz` 附到 Release。
+1. Publishes `oci://ghcr.io/<owner>/charts/tasklattice:X.Y.Z`.
+2. Creates a GitHub Release.
+3. Attaches the self-contained `tasklattice-X.Y.Z.tgz` package to the Release.
 
-GHCR package 必须是 public，或者目标集群必须配置 pull secret。首次在仓库
-发布 package 后，请在 GitHub package settings 中确认 5 个 image package 和
-chart package 的可见性符合部署环境。
+GHCR packages must be public unless the target cluster is configured with a
+pull secret. After publishing packages from the repository for the first time,
+verify in the GitHub package settings that the visibility of all five image
+packages and the chart package matches the deployment environment.
 
-## 从 GitHub Release 一键部署
+## Deploy from a GitHub Release
 
 ```bash
 VERSION="<release-version>"
@@ -80,7 +94,7 @@ helm upgrade --install tasklattice "./tasklattice-${VERSION}.tgz" \
   --timeout 10m
 ```
 
-也可以直接从 GHCR OCI Chart 安装：
+The chart can also be installed directly from GHCR OCI:
 
 ```bash
 VERSION="<release-version>"
@@ -93,15 +107,19 @@ helm upgrade --install tasklattice \
   --timeout 10m
 ```
 
-默认 values 与当前本地验证路径一致：control 和 OpenShell 使用
-`LoadBalancer`，本地登录为 `admin/admin`，OpenShell 使用集群内 plaintext
-且允许未认证客户端。这保证可信本地集群可直接启动，但不适合暴露到共享或公网
-环境。生产部署至少需要用私有 values 文件替换全部 `secrets.*`，并为 OpenShell
-和入口配置 TLS/OIDC。若集群已经安装 Agent Sandbox controller，设置
-`agentSandbox.enabled=false`，避免重复管理集群级 CRD/controller。
+The default values match the current local validation path: control and
+OpenShell use `LoadBalancer`, local sign-in uses `admin/admin`, and OpenShell
+uses plaintext communication inside the cluster while accepting unauthenticated
+clients. These defaults allow a trusted local cluster to start directly, but
+they are not suitable for a shared or public environment. At a minimum,
+production deployments must replace every `secrets.*` value through a private
+values file and configure TLS/OIDC for OpenShell and the ingress. If the Agent
+Sandbox controller is already installed in the cluster, set
+`agentSandbox.enabled=false` to avoid managing the cluster-scoped CRDs and
+controller more than once.
 
-私有 GHCR 镜像需要先创建 pull secret，并同时传给 TaskLattice Pod 与动态
-Sandbox：
+Private GHCR images require a pull secret that is passed to both the TaskLattice
+Pods and dynamic Sandboxes:
 
 ```yaml
 global:
