@@ -62,6 +62,20 @@ spec:
                 secretKeyRef:
                   name: {{ include "tasklattice.secretName" . }}
                   key: postgres-password
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "--username", "litellm", "--dbname", "litellm"]
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "--username", "litellm", "--dbname", "litellm"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data
@@ -82,4 +96,3 @@ spec:
         resources:
           requests:
             storage: {{ .Values.postgresql.persistence.size }}
-
