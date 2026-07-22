@@ -88,8 +88,10 @@ Build all five first-party images:
 npm run images:build
 ```
 
-The OpenClaw and Hermes builds clone pinned NVIDIA NemoClaw revisions. Hermes
-builds its pinned base locally when the upstream GHCR base is unavailable.
+The OpenClaw and Hermes builds clone pinned NVIDIA NemoClaw revisions, build an
+upstream image, and pass it through a TaskLattice-owned wrapper Dockerfile.
+Hermes builds its pinned base locally when the upstream GHCR base is
+unavailable.
 
 Confirm the resulting images:
 
