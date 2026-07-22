@@ -38,8 +38,8 @@ env:
   KIND_CLUSTER_NAME: tasklattice-ci
   HELM_RELEASE_NAME: tasklattice
   HELM_NAMESPACE: tasklattice-smoke
-  IMAGE_REGISTRY: tasklattice.local
-  IMAGE_TAG: kind-smoke
+  IMAGE_REGISTRY: ghcr.io/sn0rt
+  IMAGE_TAG: dev
   BUILD_IMAGES: "0"
   HELM_TIMEOUT: 15m
 
@@ -59,7 +59,7 @@ jobs:
           file: infra/docker/Dockerfile
           target: control
           load: true
-          tags: tasklattice.local/tasklattice-control:kind-smoke
+          tags: ghcr.io/sn0rt/tasklattice-control:dev
           cache-from: type=gha,scope=helm-smoke-control
           cache-to: type=gha,mode=max,scope=helm-smoke-control,ignore-error=true
 
@@ -70,7 +70,7 @@ jobs:
           file: infra/docker/Dockerfile
           target: runner
           load: true
-          tags: tasklattice.local/tasklattice-openshell-runner:kind-smoke
+          tags: ghcr.io/sn0rt/tasklattice-openshell-runner:dev
           cache-from: type=gha,scope=helm-smoke-runner
           cache-to: type=gha,mode=max,scope=helm-smoke-runner,ignore-error=true
 
@@ -80,7 +80,7 @@ jobs:
           context: .
           file: infra/docker/Dockerfile.litellm
           load: true
-          tags: tasklattice.local/tasklattice-litellm:kind-smoke
+          tags: ghcr.io/sn0rt/tasklattice-litellm:dev
           cache-from: type=gha,scope=helm-smoke-litellm
           cache-to: type=gha,mode=max,scope=helm-smoke-litellm,ignore-error=true
 

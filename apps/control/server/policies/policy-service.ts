@@ -16,15 +16,17 @@ const recordSchema = z.record(z.string(), z.unknown());
 const catalogFileSchema = z.object({
   defaultPolicyId: sandboxPolicyIdSchema,
   basePolicy: recordSchema,
-  policies: z.array(
-    z.object({
-      id: sandboxPolicyIdSchema,
-      name: z.string().trim().min(3).max(80),
-      description: z.string().trim().min(10).max(320),
-      networkAccess: z.string().trim().min(3).max(160),
-      policy: recordSchema,
-    }),
-  ).min(1),
+  policies: z
+    .array(
+      z.object({
+        id: sandboxPolicyIdSchema,
+        name: z.string().trim().min(3).max(80),
+        description: z.string().trim().min(10).max(320),
+        networkAccess: z.string().trim().min(3).max(160),
+        policy: recordSchema,
+      }),
+    )
+    .min(1),
 });
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -38,21 +40,30 @@ function mergeRecords(
   const result = { ...base };
   for (const [key, value] of Object.entries(extension)) {
     const current = result[key];
-    result[key] = isRecord(current) && isRecord(value)
-      ? mergeRecords(current, value)
-      : value;
+    result[key] =
+      isRecord(current) && isRecord(value)
+        ? mergeRecords(current, value)
+        : value;
   }
   return result;
 }
 
 function stringList(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
 }
 
-export function normalizeOpenShellPolicy(policyYaml: string, baselinePolicyYaml?: string): string {
+export function normalizeOpenShellPolicy(
+  policyYaml: string,
+  baselinePolicyYaml?: string,
+): string {
   const input = parse(policyYaml) as unknown;
-  const baseline = baselinePolicyYaml ? parse(baselinePolicyYaml) as unknown : {};
-  if (!isRecord(baseline)) throw new Error("The deployment Policy baseline must be a YAML object.");
+  const baseline = baselinePolicyYaml
+    ? (parse(baselinePolicyYaml) as unknown)
+    : {};
+  if (!isRecord(baseline))
+    throw new Error("The deployment Policy baseline must be a YAML object.");
   const document = isRecord(input) ? mergeRecords(baseline, input) : input;
   if (!isRecord(document) || document.version !== 1)
     throw new Error("OpenShell Policy YAML must be an object with version: 1.");
@@ -66,8 +77,18 @@ export function normalizeOpenShellPolicy(policyYaml: string, baselinePolicyYaml?
   document.filesystem_policy = {
     ...filesystem,
     include_workdir: true,
-    read_only: [...new Set([...stringList(baselineFilesystem.read_only), ...stringList(filesystem.read_only)])],
-    read_write: [...new Set([...stringList(baselineFilesystem.read_write), ...stringList(filesystem.read_write)])],
+    read_only: [
+      ...new Set([
+        ...stringList(baselineFilesystem.read_only),
+        ...stringList(filesystem.read_only),
+      ]),
+    ],
+    read_write: [
+      ...new Set([
+        ...stringList(baselineFilesystem.read_write),
+        ...stringList(filesystem.read_write),
+      ]),
+    ],
   };
   document.landlock = isRecord(document.landlock)
     ? { compatibility: "best_effort", ...document.landlock }
@@ -80,7 +101,9 @@ export function normalizeOpenShellPolicy(policyYaml: string, baselinePolicyYaml?
   if (isRecord(process)) {
     const identities = [process.run_as_user, process.run_as_group].map(String);
     if (identities.some((identity) => identity === "root" || identity === "0"))
-      throw new Error("OpenShell does not allow a Policy to run the Agent as root.");
+      throw new Error(
+        "OpenShell does not allow a Policy to run the Agent as root.",
+      );
   }
 
   return stringify(document, { lineWidth: 0 }).trimEnd() + "\n";
@@ -92,8 +115,13 @@ export interface PolicyCatalogSource {
 
 export class FilePolicyCatalogSource implements PolicyCatalogSource {
   constructor(
-    readonly path = process.env.TALI_BUILTIN_POLICIES_PATH
-      ?? fileURLToPath(new URL("../../../../infra/kubernetes/base/policy-catalog.yaml", import.meta.url)),
+    readonly path = process.env.TALI_BUILTIN_POLICIES_PATH ??
+      fileURLToPath(
+        new URL(
+          "../../../../charts/tasklattice/files/policy-catalog.yaml",
+          import.meta.url,
+        ),
+      ),
   ) {}
 
   load(): SandboxPolicyCatalog {
@@ -119,10 +147,14 @@ export class FilePolicyCatalogSource implements PolicyCatalogSource {
       immutable: true,
     }));
     if (!policies.some((policy) => policy.id === catalog.defaultPolicyId))
-      throw new Error("The ConfigMap defaultPolicyId does not match a built-in Policy.");
+      throw new Error(
+        "The ConfigMap defaultPolicyId does not match a built-in Policy.",
+      );
     return {
       defaultPolicyId: catalog.defaultPolicyId,
-      templatePolicyYaml: normalizeOpenShellPolicy(stringify(catalog.basePolicy)),
+      templatePolicyYaml: normalizeOpenShellPolicy(
+        stringify(catalog.basePolicy),
+      ),
       policies,
     };
   }
@@ -157,16 +189,20 @@ export class PolicyService {
 
   create(input: CreateSandboxPolicyInput): SandboxPolicy {
     const now = new Date().toISOString();
-    const slug = input.name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "")
-      .slice(0, 52)
-      .replace(/-$/, "") || "policy";
+    const slug =
+      input.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "")
+        .slice(0, 52)
+        .replace(/-$/, "") || "policy";
     return this.store.saveSandboxPolicy({
       id: `${slug}-${randomUUID().slice(0, 8)}`,
       ...input,
-      policyYaml: normalizeOpenShellPolicy(input.policyYaml, this.source.load().templatePolicyYaml),
+      policyYaml: normalizeOpenShellPolicy(
+        input.policyYaml,
+        this.source.load().templatePolicyYaml,
+      ),
       enforcement: "ENFORCE",
       source: "CUSTOM",
       immutable: false,
@@ -179,11 +215,16 @@ export class PolicyService {
     const current = this.get(id);
     if (!current) throw new Error("Policy was not found.");
     if (current.immutable)
-      throw new Error("Built-in Policies are managed by the deployment ConfigMap and cannot be modified.");
+      throw new Error(
+        "Built-in Policies are managed by the deployment ConfigMap and cannot be modified.",
+      );
     return this.store.saveSandboxPolicy({
       ...current,
       ...input,
-      policyYaml: normalizeOpenShellPolicy(input.policyYaml, this.source.load().templatePolicyYaml),
+      policyYaml: normalizeOpenShellPolicy(
+        input.policyYaml,
+        this.source.load().templatePolicyYaml,
+      ),
       updatedAt: new Date().toISOString(),
     });
   }
@@ -192,9 +233,13 @@ export class PolicyService {
     const current = this.get(id);
     if (!current) return false;
     if (current.immutable)
-      throw new Error("Built-in Policies are managed by the deployment ConfigMap and cannot be deleted.");
+      throw new Error(
+        "Built-in Policies are managed by the deployment ConfigMap and cannot be deleted.",
+      );
     if (this.store.isSandboxPolicyInUse(id))
-      throw new Error("This Policy is assigned to an Instance and cannot be deleted.");
+      throw new Error(
+        "This Policy is assigned to an Instance and cannot be deleted.",
+      );
     this.store.deleteSandboxPolicy(id);
     return true;
   }

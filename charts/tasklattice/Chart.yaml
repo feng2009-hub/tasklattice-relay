@@ -2,8 +2,8 @@ apiVersion: v2
 name: tasklattice
 description: TaskLattice control plane, model gateway, and OpenShell agent runtime
 type: application
-version: 0.3.0
-appVersion: "0.3.0"
+version: 0.0.0-dev
+appVersion: dev
 kubeVersion: ">=1.29.0-0"
 home: https://github.com/Sn0rt/TaskLattice
 sources:
@@ -19,4 +19,3 @@ dependencies:
     version: 0.1.0
     repository: file://charts/agent-sandbox
     condition: agentSandbox.enabled
-

@@ -20,6 +20,9 @@ spec:
       annotations:
         checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
         checksum/policies: {{ include (print $.Template.BasePath "/policy-configmap.yaml") . | sha256sum }}
+        {{- with .Values.global.rolloutRevision }}
+        tasklattice.ai/rollout-revision: {{ . | quote }}
+        {{- end }}
     spec:
       serviceAccountName: {{ include "tasklattice.serviceAccountName" . }}
       automountServiceAccountToken: false
@@ -182,4 +185,3 @@ spec:
     requests:
       storage: {{ .Values.control.persistence.size }}
 {{- end }}
-

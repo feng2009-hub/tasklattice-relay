@@ -20,6 +20,9 @@ spec:
         {{- include "tasklattice.selectorLabels" (dict "root" . "component" $component) | nindent 8 }}
       annotations:
         checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.global.rolloutRevision }}
+        tasklattice.ai/rollout-revision: {{ . | quote }}
+        {{- end }}
     spec:
       automountServiceAccountToken: false
       {{- with .Values.global.imagePullSecrets }}

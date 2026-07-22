@@ -6,18 +6,10 @@ cluster_name="${KIND_CLUSTER_NAME:-tasklattice-ci}"
 kube_context="kind-${cluster_name}"
 release_name="${HELM_RELEASE_NAME:-tasklattice}"
 namespace="${HELM_NAMESPACE:-tasklattice-smoke}"
-image_registry="${IMAGE_REGISTRY:-tasklattice.local}"
+image_registry="${IMAGE_REGISTRY:-ghcr.io/sn0rt}"
 helm_timeout="${HELM_TIMEOUT:-15m}"
 build_images="${BUILD_IMAGES:-1}"
-
-if [[ -n "${IMAGE_TAG:-}" ]]; then
-  image_tag="${IMAGE_TAG}"
-elif [[ "${build_images}" == "1" ]]; then
-  image_tag="kind-smoke-$(date +%s)"
-else
-  echo "IMAGE_TAG is required when BUILD_IMAGES=0." >&2
-  exit 1
-fi
+image_tag="${IMAGE_TAG:-dev}"
 
 required_commands=(docker helm kind kubectl)
 for command_name in "${required_commands[@]}"; do
@@ -67,12 +59,16 @@ kind load docker-image --name "${cluster_name}" \
   "${runner_image}" \
   "${litellm_image}"
 
-helm lint charts/tasklattice
+rollout_revision="smoke-$(date -u +%Y%m%d%H%M%S)"
+
+helm lint charts/tasklattice --values charts/tasklattice/values-dev.yaml
 helm upgrade --install "${release_name}" charts/tasklattice \
   --kube-context "${kube_context}" \
   --namespace "${namespace}" \
   --create-namespace \
+  --values charts/tasklattice/values-dev.yaml \
   --set-string "global.imageRegistry=${image_registry}" \
+  --set-string "global.rolloutRevision=${rollout_revision}" \
   --set-string "images.control.tag=${image_tag}" \
   --set-string "images.runner.tag=${image_tag}" \
   --set-string "images.litellm.tag=${image_tag}" \

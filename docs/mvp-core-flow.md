@@ -121,7 +121,7 @@ published only after that platform's health endpoint responds.
 
 Provider Accounts group Provider-specific configuration and opaque credentials with multiple categorized model deployments. Registration first discovers remote or recommended models without persistence, always permits a manual model ID, and revalidates the connection before committing selected models through LiteLLM. At least one model must pass the final capability probe; partial success retains only healthy models and reports failures per model. LiteLLM issues a model-scoped key per Instance and attributes spend through Provider Account metadata; the public API never returns Provider or Instance credentials. Startup does not create Provider data, so local and deployed environments use the same registration path.
 
-OpenShell built-in Policies are deployment configuration. Kustomize stores the catalog in a ConfigMap, the control Pod mounts it read-only, and the API exposes those entries as immutable. The catalog default is `unrestricted`, which allows arbitrary shell and file operations in Sandbox-owned writable paths and includes `/dev/null`; OpenShell still disallows root execution and undeclared global network egress.
+OpenShell built-in Policies are deployment configuration. The Helm chart stores the catalog in a ConfigMap, the control Pod mounts it read-only, and the API exposes those entries as immutable. The catalog default is `unrestricted`, which allows arbitrary shell and file operations in Sandbox-owned writable paths and includes `/dev/null`; OpenShell still disallows root execution and undeclared global network egress.
 
 ## REST and terminal protocols
 

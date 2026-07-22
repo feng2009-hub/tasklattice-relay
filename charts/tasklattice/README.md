@@ -5,6 +5,10 @@ runner, LiteLLM, PostgreSQL, OpenShell, and the Agent Sandbox controller. The
 OpenShell 0.0.82 and Agent Sandbox v0.5.1 charts are vendored so the packaged
 GitHub Release artifact is self-contained.
 
+The source Chart uses the development version `0.0.0-dev` and resolves its
+first-party images to `:dev`. The Release workflow replaces both Chart version
+and `appVersion` with the exact Git Release version before publishing.
+
 Install a released chart:
 
 ```bash
@@ -43,23 +47,3 @@ When `secrets.existingSecret` is used it must contain `runner-token`,
 `local-password`, `oidc-client-secret`, `litellm-ui-username`,
 `litellm-ui-password`, and `litellm-salt-key`. Set `runner.gatewayEndpoint`
 when `openshell.enabled=false` and the gateway is managed outside this release.
-
-## Kind smoke test
-
-The repository includes a smoke test that builds the control, runner, and
-LiteLLM images, loads them into an existing Kind cluster, installs this chart,
-and waits for every TaskLattice and Agent Sandbox controller Pod to become
-Ready:
-
-```bash
-kind create cluster --name tasklattice-ci
-bash scripts/helm-kind-smoke.sh
-```
-
-Set both `BUILD_IMAGES=0` and `IMAGE_TAG=<existing-tag>` to reuse images already
-present in Docker. A normal local run generates a unique image tag so an
-existing Helm release cannot accidentally keep stale Pods. OpenClaw and Hermes
-sandbox images are not built by this check because they are pulled only after
-an Instance is created; the smoke test validates the chart's deployment Pods.
-GitHub Actions runs the same script in
-`.github/workflows/helm-kind-smoke.yml`.

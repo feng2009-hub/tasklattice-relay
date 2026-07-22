@@ -105,7 +105,7 @@ describe("OpenShell Kubernetes command contract", () => {
       "/tmp/tali-nemoclaw-start",
       "/tmp/openshell-policy.yaml",
     );
-    expect(args).toContain("tasklattice-nemoclaw-sandbox:0.3.0");
+    expect(args).toContain("ghcr.io/sn0rt/tasklattice-nemoclaw-sandbox:dev");
     expect(args).toContain("tasklattice.ai/managed=true");
     expect(args).toContain(
       "/tmp/AGENTS.md:/sandbox/.openclaw/workspace/AGENTS.md",
@@ -217,7 +217,9 @@ describe("OpenShell Kubernetes command contract", () => {
       "/tmp/openshell-policy.yaml",
     );
 
-    expect(createArgs).toContain("tasklattice-nemoclaw-hermes-sandbox:0.3.0");
+    expect(createArgs).toContain(
+      "ghcr.io/sn0rt/tasklattice-nemoclaw-hermes-sandbox:dev",
+    );
     expect(createArgs).toContain("/tmp/SOUL.md:/sandbox/.hermes/SOUL.md");
     expect(
       openShellNemoClawProbeArguments(

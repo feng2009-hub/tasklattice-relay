@@ -2,6 +2,10 @@
 global:
   imageRegistry: ghcr.io/sn0rt
   imagePullSecrets: []
+  # Set by local deployment tooling to restart first-party workloads after a
+  # mutable :dev image is rebuilt. Released charts leave this empty because
+  # their image tag is the immutable Chart appVersion.
+  rolloutRevision: ""
 
 images:
   control:

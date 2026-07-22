@@ -118,7 +118,7 @@ const agentPlatformRuntimeRegistry = {
     endpointKind: "openclaw-webui",
     sandboxImage: () =>
       process.env.OPENSHELL_SANDBOX_IMAGE ??
-      "tasklattice-nemoclaw-sandbox:0.3.0",
+      "ghcr.io/sn0rt/tasklattice-nemoclaw-sandbox:dev",
     bootstrapScript: openClawBootstrapScript,
     healthProbe: (dashboardPort) =>
       `test -x /usr/local/bin/nemoclaw-start && test -f /sandbox/.openclaw/openclaw.json && curl -fsS --max-time 3 http://127.0.0.1:${dashboardPort}/health >/dev/null`,
@@ -141,7 +141,7 @@ const agentPlatformRuntimeRegistry = {
     endpointKind: "hermes-dashboard",
     sandboxImage: () =>
       process.env.OPENSHELL_HERMES_SANDBOX_IMAGE ??
-      "tasklattice-nemoclaw-hermes-sandbox:0.3.0",
+      "ghcr.io/sn0rt/tasklattice-nemoclaw-hermes-sandbox:dev",
     bootstrapScript: hermesBootstrapScript,
     healthProbe: () =>
       "test -x /usr/local/bin/hermes && test -f /sandbox/.hermes/config.yaml && curl -fsS --max-time 3 http://127.0.0.1:8642/health >/dev/null",
