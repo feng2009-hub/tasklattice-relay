@@ -13,6 +13,7 @@
     "dev": "npm run dev --workspace @tasklattice/control",
     "dev:control": "npm run dev --workspace @tasklattice/control",
     "dev:runner": "npm run dev --workspace @tasklattice/runner",
+    "pretest": "npm run build --workspace @tasklattice/contracts",
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "images:build": "npm run images:build:control && npm run images:build:runner && npm run images:build:litellm && npm run images:build:sandbox:openclaw && npm run images:build:sandbox:hermes",
