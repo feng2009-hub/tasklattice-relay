@@ -51,6 +51,11 @@ logic are in [`scripts/build-nemoclaw-sandbox.sh`](scripts/build-nemoclaw-sandbo
 The OpenShell and Agent Sandbox pins are in
 [`scripts/install-openshell-k8s.sh`](scripts/install-openshell-k8s.sh).
 
+Released builds and full-cluster installs are automated as well. See
+[`docs/image-release-and-helm.md`](docs/image-release-and-helm.md) for the five
+first-party image build graph, the tag-driven GitHub Actions release, and the
+one-command Helm install from a GitHub Release or GHCR OCI chart.
+
 ## Prerequisites
 
 Install and start all of the following before cloning the repository:

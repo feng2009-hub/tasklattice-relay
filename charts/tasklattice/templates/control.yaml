@@ -1,0 +1,185 @@
+{{- $root := . -}}
+{{- $component := "control" -}}
+{{- $name := include "tasklattice.componentName" (dict "root" . "component" $component) -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tasklattice.labels" . | nindent 4 }}
+    {{- include "tasklattice.selectorLabels" (dict "root" . "component" $component) | nindent 4 }}
+spec:
+  replicas: {{ .Values.control.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "tasklattice.selectorLabels" (dict "root" . "component" $component) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tasklattice.selectorLabels" (dict "root" . "component" $component) | nindent 8 }}
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        checksum/policies: {{ include (print $.Template.BasePath "/policy-configmap.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "tasklattice.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: control
+          image: {{ include "tasklattice.image" (dict "root" . "image" .Values.images.control) }}
+          imagePullPolicy: {{ .Values.images.control.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: DATABASE_PATH
+              value: /data/tasklattice.db
+            - name: NEMOCLAW_RUNNER_URL
+              value: {{ printf "http://%s:9090" (include "tasklattice.componentName" (dict "root" . "component" "runner")) | quote }}
+            - name: NEMOCLAW_RUNNER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tasklattice.secretName" . }}
+                  key: runner-token
+            - name: LITELLM_BASE_URL
+              value: {{ printf "http://%s:4000" (include "tasklattice.componentName" (dict "root" . "component" "litellm")) | quote }}
+            - name: LITELLM_ADMIN_UI_URL
+              value: {{ default (printf "http://%s:4000/ui" (include "tasklattice.componentName" (dict "root" . "component" "litellm"))) .Values.litellm.adminUiUrl | quote }}
+            - name: LITELLM_COMPLIANCE_DOMAIN
+              value: {{ .Values.litellm.complianceDomain | quote }}
+            - name: LITELLM_MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tasklattice.secretName" . }}
+                  key: litellm-master-key
+            - name: TALI_BUILTIN_POLICIES_PATH
+              value: /etc/tasklattice/policies/catalog.yaml
+            - name: TALI_EXTENSION_CATALOG_SEED
+              value: {{ .Values.control.extensionCatalogSeed | quote }}
+            - name: TALI_AUTH_MODE
+              value: {{ .Values.auth.mode | quote }}
+            - name: TALI_AUTH_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tasklattice.secretName" . }}
+                  key: jwt-secret
+            - name: TALI_AUTH_LOCAL_USERNAME
+              value: {{ .Values.auth.local.username | quote }}
+            - name: TALI_AUTH_LOCAL_DISPLAY_NAME
+              value: {{ .Values.auth.local.displayName | quote }}
+            - name: TALI_AUTH_LOCAL_EMAIL
+              value: {{ .Values.auth.local.email | quote }}
+            - name: TALI_AUTH_LOCAL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tasklattice.secretName" . }}
+                  key: local-password
+            {{- if eq .Values.auth.mode "local-sso" }}
+            - name: TALI_AUTH_OIDC_ISSUER
+              value: {{ required "auth.oidc.issuer is required for local-sso" .Values.auth.oidc.issuer | quote }}
+            - name: TALI_AUTH_OIDC_CLIENT_ID
+              value: {{ required "auth.oidc.clientId is required for local-sso" .Values.auth.oidc.clientId | quote }}
+            - name: TALI_AUTH_OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tasklattice.secretName" . }}
+                  key: oidc-client-secret
+            - name: TALI_AUTH_OIDC_REDIRECT_URI
+              value: {{ .Values.auth.oidc.redirectUri | quote }}
+            - name: TALI_AUTH_OIDC_PROVIDER_NAME
+              value: {{ .Values.auth.oidc.providerName | quote }}
+            - name: TALI_AUTH_OIDC_SCOPES
+              value: {{ .Values.auth.oidc.scopes | quote }}
+            {{- end }}
+            {{- with .Values.control.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.control.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: data
+              mountPath: /data
+            - name: policies
+              mountPath: /etc/tasklattice/policies
+              readOnly: true
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 32Mi
+        - name: data
+          {{- if .Values.control.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ default (printf "%s-data" $name) .Values.control.persistence.existingClaim }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: policies
+          configMap:
+            name: {{ include "tasklattice.componentName" (dict "root" . "component" "policies") }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tasklattice.labels" . | nindent 4 }}
+  {{- with .Values.control.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.control.service.type }}
+  selector:
+    {{- include "tasklattice.selectorLabels" (dict "root" . "component" $component) | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.control.service.port }}
+      targetPort: http
+{{- if and .Values.control.persistence.enabled (not .Values.control.persistence.existingClaim) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $name }}-data
+  labels:
+    {{- include "tasklattice.labels" . | nindent 4 }}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  {{- with .Values.control.persistence.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.control.persistence.size }}
+{{- end }}
+

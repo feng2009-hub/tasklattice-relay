@@ -1,0 +1,167 @@
+# Released TaskLattice images. Override this for a fork or private mirror.
+global:
+  imageRegistry: ghcr.io/sn0rt
+  imagePullSecrets: []
+
+images:
+  control:
+    repository: tasklattice-control
+    tag: ""
+    pullPolicy: IfNotPresent
+  runner:
+    repository: tasklattice-openshell-runner
+    tag: ""
+    pullPolicy: IfNotPresent
+  litellm:
+    repository: tasklattice-litellm
+    tag: ""
+    pullPolicy: IfNotPresent
+  openclawSandbox:
+    repository: tasklattice-nemoclaw-sandbox
+    tag: ""
+  hermesSandbox:
+    repository: tasklattice-nemoclaw-hermes-sandbox
+    tag: ""
+  postgres:
+    repository: postgres
+    tag: 17-alpine
+    pullPolicy: IfNotPresent
+    useGlobalRegistry: false
+
+control:
+  replicaCount: 1
+  service:
+    type: LoadBalancer
+    port: 80
+    annotations: {}
+  persistence:
+    enabled: true
+    size: 1Gi
+    storageClass: ""
+    existingClaim: ""
+  resources:
+    requests:
+      cpu: 50m
+      memory: 96Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  extensionCatalogSeed: development
+  extraEnv: []
+
+runner:
+  replicaCount: 1
+  gatewayEndpoint: ""
+  serviceBaseUrl: http://openshell.localhost:8080
+  kubernetesServiceCidrs: 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+  sandbox:
+    cpu: "1"
+    memory: 2Gi
+  resources:
+    requests:
+      cpu: 50m
+      memory: 96Mi
+    limits:
+      cpu: 500m
+      memory: 384Mi
+  extraEnv: []
+
+litellm:
+  replicaCount: 1
+  service:
+    type: ClusterIP
+    port: 4000
+    annotations: {}
+  adminUiUrl: ""
+  complianceDomain: GLOBAL
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 4Gi
+  extraEnv: []
+
+postgresql:
+  persistence:
+    size: 2Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# Development-friendly defaults make the chart installable as-is. Override all
+# values below (or set existingSecret) before exposing a shared deployment.
+secrets:
+  existingSecret: ""
+  runnerToken: local-dev-token
+  litellmMasterKey: sk-tasklattice-local
+  postgresPassword: tasklattice-local
+  databaseUrl: ""
+  jwtSecret: tasklattice-local-development-secret
+  localPassword: admin
+  litellmUiUsername: admin
+  litellmUiPassword: tasklattice-local-admin
+  litellmSaltKey: tasklattice-local-litellm-salt-v1
+
+auth:
+  mode: local
+  local:
+    username: admin
+    displayName: Local Administrator
+    email: ""
+  oidc:
+    issuer: ""
+    clientId: ""
+    clientSecret: ""
+    redirectUri: ""
+    providerName: Company SSO
+    scopes: openid profile email
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+nameOverride: ""
+fullnameOverride: ""
+
+# Cluster-scoped runtime dependency. Set enabled=false when it is already
+# installed in the cluster. The vendored upstream chart is pinned to v0.5.1 by
+# the image tag even though its upstream Chart version remains 0.1.0.
+agentSandbox:
+  enabled: true
+  namespace:
+    create: true
+    name: agent-sandbox-system
+  image:
+    repository: registry.k8s.io/agent-sandbox/agent-sandbox-controller
+    tag: v0.5.1
+    pullPolicy: IfNotPresent
+  controller:
+    leaderElect: true
+    extensions: false
+
+# Pinned upstream OpenShell OCI chart. Plaintext/unauthenticated mode matches
+# TaskLattice's current trusted-cluster integration. Put the services behind an
+# authenticated ingress or configure OpenShell TLS/OIDC for shared clusters.
+openshell:
+  enabled: true
+  image:
+    tag: 0.0.82
+  supervisor:
+    image:
+      tag: 0.0.82
+    sideloadMethod: init-container
+  service:
+    type: LoadBalancer
+  server:
+    disableTls: true
+    auth:
+      allowUnauthenticatedUsers: true
+    workspaceDefaultStorageSize: 1Gi
