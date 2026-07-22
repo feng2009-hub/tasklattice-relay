@@ -3,6 +3,7 @@ import type { Agent, SandboxAuditEvent } from "@tasklattice/contracts";
 import { adaptAgentToAuditorLogs, filterAuditorLogs } from "./auditor-log-utils";
 
 const agent = {
+  schemaVersion: 1,
   id: "2b0dc5a0-0d15-4b90-bc3f-71112b812efd",
   name: "audit-agent",
   description: "",
@@ -15,6 +16,25 @@ const agent = {
   providerName: "DeepSeek",
   model: "deepseek-chat",
   modelType: "llm",
+  inferenceMode: "PLATFORM_MANAGED",
+  inferenceGroupId: "group-a",
+  inferenceBindingId: "binding-a",
+  inferenceStatus: "READY",
+  inferenceComplianceDomain: "GLOBAL",
+  inferenceCapabilities: {
+    automaticRouting: "ENABLED",
+    routerType: "COMPLEXITY_ROUTER",
+    complexityTierCount: 4,
+    sessionAffinity: "ENABLED",
+    adaptiveRouting: "DISABLED",
+    failover: "ENABLED",
+    generalFallback: "ENABLED",
+    contextWindowFallback: "DISABLED",
+    contentPolicyFallback: "DISABLED",
+    retries: "ENABLED",
+    requestAudit: "ENABLED",
+  },
+  inferenceKeyFingerprint: "sha256:123456789abc",
   costKeyAlias: "alias",
   sandboxName: "tali-audit-agent",
   status: "READY",

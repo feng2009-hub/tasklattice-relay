@@ -32,12 +32,14 @@ export function InstanceConfigurationTab({ agent, platform }: { agent: Agent; pl
         </CardContent>
       </Card>
       <Card className="lg:col-span-2">
-        <DetailCardHeader title="Model configuration" description="Resolved model and provider bindings." />
+        <DetailCardHeader title="Managed inference" description="TaskLattice resolved this access contract automatically when the Instance was created." />
         <CardContent><DefinitionList columns={2} items={[
-          { label: "Model", value: agent.model },
-          { label: "Model deployment", value: agent.modelDeploymentId },
-          { label: "Provider", value: agent.providerName },
-          { label: "Provider connection", value: agent.providerAccountId },
+          { label: "Inference mode", value: "Platform managed" },
+          { label: "Inference status", value: agent.inferenceStatus?.replaceAll("_", " ") ?? "Unavailable" },
+          { label: "Compliance", value: agent.inferenceComplianceDomain === "CN_MAINLAND" ? "CN Mainland" : "Global" },
+          { label: "Automatic routing", value: agent.inferenceCapabilities?.automaticRouting === "ENABLED" ? "Enabled" : "Not enabled" },
+          { label: "Failover", value: agent.inferenceCapabilities?.failover === "ENABLED" ? "Enabled" : "Not enabled" },
+          { label: "Key fingerprint", value: agent.inferenceKeyFingerprint ?? "Unavailable" },
           { label: "Agent framework", value: platform.name },
           { label: "Runtime", value: platform.runtimeName },
         ]} /></CardContent>

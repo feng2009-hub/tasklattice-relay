@@ -74,6 +74,7 @@ describe("PolicyService", () => {
     });
     const now = new Date().toISOString();
     store.save({
+      schemaVersion: 1,
       id: "agent-a",
       name: "Policy user",
       description: "",
@@ -86,6 +87,25 @@ describe("PolicyService", () => {
       providerName: "Provider",
       model: "model-a",
       modelType: "llm",
+      inferenceMode: "PLATFORM_MANAGED",
+      inferenceGroupId: "group-a",
+      inferenceBindingId: "binding-a",
+      inferenceStatus: "READY",
+      inferenceComplianceDomain: "GLOBAL",
+      inferenceCapabilities: {
+        automaticRouting: "ENABLED",
+        routerType: "COMPLEXITY_ROUTER",
+        complexityTierCount: 4,
+        sessionAffinity: "ENABLED",
+        adaptiveRouting: "DISABLED",
+        failover: "ENABLED",
+        generalFallback: "ENABLED",
+        contextWindowFallback: "DISABLED",
+        contentPolicyFallback: "DISABLED",
+        retries: "ENABLED",
+        requestAudit: "ENABLED",
+      },
+      inferenceKeyFingerprint: "sha256:123456789abc",
       costKeyAlias: "agent-a:model-a",
       sandboxName: "tali-policy-agent-a",
       status: "READY",

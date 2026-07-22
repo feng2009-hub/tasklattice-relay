@@ -54,6 +54,7 @@ describe("ProviderService", () => {
       presetId: "deepseek",
       endpoint: "https://api.deepseek.com/v1",
       apiKey: "provider-secret-value",
+      complianceDomain: "GLOBAL",
     })).resolves.toMatchObject({ status: "VALIDATED" });
     expect(service.listAccounts()).toHaveLength(1);
   });
@@ -75,6 +76,7 @@ describe("ProviderService", () => {
       presetId: "deepseek",
       endpoint: "https://api.deepseek.com/v1",
       apiKey: "provider-secret-value",
+      complianceDomain: "GLOBAL",
     });
     expect(account.status).toBe("VALIDATED");
     expect(account.discoveredModels).toContain("deepseek-v4-flash");
@@ -103,6 +105,7 @@ describe("ProviderService", () => {
       presetId: "deepseek",
       endpoint: "https://api.deepseek.com/v1",
       apiKey: "provider-secret-value",
+      complianceDomain: "GLOBAL",
     });
     const [first, second] = service.listModels(account.id);
 
@@ -130,6 +133,7 @@ describe("ProviderService", () => {
       presetId: "deepseek",
       endpoint: "https://api.deepseek.com/v1",
       apiKey: "provider-secret-value",
+      complianceDomain: "GLOBAL",
     });
 
     await expect(service.deleteAccount(account.id)).resolves.toBe(true);
@@ -149,6 +153,7 @@ describe("ProviderService", () => {
       presetId: "deepseek",
       endpoint: "https://api.deepseek.com/v1",
       apiKey: "provider-secret-value",
+      complianceDomain: "GLOBAL",
     })).rejects.toThrow("rejected");
     expect(service.listAccounts()).toEqual([]);
   });
@@ -174,6 +179,7 @@ describe("ProviderService", () => {
         { modelId: "gpt-5.2", displayName: "GPT-5.2", modelType: "llm" },
         { modelId: "text-embedding-3-large", displayName: "Embedding", modelType: "text-embedding" },
       ],
+      complianceDomain: "GLOBAL",
     });
 
     expect(result.account.status).toBe("DEGRADED");

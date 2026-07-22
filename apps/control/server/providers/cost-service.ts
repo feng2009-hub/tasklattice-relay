@@ -62,6 +62,12 @@ export class CostService {
     const accounts = new Map(
       this.store.listProviderAccounts().map((account) => [account.id, account]),
     );
+    const inferenceGroups = new Map(
+      this.store.listInferenceGroups().map((group) => [group.publicModelAlias, group]),
+    );
+    const inferenceGateways = new Map(
+      this.store.listInferenceGateways().map((gateway) => [gateway.id, gateway]),
+    );
     const byInstance = new Map<string, MutableBreakdown>();
     const byModel = new Map<string, MutableBreakdown>();
     const byProviderAccount = new Map<string, MutableBreakdown>();
@@ -80,22 +86,31 @@ export class CostService {
 
       const modelName = log.model_group || log.model || "unknown-model";
       const deployment = deployments.get(modelName);
+      const inferenceGroup = inferenceGroups.get(modelName);
       add(
         byModel,
         modelName,
-        deployment?.displayName ?? modelName,
+        deployment?.displayName ?? inferenceGroup?.name ?? modelName,
         deployment
           ? `${deployment.providerName} · ${endpointHost(deployment.endpoint)}`
-          : "Unregistered LiteLLM model",
+          : inferenceGroup
+            ? `${inferenceGroup.complianceDomain} · LiteLLM-managed routing`
+            : "Unregistered LiteLLM model",
         log,
       );
       const account = deployment ? accounts.get(deployment.providerAccountId) : undefined;
-      const providerAccountId = deployment?.providerAccountId ?? "unassigned-provider";
+      const gateway = inferenceGroup
+        ? inferenceGateways.get(inferenceGroup.gatewayId)
+        : undefined;
+      const providerAccountId = deployment?.providerAccountId
+        ?? inferenceGroup?.gatewayId
+        ?? "unassigned-provider";
       add(
         byProviderAccount,
         providerAccountId,
-        account?.name ?? "Unassigned Provider",
-        deployment?.providerName ?? "Unregistered LiteLLM model",
+        account?.name ?? gateway?.name ?? "Unassigned Provider",
+        deployment?.providerName
+          ?? (inferenceGroup ? `Inference Group · ${inferenceGroup.name}` : "Unregistered LiteLLM model"),
         log,
       );
 

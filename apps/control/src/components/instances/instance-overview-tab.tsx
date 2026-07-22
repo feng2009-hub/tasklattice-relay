@@ -73,11 +73,12 @@ function ProvisioningSummary({ agent }: { agent: Agent }) {
   );
 }
 
-export function InstanceOverviewTab({ access, agent, auditEvents, auditLoading, platform }: {
+export function InstanceOverviewTab({ access, agent, auditEvents, auditLoading, inferenceGroupName, platform }: {
   access: InstanceAccessState;
   agent: Agent;
   auditEvents?: SandboxAuditEvent[];
   auditLoading: boolean;
+  inferenceGroupName?: string;
   platform: AgentPlatformPresentation;
 }) {
   const counts = getCapabilityCounts(agent);
@@ -97,12 +98,12 @@ export function InstanceOverviewTab({ access, agent, auditEvents, auditLoading, 
           <CardContent className="space-y-4">
             <DefinitionList columns={2} items={[
               { label: "Status", value: <InstanceStatusBadge status={agent.status} /> },
-              { label: "Provider", value: agent.providerName },
+              { label: "Inference", value: inferenceGroupName ?? "Platform managed" },
               { label: "Runtime", value: platform.runtimeName },
               { label: "Created", value: <RelativeTime value={agent.createdAt} /> },
               { label: "Agent framework", value: platform.name },
               { label: "Last updated", value: <RelativeTime value={agent.updatedAt} /> },
-              { label: "Model", value: agent.model },
+              { label: "Routing", value: agent.inferenceCapabilities?.automaticRouting === "ENABLED" ? "Automatic" : "Managed" },
               { label: "Uptime", value: formatUptime(agent) },
             ]} />
             <div className="grid gap-3 border-t pt-4 sm:grid-cols-2">
@@ -120,8 +121,10 @@ export function InstanceOverviewTab({ access, agent, auditEvents, auditLoading, 
               { label: "Sandbox ID", value: <CopyableValue value={agent.sandboxName} /> },
               { label: "Agent configuration", value: platform.configurationName },
               { label: "Agent runtime", value: platform.name },
-              { label: "Model deployment", value: <CopyableValue value={agent.modelDeploymentId} displayValue={agent.model} /> },
-              { label: "Provider connection", value: <CopyableValue value={agent.providerAccountId} displayValue={agent.providerName} /> },
+              { label: "Inference mode", value: "Platform managed" },
+              { label: "Inference status", value: agent.inferenceStatus?.replaceAll("_", " ") ?? "Unavailable" },
+              { label: "Compliance", value: agent.inferenceComplianceDomain === "CN_MAINLAND" ? "CN Mainland" : "Global" },
+              { label: "Inference Group", value: <Link to="/providers/inference-groups/$groupId" params={{ groupId: agent.inferenceGroupId }} className="font-medium text-primary underline underline-offset-4">{inferenceGroupName ?? "Managed access contract"}</Link> },
               { label: "Endpoint status", value: <EndpointBadge agent={agent} /> },
               { label: "Endpoint URL", value: <CopyableValue value={agent.httpEndpoint?.url} externalUrl={agent.httpEndpoint?.url} /> },
             ]} />

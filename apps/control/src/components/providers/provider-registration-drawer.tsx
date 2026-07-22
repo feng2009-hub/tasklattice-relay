@@ -5,6 +5,7 @@ import {
   providerConnectionDraftSchema,
   providerPresets,
   type ModelType,
+  type ComplianceDomain,
   type ProviderAccount,
   type ProviderConnectionDraft,
   type ProviderDiscoveryResult,
@@ -60,6 +61,7 @@ export function ProviderRegistrationDrawer({
   const [models, setModels] = useState<ProviderModelSelection[]>([]);
   const [manualModelId, setManualModelId] = useState("");
   const [manualModelType, setManualModelType] = useState<ModelType>("llm");
+  const [complianceDomain, setComplianceDomain] = useState<ComplianceDomain>("GLOBAL");
 
   const discover = useMutation({
     mutationFn: api.discoverProviderModels,
@@ -102,6 +104,7 @@ export function ProviderRegistrationDrawer({
     setDiscovery(undefined);
     setModels([]);
     setManualModelId("");
+    setComplianceDomain("GLOBAL");
     discover.reset();
     create.reset();
     retryFailures.reset();
@@ -185,6 +188,7 @@ export function ProviderRegistrationDrawer({
               </div>
               {providerSelected ? <div className="space-y-5 border-t pt-5">
                 <div className="space-y-2"><Label htmlFor="provider-connection-name">Connection name</Label><Input id="provider-connection-name" value={draft.name} disabled={pending} aria-invalid={Boolean(errors.name)} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />{errors.name ? <p className="text-xs text-destructive">{errors.name}</p> : null}</div>
+                <div className="space-y-2"><Label>Compliance domain</Label><Select value={complianceDomain} onValueChange={(value) => setComplianceDomain(value as ComplianceDomain)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="CN_MAINLAND">CN Mainland</SelectItem><SelectItem value="GLOBAL">Global</SelectItem></SelectContent></Select><p className="text-xs leading-5 text-muted-foreground">Written to LiteLLM model metadata and enforced fail-closed by Inference Groups.</p></div>
                 <Configurator value={draft} onChange={setDraft} errors={errors} disabled={pending} />
               </div> : null}
               {discover.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 px-3 py-2 text-sm text-destructive">{discover.error.message}</p> : null}
@@ -198,7 +202,7 @@ export function ProviderRegistrationDrawer({
         </div>
 
         <DrawerFooter>
-          {step === "configure" ? <div className="flex items-center justify-between"><DrawerClose asChild><Button variant="outline" disabled={pending}>Cancel</Button></DrawerClose><Button onClick={validateAndDiscover} disabled={!providerSelected || pending}>{discover.isPending ? <Spinner /> : null}Next: Discover models<ArrowRight /></Button></div> : step === "models" ? <div className="flex items-center justify-between"><Button variant="outline" onClick={() => setStep("configure")} disabled={pending}><ArrowLeft />Back</Button><Button disabled={!models.length || pending} onClick={() => create.mutate({ connection: draft, models })}>{create.isPending ? <Spinner /> : null}Register {models.length || ""} model{models.length === 1 ? "" : "s"}<ArrowRight /></Button></div> : <div className="flex justify-end"><DrawerClose asChild><Button>Done</Button></DrawerClose></div>}
+          {step === "configure" ? <div className="flex items-center justify-between"><DrawerClose asChild><Button variant="outline" disabled={pending}>Cancel</Button></DrawerClose><Button onClick={validateAndDiscover} disabled={!providerSelected || pending}>{discover.isPending ? <Spinner /> : null}Next: Discover models<ArrowRight /></Button></div> : step === "models" ? <div className="flex items-center justify-between"><Button variant="outline" onClick={() => setStep("configure")} disabled={pending}><ArrowLeft />Back</Button><Button disabled={!models.length || pending} onClick={() => create.mutate({ connection: draft, models, complianceDomain })}>{create.isPending ? <Spinner /> : null}Register {models.length || ""} model{models.length === 1 ? "" : "s"}<ArrowRight /></Button></div> : <div className="flex justify-end"><DrawerClose asChild><Button>Done</Button></DrawerClose></div>}
         </DrawerFooter>
       </DrawerContent>
     </Drawer>

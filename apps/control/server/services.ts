@@ -5,11 +5,13 @@ import { CostService } from "./providers/cost-service";
 import { LiteLLMClient } from "./providers/litellm-client";
 import { ProviderService } from "./providers/provider-service";
 import { PolicyService } from "./policies/policy-service";
+import { InferenceGroupService } from "./inference-groups/inference-group-service";
 
 const store = new AgentStore();
 const litellm = new LiteLLMClient();
 const policyService = new PolicyService(store);
-const agentService = new AgentService(store, undefined, litellm, policyService);
+const inferenceGroupService = new InferenceGroupService(store, litellm);
+const agentService = new AgentService(store, undefined, litellm, policyService, undefined, inferenceGroupService);
 const providerService = new ProviderService(store, undefined, litellm);
 const costService = new CostService(store, litellm);
 const extensionCatalogService = new ExtensionCatalogService(store);
@@ -33,4 +35,8 @@ export async function getPolicyService(): Promise<PolicyService> {
 
 export async function getExtensionCatalogService(): Promise<ExtensionCatalogService> {
   return extensionCatalogService;
+}
+
+export async function getInferenceGroupService(): Promise<InferenceGroupService> {
+  return inferenceGroupService;
 }

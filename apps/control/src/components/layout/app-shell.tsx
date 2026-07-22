@@ -17,6 +17,7 @@ import {
   Settings,
   ShieldEllipsis,
   Sparkles,
+  Route as RouteIcon,
   type LucideIcon,
 } from "lucide-react";
 import type { AuthUser } from "@/components/auth/auth-provider";
@@ -55,6 +56,7 @@ import { cn } from "@/lib/utils";
 type WorkspaceRoute =
   | "/providers"
   | "/providers/cost"
+  | "/providers/inference-groups"
   | "/dashboard"
   | "/instances"
   | "/requests/new"
@@ -98,6 +100,7 @@ const navGroups: Array<{ items: NavItemDefinition[]; label: string }> = [
     label: "Provider",
     items: [
       { icon: Gauge, label: "Registry", to: "/providers" },
+      { icon: RouteIcon, label: "Inference Groups", to: "/providers/inference-groups" },
       { icon: CircleDollarSign, label: "Cost", to: "/providers/cost" },
     ],
   },
@@ -159,6 +162,7 @@ const routeLabels: Record<string, string> = {
   new: "Create Instance",
   policy: "Policy",
   providers: "Providers",
+  "inference-groups": "Inference Groups",
   requests: "Requests",
   runtime: "Runtime",
   sandboxes: "Sandboxes",

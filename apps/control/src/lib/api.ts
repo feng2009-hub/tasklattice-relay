@@ -11,6 +11,12 @@ import type {
   ExtensionCatalog,
   ExtensionResourceKind,
   KnowledgeSourceDefinition,
+  InferenceGateway,
+  InferenceGroup,
+  InferenceGroupAuditEvent,
+  InferenceGroupConsumer,
+  CreateInferenceGroupInput,
+  UpdateInferenceGroupInput,
   McpServerDefinition,
   ModelDeployment,
   ProviderAccount,
@@ -63,6 +69,26 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  listInferenceGateways: async () =>
+    (await request<{ data: InferenceGateway[] }>("/api/v1/inference-gateways")).data,
+  listInferenceGroups: async () =>
+    (await request<{ data: InferenceGroup[] }>("/api/v1/inference-groups")).data,
+  getInferenceGroup: (id: string) =>
+    request<InferenceGroup>(`/api/v1/inference-groups/${encodeURIComponent(id)}`),
+  createInferenceGroup: (input: CreateInferenceGroupInput) =>
+    request<InferenceGroup>("/api/v1/inference-groups", { method: "POST", body: JSON.stringify(input) }),
+  updateInferenceGroup: (id: string, input: UpdateInferenceGroupInput) =>
+    request<InferenceGroup>(`/api/v1/inference-groups/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(input) }),
+  validateInferenceGroup: (id: string) =>
+    request<InferenceGroup>(`/api/v1/inference-groups/${encodeURIComponent(id)}/validate`, { method: "POST", body: "{}" }),
+  refreshInferenceGroup: (id: string) =>
+    request<InferenceGroup>(`/api/v1/inference-groups/${encodeURIComponent(id)}/refresh`, { method: "POST", body: "{}" }),
+  deleteInferenceGroup: (id: string) =>
+    request<{ message: string }>(`/api/v1/inference-groups/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  listInferenceGroupConsumers: async (id: string) =>
+    (await request<{ data: InferenceGroupConsumer[] }>(`/api/v1/inference-groups/${encodeURIComponent(id)}/consumers`)).data,
+  listInferenceGroupAudit: async (id: string) =>
+    (await request<{ data: InferenceGroupAuditEvent[] }>(`/api/v1/inference-groups/${encodeURIComponent(id)}/audit`)).data,
   getExtensionCatalog: () => request<ExtensionCatalog>("/api/v1/extensions"),
   createSkill: (input: CreateSkillDefinitionInput) =>
     request<SkillDefinition>("/api/v1/extensions/skills", {
