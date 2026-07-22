@@ -8,7 +8,7 @@ GitHub Release artifact is self-contained.
 Install a released chart:
 
 ```bash
-VERSION=0.3.0
+VERSION="<release-version>"
 curl -fLO "https://github.com/Sn0rt/TaskLattice/releases/download/v${VERSION}/tasklattice-${VERSION}.tgz"
 helm upgrade --install tasklattice "./tasklattice-${VERSION}.tgz" \
   --namespace tasklattice-sandboxes \
@@ -20,9 +20,10 @@ helm upgrade --install tasklattice "./tasklattice-${VERSION}.tgz" \
 The same chart is published as an OCI artifact:
 
 ```bash
+VERSION="<release-version>"
 helm upgrade --install tasklattice \
   oci://ghcr.io/sn0rt/charts/tasklattice \
-  --version 0.3.0 \
+  --version "${VERSION}" \
   --namespace tasklattice-sandboxes \
   --create-namespace \
   --wait \
