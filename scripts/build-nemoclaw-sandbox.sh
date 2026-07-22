@@ -13,12 +13,16 @@ case "$AGENT_PLATFORM" in
     readonly NEMOCLAW_BASE_IMAGE="${NEMOCLAW_BASE_IMAGE:-ghcr.io/nvidia/nemoclaw/sandbox-base@sha256:132dfea81026fe91581ab97d9034fb61d97b41a9951c7fd59d3d8b3b1b37b246}"
     readonly NEMOCLAW_IMAGE="${NEMOCLAW_IMAGE:-ghcr.io/sn0rt/tasklattice-nemoclaw-sandbox:dev}"
     readonly DOCKERFILE="Dockerfile"
+    readonly UPSTREAM_IMAGE="tasklattice-nemoclaw-openclaw-upstream:${NEMOCLAW_REVISION:0:12}"
+    readonly WRAPPER_DOCKERFILE="$REPOSITORY_ROOT/infra/docker/Dockerfile.nemoclaw-openclaw"
     ;;
   hermes)
     readonly NEMOCLAW_REVISION="${NEMOCLAW_HERMES_REVISION:-c1bda8069d95a84a9e16b0d292a5fe20ce7cea7d}"
     readonly NEMOCLAW_BASE_IMAGE="${NEMOCLAW_HERMES_BASE_IMAGE:-ghcr.io/nvidia/nemoclaw/hermes-sandbox-base@sha256:fa05221f5c7bcafea7e263c84e5d06f87e37d1ccb78dc28c113f1a4066aa544c}"
     readonly NEMOCLAW_IMAGE="${NEMOCLAW_HERMES_IMAGE:-ghcr.io/sn0rt/tasklattice-nemoclaw-hermes-sandbox:dev}"
     readonly DOCKERFILE="agents/hermes/Dockerfile"
+    readonly UPSTREAM_IMAGE="tasklattice-nemoclaw-hermes-upstream:${NEMOCLAW_REVISION:0:12}"
+    readonly WRAPPER_DOCKERFILE="$REPOSITORY_ROOT/infra/docker/Dockerfile.nemoclaw-hermes"
     ;;
   *)
     echo "Unsupported NEMOCLAW_AGENT_PLATFORM: $AGENT_PLATFORM" >&2
@@ -68,11 +72,6 @@ else
   )
 fi
 
-upstream_image="$NEMOCLAW_IMAGE"
-if [ "$AGENT_PLATFORM" = "hermes" ]; then
-  upstream_image="tasklattice-nemoclaw-hermes-upstream:${NEMOCLAW_REVISION:0:12}"
-fi
-
 docker build \
   --file "$build_context/$DOCKERFILE" \
   --build-arg "BASE_IMAGE=$resolved_base_image" \
@@ -83,13 +82,13 @@ docker build \
   --build-arg NEMOCLAW_CONTEXT_WINDOW=65536 \
   --build-arg NEMOCLAW_WEB_SEARCH_ENABLED=0 \
   "${platform_build_args[@]}" \
-  --tag "$upstream_image" \
+  --tag "$UPSTREAM_IMAGE" \
   "$build_context"
 
-if [ "$AGENT_PLATFORM" = "hermes" ]; then
-  docker build \
-    --file "$REPOSITORY_ROOT/infra/docker/Dockerfile.nemoclaw-hermes" \
-    --build-arg "BASE_IMAGE=$upstream_image" \
-    --tag "$NEMOCLAW_IMAGE" \
-    "$REPOSITORY_ROOT"
-fi
+# Keep the pinned upstream Dockerfiles external while ensuring every published
+# Agent image crosses a TaskLattice-owned customization boundary.
+docker build \
+  --file "$WRAPPER_DOCKERFILE" \
+  --build-arg "BASE_IMAGE=$UPSTREAM_IMAGE" \
+  --tag "$NEMOCLAW_IMAGE" \
+  "$REPOSITORY_ROOT"
