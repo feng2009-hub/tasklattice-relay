@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import {
   Boxes,
-  ChevronRight,
   CircleDollarSign,
   CircleHelp,
   FileLock2,
@@ -15,7 +13,6 @@ import {
   Search,
   ServerCog,
   Settings,
-  ShieldEllipsis,
   Sparkles,
   Route as RouteIcon,
   type LucideIcon,
@@ -24,11 +21,6 @@ import type { AuthUser } from "@/components/auth/auth-provider";
 import { useAuth } from "@/components/auth/auth-provider";
 import { AccountMenu } from "@/components/account/account-menu";
 import { BrandLogo } from "@/components/brand/brand-logo";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import {
   Sidebar,
   SidebarContent,
@@ -41,16 +33,12 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
   SidebarProvider,
   SidebarRail,
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 type WorkspaceRoute =
@@ -60,34 +48,15 @@ type WorkspaceRoute =
   | "/dashboard"
   | "/instances"
   | "/requests/new"
-  | "/agent/sandboxes/runtime"
   | "/agent/sandboxes/policy"
   | "/knowledge"
   | "/mcp"
   | "/Extensions/skill"
   | "/tickets";
 
-type RuntimeState = {
-  label: string;
-  tone: "danger" | "neutral" | "success" | "warning";
-};
-
-type NavStatusKey = "openShellRuntime";
-
-type NavChildDefinition = {
-  description: string;
-  icon: LucideIcon;
-  label: string;
-  statusKey?: NavStatusKey;
-  to: WorkspaceRoute;
-};
-
 type NavItemDefinition = {
-  children?: NavChildDefinition[];
-  collapsible?: boolean;
   icon: LucideIcon;
   label: string;
-  statusKey?: NavStatusKey;
   to: WorkspaceRoute;
 };
 
@@ -108,28 +77,7 @@ const navGroups: Array<{ items: NavItemDefinition[]; label: string }> = [
     label: "Agent",
     items: [
       { icon: Boxes, label: "Instances", to: "/instances" },
-      {
-        children: [
-          {
-            description: "Sandbox execution layer",
-            icon: ShieldEllipsis,
-            label: "OpenShell runtime",
-            statusKey: "openShellRuntime",
-            to: "/agent/sandboxes/runtime",
-          },
-          {
-            description: "OpenShell access rules",
-            icon: FileLock2,
-            label: "Policy",
-            to: "/agent/sandboxes/policy",
-          },
-        ],
-        collapsible: true,
-        icon: ShieldEllipsis,
-        label: "Sandboxes",
-        statusKey: "openShellRuntime",
-        to: "/agent/sandboxes/runtime",
-      },
+      { icon: FileLock2, label: "Policy", to: "/agent/sandboxes/policy" },
     ],
   },
   {
@@ -173,111 +121,24 @@ const routeLabels: Record<string, string> = {
 
 function itemIsActive(item: NavItemDefinition, pathname: string) {
   if (item.to === "/instances") return pathname === "/instances" || pathname.startsWith("/agents");
-  return pathname === item.to || Boolean(item.children?.some((child) => pathname === child.to));
+  return pathname === item.to;
 }
 
-function RuntimeStatus({ compact = false, state }: { compact?: boolean; state: RuntimeState }) {
-  const toneClass = cn(
-    state.tone === "success" && "bg-emerald-500",
-    state.tone === "warning" && "bg-amber-500",
-    state.tone === "danger" && "bg-destructive",
-    state.tone === "neutral" && "bg-muted-foreground/50",
-  );
-  if (compact) {
-    return <span aria-hidden="true" className={cn("absolute -bottom-1 -right-1 size-2 rounded-full ring-2 ring-sidebar", toneClass)} />;
-  }
-  return (
-    <span className="ml-auto inline-flex shrink-0 items-center gap-1.5 font-normal text-muted-foreground">
-      <span aria-hidden="true" className={cn("size-1.5 rounded-full", toneClass)} />
-      {state.label}
-    </span>
-  );
-}
-
-function NavIcon({ active, icon: Icon, runtimeState }: { active: boolean; icon: LucideIcon; runtimeState?: RuntimeState }) {
-  return (
-    <span className="relative shrink-0">
-      <Icon className={cn(active && "text-primary")} />
-      {runtimeState ? <RuntimeStatus compact state={runtimeState} /> : null}
-    </span>
-  );
-}
-
-function NavChildren({ children, pathname, runtimeStates }: {
-  children: NavChildDefinition[];
-  pathname: string;
-  runtimeStates: Record<NavStatusKey, RuntimeState>;
-}) {
-  const { setOpenMobile } = useSidebar();
-  return (
-    <SidebarMenuSub>
-      {children.map((child) => {
-        const active = pathname === child.to;
-        const runtimeState = child.statusKey ? runtimeStates[child.statusKey] : undefined;
-        return (
-          <SidebarMenuSubItem key={child.to}>
-            <SidebarMenuSubButton asChild isActive={active}>
-              <Link to={child.to} onClick={() => setOpenMobile(false)} aria-current={active ? "page" : undefined}>
-                <child.icon className={cn(active && "text-primary")} />
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-2">
-                    <strong className="truncate font-medium">{child.label}</strong>
-                    {runtimeState ? <RuntimeStatus state={runtimeState} /> : null}
-                  </span>
-                  <span className="mt-0.5 block truncate text-muted-foreground">{child.description}</span>
-                </span>
-              </Link>
-            </SidebarMenuSubButton>
-          </SidebarMenuSubItem>
-        );
-      })}
-    </SidebarMenuSub>
-  );
-}
-
-function NavigationItem({ item, pathname, runtimeStates }: {
+function NavigationItem({ item, pathname }: {
   item: NavItemDefinition;
   pathname: string;
-  runtimeStates: Record<NavStatusKey, RuntimeState>;
 }) {
   const { setOpenMobile } = useSidebar();
   const active = itemIsActive(item, pathname);
-  const runtimeState = item.statusKey ? runtimeStates[item.statusKey] : undefined;
-  const [open, setOpen] = useState(active);
-
-  useEffect(() => {
-    if (active && item.collapsible) setOpen(true);
-  }, [active, item.collapsible, pathname]);
-
-  if (item.collapsible && item.children) {
-    return (
-      <Collapsible asChild open={open} onOpenChange={setOpen} className="group/collapsible">
-        <SidebarMenuItem>
-          <CollapsibleTrigger asChild>
-            <SidebarMenuButton type="button" isActive={active} tooltip={item.label} aria-expanded={open}>
-              <NavIcon active={active} icon={item.icon} {...(runtimeState ? { runtimeState } : {})} />
-              <span>{item.label}</span>
-              <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-            </SidebarMenuButton>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <NavChildren children={item.children} pathname={pathname} runtimeStates={runtimeStates} />
-          </CollapsibleContent>
-        </SidebarMenuItem>
-      </Collapsible>
-    );
-  }
 
   return (
     <SidebarMenuItem>
       <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
         <Link to={item.to} onClick={() => setOpenMobile(false)} aria-current={pathname === item.to ? "page" : undefined}>
-          <NavIcon active={active} icon={item.icon} {...(runtimeState ? { runtimeState } : {})} />
+          <item.icon className={cn(active && "text-primary")} />
           <span>{item.label}</span>
-          {runtimeState ? <span className="sr-only">OpenShell runtime: {runtimeState.label}</span> : null}
         </Link>
       </SidebarMenuButton>
-      {item.children ? <NavChildren children={item.children} pathname={pathname} runtimeStates={runtimeStates} /> : null}
     </SidebarMenuItem>
   );
 }
@@ -294,10 +155,9 @@ function DisabledNav({ icon: Icon, label }: { icon: LucideIcon; label: string })
   );
 }
 
-function WorkspaceSidebar({ logout, pathname, runtimeStates, user }: {
+function WorkspaceSidebar({ logout, pathname, user }: {
   logout: () => void | Promise<void>;
   pathname: string;
-  runtimeStates: Record<NavStatusKey, RuntimeState>;
   user: AuthUser | null;
 }) {
   const { isMobile, setOpenMobile, state } = useSidebar();
@@ -316,7 +176,7 @@ function WorkspaceSidebar({ logout, pathname, runtimeStates, user }: {
               <SidebarGroupContent>
                 <SidebarMenu>
                   {group.items.map((item) => (
-                    <NavigationItem key={item.to} item={item} pathname={pathname} runtimeStates={runtimeStates} />
+                    <NavigationItem key={item.to} item={item} pathname={pathname} />
                   ))}
                 </SidebarMenu>
               </SidebarGroupContent>
@@ -360,20 +220,6 @@ export function AppShell() {
   const { logout, user } = useAuth();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const runtime = useQuery({
-    queryKey: ["runtime-status"],
-    queryFn: api.getRuntimeStatus,
-    retry: 1,
-    staleTime: 10_000,
-    refetchInterval: 30_000,
-  });
-  const openShellRuntime: RuntimeState = runtime.isPending
-    ? { label: "Checking", tone: "neutral" }
-    : runtime.data?.terminal.available && runtime.data.terminal.transport === "openshell"
-      ? { label: "Connected", tone: "success" }
-      : runtime.error
-        ? { label: "Unavailable", tone: "danger" }
-        : { label: "Unavailable", tone: "warning" };
 
   useEffect(() => {
     setSidebarOpen(window.localStorage.getItem("tasklattice.sidebar.collapsed") !== "true");
@@ -390,7 +236,6 @@ export function AppShell() {
         <WorkspaceSidebar
           logout={logout}
           pathname={pathname}
-          runtimeStates={{ openShellRuntime }}
           user={user}
         />
         <SidebarInset>
