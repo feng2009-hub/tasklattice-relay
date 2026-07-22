@@ -29,6 +29,7 @@ describe("Agent sandbox naming", () => {
 describe("Instance lifecycle reconciliation", () => {
   const now = new Date().toISOString();
   const agent = {
+    schemaVersion: 1 as const,
     id: "agent-a",
     name: "Research Assistant",
     description: "",
@@ -39,6 +40,25 @@ describe("Instance lifecycle reconciliation", () => {
     providerName: "DeepSeek",
     model: "deepseek-chat",
     modelType: "llm" as const,
+    inferenceMode: "PLATFORM_MANAGED" as const,
+    inferenceGroupId: "group-a",
+    inferenceBindingId: "binding-a",
+    inferenceStatus: "READY" as const,
+    inferenceComplianceDomain: "GLOBAL" as const,
+    inferenceCapabilities: {
+      automaticRouting: "ENABLED" as const,
+      routerType: "COMPLEXITY_ROUTER" as const,
+      complexityTierCount: 4,
+      sessionAffinity: "ENABLED" as const,
+      adaptiveRouting: "DISABLED" as const,
+      failover: "ENABLED" as const,
+      generalFallback: "ENABLED" as const,
+      contextWindowFallback: "DISABLED" as const,
+      contentPolicyFallback: "DISABLED" as const,
+      retries: "ENABLED" as const,
+      requestAudit: "ENABLED" as const,
+    },
+    inferenceKeyFingerprint: "sha256:123456789abc",
     costKeyAlias: "tali-research:deepseek-chat",
     sandboxName: "tali-research",
     status: "PROVISIONING" as const,
@@ -89,7 +109,6 @@ describe("OpenShell policy assignment", () => {
         name: "GitHub Operator",
         description: "",
         runtime: "openshell",
-        modelDeploymentId: "model-a",
         policyId: "github-full-access",
         systemPrompt: "Operate on GitHub and report the resulting evidence.",
       }).policyId,
@@ -102,12 +121,11 @@ describe("Agent selection", () => {
     name: "Research Assistant",
     description: "",
     runtime: "openshell" as const,
-    modelDeploymentId: "model-a",
     policyId: "restricted" as const,
     systemPrompt: "Research the request and report the resulting evidence.",
   };
 
-  it("keeps OpenClaw as the backward-compatible default", () => {
+  it("uses OpenClaw as the default Agent implementation", () => {
     expect(createAgentSchema.parse(input).agentPlatform).toBe("openclaw");
   });
 
@@ -149,39 +167,40 @@ describe("Agent selection", () => {
   });
 });
 
-describe("Instance cost key lifecycle", () => {
-  it("creates one model-scoped key and revokes it when the Instance is destroyed", async () => {
+describe("Instance Inference Group binding lifecycle", () => {
+  it("creates one Team-scoped key and revokes it when the Instance is destroyed", async () => {
     const store = new AgentStore();
     const now = new Date().toISOString();
-    store.saveProviderAccount({
-      id: "provider-a",
-      name: "DeepSeek",
-      providerKind: "deepseek",
-      presetId: "deepseek",
-      endpoint: "https://api.deepseek.com/v1",
-      config: { endpoint: "https://api.deepseek.com/v1" },
-      discoveredModels: ["deepseek-chat"],
-      status: "VALIDATED",
-      checks: [],
-      credentialState: "STORED",
-      validationMessage: "Validated",
-      createdAt: now,
-      updatedAt: now,
-    }, "provider-secret-value");
-    store.saveModelDeployment({
-      id: "model-a",
-      isDefault: false,
-      providerAccountId: "provider-a",
-      providerPresetId: "deepseek",
-      providerName: "DeepSeek",
-      endpoint: "https://api.deepseek.com/v1",
-      modelId: "deepseek-chat",
-      displayName: "DeepSeek Chat",
-      modelType: "llm",
-      litellmModelName: "tali/provider/deepseek-chat",
-      status: "VALIDATED",
-      checks: [],
-      validationMessage: "Validated",
+    store.saveInferenceGroup({
+      id: "group-a",
+      name: "Production inference",
+      description: "Managed inference for production Instances.",
+      gatewayId: "litellm-default",
+      managementMode: "LITELLM_MANAGED",
+      publicModelAlias: "production-chat",
+      complianceDomain: "GLOBAL",
+      status: "READY",
+      isDefault: true,
+      keyPolicy: { perInstance: true, rotationDays: 90 },
+      auditPolicy: { controlPlane: true, requestLogs: true, capturePrompts: false },
+      capabilities: {
+        automaticRouting: "ENABLED",
+        routerType: "COMPLEXITY_ROUTER",
+        complexityTierCount: 4,
+        sessionAffinity: "ENABLED",
+        adaptiveRouting: "DISABLED",
+        failover: "ENABLED",
+        generalFallback: "ENABLED",
+        contextWindowFallback: "DISABLED",
+        contentPolicyFallback: "DISABLED",
+        retries: "ENABLED",
+        requestAudit: "ENABLED",
+      },
+      conditions: [{ type: "COMPLIANCE", status: "PASS", reason: "All backing deployments are GLOBAL." }],
+      configurationHash: "sha256:test",
+      observedGeneration: 1,
+      validationMessage: "LiteLLM binding is ready.",
+      consumers: 0,
       createdAt: now,
       updatedAt: now,
     });
@@ -200,6 +219,8 @@ describe("Instance cost key lifecycle", () => {
       deleteModel: vi.fn(),
       probeModel: vi.fn(),
       createInstanceKey: vi.fn(async () => ({ secret: "sk-instance", tokenId: "hashed-token" })),
+      createInferenceGroupTeam: vi.fn(async () => "team-a"),
+      createInferenceGroupKey: vi.fn(async () => ({ secret: "sk-instance", tokenId: "hashed-token" })),
       revokeKey: vi.fn(async () => undefined),
       listSpendLogs: vi.fn(),
     };
@@ -209,12 +230,11 @@ describe("Instance cost key lifecycle", () => {
       description: "",
       runtime: "openshell",
       agentPlatform: "openclaw",
-      modelDeploymentId: "model-a",
       policyId: "restricted",
       systemPrompt: "Research the request and report the resulting evidence.",
     });
 
-    expect(litellm.createInstanceKey).toHaveBeenCalledWith(expect.objectContaining({ agentId: agent.id, modelName: "tali/provider/deepseek-chat" }));
+    expect(litellm.createInferenceGroupKey).toHaveBeenCalledWith(expect.objectContaining({ agentId: agent.id, modelAlias: "production-chat", teamId: "team-a" }));
     expect(runner.createSandbox).toHaveBeenCalledWith(expect.objectContaining({ apiKey: "sk-instance", inferenceEndpoint: "http://litellm:4000/v1" }));
     expect(runner.createSandbox).toHaveBeenCalledWith(expect.objectContaining({ policyYaml: expect.stringContaining("/dev/null") }));
     await service.destroy(agent.id);

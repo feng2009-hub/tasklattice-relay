@@ -10,6 +10,7 @@ import { ExtensionCatalogService } from "../extensions/extension-catalog-service
 import { NemoClawRunnerClient, type RunnerClient } from "../runtime/nemoclaw-runner-client";
 import { LiteLLMClient, type LiteLLMAdminClient } from "../providers/litellm-client";
 import { PolicyService } from "../policies/policy-service";
+import { InferenceGroupService } from "../inference-groups/inference-group-service";
 
 export function agentSandboxName(name: string, id: string): string {
   const slug =
@@ -67,6 +68,7 @@ export class AgentService {
     readonly litellm: LiteLLMAdminClient = new LiteLLMClient(),
     readonly policies = new PolicyService(store),
     readonly extensions = new ExtensionCatalogService(store),
+    readonly inferenceGroups = new InferenceGroupService(store, litellm),
   ) {}
 
   async list(): Promise<Agent[]> {
@@ -98,33 +100,31 @@ export class AgentService {
       const missing = (ids ?? []).filter((id) => !available.has(id));
       if (missing.length) throw new Error(`${label} configuration is unavailable: ${missing.join(", ")}.`);
     }
-    const deployment = this.store.getModelDeployment(input.modelDeploymentId);
-    if (!deployment || deployment.status !== "VALIDATED" || deployment.modelType !== "llm")
-      throw new Error(
-        "Select a validated LLM deployment before creating an Instance.",
-      );
-    const account = this.store.getProviderAccount(deployment.providerAccountId);
-    if (!account || account.status !== "VALIDATED")
-      throw new Error("The model's Provider Account is no longer validated.");
     const policy = this.policies.resolve(input.policyId);
     const id = randomUUID();
     const now = new Date().toISOString();
     const sandboxName = agentSandboxName(input.name, id);
-    const costKeyAlias = `${sandboxName}:${deployment.modelId}`;
-    const costKey = await this.litellm.createInstanceKey({
-      agentId: id,
-      alias: costKeyAlias,
-      modelName: deployment.litellmModelName,
-    });
-    this.store.saveAgentCostKey(id, costKey.tokenId);
+    const managed = await this.inferenceGroups.bindAgent(id, input.inferenceGroupId);
+    const costKeyAlias = `tasklattice/${managed.group.id.slice(0, 8)}/${id.slice(0, 8)}`;
+    const costKey = { secret: managed.secret, tokenId: managed.binding.liteLLMTokenId };
     let agent: Agent = {
+      schemaVersion: 1,
       id,
       ...input,
       policyId: policy.id,
-      providerAccountId: account.id,
-      providerName: deployment.providerName,
-      model: deployment.modelId,
+      modelDeploymentId: `inference-group:${managed.group.id}`,
+      providerAccountId: managed.gateway.id,
+      providerName: "LiteLLM managed",
+      model: managed.group.publicModelAlias,
       modelType: "llm",
+      inferenceMode: "PLATFORM_MANAGED",
+      inferenceGroupId: managed.group.id,
+      inferenceBindingId: managed.binding.id,
+      inferenceStatus: managed.group.status,
+      inferenceComplianceDomain: managed.group.complianceDomain,
+      inferenceCapabilities: managed.group.capabilities,
+      inferenceKeyFingerprint: managed.binding.keyFingerprint,
+      ...(managed.group.lastSynchronizedAt ? { inferenceLastSynchronizedAt: managed.group.lastSynchronizedAt } : {}),
       costKeyAlias,
       sandboxName,
       status: "PROVISIONING",
@@ -141,9 +141,9 @@ export class AgentService {
           await this.runner.createSandbox({
             name: agent.sandboxName,
             agentPlatform: agent.agentPlatform,
-            providerName: deployment.providerName,
-            model: deployment.litellmModelName,
-            inferenceEndpoint: `${this.litellm.baseUrl}/v1`,
+            providerName: "LiteLLM",
+            model: managed.group.publicModelAlias,
+            inferenceEndpoint: `${managed.gateway.baseUrl}/v1`,
             policyYaml: policy.policyYaml,
             systemPrompt: input.systemPrompt,
             apiKey: costKey.secret,
@@ -151,8 +151,7 @@ export class AgentService {
         ),
       );
     } catch (error) {
-      await this.litellm.revokeKey(costKey.tokenId).catch(() => undefined);
-      this.store.deleteAgentCostKey(id);
+      await this.inferenceGroups.unbindAgent(id).catch(() => undefined);
       agent = this.store.save({
         ...agent,
         status: "FAILED",
@@ -175,9 +174,7 @@ export class AgentService {
       updatedAt: new Date().toISOString(),
     });
     await this.runner.destroySandbox(agent.sandboxName, agent.agentPlatform);
-    const tokenId = this.store.getAgentCostKey(id);
-    if (tokenId) await this.litellm.revokeKey(tokenId);
-    this.store.deleteAgentCostKey(id);
+    await this.inferenceGroups.unbindAgent(id);
     this.store.delete(id);
     return true;
   }

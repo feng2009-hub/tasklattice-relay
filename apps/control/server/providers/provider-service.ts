@@ -162,6 +162,9 @@ export class ProviderService {
       validationMessage: "",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      complianceDomain: input.complianceDomain,
+      endpointRegion: input.complianceDomain === "CN_MAINLAND" ? "cn-mainland" : "global",
+      crossBorderTransfer: false,
     }, input.apiKey);
     const item = catalog(provider);
     const discovery = this.legacyValidator
@@ -185,7 +188,7 @@ export class ProviderService {
       discovery.mode !== "remote" || available.has(model.modelId),
     );
     if (!models.length) throw new Error("Select at least one model before creating a Provider connection.");
-    return (await this.createConnectionWithDiscovery({ connection: draft, models: [...models] }, discovery)).account;
+    return (await this.createConnectionWithDiscovery({ connection: draft, models: [...models], complianceDomain: input.complianceDomain }, discovery)).account;
   }
 
   async revalidateAccount(id: string): Promise<ProviderAccount | undefined> {
@@ -280,6 +283,9 @@ export class ProviderService {
         providerPresetId: account.presetId,
         providerName: catalog(draft.provider).name,
         endpoint: providerAdapter(draft.provider).endpoint(draft),
+        complianceDomain: account.complianceDomain,
+        endpointRegion: account.endpointRegion,
+        crossBorderTransfer: false,
         litellmModelName: `pending/${account.id}/${input.modelId}`,
         status: "FAILED",
         checks: modelChecks("FAIL"),
@@ -304,6 +310,9 @@ export class ProviderService {
       presetId: input.connection.provider,
       endpoint: adapter.endpoint(input.connection),
       config: input.connection.config,
+      complianceDomain: input.complianceDomain,
+      endpointRegion: input.complianceDomain === "CN_MAINLAND" ? "cn-mainland" : "global",
+      crossBorderTransfer: false,
       discoveredModels: [...new Set([
         ...discovery.models.map((model) => model.modelId),
         ...input.models.map((model) => model.modelId),
@@ -364,6 +373,8 @@ export class ProviderService {
         providerKind: draft.provider,
         model,
         litellmParams: adapter.toLiteLLMParams(draft, model),
+        complianceDomain: account.complianceDomain,
+        endpointRegion: account.endpointRegion,
       });
       await this.litellm.probeModel(litellmModelName, model.modelType);
       const now = new Date().toISOString();
@@ -375,6 +386,9 @@ export class ProviderService {
         providerPresetId: account.presetId,
         providerName: catalog(draft.provider).name,
         endpoint: adapter.endpoint(draft),
+        complianceDomain: account.complianceDomain,
+        endpointRegion: account.endpointRegion,
+        crossBorderTransfer: false,
         litellmModelName,
         status: "VALIDATED",
         checks: modelChecks("PASS"),

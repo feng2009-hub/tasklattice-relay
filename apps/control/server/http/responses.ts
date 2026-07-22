@@ -2,7 +2,7 @@ import { z } from "zod";
 
 const corsHeaders = {
   "access-control-allow-headers": "authorization, content-type",
-  "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
+  "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
   "access-control-allow-origin": process.env.TALI_CORS_ORIGIN ?? "*",
 };
 
@@ -24,12 +24,15 @@ export function errorResponse(error: unknown): Response {
       { error: error.issues[0]?.message ?? "Invalid request." },
       { status: 400 },
     );
-  return jsonResponse(
-    {
-      error: error instanceof Error ? error.message : "Unexpected error.",
-    },
-    { status: 500 },
-  );
+  const message = error instanceof Error ? error.message : "Unexpected error.";
+  const status = /not found/i.test(message)
+    ? 404
+    : /Consumer|default Inference Group|compliance|suspended|READY Inference Group|Multiple default/i.test(message)
+      ? 409
+      : /LiteLLM|gateway is unavailable/i.test(message)
+        ? 503
+        : 500;
+  return jsonResponse({ error: message }, { status });
 }
 
 export function noContentResponse(): Response {

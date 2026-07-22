@@ -5,6 +5,10 @@ import type {
   ExtensionCatalog,
   ExtensionResourceKind,
   KnowledgeSourceDefinition,
+  InferenceGateway,
+  InferenceGroup,
+  InferenceGroupAuditEvent,
+  InferenceGroupBinding,
   McpServerDefinition,
   ModelDeployment,
   ProviderAccount,
@@ -19,18 +23,10 @@ type ExtensionTable =
   | "extension_knowledge_sources"
   | "agent_specializations";
 
-interface LegacyAgent extends Partial<Agent> {
-  providerConnectionId?: string;
-  provider?: string;
-}
-
-function legacyReference(kind: "account" | "model", id: string): string {
-  return `legacy-${kind}:${id}`;
-}
-
 export function parseAgent(payload: string): Agent {
-  const agent = JSON.parse(payload) as LegacyAgent;
+  const agent = JSON.parse(payload) as Partial<Agent>;
   if (
+    agent.schemaVersion !== 1 ||
     typeof agent.id !== "string" ||
     typeof agent.name !== "string" ||
     typeof agent.sandboxName !== "string" ||
@@ -38,40 +34,22 @@ export function parseAgent(payload: string): Agent {
     typeof agent.systemPrompt !== "string" ||
     typeof agent.createdAt !== "string" ||
     typeof agent.updatedAt !== "string" ||
-    !Array.isArray(agent.logs)
+    !Array.isArray(agent.logs) ||
+    agent.inferenceMode !== "PLATFORM_MANAGED" ||
+    typeof agent.inferenceGroupId !== "string" ||
+    typeof agent.inferenceBindingId !== "string" ||
+    typeof agent.inferenceKeyFingerprint !== "string" ||
+    !agent.inferenceCapabilities ||
+    !agent.inferenceComplianceDomain ||
+    !agent.inferenceStatus
   )
     throw new Error("Stored Instance data is incomplete.");
+  return agent as Agent;
+}
 
-  const legacyId = agent.providerConnectionId ?? agent.id;
-  const providerName = agent.providerName ?? agent.provider ?? "Legacy provider";
-  return {
-    ...agent,
-    id: agent.id,
-    name: agent.name,
-    description: agent.description ?? "",
-    runtime: "openshell",
-    agentPlatform: agent.agentPlatform ?? "openclaw",
-    policyId: agent.policyId ?? "restricted",
-    systemPrompt: agent.systemPrompt,
-    specializationId: agent.specializationId ?? "general-purpose",
-    skillIds: agent.skillIds ?? [],
-    mcpServerIds: agent.mcpServerIds ?? [],
-    knowledgeSourceIds: agent.knowledgeSourceIds ?? [],
-    modelDeploymentId:
-      agent.modelDeploymentId ?? legacyReference("model", legacyId),
-    providerAccountId:
-      agent.providerAccountId ?? legacyReference("account", legacyId),
-    providerName,
-    model: agent.model,
-    modelType: "llm",
-    costKeyAlias:
-      agent.costKeyAlias ?? `${agent.sandboxName}:${agent.model}`,
-    sandboxName: agent.sandboxName,
-    status: agent.status ?? "FAILED",
-    createdAt: agent.createdAt,
-    updatedAt: agent.updatedAt,
-    logs: agent.logs,
-  };
+function parseCurrentAgent(payload: string): Agent | undefined {
+  const candidate = JSON.parse(payload) as Partial<Agent>;
+  return candidate.schemaVersion === 1 ? parseAgent(payload) : undefined;
 }
 
 function parseProviderAccount(payload: string): ProviderAccount {
@@ -94,6 +72,9 @@ function parseProviderAccount(payload: string): ProviderAccount {
       ...(account.presetId === "kimi-cn" ? { region: "cn" } : {}),
       ...(account.presetId === "kimi-global" ? { region: "global" } : {}),
     },
+    complianceDomain: account.complianceDomain ?? "GLOBAL",
+    endpointRegion: account.endpointRegion ?? "unspecified",
+    crossBorderTransfer: false,
     discoveredModels: account.discoveredModels ?? [],
     credentialState: "STORED",
     status: account.status ?? "FAILED",
@@ -148,6 +129,29 @@ export class AgentStore {
       CREATE TABLE IF NOT EXISTS agent_cost_keys (
         agent_id TEXT PRIMARY KEY,
         token_id TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS inference_gateways (
+        id TEXT PRIMARY KEY,
+        payload TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS inference_groups (
+        id TEXT PRIMARY KEY,
+        payload TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS inference_group_bindings (
+        id TEXT PRIMARY KEY,
+        inference_group_id TEXT NOT NULL,
+        agent_id TEXT NOT NULL UNIQUE,
+        payload TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS inference_group_audit (
+        event_id TEXT PRIMARY KEY,
+        inference_group_id TEXT NOT NULL,
+        payload TEXT NOT NULL,
         created_at TEXT NOT NULL
       );
       CREATE TABLE IF NOT EXISTS sandbox_policies (
@@ -312,7 +316,7 @@ export class AgentStore {
     const row = this.database
       .prepare("SELECT payload FROM agents WHERE id = ?")
       .get(id) as { payload: string } | undefined;
-    return row ? parseAgent(row.payload) : undefined;
+    return row ? parseCurrentAgent(row.payload) : undefined;
   }
 
   list(): Agent[] {
@@ -322,7 +326,10 @@ export class AgentStore {
         .all() as Array<{
         payload: string;
       }>
-    ).map((row) => parseAgent(row.payload));
+    ).flatMap((row) => {
+      const agent = parseCurrentAgent(row.payload);
+      return agent ? [agent] : [];
+    });
   }
 
   listAgentsForReporting(): Array<Pick<Agent, "id" | "name" | "sandboxName">> {
@@ -332,6 +339,7 @@ export class AgentStore {
     return rows.flatMap((row) => {
       const agent = JSON.parse(row.payload) as Partial<Agent>;
       if (
+        agent.schemaVersion !== 1 ||
         typeof agent.id !== "string" ||
         typeof agent.name !== "string" ||
         typeof agent.sandboxName !== "string"
@@ -512,6 +520,81 @@ export class AgentStore {
     this.database.prepare("DELETE FROM agent_cost_keys WHERE agent_id = ?").run(agentId);
   }
 
+  saveInferenceGateway(gateway: InferenceGateway): InferenceGateway {
+    this.database.prepare(
+      `INSERT INTO inference_gateways (id, payload, created_at) VALUES (?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET payload = excluded.payload`,
+    ).run(gateway.id, JSON.stringify(gateway), gateway.createdAt);
+    return gateway;
+  }
+
+  getInferenceGateway(id: string): InferenceGateway | undefined {
+    const row = this.database.prepare("SELECT payload FROM inference_gateways WHERE id = ?").get(id) as { payload: string } | undefined;
+    return row ? JSON.parse(row.payload) as InferenceGateway : undefined;
+  }
+
+  listInferenceGateways(): InferenceGateway[] {
+    const rows = this.database.prepare("SELECT payload FROM inference_gateways ORDER BY created_at, id").all() as Array<{ payload: string }>;
+    return rows.map((row) => JSON.parse(row.payload) as InferenceGateway);
+  }
+
+  saveInferenceGroup(group: InferenceGroup): InferenceGroup {
+    this.database.prepare(
+      `INSERT INTO inference_groups (id, payload, created_at) VALUES (?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET payload = excluded.payload`,
+    ).run(group.id, JSON.stringify(group), group.createdAt);
+    return group;
+  }
+
+  getInferenceGroup(id: string): InferenceGroup | undefined {
+    const row = this.database.prepare("SELECT payload FROM inference_groups WHERE id = ?").get(id) as { payload: string } | undefined;
+    return row ? JSON.parse(row.payload) as InferenceGroup : undefined;
+  }
+
+  listInferenceGroups(): InferenceGroup[] {
+    const rows = this.database.prepare("SELECT payload FROM inference_groups ORDER BY created_at DESC").all() as Array<{ payload: string }>;
+    return rows.map((row) => JSON.parse(row.payload) as InferenceGroup);
+  }
+
+  deleteInferenceGroup(id: string): boolean {
+    return this.database.prepare("DELETE FROM inference_groups WHERE id = ?").run(id).changes > 0;
+  }
+
+  saveInferenceGroupBinding(binding: InferenceGroupBinding): InferenceGroupBinding {
+    this.database.prepare(
+      `INSERT INTO inference_group_bindings (id, inference_group_id, agent_id, payload, created_at)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET payload = excluded.payload`,
+    ).run(binding.id, binding.inferenceGroupId, binding.agentId, JSON.stringify(binding), binding.createdAt);
+    return binding;
+  }
+
+  getInferenceGroupBindingForAgent(agentId: string): InferenceGroupBinding | undefined {
+    const row = this.database.prepare("SELECT payload FROM inference_group_bindings WHERE agent_id = ?").get(agentId) as { payload: string } | undefined;
+    return row ? JSON.parse(row.payload) as InferenceGroupBinding : undefined;
+  }
+
+  listInferenceGroupBindings(inferenceGroupId: string): InferenceGroupBinding[] {
+    const rows = this.database.prepare(
+      "SELECT payload FROM inference_group_bindings WHERE inference_group_id = ? ORDER BY created_at DESC",
+    ).all(inferenceGroupId) as Array<{ payload: string }>;
+    return rows.map((row) => JSON.parse(row.payload) as InferenceGroupBinding);
+  }
+
+  appendInferenceGroupAudit(event: InferenceGroupAuditEvent): InferenceGroupAuditEvent {
+    this.database.prepare(
+      "INSERT INTO inference_group_audit (event_id, inference_group_id, payload, created_at) VALUES (?, ?, ?, ?)",
+    ).run(event.eventId, event.inferenceGroupId, JSON.stringify(event), event.timestamp);
+    return event;
+  }
+
+  listInferenceGroupAudit(inferenceGroupId: string): InferenceGroupAuditEvent[] {
+    const rows = this.database.prepare(
+      "SELECT payload FROM inference_group_audit WHERE inference_group_id = ? ORDER BY created_at DESC",
+    ).all(inferenceGroupId) as Array<{ payload: string }>;
+    return rows.map((row) => JSON.parse(row.payload) as InferenceGroupAuditEvent);
+  }
+
   saveSandboxPolicy(policy: SandboxPolicy): SandboxPolicy {
     this.database
       .prepare(
@@ -546,7 +629,10 @@ export class AgentStore {
     const rows = this.database.prepare("SELECT payload FROM agents").all() as Array<{
       payload: string;
     }>;
-    return rows.some((row) => (JSON.parse(row.payload) as { policyId?: string }).policyId === id);
+    return rows.some((row) => {
+      const agent = JSON.parse(row.payload) as Partial<Agent>;
+      return agent.schemaVersion === 1 && agent.policyId === id;
+    });
   }
 
 }

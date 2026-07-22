@@ -45,6 +45,18 @@ export const providerPresetIds = [...providerKinds, ...legacyProviderPresetIds] 
 
 export const modelTypes = ["llm", "text-embedding", "speech-to-text"] as const;
 
+export const complianceDomains = ["CN_MAINLAND", "GLOBAL"] as const;
+export const inferenceGroupStatuses = [
+  "DRAFT",
+  "VALIDATING",
+  "READY",
+  "DEGRADED",
+  "NON_COMPLIANT",
+  "SUSPENDED",
+  "UNSUPPORTED",
+] as const;
+export const inferenceCapabilityStates = ["ENABLED", "DISABLED", "UNKNOWN"] as const;
+
 export interface ProviderPresetModel {
   modelId: string;
   displayName: string;
@@ -367,6 +379,7 @@ export const discoverProviderModelsSchema = providerConnectionDraftSchema;
 export const createProviderConnectionSchema = z.object({
   connection: providerConnectionDraftSchema,
   models: z.array(providerModelSelectionSchema).min(1).max(100),
+  complianceDomain: z.enum(complianceDomains),
 });
 
 export const agentPlatformIds = ["openclaw", "hermes"] as const;
@@ -501,6 +514,7 @@ export const createProviderAccountSchema = z.object({
   presetId: z.enum(providerPresetIds),
   endpoint: z.string().trim().url(),
   apiKey: z.string().trim().min(8).max(512),
+  complianceDomain: z.enum(complianceDomains),
 }).superRefine((input, context) => {
   const preset = providerPresets.find((item) => item.id === input.presetId);
   if (preset?.endpoint && input.endpoint.replace(/\/+$/, "") !== preset.endpoint)
@@ -526,13 +540,49 @@ export const createAgentSchema = z.object({
   description: z.string().trim().max(300).default(""),
   runtime: z.literal("openshell"),
   agentPlatform: z.enum(agentPlatformIds).default(defaultAgentPlatformId),
-  modelDeploymentId: z.string().trim().min(1),
+  inferenceGroupId: z.string().uuid().optional(),
   policyId: sandboxPolicyIdSchema.optional(),
   systemPrompt: z.string().trim().min(10).max(8000),
   specializationId: z.string().trim().min(1).max(64).optional(),
   skillIds: z.array(z.string().trim().min(1).max(160)).max(64).optional(),
   mcpServerIds: z.array(z.string().trim().min(1).max(160)).max(64).optional(),
   knowledgeSourceIds: z.array(z.string().trim().min(1).max(160)).max(64).optional(),
+}).strict();
+
+export const createInferenceGatewaySchema = z.object({
+  name: z.string().trim().min(3).max(64),
+  baseUrl: z.string().trim().url(),
+  adminUiUrl: z.string().trim().url(),
+  complianceDomain: z.enum(complianceDomains),
+  adminCredentialRef: z.string().trim().min(1).max(160),
+});
+
+export const createInferenceGroupSchema = z.object({
+  name: z.string().trim().min(2).max(64),
+  description: z.string().trim().max(300).default(""),
+  gatewayId: z.string().trim().min(1),
+  publicModelAlias: z.string().trim().min(1).max(160),
+  complianceDomain: z.enum(complianceDomains),
+  isDefault: z.boolean().default(false),
+  keyPolicy: z.object({
+    perInstance: z.literal(true).default(true),
+    rotationDays: z.number().int().min(1).max(365).default(90),
+  }).default({ perInstance: true, rotationDays: 90 }),
+  auditPolicy: z.object({
+    controlPlane: z.literal(true).default(true),
+    requestLogs: z.boolean().default(true),
+    capturePrompts: z.literal(false).default(false),
+  }).default({ controlPlane: true, requestLogs: true, capturePrompts: false }),
+});
+
+export const updateInferenceGroupSchema = createInferenceGroupSchema.pick({
+  name: true,
+  description: true,
+  isDefault: true,
+  keyPolicy: true,
+  auditPolicy: true,
+}).partial().extend({
+  suspended: z.boolean().optional(),
 });
 
 export type AgentStatus = (typeof agentStatuses)[number];
@@ -565,6 +615,99 @@ export type ProviderModelSelection = z.infer<typeof providerModelSelectionSchema
 export type CreateProviderConnectionInput = z.infer<typeof createProviderConnectionSchema>;
 export type CreateModelDeploymentInput = z.infer<typeof createModelDeploymentSchema>;
 export type CreateAgentInput = z.infer<typeof createAgentSchema>;
+export type ComplianceDomain = (typeof complianceDomains)[number];
+export type InferenceGroupStatus = (typeof inferenceGroupStatuses)[number];
+export type InferenceCapabilityState = (typeof inferenceCapabilityStates)[number];
+export type CreateInferenceGatewayInput = z.infer<typeof createInferenceGatewaySchema>;
+export type CreateInferenceGroupInput = z.infer<typeof createInferenceGroupSchema>;
+export type UpdateInferenceGroupInput = z.infer<typeof updateInferenceGroupSchema>;
+
+export interface InferenceGateway {
+  id: string;
+  name: string;
+  baseUrl: string;
+  adminUiUrl: string;
+  complianceDomain: ComplianceDomain;
+  credentialSource: "ENVIRONMENT" | "SECRET_REFERENCE";
+  status: "UNKNOWN" | "READY" | "DEGRADED";
+  validationMessage: string;
+  validatedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InferenceGroupCondition {
+  type: "BINDING" | "GATEWAY" | "COMPLIANCE" | "CAPABILITY";
+  status: "PASS" | "FAIL" | "UNKNOWN";
+  reason: string;
+}
+
+export interface InferenceGroupCapabilities {
+  automaticRouting: InferenceCapabilityState;
+  routerType: "COMPLEXITY_ROUTER" | "OTHER" | "UNKNOWN";
+  complexityTierCount?: number;
+  sessionAffinity: InferenceCapabilityState;
+  adaptiveRouting: InferenceCapabilityState;
+  failover: InferenceCapabilityState;
+  generalFallback: InferenceCapabilityState;
+  contextWindowFallback: InferenceCapabilityState;
+  contentPolicyFallback: InferenceCapabilityState;
+  retries: InferenceCapabilityState;
+  requestAudit: InferenceCapabilityState;
+}
+
+export interface InferenceGroup {
+  id: string;
+  name: string;
+  description: string;
+  gatewayId: string;
+  managementMode: "LITELLM_MANAGED";
+  publicModelAlias: string;
+  complianceDomain: ComplianceDomain;
+  status: InferenceGroupStatus;
+  isDefault: boolean;
+  keyPolicy: CreateInferenceGroupInput["keyPolicy"];
+  auditPolicy: CreateInferenceGroupInput["auditPolicy"];
+  capabilities: InferenceGroupCapabilities;
+  conditions: InferenceGroupCondition[];
+  configurationHash: string;
+  observedGeneration: number;
+  validationMessage: string;
+  liteLLMTeamId?: string;
+  liteLLMVersion?: string;
+  consumers: number;
+  lastSynchronizedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InferenceGroupBinding {
+  id: string;
+  inferenceGroupId: string;
+  agentId: string;
+  liteLLMTeamId: string;
+  liteLLMTokenId: string;
+  keyAlias: string;
+  keyFingerprint: string;
+  status: "ACTIVE" | "REVOKED";
+  createdAt: string;
+  revokedAt?: string;
+}
+
+export type InferenceGroupConsumer = Omit<InferenceGroupBinding, "liteLLMTokenId">;
+
+export interface InferenceGroupAuditEvent {
+  eventId: string;
+  timestamp: string;
+  actor: string;
+  type: string;
+  inferenceGroupId: string;
+  agentId?: string;
+  configurationHash: string;
+  complianceDomain: ComplianceDomain;
+  result: "SUCCESS" | "FAILED";
+  reason: string;
+}
 
 export interface ExtensionCatalog {
   skills: SkillDefinition[];
@@ -601,6 +744,9 @@ export interface ProviderAccount {
   presetId: ProviderPresetId;
   endpoint: string;
   config: Record<string, unknown>;
+  complianceDomain: ComplianceDomain;
+  endpointRegion: string;
+  crossBorderTransfer: false;
   discoveredModels: string[];
   status: ProviderResourceStatus;
   checks: ProviderValidationCheck[];
@@ -638,6 +784,9 @@ export interface ModelDeployment extends CreateModelDeploymentInput {
   providerPresetId: ProviderPresetId;
   providerName: string;
   endpoint: string;
+  complianceDomain: ComplianceDomain;
+  endpointRegion: string;
+  crossBorderTransfer: false;
   litellmModelName: string;
   status: ProviderResourceStatus;
   checks: ProviderValidationCheck[];
@@ -678,12 +827,22 @@ export interface CostReport {
 }
 
 export interface Agent extends Omit<CreateAgentInput, "policyId"> {
+  schemaVersion: 1;
   id: string;
   policyId: SandboxPolicyId;
   providerAccountId: string;
   providerName: string;
+  modelDeploymentId: string;
   model: string;
   modelType: "llm";
+  inferenceMode: "PLATFORM_MANAGED";
+  inferenceGroupId: string;
+  inferenceBindingId: string;
+  inferenceStatus: InferenceGroupStatus;
+  inferenceComplianceDomain: ComplianceDomain;
+  inferenceCapabilities: InferenceGroupCapabilities;
+  inferenceKeyFingerprint: string;
+  inferenceLastSynchronizedAt?: string;
   costKeyAlias: string;
   sandboxName: string;
   status: AgentStatus;

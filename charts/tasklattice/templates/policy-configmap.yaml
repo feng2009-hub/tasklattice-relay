@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "tasklattice.componentName" (dict "root" . "component" "policies") }}
+  labels:
+    {{- include "tasklattice.labels" . | nindent 4 }}
+data:
+  catalog.yaml: |
+    {{- .Files.Get "files/policy-catalog.yaml" | nindent 4 }}
+

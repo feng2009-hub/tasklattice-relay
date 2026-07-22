@@ -1,0 +1,14 @@
+TaskLattice {{ .Chart.AppVersion }} has been installed in {{ .Release.Namespace }}.
+
+Wait for the core workloads:
+  kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "tasklattice.componentName" (dict "root" . "component" "control") }} --timeout=5m
+  kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "tasklattice.componentName" (dict "root" . "component" "runner") }} --timeout=5m
+  kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "tasklattice.componentName" (dict "root" . "component" "litellm") }} --timeout=5m
+
+Control service:
+  kubectl -n {{ .Release.Namespace }} get service {{ include "tasklattice.componentName" (dict "root" . "component" "control") }}
+
+The default credentials are admin/admin and the default OpenShell endpoint is
+plaintext and unauthenticated. Change secrets.* and configure trusted ingress,
+TLS, and authentication before exposing this deployment outside a local cluster.
+

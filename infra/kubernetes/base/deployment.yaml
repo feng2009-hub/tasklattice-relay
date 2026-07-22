@@ -46,6 +46,8 @@ spec:
                   key: token
             - name: LITELLM_BASE_URL
               value: http://tasklattice-litellm.tasklattice-sandboxes.svc.cluster.local:4000
+            - name: LITELLM_COMPLIANCE_DOMAIN
+              value: GLOBAL
             - name: LITELLM_MASTER_KEY
               valueFrom:
                 secretKeyRef:

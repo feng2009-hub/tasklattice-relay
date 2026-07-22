@@ -3,7 +3,8 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { defaultAgentPlatformId, type AgentPlatformId, type CreateAgentInput } from "@tasklattice/contracts";
-import { ArrowLeft, ArrowRight, Bot, Check, CircleAlert, ShieldCheck, Star } from "lucide-react";
+import { ArrowLeft, ArrowRight, Bot, Check, CircleAlert, Route as RouteIcon, ShieldCheck } from "lucide-react";
+import { z } from "zod";
 import { AgentSelect } from "@/components/agents/agent-select";
 import { ChangeSpecializationDialog } from "@/components/agents/change-specialization-dialog";
 import {
@@ -23,11 +24,14 @@ import { Separator } from "@/components/ui/separator";
 import { api } from "@/lib/api";
 import { getAgentPlatformPresentation } from "@/lib/agent-platforms";
 
-export const Route = createFileRoute("/agents/instace/new")({ component: CreateInstance });
+export const Route = createFileRoute("/agents/instace/new")({
+  validateSearch: z.object({ inferenceGroupId: z.string().uuid().optional() }),
+  component: CreateInstance,
+});
 
 const steps: readonly CreateInstanceStep[] = [
   { label: "Identity & Capabilities", description: "Define the Agent and its capabilities" },
-  { label: "Runtime & Model", description: "Choose runtime, model and provider" },
+  { label: "Runtime & Inference", description: "Review platform-managed inference" },
   { label: "Review & Approve", description: "Review and explicitly approve provisioning" },
 ];
 
@@ -43,6 +47,7 @@ function selectedIds(items: readonly SelectedCapability[]): string[] {
 
 function CreateInstance() {
   const navigate = useNavigate();
+  const search = Route.useSearch();
   const [step, setStep] = useState(0);
   const [specializationId, setSpecializationId] = useState<SpecializationId>("general-purpose");
   const [customSystemPrompt, setCustomSystemPrompt] = useState("");
@@ -59,11 +64,14 @@ function CreateInstance() {
   const specializations = extensionCatalog.data?.specializations ?? [];
   const specialization = getSpecialization(specializations, specializationId);
   const pendingSpecialization = pendingSpecializationId ? getSpecialization(specializations, pendingSpecializationId) : null;
-  const deployments = useQuery({ queryKey: ["model-deployments"], queryFn: api.listModelDeployments });
+  const inferenceGroups = useQuery({ queryKey: ["inference-groups"], queryFn: api.listInferenceGroups });
   const policies = useQuery({ queryKey: ["sandbox-policies"], queryFn: api.listPolicies });
-  const validatedDeployments = (deployments.data ?? []).filter((deployment) => deployment.status === "VALIDATED" && deployment.modelType === "llm");
-  const selectedDeployment = validatedDeployments.find((deployment) => deployment.isDefault);
-  const modelDeploymentId = selectedDeployment?.id ?? "";
+  const requestedInferenceGroup = search.inferenceGroupId
+    ? (inferenceGroups.data ?? []).find((group) => group.id === search.inferenceGroupId && group.status === "READY")
+    : undefined;
+  const defaultInferenceGroup = (inferenceGroups.data ?? []).find((group) => group.isDefault && group.status === "READY");
+  const inferenceGroup = search.inferenceGroupId ? requestedInferenceGroup : defaultInferenceGroup;
+  const requestedInferenceGroupUnavailable = Boolean(search.inferenceGroupId && !inferenceGroups.isPending && !requestedInferenceGroup);
   const currentSystemPrompt = specialization?.id === "custom" ? customSystemPrompt : specialization?.systemPrompt ?? "";
   const incompleteMcps = selectedIds(selectedMcps)
     .map((id) => mcpServers.find((item) => item.id === id))
@@ -78,7 +86,6 @@ function CreateInstance() {
       description: "",
       runtime: "openshell" as const,
       agentPlatform: defaultAgentPlatformId as AgentPlatformId,
-      modelDeploymentId: "",
       policyId: "",
       systemPrompt: "",
     },
@@ -89,6 +96,7 @@ function CreateInstance() {
       skillIds: selectedIds(selectedSkills),
       mcpServerIds: selectedIds(selectedMcps),
       knowledgeSourceIds: selectedIds(selectedKnowledgeSources),
+      ...(inferenceGroup ? { inferenceGroupId: inferenceGroup.id } : {}),
     } satisfies CreateAgentInput),
   });
 
@@ -96,11 +104,6 @@ function CreateInstance() {
     if (!policies.data?.defaultPolicyId || form.state.values.policyId) return;
     form.setFieldValue("policyId", policies.data.defaultPolicyId);
   }, [form, policies.data?.defaultPolicyId]);
-
-  useEffect(() => {
-    if (form.state.values.modelDeploymentId === modelDeploymentId) return;
-    form.setFieldValue("modelDeploymentId", modelDeploymentId);
-  }, [form, modelDeploymentId]);
 
   useEffect(() => {
     if (!specialization || form.state.values.systemPrompt) return;
@@ -183,16 +186,16 @@ function CreateInstance() {
 
           {step === 1 ? (
             <Card>
-              <CardHeader><CardTitle className="flex items-center gap-2"><Bot className="size-5" /> Runtime & Model</CardTitle><CardDescription>Choose the Agent implementation and OpenShell policy. The default validated model is applied automatically.</CardDescription></CardHeader>
+              <CardHeader><CardTitle className="flex items-center gap-2"><Bot className="size-5" /> Runtime & Inference</CardTitle><CardDescription>Choose the Agent implementation and OpenShell policy. Inference is configured automatically by TaskLattice.</CardDescription></CardHeader>
               <CardContent className="space-y-5">
                 <div className="rounded-md border bg-muted/20 px-4 py-3 text-sm"><span className="text-xs text-muted-foreground">Runtime</span><strong className="mt-1 block">OpenShell (UAT)</strong></div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <form.Field name="agentPlatform">
                     {(field) => <div className="space-y-2"><Label htmlFor="instance-agent">Agent implementation</Label><AgentSelect id="instance-agent" value={field.state.value} onValueChange={field.handleChange} /><p className="text-xs leading-5 text-muted-foreground">Configured inside the OpenShell runtime during provisioning.</p></div>}
                   </form.Field>
-                  <div className="space-y-2"><Label>LLM deployment</Label>{deployments.isPending ? <div className="flex min-h-12 items-center border bg-muted/20 px-3 text-sm text-muted-foreground">Loading default LLM…</div> : selectedDeployment ? <div className="flex min-h-12 items-center gap-3 border bg-muted/20 px-3 py-2"><Star className="size-4 shrink-0 fill-current" /><span className="min-w-0"><strong className="block truncate text-sm">{selectedDeployment.providerName} · {selectedDeployment.displayName}</strong><span className="block text-xs text-muted-foreground">Default model · managed in Providers</span></span></div> : <div className="flex min-h-12 items-center border border-amber-500/30 bg-amber-500/5 px-3 text-xs">No default LLM configured</div>}<p className="text-xs leading-5 text-muted-foreground">Automatically selected from the default model configured in Providers.</p></div>
+                  <div className="space-y-2"><Label>Inference Group</Label>{inferenceGroups.isPending ? <div className="flex min-h-12 items-center border bg-muted/20 px-3 text-sm text-muted-foreground">Checking managed inference…</div> : inferenceGroup ? <div className="flex min-h-12 items-center gap-3 border border-emerald-500/25 bg-emerald-500/5 px-3 py-2"><span className="grid size-8 shrink-0 place-items-center rounded-full bg-emerald-500/10 text-emerald-700"><RouteIcon className="size-4" /></span><span className="min-w-0"><strong className="block truncate text-sm">{inferenceGroup.name}</strong><span className="block text-xs text-muted-foreground">Ready · {search.inferenceGroupId ? "selected for this Instance" : "platform default"}</span></span></div> : <div className="flex min-h-12 items-center border border-amber-500/30 bg-amber-500/5 px-3 text-xs">{requestedInferenceGroupUnavailable ? "The selected Inference Group is not READY or no longer exists" : "Managed inference is unavailable"}</div>}<p className="text-xs leading-5 text-muted-foreground">TaskLattice supplies the endpoint, model alias, and isolated Virtual Key automatically.</p></div>
                 </div>
-                {selectedDeployment ? <div className="grid gap-3 border-y py-4 text-xs sm:grid-cols-3"><div><span className="text-muted-foreground">Endpoint</span><strong className="mt-1 block truncate font-mono">{selectedDeployment.endpoint}</strong></div><div><span className="text-muted-foreground">Model</span><strong className="mt-1 block">{selectedDeployment.modelId}</strong></div><div><span className="text-muted-foreground">Cost attribution</span><strong className="mt-1 block">Dedicated Instance key</strong></div></div> : deployments.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 px-3 py-3 text-xs text-destructive">{deployments.error.message}</p> : !deployments.isPending ? <p role="alert" className="border-l-2 border-amber-500 bg-amber-500/5 px-3 py-3 text-xs"><Link to="/providers" className="font-semibold underline underline-offset-4">Mark a validated LLM as default in Providers</Link> to continue.</p> : null}
+                {inferenceGroup ? <div className="grid gap-3 border-y py-4 text-xs sm:grid-cols-3"><div><span className="text-muted-foreground">Compliance</span><strong className="mt-1 block">{inferenceGroup.complianceDomain === "CN_MAINLAND" ? "CN Mainland" : "Global"}</strong></div><div><span className="text-muted-foreground">Automatic routing</span><strong className="mt-1 block">{inferenceGroup.capabilities.automaticRouting === "ENABLED" ? "Enabled" : "Managed"}</strong></div><div><span className="text-muted-foreground">Failover</span><strong className="mt-1 block">{inferenceGroup.capabilities.failover === "ENABLED" ? "Enabled" : "Managed"}</strong></div></div> : inferenceGroups.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 px-3 py-3 text-xs text-destructive">{inferenceGroups.error.message}</p> : !inferenceGroups.isPending ? <p role="alert" className="border-l-2 border-amber-500 bg-amber-500/5 px-3 py-3 text-xs"><Link to="/providers/inference-groups" className="font-semibold underline underline-offset-4">{requestedInferenceGroupUnavailable ? "Choose another READY Inference Group" : "Configure a READY default Inference Group"}</Link> to continue.</p> : null}
                 <form.Field name="policyId">
                   {(field) => <div className="space-y-2"><div className="flex items-center justify-between gap-3"><Label>OpenShell policy</Label><Link to="/agent/sandboxes/policy" className="text-xs font-medium underline underline-offset-4">Inspect policies</Link></div><Select value={field.state.value} disabled={policies.isPending || Boolean(policies.error)} onValueChange={field.handleChange}><SelectTrigger aria-label="OpenShell policy" className="min-h-12 h-auto"><SelectValue placeholder={policies.isPending ? "Loading Policy catalog…" : "Select a Policy"} /></SelectTrigger><SelectContent>{policies.data?.policies.map((policy) => <SelectItem key={policy.id} value={policy.id}>{policy.name} · {policy.networkAccess}</SelectItem>)}</SelectContent></Select>{policies.error ? <p role="alert" className="text-xs text-destructive">{policies.error.message}</p> : <p className="text-xs leading-5 text-muted-foreground">Applied at Sandbox creation through the OpenShell policy boundary.</p>}</div>}
                 </form.Field>
@@ -208,7 +211,7 @@ function CreateInstance() {
                   <CardContent className="space-y-6">
                     <div className="grid gap-5 sm:grid-cols-2">
                       <ReviewSection title="Identity"><ReviewRow label="Name" value={values.name} /><ReviewRow label="Role" value={specialization.name} /><ReviewRow label="System instructions" value={specialization.id === "custom" ? "Custom instructions" : `Managed by ${specialization.name}`} /></ReviewSection>
-                      <ReviewSection title="Runtime & Model"><ReviewRow label="Runtime" value="OpenShell (UAT)" /><ReviewRow label="Agent" value={getAgentPlatformPresentation(values.agentPlatform).name} /><ReviewRow label="Provider" value={selectedDeployment?.providerName ?? "Not selected"} /><ReviewRow label="Model" value={selectedDeployment?.displayName ?? "Not selected"} /><ReviewRow label="Policy" value={policyName(values.policyId)} /></ReviewSection>
+                      <ReviewSection title="Runtime & Inference"><ReviewRow label="Runtime" value="OpenShell (UAT)" /><ReviewRow label="Agent" value={getAgentPlatformPresentation(values.agentPlatform).name} /><ReviewRow label="Inference Group" value={inferenceGroup?.name ?? "Unavailable"} /><ReviewRow label="Compliance" value={inferenceGroup?.complianceDomain === "CN_MAINLAND" ? "CN Mainland" : inferenceGroup ? "Global" : "Unavailable"} /><ReviewRow label="Policy" value={policyName(values.policyId)} /></ReviewSection>
                     </div>
                     <Separator />
                     <div className="grid gap-5 lg:grid-cols-3">
@@ -229,14 +232,14 @@ function CreateInstance() {
             {step === 0 ? <Button asChild variant="outline"><Link to="/agents"><ArrowLeft /> Back</Link></Button> : <Button type="button" variant="outline" disabled={mutation.isPending} onClick={() => setStep((current) => Math.max(0, current - 1))}><ArrowLeft /> Back</Button>}
             {step === 0 ? (
               <form.Subscribe selector={(state) => state.values.name}>
-                {(name) => <Button type="button" disabled={String(name).trim().length < 3 || currentSystemPrompt.trim().length < 10} onClick={() => setStep(1)}>Next: Runtime & Model <ArrowRight /></Button>}
+                {(name) => <Button type="button" disabled={String(name).trim().length < 3 || currentSystemPrompt.trim().length < 10} onClick={() => setStep(1)}>Next: Runtime & Inference <ArrowRight /></Button>}
               </form.Subscribe>
             ) : step === 1 ? (
               <form.Subscribe selector={(state) => state.values.policyId}>
-                {(policyId) => <Button key="next-review" type="button" disabled={!modelDeploymentId || !String(policyId)} onClick={() => setStep(2)}>Next: Review <ArrowRight /></Button>}
+                {(policyId) => <Button key="next-review" type="button" disabled={!inferenceGroup || !String(policyId)} onClick={() => setStep(2)}>Next: Review <ArrowRight /></Button>}
               </form.Subscribe>
             ) : (
-              <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting, state.values.policyId]}>{([canSubmit, isSubmitting, policyId]) => <Button key="approve-create" size="lg" type="button" disabled={!canSubmit || Boolean(isSubmitting) || mutation.isPending || !modelDeploymentId || !String(policyId)} onClick={() => void form.handleSubmit()}><ShieldCheck /> {mutation.isPending ? "Creating OpenShell sandbox…" : "Next: Approve to Create"}</Button>}</form.Subscribe>
+              <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting, state.values.policyId]}>{([canSubmit, isSubmitting, policyId]) => <Button key="approve-create" size="lg" type="button" disabled={!canSubmit || Boolean(isSubmitting) || mutation.isPending || !inferenceGroup || !String(policyId)} onClick={() => void form.handleSubmit()}><ShieldCheck /> {mutation.isPending ? "Creating OpenShell sandbox…" : "Next: Approve to Create"}</Button>}</form.Subscribe>
             )}
           </div>
         </form>
