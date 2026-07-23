@@ -22,6 +22,7 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProvidersIndexRouteImport } from './routes/providers/index'
 import { Route as AgentsIndexRouteImport } from './routes/agents/index'
+import { Route as SettingsWorkspacesRouteImport } from './routes/settings/workspaces'
 import { Route as RequestsNewRouteImport } from './routes/requests/new'
 import { Route as ProvidersCostRouteImport } from './routes/providers/cost'
 import { Route as AuthSsoCompleteRouteImport } from './routes/auth/sso-complete'
@@ -97,6 +98,11 @@ const ProvidersIndexRoute = ProvidersIndexRouteImport.update({
 const AgentsIndexRoute = AgentsIndexRouteImport.update({
   id: '/agents/',
   path: '/agents/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsWorkspacesRoute = SettingsWorkspacesRouteImport.update({
+  id: '/settings/workspaces',
+  path: '/settings/workspaces',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RequestsNewRoute = RequestsNewRouteImport.update({
@@ -175,6 +181,7 @@ export interface FileRoutesByFullPath {
   '/auth/sso-complete': typeof AuthSsoCompleteRoute
   '/providers/cost': typeof ProvidersCostRoute
   '/requests/new': typeof RequestsNewRoute
+  '/settings/workspaces': typeof SettingsWorkspacesRoute
   '/agents/': typeof AgentsIndexRoute
   '/providers/': typeof ProvidersIndexRoute
   '/agent/sandboxes/policy': typeof AgentSandboxesPolicyRoute
@@ -200,6 +207,7 @@ export interface FileRoutesByTo {
   '/auth/sso-complete': typeof AuthSsoCompleteRoute
   '/providers/cost': typeof ProvidersCostRoute
   '/requests/new': typeof RequestsNewRoute
+  '/settings/workspaces': typeof SettingsWorkspacesRoute
   '/agents': typeof AgentsIndexRoute
   '/providers': typeof ProvidersIndexRoute
   '/agent/sandboxes/policy': typeof AgentSandboxesPolicyRoute
@@ -227,6 +235,7 @@ export interface FileRoutesById {
   '/auth/sso-complete': typeof AuthSsoCompleteRoute
   '/providers/cost': typeof ProvidersCostRoute
   '/requests/new': typeof RequestsNewRoute
+  '/settings/workspaces': typeof SettingsWorkspacesRoute
   '/agents/': typeof AgentsIndexRoute
   '/providers/': typeof ProvidersIndexRoute
   '/agent/sandboxes/policy': typeof AgentSandboxesPolicyRoute
@@ -255,6 +264,7 @@ export interface FileRouteTypes {
     | '/auth/sso-complete'
     | '/providers/cost'
     | '/requests/new'
+    | '/settings/workspaces'
     | '/agents/'
     | '/providers/'
     | '/agent/sandboxes/policy'
@@ -280,6 +290,7 @@ export interface FileRouteTypes {
     | '/auth/sso-complete'
     | '/providers/cost'
     | '/requests/new'
+    | '/settings/workspaces'
     | '/agents'
     | '/providers'
     | '/agent/sandboxes/policy'
@@ -306,6 +317,7 @@ export interface FileRouteTypes {
     | '/auth/sso-complete'
     | '/providers/cost'
     | '/requests/new'
+    | '/settings/workspaces'
     | '/agents/'
     | '/providers/'
     | '/agent/sandboxes/policy'
@@ -332,6 +344,7 @@ export interface RootRouteChildren {
   AgentsNewRoute: typeof AgentsNewRoute
   AuthSsoCompleteRoute: typeof AuthSsoCompleteRoute
   RequestsNewRoute: typeof RequestsNewRoute
+  SettingsWorkspacesRoute: typeof SettingsWorkspacesRoute
   AgentsIndexRoute: typeof AgentsIndexRoute
   AgentSandboxesPolicyRoute: typeof AgentSandboxesPolicyRoute
   AgentSandboxesRuntimeRoute: typeof AgentSandboxesRuntimeRoute
@@ -429,6 +442,13 @@ declare module '@tanstack/react-router' {
       path: '/agents'
       fullPath: '/agents/'
       preLoaderRoute: typeof AgentsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings/workspaces': {
+      id: '/settings/workspaces'
+      path: '/settings/workspaces'
+      fullPath: '/settings/workspaces'
+      preLoaderRoute: typeof SettingsWorkspacesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/requests/new': {
@@ -546,6 +566,7 @@ const rootRouteChildren: RootRouteChildren = {
   AgentsNewRoute: AgentsNewRoute,
   AuthSsoCompleteRoute: AuthSsoCompleteRoute,
   RequestsNewRoute: RequestsNewRoute,
+  SettingsWorkspacesRoute: SettingsWorkspacesRoute,
   AgentsIndexRoute: AgentsIndexRoute,
   AgentSandboxesPolicyRoute: AgentSandboxesPolicyRoute,
   AgentSandboxesRuntimeRoute: AgentSandboxesRuntimeRoute,

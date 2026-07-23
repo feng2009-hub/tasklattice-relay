@@ -45,6 +45,7 @@ import type {
   UpdateSkillDefinitionInput,
 } from "@tasklattice/contracts";
 import { clearAuthToken, getAuthToken } from "./auth-token";
+import { getStoredWorkspaceId } from "./workspace-storage";
 
 export class ApiError extends Error {
   constructor(message: string, readonly status: number) {
@@ -55,11 +56,13 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = getAuthToken();
+  const workspaceId = getStoredWorkspaceId();
   const response = await fetch(path, {
     ...init,
     headers: {
       "content-type": "application/json",
       ...(token ? { authorization: `Bearer ${token}` } : {}),
+      ...(workspaceId ? { "X-Workspace-ID": workspaceId } : {}),
       ...init?.headers,
     },
   });

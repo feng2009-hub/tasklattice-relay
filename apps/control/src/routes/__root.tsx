@@ -4,17 +4,22 @@ import {
   Outlet,
   Scripts,
   createRootRouteWithContext,
+  retainSearchParams,
   useRouterState,
 } from "@tanstack/react-router";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { AuthProvider } from "@/components/auth/auth-provider";
 import { AppShell } from "@/components/layout/app-shell";
+import { WorkspaceProvider } from "@/components/workspace/workspace-provider";
 import appCss from "../styles.css?url";
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient;
 }>()({
   component: RootApplication,
+  search: {
+    middlewares: [retainSearchParams(["workspace"])],
+  },
   head: () => ({
     meta: [
       { charSet: "utf-8" },
@@ -42,7 +47,15 @@ function RootApplication() {
     pathname === "/" || pathname === "/login" || pathname === "/auth/sso-complete";
   return (
     <AuthProvider>
-      {isPublic ? <Outlet /> : <AuthGuard><AppShell /></AuthGuard>}
+      {isPublic ? (
+        <Outlet />
+      ) : (
+        <AuthGuard>
+          <WorkspaceProvider>
+            <AppShell />
+          </WorkspaceProvider>
+        </AuthGuard>
+      )}
     </AuthProvider>
   );
 }
