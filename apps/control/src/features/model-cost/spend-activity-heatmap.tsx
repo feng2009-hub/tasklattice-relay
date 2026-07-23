@@ -1,13 +1,20 @@
-import { useCallback, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useMemo, useState } from "react";
+import { ClientOnly } from "@tanstack/react-router";
 import type { CostDailyPoint, CostGroupBy } from "@tasklattice/contracts";
 import type { CalendarTooltipProps } from "@nivo/calendar";
-import { CalendarHeatmap } from "@/components/shared/calendar-heatmap";
+import { ChartLoadingState } from "@/components/shared/chart-loading-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { compactNumber, costGroupLabels, fillDailyActivity, usd } from "./cost-utils";
 
 type ActivityMode = "daily" | "weekly" | "cumulative";
 type HeatmapCell = CostDailyPoint & { label: string };
+
+const CalendarHeatmap = lazy(() =>
+  import("@/components/shared/calendar-heatmap").then((module) => ({
+    default: module.CalendarHeatmap,
+  })),
+);
 
 const intensityColors = [
   "var(--cost-heatmap-0)",
@@ -161,16 +168,20 @@ export function SpendActivityHeatmap({
         </Tabs>
       </CardHeader>
       <CardContent className="px-4 pb-3 pt-1">
-        <CalendarHeatmap
-          ariaLabel={`${mode} spend activity from ${from} through ${to}`}
-          colors={intensityColors}
-          data={cells.map((cell) => ({ day: cell.date, value: cell.spend }))}
-          from={from}
-          to={to}
-          legendFormat={usd}
-          maxValue={max}
-          tooltip={tooltip}
-        />
+        <ClientOnly fallback={<ChartLoadingState className="h-[220px] xl:h-[260px] 2xl:h-[300px]" />}>
+          <Suspense fallback={<ChartLoadingState className="h-[220px] xl:h-[260px] 2xl:h-[300px]" />}>
+            <CalendarHeatmap
+              ariaLabel={`${mode} spend activity from ${from} through ${to}`}
+              colors={intensityColors}
+              data={cells.map((cell) => ({ day: cell.date, value: cell.spend }))}
+              from={from}
+              to={to}
+              legendFormat={usd}
+              maxValue={max}
+              tooltip={tooltip}
+            />
+          </Suspense>
+        </ClientOnly>
         <ul className="sr-only">
           {cells.map((cell) => (
             <li key={`${mode}-${cell.date}`}>

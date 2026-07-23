@@ -5,6 +5,11 @@ import {
   type CalendarTooltipProps,
 } from "@nivo/calendar";
 import { cn } from "@/lib/utils";
+import { nivoChartTheme } from "./nivo-theme";
+
+export function resolveCalendarMaxValue(maxValue: number) {
+  return maxValue > 0 ? maxValue : 1;
+}
 
 export function CalendarHeatmap({
   ariaLabel,
@@ -44,7 +49,7 @@ export function CalendarHeatmap({
             align="center"
             colors={colors}
             minValue={0}
-            maxValue={Math.max(1, maxValue)}
+            maxValue={resolveCalendarMaxValue(maxValue)}
             emptyColor="var(--cost-calendar-outside)"
             margin={{ top: 22, right: 12, bottom: 48, left: 12 }}
             yearLegend={() => ""}
@@ -68,20 +73,7 @@ export function CalendarHeatmap({
               symbolSize: 10,
             }]}
             role="presentation"
-            theme={{
-              text: {
-                fill: "var(--muted-foreground)",
-                fontFamily: "var(--font-sans)",
-                fontSize: 11,
-              },
-              legends: {
-                text: {
-                  fill: "var(--muted-foreground)",
-                  fontFamily: "var(--font-mono)",
-                  fontSize: 10,
-                },
-              },
-            }}
+            theme={nivoChartTheme}
           />
         </div>
       </div>
