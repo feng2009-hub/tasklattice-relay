@@ -19,20 +19,18 @@ function value(insight: CostInsight): string {
 
 export function CostInsights({ insights }: { insights: CostInsight[] }) {
   return (
-    <section aria-labelledby="cost-insights-title" className="rounded-lg border">
-      <div className="border-b px-4 py-3">
-        <h2 id="cost-insights-title" className="font-heading text-base font-medium">Cost insights</h2>
+    <section aria-labelledby="cost-insights-title" className="h-full rounded-lg border">
+      <div className="flex min-h-11 items-center border-b px-4 py-2">
+        <h2 id="cost-insights-title" className="font-sans text-sm font-medium">Cost insights</h2>
       </div>
       <div className="divide-y px-4">
         {insights.map((insight) => {
           const Icon = icons[insight.id];
           return (
-            <div key={insight.id} className="grid min-h-12 grid-cols-[1.25rem_minmax(0,1fr)_auto] items-center gap-2.5 py-2 text-xs">
+            <div key={insight.id} className="grid min-h-8 grid-cols-[1rem_minmax(0,1fr)_auto_auto] items-center gap-3 py-1 text-xs">
               <Icon className="size-3.5 text-muted-foreground" />
-              <span className="min-w-0">
-                <span className="block truncate text-muted-foreground">{insight.label}</span>
-                {insight.subject ? <strong className="mt-0.5 block truncate font-medium">{insight.subject}</strong> : null}
-              </span>
+              <span className="min-w-0 truncate text-muted-foreground">{insight.label}</span>
+              <span className="max-w-40 truncate text-muted-foreground">{insight.subject ?? ""}</span>
               <strong className="tabular-nums">{value(insight)}</strong>
             </div>
           );

@@ -97,6 +97,17 @@
     --sidebar-ring: #4339ff;
     --brand-signal: #008ca3;
     --brand-surface: #fafafa;
+    --cost-heatmap-0: #f0f2f4;
+    --cost-heatmap-1: #dce8ff;
+    --cost-heatmap-2: #b9d1ff;
+    --cost-heatmap-3: #86adff;
+    --cost-heatmap-4: #4f7ff2;
+    --cost-series-1: #5b46ff;
+    --cost-series-2: #3b82f6;
+    --cost-series-3: #3ca85a;
+    --cost-series-4: #f08a3c;
+    --cost-series-5: #24a6b8;
+    --cost-series-6: #9b8cff;
 }
 
 .dark {
@@ -133,6 +144,17 @@
     --sidebar-ring: oklch(0.556 0 0);
     --brand-signal: #42e3ff;
     --brand-surface: #191a1b;
+    --cost-heatmap-0: #2b2d31;
+    --cost-heatmap-1: #263a63;
+    --cost-heatmap-2: #31548e;
+    --cost-heatmap-3: #3d6fc0;
+    --cost-heatmap-4: #5b8df2;
+    --cost-series-1: #8b7cff;
+    --cost-series-2: #60a5fa;
+    --cost-series-3: #63c174;
+    --cost-series-4: #f5a15f;
+    --cost-series-5: #49c1d2;
+    --cost-series-6: #b5a8ff;
 }
 
 @layer base {

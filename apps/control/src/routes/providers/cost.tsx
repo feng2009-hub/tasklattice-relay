@@ -3,7 +3,6 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import type { CostBreakdownItem, CostFilters, CostGroupBy, CostQueryParams } from "@tasklattice/contracts";
 import { z } from "zod";
 import { CalendarDays } from "lucide-react";
-import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
@@ -82,8 +81,8 @@ function CostRangeSelector({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverAnchor asChild>
-        <div className="flex items-center gap-2">
-          <CalendarDays className="size-4 text-muted-foreground" />
+        <div className="relative">
+          <CalendarDays className="pointer-events-none absolute left-3 top-1/2 z-10 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Select
             value={value}
             onValueChange={(next) => {
@@ -92,7 +91,7 @@ function CostRangeSelector({
               setOpen(range === "custom");
             }}
           >
-            <SelectTrigger className="w-44" aria-label="Cost time range"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-9 w-48 bg-card pl-9" aria-label="Cost time range"><SelectValue /></SelectTrigger>
             <SelectContent align="end">
               {(Object.entries(rangeLabels) as Array<[CostRange, string]>).map(([range, label]) => (
                 <SelectItem key={range} value={range}>{label}</SelectItem>
@@ -182,13 +181,20 @@ function ModelCostPage() {
   const priorDays = Math.max(1, Math.round((new Date(`${dates.to}T00:00:00Z`).getTime() - new Date(`${dates.from}T00:00:00Z`).getTime()) / 86_400_000) + 1);
 
   return (
-    <div className="space-y-5">
-      <PageHeader
-        title="Model cost"
-        description="Analyze model usage and spend across Instances, model endpoints, provider accounts, and virtual keys."
-        actions={
-          <div className="flex items-center gap-2">
-            {isFetching && !isPending ? <Spinner className="size-3.5 text-muted-foreground" /> : null}
+    <div className="space-y-3 font-sans 2xl:-mx-10">
+      <header className="pb-1">
+        <h1 className="font-sans text-[28px] font-semibold leading-8 tracking-tight">Model cost</h1>
+        <p className="mt-1 max-w-3xl text-[13px] leading-5 text-muted-foreground">
+          LiteLLM spend is attributed to the dedicated virtual keys created for each Instance.
+          <br className="hidden sm:block" />
+          Analyze spend by grouping it across different dimensions.
+        </p>
+      </header>
+
+      {isPending ? <CostSkeleton /> : error ? (
+        <>
+          <div className="flex flex-col gap-3 py-1 lg:flex-row lg:items-center lg:justify-between">
+            <CostGroupBySelector value={groupBy} onValueChange={(value) => setSearch({ groupBy: value })} />
             <CostRangeSelector
               value={range}
               from={dates.from}
@@ -200,27 +206,36 @@ function ModelCostPage() {
               onCustomApply={(from, to) => setSearch({ range: "custom", from, to })}
             />
           </div>
-        }
-      />
-
-      <div className="flex flex-col gap-3 border-b pb-4 lg:flex-row lg:items-center lg:justify-between">
-        <CostGroupBySelector value={groupBy} onValueChange={(value) => setSearch({ groupBy: value })} />
-        {breakdown.data ? <CostFilterBar filters={filters} options={breakdown.data.filterOptions} onChange={setFilters} /> : null}
-      </div>
-
-      {isPending ? <CostSkeleton /> : error ? (
-        <CostErrorState message={error.message} onRetry={retry} />
+          <CostErrorState message={error.message} onRetry={retry} />
+        </>
       ) : summary.data && activity.data && insights.data && ranking.data && trend.data && breakdown.data ? (
-        <>
+        <div className="space-y-3">
           <CostSummaryStrip summary={summary.data} priorLabel={`${priorDays} days`} />
+          <div className="flex flex-col gap-3 py-1 lg:flex-row lg:items-center lg:justify-between">
+            <CostGroupBySelector value={groupBy} onValueChange={(value) => setSearch({ groupBy: value })} />
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {isFetching ? <Spinner className="size-3.5 text-muted-foreground" /> : null}
+              <CostFilterBar filters={filters} options={breakdown.data.filterOptions} onChange={setFilters} />
+              <CostRangeSelector
+                value={range}
+                from={dates.from}
+                to={dates.to}
+                onRangeChange={(next) => {
+                  if (next === "custom") setSearch({ range: next, from: dates.from, to: dates.to });
+                  else setSearch({ range: next, from: undefined, to: undefined });
+                }}
+                onCustomApply={(from, to) => setSearch({ range: "custom", from, to })}
+              />
+            </div>
+          </div>
           <SpendActivityHeatmap activity={activity.data} from={dates.from} to={dates.to} groupBy={groupBy} />
-          <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+          <div className="grid items-stretch gap-3 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
             <CostInsights insights={insights.data} />
             <TopSpendRanking groupBy={groupBy} items={ranking.data} selectedId={selectedRankingId} onSelect={handleRankingSelect} />
           </div>
           <DailySpendBreakdown groupBy={groupBy} trend={trend.data} />
           <CostBreakdownTable groupBy={groupBy} items={breakdown.data.items} onRowClick={handleRowClick} />
-        </>
+        </div>
       ) : null}
     </div>
   );

@@ -111,3 +111,30 @@ describe("LiteLLM Router capability inspection", () => {
     ]);
   });
 });
+
+describe("LiteLLM spend logs", () => {
+  it("includes the requested end day by sending LiteLLM the next exclusive date", async () => {
+    const fetchMock = vi.fn(async (_input: string | URL | Request) => new Response(JSON.stringify([
+      {
+        request_id: "request-today",
+        request_start_time: "2026-07-23T09:30:03.402Z",
+        spend: 0.01,
+      },
+    ]), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const logs = await new LiteLLMClient("http://litellm:4000", "master-secret")
+      .listSpendLogs("2026-07-01", "2026-07-23");
+
+    const requestedUrl = new URL(String(fetchMock.mock.calls[0]?.[0]));
+    expect(requestedUrl.searchParams.get("start_date")).toBe("2026-07-01");
+    expect(requestedUrl.searchParams.get("end_date")).toBe("2026-07-24");
+    expect(requestedUrl.searchParams.get("summarize")).toBe("false");
+    expect(logs).toEqual([
+      expect.objectContaining({
+        request_id: "request-today",
+        spend: 0.01,
+      }),
+    ]);
+  });
+});

@@ -34,7 +34,18 @@ const inputTokens: Column = { id: "inputTokens", label: "Input tokens", numeric:
 const outputTokens: Column = { id: "outputTokens", label: "Output tokens", numeric: true, value: (item) => item.outputTokens, render: (item) => compactNumber(item.outputTokens) };
 const totalTokens: Column = { id: "totalTokens", label: "Total tokens", numeric: true, value: tokens, render: (item) => compactNumber(tokens(item)) };
 const average: Column = { id: "average", label: "Average cost/request", numeric: true, value: avg, render: (item) => usd(avg(item)) };
-const lastActive: Column = { id: "lastActive", label: "Last active", value: (item) => item.lastActive ?? "", render: (item) => item.lastActive || "—" };
+const formatLastActive = (value: string | undefined) => {
+  if (!value) return "—";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : new Intl.DateTimeFormat("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      }).format(date);
+};
+const lastActive: Column = { id: "lastActive", label: "Last active", value: (item) => item.lastActive ?? "", render: (item) => formatLastActive(item.lastActive) };
 
 const columns: Record<CostGroupBy, Column[]> = {
   instance: [baseName("Instance"), spend, inputTokens, outputTokens, totalTokens, requests, average, lastActive],
@@ -132,7 +143,7 @@ export function CostBreakdownTable({
     <Card className="gap-0 py-0 shadow-none">
       <CardHeader className="flex flex-col items-stretch justify-between gap-3 border-b px-4 py-3 sm:flex-row sm:items-center">
         <div>
-          <CardTitle>Cost breakdown</CardTitle>
+          <CardTitle className="font-sans text-sm font-medium">Cost breakdown</CardTitle>
           <p className="mt-0.5 text-xs text-muted-foreground">Detailed USD usage by {costGroupLabels[groupBy]}.</p>
         </div>
         <div className="flex items-center gap-2">

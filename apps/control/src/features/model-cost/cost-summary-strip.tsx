@@ -9,7 +9,7 @@ function Trend({ value, label }: { value: number | undefined; label: string }) {
   const normalized = Math.abs(value) < 0.05 ? 0 : value;
   const Icon = normalized > 0 ? ArrowUpRight : normalized < 0 ? ArrowDownRight : Minus;
   return (
-    <span className={normalized > 0 ? "inline-flex items-center gap-1 text-amber-700 dark:text-amber-400" : normalized < 0 ? "inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400" : "inline-flex items-center gap-1 text-muted-foreground"}>
+    <span className={normalized > 0 ? "inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400" : normalized < 0 ? "inline-flex items-center gap-1 text-rose-700 dark:text-rose-400" : "inline-flex items-center gap-1 text-muted-foreground"}>
       <Icon className="size-3" />
       {Math.abs(normalized).toFixed(1)}% vs prior {label}
     </span>
@@ -21,7 +21,9 @@ function IdentityValue({ item }: { item: CostSummary["highestCostInstance"] }) {
   return (
     <span className="block min-w-0">
       <span className="block truncate">{item.label}</span>
-      <span className="mt-1 block text-xs font-normal text-muted-foreground">{usd(item.spend)}</span>
+      <span className="mt-1 block text-xs font-normal text-muted-foreground">
+        {usd(item.spend)} ({(item.share * 100).toFixed(1)}%)
+      </span>
     </span>
   );
 }
@@ -61,12 +63,12 @@ export function CostSummaryStrip({
     },
   ];
   return (
-    <section aria-label="Cost summary" className="overflow-x-auto rounded-lg border bg-card">
-      <div className="flex min-w-[900px] divide-x">
+    <section aria-label="Cost summary" className="overflow-x-auto rounded-lg border border-border/70 bg-card">
+      <div className="grid min-w-[900px] grid-cols-[repeat(3,minmax(0,1fr))_minmax(0,1.15fr)_minmax(0,1.15fr)]">
         {items.map((item) => (
-          <div key={item.label} className="min-w-0 flex-1 px-4 py-3.5">
+          <div key={item.label} className="min-w-0 border-l border-border/70 px-5 py-4 first:border-l-0">
             <p className="text-xs text-muted-foreground">{item.label}</p>
-            <div className="mt-1.5 truncate text-lg font-semibold tabular-nums">{item.value}</div>
+            <div className="mt-1 truncate text-lg font-semibold tabular-nums">{item.value}</div>
             <div className="mt-1 min-h-4 text-[11px]">{item.trend}</div>
           </div>
         ))}

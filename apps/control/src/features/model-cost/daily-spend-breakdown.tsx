@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { CostGroupBy, CostTrendPoint } from "@tasklattice/contracts";
-import { Download, Ellipsis, FileDown } from "lucide-react";
+import { Ellipsis, FileDown, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -16,14 +16,14 @@ import { CostEmptyState } from "./cost-states";
 
 type ChartMode = "line" | "stacked";
 const colors = [
-  "var(--brand-signal)",
-  "var(--primary)",
-  "var(--chart-2)",
-  "var(--chart-3)",
-  "var(--chart-4)",
-  "var(--muted-foreground)",
+  "var(--cost-series-1)",
+  "var(--cost-series-2)",
+  "var(--cost-series-3)",
+  "var(--cost-series-4)",
+  "var(--cost-series-5)",
+  "var(--cost-series-6)",
 ];
-const chart = { width: 900, height: 260, left: 58, right: 18, top: 18, bottom: 34 };
+const chart = { width: 900, height: 145, left: 58, right: 18, top: 10, bottom: 28 };
 
 function escapeCsv(value: string | number): string {
   const text = String(value);
@@ -95,34 +95,34 @@ export function DailySpendBreakdown({
 
   return (
     <Card className="gap-0 py-0 shadow-none">
-      <CardHeader className="flex min-h-14 flex-col items-stretch justify-between gap-3 border-b px-4 py-3 sm:flex-row sm:items-center">
-        <div>
-          <CardTitle>Daily spend breakdown</CardTitle>
-          <p className="mt-0.5 text-xs text-muted-foreground">Top five {costGroupLabels[groupBy]}s; remaining spend is grouped as Others.</p>
-        </div>
+      <CardHeader className="flex min-h-11 flex-col items-stretch justify-between gap-3 border-b px-4 py-2 pb-2! sm:flex-row sm:items-center">
+        <CardTitle className="flex items-center gap-2 font-sans text-sm font-medium">
+          Daily spend breakdown (by {costGroupLabels[groupBy].toLowerCase()})
+          <Info className="size-3 text-muted-foreground" aria-hidden="true" />
+        </CardTitle>
         <div className="flex items-center gap-2">
           <Tabs value={mode} onValueChange={(value) => setMode(value as ChartMode)}>
-            <TabsList className="h-8">
+            <TabsList className="h-8 gap-1 bg-transparent p-0">
               <TabsTrigger className="h-7 px-2.5" value="line">Line</TabsTrigger>
-              <TabsTrigger className="h-7 px-2.5" value="stacked">Stacked bar</TabsTrigger>
+              <TabsTrigger className="h-7 px-2.5" value="stacked">Bar</TabsTrigger>
             </TabsList>
           </Tabs>
           <DropdownMenu>
             <DropdownMenuTrigger asChild><Button variant="ghost" size="icon-sm" aria-label="More chart actions"><Ellipsis /></Button></DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={() => downloadTrendCsv(trend)}><FileDown />Download daily totals</DropdownMenuItem>
+              <DropdownMenuItem disabled={!hasSpend} onSelect={() => downloadTrendCsv(trend)}><FileDown />Download CSV</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="outline" size="sm" onClick={() => downloadTrendCsv(trend)} disabled={!hasSpend}><Download />Download CSV</Button>
         </div>
       </CardHeader>
-      <CardContent className="p-4">
+      <CardContent className="px-4 pb-2 pt-1">
         <div className="overflow-x-auto">
-        <div className="relative min-h-72 min-w-[620px]">
+        <div className="relative min-h-[145px] min-w-[620px]">
           <svg
             role="img"
             aria-label={`Daily USD spend ${mode === "line" ? "line" : "stacked bar"} chart`}
-            className="h-auto w-full"
+            className="h-[145px] w-full"
+            preserveAspectRatio="none"
             viewBox={`0 0 ${chart.width} ${chart.height}`}
           >
             {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
@@ -156,7 +156,7 @@ export function DailySpendBreakdown({
             })}
             {activeIndex !== undefined ? <line x1={x(activeIndex)} x2={x(activeIndex)} y1={chart.top} y2={chart.top + innerHeight} stroke="var(--foreground)" strokeDasharray="3 3" opacity=".35" /> : null}
           </svg>
-          <div className="absolute inset-x-0 top-0 aspect-[900/260]">
+          <div className="absolute inset-0">
             {trend.map((point, index) => (
               <button
                 key={point.date}
@@ -182,7 +182,7 @@ export function DailySpendBreakdown({
         </div>
         </div>
         {series.length ? (
-          <div className="flex flex-wrap gap-x-5 gap-y-2 border-t pt-3 text-[11px] text-muted-foreground">
+          <div className="flex flex-wrap gap-x-5 gap-y-1 border-t pt-2 text-[11px] text-muted-foreground">
             {series.map((entry, index) => (
               <span key={entry.id} className="flex max-w-48 items-center gap-1.5">
                 <span className="size-2 rounded-full" style={{ backgroundColor: colors[index % colors.length] }} />

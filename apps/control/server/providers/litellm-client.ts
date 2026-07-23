@@ -370,7 +370,10 @@ export class LiteLLMClient implements LiteLLMAdminClient {
     this.assertConfigured();
     const query = new URLSearchParams({
       start_date: from,
-      end_date: to,
+      // LiteLLM treats end_date as an exclusive midnight boundary. The Cost
+      // API accepts an inclusive calendar-day range, so request the next day
+      // to include all spend produced on `to`.
+      end_date: nextUtcDate(to),
       summarize: "false",
     });
     const response = await this.request<LiteLLMSpendLog[] | { data?: LiteLLMSpendLog[] }>(
@@ -414,6 +417,16 @@ function versionAtLeast(version: string, major: number, minor: number): boolean 
   const currentMajor = Number(match[1]);
   const currentMinor = Number(match[2]);
   return currentMajor > major || (currentMajor === major && currentMinor >= minor);
+}
+
+function nextUtcDate(value: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value))
+    throw new Error(`Invalid LiteLLM spend log date: ${value}`);
+  const date = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value)
+    throw new Error(`Invalid LiteLLM spend log date: ${value}`);
+  date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString().slice(0, 10);
 }
 
 function record(value: unknown): Record<string, unknown> | undefined {
