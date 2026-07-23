@@ -49,13 +49,13 @@
     --color-card: var(--card);
     --color-foreground: var(--foreground);
     --color-background: var(--background);
-    --radius-sm: calc(var(--radius) * 0.6);
-    --radius-md: calc(var(--radius) * 0.8);
-    --radius-lg: var(--radius);
-    --radius-xl: calc(var(--radius) * 1.4);
-    --radius-2xl: calc(var(--radius) * 1.8);
-    --radius-3xl: calc(var(--radius) * 2.2);
-    --radius-4xl: calc(var(--radius) * 2.6);
+    --radius-sm: var(--radius-badge);
+    --radius-md: var(--radius-control);
+    --radius-lg: var(--radius-card);
+    --radius-xl: var(--radius-large);
+    --radius-2xl: calc(var(--radius-large) + 0.125rem);
+    --radius-3xl: calc(var(--radius-large) + 0.25rem);
+    --radius-4xl: calc(var(--radius-large) + 0.375rem);
 }
 
 :root {
@@ -74,7 +74,7 @@
     --accent: rgb(67 57 255 / 0.06);
     --accent-foreground: #4339ff;
     --destructive: oklch(0.577 0.245 27.325);
-    --border: rgb(20 22 24 / 0.12);
+    --border: rgb(20 22 24 / 0.09);
     --input: rgb(20 22 24 / 0.2);
     --ring: #4339ff;
     --chart-1: oklch(0.87 0 0);
@@ -82,14 +82,18 @@
     --chart-3: oklch(0.439 0 0);
     --chart-4: oklch(0.371 0 0);
     --chart-5: oklch(0.269 0 0);
-    --radius: 0rem;
+    --radius: 0.5rem;
+    --radius-badge: 0.25rem;
+    --radius-control: 0.375rem;
+    --radius-card: 0.5rem;
+    --radius-large: 0.625rem;
     --sidebar: #fafafa;
     --sidebar-foreground: #191a1b;
     --sidebar-primary: #4339ff;
     --sidebar-primary-foreground: #ffffff;
     --sidebar-accent: rgb(67 57 255 / 0.05);
     --sidebar-accent-foreground: #191a1b;
-    --sidebar-border: rgb(20 22 24 / 0.12);
+    --sidebar-border: rgb(20 22 24 / 0.09);
     --sidebar-ring: #4339ff;
     --brand-signal: #008ca3;
     --brand-surface: #fafafa;
@@ -147,6 +151,10 @@
   h1, h2, h3 {
     @apply font-heading font-normal;
     }
+}
+
+[data-slot="sidebar"] svg:not(.brand-lattice-mark) {
+  stroke-width: 1.7;
 }
 
 .brand-lattice-mark {

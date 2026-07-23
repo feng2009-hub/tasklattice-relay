@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   historyTicketPreviews,
   pendingTicketPreviews,
@@ -50,54 +51,23 @@ function Tickets() {
         badge={<PreviewBadge />}
         description="Follow requests you submitted, who needs to act, and whether an approved change was applied."
       />
-      <div className="flex border-b" role="tablist" aria-label="Ticket status">
-        <button
-          id="ticket-tab-pending"
-          type="button"
-          role="tab"
-          aria-controls="ticket-panel-pending"
-          aria-selected={tab === "pending"}
-          onClick={() => setTab("pending")}
-          onKeyDown={(event) => {
-            if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
-              event.preventDefault();
-              setTab(event.key === "ArrowLeft" || event.key === "Home" ? "pending" : "history");
-            }
-          }}
-          className={cn(
-            "flex min-h-11 items-center gap-2 border-b-2 border-transparent px-4 text-sm text-muted-foreground",
-            tab === "pending" && "border-foreground text-foreground",
-          )}
-        >
-          <Clock3 className="size-4" /> Pending
-        </button>
-        <button
-          id="ticket-tab-history"
-          type="button"
-          role="tab"
-          aria-controls="ticket-panel-history"
-          aria-selected={tab === "history"}
-          onClick={() => setTab("history")}
-          onKeyDown={(event) => {
-            if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
-              event.preventDefault();
-              setTab(event.key === "ArrowRight" || event.key === "End" ? "history" : "pending");
-            }
-          }}
-          className={cn(
-            "flex min-h-11 items-center gap-2 border-b-2 border-transparent px-4 text-sm text-muted-foreground",
-            tab === "history" && "border-foreground text-foreground",
-          )}
-        >
-          <History className="size-4" /> History
-        </button>
-      </div>
-      <div
-        id={`ticket-panel-${tab}`}
-        role="tabpanel"
-        aria-labelledby={`ticket-tab-${tab}`}
-        className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]"
+      <Tabs
+        value={tab}
+        onValueChange={(value) => setTab(value as "pending" | "history")}
+        className="gap-6"
       >
+        <TabsList variant="line" aria-label="Ticket status">
+          <TabsTrigger value="pending">
+            <Clock3 /> Pending
+          </TabsTrigger>
+          <TabsTrigger value="history">
+            <History /> History
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent
+          value={tab}
+          className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]"
+        >
         <Card>
           <CardHeader className="border-b">
             <CardTitle>{tab === "pending" ? "Requests awaiting a decision" : "Decision history"}</CardTitle>
@@ -219,7 +189,8 @@ function Tickets() {
             </Button>
           </CardContent>
         </Card>
-      </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

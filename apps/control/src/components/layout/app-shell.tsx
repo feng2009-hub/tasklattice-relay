@@ -177,7 +177,7 @@ function WorkspaceSidebar({ logout, pathname, user }: {
         </Link>
       </SidebarHeader>
       <SidebarContent>
-        <nav aria-label="Workspace navigation" className="flex flex-col py-2">
+        <nav aria-label="Workspace navigation" className="flex flex-col py-1">
           {navGroups.map((group) => (
             <SidebarGroup key={group.label}>
               <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
@@ -192,12 +192,12 @@ function WorkspaceSidebar({ logout, pathname, user }: {
           ))}
         </nav>
       </SidebarContent>
-      <SidebarFooter className="border-t border-sidebar-border p-3">
+      <SidebarFooter className="border-t border-sidebar-border p-2">
         <SidebarMenu>
           <DisabledNav icon={Settings} label="Platform settings" />
           <DisabledNav icon={CircleHelp} label="Help & documentation" />
         </SidebarMenu>
-        <div className="mt-1 border-t border-sidebar-border pt-3">
+        <div className="mt-1 border-t border-sidebar-border pt-2">
           <AccountMenu collapsed={!isMobile && state === "collapsed"} onLogout={logout} user={user} />
         </div>
       </SidebarFooter>
@@ -250,10 +250,10 @@ export function AppShell() {
           <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-background/94 px-4 backdrop-blur-md sm:px-6 lg:px-8">
             <SidebarTrigger />
             <Breadcrumbs pathname={pathname} />
-            <button disabled className="ml-auto hidden min-h-10 w-64 cursor-not-allowed items-center gap-2 border bg-muted/30 px-3 text-sm text-muted-foreground/45 md:flex"><Search className="size-4" />Search workspace<span className="ml-auto text-[10px] uppercase">Later</span></button>
+            <button disabled className="ml-auto hidden h-9 w-64 cursor-not-allowed items-center gap-2 rounded-md border border-border/70 bg-muted/30 px-3 text-sm text-muted-foreground/45 md:flex"><Search className="size-3.5" />Search workspace<span className="ml-auto text-[10px] uppercase">Later</span></button>
             <div className="ml-auto flex min-h-10 items-center gap-2 rounded-full border px-3 text-xs font-semibold md:ml-2"><span className="size-2 rounded-full bg-[#79a93b]" />UAT</div>
           </header>
-          <main id="main-content" className="mx-auto w-full max-w-[1440px] p-5 sm:p-6 lg:p-8"><Outlet /></main>
+          <main id="main-content" className="mx-auto w-full max-w-[1320px] p-5 sm:p-6 lg:px-8 lg:py-6"><Outlet /></main>
         </SidebarInset>
       </SidebarProvider>
     </TooltipProvider>

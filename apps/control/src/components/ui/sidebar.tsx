@@ -170,7 +170,7 @@ function SidebarTrigger({ className, ...props }: React.ComponentProps<typeof But
   const { toggleSidebar } = useSidebar();
   return (
     <Button type="button" variant="ghost" size="icon-sm" className={cn(className)} onClick={toggleSidebar} {...props}>
-      <PanelLeftIcon className="size-5" />
+      <PanelLeftIcon className="size-4" />
       <span className="sr-only">Toggle navigation</span>
     </Button>
   );
@@ -208,11 +208,11 @@ function SidebarFooter({ className, ...props }: React.ComponentProps<"div">) {
 }
 
 function SidebarGroup({ className, ...props }: React.ComponentProps<"section">) {
-  return <section data-slot="sidebar-group" className={cn("relative flex w-full min-w-0 flex-col p-2", className)} {...props} />;
+  return <section data-slot="sidebar-group" className={cn("relative flex w-full min-w-0 flex-col px-2 py-1", className)} {...props} />;
 }
 
 function SidebarGroupLabel({ className, ...props }: React.ComponentProps<"div">) {
-  return <div data-slot="sidebar-group-label" className={cn("flex h-8 shrink-0 items-center px-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground transition-[margin,opacity] duration-200 group-data-[collapsible=icon]:-mt-8 group-data-[collapsible=icon]:opacity-0", className)} {...props} />;
+  return <div data-slot="sidebar-group-label" className={cn("flex h-6 shrink-0 items-center px-3 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground/80 transition-[margin,opacity] duration-200 group-data-[collapsible=icon]:-mt-6 group-data-[collapsible=icon]:opacity-0", className)} {...props} />;
 }
 
 function SidebarGroupContent({ className, ...props }: React.ComponentProps<"div">) {
@@ -228,9 +228,9 @@ function SidebarMenuItem({ className, ...props }: React.ComponentProps<"li">) {
 }
 
 const sidebarMenuButtonVariants = cva(
-  "peer/menu-button group/menu-button flex min-h-11 w-full items-center gap-3 overflow-hidden rounded-md border-l-2 border-transparent px-3 py-2 text-left text-sm outline-none transition-[width,height,padding,color,background-color] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring disabled:pointer-events-none disabled:opacity-50 data-active:border-primary data-active:bg-sidebar-accent data-active:font-semibold data-active:text-sidebar-accent-foreground group-data-[collapsible=icon]:size-11! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0! [&_svg]:size-[18px] [&_svg]:shrink-0 [&>span:last-child]:truncate",
+  "peer/menu-button group/menu-button flex h-9 w-full items-center gap-2.5 overflow-hidden rounded-md border-l-2 border-transparent px-3 text-left text-[13px] text-sidebar-foreground outline-none transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring/35 disabled:pointer-events-none disabled:opacity-50 data-active:border-primary data-active:bg-primary/[0.06] data-active:font-medium data-active:text-primary group-data-[collapsible=icon]:size-9! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:px-0! group-data-[collapsible=icon]:[&>span]:hidden [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted-foreground data-active:[&_svg]:text-primary [&>span:last-child]:truncate",
   {
-    variants: { size: { default: "min-h-11", lg: "h-12" } },
+    variants: { size: { default: "h-9", lg: "h-10" } },
     defaultVariants: { size: "default" },
   },
 );
@@ -274,7 +274,7 @@ function SidebarMenuSubButton({
   ...props
 }: React.ComponentProps<"a"> & { asChild?: boolean; isActive?: boolean }) {
   const Comp = asChild ? Slot.Root : "a";
-  return <Comp data-slot="sidebar-menu-sub-button" data-active={isActive} className={cn("flex min-h-12 min-w-0 items-start gap-2 rounded-md px-2 py-2 text-xs text-sidebar-foreground outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring data-active:bg-sidebar-accent data-active:text-sidebar-accent-foreground group-data-[collapsible=icon]:hidden [&_svg]:mt-0.5 [&_svg]:size-4 [&_svg]:shrink-0", className)} {...props} />;
+  return <Comp data-slot="sidebar-menu-sub-button" data-active={isActive} className={cn("flex min-h-9 min-w-0 items-start gap-2.5 rounded-md px-3 py-2 text-xs text-sidebar-foreground outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring/35 data-active:bg-primary/[0.06] data-active:text-primary group-data-[collapsible=icon]:hidden [&_svg]:mt-0.5 [&_svg]:size-4 [&_svg]:shrink-0", className)} {...props} />;
 }
 
 export {

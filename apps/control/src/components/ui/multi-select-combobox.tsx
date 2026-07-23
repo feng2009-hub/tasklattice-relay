@@ -109,7 +109,7 @@ export function MultiSelectCombobox({
       <PopoverAnchor asChild>
         <div
           className={cn(
-            "flex min-h-12 w-full flex-wrap items-center gap-2 rounded-sm border border-input bg-background px-2.5 py-2 transition-colors focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/35",
+            "flex min-h-12 w-full flex-wrap items-center gap-2 rounded-md border border-input bg-background px-2.5 py-2 transition-colors focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/30",
             disabled && "cursor-not-allowed bg-input/50 opacity-50",
             className,
           )}

@@ -37,7 +37,7 @@ function UserAvatar({
   return (
     <Avatar
       className={cn(
-        size === "large" ? "size-10" : "size-8",
+        size === "large" ? "size-10" : "size-7",
         "ring-1 ring-border",
       )}
     >
@@ -63,9 +63,9 @@ export function AccountMenu({
           type="button"
           aria-label={`Open account menu for ${displayName}`}
           className={cn(
-            "group flex min-h-11 items-center rounded-md outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/40 data-[state=open]:bg-accent",
+            "group flex h-9 items-center rounded-md outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/30 data-[state=open]:bg-accent",
             "w-full hover:bg-sidebar-accent",
-            collapsed ? "justify-center" : "gap-3 px-2",
+            collapsed ? "justify-center" : "gap-2.5 px-3",
           )}
         >
           <UserAvatar user={user} />
@@ -77,7 +77,7 @@ export function AccountMenu({
                   {accountLabel}
                 </span>
               </span>
-              <ChevronDown className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+              <ChevronDown className="size-3.5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
             </>
           )}
         </button>
