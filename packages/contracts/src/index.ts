@@ -797,6 +797,31 @@ export interface ModelDeployment extends CreateModelDeploymentInput {
   updatedAt: string;
 }
 
+export type CostGroupBy =
+  | "instance"
+  | "model_endpoint"
+  | "provider_account"
+  | "virtual_key";
+
+export type CostFilterKey =
+  | "instance"
+  | "model_endpoint"
+  | "provider"
+  | "provider_account"
+  | "virtual_key"
+  | "environment"
+  | "workspace";
+
+export type CostFilters = Partial<Record<CostFilterKey, string[]>>;
+
+export interface CostQueryParams {
+  startTime: string;
+  endTime: string;
+  groupBy: CostGroupBy;
+  filters: CostFilters;
+  timezone: string;
+}
+
 export interface CostBreakdownItem {
   id: string;
   label: string;
@@ -805,25 +830,209 @@ export interface CostBreakdownItem {
   requests: number;
   inputTokens: number;
   outputTokens: number;
+  share: number;
+  lastActive?: string;
+  provider?: string;
+  providerAccount?: string;
+  modelsUsed?: number;
+  boundInstance?: string;
+  boundInstanceId?: string;
+  user?: string;
+  team?: string;
 }
 
 export interface CostDailyPoint {
   date: string;
   spend: number;
+  tokens: number;
+  requests: number;
+  active: number;
+  activeObjectIds?: string[];
 }
 
-export interface CostReport {
+export interface CostTrendSeriesPoint {
+  id: string;
+  label: string;
+  spend: number;
+  tokens: number;
+  requests: number;
+}
+
+export interface CostTrendPoint {
+  date: string;
+  series: CostTrendSeriesPoint[];
+}
+
+export interface CostComparison {
+  current: number;
+  previous: number;
+  changePercent?: number;
+}
+
+export interface CostSummary {
+  totalSpend: CostComparison;
+  totalTokens: CostComparison;
+  requests: CostComparison;
+  highestCostInstance?: CostBreakdownItem;
+  highestCostModel?: CostBreakdownItem;
+}
+
+export interface CostInsight {
+  id:
+    | "highest_spend_day"
+    | "average_daily_spend"
+    | "active_group"
+    | "active_model_endpoints"
+    | "most_expensive_provider"
+    | "peak_tokens_day";
+  label: string;
+  subject?: string;
+  value: number;
+  valueKind: "currency" | "count" | "tokens";
+}
+
+export interface CostFilterOption {
+  value: string;
+  label: string;
+}
+
+export type ModelCostGranularity = "daily" | "weekly" | "cumulative";
+export type ModelCostTrendGranularity = "day" | "week" | "month";
+export type ModelCostSortDirection = "asc" | "desc";
+
+export interface ModelCostObjectSpend {
+  id: string;
+  name: string;
+  spendUsd: number;
+  share: number;
+}
+
+export interface ModelCostSummaryResponse {
   currency: "USD";
-  from: string;
-  to: string;
-  totalSpend: number;
-  requestCount: number;
-  inputTokens: number;
-  outputTokens: number;
-  byInstance: CostBreakdownItem[];
-  byModel: CostBreakdownItem[];
-  byProviderAccount: CostBreakdownItem[];
-  daily: CostDailyPoint[];
+  totalSpendUsd: number;
+  totalTokens: number;
+  promptTokens: number;
+  completionTokens: number;
+  requests: number;
+  unknownCostRequests: number;
+  highestCostInstance?: ModelCostObjectSpend;
+  highestCostModel?: ModelCostObjectSpend;
+  comparison: {
+    spendPercent?: number;
+    tokensPercent?: number;
+    requestsPercent?: number;
+  };
+}
+
+export interface ModelCostActivityItem {
+  date: string;
+  spendUsd: number;
+  tokens: number;
+  requests: number;
+  activeObjects: number;
+  intensity: 0 | 1 | 2 | 3 | 4;
+}
+
+export interface ModelCostActivityResponse {
+  currency: "USD";
+  granularity: ModelCostGranularity;
+  items: ModelCostActivityItem[];
+  legend: {
+    min: number;
+    max: number;
+    thresholds: [number, number, number, number, number];
+  };
+}
+
+export interface ModelCostInsightsResponse {
+  currency: "USD";
+  highestSpendDay?: { date: string; spendUsd: number };
+  averageDailySpendUsd: number;
+  activeInstances: number;
+  activeModelEndpoints: number;
+  activeProviderAccounts: number;
+  activeVirtualKeys: number;
+  mostExpensiveProvider?: { provider: string; spendUsd: number };
+  peakTokensDay?: { date: string; tokens: number };
+  unknownCostRequests: number;
+}
+
+export interface ModelCostRankingItem extends ModelCostObjectSpend {
+  tokens: number;
+  requests: number;
+  rank: number;
+}
+
+export interface ModelCostRankingResponse {
+  currency: "USD";
+  items: ModelCostRankingItem[];
+  totalSpendUsd: number;
+}
+
+export interface ModelCostTrendSeriesItem {
+  date: string;
+  spendUsd: number;
+  tokens: number;
+  requests: number;
+}
+
+export interface ModelCostTrendSeries {
+  id: string;
+  name: string;
+  items: ModelCostTrendSeriesItem[];
+}
+
+export interface ModelCostTrendResponse {
+  currency: "USD";
+  dates: string[];
+  series: ModelCostTrendSeries[];
+}
+
+export interface ModelCostBreakdownItem {
+  id: string;
+  name: string;
+  detail: string;
+  spendUsd: number;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  requests: number;
+  averageCostPerRequest: number;
+  share: number;
+  lastActive?: string;
+  provider?: string;
+  providerAccount?: string;
+  modelsUsed?: number;
+  boundInstance?: string;
+  boundInstanceId?: string;
+  user?: string;
+  team?: string;
+}
+
+export interface ModelCostBreakdownResponse {
+  currency: "USD";
+  items: ModelCostBreakdownItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  filterOptions: Record<CostFilterKey, CostFilterOption[]>;
+}
+
+export interface ModelCostDataQualityResponse {
+  unmappedRequests: number;
+  unmappedInstances: number;
+  unmappedModelEndpoints: number;
+  unmappedProviderAccounts: number;
+  tokenMismatchRequests: number;
+  negativeSpendRequests: number;
+  unknownCostRequests: number;
+  duplicateRequests: number;
+  lateArrivingRequests: number;
+  lastSyncAt?: string;
+  syncLagSeconds?: number;
+  litellmSpend: number;
+  taliSpend: number;
+  spendDifference: number;
 }
 
 export interface Agent extends Omit<CreateAgentInput, "policyId"> {

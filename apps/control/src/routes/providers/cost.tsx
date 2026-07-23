@@ -1,71 +1,227 @@
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
-import type { CostBreakdownItem } from "@tasklattice/contracts";
-import { Banknote, Bot, CalendarDays, Cpu, ReceiptText } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import type { CostBreakdownItem, CostFilters, CostGroupBy, CostQueryParams } from "@tasklattice/contracts";
+import { z } from "zod";
+import { CalendarDays } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
-import { MetricCard } from "@/components/shared/metric-card";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
-import { api } from "@/lib/api";
+import { CostBreakdownTable } from "@/features/model-cost/cost-breakdown-table";
+import {
+  useCostActivity,
+  useCostBreakdown,
+  useCostInsights,
+  useCostRanking,
+  useCostSummary,
+  useCostTrend,
+} from "@/features/model-cost/cost-data";
+import { CostFilterBar } from "@/features/model-cost/cost-filter-bar";
+import { CostGroupBySelector } from "@/features/model-cost/cost-group-by-selector";
+import { CostInsights } from "@/features/model-cost/cost-insights";
+import { CostSummaryStrip } from "@/features/model-cost/cost-summary-strip";
+import { CostErrorState, CostSkeleton } from "@/features/model-cost/cost-states";
+import { DailySpendBreakdown } from "@/features/model-cost/daily-spend-breakdown";
+import { SpendActivityHeatmap } from "@/features/model-cost/spend-activity-heatmap";
+import { TopSpendRanking } from "@/features/model-cost/top-spend-ranking";
+import {
+  parseCostFilters,
+  resolveCostRange,
+  serializeCostFilters,
+  type CostRange,
+} from "@/features/model-cost/cost-utils";
 
-export const Route = createFileRoute("/providers/cost")({ component: ProviderCostPage });
+const groupSearch = z.preprocess(
+  (value) => typeof value === "string" && ["instance", "model_endpoint", "provider_account", "virtual_key"].includes(value) ? value : undefined,
+  z.enum(["instance", "model_endpoint", "provider_account", "virtual_key"]).optional(),
+);
+const rangeSearch = z.preprocess(
+  (value) => typeof value === "string" && ["7d", "30d", "90d", "current_month", "previous_month", "custom"].includes(value) ? value : undefined,
+  z.enum(["7d", "30d", "90d", "current_month", "previous_month", "custom"]).optional(),
+);
 
-function dateRange(days: number) {
-  const to = new Date();
-  const from = new Date(to);
-  from.setUTCDate(from.getUTCDate() - days + 1);
-  return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
+export const Route = createFileRoute("/providers/cost")({
+  validateSearch: z.object({
+    groupBy: groupSearch,
+    range: rangeSearch,
+    filters: z.string().optional(),
+    from: z.string().optional(),
+    to: z.string().optional(),
+  }),
+  component: ModelCostPage,
+});
+
+const rangeLabels: Record<CostRange, string> = {
+  "7d": "Last 7 days",
+  "30d": "Last 30 days",
+  "90d": "Last 90 days",
+  current_month: "Current month",
+  previous_month: "Previous month",
+  custom: "Custom range",
+};
+
+function CostRangeSelector({
+  value,
+  from,
+  to,
+  onRangeChange,
+  onCustomApply,
+}: {
+  value: CostRange;
+  from: string;
+  to: string;
+  onRangeChange: (range: CostRange) => void;
+  onCustomApply: (from: string, to: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [draftFrom, setDraftFrom] = useState(from);
+  const [draftTo, setDraftTo] = useState(to);
+  useEffect(() => { setDraftFrom(from); setDraftTo(to); }, [from, to]);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverAnchor asChild>
+        <div className="flex items-center gap-2">
+          <CalendarDays className="size-4 text-muted-foreground" />
+          <Select
+            value={value}
+            onValueChange={(next) => {
+              const range = next as CostRange;
+              onRangeChange(range);
+              setOpen(range === "custom");
+            }}
+          >
+            <SelectTrigger className="w-44" aria-label="Cost time range"><SelectValue /></SelectTrigger>
+            <SelectContent align="end">
+              {(Object.entries(rangeLabels) as Array<[CostRange, string]>).map(([range, label]) => (
+                <SelectItem key={range} value={range}>{label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </PopoverAnchor>
+      <PopoverContent align="end" className="w-80 p-4">
+        <p className="text-sm font-medium">Custom range</p>
+        <p className="mt-1 text-xs text-muted-foreground">Dates are interpreted in your current timezone.</p>
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <label className="grid gap-1.5 text-xs font-medium">Start date<Input type="date" value={draftFrom} onChange={(event) => setDraftFrom(event.target.value)} /></label>
+          <label className="grid gap-1.5 text-xs font-medium">End date<Input type="date" value={draftTo} onChange={(event) => setDraftTo(event.target.value)} /></label>
+        </div>
+        <Button className="mt-4 w-full" disabled={!draftFrom || !draftTo} onClick={() => { onCustomApply(draftFrom, draftTo); setOpen(false); }}>Apply range</Button>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
-function money(value: number): string {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: value < 1 ? 4 : 2, maximumFractionDigits: 4 }).format(value);
-}
+function ModelCostPage() {
+  const search = Route.useSearch();
+  const navigate = useNavigate();
+  const groupBy = (search.groupBy ?? "instance") as CostGroupBy;
+  const range = (search.range ?? "30d") as CostRange;
+  const filters = useMemo(() => parseCostFilters(search.filters), [search.filters]);
+  const dates = useMemo(
+    () => resolveCostRange(range, new Date(), {
+      ...(search.from ? { from: search.from } : {}),
+      ...(search.to ? { to: search.to } : {}),
+    }),
+    [range, search.from, search.to],
+  );
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  const params = useMemo<CostQueryParams>(() => ({
+    startTime: dates.from,
+    endTime: dates.to,
+    groupBy,
+    filters,
+    timezone,
+  }), [dates.from, dates.to, filters, groupBy, timezone]);
 
-function ProviderCostPage() {
-  const [days, setDays] = useState(30);
-  const range = useMemo(() => dateRange(days), [days]);
-  const report = useQuery({ queryKey: ["provider-cost", range], queryFn: () => api.getCostReport(range.from, range.to) });
-  const highestInstance = report.data?.byInstance[0];
-  const highestModel = report.data?.byModel[0];
+  const summary = useCostSummary(params);
+  const activity = useCostActivity(params);
+  const insights = useCostInsights(params);
+  const ranking = useCostRanking(params);
+  const trend = useCostTrend(params);
+  const breakdown = useCostBreakdown(params);
+  const queries = [summary, activity, insights, ranking, trend, breakdown];
+  const isPending = queries.some((query) => query.isPending);
+  const isFetching = queries.some((query) => query.isFetching);
+  const error = queries.find((query) => query.error)?.error;
+
+  useEffect(() => {
+    if (search.groupBy && search.range) return;
+    void navigate({
+      to: "/providers/cost",
+      search: (previous) => ({ ...previous, groupBy, range }),
+      replace: true,
+    });
+  }, [groupBy, navigate, range, search.groupBy, search.range]);
+
+  const setSearch = (patch: Partial<typeof search>) => {
+    void navigate({
+      to: "/providers/cost",
+      search: (previous) => ({ ...previous, ...patch }),
+      replace: true,
+    });
+  };
+  const setFilters = (next: CostFilters) => setSearch({ filters: serializeCostFilters(next) });
+  const handleRankingSelect = (item: CostBreakdownItem) =>
+    setFilters({ ...filters, [groupBy]: [item.id] });
+  const selectedRankingId = filters[groupBy]?.length === 1 ? filters[groupBy]?.[0] : undefined;
+  const handleRowClick = (item: CostBreakdownItem) => {
+    if (groupBy === "instance") {
+      void navigate({ to: "/agents/$agentId", params: { agentId: item.id } });
+      return;
+    }
+    if (groupBy === "virtual_key" && item.boundInstanceId && item.boundInstanceId !== "unassigned") {
+      void navigate({ to: "/agents/$agentId", params: { agentId: item.boundInstanceId } });
+      return;
+    }
+    void navigate({ to: "/providers" });
+  };
+  const retry = () => { queries.forEach((query) => void query.refetch()); };
+  const priorDays = Math.max(1, Math.round((new Date(`${dates.to}T00:00:00Z`).getTime() - new Date(`${dates.from}T00:00:00Z`).getTime()) / 86_400_000) + 1);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
         title="Model cost"
-        description="LiteLLM spend is attributed to the dedicated virtual key created for each Instance, then grouped by Instance and registered model Endpoint."
-        actions={<div className="flex items-center gap-2"><CalendarDays className="size-4 text-muted-foreground" /><Select value={String(days)} onValueChange={(value) => setDays(Number(value))}><SelectTrigger className="w-36"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="7">Last 7 days</SelectItem><SelectItem value="30">Last 30 days</SelectItem><SelectItem value="90">Last 90 days</SelectItem></SelectContent></Select></div>}
+        description="Analyze model usage and spend across Instances, model endpoints, provider accounts, and virtual keys."
+        actions={
+          <div className="flex items-center gap-2">
+            {isFetching && !isPending ? <Spinner className="size-3.5 text-muted-foreground" /> : null}
+            <CostRangeSelector
+              value={range}
+              from={dates.from}
+              to={dates.to}
+              onRangeChange={(next) => {
+                if (next === "custom") setSearch({ range: next, from: dates.from, to: dates.to });
+                else setSearch({ range: next, from: undefined, to: undefined });
+              }}
+              onCustomApply={(from, to) => setSearch({ range: "custom", from, to })}
+            />
+          </div>
+        }
       />
 
-      {report.isLoading ? <div className="flex min-h-56 items-center justify-center gap-3 border text-sm text-muted-foreground"><Spinner />Loading LiteLLM spend logs…</div> : report.error ? <div role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4"><strong className="text-sm text-destructive">Cost data unavailable</strong><p className="mt-1 text-xs leading-5 text-muted-foreground">{report.error.message}</p></div> : report.data ? (
+      <div className="flex flex-col gap-3 border-b pb-4 lg:flex-row lg:items-center lg:justify-between">
+        <CostGroupBySelector value={groupBy} onValueChange={(value) => setSearch({ groupBy: value })} />
+        {breakdown.data ? <CostFilterBar filters={filters} options={breakdown.data.filterOptions} onChange={setFilters} /> : null}
+      </div>
+
+      {isPending ? <CostSkeleton /> : error ? (
+        <CostErrorState message={error.message} onRetry={retry} />
+      ) : summary.data && activity.data && insights.data && ranking.data && trend.data && breakdown.data ? (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <MetricCard label="Total spend" value={money(report.data.totalSpend)} />
-            <MetricCard label="Requests" value={report.data.requestCount.toLocaleString()} />
-            <MetricCard label="Highest-cost Instance" value={<MetricIdentity item={highestInstance} empty="No spend" />} />
-            <MetricCard label="Highest-cost model" value={<MetricIdentity item={highestModel} empty="No spend" />} />
+          <CostSummaryStrip summary={summary.data} priorLabel={`${priorDays} days`} />
+          <SpendActivityHeatmap activity={activity.data} from={dates.from} to={dates.to} groupBy={groupBy} />
+          <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+            <CostInsights insights={insights.data} />
+            <TopSpendRanking groupBy={groupBy} items={ranking.data} selectedId={selectedRankingId} onSelect={handleRankingSelect} />
           </div>
-          <div className="grid gap-5 xl:grid-cols-2">
-            <BreakdownCard icon={Bot} title="Spend by Instance key" description="Each row maps to a virtual key whose user_id is the Agent ID." items={report.data.byInstance} />
-            <BreakdownCard icon={Cpu} title="Spend by model Endpoint" description="Model groups resolve back to Provider Account and Endpoint." items={report.data.byModel} />
-          </div>
-          <Card><CardHeader><CardTitle className="flex items-center gap-2"><ReceiptText className="size-4" />Daily spend</CardTitle><CardDescription>{report.data.from} — {report.data.to}</CardDescription></CardHeader><CardContent>{report.data.daily.length ? <div className="flex h-44 items-end gap-2 border-b border-l px-3 pt-4">{report.data.daily.map((point) => { const max = Math.max(...report.data.daily.map((item) => item.spend), 0.000001); return <div key={point.date} className="group relative flex h-full min-w-0 flex-1 items-end"><div className="w-full bg-primary/75 transition-colors hover:bg-primary" style={{ height: `${Math.max(3, (point.spend / max) * 100)}%` }} title={`${point.date}: ${money(point.spend)}`} /></div>; })}</div> : <EmptyCost />}</CardContent></Card>
+          <DailySpendBreakdown groupBy={groupBy} trend={trend.data} />
+          <CostBreakdownTable groupBy={groupBy} items={breakdown.data.items} onRowClick={handleRowClick} />
         </>
       ) : null}
     </div>
   );
-}
-
-function MetricIdentity({ item, empty }: { item: CostBreakdownItem | undefined; empty: string }) {
-  return <span className="block min-w-0"><span className="block truncate text-base">{item?.label ?? empty}</span>{item ? <span className="mt-1 block text-sm font-normal text-muted-foreground">{money(item.spend)}</span> : null}</span>;
-}
-
-function BreakdownCard({ icon: Icon, title, description, items }: { icon: typeof Banknote; title: string; description: string; items: CostBreakdownItem[] }) {
-  const max = items[0]?.spend ?? 0;
-  return <Card><CardHeader><CardTitle className="flex items-center gap-2"><Icon className="size-4" />{title}</CardTitle><CardDescription>{description}</CardDescription></CardHeader><CardContent>{items.length ? <div className="space-y-4">{items.slice(0, 10).map((item) => <div key={item.id}><div className="flex items-start justify-between gap-4 text-xs"><span className="min-w-0"><strong className="block truncate text-sm">{item.label}</strong><span className="block truncate text-muted-foreground">{item.detail} · {item.requests} requests</span></span><strong>{money(item.spend)}</strong></div><div className="mt-2 h-1.5 bg-muted"><div className="h-full bg-primary" style={{ width: `${max ? Math.max(2, (item.spend / max) * 100) : 0}%` }} /></div></div>)}</div> : <EmptyCost />}</CardContent></Card>;
-}
-
-function EmptyCost() {
-  return <div className="grid min-h-32 place-items-center border border-dashed text-center"><div><Banknote className="mx-auto size-5 text-muted-foreground" /><p className="mt-2 text-sm font-medium">No spend in this period</p><p className="mt-1 text-xs text-muted-foreground">Usage appears after an Instance calls a model through its LiteLLM key.</p></div></div>;
 }

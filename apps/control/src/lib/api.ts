@@ -2,7 +2,17 @@ import type {
   Agent,
   CreateKnowledgeSourceDefinitionInput,
   CreateAgentInput,
-  CostReport,
+  CostQueryParams,
+  ModelCostActivityResponse,
+  ModelCostBreakdownResponse,
+  ModelCostDataQualityResponse,
+  ModelCostGranularity,
+  ModelCostInsightsResponse,
+  ModelCostRankingResponse,
+  ModelCostSortDirection,
+  ModelCostSummaryResponse,
+  ModelCostTrendGranularity,
+  ModelCostTrendResponse,
   CreateMcpServerDefinitionInput,
   CreateModelDeploymentInput,
   CreateProviderConnectionInput,
@@ -66,6 +76,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       response.status,
     );
   return payload as T;
+}
+
+function costSearch(params: CostQueryParams, extra: Record<string, string> = {}) {
+  return new URLSearchParams({
+    start_time: params.startTime,
+    end_time: params.endTime,
+    timezone: params.timezone,
+    filters: JSON.stringify(params.filters),
+    ...extra,
+  });
 }
 
 export const api = {
@@ -157,8 +177,50 @@ export const api = {
       method: "POST",
       body: "{}",
     }),
-  getCostReport: (from: string, to: string) =>
-    request<CostReport>(`/api/v1/costs?${new URLSearchParams({ from, to })}`),
+  getCostSummary: (params: CostQueryParams) =>
+    request<ModelCostSummaryResponse>(`/api/v1/costs/summary?${costSearch(params)}`),
+  getCostActivity: (params: CostQueryParams, granularity: ModelCostGranularity = "daily") =>
+    request<ModelCostActivityResponse>(`/api/v1/costs/activity?${costSearch(params, {
+      group_by: params.groupBy,
+      granularity,
+    })}`),
+  getCostInsights: (params: CostQueryParams) =>
+    request<ModelCostInsightsResponse>(`/api/v1/costs/insights?${costSearch(params)}`),
+  getCostRanking: (params: CostQueryParams, limit = 5) =>
+    request<ModelCostRankingResponse>(`/api/v1/costs/ranking?${costSearch(params, {
+      group_by: params.groupBy,
+      limit: String(limit),
+    })}`),
+  getCostTrend: (
+    params: CostQueryParams,
+    granularity: ModelCostTrendGranularity = "day",
+    topN = 5,
+  ) =>
+    request<ModelCostTrendResponse>(`/api/v1/costs/trend?${costSearch(params, {
+      group_by: params.groupBy,
+      granularity,
+      top_n: String(topN),
+    })}`),
+  getCostBreakdown: (
+    params: CostQueryParams,
+    controls: {
+      page?: number;
+      pageSize?: number;
+      sort?: string;
+      direction?: ModelCostSortDirection;
+      search?: string;
+    } = {},
+  ) =>
+    request<ModelCostBreakdownResponse>(`/api/v1/costs/breakdown?${costSearch(params, {
+      group_by: params.groupBy,
+      page: String(controls.page ?? 1),
+      page_size: String(controls.pageSize ?? 200),
+      sort: controls.sort ?? "spend_usd",
+      direction: controls.direction ?? "desc",
+      search: controls.search ?? "",
+    })}`),
+  getCostDataQuality: (params: CostQueryParams) =>
+    request<ModelCostDataQualityResponse>(`/api/v1/costs/data-quality?${costSearch(params)}`),
   listPolicies: async (): Promise<SandboxPolicyCatalog> => {
     const response = await request<{ defaultPolicyId: string; templatePolicyYaml: string; data: SandboxPolicy[] }>("/api/v1/policies");
     return {

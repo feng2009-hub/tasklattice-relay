@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import type {
   Agent,
@@ -16,12 +17,19 @@ import type {
   SandboxPolicy,
   SkillDefinition,
 } from "@tasklattice/contracts";
+import { CostAnalyticsStore } from "../providers/cost-analytics-store";
 
 type ExtensionTable =
   | "extension_skills"
   | "extension_mcp_servers"
   | "extension_knowledge_sources"
   | "agent_specializations";
+
+function costKeyIdentifier(value: string): string {
+  return value.startsWith("sha256:")
+    ? value
+    : `sha256:${createHash("sha256").update(value).digest("hex")}`;
+}
 
 export function parseAgent(payload: string): Agent {
   const agent = JSON.parse(payload) as Partial<Agent>;
@@ -99,6 +107,7 @@ function parseSandboxPolicy(payload: string): SandboxPolicy {
 
 export class AgentStore {
   private readonly database: DatabaseSync;
+  private readonly costAnalyticsStore: CostAnalyticsStore;
 
   constructor(path = process.env.DATABASE_PATH ?? ":memory:") {
     this.database = new DatabaseSync(path);
@@ -144,10 +153,12 @@ export class AgentStore {
       CREATE TABLE IF NOT EXISTS inference_group_bindings (
         id TEXT PRIMARY KEY,
         inference_group_id TEXT NOT NULL,
-        agent_id TEXT NOT NULL UNIQUE,
+        agent_id TEXT NOT NULL,
         payload TEXT NOT NULL,
         created_at TEXT NOT NULL
       );
+      CREATE INDEX IF NOT EXISTS idx_inference_group_bindings_agent
+        ON inference_group_bindings(agent_id, created_at DESC);
       CREATE TABLE IF NOT EXISTS inference_group_audit (
         event_id TEXT PRIMARY KEY,
         inference_group_id TEXT NOT NULL,
@@ -188,6 +199,11 @@ export class AgentStore {
         updated_at TEXT NOT NULL
       );
     `);
+    this.costAnalyticsStore = new CostAnalyticsStore(this.database);
+  }
+
+  costAnalytics(): CostAnalyticsStore {
+    return this.costAnalyticsStore;
   }
 
   private seedExtensionRecords<T extends { id: string }>(table: ExtensionTable, records: readonly T[]): void {
@@ -309,6 +325,27 @@ export class AgentStore {
       `,
       )
       .run(agent.id, JSON.stringify(agent), agent.createdAt);
+    const binding = this.getInferenceGroupBindingForAgent(agent.id);
+    if (binding) {
+      const group = this.getInferenceGroup(binding.inferenceGroupId);
+      this.costAnalytics().saveAttribution({
+        id: `binding:${binding.id}`,
+        workspaceId: process.env.TALI_WORKSPACE_ID ?? "default",
+        environmentId: process.env.TALI_ENVIRONMENT_ID ?? "production",
+        instanceId: agent.id,
+        instanceName: agent.name,
+        liteLLMVirtualKeyId: costKeyIdentifier(binding.liteLLMTokenId),
+        hashedToken: binding.keyFingerprint,
+        virtualKeyAlias: binding.keyAlias,
+        liteLLMUserId: agent.id,
+        ...(binding.liteLLMTeamId ? { liteLLMTeamId: binding.liteLLMTeamId } : {}),
+        ...(group?.gatewayId ? { providerAccountId: group.gatewayId } : {}),
+        validFrom: binding.createdAt,
+        ...(binding.revokedAt ? { validTo: binding.revokedAt } : {}),
+        createdAt: binding.createdAt,
+        updatedAt: agent.updatedAt,
+      });
+    }
     return agent;
   }
 
@@ -332,7 +369,7 @@ export class AgentStore {
     });
   }
 
-  listAgentsForReporting(): Array<Pick<Agent, "id" | "name" | "sandboxName">> {
+  listAgentsForReporting(): Array<Pick<Agent, "id" | "name" | "sandboxName" | "costKeyAlias" | "inferenceKeyFingerprint">> {
     const rows = this.database
       .prepare("SELECT payload FROM agents ORDER BY created_at DESC")
       .all() as Array<{ payload: string }>;
@@ -344,7 +381,15 @@ export class AgentStore {
         typeof agent.name !== "string" ||
         typeof agent.sandboxName !== "string"
       ) return [];
-      return [{ id: agent.id, name: agent.name, sandboxName: agent.sandboxName }];
+      return [{
+        id: agent.id,
+        name: agent.name,
+        sandboxName: agent.sandboxName,
+        costKeyAlias: typeof agent.costKeyAlias === "string" ? agent.costKeyAlias : `tali-${agent.name}`,
+        inferenceKeyFingerprint: typeof agent.inferenceKeyFingerprint === "string"
+          ? agent.inferenceKeyFingerprint
+          : costKeyIdentifier(`agent:${agent.id}`),
+      }];
     });
   }
 
@@ -416,6 +461,21 @@ export class AgentStore {
         JSON.stringify(deployment),
         deployment.createdAt,
       );
+    const account = this.getProviderAccount(deployment.providerAccountId);
+    this.costAnalytics().saveModelEndpointMapping({
+      id: `deployment:${deployment.id}:${deployment.createdAt}`,
+      modelEndpointId: deployment.id,
+      modelEndpointName: deployment.displayName,
+      liteLLMModelName: deployment.litellmModelName,
+      liteLLMModelGroup: deployment.litellmModelName,
+      liteLLMModelId: deployment.modelId,
+      provider: deployment.providerName,
+      providerAccountId: deployment.providerAccountId,
+      providerAccountName: account?.name ?? deployment.providerAccountId,
+      validFrom: deployment.createdAt,
+      createdAt: deployment.createdAt,
+      updatedAt: deployment.updatedAt,
+    });
     return deployment;
   }
 
@@ -543,6 +603,20 @@ export class AgentStore {
       `INSERT INTO inference_groups (id, payload, created_at) VALUES (?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET payload = excluded.payload`,
     ).run(group.id, JSON.stringify(group), group.createdAt);
+    const gateway = this.getInferenceGateway(group.gatewayId);
+    this.costAnalytics().saveModelEndpointMapping({
+      id: `inference-group:${group.id}:${group.createdAt}`,
+      modelEndpointId: `inference-group:${group.id}`,
+      modelEndpointName: group.name,
+      liteLLMModelName: group.publicModelAlias,
+      liteLLMModelGroup: group.publicModelAlias,
+      provider: "LiteLLM",
+      providerAccountId: group.gatewayId,
+      providerAccountName: gateway?.name ?? group.gatewayId,
+      validFrom: group.createdAt,
+      createdAt: group.createdAt,
+      updatedAt: group.updatedAt,
+    });
     return group;
   }
 
@@ -561,16 +635,59 @@ export class AgentStore {
   }
 
   saveInferenceGroupBinding(binding: InferenceGroupBinding): InferenceGroupBinding {
+    const previous = this.getInferenceGroupBindingForAgent(binding.agentId);
+    if (previous && previous.id !== binding.id && !previous.revokedAt) {
+      const previousAgent = this.get(previous.agentId);
+      const previousGroup = this.getInferenceGroup(previous.inferenceGroupId);
+      this.costAnalytics().saveAttribution({
+        id: `binding:${previous.id}`,
+        workspaceId: process.env.TALI_WORKSPACE_ID ?? "default",
+        environmentId: process.env.TALI_ENVIRONMENT_ID ?? "production",
+        instanceId: previous.agentId,
+        instanceName: previousAgent?.name ?? previous.agentId,
+        liteLLMVirtualKeyId: costKeyIdentifier(previous.liteLLMTokenId),
+        hashedToken: previous.keyFingerprint,
+        virtualKeyAlias: previous.keyAlias,
+        liteLLMUserId: previous.agentId,
+        ...(previous.liteLLMTeamId ? { liteLLMTeamId: previous.liteLLMTeamId } : {}),
+        ...(previousGroup?.gatewayId ? { providerAccountId: previousGroup.gatewayId } : {}),
+        validFrom: previous.createdAt,
+        validTo: binding.createdAt,
+        createdAt: previous.createdAt,
+        updatedAt: binding.createdAt,
+      });
+    }
     this.database.prepare(
       `INSERT INTO inference_group_bindings (id, inference_group_id, agent_id, payload, created_at)
        VALUES (?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET payload = excluded.payload`,
     ).run(binding.id, binding.inferenceGroupId, binding.agentId, JSON.stringify(binding), binding.createdAt);
+    const agent = this.get(binding.agentId);
+    const group = this.getInferenceGroup(binding.inferenceGroupId);
+    this.costAnalytics().saveAttribution({
+      id: `binding:${binding.id}`,
+      workspaceId: process.env.TALI_WORKSPACE_ID ?? "default",
+      environmentId: process.env.TALI_ENVIRONMENT_ID ?? "production",
+      instanceId: binding.agentId,
+      instanceName: agent?.name ?? binding.agentId,
+      liteLLMVirtualKeyId: costKeyIdentifier(binding.liteLLMTokenId),
+      hashedToken: binding.keyFingerprint,
+      virtualKeyAlias: binding.keyAlias,
+      liteLLMUserId: binding.agentId,
+      ...(binding.liteLLMTeamId ? { liteLLMTeamId: binding.liteLLMTeamId } : {}),
+      ...(group?.gatewayId ? { providerAccountId: group.gatewayId } : {}),
+      validFrom: binding.createdAt,
+      ...(binding.revokedAt ? { validTo: binding.revokedAt } : {}),
+      createdAt: binding.createdAt,
+      updatedAt: binding.revokedAt ?? binding.createdAt,
+    });
     return binding;
   }
 
   getInferenceGroupBindingForAgent(agentId: string): InferenceGroupBinding | undefined {
-    const row = this.database.prepare("SELECT payload FROM inference_group_bindings WHERE agent_id = ?").get(agentId) as { payload: string } | undefined;
+    const row = this.database.prepare(
+      "SELECT payload FROM inference_group_bindings WHERE agent_id = ? ORDER BY created_at DESC LIMIT 1",
+    ).get(agentId) as { payload: string } | undefined;
     return row ? JSON.parse(row.payload) as InferenceGroupBinding : undefined;
   }
 

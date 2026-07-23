@@ -44,6 +44,25 @@ const extensionId = {
   schema: { type: "string" },
 } as const;
 
+const costCommonParameters = [
+  { name: "start_time", in: "query", required: true, schema: { type: "string" } },
+  { name: "end_time", in: "query", required: true, schema: { type: "string" } },
+  { name: "timezone", in: "query", schema: { type: "string", default: "UTC" } },
+  { name: "workspace_id", in: "query", schema: { type: "string" } },
+  { name: "environment_id", in: "query", schema: { type: "string" } },
+  { name: "filters", in: "query", description: "JSON object whose values are arrays of business IDs.", schema: { type: "string", default: "{}" } },
+] as const;
+
+const costGroupByParameter = {
+  name: "group_by",
+  in: "query",
+  schema: {
+    type: "string",
+    enum: ["instance", "model_endpoint", "provider_account", "virtual_key"],
+    default: "instance",
+  },
+} as const;
+
 export const openApiDocument = {
   openapi: "3.1.0",
   info: {
@@ -268,15 +287,81 @@ export const openApiDocument = {
       parameters: [groupId],
       get: { operationId: "listInferenceGroupAudit", summary: "List secret-safe control-plane audit events", responses: { "200": { description: "Audit events", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/InferenceGroupAuditEvent" } } } }) } } },
     },
-    "/costs": {
+    "/costs/summary": {
       get: {
-        operationId: "getCostReport",
-        summary: "Aggregate LiteLLM spend by Instance key and model Endpoint",
+        operationId: "getCostSummary",
+        summary: "Read USD spend, token, request, and prior-period summary",
+        parameters: costCommonParameters,
+        responses: { "200": { description: "Cost summary", ...json({ $ref: "#/components/schemas/ModelCostSummary" }) } },
+      },
+    },
+    "/costs/activity": {
+      get: {
+        operationId: "getCostActivity",
+        summary: "Read zero-filled spend activity in the requested timezone",
         parameters: [
-          { name: "from", in: "query", required: true, schema: { type: "string", format: "date" } },
-          { name: "to", in: "query", required: true, schema: { type: "string", format: "date" } },
+          ...costCommonParameters,
+          costGroupByParameter,
+          { name: "granularity", in: "query", schema: { type: "string", enum: ["daily", "weekly", "cumulative"], default: "daily" } },
         ],
-        responses: { "200": { description: "Cost report", ...json({ $ref: "#/components/schemas/CostReport" }) } },
+        responses: { "200": { description: "Cost activity", ...json({ $ref: "#/components/schemas/ModelCostActivity" }) } },
+      },
+    },
+    "/costs/insights": {
+      get: {
+        operationId: "getCostInsights",
+        summary: "Read derived cost insights",
+        parameters: costCommonParameters,
+        responses: { "200": { description: "Cost insights", ...json({ type: "object" }) } },
+      },
+    },
+    "/costs/ranking": {
+      get: {
+        operationId: "getCostRanking",
+        summary: "Rank business objects by total USD spend",
+        parameters: [
+          ...costCommonParameters,
+          costGroupByParameter,
+          { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 100, default: 5 } },
+        ],
+        responses: { "200": { description: "Cost ranking", ...json({ $ref: "#/components/schemas/ModelCostRanking" }) } },
+      },
+    },
+    "/costs/trend": {
+      get: {
+        operationId: "getCostTrend",
+        summary: "Read stable Top N cost series plus Others",
+        parameters: [
+          ...costCommonParameters,
+          costGroupByParameter,
+          { name: "granularity", in: "query", schema: { type: "string", enum: ["day", "week", "month"], default: "day" } },
+          { name: "top_n", in: "query", schema: { type: "integer", minimum: 1, maximum: 20, default: 5 } },
+        ],
+        responses: { "200": { description: "Cost trend", ...json({ $ref: "#/components/schemas/ModelCostTrend" }) } },
+      },
+    },
+    "/costs/breakdown": {
+      get: {
+        operationId: "getCostBreakdown",
+        summary: "Search, sort, and paginate a dimensional cost breakdown",
+        parameters: [
+          ...costCommonParameters,
+          costGroupByParameter,
+          { name: "page", in: "query", schema: { type: "integer", minimum: 1, default: 1 } },
+          { name: "page_size", in: "query", schema: { type: "integer", minimum: 1, maximum: 200, default: 25 } },
+          { name: "sort", in: "query", schema: { type: "string", default: "spend_usd" } },
+          { name: "direction", in: "query", schema: { type: "string", enum: ["asc", "desc"], default: "desc" } },
+          { name: "search", in: "query", schema: { type: "string" } },
+        ],
+        responses: { "200": { description: "Cost breakdown", ...json({ $ref: "#/components/schemas/ModelCostBreakdown" }) } },
+      },
+    },
+    "/costs/data-quality": {
+      get: {
+        operationId: "getCostDataQuality",
+        summary: "Read internal ingestion and attribution quality diagnostics",
+        parameters: costCommonParameters,
+        responses: { "200": { description: "Cost data quality", ...json({ type: "object" }) } },
       },
     },
     "/policies": {
@@ -766,13 +851,17 @@ export const openApiDocument = {
           } },
         ],
       },
-      CostReport: {
+      ModelCostSummary: {
         type: "object",
-        required: ["currency", "from", "to", "totalSpend", "requestCount", "inputTokens", "outputTokens", "byInstance", "byModel", "byProviderAccount", "daily"],
+        required: ["currency", "totalSpendUsd", "totalTokens", "promptTokens", "completionTokens", "requests", "unknownCostRequests", "comparison"],
         properties: {
-          currency: { type: "string", const: "USD" }, from: { type: "string", format: "date" }, to: { type: "string", format: "date" }, totalSpend: { type: "number" }, requestCount: { type: "integer" }, inputTokens: { type: "integer" }, outputTokens: { type: "integer" }, byInstance: { type: "array", items: { type: "object" } }, byModel: { type: "array", items: { type: "object" } }, byProviderAccount: { type: "array", items: { type: "object" } }, daily: { type: "array", items: { type: "object" } },
+          currency: { type: "string", const: "USD" }, totalSpendUsd: { type: "number" }, totalTokens: { type: "integer" }, promptTokens: { type: "integer" }, completionTokens: { type: "integer" }, requests: { type: "integer" }, unknownCostRequests: { type: "integer" }, highestCostInstance: { type: "object" }, highestCostModel: { type: "object" }, comparison: { type: "object" },
         },
       },
+      ModelCostActivity: { type: "object", required: ["currency", "granularity", "items", "legend"], properties: { currency: { type: "string", const: "USD" }, granularity: { type: "string" }, items: { type: "array", items: { type: "object" } }, legend: { type: "object" } } },
+      ModelCostRanking: { type: "object", required: ["currency", "items", "totalSpendUsd"], properties: { currency: { type: "string", const: "USD" }, items: { type: "array", items: { type: "object" } }, totalSpendUsd: { type: "number" } } },
+      ModelCostTrend: { type: "object", required: ["currency", "dates", "series"], properties: { currency: { type: "string", const: "USD" }, dates: { type: "array", items: { type: "string" } }, series: { type: "array", items: { type: "object" } } } },
+      ModelCostBreakdown: { type: "object", required: ["currency", "items", "total", "page", "pageSize", "filterOptions"], properties: { currency: { type: "string", const: "USD" }, items: { type: "array", items: { type: "object" } }, total: { type: "integer" }, page: { type: "integer" }, pageSize: { type: "integer" }, filterOptions: { type: "object" } } },
       AgentCollection: {
         type: "object",
         required: ["data"],

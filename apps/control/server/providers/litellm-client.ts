@@ -19,16 +19,55 @@ export interface LiteLLMVirtualKey {
 
 export interface LiteLLMSpendLog {
   api_key?: string;
+  api_key_id?: string;
+  hashed_token?: string;
+  virtual_key_alias?: string;
   end_user?: string;
+  end_user_id?: string;
   user?: string;
+  user_id?: string;
+  team_id?: string;
+  organization_id?: string;
+  request_tags?: string[];
+  metadata?: Record<string, unknown>;
+  requested_model?: string;
+  resolved_model?: string;
   model?: string;
   model_group?: string;
+  model_id?: string;
+  deployment_id?: string;
+  provider?: string;
+  api_base?: string;
+  call_type?: string;
   spend?: number;
+  prompt_cost?: number;
+  completion_cost?: number;
+  provider_reported_cost?: number;
+  litellm_calculated_cost?: number;
+  currency?: string;
+  cost_source?: string;
+  price_version?: string;
   startTime?: string;
   start_time?: string;
+  request_start_time?: string;
+  first_token_time?: string;
+  end_time?: string;
+  response_end_time?: string;
+  latency_ms?: number;
+  time_to_first_token_ms?: number;
   prompt_tokens?: number;
   completion_tokens?: number;
+  total_tokens?: number;
+  cached_input_tokens?: number;
+  cache_creation_input_tokens?: number;
+  reasoning_tokens?: number;
   request_id?: string;
+  status?: string;
+  http_status_code?: number;
+  error_type?: string;
+  retry_count?: number;
+  cache_hit?: boolean;
+  fallback_used?: boolean;
 }
 
 export interface LiteLLMInferenceInspection {

@@ -27,6 +27,10 @@ export function errorResponse(error: unknown): Response {
   const message = error instanceof Error ? error.message : "Unexpected error.";
   const status = /not found/i.test(message)
     ? 404
+    : /access denied/i.test(message)
+      ? 403
+      : /Invalid |must be|before end_time/i.test(message)
+        ? 400
     : /Consumer|default Inference Group|compliance|suspended|READY Inference Group|Multiple default/i.test(message)
       ? 409
       : /LiteLLM|gateway is unavailable/i.test(message)

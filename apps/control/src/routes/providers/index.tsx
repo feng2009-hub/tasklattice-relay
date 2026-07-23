@@ -43,9 +43,30 @@ function ProvidersPage() {
   const accounts = useQuery({ queryKey: ["provider-accounts"], queryFn: api.listProviderAccounts });
   const models = useQuery({ queryKey: ["model-deployments"], queryFn: api.listModelDeployments });
   const range = useMemo(() => dateRange(30), []);
-  const costs = useQuery({ queryKey: ["provider-cost", range], queryFn: () => api.getCostReport(range.from, range.to), retry: false });
+  const costs = useQuery({
+    queryKey: ["provider-cost", range],
+    queryFn: () => api.getCostSummary({
+      startTime: range.from,
+      endTime: range.to,
+      groupBy: "provider_account",
+      filters: {},
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    }),
+    retry: false,
+  });
   const validatedModels = (models.data ?? []).filter((model) => model.status === "VALIDATED");
-  const spend = new Map((costs.data?.byProviderAccount ?? []).map((item) => [item.id, item.spend]));
+  const accountCosts = useQuery({
+    queryKey: ["provider-cost-breakdown", range],
+    queryFn: () => api.getCostBreakdown({
+      startTime: range.from,
+      endTime: range.to,
+      groupBy: "provider_account",
+      filters: {},
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    }),
+    retry: false,
+  });
+  const spend = new Map((accountCosts.data?.items ?? []).map((item) => [item.id, item.spendUsd]));
   const filtered = useMemo(() => (accounts.data ?? []).filter((account) => {
     const query = search.trim().toLowerCase();
     const provider = providerPresets.find((item) => item.id === account.providerKind)?.name ?? account.providerKind;
@@ -77,7 +98,7 @@ function ProvidersPage() {
         <MetricCard icon={Cable} label="Provider connections" value={accounts.data?.length ?? 0} />
         <MetricCard icon={Boxes} label="Active models" value={validatedModels.length} />
         <MetricCard icon={ShieldCheck} label="Healthy" value={<span className="inline-flex items-center gap-2">{(accounts.data ?? []).filter((account) => account.status === "VALIDATED").length}<span className="size-2 rounded-full bg-emerald-500" /></span>} />
-        <MetricCard icon={CircleDollarSign} label="Total spend (30d)" value={costs.isLoading ? <Spinner /> : costs.data ? money(costs.data.totalSpend) : "—"} />
+        <MetricCard icon={CircleDollarSign} label="Total spend (30d)" value={costs.isLoading ? <Spinner /> : costs.data ? money(costs.data.totalSpendUsd) : "—"} />
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row">
