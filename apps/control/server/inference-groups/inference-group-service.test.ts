@@ -33,6 +33,7 @@ function adapter(inspection: Omit<LiteLLMInferenceInspection, "configurationHash
     inspectInferenceGroup: vi.fn(async () => ({ configurationHash: "sha256:litellm", ...inspection })),
     createInferenceGroupTeam: vi.fn(async () => "team-a"),
     createInferenceGroupKey: vi.fn(async () => ({ secret: "sk-instance-secret", tokenId: "token-hash" })),
+    deleteInferenceGroupTeam: vi.fn(),
   };
 }
 
@@ -199,5 +200,24 @@ describe("InferenceGroupResolver", () => {
       inferenceGroupId: selectedGroup.id,
       modelAlias: "selected-chat",
     }));
+  });
+});
+
+describe("Inference Group deletion", () => {
+  it("blocks active consumers and deletes the LiteLLM team after they are removed", async () => {
+    const store = new AgentStore();
+    const client = adapter({ exists: true, modelCount: 1, complianceDomains: ["CN_MAINLAND"], complianceUnknown: false, capabilities });
+    const service = new InferenceGroupService(store, client);
+    const group = await service.create(input());
+    await service.bindAgent("agent-consumer", group.id);
+
+    await expect(service.delete(group.id)).rejects.toThrow("Remove all Consumers");
+    expect(service.get(group.id)).toBeDefined();
+
+    await service.unbindAgent("agent-consumer");
+    await service.delete(group.id);
+
+    expect(service.get(group.id)).toBeUndefined();
+    expect(client.deleteInferenceGroupTeam).toHaveBeenCalledWith("team-a");
   });
 });

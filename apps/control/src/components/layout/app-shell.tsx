@@ -6,7 +6,6 @@ import {
   CircleHelp,
   FileLock2,
   FilePlus2,
-  Gauge,
   LayoutDashboard,
   ListChecks,
   Network,
@@ -14,7 +13,7 @@ import {
   ServerCog,
   Settings,
   Sparkles,
-  Route as RouteIcon,
+  SlidersHorizontal,
   type LucideIcon,
 } from "lucide-react";
 import type { AuthUser } from "@/components/auth/auth-provider";
@@ -66,10 +65,9 @@ const navGroups: Array<{ items: NavItemDefinition[]; label: string }> = [
     items: [{ icon: LayoutDashboard, label: "Workspace", to: "/dashboard" }],
   },
   {
-    label: "Provider",
+    label: "Models",
     items: [
-      { icon: Gauge, label: "Registry", to: "/providers" },
-      { icon: RouteIcon, label: "Inference Groups", to: "/providers/inference-groups" },
+      { icon: SlidersHorizontal, label: "Model Profiles", to: "/providers/inference-groups" },
       { icon: CircleDollarSign, label: "Cost", to: "/providers/cost" },
     ],
   },
@@ -109,8 +107,8 @@ const routeLabels: Record<string, string> = {
   mcp: "MCP Servers",
   new: "Create Instance",
   policy: "Policy",
-  providers: "Providers",
-  "inference-groups": "Inference Groups",
+  providers: "Models",
+  "inference-groups": "Model Profiles",
   requests: "Requests",
   runtime: "Runtime",
   sandboxes: "Sandboxes",
@@ -121,6 +119,7 @@ const routeLabels: Record<string, string> = {
 
 function itemIsActive(item: NavItemDefinition, pathname: string) {
   if (item.to === "/instances") return pathname === "/instances" || pathname.startsWith("/agents");
+  if (item.to === "/providers/inference-groups") return pathname.startsWith("/providers/inference-groups");
   return pathname === item.to;
 }
 
@@ -134,7 +133,12 @@ function NavigationItem({ item, pathname }: {
   return (
     <SidebarMenuItem>
       <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
-        <Link to={item.to} onClick={() => setOpenMobile(false)} aria-current={pathname === item.to ? "page" : undefined}>
+        <Link
+          to={item.to}
+          onClick={() => setOpenMobile(false)}
+          aria-current={pathname === item.to ? "page" : undefined}
+          aria-label={item.label}
+        >
           <item.icon className={cn(active && "text-primary")} />
           <span>{item.label}</span>
         </Link>
@@ -146,7 +150,11 @@ function NavigationItem({ item, pathname }: {
 function DisabledNav({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
   return (
     <SidebarMenuItem>
-      <SidebarMenuButton disabled tooltip="Not part of the current Agent operating path.">
+      <SidebarMenuButton
+        aria-label={label}
+        disabled
+        tooltip={`${label} — not part of the current Agent operating path.`}
+      >
         <Icon />
         <span>{label}</span>
         <span className="ml-auto bg-muted px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide group-data-[collapsible=icon]:hidden">Later</span>

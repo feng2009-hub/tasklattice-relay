@@ -124,7 +124,7 @@ export function InstanceOverviewTab({ access, agent, auditEvents, auditLoading, 
               { label: "Inference mode", value: "Platform managed" },
               { label: "Inference status", value: agent.inferenceStatus?.replaceAll("_", " ") ?? "Unavailable" },
               { label: "Compliance", value: agent.inferenceComplianceDomain === "CN_MAINLAND" ? "CN Mainland" : "Global" },
-              { label: "Inference Group", value: <Link to="/providers/inference-groups/$groupId" params={{ groupId: agent.inferenceGroupId }} className="font-medium text-primary underline underline-offset-4">{inferenceGroupName ?? "Managed access contract"}</Link> },
+              { label: "Model Profile", value: <Link to="/providers/inference-groups/$groupId" params={{ groupId: agent.inferenceGroupId }} className="font-medium text-primary underline underline-offset-4">{inferenceGroupName ?? "Managed model profile"}</Link> },
               { label: "Endpoint status", value: <EndpointBadge agent={agent} /> },
               { label: "Endpoint URL", value: <CopyableValue value={agent.httpEndpoint?.url} externalUrl={agent.httpEndpoint?.url} /> },
             ]} />

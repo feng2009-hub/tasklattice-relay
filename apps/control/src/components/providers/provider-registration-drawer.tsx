@@ -167,8 +167,8 @@ export function ProviderRegistrationDrawer({
     <Drawer open={open} onOpenChange={close} direction="right">
       <DrawerContent className="!w-full sm:!w-[min(100vw,40rem)]">
         <DrawerHeader className="relative border-b pr-16">
-          <DrawerTitle className="font-serif text-xl sm:text-2xl">Add provider connection</DrawerTitle>
-          <DrawerDescription>Connect a provider and register its models in the Gateway.</DrawerDescription>
+          <DrawerTitle className="font-serif text-xl sm:text-2xl">Add upstream connection</DrawerTitle>
+          <DrawerDescription>Connect a Provider and register models for the Model Profile upstream pool.</DrawerDescription>
           <DrawerClose asChild><Button aria-label="Close drawer" variant="ghost" size="icon" className="absolute right-4 top-4" disabled={pending}><X /></Button></DrawerClose>
         </DrawerHeader>
 
@@ -188,7 +188,7 @@ export function ProviderRegistrationDrawer({
               </div>
               {providerSelected ? <div className="space-y-5 border-t pt-5">
                 <div className="space-y-2"><Label htmlFor="provider-connection-name">Connection name</Label><Input id="provider-connection-name" value={draft.name} disabled={pending} aria-invalid={Boolean(errors.name)} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />{errors.name ? <p className="text-xs text-destructive">{errors.name}</p> : null}</div>
-                <div className="space-y-2"><Label>Compliance domain</Label><Select value={complianceDomain} onValueChange={(value) => setComplianceDomain(value as ComplianceDomain)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="CN_MAINLAND">CN Mainland</SelectItem><SelectItem value="GLOBAL">Global</SelectItem></SelectContent></Select><p className="text-xs leading-5 text-muted-foreground">Written to LiteLLM model metadata and enforced fail-closed by Inference Groups.</p></div>
+                <div className="space-y-2"><Label>Compliance domain</Label><Select value={complianceDomain} onValueChange={(value) => setComplianceDomain(value as ComplianceDomain)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="CN_MAINLAND">CN Mainland</SelectItem><SelectItem value="GLOBAL">Global</SelectItem></SelectContent></Select><p className="text-xs leading-5 text-muted-foreground">Written to LiteLLM model metadata and enforced fail-closed by Model Profiles.</p></div>
                 <Configurator value={draft} onChange={setDraft} errors={errors} disabled={pending} />
               </div> : null}
               {discover.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 px-3 py-2 text-sm text-destructive">{discover.error.message}</p> : null}
