@@ -5,6 +5,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 import { AlertTriangle, Boxes, Eye, FileText, Globe2, Info, MoreHorizontal, Plus, RefreshCw, Search, SquareTerminal, Trash2, X } from "lucide-react";
 import { AgentPlatformIcon } from "@/components/agents/agent-platform-icon";
+import { CreateInstanceSheet } from "@/components/agents/create-instance-sheet";
 import { resolveProvisioningState } from "@/components/agents/provisioning-state";
 import { DeleteInstanceDialog } from "@/components/instances/delete-instance-dialog";
 import { PageHeader } from "@/components/layout/page-header";
@@ -22,7 +23,11 @@ import { getAgentPlatformPresentation } from "@/lib/agent-platforms";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/instances")({
-  validateSearch: z.object({ created: z.string().optional() }),
+  validateSearch: z.object({
+    create: z.literal("instance").optional(),
+    created: z.string().optional(),
+    inferenceGroupId: z.string().uuid().optional(),
+  }),
   component: Instances,
 });
 
@@ -168,7 +173,7 @@ function Instances() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Instances" description="View and manage your Agent instances. Start new instances and monitor their status." actions={<Button asChild className="h-11"><Link to="/agents/instace/new"><Plus />Create Instance</Link></Button>} />
+      <PageHeader title="Instances" description="View and manage your Agent instances. Start new instances and monitor their status." actions={<Button asChild className="h-11"><Link to="/instances" search={{ create: "instance" }}><Plus />Create Instance</Link></Button>} />
 
       {search.created ? <CreationNotice onClose={() => void navigate({ to: "/instances", search: {}, replace: true })} /> : null}
 
@@ -229,6 +234,22 @@ function Instances() {
       </TooltipProvider>
 
       {deletingInstance ? <DeleteInstanceDialog open instanceName={deletingInstance.name} deleting={remove.isPending} onOpenChange={(open) => { if (!open) setDeletingInstance(undefined); }} onConfirm={() => remove.mutate(deletingInstance.id)} {...(remove.error instanceof Error ? { error: remove.error.message } : {})} /> : null}
+      {search.create === "instance" ? (
+        <CreateInstanceSheet
+          open
+          {...(search.inferenceGroupId
+            ? { inferenceGroupId: search.inferenceGroupId }
+            : {})}
+          onOpenChange={(open) => {
+            if (open) return;
+            void navigate({
+              to: "/instances",
+              search: search.created ? { created: search.created } : {},
+              replace: true,
+            });
+          }}
+        />
+      ) : null}
     </div>
   );
 }

@@ -2,15 +2,8 @@ import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { SandboxPolicy, SandboxPolicyInput } from "@tasklattice/contracts";
 import { FilePlus2, Save, ShieldCheck } from "lucide-react";
+import { EntityFormSheet } from "@/components/shared/entity-form-sheet";
 import { Button } from "@/components/ui/button";
-import {
-  Drawer,
-  DrawerContent,
-  DrawerDescription,
-  DrawerFooter,
-  DrawerHeader,
-  DrawerTitle,
-} from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
@@ -67,16 +60,24 @@ export function PolicyEditorDrawer({
     setValue((current) => ({ ...current, [key]: next }));
 
   return (
-    <Drawer open={open} onOpenChange={(next) => !mutation.isPending && onOpenChange(next)} direction="right">
-      <DrawerContent className="w-[min(96vw,48rem)]">
-        <DrawerHeader className="border-b">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">OpenShell Policy</p>
-          <DrawerTitle className="font-serif text-2xl">{policy ? `Edit ${policy.name}` : "Create Policy"}</DrawerTitle>
-          <DrawerDescription>
-            Define a reusable OpenShell YAML boundary. TaskLattice always preserves the writable runtime paths required by OpenClaw.
-          </DrawerDescription>
-        </DrawerHeader>
-
+    <EntityFormSheet
+      open={open}
+      onOpenChange={(next) => !mutation.isPending && onOpenChange(next)}
+      eyebrow="OpenShell Policy"
+      title={policy ? `Edit ${policy.name}` : "Create Policy"}
+      description="Define a reusable OpenShell YAML boundary. TaskLattice always preserves the writable runtime paths required by OpenClaw."
+      width="lg"
+      bodyClassName="p-0"
+      footer={(
+        <>
+          <Button type="button" variant="outline" disabled={mutation.isPending} onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button form="policy-editor-form" type="submit" disabled={mutation.isPending}>
+            {mutation.isPending ? <Spinner /> : policy ? <Save /> : <FilePlus2 />}
+            {mutation.isPending ? "Validating Policy…" : policy ? "Save changes" : "Create Policy"}
+          </Button>
+        </>
+      )}
+    >
         <form
           id="policy-editor-form"
           className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5"
@@ -109,15 +110,6 @@ export function PolicyEditorDrawer({
           </div>
           {mutation.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 px-3 py-2 text-sm text-destructive">{mutation.error.message}</p> : null}
         </form>
-
-        <DrawerFooter className="border-t">
-          <Button type="button" variant="outline" disabled={mutation.isPending} onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button form="policy-editor-form" type="submit" disabled={mutation.isPending}>
-            {mutation.isPending ? <Spinner /> : policy ? <Save /> : <FilePlus2 />}
-            {mutation.isPending ? "Validating Policy…" : policy ? "Save changes" : "Create Policy"}
-          </Button>
-        </DrawerFooter>
-      </DrawerContent>
-    </Drawer>
+    </EntityFormSheet>
   );
 }

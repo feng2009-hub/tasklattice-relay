@@ -29,7 +29,7 @@ function Overview() {
         description="Manage Provider connections, runtime Instances, Sandboxes, Skills, approvals, and monitoring from one control path."
         actions={
           <Button asChild size="lg">
-            <Link to="/agents/instace/new"><Plus />Create Instance</Link>
+            <Link to="/instances" search={{ create: "instance" }}><Plus />Create Instance</Link>
           </Button>
         }
       />

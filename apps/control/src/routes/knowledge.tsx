@@ -4,6 +4,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import type { CreateKnowledgeSourceDefinitionInput, KnowledgeSourceDefinition } from "@tasklattice/contracts";
 import { Database, FlaskConical, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { EntityFormSheet } from "@/components/shared/entity-form-sheet";
 import { StatusDot } from "@/components/shared/status-dot";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -113,19 +114,7 @@ function KnowledgeBase() {
           </CardContent>
         </Card>
         <Card className="self-start xl:sticky xl:top-24">
-          {editing ? (
-            <>
-              <CardHeader className="border-b"><CardTitle>{editingId ? "Update Endpoint" : "Add Endpoint"}</CardTitle><CardDescription>Configure the contract an Agent will use for retrieval.</CardDescription></CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2"><Label htmlFor="kb-name">Name</Label><Input id="kb-name" className="h-11" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="Engineering Handbook" /></div>
-                <div className="space-y-2"><Label htmlFor="kb-endpoint">Retrieval endpoint</Label><Input id="kb-endpoint" className="h-11" value={draft.endpoint} onChange={(event) => setDraft({ ...draft, endpoint: event.target.value })} placeholder="https://knowledge.example.com/search" /></div>
-                <div className="grid grid-cols-2 gap-3"><div className="space-y-2"><Label htmlFor="kb-mode">Mode</Label><select id="kb-mode" className="flex h-11 w-full border border-input bg-background px-3 text-sm" value={draft.mode} onChange={(event) => setDraft({ ...draft, mode: event.target.value as KnowledgeSourceDefinition["mode"] })}><option>Hybrid</option><option>Vector</option><option>Keyword</option></select></div><div className="space-y-2"><Label htmlFor="kb-topk">Top K</Label><Input id="kb-topk" className="h-11" type="number" min={1} max={50} value={draft.topK} onChange={(event) => setDraft({ ...draft, topK: Number(event.target.value) })} /></div></div>
-                <div className="space-y-2"><Label htmlFor="kb-auth">Credential reference</Label><Input id="kb-auth" className="h-11" value={draft.authReference} onChange={(event) => setDraft({ ...draft, authReference: event.target.value })} placeholder="vault://team/credential" /></div>
-                <div className="space-y-2"><Label htmlFor="kb-description">Description</Label><Textarea id="kb-description" value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></div>
-                <div className="flex gap-2"><Button className="flex-1" disabled={saveSource.isPending} onClick={save}>{saveSource.isPending ? "Saving…" : editingId ? "Save changes" : "Add Endpoint"}</Button><Button variant="outline" onClick={() => setEditing(false)}>Cancel</Button></div>
-              </CardContent>
-            </>
-          ) : selected ? (
+          {selected ? (
             <>
               <CardHeader className="border-b"><div className="flex items-center justify-between"><StatusDot label={selected.status} tone={selected.status === "READY" ? "success" : "neutral"} /><span className="text-xs text-muted-foreground">Top {selected.topK}</span></div><CardTitle className="mt-3">{selected.name}</CardTitle><CardDescription>{selected.description}</CardDescription></CardHeader>
               <CardContent className="space-y-4">
@@ -137,6 +126,31 @@ function KnowledgeBase() {
           ) : <CardContent className="py-16 text-center"><strong>No endpoint selected</strong></CardContent>}
         </Card>
       </div>
+      <EntityFormSheet
+        open={editing}
+        onOpenChange={(open) => {
+          if (!saveSource.isPending) setEditing(open);
+        }}
+        eyebrow="Knowledge Base"
+        title={editingId ? "Update Endpoint" : "Add Endpoint"}
+        description="Configure the retrieval contract an Agent will use for grounded answers."
+        width="md"
+        footer={(
+          <>
+            <Button variant="outline" disabled={saveSource.isPending} onClick={() => setEditing(false)}>Cancel</Button>
+            <Button disabled={saveSource.isPending} onClick={save}>{saveSource.isPending ? "Saving…" : editingId ? "Save changes" : "Add Endpoint"}</Button>
+          </>
+        )}
+      >
+        <div className="space-y-4">
+          <div className="space-y-2"><Label htmlFor="kb-name">Name</Label><Input id="kb-name" className="h-11" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="Engineering Handbook" /></div>
+          <div className="space-y-2"><Label htmlFor="kb-endpoint">Retrieval endpoint</Label><Input id="kb-endpoint" className="h-11" value={draft.endpoint} onChange={(event) => setDraft({ ...draft, endpoint: event.target.value })} placeholder="https://knowledge.example.com/search" /></div>
+          <div className="grid grid-cols-2 gap-3"><div className="space-y-2"><Label htmlFor="kb-mode">Mode</Label><select id="kb-mode" className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm" value={draft.mode} onChange={(event) => setDraft({ ...draft, mode: event.target.value as KnowledgeSourceDefinition["mode"] })}><option>Hybrid</option><option>Vector</option><option>Keyword</option></select></div><div className="space-y-2"><Label htmlFor="kb-topk">Top K</Label><Input id="kb-topk" className="h-11" type="number" min={1} max={50} value={draft.topK} onChange={(event) => setDraft({ ...draft, topK: Number(event.target.value) })} /></div></div>
+          <div className="space-y-2"><Label htmlFor="kb-auth">Credential reference</Label><Input id="kb-auth" className="h-11" value={draft.authReference} onChange={(event) => setDraft({ ...draft, authReference: event.target.value })} placeholder="vault://team/credential" /></div>
+          <div className="space-y-2"><Label htmlFor="kb-description">Description</Label><Textarea id="kb-description" value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></div>
+          {notice === "Name and retrieval endpoint are required." ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 px-3 py-2 text-sm text-destructive">{notice}</p> : null}
+        </div>
+      </EntityFormSheet>
     </div>
   );
 }

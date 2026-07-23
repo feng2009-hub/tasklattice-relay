@@ -32,10 +32,10 @@ import {
 import { PageHeader } from "@/components/layout/page-header";
 import { ProviderIcon } from "@/components/providers/provider-icon";
 import { ProviderRegistrationDrawer } from "@/components/providers/provider-registration-drawer";
+import { EntityFormSheet } from "@/components/shared/entity-form-sheet";
 import { MetricCard } from "@/components/shared/metric-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -141,7 +141,7 @@ function ModelProfilesPage() {
 
       <UpstreamInventory accounts={providerAccounts} models={deployments} loading={accounts.isPending || models.isPending} error={accounts.error?.message ?? models.error?.message} onAdd={() => openConnection()} onAddModel={openConnection} />
 
-      <CreateProfileDialog
+      <CreateProfileSheet
         open={createOpen}
         onOpenChange={setCreateOpen}
         availableModels={deployments}
@@ -222,7 +222,7 @@ function ErrorState({ message }: { message: string }) {
   return <div role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">{message}</div>;
 }
 
-function CreateProfileDialog({
+function CreateProfileSheet({
   availableModels,
   modelsError,
   modelsLoading,
@@ -285,8 +285,16 @@ function CreateProfileDialog({
     if (!nameValid || !modelValid || !gatewayAvailable) return;
     mutation.mutate();
   };
-  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="grid-rows-[auto_minmax(0,1fr)_auto] sm:max-w-2xl"><DialogHeader><DialogTitle>Create Model Profile</DialogTitle><DialogDescription>Choose the model Instances will use, then apply a stable access and policy boundary around it.</DialogDescription></DialogHeader>
-    <div className="min-h-0 space-y-6 overflow-y-auto px-6 py-5">
+  return <EntityFormSheet
+    open={open}
+    onOpenChange={(next) => !mutation.isPending && onOpenChange(next)}
+    eyebrow="Model Profile"
+    title="Create Model Profile"
+    description="Choose the model Instances will use, then apply a stable access and policy boundary around it."
+    width="lg"
+    footer={<><Button variant="outline" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>Cancel</Button><Button className="min-w-48" disabled={mutation.isPending || gateways.isPending || !gatewayAvailable || (modelSource === "catalog" && modelsLoading)} onClick={submit}>{mutation.isPending ? "Validating profile…" : "Create and validate profile"}</Button></>}
+  >
+    <div className="space-y-6">
       <section className="space-y-4"><SectionTitle number="01" title="Profile identity" description="What operators see when choosing a model." /><div className="grid items-start gap-4 sm:grid-cols-2"><Field label="Profile name" htmlFor="profile-name" help={attempted && !nameValid ? "Enter at least 2 characters." : "Use a workload or policy-oriented name."} invalid={attempted && !nameValid}><Input id="profile-name" value={name} aria-invalid={attempted && !nameValid} onChange={(event) => setName(event.target.value)} placeholder="Production reasoning" /></Field><Field label="Description" htmlFor="profile-description" help="Optional context for profile consumers."><Textarea id="profile-description" className="min-h-20" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Balanced reasoning for production Agents" /></Field></div></section>
       <section className="space-y-4 border-t pt-5">
         <SectionTitle number="02" title="Model selection" description="Choose a validated model from the current upstream pool." />
@@ -331,8 +339,7 @@ function CreateProfileDialog({
       <section className="space-y-4 border-t pt-5"><SectionTitle number="03" title="Access & guardrails" description="Policies applied whenever an Instance consumes this profile." /><div className="grid gap-3 sm:grid-cols-3"><PolicyFact icon={ShieldCheck} label="Compliance" value={gateways.data?.[0]?.complianceDomain === "CN_MAINLAND" ? "CN Mainland" : "Global"} /><PolicyFact icon={KeyRound} label="Credentials" value="Isolated per Instance" /><PolicyFact icon={Activity} label="Audit" value="Control plane + requests" /></div><button type="button" aria-pressed={makeDefault} className={cn("flex min-h-11 w-full items-center gap-3 border px-3 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-primary", makeDefault && "border-primary bg-primary/5")} onClick={() => setMakeDefault((value) => !value)}><span className={cn("grid size-5 shrink-0 place-items-center border", makeDefault && "border-primary bg-primary text-primary-foreground")}><Check className="size-3.5" /></span><span><strong className="block font-medium">Default Model Profile</strong><span className="text-xs text-muted-foreground">Automatically selected for new Instances.</span></span></button></section>
       {mutation.error ? <p role="alert" className="flex gap-2 text-xs text-destructive"><CircleAlert className="size-4" />{mutation.error.message}</p> : null}
     </div>
-    <DialogFooter className="gap-3"><Button className="w-full sm:w-auto sm:min-w-32" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button className="w-full sm:w-auto sm:min-w-48" disabled={mutation.isPending || gateways.isPending || !gatewayAvailable || (modelSource === "catalog" && modelsLoading)} onClick={submit}>{mutation.isPending ? "Validating profile…" : "Create and validate profile"}</Button></DialogFooter>
-  </DialogContent></Dialog>;
+  </EntityFormSheet>;
 }
 
 function SectionTitle({ number, title, description }: { number: string; title: string; description: string }) {

@@ -22,7 +22,7 @@ function Agents() {
         title="Agent instances"
         actions={
           <Button asChild>
-            <Link to="/agents/instace/new">
+            <Link to="/instances" search={{ create: "instance" }}>
               <Plus />
               Create Agent
             </Link>
