@@ -8,3 +8,4 @@ coverage/
 apps/control/server/generated/
 *.log
 .env
+apps/control/server/generated/
