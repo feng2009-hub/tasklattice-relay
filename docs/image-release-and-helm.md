@@ -6,7 +6,7 @@ TaskLattice publishes **five first-party images**:
 
 | Image | Build entry point | Purpose | Published architectures |
 | --- | --- | --- | --- |
-| `tasklattice-control` | `infra/docker/Dockerfile`, target `control` | Web UI, REST/WebSocket API, and SQLite control data | amd64, arm64 |
+| `tasklattice-control` | `infra/docker/Dockerfile`, target `control` | Web UI, REST/WebSocket API, and PostgreSQL control data | amd64, arm64 |
 | `tasklattice-openshell-runner` | `infra/docker/Dockerfile`, target `runner` | Invokes OpenShell to create, observe, connect to, and destroy Sandboxes | amd64, arm64 |
 | `tasklattice-litellm` | `infra/docker/Dockerfile.litellm` | Model gateway, virtual keys, and cost attribution | amd64, arm64 |
 | `tasklattice-nemoclaw-sandbox` | `scripts/build-nemoclaw-sandbox.sh` (`openclaw`) + `Dockerfile.nemoclaw-openclaw` | Dynamic Sandbox for the OpenClaw Agent | amd64, arm64 |

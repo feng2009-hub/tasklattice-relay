@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createAgentSchema, createInferenceGroupSchema } from "@tasklattice/contracts";
-import { AgentStore } from "../data/agent-store";
+import { createTestStore } from "../test/store";
 import type { LiteLLMAdminClient, LiteLLMInferenceInspection } from "../providers/litellm-client";
 import { InferenceGroupResolver, InferenceGroupService } from "./inference-group-service";
 
@@ -87,7 +87,7 @@ describe("Inference Group contracts", () => {
 
 describe("Inference Group validation", () => {
   it("becomes READY and default only after a matching LiteLLM inspection", async () => {
-    const service = new InferenceGroupService(new AgentStore(), adapter({
+    const service = new InferenceGroupService(createTestStore(), adapter({
       exists: true,
       version: "1.94.1",
       modelCount: 2,
@@ -101,7 +101,7 @@ describe("Inference Group validation", () => {
   });
 
   it("rejects CN/GLOBAL mixing", async () => {
-    const service = new InferenceGroupService(new AgentStore(), adapter({
+    const service = new InferenceGroupService(createTestStore(), adapter({
       exists: true,
       version: "1.94.1",
       modelCount: 2,
@@ -124,7 +124,7 @@ describe("Inference Group validation", () => {
       complianceUnknown: false,
       capabilities,
     });
-    const service = new InferenceGroupService(new AgentStore(), client);
+    const service = new InferenceGroupService(createTestStore(), client);
 
     const group = await service.create(input("CN_MAINLAND"));
 
@@ -134,7 +134,7 @@ describe("Inference Group validation", () => {
   });
 
   it("fails closed when compliance metadata is UNKNOWN", async () => {
-    const service = new InferenceGroupService(new AgentStore(), adapter({
+    const service = new InferenceGroupService(createTestStore(), adapter({
       exists: true,
       modelCount: 1,
       complianceDomains: [],
@@ -147,7 +147,7 @@ describe("Inference Group validation", () => {
   });
 
   it("marks unsupported Auto Router versions explicitly", async () => {
-    const service = new InferenceGroupService(new AgentStore(), adapter({
+    const service = new InferenceGroupService(createTestStore(), adapter({
       exists: true,
       version: "1.86.2",
       modelCount: 1,
@@ -162,28 +162,28 @@ describe("Inference Group validation", () => {
 
 describe("InferenceGroupResolver", () => {
   it("requires exactly one READY default", async () => {
-    const store = new AgentStore();
+    const store = createTestStore();
     const service = new InferenceGroupService(store, adapter({ exists: true, modelCount: 1, complianceDomains: ["CN_MAINLAND"], complianceUnknown: false, capabilities }));
     const ready = await service.create(input());
-    expect(new InferenceGroupResolver(store).resolveDefault().id).toBe(ready.id);
-    store.saveInferenceGroup({ ...ready, id: "second", name: "Second default", createdAt: new Date().toISOString() });
-    expect(() => new InferenceGroupResolver(store).resolveDefault()).toThrow("Multiple default");
+    expect((await new InferenceGroupResolver(store).resolveDefault()).id).toBe(ready.id);
+    await store.saveInferenceGroup({ ...ready, id: "second", name: "Second default", createdAt: new Date().toISOString() });
+    await expect(new InferenceGroupResolver(store).resolveDefault()).rejects.toThrow("Multiple default");
   });
 
   it("does not resolve a suspended group", async () => {
-    const store = new AgentStore();
+    const store = createTestStore();
     const service = new InferenceGroupService(store, adapter({ exists: true, modelCount: 1, complianceDomains: ["CN_MAINLAND"], complianceUnknown: false, capabilities }));
     const ready = await service.create(input());
-    service.update(ready.id, { suspended: true });
-    expect(() => service.resolver.resolveDefault()).toThrow("suspended");
+    await service.update(ready.id, { suspended: true });
+    await expect(service.resolver.resolveDefault()).rejects.toThrow("suspended");
   });
 
   it("binds an explicitly selected READY group instead of the default", async () => {
-    const store = new AgentStore();
+    const store = createTestStore();
     const client = adapter({ exists: true, modelCount: 1, complianceDomains: ["CN_MAINLAND"], complianceUnknown: false, capabilities });
     const service = new InferenceGroupService(store, client);
     const defaultGroup = await service.create(input());
-    const selectedGroup = store.saveInferenceGroup({
+    const selectedGroup = await store.saveInferenceGroup({
       ...defaultGroup,
       id: "2f3d37d9-fd85-49ee-80b3-06861b8c44b1",
       name: "Selected inference",
@@ -205,19 +205,19 @@ describe("InferenceGroupResolver", () => {
 
 describe("Inference Group deletion", () => {
   it("blocks active consumers and deletes the LiteLLM team after they are removed", async () => {
-    const store = new AgentStore();
+    const store = createTestStore();
     const client = adapter({ exists: true, modelCount: 1, complianceDomains: ["CN_MAINLAND"], complianceUnknown: false, capabilities });
     const service = new InferenceGroupService(store, client);
     const group = await service.create(input());
     await service.bindAgent("agent-consumer", group.id);
 
     await expect(service.delete(group.id)).rejects.toThrow("Remove all Consumers");
-    expect(service.get(group.id)).toBeDefined();
+    expect(await service.get(group.id)).toBeDefined();
 
     await service.unbindAgent("agent-consumer");
     await service.delete(group.id);
 
-    expect(service.get(group.id)).toBeUndefined();
+    expect(await service.get(group.id)).toBeUndefined();
     expect(client.deleteInferenceGroupTeam).toHaveBeenCalledWith("team-a");
   });
 });

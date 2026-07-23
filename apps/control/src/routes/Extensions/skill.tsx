@@ -70,7 +70,7 @@ function SkillCatalog() {
     onSuccess: async (skill, variables) => {
       setSelectedId(skill.id);
       setMode("detail");
-      setNotice(variables.id ? "Skill metadata saved to SQLite." : "Skill registered in the SQLite catalog.");
+      setNotice(variables.id ? "Skill metadata saved to PostgreSQL." : "Skill registered in the PostgreSQL catalog.");
       await queryClient.invalidateQueries({ queryKey: ["extension-catalog"] });
     },
   });
@@ -81,7 +81,7 @@ function SkillCatalog() {
       status: "PUBLISHED",
     }),
     onSuccess: async () => {
-      setNotice("Source check recorded in SQLite. Remote fetching remains simulated in development.");
+      setNotice("Source check recorded in PostgreSQL. Remote fetching remains simulated in development.");
       await queryClient.invalidateQueries({ queryKey: ["extension-catalog"] });
     },
   });
@@ -90,7 +90,7 @@ function SkillCatalog() {
     onSuccess: async () => {
       setSelectedId("");
       setMode("detail");
-      setNotice("Skill removed from the SQLite catalog.");
+      setNotice("Skill removed from the PostgreSQL catalog.");
       await queryClient.invalidateQueries({ queryKey: ["extension-catalog"] });
     },
   });
@@ -140,11 +140,11 @@ function SkillCatalog() {
     <div className="space-y-6">
       <PageHeader
         title="Skills"
-        description="Manage reusable agent capabilities stored in the workspace SQLite catalog."
+        description="Manage reusable agent capabilities stored in the workspace PostgreSQL catalog."
         actions={<Button className="h-11" onClick={openCreate}><Plus /> Register Skill</Button>}
       />
 
-      {catalog.isPending ? <p className="border p-4 text-sm text-muted-foreground">Loading Skills from SQLite…</p> : null}
+      {catalog.isPending ? <p className="border p-4 text-sm text-muted-foreground">Loading Skills from PostgreSQL…</p> : null}
       {catalog.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">{catalog.error.message}</p> : null}
       {saveSkill.error || verifySkill.error || deleteSkill.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">{(saveSkill.error ?? verifySkill.error ?? deleteSkill.error)?.message}</p> : null}
 
@@ -209,7 +209,7 @@ function SkillCatalog() {
         <Card className="self-start xl:sticky xl:top-24">
           {mode === "form" ? (
             <>
-              <CardHeader className="border-b"><CardTitle>{editingId ? "Update Skill" : "Register Skill"}</CardTitle><CardDescription>Metadata is persisted in SQLite. Source fetching remains simulated during development.</CardDescription></CardHeader>
+              <CardHeader className="border-b"><CardTitle>{editingId ? "Update Skill" : "Register Skill"}</CardTitle><CardDescription>Metadata is persisted in PostgreSQL. Source fetching remains simulated during development.</CardDescription></CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2"><Label htmlFor="skill-name">Name</Label><Input id="skill-name" className="h-11" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="Release Notes" /></div>
                 <div className="space-y-2"><Label htmlFor="skill-endpoint">Remote package endpoint</Label><Input id="skill-endpoint" className="h-11" value={draft.endpoint} onChange={(event) => setDraft({ ...draft, endpoint: event.target.value })} placeholder="https://…/bundle.tar.zst" /></div>

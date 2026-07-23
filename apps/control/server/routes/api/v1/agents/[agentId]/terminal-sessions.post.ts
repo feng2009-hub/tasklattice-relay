@@ -17,7 +17,7 @@ export default defineHandler(async (event) => {
   try {
     const id = z.string().uuid().parse(event.context.params?.agentId);
     const input = createTerminalSessionInputSchema.parse(await event.req.json());
-    const service = await getAgentService();
+    const service = await getAgentService(event.req);
     const agent = await service.get(id);
     if (!agent)
       return jsonResponse({ error: "Agent not found." }, { status: 404 });

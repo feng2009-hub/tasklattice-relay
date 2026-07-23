@@ -1,9 +1,6 @@
-import { randomUUID } from "node:crypto";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
-import { AgentStore, parseAgent } from "./agent-store";
+import { parseAgent } from "./agent-store";
+import { createTestStore } from "../test/store";
 
 describe("AgentStore", () => {
   it("rejects pre-Inference-Group Instance records", () => {
@@ -27,10 +24,10 @@ describe("AgentStore", () => {
     }))).toThrow("Stored Instance data is incomplete");
   });
 
-  it("persists the NemoClaw agent resource", () => {
-    const store = new AgentStore();
+  it("persists the NemoClaw agent resource", async () => {
+    const store = createTestStore();
     const now = new Date().toISOString();
-    store.save({
+    await store.save({
       schemaVersion: 1,
       id: "a",
       name: "Research",
@@ -70,9 +67,9 @@ describe("AgentStore", () => {
       updatedAt: now,
       logs: [],
     });
-    expect(store.get("a")?.runtime).toBe("openshell");
-    expect(store.list()).toHaveLength(1);
-    store.saveProviderAccount(
+    expect((await store.get("a"))?.runtime).toBe("openshell");
+    expect(await store.list()).toHaveLength(1);
+    await store.saveProviderAccount(
       {
         id: "provider-a",
         name: "DeepSeek validated",
@@ -93,32 +90,17 @@ describe("AgentStore", () => {
       },
       "provider-secret-value",
     );
-    expect(store.listProviderAccounts()).toHaveLength(1);
-    expect(store.getProviderAccountCredential("provider-a")).toBe(
+    expect(await store.listProviderAccounts()).toHaveLength(1);
+    expect(await store.getProviderAccountCredential("provider-a")).toBe(
       "provider-secret-value",
     );
   });
 
-  it("ignores unversioned development records without deleting them", () => {
-    const path = join(tmpdir(), `tasklattice-agent-store-${randomUUID()}.db`);
-    const store = new AgentStore(path);
+  it("isolates records between workspaces", async () => {
+    const store = createTestStore();
+    const isolated = store.withWorkspace("other-workspace");
     const now = new Date().toISOString();
-    const database = new DatabaseSync(path);
-    database.prepare(
-      "INSERT INTO agents (id, payload, created_at) VALUES (?, ?, ?)",
-    ).run(
-      "legacy-agent",
-      JSON.stringify({
-        id: "legacy-agent",
-        name: "Legacy research",
-        sandboxName: "tali-legacy-agent",
-        policyId: "legacy-policy",
-      }),
-      now,
-    );
-    database.close();
-
-    store.save({
+    await store.save({
       schemaVersion: 1,
       id: "current-agent",
       name: "Current research",
@@ -159,16 +141,11 @@ describe("AgentStore", () => {
       logs: [],
     });
 
-    expect(store.list().map((agent) => agent.id)).toEqual(["current-agent"]);
-    expect(store.get("legacy-agent")).toBeUndefined();
-    expect(store.listAgentsForReporting().map((agent) => agent.id)).toEqual([
+    expect((await store.list()).map((agent) => agent.id)).toEqual(["current-agent"]);
+    expect(await isolated.get("current-agent")).toBeUndefined();
+    expect((await store.listAgentsForReporting()).map((agent) => agent.id)).toEqual([
       "current-agent",
     ]);
-    expect(store.isSandboxPolicyInUse("legacy-policy")).toBe(false);
-
-    const verifier = new DatabaseSync(path);
-    expect(verifier.prepare("SELECT id FROM agents WHERE id = ?").get("legacy-agent"))
-      .toMatchObject({ id: "legacy-agent" });
-    verifier.close();
+    expect(await store.isSandboxPolicyInUse("legacy-policy")).toBe(false);
   });
 });

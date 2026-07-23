@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SandboxPolicyCatalog } from "@tasklattice/contracts";
-import { AgentStore } from "../data/agent-store";
+import { createTestStore } from "../test/store";
 import { FilePolicyCatalogSource, normalizeOpenShellPolicy, PolicyService, type PolicyCatalogSource } from "./policy-service";
 
 const source: PolicyCatalogSource = {
@@ -32,9 +32,9 @@ describe("PolicyService", () => {
     expect(policy?.policyYaml).toContain("/opt");
   });
 
-  it("creates, updates, and deletes custom policies", () => {
-    const service = new PolicyService(new AgentStore(), source);
-    const created = service.create({
+  it("creates, updates, and deletes custom policies", async () => {
+    const service = new PolicyService(createTestStore(), source);
+    const created = await service.create({
       name: "Internal tools",
       description: "Allows the internal tools required by this environment.",
       networkAccess: "tools.example.com",
@@ -43,13 +43,13 @@ describe("PolicyService", () => {
 
     expect(created).toMatchObject({ source: "CUSTOM", immutable: false });
     expect(created.policyYaml).toContain("/dev/null");
-    expect(service.update(created.id, { ...created, name: "Internal tooling" }).name).toBe("Internal tooling");
-    expect(service.delete(created.id)).toBe(true);
-    expect(service.get(created.id)).toBeUndefined();
+    expect((await service.update(created.id, { ...created, name: "Internal tooling" })).name).toBe("Internal tooling");
+    expect(await service.delete(created.id)).toBe(true);
+    expect(await service.get(created.id)).toBeUndefined();
   });
 
-  it("protects built-in policies and rejects unsafe process identity", () => {
-    const service = new PolicyService(new AgentStore(), source);
+  it("protects built-in policies and rejects unsafe process identity", async () => {
+    const service = new PolicyService(createTestStore(), source);
     const input = {
       name: "Unrestricted",
       description: "Allows arbitrary operations in Sandbox-owned writable paths.",
@@ -57,23 +57,23 @@ describe("PolicyService", () => {
       policyYaml: "version: 1\nnetwork_policies: {}\n",
     };
 
-    expect(() => service.update("unrestricted", input)).toThrow("ConfigMap");
-    expect(() => service.delete("unrestricted")).toThrow("ConfigMap");
+    await expect(service.update("unrestricted", input)).rejects.toThrow("Built-in");
+    await expect(service.delete("unrestricted")).rejects.toThrow("Built-in");
     expect(() => normalizeOpenShellPolicy("version: 1\nprocess:\n  run_as_user: root\n")).toThrow("root");
     expect(() => normalizeOpenShellPolicy("version: 2\n")).toThrow("version: 1");
   });
 
-  it("does not delete a custom Policy assigned to an Instance", () => {
-    const store = new AgentStore();
+  it("does not delete a custom Policy assigned to an Instance", async () => {
+    const store = createTestStore();
     const service = new PolicyService(store, source);
-    const policy = service.create({
+    const policy = await service.create({
       name: "Assigned policy",
       description: "A custom Policy currently assigned to an Instance.",
       networkAccess: "Managed inference only",
       policyYaml: "version: 1\nnetwork_policies: {}\n",
     });
     const now = new Date().toISOString();
-    store.save({
+    await store.save({
       schemaVersion: 1,
       id: "agent-a",
       name: "Policy user",
@@ -114,6 +114,6 @@ describe("PolicyService", () => {
       logs: [],
     });
 
-    expect(() => service.delete(policy.id)).toThrow("assigned to an Instance");
+    await expect(service.delete(policy.id)).rejects.toThrow("assigned to an Instance");
   });
 });

@@ -10,7 +10,7 @@ export default defineHandler(async (event) => {
     return unauthorizedResponse(error);
   }
   try {
-    return jsonResponse({ data: await (await getAgentService()).list() });
+    return jsonResponse({ data: await (await getAgentService(event.req)).list() });
   } catch (error) {
     return errorResponse(error);
   }

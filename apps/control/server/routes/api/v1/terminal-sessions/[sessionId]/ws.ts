@@ -1,5 +1,6 @@
 import { WebSocket } from "ws";
 import { defineWebSocketHandler } from "nitro";
+import type { AgentService } from "../../../../../agents/agent-service";
 import { getAgentService } from "../../../../../services";
 import {
   consumeTerminalSession,
@@ -7,6 +8,7 @@ import {
 } from "../../../../../terminal/terminal-sessions";
 
 interface TerminalPeerContext {
+  service: AgentService;
   session: TerminalSessionRecord;
 }
 
@@ -29,18 +31,17 @@ export default defineWebSocketHandler({
     const token = url.searchParams.get("token") ?? "";
     const session = consumeTerminalSession(sessionId, token);
     if (!session) throw new Response("Invalid terminal session.", { status: 401 });
-    const service = await getAgentService();
+    const service = await getAgentService(request);
     const agent = await service.get(session.agentId);
     if (!agent || agent.status !== "READY")
       throw new Response(
         "Terminal is available only when the Agent is healthy and running.",
         { status: 409 },
       );
-    return { context: { session } };
+    return { context: { service, session } };
   },
   async open(peer) {
-    const { session } = peer.context as unknown as TerminalPeerContext;
-    const service = await getAgentService();
+    const { service, session } = peer.context as unknown as TerminalPeerContext;
     const connectionId = peer.id.slice(0, 8);
     console.info(
       `[terminal ${connectionId}] browser connected; opening runner terminal for ${session.sandboxName}`,

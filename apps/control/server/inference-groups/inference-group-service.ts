@@ -27,14 +27,14 @@ const defaultCapabilities = {
 export class InferenceGroupResolver {
   constructor(private readonly store: AgentStore) {}
 
-  resolve(id?: string): InferenceGroup {
+  async resolve(id?: string): Promise<InferenceGroup> {
     let group: InferenceGroup;
     if (id) {
-      const selected = this.store.getInferenceGroup(id);
+      const selected = await this.store.getInferenceGroup(id);
       if (!selected) throw new Error("The selected Inference Group is unavailable.");
       group = selected;
     } else {
-      const defaults = this.store.listInferenceGroups().filter((candidate) => candidate.isDefault);
+      const defaults = (await this.store.listInferenceGroups()).filter((candidate) => candidate.isDefault);
       if (defaults.length !== 1)
         throw new Error(defaults.length ? "Multiple default Inference Groups are configured." : "No default Inference Group is configured.");
       group = defaults[0]!;
@@ -44,7 +44,7 @@ export class InferenceGroupResolver {
     return group;
   }
 
-  resolveDefault(): InferenceGroup {
+  resolveDefault(): Promise<InferenceGroup> {
     return this.resolve();
   }
 }
@@ -57,25 +57,27 @@ export class InferenceGroupService {
     readonly litellm: LiteLLMAdminClient = new LiteLLMClient(),
   ) {
     this.resolver = new InferenceGroupResolver(store);
-    this.ensureDefaultGateway();
   }
 
-  listGateways(): InferenceGateway[] {
+  async listGateways(): Promise<InferenceGateway[]> {
+    await this.ensureDefaultGateway();
     return this.store.listInferenceGateways();
   }
 
-  list(): InferenceGroup[] {
-    return this.store.listInferenceGroups().map((group) => this.withConsumerCount(group));
+  async list(): Promise<InferenceGroup[]> {
+    await this.ensureDefaultGateway();
+    return Promise.all((await this.store.listInferenceGroups()).map((group) => this.withConsumerCount(group)));
   }
 
-  get(id: string): InferenceGroup | undefined {
-    const group = this.store.getInferenceGroup(id);
-    return group ? this.withConsumerCount(group) : undefined;
+  async get(id: string): Promise<InferenceGroup | undefined> {
+    const group = await this.store.getInferenceGroup(id);
+    return group ? await this.withConsumerCount(group) : undefined;
   }
 
   async create(input: CreateInferenceGroupInput, actor = "control-api"): Promise<InferenceGroup> {
-    if (!this.store.getInferenceGateway(input.gatewayId)) throw new Error("Select an available LiteLLM Gateway.");
-    if (input.isDefault && this.store.listInferenceGroups().some((group) => group.isDefault))
+    await this.ensureDefaultGateway();
+    if (!await this.store.getInferenceGateway(input.gatewayId)) throw new Error("Select an available LiteLLM Gateway.");
+    if (input.isDefault && (await this.store.listInferenceGroups()).some((group) => group.isDefault))
       throw new Error("A default Inference Group already exists. Change the existing default first.");
     const now = new Date().toISOString();
     const id = randomUUID();
@@ -100,16 +102,16 @@ export class InferenceGroupService {
       createdAt: now,
       updatedAt: now,
     };
-    this.store.saveInferenceGroup(group);
-    this.audit(group, "inference_group.created", actor, "SUCCESS", "Inference Group definition stored.");
+    await this.store.saveInferenceGroup(group);
+    await this.audit(group, "inference_group.created", actor, "SUCCESS", "Inference Group definition stored.");
     const validated = await this.validate(id, actor);
     if (input.isDefault && validated.status === "READY") return this.update(id, { isDefault: true }, actor);
     return validated;
   }
 
-  update(id: string, input: UpdateInferenceGroupInput, actor = "control-api"): InferenceGroup {
-    const current = this.require(id);
-    if (input.isDefault && !current.isDefault && this.store.listInferenceGroups().some((group) => group.isDefault && group.id !== id))
+  async update(id: string, input: UpdateInferenceGroupInput, actor = "control-api"): Promise<InferenceGroup> {
+    const current = await this.require(id);
+    if (input.isDefault && !current.isDefault && (await this.store.listInferenceGroups()).some((group) => group.isDefault && group.id !== id))
       throw new Error("A default Inference Group already exists. Clear it before assigning another.");
     if (input.isDefault && current.status !== "READY") throw new Error("Only a READY Inference Group can be the default.");
     const values = withoutUndefined(input);
@@ -130,20 +132,20 @@ export class InferenceGroupService {
       observedGeneration: current.observedGeneration + 1,
       validationMessage: current.validationMessage,
     };
-    this.store.saveInferenceGroup(next);
-    this.audit(next, input.suspended === true ? "inference_group.suspended" : "inference_group.updated", actor, "SUCCESS", "Inference Group policy updated.");
+    await this.store.saveInferenceGroup(next);
+    await this.audit(next, input.suspended === true ? "inference_group.suspended" : "inference_group.updated", actor, "SUCCESS", "Inference Group policy updated.");
     return this.withConsumerCount(next);
   }
 
   async validate(id: string, actor = "control-api"): Promise<InferenceGroup> {
-    const current = this.require(id);
-    const gateway = this.store.getInferenceGateway(current.gatewayId);
+    const current = await this.require(id);
+    const gateway = await this.store.getInferenceGateway(current.gatewayId);
     if (!gateway) throw new Error("The Inference Group gateway is unavailable.");
     if (current.status === "SUSPENDED") throw new Error("Resume the Inference Group before validating it.");
-    this.store.saveInferenceGroup({ ...current, status: "VALIDATING", updatedAt: new Date().toISOString() });
+    await this.store.saveInferenceGroup({ ...current, status: "VALIDATING", updatedAt: new Date().toISOString() });
     if (gateway.complianceDomain !== current.complianceDomain) {
       const reason = `Gateway compliance domain ${gateway.complianceDomain} does not match Inference Group domain ${current.complianceDomain}.`;
-      const next = this.store.saveInferenceGroup({
+      const next = await this.store.saveInferenceGroup({
         ...current,
         status: "NON_COMPLIANT",
         isDefault: false,
@@ -156,7 +158,7 @@ export class InferenceGroupService {
         lastSynchronizedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
-      this.audit(next, "inference_group.compliance_failed", actor, "FAILED", reason);
+      await this.audit(next, "inference_group.compliance_failed", actor, "FAILED", reason);
       return this.withConsumerCount(next);
     }
     try {
@@ -200,7 +202,7 @@ export class InferenceGroupService {
         auditPolicy: current.auditPolicy,
         liteLLM: inspection.configurationHash,
       });
-      const next = this.store.saveInferenceGroup({
+      const next = await this.store.saveInferenceGroup({
         ...current,
         status,
         isDefault: current.isDefault,
@@ -215,7 +217,7 @@ export class InferenceGroupService {
         lastSynchronizedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
-      this.store.saveInferenceGateway({
+      await this.store.saveInferenceGateway({
         ...gateway,
         status: "READY",
         validationMessage: "LiteLLM management API is reachable.",
@@ -223,12 +225,12 @@ export class InferenceGroupService {
         updatedAt: new Date().toISOString(),
       });
       const changed = current.status !== next.status || JSON.stringify(current.capabilities) !== JSON.stringify(next.capabilities) || JSON.stringify(current.conditions) !== JSON.stringify(next.conditions);
-      if (changed) this.audit(next, "inference_group.sync_changed", actor, "SUCCESS", "Effective LiteLLM status or capabilities changed.");
-      this.audit(next, status === "NON_COMPLIANT" ? "inference_group.compliance_failed" : "inference_group.validated", actor, status === "READY" ? "SUCCESS" : "FAILED", conditions.find((condition) => condition.status !== "PASS")?.reason ?? "Binding is ready.");
+      if (changed) await this.audit(next, "inference_group.sync_changed", actor, "SUCCESS", "Effective LiteLLM status or capabilities changed.");
+      await this.audit(next, status === "NON_COMPLIANT" ? "inference_group.compliance_failed" : "inference_group.validated", actor, status === "READY" ? "SUCCESS" : "FAILED", conditions.find((condition) => condition.status !== "PASS")?.reason ?? "Binding is ready.");
       return this.withConsumerCount(next);
     } catch (error) {
       const reason = error instanceof Error ? error.message : "LiteLLM validation failed.";
-      const next = this.store.saveInferenceGroup({
+      const next = await this.store.saveInferenceGroup({
         ...current,
         status: "DEGRADED",
         isDefault: current.isDefault,
@@ -238,21 +240,22 @@ export class InferenceGroupService {
         lastSynchronizedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
-      this.store.saveInferenceGateway({
+      await this.store.saveInferenceGateway({
         ...gateway,
         status: "DEGRADED",
         validationMessage: reason,
         validatedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
-      this.audit(next, "inference_group.validated", actor, "FAILED", reason);
+      await this.audit(next, "inference_group.validated", actor, "FAILED", reason);
       return this.withConsumerCount(next);
     }
   }
 
   async bindAgent(agentId: string, inferenceGroupId?: string): Promise<{ binding: InferenceGroupBinding; group: InferenceGroup; gateway: InferenceGateway; secret: string }> {
-    let group = this.resolver.resolve(inferenceGroupId);
-    const gateway = this.store.getInferenceGateway(group.gatewayId);
+    await this.ensureDefaultGateway();
+    let group = await this.resolver.resolve(inferenceGroupId);
+    const gateway = await this.store.getInferenceGateway(group.gatewayId);
     if (!gateway) throw new Error("The Inference Group gateway is unavailable.");
     if (gateway.complianceDomain !== group.complianceDomain)
       throw new Error("The Inference Group and LiteLLM Gateway compliance domains do not match.");
@@ -268,7 +271,7 @@ export class InferenceGroupService {
         inferenceGroupId: group.id,
         complianceDomain: group.complianceDomain,
       });
-      group = this.store.saveInferenceGroup({ ...group, liteLLMTeamId: teamId, updatedAt: new Date().toISOString() });
+      group = await this.store.saveInferenceGroup({ ...group, liteLLMTeamId: teamId, updatedAt: new Date().toISOString() });
     }
     const keyAlias = `tasklattice/${group.id.slice(0, 8)}/${agentId.slice(0, 8)}`;
     const key = await this.litellm.createInferenceGroupKey({
@@ -291,45 +294,45 @@ export class InferenceGroupService {
       status: "ACTIVE",
       createdAt: now,
     };
-    this.store.saveInferenceGroupBinding(binding);
-    this.audit(group, "inference_binding.created", "agent-service", "SUCCESS", "Per-Instance Team-scoped Virtual Key created.", agentId);
-    this.audit(group, "virtual_key.created", "agent-service", "SUCCESS", `Virtual Key fingerprint ${binding.keyFingerprint}.`, agentId);
-    return { binding, group: this.withConsumerCount(group), gateway, secret: key.secret };
+    await this.store.saveInferenceGroupBinding(binding);
+    await this.audit(group, "inference_binding.created", "agent-service", "SUCCESS", "Per-Instance Team-scoped Virtual Key created.", agentId);
+    await this.audit(group, "virtual_key.created", "agent-service", "SUCCESS", `Virtual Key fingerprint ${binding.keyFingerprint}.`, agentId);
+    return { binding, group: await this.withConsumerCount(group), gateway, secret: key.secret };
   }
 
   async unbindAgent(agentId: string): Promise<void> {
-    const binding = this.store.getInferenceGroupBindingForAgent(agentId);
+    const binding = await this.store.getInferenceGroupBindingForAgent(agentId);
     if (!binding || binding.status === "REVOKED") return;
-    const group = this.require(binding.inferenceGroupId);
+    const group = await this.require(binding.inferenceGroupId);
     await this.litellm.revokeKey(binding.liteLLMTokenId);
-    this.store.saveInferenceGroupBinding({ ...binding, status: "REVOKED", revokedAt: new Date().toISOString() });
-    this.audit(group, "inference_binding.revoked", "agent-service", "SUCCESS", "Instance binding revoked.", agentId);
-    this.audit(group, "virtual_key.revoked", "agent-service", "SUCCESS", `Virtual Key fingerprint ${binding.keyFingerprint}.`, agentId);
+    await this.store.saveInferenceGroupBinding({ ...binding, status: "REVOKED", revokedAt: new Date().toISOString() });
+    await this.audit(group, "inference_binding.revoked", "agent-service", "SUCCESS", "Instance binding revoked.", agentId);
+    await this.audit(group, "virtual_key.revoked", "agent-service", "SUCCESS", `Virtual Key fingerprint ${binding.keyFingerprint}.`, agentId);
   }
 
-  consumers(id: string): InferenceGroupBinding[] {
-    this.require(id);
-    return this.store.listInferenceGroupBindings(id).filter((binding) => binding.status === "ACTIVE");
+  async consumers(id: string): Promise<InferenceGroupBinding[]> {
+    await this.require(id);
+    return (await this.store.listInferenceGroupBindings(id)).filter((binding) => binding.status === "ACTIVE");
   }
 
-  auditEvents(id: string): InferenceGroupAuditEvent[] {
-    this.require(id);
+  async auditEvents(id: string): Promise<InferenceGroupAuditEvent[]> {
+    await this.require(id);
     return this.store.listInferenceGroupAudit(id);
   }
 
   async delete(id: string, actor = "control-api"): Promise<void> {
-    const group = this.require(id);
-    if (this.consumers(id).length) throw new Error("Remove all Consumers before deleting this Inference Group.");
+    const group = await this.require(id);
+    if ((await this.consumers(id)).length) throw new Error("Remove all Consumers before deleting this Inference Group.");
     if (group.liteLLMTeamId && this.litellm.deleteInferenceGroupTeam)
       await this.litellm.deleteInferenceGroupTeam(group.liteLLMTeamId);
-    this.audit(group, "inference_group.deleted", actor, "SUCCESS", "Inference Group deleted.");
-    this.store.deleteInferenceGroup(id);
+    await this.audit(group, "inference_group.deleted", actor, "SUCCESS", "Inference Group deleted.");
+    await this.store.deleteInferenceGroup(id);
   }
 
-  private ensureDefaultGateway(): void {
-    if (this.store.listInferenceGateways().length) return;
+  private async ensureDefaultGateway(): Promise<void> {
+    if ((await this.store.listInferenceGateways()).length) return;
     const now = new Date().toISOString();
-    this.store.saveInferenceGateway({
+    await this.store.saveInferenceGateway({
       id: "litellm-default",
       name: process.env.LITELLM_GATEWAY_NAME ?? "Primary LiteLLM Gateway",
       baseUrl: this.litellm.baseUrl,
@@ -343,18 +346,18 @@ export class InferenceGroupService {
     });
   }
 
-  private require(id: string): InferenceGroup {
-    const group = this.store.getInferenceGroup(id);
+  private async require(id: string): Promise<InferenceGroup> {
+    const group = await this.store.getInferenceGroup(id);
     if (!group) throw new Error("Inference Group not found.");
     return group;
   }
 
-  private withConsumerCount(group: InferenceGroup): InferenceGroup {
-    return { ...group, consumers: this.store.listInferenceGroupBindings(group.id).filter((binding) => binding.status === "ACTIVE").length };
+  private async withConsumerCount(group: InferenceGroup): Promise<InferenceGroup> {
+    return { ...group, consumers: (await this.store.listInferenceGroupBindings(group.id)).filter((binding) => binding.status === "ACTIVE").length };
   }
 
-  private audit(group: InferenceGroup, type: string, actor: string, result: InferenceGroupAuditEvent["result"], reason: string, agentId?: string): void {
-    this.store.appendInferenceGroupAudit({
+  private async audit(group: InferenceGroup, type: string, actor: string, result: InferenceGroupAuditEvent["result"], reason: string, agentId?: string): Promise<void> {
+    await this.store.appendInferenceGroupAudit({
       eventId: randomUUID(),
       timestamp: new Date().toISOString(),
       actor,

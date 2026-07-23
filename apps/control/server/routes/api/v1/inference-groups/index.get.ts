@@ -5,6 +5,6 @@ import { getInferenceGroupService } from "../../../../services";
 
 export default defineHandler(async (event) => {
   try { requireAuth(event.req); } catch (error) { return unauthorizedResponse(error); }
-  try { return jsonResponse({ data: (await getInferenceGroupService()).list() }); }
+  try { return jsonResponse({ data: await (await getInferenceGroupService(event.req)).list() }); }
   catch (error) { return errorResponse(error); }
 });

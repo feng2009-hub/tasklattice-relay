@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { DatabaseSync } from "node:sqlite";
 import type {
   Agent,
   AgentSpecializationDefinition,
@@ -17,13 +16,15 @@ import type {
   SandboxPolicy,
   SkillDefinition,
 } from "@tasklattice/contracts";
+import { prisma } from "../db/prisma";
+import type { Prisma, PrismaClient } from "../generated/prisma/client";
 import { CostAnalyticsStore } from "../providers/cost-analytics-store";
 
-type ExtensionTable =
-  | "extension_skills"
-  | "extension_mcp_servers"
-  | "extension_knowledge_sources"
-  | "agent_specializations";
+type ExtensionDelegateName =
+  | "extensionSkillRecord"
+  | "extensionMcpServerRecord"
+  | "extensionKnowledgeSourceRecord"
+  | "agentSpecializationRecord";
 
 function costKeyIdentifier(value: string): string {
   return value.startsWith("sha256:")
@@ -31,8 +32,16 @@ function costKeyIdentifier(value: string): string {
     : `sha256:${createHash("sha256").update(value).digest("hex")}`;
 }
 
-export function parseAgent(payload: string): Agent {
-  const agent = JSON.parse(payload) as Partial<Agent>;
+function decode<T>(payload: Prisma.JsonValue): T {
+  return payload as T;
+}
+
+function jsonInput(value: unknown): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
+
+export function parseAgent(payload: string | Prisma.JsonValue): Agent {
+  const agent = (typeof payload === "string" ? JSON.parse(payload) : payload) as Partial<Agent>;
   if (
     agent.schemaVersion !== 1 ||
     typeof agent.id !== "string" ||
@@ -50,419 +59,313 @@ export function parseAgent(payload: string): Agent {
     !agent.inferenceCapabilities ||
     !agent.inferenceComplianceDomain ||
     !agent.inferenceStatus
-  )
-    throw new Error("Stored Instance data is incomplete.");
+  ) throw new Error("Stored Instance data is incomplete.");
   return agent as Agent;
 }
 
-function parseCurrentAgent(payload: string): Agent | undefined {
-  const candidate = JSON.parse(payload) as Partial<Agent>;
+function parseCurrentAgent(payload: Prisma.JsonValue): Agent | undefined {
+  const candidate = payload as Partial<Agent>;
   return candidate.schemaVersion === 1 ? parseAgent(payload) : undefined;
 }
 
-function parseProviderAccount(payload: string): ProviderAccount {
-  const account = JSON.parse(payload) as Partial<ProviderAccount> & {
-    presetId?: string;
-    endpoint?: string;
-  };
-  const legacyKind: ProviderKind = account.presetId === "kimi-cn" || account.presetId === "kimi-global"
-    ? "moonshot"
-    : (account.presetId as ProviderKind | undefined) ?? "custom-openai-compatible";
+function parseProviderAccount(payload: Prisma.JsonValue): ProviderAccount {
+  const account = payload as Partial<ProviderAccount> & { presetId?: string; endpoint?: string };
+  const legacyKind: ProviderKind =
+    account.presetId === "kimi-cn" || account.presetId === "kimi-global"
+      ? "moonshot"
+      : (account.presetId as ProviderKind | undefined) ?? "custom-openai-compatible";
   return {
     ...account,
     id: account.id ?? "",
-    name: account.name ?? "Legacy Provider",
+    name: account.name ?? "Provider",
     providerKind: account.providerKind ?? legacyKind,
     presetId: (account.presetId as ProviderAccount["presetId"] | undefined) ?? legacyKind,
     endpoint: account.endpoint ?? "",
-    config: account.config ?? {
-      endpoint: account.endpoint ?? "",
-      ...(account.presetId === "kimi-cn" ? { region: "cn" } : {}),
-      ...(account.presetId === "kimi-global" ? { region: "global" } : {}),
-    },
+    config: account.config ?? { endpoint: account.endpoint ?? "" },
     complianceDomain: account.complianceDomain ?? "GLOBAL",
     endpointRegion: account.endpointRegion ?? "unspecified",
-    crossBorderTransfer: false,
+    crossBorderTransfer: account.crossBorderTransfer ?? false,
     discoveredModels: account.discoveredModels ?? [],
     credentialState: "STORED",
     status: account.status ?? "FAILED",
     checks: account.checks ?? [],
-    validationMessage: account.validationMessage ?? "Legacy Provider data requires revalidation.",
+    validationMessage: account.validationMessage ?? "Provider requires validation.",
     createdAt: account.createdAt ?? new Date(0).toISOString(),
     updatedAt: account.updatedAt ?? account.createdAt ?? new Date(0).toISOString(),
   };
 }
 
-function parseModelDeployment(payload: string): ModelDeployment {
-  const deployment = JSON.parse(payload) as Partial<ModelDeployment>;
-  return {
-    ...deployment,
-    isDefault: deployment.isDefault ?? false,
-  } as ModelDeployment;
-}
-
-function parseSandboxPolicy(payload: string): SandboxPolicy {
-  return JSON.parse(payload) as SandboxPolicy;
+function parseModelDeployment(payload: Prisma.JsonValue): ModelDeployment {
+  const deployment = payload as Partial<ModelDeployment>;
+  return { ...deployment, isDefault: deployment.isDefault ?? false } as ModelDeployment;
 }
 
 export class AgentStore {
-  private readonly database: DatabaseSync;
-  private readonly costAnalyticsStore: CostAnalyticsStore;
+  private readonly costs: CostAnalyticsStore;
+  readonly workspaceId: string;
+  private readonly db: PrismaClient;
 
-  constructor(path = process.env.DATABASE_PATH ?? ":memory:") {
-    this.database = new DatabaseSync(path);
-    this.database.exec(`
-      CREATE TABLE IF NOT EXISTS agents (
-        id TEXT PRIMARY KEY,
-        payload TEXT NOT NULL,
-        created_at TEXT NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS provider_connections (
-        id TEXT PRIMARY KEY,
-        payload TEXT NOT NULL,
-        api_key TEXT NOT NULL,
-        created_at TEXT NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS provider_accounts (
-        id TEXT PRIMARY KEY,
-        payload TEXT NOT NULL,
-        api_key TEXT NOT NULL,
-        created_at TEXT NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS model_deployments (
-        id TEXT PRIMARY KEY,
-        provider_account_id TEXT NOT NULL,
-        payload TEXT NOT NULL,
-        created_at TEXT NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS agent_cost_keys (
-        agent_id TEXT PRIMARY KEY,
-        token_id TEXT NOT NULL,
-        created_at TEXT NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS inference_gateways (
-        id TEXT PRIMARY KEY,
-        payload TEXT NOT NULL,
-        created_at TEXT NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS inference_groups (
-        id TEXT PRIMARY KEY,
-        payload TEXT NOT NULL,
-        created_at TEXT NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS inference_group_bindings (
-        id TEXT PRIMARY KEY,
-        inference_group_id TEXT NOT NULL,
-        agent_id TEXT NOT NULL,
-        payload TEXT NOT NULL,
-        created_at TEXT NOT NULL
-      );
-      CREATE INDEX IF NOT EXISTS idx_inference_group_bindings_agent
-        ON inference_group_bindings(agent_id, created_at DESC);
-      CREATE TABLE IF NOT EXISTS inference_group_audit (
-        event_id TEXT PRIMARY KEY,
-        inference_group_id TEXT NOT NULL,
-        payload TEXT NOT NULL,
-        created_at TEXT NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS sandbox_policies (
-        id TEXT PRIMARY KEY,
-        payload TEXT NOT NULL,
-        created_at TEXT NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS extension_skills (
-        id TEXT PRIMARY KEY,
-        payload TEXT NOT NULL,
-        sort_order INTEGER NOT NULL DEFAULT 1000,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS extension_mcp_servers (
-        id TEXT PRIMARY KEY,
-        payload TEXT NOT NULL,
-        sort_order INTEGER NOT NULL DEFAULT 1000,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS extension_knowledge_sources (
-        id TEXT PRIMARY KEY,
-        payload TEXT NOT NULL,
-        sort_order INTEGER NOT NULL DEFAULT 1000,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS agent_specializations (
-        id TEXT PRIMARY KEY,
-        payload TEXT NOT NULL,
-        sort_order INTEGER NOT NULL DEFAULT 1000,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-    `);
-    this.costAnalyticsStore = new CostAnalyticsStore(this.database);
+  constructor(
+    workspaceId = process.env.TALI_BOOTSTRAP_WORKSPACE_ID ?? "individual",
+    db?: PrismaClient,
+  ) {
+    this.workspaceId = workspaceId === ":memory:" || workspaceId.includes("/")
+      ? process.env.TALI_BOOTSTRAP_WORKSPACE_ID ?? "individual"
+      : workspaceId;
+    this.db = db ?? prisma();
+    this.costs = new CostAnalyticsStore(this.db, this.workspaceId);
+  }
+
+  withWorkspace(workspaceId: string): AgentStore {
+    return workspaceId === this.workspaceId ? this : new AgentStore(workspaceId, this.db);
+  }
+
+  async ready(): Promise<void> {
+    await this.db.$queryRaw`SELECT 1`;
   }
 
   costAnalytics(): CostAnalyticsStore {
-    return this.costAnalyticsStore;
+    return this.costs;
   }
 
-  private seedExtensionRecords<T extends { id: string }>(table: ExtensionTable, records: readonly T[]): void {
-    const statement = this.database.prepare(
-      `INSERT OR IGNORE INTO ${table} (id, payload, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
-    );
-    const now = new Date().toISOString();
-    records.forEach((record, index) => statement.run(record.id, JSON.stringify(record), index, now, now));
+  private extensionDelegate(name: ExtensionDelegateName): {
+    upsert(args: unknown): Promise<unknown>;
+    findUnique(args: unknown): Promise<{ payload: Prisma.JsonValue } | null>;
+    findMany(args: unknown): Promise<Array<{ payload: Prisma.JsonValue }>>;
+    deleteMany(args: unknown): Promise<{ count: number }>;
+    createMany(args: unknown): Promise<unknown>;
+  } {
+    return this.db[name] as never;
   }
 
-  private saveExtensionRecord<T extends { id: string }>(table: ExtensionTable, record: T): T {
-    const now = new Date().toISOString();
-    this.database.prepare(
-      `INSERT INTO ${table} (id, payload, sort_order, created_at, updated_at)
-       VALUES (?, ?, 1000, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at`,
-    ).run(record.id, JSON.stringify(record), now, now);
+  private async seedExtensionRecords<T extends { id: string }>(
+    delegateName: ExtensionDelegateName,
+    records: readonly T[],
+  ): Promise<void> {
+    await this.extensionDelegate(delegateName).createMany({
+      data: records.map((record, sortOrder) => ({
+        workspaceId: this.workspaceId,
+        id: record.id,
+        payload: jsonInput(record),
+        sortOrder,
+      })),
+      skipDuplicates: true,
+    });
+  }
+
+  private async saveExtensionRecord<T extends { id: string }>(
+    delegateName: ExtensionDelegateName,
+    record: T,
+  ): Promise<T> {
+    await this.extensionDelegate(delegateName).upsert({
+      where: { workspaceId_id: { workspaceId: this.workspaceId, id: record.id } },
+      create: {
+        workspaceId: this.workspaceId,
+        id: record.id,
+        payload: jsonInput(record),
+      },
+      update: { payload: jsonInput(record) },
+    });
     return record;
   }
 
-  private getExtensionRecord<T>(table: ExtensionTable, id: string): T | undefined {
-    const row = this.database.prepare(`SELECT payload FROM ${table} WHERE id = ?`).get(id) as { payload: string } | undefined;
-    return row ? JSON.parse(row.payload) as T : undefined;
+  private async getExtensionRecord<T>(
+    delegateName: ExtensionDelegateName,
+    id: string,
+  ): Promise<T | undefined> {
+    const row = await this.extensionDelegate(delegateName).findUnique({
+      where: { workspaceId_id: { workspaceId: this.workspaceId, id } },
+      select: { payload: true },
+    });
+    return row ? decode<T>(row.payload) : undefined;
   }
 
-  private listExtensionRecords<T>(table: ExtensionTable): T[] {
-    const rows = this.database.prepare(
-      `SELECT payload FROM ${table} ORDER BY sort_order, created_at, id`,
-    ).all() as Array<{ payload: string }>;
-    return rows.map((row) => JSON.parse(row.payload) as T);
+  private async listExtensionRecords<T>(delegateName: ExtensionDelegateName): Promise<T[]> {
+    const rows = await this.extensionDelegate(delegateName).findMany({
+      where: { workspaceId: this.workspaceId },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+      select: { payload: true },
+    });
+    return rows.map((row) => decode<T>(row.payload));
   }
 
-  private deleteExtensionRecord(table: ExtensionTable, id: string): boolean {
-    return this.database.prepare(`DELETE FROM ${table} WHERE id = ?`).run(id).changes > 0;
+  private async deleteExtensionRecord(delegateName: ExtensionDelegateName, id: string): Promise<boolean> {
+    const result = await this.extensionDelegate(delegateName).deleteMany({
+      where: { workspaceId: this.workspaceId, id },
+    });
+    return result.count > 0;
   }
 
-  seedExtensionCatalog(catalog: ExtensionCatalog): void {
-    this.seedExtensionRecords("extension_skills", catalog.skills);
-    this.seedExtensionRecords("extension_mcp_servers", catalog.mcpServers);
-    this.seedExtensionRecords("extension_knowledge_sources", catalog.knowledgeSources);
-    this.seedExtensionRecords("agent_specializations", catalog.specializations);
+  async seedExtensionCatalog(catalog: ExtensionCatalog): Promise<void> {
+    await this.seedExtensionRecords("extensionSkillRecord", catalog.skills);
+    await this.seedExtensionRecords("extensionMcpServerRecord", catalog.mcpServers);
+    await this.seedExtensionRecords("extensionKnowledgeSourceRecord", catalog.knowledgeSources);
+    await this.seedExtensionRecords("agentSpecializationRecord", catalog.specializations);
   }
 
-  saveSkillDefinition(skill: SkillDefinition): SkillDefinition {
-    return this.saveExtensionRecord("extension_skills", skill);
+  saveSkillDefinition(skill: SkillDefinition): Promise<SkillDefinition> {
+    return this.saveExtensionRecord("extensionSkillRecord", skill);
   }
-
-  getSkillDefinition(id: string): SkillDefinition | undefined {
-    return this.getExtensionRecord("extension_skills", id);
+  getSkillDefinition(id: string): Promise<SkillDefinition | undefined> {
+    return this.getExtensionRecord("extensionSkillRecord", id);
   }
-
-  listSkillDefinitions(): SkillDefinition[] {
+  async listSkillDefinitions(): Promise<SkillDefinition[]> {
     const bindings = new Map<string, number>();
-    for (const agent of this.list()) {
+    for (const agent of await this.list()) {
       for (const id of new Set(agent.skillIds ?? [])) bindings.set(id, (bindings.get(id) ?? 0) + 1);
     }
-    return this.listExtensionRecords<SkillDefinition>("extension_skills")
+    return (await this.listExtensionRecords<SkillDefinition>("extensionSkillRecord"))
       .map((skill) => ({ ...skill, bindings: bindings.get(skill.id) ?? 0 }));
   }
-
-  deleteSkillDefinition(id: string): boolean {
-    return this.deleteExtensionRecord("extension_skills", id);
+  deleteSkillDefinition(id: string): Promise<boolean> {
+    return this.deleteExtensionRecord("extensionSkillRecord", id);
+  }
+  saveMcpServerDefinition(server: McpServerDefinition): Promise<McpServerDefinition> {
+    return this.saveExtensionRecord("extensionMcpServerRecord", server);
+  }
+  getMcpServerDefinition(id: string): Promise<McpServerDefinition | undefined> {
+    return this.getExtensionRecord("extensionMcpServerRecord", id);
+  }
+  listMcpServerDefinitions(): Promise<McpServerDefinition[]> {
+    return this.listExtensionRecords("extensionMcpServerRecord");
+  }
+  deleteMcpServerDefinition(id: string): Promise<boolean> {
+    return this.deleteExtensionRecord("extensionMcpServerRecord", id);
+  }
+  saveKnowledgeSourceDefinition(source: KnowledgeSourceDefinition): Promise<KnowledgeSourceDefinition> {
+    return this.saveExtensionRecord("extensionKnowledgeSourceRecord", source);
+  }
+  getKnowledgeSourceDefinition(id: string): Promise<KnowledgeSourceDefinition | undefined> {
+    return this.getExtensionRecord("extensionKnowledgeSourceRecord", id);
+  }
+  listKnowledgeSourceDefinitions(): Promise<KnowledgeSourceDefinition[]> {
+    return this.listExtensionRecords("extensionKnowledgeSourceRecord");
+  }
+  deleteKnowledgeSourceDefinition(id: string): Promise<boolean> {
+    return this.deleteExtensionRecord("extensionKnowledgeSourceRecord", id);
+  }
+  saveAgentSpecialization(specialization: AgentSpecializationDefinition): Promise<AgentSpecializationDefinition> {
+    return this.saveExtensionRecord("agentSpecializationRecord", specialization);
+  }
+  listAgentSpecializations(): Promise<AgentSpecializationDefinition[]> {
+    return this.listExtensionRecords("agentSpecializationRecord");
   }
 
-  saveMcpServerDefinition(server: McpServerDefinition): McpServerDefinition {
-    return this.saveExtensionRecord("extension_mcp_servers", server);
-  }
-
-  getMcpServerDefinition(id: string): McpServerDefinition | undefined {
-    return this.getExtensionRecord("extension_mcp_servers", id);
-  }
-
-  listMcpServerDefinitions(): McpServerDefinition[] {
-    return this.listExtensionRecords("extension_mcp_servers");
-  }
-
-  deleteMcpServerDefinition(id: string): boolean {
-    return this.deleteExtensionRecord("extension_mcp_servers", id);
-  }
-
-  saveKnowledgeSourceDefinition(source: KnowledgeSourceDefinition): KnowledgeSourceDefinition {
-    return this.saveExtensionRecord("extension_knowledge_sources", source);
-  }
-
-  getKnowledgeSourceDefinition(id: string): KnowledgeSourceDefinition | undefined {
-    return this.getExtensionRecord("extension_knowledge_sources", id);
-  }
-
-  listKnowledgeSourceDefinitions(): KnowledgeSourceDefinition[] {
-    return this.listExtensionRecords("extension_knowledge_sources");
-  }
-
-  deleteKnowledgeSourceDefinition(id: string): boolean {
-    return this.deleteExtensionRecord("extension_knowledge_sources", id);
-  }
-
-  saveAgentSpecialization(specialization: AgentSpecializationDefinition): AgentSpecializationDefinition {
-    return this.saveExtensionRecord("agent_specializations", specialization);
-  }
-
-  listAgentSpecializations(): AgentSpecializationDefinition[] {
-    return this.listExtensionRecords("agent_specializations");
-  }
-
-  isExtensionResourceInUse(kind: ExtensionResourceKind, id: string): boolean {
+  async isExtensionResourceInUse(kind: ExtensionResourceKind, id: string): Promise<boolean> {
     const agentField = kind === "skills" ? "skillIds" : kind === "mcp-servers" ? "mcpServerIds" : "knowledgeSourceIds";
-    if (this.list().some((agent) => (agent[agentField] ?? []).includes(id))) return true;
+    if ((await this.list()).some((agent) => (agent[agentField] ?? []).includes(id))) return true;
     const specializationField = kind === "skills" ? "defaultSkillIds" : kind === "mcp-servers" ? "defaultMcpServerIds" : "defaultKnowledgeSourceIds";
-    return this.listAgentSpecializations().some((specialization) => specialization[specializationField].includes(id));
+    return (await this.listAgentSpecializations())
+      .some((specialization) => specialization[specializationField].includes(id));
   }
 
-  save(agent: Agent): Agent {
-    this.database
-      .prepare(
-        `
-        INSERT INTO agents (id, payload, created_at)
-        VALUES (?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET payload = excluded.payload
-      `,
-      )
-      .run(agent.id, JSON.stringify(agent), agent.createdAt);
-    const binding = this.getInferenceGroupBindingForAgent(agent.id);
-    if (binding) {
-      const group = this.getInferenceGroup(binding.inferenceGroupId);
-      this.costAnalytics().saveAttribution({
-        id: `binding:${binding.id}`,
-        workspaceId: process.env.TALI_WORKSPACE_ID ?? "default",
-        environmentId: process.env.TALI_ENVIRONMENT_ID ?? "production",
-        instanceId: agent.id,
-        instanceName: agent.name,
-        liteLLMVirtualKeyId: costKeyIdentifier(binding.liteLLMTokenId),
-        hashedToken: binding.keyFingerprint,
-        virtualKeyAlias: binding.keyAlias,
-        liteLLMUserId: agent.id,
-        ...(binding.liteLLMTeamId ? { liteLLMTeamId: binding.liteLLMTeamId } : {}),
-        ...(group?.gatewayId ? { providerAccountId: group.gatewayId } : {}),
-        validFrom: binding.createdAt,
-        ...(binding.revokedAt ? { validTo: binding.revokedAt } : {}),
-        createdAt: binding.createdAt,
-        updatedAt: agent.updatedAt,
-      });
-    }
+  async save(agent: Agent): Promise<Agent> {
+    await this.db.agentRecord.upsert({
+      where: { workspaceId_id: { workspaceId: this.workspaceId, id: agent.id } },
+      create: {
+        workspaceId: this.workspaceId,
+        id: agent.id,
+        payload: jsonInput(agent),
+        createdAt: agent.createdAt,
+      },
+      update: { payload: jsonInput(agent) },
+    });
+    const binding = await this.getInferenceGroupBindingForAgent(agent.id);
+    if (binding) await this.saveBindingAttribution(binding, agent);
     return agent;
   }
 
-  get(id: string): Agent | undefined {
-    const row = this.database
-      .prepare("SELECT payload FROM agents WHERE id = ?")
-      .get(id) as { payload: string } | undefined;
+  async get(id: string): Promise<Agent | undefined> {
+    const row = await this.db.agentRecord.findUnique({
+      where: { workspaceId_id: { workspaceId: this.workspaceId, id } },
+      select: { payload: true },
+    });
     return row ? parseCurrentAgent(row.payload) : undefined;
   }
 
-  list(): Agent[] {
-    return (
-      this.database
-        .prepare("SELECT payload FROM agents ORDER BY created_at DESC")
-        .all() as Array<{
-        payload: string;
-      }>
-    ).flatMap((row) => {
+  async list(): Promise<Agent[]> {
+    const rows = await this.db.agentRecord.findMany({
+      where: { workspaceId: this.workspaceId },
+      orderBy: { createdAt: "desc" },
+      select: { payload: true },
+    });
+    return rows.flatMap((row) => {
       const agent = parseCurrentAgent(row.payload);
       return agent ? [agent] : [];
     });
   }
 
-  listAgentsForReporting(): Array<Pick<Agent, "id" | "name" | "sandboxName" | "costKeyAlias" | "inferenceKeyFingerprint">> {
-    const rows = this.database
-      .prepare("SELECT payload FROM agents ORDER BY created_at DESC")
-      .all() as Array<{ payload: string }>;
-    return rows.flatMap((row) => {
-      const agent = JSON.parse(row.payload) as Partial<Agent>;
-      if (
-        agent.schemaVersion !== 1 ||
-        typeof agent.id !== "string" ||
-        typeof agent.name !== "string" ||
-        typeof agent.sandboxName !== "string"
-      ) return [];
-      return [{
-        id: agent.id,
-        name: agent.name,
-        sandboxName: agent.sandboxName,
-        costKeyAlias: typeof agent.costKeyAlias === "string" ? agent.costKeyAlias : `tali-${agent.name}`,
-        inferenceKeyFingerprint: typeof agent.inferenceKeyFingerprint === "string"
-          ? agent.inferenceKeyFingerprint
-          : costKeyIdentifier(`agent:${agent.id}`),
-      }];
+  async listAgentsForReporting(): Promise<Array<Pick<Agent, "id" | "name" | "sandboxName" | "costKeyAlias" | "inferenceKeyFingerprint">>> {
+    return (await this.list()).map((agent) => ({
+      id: agent.id,
+      name: agent.name,
+      sandboxName: agent.sandboxName,
+      costKeyAlias: agent.costKeyAlias ?? `tali-${agent.name}`,
+      inferenceKeyFingerprint: agent.inferenceKeyFingerprint,
+    }));
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.db.agentRecord.deleteMany({ where: { workspaceId: this.workspaceId, id } });
+  }
+
+  async saveProviderAccount(account: ProviderAccount, credentialPayload?: string): Promise<ProviderAccount> {
+    const credential = credentialPayload ?? await this.getProviderAccountCredential(account.id);
+    if (!credential) throw new Error("An API credential is required for a new Provider Account.");
+    await this.db.providerAccountRecord.upsert({
+      where: { workspaceId_id: { workspaceId: this.workspaceId, id: account.id } },
+      create: {
+        workspaceId: this.workspaceId,
+        id: account.id,
+        payload: jsonInput(account),
+        credentialPayload: credential,
+        createdAt: account.createdAt,
+      },
+      update: {
+        payload: jsonInput(account),
+        credentialPayload: credential,
+      },
     });
-  }
-
-  delete(id: string): void {
-    this.database.prepare("DELETE FROM agents WHERE id = ?").run(id);
-  }
-
-  saveProviderAccount(
-    account: ProviderAccount,
-    credentialPayload?: string,
-  ): ProviderAccount {
-    const existingKey = this.getProviderAccountCredential(account.id);
-    const credential = credentialPayload ?? existingKey;
-    if (!credential)
-      throw new Error("An API credential is required for a new Provider Account.");
-    this.database
-      .prepare(
-        `
-        INSERT INTO provider_accounts (id, payload, api_key, created_at)
-        VALUES (?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET
-          payload = excluded.payload,
-          api_key = excluded.api_key
-      `,
-      )
-      .run(
-        account.id,
-        JSON.stringify(account),
-        credential,
-        account.createdAt,
-      );
     return account;
   }
 
-  getProviderAccount(id: string): ProviderAccount | undefined {
-    const row = this.database
-      .prepare("SELECT payload FROM provider_accounts WHERE id = ?")
-      .get(id) as { payload: string } | undefined;
+  async getProviderAccount(id: string): Promise<ProviderAccount | undefined> {
+    const row = await this.db.providerAccountRecord.findUnique({
+      where: { workspaceId_id: { workspaceId: this.workspaceId, id } },
+      select: { payload: true },
+    });
     return row ? parseProviderAccount(row.payload) : undefined;
   }
-
-  listProviderAccounts(): ProviderAccount[] {
-    return (
-      this.database
-        .prepare(
-          "SELECT payload FROM provider_accounts ORDER BY created_at DESC",
-        )
-        .all() as Array<{ payload: string }>
-    ).map((row) => parseProviderAccount(row.payload));
+  async listProviderAccounts(): Promise<ProviderAccount[]> {
+    const rows = await this.db.providerAccountRecord.findMany({
+      where: { workspaceId: this.workspaceId },
+      orderBy: { createdAt: "desc" },
+      select: { payload: true },
+    });
+    return rows.map((row) => parseProviderAccount(row.payload));
+  }
+  async getProviderAccountCredential(id: string): Promise<string | undefined> {
+    const row = await this.db.providerAccountRecord.findUnique({
+      where: { workspaceId_id: { workspaceId: this.workspaceId, id } },
+      select: { credentialPayload: true },
+    });
+    return row?.credentialPayload;
   }
 
-  getProviderAccountCredential(id: string): string | undefined {
-    const row = this.database
-      .prepare("SELECT api_key FROM provider_accounts WHERE id = ?")
-      .get(id) as { api_key: string } | undefined;
-    return row?.api_key;
-  }
-
-  saveModelDeployment(deployment: ModelDeployment): ModelDeployment {
-    this.database
-      .prepare(
-        `INSERT INTO model_deployments (id, provider_account_id, payload, created_at)
-         VALUES (?, ?, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET payload = excluded.payload`,
-      )
-      .run(
-        deployment.id,
-        deployment.providerAccountId,
-        JSON.stringify(deployment),
-        deployment.createdAt,
-      );
-    const account = this.getProviderAccount(deployment.providerAccountId);
-    this.costAnalytics().saveModelEndpointMapping({
+  async saveModelDeployment(deployment: ModelDeployment): Promise<ModelDeployment> {
+    await this.db.modelDeploymentRecord.upsert({
+      where: { workspaceId_id: { workspaceId: this.workspaceId, id: deployment.id } },
+      create: {
+        workspaceId: this.workspaceId,
+        id: deployment.id,
+        providerAccountId: deployment.providerAccountId,
+        payload: jsonInput(deployment),
+        createdAt: deployment.createdAt,
+      },
+      update: { payload: jsonInput(deployment) },
+    });
+    const account = await this.getProviderAccount(deployment.providerAccountId);
+    await this.costs.saveModelEndpointMapping({
       id: `deployment:${deployment.id}:${deployment.createdAt}`,
       modelEndpointId: deployment.id,
       modelEndpointName: deployment.displayName,
@@ -479,132 +382,126 @@ export class AgentStore {
     return deployment;
   }
 
-  setDefaultModelDeployment(id: string): ModelDeployment | undefined {
-    const selected = this.getModelDeployment(id);
+  async setDefaultModelDeployment(id: string): Promise<ModelDeployment | undefined> {
+    const selected = await this.getModelDeployment(id);
     if (!selected) return undefined;
-    this.database.exec("BEGIN IMMEDIATE");
-    try {
-      for (const deployment of this.listModelDeployments()) {
+    await this.db.$transaction(async (transaction) => {
+      const scoped = new AgentStore(this.workspaceId, transaction as unknown as PrismaClient);
+      for (const deployment of await scoped.listModelDeployments()) {
         const isDefault = deployment.id === id;
-        if (deployment.isDefault === isDefault) continue;
-        this.saveModelDeployment({
-          ...deployment,
-          isDefault,
-          updatedAt: new Date().toISOString(),
-        });
+        if (deployment.isDefault !== isDefault) {
+          await scoped.saveModelDeployment({
+            ...deployment,
+            isDefault,
+            updatedAt: new Date().toISOString(),
+          });
+        }
       }
-      this.database.exec("COMMIT");
-    } catch (error) {
-      this.database.exec("ROLLBACK");
-      throw error;
-    }
+    });
     return this.getModelDeployment(id);
   }
 
-  getModelDeployment(id: string): ModelDeployment | undefined {
-    const row = this.database
-      .prepare("SELECT payload FROM model_deployments WHERE id = ?")
-      .get(id) as { payload: string } | undefined;
+  async getModelDeployment(id: string): Promise<ModelDeployment | undefined> {
+    const row = await this.db.modelDeploymentRecord.findUnique({
+      where: { workspaceId_id: { workspaceId: this.workspaceId, id } },
+      select: { payload: true },
+    });
     return row ? parseModelDeployment(row.payload) : undefined;
   }
-
-  listModelDeployments(providerAccountId?: string): ModelDeployment[] {
+  async listModelDeployments(providerAccountId?: string): Promise<ModelDeployment[]> {
     return this.listModelDeploymentsForReporting(providerAccountId);
   }
-
-  listModelDeploymentsForReporting(providerAccountId?: string): ModelDeployment[] {
-    const rows = providerAccountId
-      ? this.database
-          .prepare(
-            "SELECT payload FROM model_deployments WHERE provider_account_id = ? ORDER BY created_at DESC",
-          )
-          .all(providerAccountId)
-      : this.database
-          .prepare("SELECT payload FROM model_deployments ORDER BY created_at DESC")
-          .all();
-    return (rows as Array<{ payload: string }>).map((row) =>
-      parseModelDeployment(row.payload),
+  async listModelDeploymentsForReporting(providerAccountId?: string): Promise<ModelDeployment[]> {
+    const rows = await this.db.modelDeploymentRecord.findMany({
+      where: {
+        workspaceId: this.workspaceId,
+        ...(providerAccountId ? { providerAccountId } : {}),
+      },
+      orderBy: { createdAt: "desc" },
+      select: { payload: true },
+    });
+    return rows.map((row) => parseModelDeployment(row.payload));
+  }
+  async deleteModelDeployment(id: string): Promise<boolean> {
+    const result = await this.db.modelDeploymentRecord.deleteMany({
+      where: { workspaceId: this.workspaceId, id },
+    });
+    return result.count > 0;
+  }
+  async listAgentIdsUsingModelDeployments(ids: readonly string[]): Promise<string[]> {
+    if (!ids.length) return [];
+    const idSet = new Set(ids);
+    return (await this.list()).flatMap((agent) =>
+      agent.modelDeploymentId && idSet.has(agent.modelDeploymentId) ? [agent.id] : [],
     );
   }
-
-  deleteModelDeployment(id: string): boolean {
-    return this.database
-      .prepare("DELETE FROM model_deployments WHERE id = ?")
-      .run(id).changes > 0;
+  async deleteProviderAccount(id: string): Promise<boolean> {
+    const result = await this.db.providerAccountRecord.deleteMany({
+      where: { workspaceId: this.workspaceId, id },
+    });
+    return result.count > 0;
   }
 
-  listAgentIdsUsingModelDeployments(modelDeploymentIds: readonly string[]): string[] {
-    if (!modelDeploymentIds.length) return [];
-    const deploymentIds = new Set(modelDeploymentIds);
-    const rows = this.database
-      .prepare("SELECT payload FROM agents")
-      .all() as Array<{ payload: string }>;
-    return rows.flatMap(({ payload }) => {
-      const agent = JSON.parse(payload) as Partial<Agent>;
-      return typeof agent.id === "string" &&
-        typeof agent.modelDeploymentId === "string" &&
-        deploymentIds.has(agent.modelDeploymentId)
-        ? [agent.id]
-        : [];
+  async saveAgentCostKey(agentId: string, tokenId: string): Promise<void> {
+    await this.db.agentCostKey.upsert({
+      where: { workspaceId_agentId: { workspaceId: this.workspaceId, agentId } },
+      create: { workspaceId: this.workspaceId, agentId, tokenId },
+      update: { tokenId },
     });
   }
-
-  deleteProviderAccount(id: string): boolean {
-    this.database
-      .prepare("DELETE FROM model_deployments WHERE provider_account_id = ?")
-      .run(id);
-    const result = this.database
-      .prepare("DELETE FROM provider_accounts WHERE id = ?")
-      .run(id);
-    return result.changes > 0;
+  async getAgentCostKey(agentId: string): Promise<string | undefined> {
+    const row = await this.db.agentCostKey.findUnique({
+      where: { workspaceId_agentId: { workspaceId: this.workspaceId, agentId } },
+      select: { tokenId: true },
+    });
+    return row?.tokenId;
+  }
+  async deleteAgentCostKey(agentId: string): Promise<void> {
+    await this.db.agentCostKey.deleteMany({ where: { workspaceId: this.workspaceId, agentId } });
   }
 
-  saveAgentCostKey(agentId: string, tokenId: string): void {
-    this.database
-      .prepare(
-        `INSERT INTO agent_cost_keys (agent_id, token_id, created_at)
-         VALUES (?, ?, ?)
-         ON CONFLICT(agent_id) DO UPDATE SET token_id = excluded.token_id`,
-      )
-      .run(agentId, tokenId, new Date().toISOString());
-  }
-
-  getAgentCostKey(agentId: string): string | undefined {
-    const row = this.database
-      .prepare("SELECT token_id FROM agent_cost_keys WHERE agent_id = ?")
-      .get(agentId) as { token_id: string } | undefined;
-    return row?.token_id;
-  }
-
-  deleteAgentCostKey(agentId: string): void {
-    this.database.prepare("DELETE FROM agent_cost_keys WHERE agent_id = ?").run(agentId);
-  }
-
-  saveInferenceGateway(gateway: InferenceGateway): InferenceGateway {
-    this.database.prepare(
-      `INSERT INTO inference_gateways (id, payload, created_at) VALUES (?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET payload = excluded.payload`,
-    ).run(gateway.id, JSON.stringify(gateway), gateway.createdAt);
+  async saveInferenceGateway(gateway: InferenceGateway): Promise<InferenceGateway> {
+    await this.db.inferenceGatewayRecord.upsert({
+      where: { workspaceId_id: { workspaceId: this.workspaceId, id: gateway.id } },
+      create: {
+        workspaceId: this.workspaceId,
+        id: gateway.id,
+        payload: jsonInput(gateway),
+        createdAt: gateway.createdAt,
+      },
+      update: { payload: jsonInput(gateway) },
+    });
     return gateway;
   }
-
-  getInferenceGateway(id: string): InferenceGateway | undefined {
-    const row = this.database.prepare("SELECT payload FROM inference_gateways WHERE id = ?").get(id) as { payload: string } | undefined;
-    return row ? JSON.parse(row.payload) as InferenceGateway : undefined;
+  async getInferenceGateway(id: string): Promise<InferenceGateway | undefined> {
+    const row = await this.db.inferenceGatewayRecord.findUnique({
+      where: { workspaceId_id: { workspaceId: this.workspaceId, id } },
+      select: { payload: true },
+    });
+    return row ? decode<InferenceGateway>(row.payload) : undefined;
+  }
+  async listInferenceGateways(): Promise<InferenceGateway[]> {
+    const rows = await this.db.inferenceGatewayRecord.findMany({
+      where: { workspaceId: this.workspaceId },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      select: { payload: true },
+    });
+    return rows.map((row) => decode<InferenceGateway>(row.payload));
   }
 
-  listInferenceGateways(): InferenceGateway[] {
-    const rows = this.database.prepare("SELECT payload FROM inference_gateways ORDER BY created_at, id").all() as Array<{ payload: string }>;
-    return rows.map((row) => JSON.parse(row.payload) as InferenceGateway);
-  }
-
-  saveInferenceGroup(group: InferenceGroup): InferenceGroup {
-    this.database.prepare(
-      `INSERT INTO inference_groups (id, payload, created_at) VALUES (?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET payload = excluded.payload`,
-    ).run(group.id, JSON.stringify(group), group.createdAt);
-    const gateway = this.getInferenceGateway(group.gatewayId);
-    this.costAnalytics().saveModelEndpointMapping({
+  async saveInferenceGroup(group: InferenceGroup): Promise<InferenceGroup> {
+    await this.db.inferenceGroupRecord.upsert({
+      where: { workspaceId_id: { workspaceId: this.workspaceId, id: group.id } },
+      create: {
+        workspaceId: this.workspaceId,
+        id: group.id,
+        payload: jsonInput(group),
+        createdAt: group.createdAt,
+      },
+      update: { payload: jsonInput(group) },
+    });
+    const gateway = await this.getInferenceGateway(group.gatewayId);
+    await this.costs.saveModelEndpointMapping({
       id: `inference-group:${group.id}:${group.createdAt}`,
       modelEndpointId: `inference-group:${group.id}`,
       modelEndpointName: group.name,
@@ -619,54 +516,57 @@ export class AgentStore {
     });
     return group;
   }
-
-  getInferenceGroup(id: string): InferenceGroup | undefined {
-    const row = this.database.prepare("SELECT payload FROM inference_groups WHERE id = ?").get(id) as { payload: string } | undefined;
-    return row ? JSON.parse(row.payload) as InferenceGroup : undefined;
+  async getInferenceGroup(id: string): Promise<InferenceGroup | undefined> {
+    const row = await this.db.inferenceGroupRecord.findUnique({
+      where: { workspaceId_id: { workspaceId: this.workspaceId, id } },
+      select: { payload: true },
+    });
+    return row ? decode<InferenceGroup>(row.payload) : undefined;
+  }
+  async listInferenceGroups(): Promise<InferenceGroup[]> {
+    const rows = await this.db.inferenceGroupRecord.findMany({
+      where: { workspaceId: this.workspaceId },
+      orderBy: { createdAt: "desc" },
+      select: { payload: true },
+    });
+    return rows.map((row) => decode<InferenceGroup>(row.payload));
+  }
+  async deleteInferenceGroup(id: string): Promise<boolean> {
+    const result = await this.db.inferenceGroupRecord.deleteMany({
+      where: { workspaceId: this.workspaceId, id },
+    });
+    return result.count > 0;
   }
 
-  listInferenceGroups(): InferenceGroup[] {
-    const rows = this.database.prepare("SELECT payload FROM inference_groups ORDER BY created_at DESC").all() as Array<{ payload: string }>;
-    return rows.map((row) => JSON.parse(row.payload) as InferenceGroup);
-  }
-
-  deleteInferenceGroup(id: string): boolean {
-    return this.database.prepare("DELETE FROM inference_groups WHERE id = ?").run(id).changes > 0;
-  }
-
-  saveInferenceGroupBinding(binding: InferenceGroupBinding): InferenceGroupBinding {
-    const previous = this.getInferenceGroupBindingForAgent(binding.agentId);
+  async saveInferenceGroupBinding(binding: InferenceGroupBinding): Promise<InferenceGroupBinding> {
+    const previous = await this.getInferenceGroupBindingForAgent(binding.agentId);
     if (previous && previous.id !== binding.id && !previous.revokedAt) {
-      const previousAgent = this.get(previous.agentId);
-      const previousGroup = this.getInferenceGroup(previous.inferenceGroupId);
-      this.costAnalytics().saveAttribution({
-        id: `binding:${previous.id}`,
-        workspaceId: process.env.TALI_WORKSPACE_ID ?? "default",
-        environmentId: process.env.TALI_ENVIRONMENT_ID ?? "production",
-        instanceId: previous.agentId,
-        instanceName: previousAgent?.name ?? previous.agentId,
-        liteLLMVirtualKeyId: costKeyIdentifier(previous.liteLLMTokenId),
-        hashedToken: previous.keyFingerprint,
-        virtualKeyAlias: previous.keyAlias,
-        liteLLMUserId: previous.agentId,
-        ...(previous.liteLLMTeamId ? { liteLLMTeamId: previous.liteLLMTeamId } : {}),
-        ...(previousGroup?.gatewayId ? { providerAccountId: previousGroup.gatewayId } : {}),
-        validFrom: previous.createdAt,
-        validTo: binding.createdAt,
-        createdAt: previous.createdAt,
-        updatedAt: binding.createdAt,
-      });
+      const previousAgent = await this.get(previous.agentId);
+      await this.saveBindingAttribution(
+        { ...previous, revokedAt: binding.createdAt },
+        previousAgent,
+      );
     }
-    this.database.prepare(
-      `INSERT INTO inference_group_bindings (id, inference_group_id, agent_id, payload, created_at)
-       VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET payload = excluded.payload`,
-    ).run(binding.id, binding.inferenceGroupId, binding.agentId, JSON.stringify(binding), binding.createdAt);
-    const agent = this.get(binding.agentId);
-    const group = this.getInferenceGroup(binding.inferenceGroupId);
-    this.costAnalytics().saveAttribution({
+    await this.db.inferenceGroupBindingRecord.upsert({
+      where: { workspaceId_id: { workspaceId: this.workspaceId, id: binding.id } },
+      create: {
+        workspaceId: this.workspaceId,
+        id: binding.id,
+        inferenceGroupId: binding.inferenceGroupId,
+        agentId: binding.agentId,
+        payload: jsonInput(binding),
+        createdAt: binding.createdAt,
+      },
+      update: { payload: jsonInput(binding) },
+    });
+    await this.saveBindingAttribution(binding, await this.get(binding.agentId));
+    return binding;
+  }
+  private async saveBindingAttribution(binding: InferenceGroupBinding, agent?: Agent): Promise<void> {
+    const group = await this.getInferenceGroup(binding.inferenceGroupId);
+    await this.costs.saveAttribution({
       id: `binding:${binding.id}`,
-      workspaceId: process.env.TALI_WORKSPACE_ID ?? "default",
+      workspaceId: this.workspaceId,
       environmentId: process.env.TALI_ENVIRONMENT_ID ?? "production",
       instanceId: binding.agentId,
       instanceName: agent?.name ?? binding.agentId,
@@ -679,77 +579,79 @@ export class AgentStore {
       validFrom: binding.createdAt,
       ...(binding.revokedAt ? { validTo: binding.revokedAt } : {}),
       createdAt: binding.createdAt,
-      updatedAt: binding.revokedAt ?? binding.createdAt,
+      updatedAt: binding.revokedAt ?? agent?.updatedAt ?? binding.createdAt,
     });
-    return binding;
   }
-
-  getInferenceGroupBindingForAgent(agentId: string): InferenceGroupBinding | undefined {
-    const row = this.database.prepare(
-      "SELECT payload FROM inference_group_bindings WHERE agent_id = ? ORDER BY created_at DESC LIMIT 1",
-    ).get(agentId) as { payload: string } | undefined;
-    return row ? JSON.parse(row.payload) as InferenceGroupBinding : undefined;
+  async getInferenceGroupBindingForAgent(agentId: string): Promise<InferenceGroupBinding | undefined> {
+    const row = await this.db.inferenceGroupBindingRecord.findFirst({
+      where: { workspaceId: this.workspaceId, agentId },
+      orderBy: { createdAt: "desc" },
+      select: { payload: true },
+    });
+    return row ? decode<InferenceGroupBinding>(row.payload) : undefined;
   }
-
-  listInferenceGroupBindings(inferenceGroupId: string): InferenceGroupBinding[] {
-    const rows = this.database.prepare(
-      "SELECT payload FROM inference_group_bindings WHERE inference_group_id = ? ORDER BY created_at DESC",
-    ).all(inferenceGroupId) as Array<{ payload: string }>;
-    return rows.map((row) => JSON.parse(row.payload) as InferenceGroupBinding);
+  async listInferenceGroupBindings(inferenceGroupId: string): Promise<InferenceGroupBinding[]> {
+    const rows = await this.db.inferenceGroupBindingRecord.findMany({
+      where: { workspaceId: this.workspaceId, inferenceGroupId },
+      orderBy: { createdAt: "desc" },
+      select: { payload: true },
+    });
+    return rows.map((row) => decode<InferenceGroupBinding>(row.payload));
   }
-
-  appendInferenceGroupAudit(event: InferenceGroupAuditEvent): InferenceGroupAuditEvent {
-    this.database.prepare(
-      "INSERT INTO inference_group_audit (event_id, inference_group_id, payload, created_at) VALUES (?, ?, ?, ?)",
-    ).run(event.eventId, event.inferenceGroupId, JSON.stringify(event), event.timestamp);
+  async appendInferenceGroupAudit(event: InferenceGroupAuditEvent): Promise<InferenceGroupAuditEvent> {
+    await this.db.inferenceGroupAuditRecord.create({
+      data: {
+        workspaceId: this.workspaceId,
+        eventId: event.eventId,
+        inferenceGroupId: event.inferenceGroupId,
+        payload: jsonInput(event),
+        createdAt: event.timestamp,
+      },
+    });
     return event;
   }
-
-  listInferenceGroupAudit(inferenceGroupId: string): InferenceGroupAuditEvent[] {
-    const rows = this.database.prepare(
-      "SELECT payload FROM inference_group_audit WHERE inference_group_id = ? ORDER BY created_at DESC",
-    ).all(inferenceGroupId) as Array<{ payload: string }>;
-    return rows.map((row) => JSON.parse(row.payload) as InferenceGroupAuditEvent);
+  async listInferenceGroupAudit(inferenceGroupId: string): Promise<InferenceGroupAuditEvent[]> {
+    const rows = await this.db.inferenceGroupAuditRecord.findMany({
+      where: { workspaceId: this.workspaceId, inferenceGroupId },
+      orderBy: { createdAt: "desc" },
+      select: { payload: true },
+    });
+    return rows.map((row) => decode<InferenceGroupAuditEvent>(row.payload));
   }
 
-  saveSandboxPolicy(policy: SandboxPolicy): SandboxPolicy {
-    this.database
-      .prepare(
-        `INSERT INTO sandbox_policies (id, payload, created_at)
-         VALUES (?, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET payload = excluded.payload`,
-      )
-      .run(policy.id, JSON.stringify(policy), policy.createdAt ?? new Date().toISOString());
+  async saveSandboxPolicy(policy: SandboxPolicy): Promise<SandboxPolicy> {
+    const createdAt = policy.createdAt ?? new Date().toISOString();
+    await this.db.sandboxPolicyRecord.upsert({
+      where: { workspaceId_id: { workspaceId: this.workspaceId, id: policy.id } },
+      create: {
+        workspaceId: this.workspaceId,
+        id: policy.id,
+        payload: jsonInput(policy),
+        createdAt,
+      },
+      update: { payload: jsonInput(policy) },
+    });
     return policy;
   }
-
-  getSandboxPolicy(id: string): SandboxPolicy | undefined {
-    const row = this.database
-      .prepare("SELECT payload FROM sandbox_policies WHERE id = ?")
-      .get(id) as { payload: string } | undefined;
-    return row ? parseSandboxPolicy(row.payload) : undefined;
-  }
-
-  listSandboxPolicies(): SandboxPolicy[] {
-    return (
-      this.database
-        .prepare("SELECT payload FROM sandbox_policies ORDER BY created_at DESC")
-        .all() as Array<{ payload: string }>
-    ).map((row) => parseSandboxPolicy(row.payload));
-  }
-
-  deleteSandboxPolicy(id: string): void {
-    this.database.prepare("DELETE FROM sandbox_policies WHERE id = ?").run(id);
-  }
-
-  isSandboxPolicyInUse(id: string): boolean {
-    const rows = this.database.prepare("SELECT payload FROM agents").all() as Array<{
-      payload: string;
-    }>;
-    return rows.some((row) => {
-      const agent = JSON.parse(row.payload) as Partial<Agent>;
-      return agent.schemaVersion === 1 && agent.policyId === id;
+  async getSandboxPolicy(id: string): Promise<SandboxPolicy | undefined> {
+    const row = await this.db.sandboxPolicyRecord.findUnique({
+      where: { workspaceId_id: { workspaceId: this.workspaceId, id } },
+      select: { payload: true },
     });
+    return row ? decode<SandboxPolicy>(row.payload) : undefined;
   }
-
+  async listSandboxPolicies(): Promise<SandboxPolicy[]> {
+    const rows = await this.db.sandboxPolicyRecord.findMany({
+      where: { workspaceId: this.workspaceId },
+      orderBy: { createdAt: "desc" },
+      select: { payload: true },
+    });
+    return rows.map((row) => decode<SandboxPolicy>(row.payload));
+  }
+  async deleteSandboxPolicy(id: string): Promise<void> {
+    await this.db.sandboxPolicyRecord.deleteMany({ where: { workspaceId: this.workspaceId, id } });
+  }
+  async isSandboxPolicyInUse(id: string): Promise<boolean> {
+    return (await this.list()).some((agent) => agent.policyId === id);
+  }
 }

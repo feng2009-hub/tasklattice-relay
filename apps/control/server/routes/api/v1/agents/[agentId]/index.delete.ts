@@ -12,7 +12,7 @@ export default defineHandler(async (event) => {
   }
   try {
     const id = z.string().uuid().parse(event.context.params?.agentId);
-    const destroyed = await (await getAgentService()).destroy(id);
+    const destroyed = await (await getAgentService(event.req)).destroy(id);
     return destroyed
       ? jsonResponse(
           { id, status: "DESTROYED", previousStatus: "DESTROYING" },

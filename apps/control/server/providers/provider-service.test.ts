@@ -1,9 +1,5 @@
-import { randomUUID } from "node:crypto";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AgentStore } from "../data/agent-store";
+import { createTestStore } from "../test/store";
 import type { LiteLLMAdminClient } from "./litellm-client";
 import type { ConnectionValidationResult, ProviderValidator } from "./provider-validator";
 import { ProviderService } from "./provider-service";
@@ -33,32 +29,6 @@ function liteLLM(): LiteLLMAdminClient {
 
 describe("ProviderService", () => {
   afterEach(() => vi.unstubAllGlobals());
-  it("allows new Provider Accounts to coexist with legacy Provider Connection rows", async () => {
-    const path = join(tmpdir(), `tasklattice-provider-${randomUUID()}.db`);
-    const store = new AgentStore(path);
-    const database = new DatabaseSync(path);
-    database.prepare(
-      "INSERT INTO provider_connections (id, payload, api_key, created_at) VALUES (?, ?, ?, ?)",
-    ).run("legacy", "{}", "legacy-secret", new Date().toISOString());
-    database.close();
-    const validator: ProviderValidator = {
-      validateConnection: vi.fn(async () => connectionResult),
-      validateModel: vi.fn(),
-    };
-    const service = new ProviderService(store, validator, liteLLM());
-
-    expect(service.listAccounts()).toEqual([]);
-    expect(service.listModels()).toEqual([]);
-    await expect(service.registerAccount({
-      name: "DeepSeek production",
-      presetId: "deepseek",
-      endpoint: "https://api.deepseek.com/v1",
-      apiKey: "provider-secret-value",
-      complianceDomain: "GLOBAL",
-    })).resolves.toMatchObject({ status: "VALIDATED" });
-    expect(service.listAccounts()).toHaveLength(1);
-  });
-
   it("stores one credential and automatically configures exposed catalog models", async () => {
     const validator: ProviderValidator = {
       validateConnection: vi.fn(async () => connectionResult),
@@ -68,7 +38,7 @@ describe("ProviderService", () => {
         models: [input.modelId],
       })),
     };
-    const store = new AgentStore();
+    const store = createTestStore();
     const litellm = liteLLM();
     const service = new ProviderService(store, validator, litellm);
     const account = await service.registerAccount({
@@ -80,18 +50,18 @@ describe("ProviderService", () => {
     });
     expect(account.status).toBe("VALIDATED");
     expect(account.discoveredModels).toContain("deepseek-v4-flash");
-    expect(service.listModels(account.id)).toEqual(expect.arrayContaining([
+    expect(await service.listModels(account.id)).toEqual(expect.arrayContaining([
       expect.objectContaining({ modelId: "deepseek-v4-pro", status: "VALIDATED" }),
       expect.objectContaining({ modelId: "deepseek-v4-flash", status: "VALIDATED" }),
     ]));
-    expect(service.listModels(account.id)).toHaveLength(2);
+    expect(await service.listModels(account.id)).toHaveLength(2);
     expect(litellm.registerModel).toHaveBeenCalledTimes(2);
-    expect(JSON.parse(store.getProviderAccountCredential(account.id)!)).toMatchObject({
+    expect(JSON.parse((await store.getProviderAccountCredential(account.id))!)).toMatchObject({
       version: 1,
       provider: "deepseek",
       credentials: { apiKey: "provider-secret-value" },
     });
-    expect(JSON.stringify(service.listAccounts())).not.toContain("provider-secret-value");
+    expect(JSON.stringify(await service.listAccounts())).not.toContain("provider-secret-value");
   });
 
   it("persists exactly one validated LLM as the global default", async () => {
@@ -99,7 +69,7 @@ describe("ProviderService", () => {
       validateConnection: vi.fn(async () => connectionResult),
       validateModel: vi.fn(),
     };
-    const service = new ProviderService(new AgentStore(), validator, liteLLM());
+    const service = new ProviderService(createTestStore(), validator, liteLLM());
     const account = await service.registerAccount({
       name: "DeepSeek defaults",
       presetId: "deepseek",
@@ -107,15 +77,15 @@ describe("ProviderService", () => {
       apiKey: "provider-secret-value",
       complianceDomain: "GLOBAL",
     });
-    const [first, second] = service.listModels(account.id);
+    const [first, second] = await service.listModels(account.id);
 
-    expect(service.markModelAsDefault(first!.id)).toMatchObject({ id: first!.id, isDefault: true });
-    expect(service.listModels().filter((model) => model.isDefault)).toEqual([
+    expect(await service.markModelAsDefault(first!.id)).toMatchObject({ id: first!.id, isDefault: true });
+    expect((await service.listModels()).filter((model) => model.isDefault)).toEqual([
       expect.objectContaining({ id: first!.id }),
     ]);
 
-    expect(service.markModelAsDefault(second!.id)).toMatchObject({ id: second!.id, isDefault: true });
-    expect(service.listModels().filter((model) => model.isDefault)).toEqual([
+    expect(await service.markModelAsDefault(second!.id)).toMatchObject({ id: second!.id, isDefault: true });
+    expect((await service.listModels()).filter((model) => model.isDefault)).toEqual([
       expect.objectContaining({ id: second!.id }),
     ]);
   });
@@ -125,7 +95,7 @@ describe("ProviderService", () => {
       validateConnection: vi.fn(async () => connectionResult),
       validateModel: vi.fn(),
     };
-    const store = new AgentStore();
+    const store = createTestStore();
     const litellm = liteLLM();
     const service = new ProviderService(store, validator, litellm);
     const account = await service.registerAccount({
@@ -138,8 +108,8 @@ describe("ProviderService", () => {
 
     await expect(service.deleteAccount(account.id)).resolves.toBe(true);
     expect(litellm.deleteModel).toHaveBeenCalledTimes(2);
-    expect(service.listAccounts()).toEqual([]);
-    expect(service.listModels()).toEqual([]);
+    expect(await service.listAccounts()).toEqual([]);
+    expect(await service.listModels()).toEqual([]);
   });
 
   it("does not persist a rejected Endpoint + key", async () => {
@@ -147,7 +117,7 @@ describe("ProviderService", () => {
       validateConnection: vi.fn(async () => { throw new Error("Provider rejected the credential."); }),
       validateModel: vi.fn(),
     };
-    const service = new ProviderService(new AgentStore(), validator, liteLLM());
+    const service = new ProviderService(createTestStore(), validator, liteLLM());
     await expect(service.registerAccount({
       name: "DeepSeek rejected",
       presetId: "deepseek",
@@ -155,7 +125,7 @@ describe("ProviderService", () => {
       apiKey: "provider-secret-value",
       complianceDomain: "GLOBAL",
     })).rejects.toThrow("rejected");
-    expect(service.listAccounts()).toEqual([]);
+    expect(await service.listAccounts()).toEqual([]);
   });
 
   it("keeps a validated connection when one selected model fails", async () => {
@@ -167,7 +137,7 @@ describe("ProviderService", () => {
     vi.mocked(litellm.probeModel)
       .mockResolvedValueOnce(undefined)
       .mockRejectedValueOnce(new Error("Embedding deployment is unavailable."));
-    const service = new ProviderService(new AgentStore(), undefined, litellm);
+    const service = new ProviderService(createTestStore(), undefined, litellm);
     const result = await service.createConnection({
       connection: {
         provider: "openai",
@@ -185,7 +155,7 @@ describe("ProviderService", () => {
     expect(result.account.status).toBe("DEGRADED");
     expect(result.models).toHaveLength(1);
     expect(result.failures).toEqual([expect.objectContaining({ message: "Embedding deployment is unavailable." })]);
-    expect(service.listAccounts()).toHaveLength(1);
+    expect(await service.listAccounts()).toHaveLength(1);
     expect(litellm.deleteModel).toHaveBeenCalledWith("tali/account/text-embedding-3-large");
   });
 });

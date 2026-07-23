@@ -1,8 +1,8 @@
 import { z } from "zod";
 
 const corsHeaders = {
-  "access-control-allow-headers": "authorization, content-type",
-  "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "access-control-allow-headers": "authorization, content-type, x-workspace-id",
+  "access-control-allow-methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
   "access-control-allow-origin": process.env.TALI_CORS_ORIGIN ?? "*",
 };
 
@@ -27,7 +27,7 @@ export function errorResponse(error: unknown): Response {
   const message = error instanceof Error ? error.message : "Unexpected error.";
   const status = /not found/i.test(message)
     ? 404
-    : /access denied/i.test(message)
+    : /access denied|do not have permission/i.test(message)
       ? 403
       : /Invalid |must be|before end_time/i.test(message)
         ? 400

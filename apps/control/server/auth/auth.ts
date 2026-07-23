@@ -36,7 +36,7 @@ interface AuthConfig {
   };
 }
 
-interface AuthPayload {
+export interface AuthPayload {
   exp: number;
   iat: number;
   iss: string;

@@ -128,7 +128,7 @@ export const openApiDocument = {
     "/extensions": {
       get: {
         operationId: "getExtensionCatalog",
-        summary: "Read the SQLite-backed extension and Agent Role catalog",
+        summary: "Read the PostgreSQL-backed extension and Agent Role catalog",
         responses: {
           "200": { description: "Extension catalog", ...json({ $ref: "#/components/schemas/ExtensionCatalog" }) },
         },

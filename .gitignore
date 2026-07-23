@@ -5,5 +5,6 @@ dist/
 .tanstack/
 .DS_Store
 coverage/
+apps/control/server/generated/
 *.log
 .env

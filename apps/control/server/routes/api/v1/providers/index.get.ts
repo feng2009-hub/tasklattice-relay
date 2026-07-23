@@ -11,7 +11,7 @@ export default defineHandler(async (event) => {
   }
   try {
     return jsonResponse({
-      data: (await getProviderService()).listAccounts(),
+      data: await (await getProviderService(event.req)).listAccounts(),
     });
   } catch (error) {
     return errorResponse(error);

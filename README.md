@@ -12,7 +12,11 @@ Browser (TanStack Start + shadcn/ui)
                   v
 TaskLattice Control API ---- LiteLLM ---- Provider API
           |                    |
-          |                    `---- PostgreSQL
+          `------.      .------'
+                 v      v
+          shared PostgreSQL instance
+          (`tasklattice` + `public` schemas)
+          |
           v
 TaskLattice OpenShell Runner
           |
@@ -87,7 +91,7 @@ resolves to that exact value.
 
 | Component                | Released image or version                                       | Purpose                                            |
 | ------------------------ | --------------------------------------------------------------- | -------------------------------------------------- |
-| TaskLattice control      | `ghcr.io/sn0rt/tasklattice-control:<release>`                   | UI, REST/WebSocket API, and SQLite control data    |
+| TaskLattice control      | `ghcr.io/sn0rt/tasklattice-control:<release>`                   | UI, REST/WebSocket API, and PostgreSQL control data |
 | Runtime runner           | `ghcr.io/sn0rt/tasklattice-openshell-runner:<release>`          | OpenShell sandbox lifecycle and terminal relay     |
 | LiteLLM                  | `ghcr.io/sn0rt/tasklattice-litellm:<release>`                   | Model gateway, virtual keys, and spend attribution |
 | OpenClaw sandbox         | `ghcr.io/sn0rt/tasklattice-nemoclaw-sandbox:<release>`          | Default Agent sandbox                              |
@@ -138,8 +142,11 @@ OpenShell Sandbox with its own workspace PVC.
 
 ## Persistence and uninstall
 
-The control SQLite database, LiteLLM PostgreSQL data, OpenShell gateway data,
-and Agent workspaces use PVCs. Restarting Pods does not reset that state.
+The control plane and LiteLLM share one PostgreSQL database instance. Control
+data is isolated in the `tasklattice` schema while LiteLLM retains its `public`
+schema. OpenShell gateway data and Agent workspaces use their own PVCs.
+Restarting Pods does not reset that state. A control init container applies
+Prisma SQL migrations before each rollout.
 
 Delete active Instances and back up required data before uninstalling:
 

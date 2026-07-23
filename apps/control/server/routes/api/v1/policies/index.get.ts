@@ -6,7 +6,7 @@ import { getPolicyService } from "../../../../services";
 export default defineHandler(async (event) => {
   try { requireAuth(event.req); } catch (error) { return unauthorizedResponse(error); }
   try {
-    const catalog = (await getPolicyService()).list();
+    const catalog = await (await getPolicyService(event.req)).list();
     return jsonResponse({
       defaultPolicyId: catalog.defaultPolicyId,
       templatePolicyYaml: catalog.templatePolicyYaml,

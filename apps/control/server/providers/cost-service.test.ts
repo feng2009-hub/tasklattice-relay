@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { AgentStore } from "../data/agent-store";
+import { createTestStore } from "../test/store";
 import type { LiteLLMAdminClient, LiteLLMSpendLog } from "./litellm-client";
 import { CostService, type CostAnalyticsQuery } from "./cost-service";
 
@@ -96,7 +97,7 @@ function log(
 
 describe("CostService", () => {
   it("deduplicates request IDs and keeps Summary, Ranking, and shares on one fact set", async () => {
-    const store = new AgentStore();
+    const store = createTestStore();
     addAttribution(store, {
       id: "mapping:instance-a",
       instanceId: "instance-a",
@@ -146,7 +147,7 @@ describe("CostService", () => {
   });
 
   it("uses equal comparison periods and preserves key-rotation attribution by validity", async () => {
-    const store = new AgentStore();
+    const store = createTestStore();
     addAttribution(store, {
       id: "mapping:key-old",
       instanceId: "instance-a",
@@ -182,7 +183,7 @@ describe("CostService", () => {
   });
 
   it("fills timezone-local dates and creates a stable Top N plus Others series", async () => {
-    const store = new AgentStore();
+    const store = createTestStore();
     addEndpoint(store);
     addAttribution(store, {
       id: "mapping:a",
@@ -226,7 +227,7 @@ describe("CostService", () => {
   });
 
   it("marks missing prices as unknown instead of silently treating them as priced spend", async () => {
-    const store = new AgentStore();
+    const store = createTestStore();
     const unknown = log("unknown-price", "2026-06-01T12:00:00.000Z", "unknown-key", undefined);
     unknown.model = "custom/unpriced-model";
     unknown.model_group = "unpriced";
@@ -242,7 +243,7 @@ describe("CostService", () => {
     expect(summary.totalSpendUsd).toBe(0);
     expect(summary.unknownCostRequests).toBe(1);
     expect(quality.unknownCostRequests).toBe(1);
-    const [fact] = store.costAnalytics().listFacts({
+    const [fact] = await store.costAnalytics().listFacts({
       startTime: "2026-06-01T00:00:00.000Z",
       endTime: "2026-06-01T23:59:59.999Z",
       workspaceId: "default",

@@ -2,7 +2,7 @@ import { createProviderConnectionSchema } from "@tasklattice/contracts";
 import { defineHandler } from "nitro";
 import { requireAuth, unauthorizedResponse } from "../../../../auth/auth";
 import { errorResponse, jsonResponse } from "../../../../http/responses";
-import { getProviderService } from "../../../../services";
+import { getProviderService, requireWorkspaceRole } from "../../../../services";
 
 export default defineHandler(async (event) => {
   try {
@@ -11,8 +11,9 @@ export default defineHandler(async (event) => {
     return unauthorizedResponse(error);
   }
   try {
+    await requireWorkspaceRole(event.req, ["owner", "admin"]);
     const input = createProviderConnectionSchema.parse(await event.req.json());
-    const result = await (await getProviderService()).createConnection(input);
+    const result = await (await getProviderService(event.req)).createConnection(input);
     return jsonResponse(result, {
       status: 201,
       headers: { location: `/api/v1/providers/${result.account.id}` },

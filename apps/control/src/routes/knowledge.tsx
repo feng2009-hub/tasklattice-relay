@@ -51,14 +51,14 @@ function KnowledgeBase() {
     onSuccess: async (source, variables) => {
       setSelectedId(source.id);
       setEditing(false);
-      setNotice(variables.id ? "Knowledge source saved to SQLite." : "Knowledge source added to SQLite.");
+      setNotice(variables.id ? "Knowledge source saved to PostgreSQL." : "Knowledge source added to PostgreSQL.");
       await queryClient.invalidateQueries({ queryKey: ["extension-catalog"] });
     },
   });
   const checkSource = useMutation({
     mutationFn: (source: KnowledgeSourceDefinition) => api.updateKnowledgeSource(source.id, { ...knowledgeSourceInput(source), status: "READY" }),
     onSuccess: async (_source, input) => {
-      setNotice(`Retrieval check for “${testQuery.trim()}” recorded in SQLite with Top ${input.topK}. Remote retrieval remains simulated in development.`);
+      setNotice(`Retrieval check for “${testQuery.trim()}” recorded in PostgreSQL with Top ${input.topK}. Remote retrieval remains simulated in development.`);
       await queryClient.invalidateQueries({ queryKey: ["extension-catalog"] });
     },
   });
@@ -66,7 +66,7 @@ function KnowledgeBase() {
     mutationFn: (id: string) => api.deleteExtension("knowledge-sources", id),
     onSuccess: async () => {
       setSelectedId("");
-      setNotice("Knowledge source removed from SQLite.");
+      setNotice("Knowledge source removed from PostgreSQL.");
       await queryClient.invalidateQueries({ queryKey: ["extension-catalog"] });
     },
   });
@@ -95,8 +95,8 @@ function KnowledgeBase() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Knowledge Base" description="Manage retrieval connection metadata stored in SQLite; indexed corpora remain in their source systems." actions={<Button className="h-11" onClick={() => openForm()}><Plus /> Add Endpoint</Button>} />
-      {catalog.isPending ? <p className="border p-4 text-sm text-muted-foreground">Loading Knowledge sources from SQLite…</p> : null}
+      <PageHeader title="Knowledge Base" description="Manage retrieval connection metadata stored in PostgreSQL; indexed corpora remain in their source systems." actions={<Button className="h-11" onClick={() => openForm()}><Plus /> Add Endpoint</Button>} />
+      {catalog.isPending ? <p className="border p-4 text-sm text-muted-foreground">Loading Knowledge sources from PostgreSQL…</p> : null}
       {catalog.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">{catalog.error.message}</p> : null}
       {saveSource.error || checkSource.error || deleteSource.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">{(saveSource.error ?? checkSource.error ?? deleteSource.error)?.message}</p> : null}
       {notice ? <p role="status" className="border-l-2 border-primary bg-muted/40 px-4 py-3 text-sm">{notice}</p> : null}

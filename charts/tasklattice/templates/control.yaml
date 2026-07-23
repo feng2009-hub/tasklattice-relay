@@ -19,7 +19,6 @@ spec:
         {{- include "tasklattice.selectorLabels" (dict "root" . "component" $component) | nindent 8 }}
       annotations:
         checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
-        checksum/policies: {{ include (print $.Template.BasePath "/policy-configmap.yaml") . | sha256sum }}
         {{- with .Values.global.rolloutRevision }}
         tasklattice.ai/rollout-revision: {{ . | quote }}
         {{- end }}
@@ -36,6 +35,30 @@ spec:
         runAsGroup: 10001
         seccompProfile:
           type: RuntimeDefault
+      initContainers:
+        - name: migrate-control-database
+          image: {{ include "tasklattice.image" (dict "root" . "image" .Values.images.control) }}
+          imagePullPolicy: {{ .Values.images.control.pullPolicy }}
+          command:
+            - npm
+            - run
+            - db:migrate
+            - --workspace
+            - "@tasklattice/control"
+          env:
+            - name: TALI_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tasklattice.secretName" . }}
+                  key: database-url
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
       containers:
         - name: control
           image: {{ include "tasklattice.image" (dict "root" . "image" .Values.images.control) }}
@@ -46,8 +69,11 @@ spec:
           env:
             - name: PORT
               value: "8080"
-            - name: DATABASE_PATH
-              value: /data/tasklattice.db
+            - name: TALI_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tasklattice.secretName" . }}
+                  key: database-url
             - name: NEMOCLAW_RUNNER_URL
               value: {{ printf "http://%s:9090" (include "tasklattice.componentName" (dict "root" . "component" "runner")) | quote }}
             - name: NEMOCLAW_RUNNER_TOKEN
@@ -66,10 +92,6 @@ spec:
                 secretKeyRef:
                   name: {{ include "tasklattice.secretName" . }}
                   key: litellm-master-key
-            - name: TALI_BUILTIN_POLICIES_PATH
-              value: /etc/tasklattice/policies/catalog.yaml
-            - name: TALI_EXTENSION_CATALOG_SEED
-              value: {{ .Values.control.extensionCatalogSeed | quote }}
             - name: TALI_AUTH_MODE
               value: {{ .Values.auth.mode | quote }}
             - name: TALI_AUTH_JWT_SECRET
@@ -130,25 +152,10 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
-            - name: data
-              mountPath: /data
-            - name: policies
-              mountPath: /etc/tasklattice/policies
-              readOnly: true
       volumes:
         - name: tmp
           emptyDir:
             sizeLimit: 32Mi
-        - name: data
-          {{- if .Values.control.persistence.enabled }}
-          persistentVolumeClaim:
-            claimName: {{ default (printf "%s-data" $name) .Values.control.persistence.existingClaim }}
-          {{- else }}
-          emptyDir: {}
-          {{- end }}
-        - name: policies
-          configMap:
-            name: {{ include "tasklattice.componentName" (dict "root" . "component" "policies") }}
 ---
 apiVersion: v1
 kind: Service
@@ -168,20 +175,3 @@ spec:
     - name: http
       port: {{ .Values.control.service.port }}
       targetPort: http
-{{- if and .Values.control.persistence.enabled (not .Values.control.persistence.existingClaim) }}
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: {{ $name }}-data
-  labels:
-    {{- include "tasklattice.labels" . | nindent 4 }}
-spec:
-  accessModes: ["ReadWriteOnce"]
-  {{- with .Values.control.persistence.storageClass }}
-  storageClassName: {{ . | quote }}
-  {{- end }}
-  resources:
-    requests:
-      storage: {{ .Values.control.persistence.size }}
-{{- end }}

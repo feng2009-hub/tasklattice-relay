@@ -1,7 +1,7 @@
 import { defineHandler } from "nitro";
 import { requireAuth, unauthorizedResponse } from "../../../../../auth/auth";
 import { errorResponse, jsonResponse } from "../../../../../http/responses";
-import { getProviderService } from "../../../../../services";
+import { getProviderService, requireWorkspaceRole } from "../../../../../services";
 
 export default defineHandler(async (event) => {
   try {
@@ -10,6 +10,7 @@ export default defineHandler(async (event) => {
     return unauthorizedResponse(error);
   }
   try {
+    await requireWorkspaceRole(event.req, ["owner", "admin"]);
     const providerId = event.context.params?.providerId;
     if (!providerId)
       return jsonResponse(
@@ -17,7 +18,7 @@ export default defineHandler(async (event) => {
         { status: 400 },
       );
     const connection = await (
-      await getProviderService()
+      await getProviderService(event.req)
     ).revalidateAccount(providerId);
     if (!connection)
       return jsonResponse(

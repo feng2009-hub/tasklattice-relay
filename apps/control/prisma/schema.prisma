@@ -1,0 +1,445 @@
+generator client {
+  provider   = "prisma-client"
+  output     = "../server/generated/prisma"
+  engineType = "client"
+  runtime    = "nodejs"
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["tasklattice"]
+}
+
+model User {
+  id              String   @id
+  username        String   @unique
+  email           String   @unique
+  displayName     String   @map("display_name")
+  authProvider    String   @default("local") @map("auth_provider")
+  externalSubject String?  @map("external_subject")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  createdWorkspaces Workspace[]           @relation("WorkspaceCreator")
+  memberships       WorkspaceMember[]
+  invitations       WorkspaceInvitation[] @relation("InvitationCreator")
+
+  @@map("users")
+  @@schema("tasklattice")
+}
+
+model Workspace {
+  id        String   @id
+  name      String
+  type      String
+  avatar    String?
+  createdBy String   @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  creator             User                             @relation("WorkspaceCreator", fields: [createdBy], references: [id])
+  members             WorkspaceMember[]
+  invitations         WorkspaceInvitation[]
+  agents              AgentRecord[]
+  providerAccounts    ProviderAccountRecord[]
+  modelDeployments    ModelDeploymentRecord[]
+  agentCostKeys       AgentCostKey[]
+  inferenceGateways   InferenceGatewayRecord[]
+  inferenceGroups     InferenceGroupRecord[]
+  inferenceBindings   InferenceGroupBindingRecord[]
+  inferenceAudit      InferenceGroupAuditRecord[]
+  sandboxPolicies     SandboxPolicyRecord[]
+  skills              ExtensionSkillRecord[]
+  mcpServers          ExtensionMcpServerRecord[]
+  knowledgeSources    ExtensionKnowledgeSourceRecord[]
+  specializations     AgentSpecializationRecord[]
+  costAttributions    CostAttributionMappingRecord[]
+  modelEndpointMaps   ModelEndpointMappingRecord[]
+  usageFacts          ModelUsageFactRecord[]
+  usageObservations   ModelUsageFactObservation[]
+  usageDaily          ModelUsageDailyRecord[]
+  costSyncCheckpoints CostSyncCheckpointRecord[]
+
+  @@map("workspaces")
+  @@schema("tasklattice")
+}
+
+model WorkspaceMember {
+  workspaceId String   @map("workspace_id")
+  userId      String   @map("user_id")
+  role        String
+  joinedAt    DateTime @default(now()) @map("joined_at") @db.Timestamptz(6)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, userId])
+  @@map("workspace_members")
+  @@schema("tasklattice")
+}
+
+model WorkspaceInvitation {
+  id          String   @id
+  workspaceId String   @map("workspace_id")
+  email       String
+  role        String
+  invitedBy   String   @map("invited_by")
+  status      String   @default("pending")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  inviter   User      @relation("InvitationCreator", fields: [invitedBy], references: [id])
+
+  @@unique([workspaceId, email])
+  @@map("workspace_invitations")
+  @@schema("tasklattice")
+}
+
+model AgentRecord {
+  workspaceId String    @map("workspace_id")
+  id          String
+  payload     Json
+  createdAt   DateTime  @map("created_at") @db.Timestamptz(6)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, id])
+  @@map("agents")
+  @@schema("tasklattice")
+}
+
+model ProviderAccountRecord {
+  workspaceId       String                  @map("workspace_id")
+  id                String
+  payload           Json
+  credentialPayload String                  @map("credential_payload")
+  createdAt         DateTime                @map("created_at") @db.Timestamptz(6)
+  workspace         Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  modelDeployments  ModelDeploymentRecord[]
+
+  @@id([workspaceId, id])
+  @@map("provider_accounts")
+  @@schema("tasklattice")
+}
+
+model ModelDeploymentRecord {
+  workspaceId       String                @map("workspace_id")
+  id                String
+  providerAccountId String                @map("provider_account_id")
+  payload           Json
+  createdAt         DateTime              @map("created_at") @db.Timestamptz(6)
+  workspace         Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  providerAccount   ProviderAccountRecord @relation(fields: [workspaceId, providerAccountId], references: [workspaceId, id], onDelete: Cascade)
+
+  @@id([workspaceId, id])
+  @@map("model_deployments")
+  @@schema("tasklattice")
+}
+
+model AgentCostKey {
+  workspaceId String    @map("workspace_id")
+  agentId     String    @map("agent_id")
+  tokenId     String    @map("token_id")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, agentId])
+  @@map("agent_cost_keys")
+  @@schema("tasklattice")
+}
+
+model InferenceGatewayRecord {
+  workspaceId String    @map("workspace_id")
+  id          String
+  payload     Json
+  createdAt   DateTime  @map("created_at") @db.Timestamptz(6)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, id])
+  @@map("inference_gateways")
+  @@schema("tasklattice")
+}
+
+model InferenceGroupRecord {
+  workspaceId String    @map("workspace_id")
+  id          String
+  payload     Json
+  createdAt   DateTime  @map("created_at") @db.Timestamptz(6)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, id])
+  @@map("inference_groups")
+  @@schema("tasklattice")
+}
+
+model InferenceGroupBindingRecord {
+  workspaceId      String    @map("workspace_id")
+  id               String
+  inferenceGroupId String    @map("inference_group_id")
+  agentId          String    @map("agent_id")
+  payload          Json
+  createdAt        DateTime  @map("created_at") @db.Timestamptz(6)
+  workspace        Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, id])
+  @@index([workspaceId, agentId, createdAt(sort: Desc)], map: "inference_group_bindings_agent_idx")
+  @@map("inference_group_bindings")
+  @@schema("tasklattice")
+}
+
+model InferenceGroupAuditRecord {
+  workspaceId      String    @map("workspace_id")
+  eventId          String    @map("event_id")
+  inferenceGroupId String    @map("inference_group_id")
+  payload          Json
+  createdAt        DateTime  @map("created_at") @db.Timestamptz(6)
+  workspace        Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, eventId])
+  @@map("inference_group_audit")
+  @@schema("tasklattice")
+}
+
+model SandboxPolicyRecord {
+  workspaceId String    @map("workspace_id")
+  id          String
+  payload     Json
+  createdAt   DateTime  @map("created_at") @db.Timestamptz(6)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, id])
+  @@map("sandbox_policies")
+  @@schema("tasklattice")
+}
+
+model ExtensionSkillRecord {
+  workspaceId String    @map("workspace_id")
+  id          String
+  payload     Json
+  sortOrder   Int       @default(1000) @map("sort_order")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, id])
+  @@map("extension_skills")
+  @@schema("tasklattice")
+}
+
+model ExtensionMcpServerRecord {
+  workspaceId String    @map("workspace_id")
+  id          String
+  payload     Json
+  sortOrder   Int       @default(1000) @map("sort_order")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, id])
+  @@map("extension_mcp_servers")
+  @@schema("tasklattice")
+}
+
+model ExtensionKnowledgeSourceRecord {
+  workspaceId String    @map("workspace_id")
+  id          String
+  payload     Json
+  sortOrder   Int       @default(1000) @map("sort_order")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, id])
+  @@map("extension_knowledge_sources")
+  @@schema("tasklattice")
+}
+
+model AgentSpecializationRecord {
+  workspaceId String    @map("workspace_id")
+  id          String
+  payload     Json
+  sortOrder   Int       @default(1000) @map("sort_order")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, id])
+  @@map("agent_specializations")
+  @@schema("tasklattice")
+}
+
+model CostAttributionMappingRecord {
+  workspaceId         String    @map("workspace_id")
+  id                  String
+  environmentId       String    @map("environment_id")
+  instanceId          String    @map("instance_id")
+  instanceName        String    @map("instance_name")
+  liteLLMVirtualKeyId String?   @map("litellm_virtual_key_id")
+  hashedToken         String?   @map("hashed_token")
+  virtualKeyAlias     String    @map("virtual_key_alias")
+  liteLLMUserId       String?   @map("litellm_user_id")
+  liteLLMTeamId       String?   @map("litellm_team_id")
+  providerAccountId   String?   @map("provider_account_id")
+  validFrom           DateTime  @map("valid_from") @db.Timestamptz(6)
+  validTo             DateTime? @map("valid_to") @db.Timestamptz(6)
+  createdAt           DateTime  @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @map("updated_at") @db.Timestamptz(6)
+  workspace           Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, id])
+  @@index([workspaceId, liteLLMVirtualKeyId, validFrom, validTo], map: "cost_attribution_key_time_idx")
+  @@index([workspaceId, hashedToken, validFrom, validTo], map: "cost_attribution_hash_time_idx")
+  @@index([workspaceId, liteLLMUserId, validFrom, validTo], map: "cost_attribution_user_time_idx")
+  @@map("cost_attribution_mapping")
+  @@schema("tasklattice")
+}
+
+model ModelEndpointMappingRecord {
+  workspaceId         String    @map("workspace_id")
+  id                  String
+  modelEndpointId     String    @map("model_endpoint_id")
+  modelEndpointName   String    @map("model_endpoint_name")
+  liteLLMModelName    String?   @map("litellm_model_name")
+  liteLLMModelGroup   String?   @map("litellm_model_group")
+  liteLLMModelId      String?   @map("litellm_model_id")
+  provider            String
+  providerAccountId   String    @map("provider_account_id")
+  providerAccountName String    @map("provider_account_name")
+  validFrom           DateTime  @map("valid_from") @db.Timestamptz(6)
+  validTo             DateTime? @map("valid_to") @db.Timestamptz(6)
+  createdAt           DateTime  @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @map("updated_at") @db.Timestamptz(6)
+  workspace           Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, id])
+  @@index([workspaceId, liteLLMModelName, validFrom, validTo], map: "model_endpoint_name_time_idx")
+  @@index([workspaceId, liteLLMModelGroup, validFrom, validTo], map: "model_endpoint_group_time_idx")
+  @@index([workspaceId, liteLLMModelId, validFrom, validTo], map: "model_endpoint_id_time_idx")
+  @@map("model_endpoint_mapping")
+  @@schema("tasklattice")
+}
+
+model ModelUsageFactRecord {
+  workspaceId              String    @map("workspace_id")
+  eventId                  String    @map("event_id")
+  requestId                String    @map("request_id")
+  requestStartTime         DateTime  @map("request_start_time") @db.Timestamptz(6)
+  firstTokenTime           DateTime? @map("first_token_time") @db.Timestamptz(6)
+  responseEndTime          DateTime? @map("response_end_time") @db.Timestamptz(6)
+  usageDate                DateTime  @map("usage_date") @db.Date
+  usageHour                Int       @map("usage_hour") @db.SmallInt
+  environmentId            String    @map("environment_id")
+  instanceId               String?   @map("instance_id")
+  instanceName             String?   @map("instance_name")
+  modelEndpointId          String?   @map("model_endpoint_id")
+  modelEndpointName        String?   @map("model_endpoint_name")
+  providerAccountId        String?   @map("provider_account_id")
+  providerAccountName      String?   @map("provider_account_name")
+  virtualKeyId             String?   @map("virtual_key_id")
+  virtualKeyAlias          String?   @map("virtual_key_alias")
+  liteLLMUserId            String?   @map("litellm_user_id")
+  liteLLMTeamId            String?   @map("litellm_team_id")
+  organizationId           String?   @map("organization_id")
+  endUserId                String?   @map("end_user_id")
+  requestedModel           String    @map("requested_model")
+  resolvedModel            String    @map("resolved_model")
+  modelGroup               String    @map("model_group")
+  provider                 String
+  callType                 String    @map("call_type")
+  promptTokens             BigInt    @map("prompt_tokens")
+  completionTokens         BigInt    @map("completion_tokens")
+  totalTokens              BigInt    @map("total_tokens")
+  cachedInputTokens        BigInt    @map("cached_input_tokens")
+  cacheCreationInputTokens BigInt    @map("cache_creation_input_tokens")
+  reasoningTokens          BigInt    @map("reasoning_tokens")
+  promptCostUsd            Decimal?  @map("prompt_cost_usd")
+  completionCostUsd        Decimal?  @map("completion_cost_usd")
+  totalCostUsd             Decimal?  @map("total_cost_usd")
+  providerReportedCostUsd  Decimal?  @map("provider_reported_cost_usd")
+  liteLLMCalculatedCostUsd Decimal?  @map("litellm_calculated_cost_usd")
+  costStatus               String    @map("cost_status")
+  costSource               String    @map("cost_source")
+  priceVersion             String    @map("price_version")
+  successCount             Int       @map("success_count") @db.SmallInt
+  failureCount             Int       @map("failure_count") @db.SmallInt
+  latencyMs                Int?      @map("latency_ms")
+  timeToFirstTokenMs       Int?      @map("time_to_first_token_ms")
+  httpStatusCode           Int?      @map("http_status_code")
+  errorType                String?   @map("error_type")
+  retryCount               Int       @map("retry_count")
+  cacheHit                 Boolean   @map("cache_hit")
+  fallbackUsed             Boolean   @map("fallback_used")
+  status                   String
+  tags                     Json      @default("[]")
+  metadata                 Json      @default("{}")
+  sourceRecordHash         String    @map("source_record_hash")
+  correctionOfEventId      String?   @map("correction_of_event_id")
+  createdAt                DateTime  @map("created_at") @db.Timestamptz(6)
+  workspace                Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, eventId])
+  @@unique([workspaceId, requestId])
+  @@index([workspaceId, requestStartTime], map: "model_usage_fact_time_idx")
+  @@map("model_usage_fact")
+  @@schema("tasklattice")
+}
+
+model ModelUsageFactObservation {
+  id               BigInt    @id @default(autoincrement())
+  workspaceId      String    @map("workspace_id")
+  eventId          String    @map("event_id")
+  requestId        String    @map("request_id")
+  observedAt       DateTime  @map("observed_at") @db.Timestamptz(6)
+  reason           String
+  sourceRecordHash String    @map("source_record_hash")
+  payload          Json
+  workspace        Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, eventId])
+  @@map("model_usage_fact_observation")
+  @@schema("tasklattice")
+}
+
+model ModelUsageDailyRecord {
+  workspaceId        String    @map("workspace_id")
+  usageDate          DateTime  @map("usage_date") @db.Date
+  timezone           String
+  environmentId      String    @map("environment_id")
+  groupType          String    @map("group_type")
+  groupId            String    @map("group_id")
+  groupName          String    @map("group_name")
+  spendUsd           Decimal   @map("spend_usd")
+  promptTokens       BigInt    @map("prompt_tokens")
+  completionTokens   BigInt    @map("completion_tokens")
+  totalTokens        BigInt    @map("total_tokens")
+  requests           BigInt
+  successfulRequests BigInt    @map("successful_requests")
+  failedRequests     BigInt    @map("failed_requests")
+  activeObjectCount  Int       @map("active_object_count")
+  firstRequestAt     DateTime  @map("first_request_at") @db.Timestamptz(6)
+  lastRequestAt      DateTime  @map("last_request_at") @db.Timestamptz(6)
+  workspace          Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, usageDate, timezone, environmentId, groupType, groupId])
+  @@map("model_usage_daily")
+  @@schema("tasklattice")
+}
+
+model CostSyncCheckpointRecord {
+  workspaceId           String    @map("workspace_id")
+  source                String
+  cursor                String?   @map("cursor_value")
+  lastSuccessfulEndTime DateTime? @map("last_successful_end_time") @db.Timestamptz(6)
+  lastSyncAt            DateTime? @map("last_sync_at") @db.Timestamptz(6)
+  syncLagSeconds        Int?      @map("sync_lag_seconds")
+  processedRecords      BigInt    @default(0) @map("processed_records")
+  failedRecords         BigInt    @default(0) @map("failed_records")
+  duplicateRecords      BigInt    @default(0) @map("duplicate_records")
+  lateArrivingRecords   BigInt    @default(0) @map("late_arriving_records")
+  sourceSpendUsd        Decimal   @default(0) @map("source_spend_usd")
+  workspace             Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, source])
+  @@map("cost_sync_checkpoint")
+  @@schema("tasklattice")
+}

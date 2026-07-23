@@ -12,7 +12,7 @@ export default defineHandler(async (event) => {
   }
   try {
     const agentId = z.string().uuid().parse(event.context.params?.agentId);
-    const events = await (await getAgentService()).getAudit(agentId);
+    const events = await (await getAgentService(event.req)).getAudit(agentId);
     if (!events) return jsonResponse({ error: "Agent not found." }, { status: 404 });
     return jsonResponse({ data: events });
   } catch (error) {

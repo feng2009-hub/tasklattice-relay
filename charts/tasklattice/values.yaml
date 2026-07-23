@@ -38,11 +38,6 @@ control:
     type: LoadBalancer
     port: 80
     annotations: {}
-  persistence:
-    enabled: true
-    size: 1Gi
-    storageClass: ""
-    existingClaim: ""
   resources:
     requests:
       cpu: 50m
@@ -50,7 +45,6 @@ control:
     limits:
       cpu: 500m
       memory: 256Mi
-  extensionCatalogSeed: development
   extraEnv: []
 
 runner:

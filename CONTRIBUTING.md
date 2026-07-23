@@ -187,7 +187,18 @@ NEMOCLAW_RUNNER_MODE=fixture npm run dev:runner
 Terminal 2:
 
 ```sh
-DATABASE_PATH=/tmp/tasklattice.db PORT=18080 npm run dev:control
+docker run --rm --name tasklattice-dev-postgres \
+  -e POSTGRES_PASSWORD=tasklattice \
+  -e POSTGRES_DB=tasklattice \
+  -p 5432:5432 postgres:17-alpine
+```
+
+Terminal 3:
+
+```sh
+export TALI_DATABASE_URL=postgresql://postgres:tasklattice@127.0.0.1:5432/tasklattice
+npm run db:migrate --workspace @tasklattice/control
+PORT=18080 npm run dev:control
 ```
 
 The control console is then available at `http://127.0.0.1:18080`.

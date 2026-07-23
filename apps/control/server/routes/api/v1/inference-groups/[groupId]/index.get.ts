@@ -6,7 +6,7 @@ import { getInferenceGroupService } from "../../../../../services";
 export default defineHandler(async (event) => {
   try { requireAuth(event.req); } catch (error) { return unauthorizedResponse(error); }
   try {
-    const group = (await getInferenceGroupService()).get(decodeURIComponent(event.context.params?.groupId ?? ""));
+    const group = await (await getInferenceGroupService(event.req)).get(decodeURIComponent(event.context.params?.groupId ?? ""));
     return group ? jsonResponse(group) : jsonResponse({ error: "Inference Group not found." }, { status: 404 });
   } catch (error) { return errorResponse(error); }
 });

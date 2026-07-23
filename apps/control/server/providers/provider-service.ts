@@ -120,16 +120,16 @@ export class ProviderService {
     readonly litellm: LiteLLMAdminClient = new LiteLLMClient(),
   ) {}
 
-  listAccounts(): ProviderAccount[] {
+  async listAccounts(): Promise<ProviderAccount[]> {
     return this.store.listProviderAccounts();
   }
 
-  listModels(providerAccountId?: string): ModelDeployment[] {
+  async listModels(providerAccountId?: string): Promise<ModelDeployment[]> {
     return this.store.listModelDeployments(providerAccountId);
   }
 
-  markModelAsDefault(id: string): ModelDeployment | undefined {
-    const deployment = this.store.getModelDeployment(id);
+  async markModelAsDefault(id: string): Promise<ModelDeployment | undefined> {
+    const deployment = await this.store.getModelDeployment(id);
     if (!deployment) return undefined;
     if (deployment.modelType !== "llm" || deployment.status !== "VALIDATED")
       throw new Error("Only a validated LLM deployment can be marked as default.");
@@ -192,18 +192,18 @@ export class ProviderService {
   }
 
   async revalidateAccount(id: string): Promise<ProviderAccount | undefined> {
-    const account = this.store.getProviderAccount(id);
-    const rawCredential = this.store.getProviderAccountCredential(id);
+    const account = await this.store.getProviderAccount(id);
+    const rawCredential = await this.store.getProviderAccountCredential(id);
     if (!account || !rawCredential) return undefined;
     const draft = decodeCredential(account, rawCredential);
     const discovery = await this.discover(draft);
-    const models = this.store.listModelDeployments(id);
+    const models = await this.store.listModelDeployments(id);
     let passed = 0;
     for (const model of models) {
       try {
         await this.litellm.probeModel(model.litellmModelName, model.modelType);
         passed += 1;
-        this.store.saveModelDeployment({
+        await this.store.saveModelDeployment({
           ...model,
           status: "VALIDATED",
           checks: modelChecks("PASS"),
@@ -212,7 +212,7 @@ export class ProviderService {
           updatedAt: new Date().toISOString(),
         });
       } catch (error) {
-        this.store.saveModelDeployment({
+        await this.store.saveModelDeployment({
           ...model,
           isDefault: false,
           status: "FAILED",
@@ -249,10 +249,10 @@ export class ProviderService {
   }
 
   async deleteAccount(id: string): Promise<boolean> {
-    const account = this.store.getProviderAccount(id);
+    const account = await this.store.getProviderAccount(id);
     if (!account) return false;
-    const models = this.store.listModelDeployments(id);
-    const agentIds = this.store.listAgentIdsUsingModelDeployments(models.map((model) => model.id));
+    const models = await this.store.listModelDeployments(id);
+    const agentIds = await this.store.listAgentIdsUsingModelDeployments(models.map((model) => model.id));
     if (agentIds.length)
       throw new Error(
         `Delete the ${agentIds.length} Instance${agentIds.length === 1 ? "" : "s"} using this Provider before deleting the account.`,
@@ -263,8 +263,8 @@ export class ProviderService {
   }
 
   async registerModel(input: CreateModelDeploymentInput): Promise<ModelDeployment> {
-    const account = this.store.getProviderAccount(input.providerAccountId);
-    const rawCredential = this.store.getProviderAccountCredential(input.providerAccountId);
+    const account = await this.store.getProviderAccount(input.providerAccountId);
+    const rawCredential = await this.store.getProviderAccountCredential(input.providerAccountId);
     if (!account || !rawCredential) throw new Error("Provider Account was not found.");
     const draft = decodeCredential(account, rawCredential);
     const supportedTypes = catalog(draft.provider).modelTypes as readonly string[];
@@ -346,7 +346,7 @@ export class ProviderService {
         failures[0]?.message ?? "No selected model could be registered through LiteLLM.",
       );
     const validatedAt = new Date().toISOString();
-    const savedAccount = this.store.saveProviderAccount({
+    const savedAccount = await this.store.saveProviderAccount({
       ...account,
       status: failures.length ? "DEGRADED" : "VALIDATED",
       checks: validationChecks(discovery, failures.length > 0),
@@ -356,7 +356,7 @@ export class ProviderService {
       validatedAt,
       updatedAt: validatedAt,
     }, encodeCredential(input.connection));
-    for (const model of models) this.store.saveModelDeployment(model);
+    for (const model of models) await this.store.saveModelDeployment(model);
     return { account: savedAccount, models, failures };
   }
 

@@ -20,7 +20,7 @@ The Agent is a first-class TaskLattice resource. It is not the sandbox itself: T
 flowchart TD
     USER["User"] --> UI["TanStack Agent UI"]
     UI --> RESOURCE["TaskLattice Agent Resource<br/>identity, prompt, model, desired state"]
-    DB[("SQLite<br/>Agent resource + local test credential")] --> RESOURCE
+    DB[("PostgreSQL · tasklattice schema<br/>workspace-scoped control metadata")] --> RESOURCE
     RESOURCE --> ADAPTER["NemoClaw Runtime Adapter"]
     ADAPTER --> CONTROL["NemoClaw Control"]
     CONTROL --> GATEWAY["OpenShell Gateway"]
@@ -36,7 +36,7 @@ sequenceDiagram
     actor User
     participant UI as TanStack / shadcn UI
     participant API as TaskLattice REST API
-    participant DB as SQLite
+    participant DB as PostgreSQL
     participant Runner as NemoClaw Host Runner
     participant OS as OpenShell Kubernetes runtime
     participant SB as OpenShell sandbox

@@ -48,14 +48,14 @@ function McpServers() {
     onSuccess: async (server, variables) => {
       setSelectedId(server.id);
       setEditing(false);
-      setNotice(variables.id ? "MCP configuration saved to SQLite. Run a connection check next." : "MCP server registered in SQLite.");
+      setNotice(variables.id ? "MCP configuration saved to PostgreSQL. Run a connection check next." : "MCP server registered in PostgreSQL.");
       await queryClient.invalidateQueries({ queryKey: ["extension-catalog"] });
     },
   });
   const checkServer = useMutation({
     mutationFn: (server: McpServerDefinition) => api.updateMcpServer(server.id, { ...mcpInput(server), status: "HEALTHY", tools: server.tools || 12 }),
     onSuccess: async () => {
-      setNotice("Connection check result saved to SQLite. Tool discovery remains simulated in development.");
+      setNotice("Connection check result saved to PostgreSQL. Tool discovery remains simulated in development.");
       await queryClient.invalidateQueries({ queryKey: ["extension-catalog"] });
     },
   });
@@ -63,7 +63,7 @@ function McpServers() {
     mutationFn: (id: string) => api.deleteExtension("mcp-servers", id),
     onSuccess: async () => {
       setSelectedId("");
-      setNotice("MCP server removed from SQLite.");
+      setNotice("MCP server removed from PostgreSQL.");
       await queryClient.invalidateQueries({ queryKey: ["extension-catalog"] });
     },
   });
@@ -97,8 +97,8 @@ function McpServers() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="MCP Servers" description="Manage MCP connection metadata persisted in the workspace SQLite catalog." actions={<Button className="h-11" onClick={() => openForm()}><Plus /> Register MCP</Button>} />
-      {catalog.isPending ? <p className="border p-4 text-sm text-muted-foreground">Loading MCP servers from SQLite…</p> : null}
+      <PageHeader title="MCP Servers" description="Manage MCP connection metadata persisted in the workspace PostgreSQL catalog." actions={<Button className="h-11" onClick={() => openForm()}><Plus /> Register MCP</Button>} />
+      {catalog.isPending ? <p className="border p-4 text-sm text-muted-foreground">Loading MCP servers from PostgreSQL…</p> : null}
       {catalog.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">{catalog.error.message}</p> : null}
       {saveServer.error || checkServer.error || deleteServer.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">{(saveServer.error ?? checkServer.error ?? deleteServer.error)?.message}</p> : null}
       {notice ? <p role="status" className="border-l-2 border-primary bg-muted/40 px-4 py-3 text-sm">{notice}</p> : null}

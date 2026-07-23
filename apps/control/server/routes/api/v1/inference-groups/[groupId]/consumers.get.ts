@@ -6,7 +6,7 @@ import { getInferenceGroupService } from "../../../../../services";
 export default defineHandler(async (event) => {
   try { requireAuth(event.req); } catch (error) { return unauthorizedResponse(error); }
   try {
-    const consumers = (await getInferenceGroupService()).consumers(decodeURIComponent(event.context.params?.groupId ?? ""));
+    const consumers = await (await getInferenceGroupService(event.req)).consumers(decodeURIComponent(event.context.params?.groupId ?? ""));
     return jsonResponse({ data: consumers.map(({ liteLLMTokenId: _secretIdentifier, ...consumer }) => consumer) });
   }
   catch (error) { return errorResponse(error); }

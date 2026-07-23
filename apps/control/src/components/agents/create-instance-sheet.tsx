@@ -158,11 +158,11 @@ export function CreateInstanceSheet({
   };
 
   if (extensionCatalog.isPending)
-    return <EntityFormSheet {...shellProps} footer={<Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>}><div className="flex min-h-72 items-center justify-center border text-sm text-muted-foreground">Loading Roles and extension catalog from SQLite…</div></EntityFormSheet>;
+    return <EntityFormSheet {...shellProps} footer={<Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>}><div className="flex min-h-72 items-center justify-center border text-sm text-muted-foreground">Loading Roles and extension catalog from PostgreSQL…</div></EntityFormSheet>;
   if (extensionCatalog.error)
     return <EntityFormSheet {...shellProps} footer={<Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>}><p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">{extensionCatalog.error.message}</p></EntityFormSheet>;
   if (!specialization)
-    return <EntityFormSheet {...shellProps} footer={<Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>}><p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">The SQLite catalog does not contain an Agent Role.</p></EntityFormSheet>;
+    return <EntityFormSheet {...shellProps} footer={<Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>}><p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">The PostgreSQL catalog does not contain an Agent Role.</p></EntityFormSheet>;
 
   return (
     <>

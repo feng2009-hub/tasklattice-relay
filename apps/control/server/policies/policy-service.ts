@@ -148,7 +148,7 @@ export class FilePolicyCatalogSource implements PolicyCatalogSource {
     }));
     if (!policies.some((policy) => policy.id === catalog.defaultPolicyId))
       throw new Error(
-        "The ConfigMap defaultPolicyId does not match a built-in Policy.",
+        "The catalog defaultPolicyId does not match a built-in Policy.",
       );
     return {
       defaultPolicyId: catalog.defaultPolicyId,
@@ -163,31 +163,41 @@ export class FilePolicyCatalogSource implements PolicyCatalogSource {
 export class PolicyService {
   constructor(
     readonly store = new AgentStore(),
-    readonly source: PolicyCatalogSource = new FilePolicyCatalogSource(),
+    readonly source?: PolicyCatalogSource,
   ) {}
 
-  list(): SandboxPolicyCatalog {
-    const builtIn = this.source.load();
-    const builtInIds = new Set(builtIn.policies.map((policy) => policy.id));
-    const custom = this.store
-      .listSandboxPolicies()
-      .filter((policy) => !builtInIds.has(policy.id));
-    return { ...builtIn, policies: [...builtIn.policies, ...custom] };
+  async list(): Promise<SandboxPolicyCatalog> {
+    let policies = await this.store.listSandboxPolicies();
+    if (!policies.length && this.source) {
+      const catalog = this.source.load();
+      for (const policy of catalog.policies) await this.store.saveSandboxPolicy(policy);
+      policies = catalog.policies;
+    }
+    if (!policies.length) {
+      throw new Error("No Sandbox Policies are configured in the workspace database.");
+    }
+    const defaultPolicyId = process.env.TALI_DEFAULT_POLICY_ID ?? "unrestricted";
+    const defaultPolicy = policies.find((policy) => policy.id === defaultPolicyId) ?? policies[0]!;
+    return {
+      defaultPolicyId: defaultPolicy.id,
+      templatePolicyYaml: defaultPolicy.policyYaml,
+      policies,
+    };
   }
 
-  get(id: string): SandboxPolicy | undefined {
-    return this.list().policies.find((policy) => policy.id === id);
+  async get(id: string): Promise<SandboxPolicy | undefined> {
+    return (await this.list()).policies.find((policy) => policy.id === id);
   }
 
-  resolve(id?: string): SandboxPolicy {
-    const catalog = this.list();
+  async resolve(id?: string): Promise<SandboxPolicy> {
+    const catalog = await this.list();
     const policyId = id || catalog.defaultPolicyId;
     const policy = catalog.policies.find((item) => item.id === policyId);
     if (!policy) throw new Error("Select an available OpenShell Policy.");
     return policy;
   }
 
-  create(input: CreateSandboxPolicyInput): SandboxPolicy {
+  async create(input: CreateSandboxPolicyInput): Promise<SandboxPolicy> {
     const now = new Date().toISOString();
     const slug =
       input.name
@@ -201,7 +211,7 @@ export class PolicyService {
       ...input,
       policyYaml: normalizeOpenShellPolicy(
         input.policyYaml,
-        this.source.load().templatePolicyYaml,
+        (await this.list()).templatePolicyYaml,
       ),
       enforcement: "ENFORCE",
       source: "CUSTOM",
@@ -211,8 +221,8 @@ export class PolicyService {
     });
   }
 
-  update(id: string, input: UpdateSandboxPolicyInput): SandboxPolicy {
-    const current = this.get(id);
+  async update(id: string, input: UpdateSandboxPolicyInput): Promise<SandboxPolicy> {
+    const current = await this.get(id);
     if (!current) throw new Error("Policy was not found.");
     if (current.immutable)
       throw new Error(
@@ -223,24 +233,24 @@ export class PolicyService {
       ...input,
       policyYaml: normalizeOpenShellPolicy(
         input.policyYaml,
-        this.source.load().templatePolicyYaml,
+        (await this.list()).templatePolicyYaml,
       ),
       updatedAt: new Date().toISOString(),
     });
   }
 
-  delete(id: string): boolean {
-    const current = this.get(id);
+  async delete(id: string): Promise<boolean> {
+    const current = await this.get(id);
     if (!current) return false;
     if (current.immutable)
       throw new Error(
         "Built-in Policies are managed by the deployment ConfigMap and cannot be deleted.",
       );
-    if (this.store.isSandboxPolicyInUse(id))
+    if (await this.store.isSandboxPolicyInUse(id))
       throw new Error(
         "This Policy is assigned to an Instance and cannot be deleted.",
       );
-    this.store.deleteSandboxPolicy(id);
+    await this.store.deleteSandboxPolicy(id);
     return true;
   }
 }

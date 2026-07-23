@@ -6,7 +6,7 @@ import { getExtensionCatalogService } from "../../../../services";
 export default defineHandler(async (event) => {
   try { requireAuth(event.req); } catch (error) { return unauthorizedResponse(error); }
   try {
-    return jsonResponse((await getExtensionCatalogService()).catalog());
+    return jsonResponse(await (await getExtensionCatalogService(event.req)).catalog());
   } catch (error) {
     return errorResponse(error);
   }

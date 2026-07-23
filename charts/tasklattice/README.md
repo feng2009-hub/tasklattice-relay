@@ -47,3 +47,16 @@ When `secrets.existingSecret` is used it must contain `runner-token`,
 `local-password`, `oidc-client-secret`, `litellm-ui-username`,
 `litellm-ui-password`, and `litellm-salt-key`. Set `runner.gatewayEndpoint`
 when `openshell.enabled=false` and the gateway is managed outside this release.
+
+## Shared database
+
+TaskLattice control and LiteLLM intentionally use the same `database-url`.
+LiteLLM owns the PostgreSQL `public` schema; the control plane and its Prisma
+migration history live in the `tasklattice` schema. The control Deployment has
+an init container that runs `prisma migrate deploy`, including the SQL migration
+that creates the default Individual workspace and preconfigured extension and
+policy metadata.
+
+An external database supplied through `secrets.existingSecret` must allow the
+configured role to create and modify the `tasklattice` schema. There is no
+SQLite mode or control-plane data PVC.

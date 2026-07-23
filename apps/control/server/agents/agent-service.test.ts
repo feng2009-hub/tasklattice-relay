@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createAgentSchema } from "@tasklattice/contracts";
 import { agentSandboxName, applyObservedState } from "./agent-service";
 import { AgentService } from "./agent-service";
-import { AgentStore } from "../data/agent-store";
+import { createTestStore } from "../test/store";
 import type { LiteLLMAdminClient } from "../providers/litellm-client";
 import type { RunnerClient } from "../runtime/nemoclaw-runner-client";
 import { PolicyService } from "../policies/policy-service";
@@ -99,8 +99,8 @@ describe("Instance lifecycle reconciliation", () => {
 });
 
 describe("OpenShell policy assignment", () => {
-  it("loads the full-access GitHub example from the deployment catalog", () => {
-    const policy = new PolicyService().resolve("github-full-access");
+  it("loads the full-access GitHub example from the deployment catalog", async () => {
+    const policy = await new PolicyService(createTestStore()).resolve("github-full-access");
 
     expect(policy?.policyYaml).toContain("host: api.github.com");
     expect(policy?.policyYaml).toContain("access: full");
@@ -151,8 +151,8 @@ describe("Agent selection", () => {
     });
   });
 
-  it("resolves Role and capability references from the SQLite catalog", async () => {
-    const service = new AgentService(new AgentStore());
+  it("resolves Role and capability references from the PostgreSQL catalog", async () => {
+    const service = new AgentService(createTestStore());
     await expect(service.create({
       ...input,
       agentPlatform: "openclaw",
@@ -169,9 +169,9 @@ describe("Agent selection", () => {
 
 describe("Instance Inference Group binding lifecycle", () => {
   it("creates one Team-scoped key and revokes it when the Instance is destroyed", async () => {
-    const store = new AgentStore();
+    const store = createTestStore();
     const now = new Date().toISOString();
-    store.saveInferenceGroup({
+    await store.saveInferenceGroup({
       id: "group-a",
       name: "Production inference",
       description: "Managed inference for production Instances.",

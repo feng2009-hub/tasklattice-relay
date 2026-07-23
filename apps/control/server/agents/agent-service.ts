@@ -72,23 +72,23 @@ export class AgentService {
   ) {}
 
   async list(): Promise<Agent[]> {
-    return Promise.all(this.store.list().map((agent) => this.refresh(agent)));
+    return Promise.all((await this.store.list()).map((agent) => this.refresh(agent)));
   }
 
   async get(id: string): Promise<Agent | undefined> {
-    const agent = this.store.get(id);
+    const agent = await this.store.get(id);
     return agent ? this.refresh(agent) : undefined;
   }
 
   async getAudit(id: string): Promise<SandboxAuditEvent[] | undefined> {
-    const agent = this.store.get(id);
+    const agent = await this.store.get(id);
     return agent
       ? this.runner.getSandboxAudit(agent.sandboxName)
       : undefined;
   }
 
   async create(input: CreateAgentInput): Promise<Agent> {
-    const catalog = this.extensions.catalog();
+    const catalog = await this.extensions.catalog();
     if (input.specializationId && !catalog.specializations.some((item) => item.id === input.specializationId))
       throw new Error("Select an available Agent Role before creating an Instance.");
     const references: Array<[string, readonly string[] | undefined, Set<string>]> = [
@@ -100,7 +100,7 @@ export class AgentService {
       const missing = (ids ?? []).filter((id) => !available.has(id));
       if (missing.length) throw new Error(`${label} configuration is unavailable: ${missing.join(", ")}.`);
     }
-    const policy = this.policies.resolve(input.policyId);
+    const policy = await this.policies.resolve(input.policyId);
     const id = randomUUID();
     const now = new Date().toISOString();
     const sandboxName = agentSandboxName(input.name, id);
@@ -133,9 +133,9 @@ export class AgentService {
       updatedAt: now,
       logs: ["Agent request accepted. Waiting for the NemoClaw Runtime Host."],
     };
-    this.store.save(agent);
+    await this.store.save(agent);
     try {
-      agent = this.store.save(
+      agent = await this.store.save(
         applyObservedState(
           agent,
           await this.runner.createSandbox({
@@ -152,7 +152,7 @@ export class AgentService {
       );
     } catch (error) {
       await this.inferenceGroups.unbindAgent(id).catch(() => undefined);
-      agent = this.store.save({
+      agent = await this.store.save({
         ...agent,
         status: "FAILED",
         updatedAt: new Date().toISOString(),
@@ -166,23 +166,23 @@ export class AgentService {
   }
 
   async destroy(id: string): Promise<boolean> {
-    const agent = this.store.get(id);
+    const agent = await this.store.get(id);
     if (!agent) return false;
-    this.store.save({
+    await this.store.save({
       ...agent,
       status: "DESTROYING",
       updatedAt: new Date().toISOString(),
     });
     await this.runner.destroySandbox(agent.sandboxName, agent.agentPlatform);
     await this.inferenceGroups.unbindAgent(id);
-    this.store.delete(id);
+    await this.store.delete(id);
     return true;
   }
 
   private async refresh(agent: Agent): Promise<Agent> {
     if (agent.status === "FAILED") return agent;
     try {
-      return this.store.save(
+      return await this.store.save(
         applyObservedState(
           agent,
           await this.runner.getSandbox(agent.sandboxName, agent.agentPlatform),

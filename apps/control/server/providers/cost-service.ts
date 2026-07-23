@@ -315,18 +315,18 @@ export class CostService {
     return this.store.costAnalytics();
   }
 
-  private refreshMappings(): void {
+  private async refreshMappings(): Promise<void> {
     const analytics = this.analytics();
-    const workspaceId = process.env.TALI_WORKSPACE_ID ?? "default";
+    const workspaceId = this.store.workspaceId;
     const environmentId = process.env.TALI_ENVIRONMENT_ID ?? "production";
-    for (const agent of this.store.listAgentsForReporting()) {
-      const full = this.store.get(agent.id);
-      const binding = this.store.getInferenceGroupBindingForAgent(agent.id);
-      const group = binding ? this.store.getInferenceGroup(binding.inferenceGroupId) : undefined;
+    for (const agent of await this.store.listAgentsForReporting()) {
+      const full = await this.store.get(agent.id);
+      const binding = await this.store.getInferenceGroupBindingForAgent(agent.id);
+      const group = binding ? await this.store.getInferenceGroup(binding.inferenceGroupId) : undefined;
       const virtualKeyId = binding?.liteLLMTokenId
         ? tokenIdentifier(binding.liteLLMTokenId)
         : undefined;
-      analytics.saveAttribution({
+      await analytics.saveAttribution({
         id: binding ? `binding:${binding.id}` : `agent:${agent.id}:${full?.createdAt ?? "unknown"}`,
         workspaceId,
         environmentId,
@@ -346,9 +346,9 @@ export class CostService {
         updatedAt: binding?.revokedAt ?? full?.updatedAt ?? new Date().toISOString(),
       });
     }
-    for (const deployment of this.store.listModelDeploymentsForReporting()) {
-      const account = this.store.getProviderAccount(deployment.providerAccountId);
-      analytics.saveModelEndpointMapping({
+    for (const deployment of await this.store.listModelDeploymentsForReporting()) {
+      const account = await this.store.getProviderAccount(deployment.providerAccountId);
+      await analytics.saveModelEndpointMapping({
         id: `deployment:${deployment.id}:${deployment.createdAt}`,
         modelEndpointId: deployment.id,
         modelEndpointName: deployment.displayName,
@@ -363,9 +363,9 @@ export class CostService {
         updatedAt: deployment.updatedAt,
       });
     }
-    for (const group of this.store.listInferenceGroups()) {
-      const gateway = this.store.getInferenceGateway(group.gatewayId);
-      analytics.saveModelEndpointMapping({
+    for (const group of await this.store.listInferenceGroups()) {
+      const gateway = await this.store.getInferenceGateway(group.gatewayId);
+      await analytics.saveModelEndpointMapping({
         id: `inference-group:${group.id}:${group.createdAt}`,
         modelEndpointId: `inference-group:${group.id}`,
         modelEndpointName: group.name,
@@ -381,9 +381,9 @@ export class CostService {
     }
   }
 
-  private endpointPrice(mapping: ModelEndpointCostMapping | undefined) {
+  private async endpointPrice(mapping: ModelEndpointCostMapping | undefined) {
     if (!mapping) return undefined;
-    const deployment = this.store.getModelDeployment(mapping.modelEndpointId);
+    const deployment = await this.store.getModelDeployment(mapping.modelEndpointId);
     if (!deployment) return undefined;
     return {
       input: deployment.inputFeePerMillionTokens,
@@ -392,7 +392,7 @@ export class CostService {
     };
   }
 
-  private usdCost(log: LiteLLMSpendLog, mapping: ModelEndpointCostMapping | undefined): ResolvedUsdCost {
+  private async usdCost(log: LiteLLMSpendLog, mapping: ModelEndpointCostMapping | undefined): Promise<ResolvedUsdCost> {
     const currency = (log.currency ?? "USD").toUpperCase();
     const rateConfig = process.env.TALI_COST_FX_RATES;
     let rate = currency === "USD" ? 1 : undefined;
@@ -413,7 +413,7 @@ export class CostService {
       source: `litellm:${log.cost_source ?? "spend"}`,
       version: log.price_version ?? "litellm-current",
     };
-    const price = this.endpointPrice(mapping);
+    const price = await this.endpointPrice(mapping);
     if (price?.input !== undefined && price.output !== undefined) {
       const promptCost = count(log.prompt_tokens) * price.input / 1_000_000;
       const completionCost = count(log.completion_tokens) * price.output / 1_000_000;
@@ -428,12 +428,12 @@ export class CostService {
     return { source: currency === "USD" ? "unknown-price" : `unknown-fx:${currency}`, version: log.price_version ?? "unknown" };
   }
 
-  private factFromLog(log: LiteLLMSpendLog): ModelUsageFact {
+  private async factFromLog(log: LiteLLMSpendLog): Promise<ModelUsageFact> {
     const timestamp = sourceTimestamp(log);
     const requestId = log.request_id || `generated:${hash(JSON.stringify(log))}`;
     const normalizedKey = tokenIdentifier(log.api_key_id ?? log.hashed_token ?? log.api_key);
     const userId = log.user_id ?? log.user ?? log.end_user;
-    const attribution = this.analytics().findAttribution(normalizedKey
+    const attribution = await this.analytics().findAttribution(normalizedKey
       ? { virtualKeyId: normalizedKey, hashedToken: normalizedKey, at: timestamp }
       : {
           ...(userId ? { userId } : {}),
@@ -443,13 +443,13 @@ export class CostService {
     const modelName = log.model ?? log.resolved_model;
     const modelGroup = log.model_group ?? log.requested_model;
     const modelId = log.model_id ?? log.deployment_id;
-    const endpoint = this.analytics().findModelEndpoint({
+    const endpoint = await this.analytics().findModelEndpoint({
       ...(modelName ? { modelName } : {}),
       ...(modelGroup ? { modelGroup } : {}),
       ...(modelId ? { modelId } : {}),
       at: timestamp,
     });
-    const cost = this.usdCost(log, endpoint);
+    const cost = await this.usdCost(log, endpoint);
     const promptTokens = count(log.prompt_tokens);
     const completionTokens = count(log.completion_tokens);
     const totalTokens = finite(log.total_tokens) !== undefined
@@ -531,9 +531,9 @@ export class CostService {
   }
 
   private async performSync(startTime: string, endTime: string): Promise<void> {
-    this.refreshMappings();
+    await this.refreshMappings();
     const analytics = this.analytics();
-    const checkpoint = analytics.checkpoint();
+    const checkpoint = await analytics.checkpoint();
     const rangeMs = new Date(endTime).getTime() - new Date(startTime).getTime() + 1;
     const previousStart = new Date(new Date(startTime).getTime() - rangeMs).toISOString();
     const overlapStart = checkpoint.lastSuccessfulEndTime
@@ -548,7 +548,7 @@ export class CostService {
       const current = canonical.get(requestId);
       if (current) {
         duplicateRecords += 1;
-        analytics.recordObservation({
+        await analytics.recordObservation({
           observationId: `duplicate:${requestId}:${hash(JSON.stringify(log))}`,
           requestId,
           observedAt: new Date().toISOString(),
@@ -563,12 +563,12 @@ export class CostService {
     let lateArrivingRecords = 0;
     for (const log of canonical.values()) {
       try {
-        const fact = this.factFromLog(log);
+        const fact = await this.factFromLog(log);
         if (checkpoint.lastSuccessfulEndTime && fact.requestStartTime < checkpoint.lastSuccessfulEndTime)
           lateArrivingRecords += 1;
-        if (!analytics.insertFact(fact)) {
+        if (!await analytics.insertFact(fact)) {
           duplicateRecords += 1;
-          analytics.recordObservation({
+          await analytics.recordObservation({
             observationId: `replay:${fact.requestId}:${fact.sourceRecordHash}`,
             requestId: fact.requestId,
             observedAt: new Date().toISOString(),
@@ -579,7 +579,7 @@ export class CostService {
       } catch (error) {
         failedRecords += 1;
         const requestId = log.request_id ?? `invalid:${hash(JSON.stringify(log))}`;
-        analytics.recordObservation({
+        await analytics.recordObservation({
           observationId: `invalid:${requestId}:${hash(JSON.stringify(log))}`,
           requestId,
           observedAt: new Date().toISOString(),
@@ -589,7 +589,7 @@ export class CostService {
       }
     }
     const lastSyncAt = new Date().toISOString();
-    analytics.saveCheckpoint({
+    await analytics.saveCheckpoint({
       source: "litellm",
       cursor: endTime,
       lastSuccessfulEndTime: endTime,
@@ -608,7 +608,7 @@ export class CostService {
     const previous = previousPeriod(normalized.start, normalized.end);
     await this.sync(includePrevious ? previous.start : normalized.start, normalized.end);
     const start = includePrevious ? previous.start : normalized.start;
-    const all = this.analytics().listFacts({
+    const all = await this.analytics().listFacts({
       startTime: start,
       endTime: normalized.end,
       workspaceId: query.workspaceId,
@@ -726,14 +726,14 @@ export class CostService {
 
   async activity(query: CostAnalyticsQuery, groupBy: CostGroupBy, granularity: ModelCostGranularity): Promise<ModelCostActivityResponse> {
     const { normalized, current } = await this.facts(query);
-    const unfiltered = this.analytics().listFacts({
+    const unfiltered = await this.analytics().listFacts({
       startTime: normalized.start,
       endTime: normalized.end,
       workspaceId: query.workspaceId,
       environmentId: query.environmentId,
     });
     const dailyRows = this.dailyRows(unfiltered, normalized);
-    this.analytics().replaceDailyRows({
+    await this.analytics().replaceDailyRows({
       workspaceId: query.workspaceId,
       environmentId: query.environmentId,
       timezone: query.timezone,
@@ -894,7 +894,7 @@ export class CostService {
       return query.direction === "asc" ? order : -order;
     });
     const start = (query.page - 1) * query.pageSize;
-    const unfiltered = this.analytics().listFacts({
+    const unfiltered = await this.analytics().listFacts({
       startTime: normalized.start,
       endTime: normalized.end,
       workspaceId: query.workspaceId,
@@ -912,7 +912,7 @@ export class CostService {
 
   async dataQuality(query: CostAnalyticsQuery): Promise<ModelCostDataQualityResponse> {
     const { current } = await this.facts(query);
-    const checkpoint = this.analytics().checkpoint();
+    const checkpoint = await this.analytics().checkpoint();
     const taliSpend = current.reduce((sum, fact) => sum + (fact.totalCostUsd ?? 0), 0);
     const litellmSpend = current.reduce((sum, fact) => sum + (
       fact.liteLLMCalculatedCostUsd ??
@@ -926,7 +926,7 @@ export class CostService {
       tokenMismatchRequests: current.filter((fact) => fact.totalTokens !== fact.promptTokens + fact.completionTokens).length,
       negativeSpendRequests: current.filter((fact) => (fact.totalCostUsd ?? 0) < 0).length,
       unknownCostRequests: current.filter((fact) => fact.costStatus === "unknown").length,
-      duplicateRequests: this.analytics().countDuplicateRequests(),
+      duplicateRequests: await this.analytics().countDuplicateRequests(),
       lateArrivingRequests: checkpoint.lateArrivingRecords,
       ...(checkpoint.lastSyncAt ? { lastSyncAt: checkpoint.lastSyncAt } : {}),
       ...(checkpoint.syncLagSeconds !== undefined ? { syncLagSeconds: checkpoint.syncLagSeconds } : {}),

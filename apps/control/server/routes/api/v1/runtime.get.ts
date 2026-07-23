@@ -11,7 +11,7 @@ export default defineHandler(async (event) => {
     return unauthorizedResponse(error);
   }
   try {
-    const service = await getAgentService();
+    const service = await getAgentService(event.req);
     return jsonResponse(
       runtimeStatusFromHealth(await service.runner.getHealth()),
     );
