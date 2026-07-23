@@ -102,6 +102,7 @@
     --cost-heatmap-2: #b9d1ff;
     --cost-heatmap-3: #86adff;
     --cost-heatmap-4: #4f7ff2;
+    --cost-calendar-outside: rgb(25 26 27 / 0.025);
     --cost-series-1: #5b46ff;
     --cost-series-2: #3b82f6;
     --cost-series-3: #3ca85a;
@@ -149,6 +150,7 @@
     --cost-heatmap-2: #31548e;
     --cost-heatmap-3: #3d6fc0;
     --cost-heatmap-4: #5b8df2;
+    --cost-calendar-outside: rgb(255 255 255 / 0.025);
     --cost-series-1: #8b7cff;
     --cost-series-2: #60a5fa;
     --cost-series-3: #63c174;
