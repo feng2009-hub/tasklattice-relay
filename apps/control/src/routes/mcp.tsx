@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useWorkspaceQueryScope } from "@/hooks/use-workspace-query-scope";
 
 export const Route = createFileRoute("/mcp")({ component: McpServers });
 
@@ -30,7 +31,8 @@ function mcpInput(server: McpServerDefinition): CreateMcpServerDefinitionInput {
 
 function McpServers() {
   const queryClient = useQueryClient();
-  const catalog = useQuery({ queryKey: ["extension-catalog"], queryFn: api.getExtensionCatalog });
+  const workspace = useWorkspaceQueryScope();
+  const catalog = useQuery({ queryKey: workspace.key("extension-catalog"), queryFn: api.getExtensionCatalog });
   const items = catalog.data?.mcpServers ?? [];
   const [selectedId, setSelectedId] = useState("");
   const [editing, setEditing] = useState(false);
@@ -49,14 +51,14 @@ function McpServers() {
       setSelectedId(server.id);
       setEditing(false);
       setNotice(variables.id ? "MCP configuration saved to PostgreSQL. Run a connection check next." : "MCP server registered in PostgreSQL.");
-      await queryClient.invalidateQueries({ queryKey: ["extension-catalog"] });
+      await queryClient.invalidateQueries({ queryKey: workspace.key("extension-catalog") });
     },
   });
   const checkServer = useMutation({
     mutationFn: (server: McpServerDefinition) => api.updateMcpServer(server.id, { ...mcpInput(server), status: "HEALTHY", tools: server.tools || 12 }),
     onSuccess: async () => {
       setNotice("Connection check result saved to PostgreSQL. Tool discovery remains simulated in development.");
-      await queryClient.invalidateQueries({ queryKey: ["extension-catalog"] });
+      await queryClient.invalidateQueries({ queryKey: workspace.key("extension-catalog") });
     },
   });
   const deleteServer = useMutation({
@@ -64,7 +66,7 @@ function McpServers() {
     onSuccess: async () => {
       setSelectedId("");
       setNotice("MCP server removed from PostgreSQL.");
-      await queryClient.invalidateQueries({ queryKey: ["extension-catalog"] });
+      await queryClient.invalidateQueries({ queryKey: workspace.key("extension-catalog") });
     },
   });
 

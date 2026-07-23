@@ -6,12 +6,14 @@ import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
+import { useWorkspaceQueryScope } from "@/hooks/use-workspace-query-scope";
 
 export const Route = createFileRoute("/agents/")({ component: Agents });
 
 function Agents() {
+  const workspace = useWorkspaceQueryScope();
   const agents = useQuery({
-    queryKey: ["agents"],
+    queryKey: workspace.key("agents"),
     queryFn: api.listAgents,
     refetchInterval: 2_000,
   });

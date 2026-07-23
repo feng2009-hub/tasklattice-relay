@@ -6,12 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { AgentPlatformPresentation } from "@/lib/agent-platforms";
 import { api } from "@/lib/api";
+import { useWorkspaceQueryScope } from "@/hooks/use-workspace-query-scope";
 import { DefinitionList, DetailCardHeader } from "./instance-detail-shared";
 import { InstanceInstructionsDialog } from "./instance-instructions-dialog";
 
 export function InstanceConfigurationTab({ agent, platform }: { agent: Agent; platform: AgentPlatformPresentation }) {
   const [instructionsOpen, setInstructionsOpen] = useState(false);
-  const catalog = useQuery({ queryKey: ["extension-catalog"], queryFn: api.getExtensionCatalog });
+  const workspace = useWorkspaceQueryScope();
+  const catalog = useQuery({ queryKey: workspace.key("extension-catalog"), queryFn: api.getExtensionCatalog });
   const role = catalog.data?.specializations.find((item) => item.id === agent.specializationId);
   const managedBy = role?.name ?? (agent.specializationId ? agent.specializationId : "Custom");
   return (

@@ -27,13 +27,19 @@ describe("selectInitialWorkspace", () => {
   });
 
   it("uses stored state when the URL workspace is unavailable", () => {
-    expect(selectInitialWorkspace(workspaces, "missing", "devops").id).toBe(
+    expect(selectInitialWorkspace(workspaces, null, "devops").id).toBe(
       "devops",
     );
   });
 
-  it("falls back to the first available workspace", () => {
-    expect(selectInitialWorkspace(workspaces, null, null).id).toBe(
+  it("falls back to the personal workspace when the URL workspace is invalid", () => {
+    expect(selectInitialWorkspace(workspaces, "missing", "devops").id).toBe(
+      "individual",
+    );
+  });
+
+  it("falls back to the personal workspace when no preference exists", () => {
+    expect(selectInitialWorkspace([...workspaces].reverse(), null, null).id).toBe(
       "individual",
     );
   });

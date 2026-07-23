@@ -2,6 +2,7 @@ import type { Agent } from "@tasklattice/contracts";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { api } from "@/lib/api";
+import { useWorkspaceQueryScope } from "@/hooks/use-workspace-query-scope";
 import { adaptAgentToAuditorLogs, filterAuditorLogs, type AuditorLogFilters } from "./auditor-log-utils";
 
 export type UseAuditorLogOptions = AuditorLogFilters & {
@@ -9,8 +10,9 @@ export type UseAuditorLogOptions = AuditorLogFilters & {
 };
 
 export function useAuditorLog(agent: Agent, options: UseAuditorLogOptions) {
+  const workspace = useWorkspaceQueryScope();
   const query = useQuery({
-    queryKey: ["agent-audit", agent.id],
+    queryKey: workspace.key("agent-audit", agent.id),
     queryFn: () => api.getAgentAudit(agent.id),
     retry: 1,
     staleTime: 5_000,

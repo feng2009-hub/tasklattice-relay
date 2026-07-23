@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useWorkspaceQueryScope } from "@/hooks/use-workspace-query-scope";
 
 export const Route = createFileRoute("/knowledge")({ component: KnowledgeBase });
 
@@ -32,7 +33,8 @@ function knowledgeSourceInput(source: KnowledgeSourceDefinition): CreateKnowledg
 
 function KnowledgeBase() {
   const queryClient = useQueryClient();
-  const catalog = useQuery({ queryKey: ["extension-catalog"], queryFn: api.getExtensionCatalog });
+  const workspace = useWorkspaceQueryScope();
+  const catalog = useQuery({ queryKey: workspace.key("extension-catalog"), queryFn: api.getExtensionCatalog });
   const items = catalog.data?.knowledgeSources ?? [];
   const [selectedId, setSelectedId] = useState("");
   const [editing, setEditing] = useState(false);
@@ -52,14 +54,14 @@ function KnowledgeBase() {
       setSelectedId(source.id);
       setEditing(false);
       setNotice(variables.id ? "Knowledge source saved to PostgreSQL." : "Knowledge source added to PostgreSQL.");
-      await queryClient.invalidateQueries({ queryKey: ["extension-catalog"] });
+      await queryClient.invalidateQueries({ queryKey: workspace.key("extension-catalog") });
     },
   });
   const checkSource = useMutation({
     mutationFn: (source: KnowledgeSourceDefinition) => api.updateKnowledgeSource(source.id, { ...knowledgeSourceInput(source), status: "READY" }),
     onSuccess: async (_source, input) => {
       setNotice(`Retrieval check for “${testQuery.trim()}” recorded in PostgreSQL with Top ${input.topK}. Remote retrieval remains simulated in development.`);
-      await queryClient.invalidateQueries({ queryKey: ["extension-catalog"] });
+      await queryClient.invalidateQueries({ queryKey: workspace.key("extension-catalog") });
     },
   });
   const deleteSource = useMutation({
@@ -67,7 +69,7 @@ function KnowledgeBase() {
     onSuccess: async () => {
       setSelectedId("");
       setNotice("Knowledge source removed from PostgreSQL.");
-      await queryClient.invalidateQueries({ queryKey: ["extension-catalog"] });
+      await queryClient.invalidateQueries({ queryKey: workspace.key("extension-catalog") });
     },
   });
 

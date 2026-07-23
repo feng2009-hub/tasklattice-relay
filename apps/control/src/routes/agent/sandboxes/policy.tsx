@@ -12,14 +12,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useWorkspaceQueryScope } from "@/hooks/use-workspace-query-scope";
 
 export const Route = createFileRoute("/agent/sandboxes/policy")({ component: PolicyPage });
 
 function PolicyPage() {
   const queryClient = useQueryClient();
+  const workspace = useWorkspaceQueryScope();
   const [selectedId, setSelectedId] = useState("");
   const [editor, setEditor] = useState<{ open: boolean; policy?: SandboxPolicy }>({ open: false });
-  const catalog = useQuery({ queryKey: ["sandbox-policies"], queryFn: api.listPolicies });
+  const catalog = useQuery({ queryKey: workspace.key("sandbox-policies"), queryFn: api.listPolicies });
   const selected = catalog.data?.policies.find((policy) => policy.id === selectedId)
     ?? catalog.data?.policies.find((policy) => policy.id === catalog.data.defaultPolicyId)
     ?? catalog.data?.policies[0];
@@ -27,7 +29,7 @@ function PolicyPage() {
     mutationFn: api.deletePolicy,
     onSuccess: async () => {
       setSelectedId(catalog.data?.defaultPolicyId ?? "");
-      await queryClient.invalidateQueries({ queryKey: ["sandbox-policies"] });
+      await queryClient.invalidateQueries({ queryKey: workspace.key("sandbox-policies") });
     },
   });
 

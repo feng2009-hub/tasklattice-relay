@@ -1,4 +1,5 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { LoaderCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Workspace } from "@/types/workspace";
 
@@ -48,11 +49,15 @@ export function WorkspaceAvatar({
 
 export function WorkspaceItem({
   current = false,
+  isSwitching = false,
   onSelect,
+  tabIndex,
   workspace,
 }: {
   current?: boolean;
-  onSelect: (workspace: Workspace) => void;
+  isSwitching?: boolean;
+  onSelect: (workspace: Workspace) => void | Promise<void>;
+  tabIndex?: number;
   workspace: Workspace;
 }) {
   const detail =
@@ -66,9 +71,17 @@ export function WorkspaceItem({
       className={cn(
         "flex min-h-14 w-full items-center gap-3 rounded-md px-2.5 py-2 text-left outline-none transition-colors hover:bg-muted/70 focus-visible:ring-2 focus-visible:ring-ring/35",
         current && "bg-primary/[0.07] hover:bg-primary/[0.1]",
+        isSwitching && "cursor-wait",
       )}
-      onClick={() => onSelect(workspace)}
+      onClick={() => {
+        if (!current && !isSwitching) void onSelect(workspace);
+      }}
+      aria-checked={current}
       aria-current={current ? "true" : undefined}
+      aria-disabled={current || isSwitching}
+      data-workspace-menu-item
+      role="menuitemradio"
+      tabIndex={tabIndex}
     >
       <WorkspaceAvatar workspace={workspace} />
       <span className="min-w-0 flex-1">
@@ -79,7 +92,9 @@ export function WorkspaceItem({
           {detail}
         </span>
       </span>
-      {current ? (
+      {isSwitching ? (
+        <LoaderCircle className="size-4 shrink-0 animate-spin text-muted-foreground" />
+      ) : current ? (
         <span className="rounded-sm bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
           Current
         </span>

@@ -44,24 +44,26 @@ import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useWorkspaceQueryScope } from "@/hooks/use-workspace-query-scope";
 
 export const Route = createFileRoute("/providers/model-profiles/")({ component: ModelProfilesPage });
 
 type ProfileFilter = "all" | "ready" | "attention";
 
 function ModelProfilesPage() {
+  const workspace = useWorkspaceQueryScope();
   const [createOpen, setCreateOpen] = useState(false);
   const [connectionOpen, setConnectionOpen] = useState(false);
   const [drawerAccount, setDrawerAccount] = useState<ProviderAccount>();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ProfileFilter>("all");
   const queryClient = useQueryClient();
-  const profileQuery = useQuery({ queryKey: ["model-profiles"], queryFn: api.listModelProfiles });
-  const accounts = useQuery({ queryKey: ["provider-accounts"], queryFn: api.listProviderAccounts });
-  const models = useQuery({ queryKey: ["model-deployments"], queryFn: api.listModelDeployments });
+  const profileQuery = useQuery({ queryKey: workspace.key("model-profiles"), queryFn: api.listModelProfiles });
+  const accounts = useQuery({ queryKey: workspace.key("provider-accounts"), queryFn: api.listProviderAccounts });
+  const models = useQuery({ queryKey: workspace.key("model-deployments"), queryFn: api.listModelDeployments });
   const refresh = useMutation({
     mutationFn: api.refreshModelProfile,
-    onSuccess: async () => queryClient.invalidateQueries({ queryKey: ["model-profiles"] }),
+    onSuccess: async () => queryClient.invalidateQueries({ queryKey: workspace.key("model-profiles") }),
   });
   const profiles = profileQuery.data ?? [];
   const providerAccounts = accounts.data ?? [];
@@ -198,8 +200,9 @@ function UpstreamInventory({ accounts, models, loading, error, onAdd, onAddModel
 
 function UpstreamRow({ account, models, onAddModel }: { account: ProviderAccount; models: ModelDeployment[]; onAddModel: () => void }) {
   const queryClient = useQueryClient();
-  const revalidate = useMutation({ mutationFn: () => api.revalidateProviderAccount(account.id), onSuccess: async () => Promise.all([queryClient.invalidateQueries({ queryKey: ["provider-accounts"] }), queryClient.invalidateQueries({ queryKey: ["model-deployments"] })]) });
-  const remove = useMutation({ mutationFn: () => api.deleteProviderAccount(account.id), onSuccess: async () => Promise.all([queryClient.invalidateQueries({ queryKey: ["provider-accounts"] }), queryClient.invalidateQueries({ queryKey: ["model-deployments"] })]) });
+  const workspace = useWorkspaceQueryScope();
+  const revalidate = useMutation({ mutationFn: () => api.revalidateProviderAccount(account.id), onSuccess: async () => Promise.all([queryClient.invalidateQueries({ queryKey: workspace.key("provider-accounts") }), queryClient.invalidateQueries({ queryKey: workspace.key("model-deployments") })]) });
+  const remove = useMutation({ mutationFn: () => api.deleteProviderAccount(account.id), onSuccess: async () => Promise.all([queryClient.invalidateQueries({ queryKey: workspace.key("provider-accounts") }), queryClient.invalidateQueries({ queryKey: workspace.key("model-deployments") })]) });
   const providerName = providerPresets.find((item) => item.id === account.providerKind)?.name ?? account.providerKind;
   return <div className="grid gap-4 p-4 md:grid-cols-[minmax(13rem,1.1fr)_minmax(12rem,1fr)_minmax(12rem,1fr)_auto] md:items-center">
     <div className="flex min-w-0 items-center gap-3"><ProviderIcon presetId={account.presetId} className="size-10 shrink-0 [&_img]:size-6" /><span className="min-w-0"><strong className="block truncate text-sm">{account.name}</strong><span className="block text-xs text-muted-foreground">{providerName}</span></span></div>
@@ -238,7 +241,8 @@ function CreateProfileSheet({
   open: boolean;
 }) {
   const queryClient = useQueryClient();
-  const gateways = useQuery({ queryKey: ["inference-gateways"], queryFn: api.listInferenceGateways, enabled: open });
+  const workspace = useWorkspaceQueryScope();
+  const gateways = useQuery({ queryKey: workspace.key("inference-gateways"), queryFn: api.listInferenceGateways, enabled: open });
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [modelSource, setModelSource] = useState<"catalog" | "custom">("catalog");
@@ -272,7 +276,7 @@ function CreateProfileSheet({
   const mutation = useMutation({
     mutationFn: () => api.createModelProfile({ name, description, gatewayId: gateway?.id ?? "", publicModelAlias, complianceDomain: gateway?.complianceDomain ?? "GLOBAL", isDefault: makeDefault, keyPolicy: { perInstance: true, rotationDays: 90 }, auditPolicy: { controlPlane: true, requestLogs: true, capturePrompts: false } }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["model-profiles"] });
+      await queryClient.invalidateQueries({ queryKey: workspace.key("model-profiles") });
       setName(""); setDescription(""); setSelectedModelId(""); setAlias(""); setAttempted(false);
       onOpenChange(false);
     },

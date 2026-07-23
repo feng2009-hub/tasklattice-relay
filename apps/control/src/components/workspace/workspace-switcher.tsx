@@ -1,26 +1,38 @@
 import { useState } from "react";
-import { Check, ChevronsUpDown, LoaderCircle } from "lucide-react";
+import { ChevronDown, LoaderCircle } from "lucide-react";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { WorkspaceAvatar } from "@/components/workspace/workspace-item";
 import { WorkspacePopover } from "@/components/workspace/workspace-popover";
 import { useSwitchWorkspace } from "@/hooks/use-switch-workspace";
 import { useWorkspace } from "@/hooks/use-workspace";
 
 export function WorkspaceSwitcher() {
   const [open, setOpen] = useState(false);
-  const { availableWorkspaces, currentWorkspace } = useWorkspace();
-  const { loading, switchWorkspace } = useSwitchWorkspace();
+  const [switchError, setSwitchError] = useState("");
+  const { availableWorkspaces, currentWorkspace, loading } = useWorkspace();
+  const { isSwitching, switchingWorkspaceId, switchWorkspace } = useSwitchWorkspace();
+
+  if (loading && !currentWorkspace) {
+    return (
+      <div
+        className="h-8 w-28 animate-pulse rounded-sm bg-muted/70"
+        aria-label="Loading workspace"
+      />
+    );
+  }
 
   if (!currentWorkspace) {
     return (
-      <div
-        className="h-11 w-40 animate-pulse rounded-md bg-muted"
-        aria-label="Loading workspace"
-      />
+      <button
+        type="button"
+        className="h-8 min-w-0 max-w-44 truncate rounded-sm px-1.5 text-xs font-semibold text-muted-foreground"
+        disabled
+      >
+        No workspace available
+      </button>
     );
   }
 
@@ -29,20 +41,23 @@ export function WorkspaceSwitcher() {
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="flex h-11 min-w-0 max-w-56 items-center gap-2 rounded-md border border-transparent px-2 text-left outline-none transition-colors hover:border-border hover:bg-muted/55 focus-visible:ring-2 focus-visible:ring-ring/35 aria-expanded:border-border aria-expanded:bg-muted/55"
+          className="flex h-8 min-w-0 max-w-[min(12rem,38vw)] items-center gap-1 rounded-sm px-1.5 text-left outline-none transition-colors hover:bg-muted/55 focus-visible:ring-2 focus-visible:ring-ring/35 disabled:cursor-wait disabled:opacity-75"
           aria-label={`Current workspace: ${currentWorkspace.name}. Switch workspace`}
-          disabled={loading}
+          aria-expanded={open}
+          aria-haspopup="menu"
+          disabled={isSwitching}
+          title={currentWorkspace.name}
         >
-          <WorkspaceAvatar className="size-7" workspace={currentWorkspace} />
-          <span className="min-w-0 flex-1 truncate text-sm font-semibold">
+          <span className="min-w-0 truncate font-semibold">
             {currentWorkspace.name}
           </span>
-          {loading ? (
-            <LoaderCircle className="size-4 shrink-0 animate-spin text-muted-foreground" />
-          ) : open ? (
-            <Check className="size-4 shrink-0 text-primary" />
+          {isSwitching ? (
+            <LoaderCircle className="size-3.5 shrink-0 animate-spin text-muted-foreground" />
           ) : (
-            <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
+            <ChevronDown
+              className="size-3.5 shrink-0 text-muted-foreground transition-transform data-[open=true]:rotate-180"
+              data-open={open}
+            />
           )}
         </button>
       </PopoverTrigger>
@@ -53,11 +68,24 @@ export function WorkspaceSwitcher() {
       >
         <WorkspacePopover
           currentWorkspace={currentWorkspace}
+          error={switchError}
+          isSwitching={isSwitching}
           onManage={() => setOpen(false)}
-          onSelect={(workspace) => {
-            setOpen(false);
-            void switchWorkspace(workspace.id);
+          onSelect={async (workspace) => {
+            if (workspace.id === currentWorkspace.id || isSwitching) return;
+            setSwitchError("");
+            try {
+              await switchWorkspace(workspace.id);
+              setOpen(false);
+            } catch (reason) {
+              setSwitchError(
+                reason instanceof Error
+                  ? reason.message
+                  : "Unable to switch workspaces.",
+              );
+            }
           }}
+          switchingWorkspaceId={switchingWorkspaceId}
           workspaces={availableWorkspaces}
         />
       </PopoverContent>

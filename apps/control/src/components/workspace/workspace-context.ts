@@ -7,8 +7,10 @@ export interface WorkspaceContextValue {
   availableWorkspaces: Workspace[];
   currentWorkspace: Workspace | null;
   error: string;
+  isSwitching: boolean;
   loading: boolean;
   refreshWorkspaces: () => Promise<Workspace[]>;
+  switchingWorkspaceId: string | null;
   switchWorkspace: (workspaceId: string) => Promise<void>;
 }
 
@@ -29,10 +31,18 @@ export function selectInitialWorkspace(
   urlWorkspaceId: string | null,
   storedWorkspaceId: string | null,
 ): Workspace {
-  return (
-    workspaces.find((workspace) => workspace.id === urlWorkspaceId) ??
-    workspaces.find((workspace) => workspace.id === storedWorkspaceId) ??
+  const personalWorkspace =
+    workspaces.find((workspace) => workspace.type === "personal") ??
     workspaces[0] ??
-    personalFallbackWorkspace
+    personalFallbackWorkspace;
+  if (urlWorkspaceId) {
+    return (
+      workspaces.find((workspace) => workspace.id === urlWorkspaceId) ??
+      personalWorkspace
+    );
+  }
+  return (
+    workspaces.find((workspace) => workspace.id === storedWorkspaceId) ??
+    personalWorkspace
   );
 }

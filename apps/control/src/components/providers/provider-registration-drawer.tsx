@@ -33,6 +33,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useWorkspaceQueryScope } from "@/hooks/use-workspace-query-scope";
 
 const modelTypeLabels: Record<ModelType, string> = {
   llm: "Language model",
@@ -52,6 +53,7 @@ export function ProviderRegistrationDrawer({
   initialAccount?: ProviderAccount | undefined;
 }) {
   const queryClient = useQueryClient();
+  const workspace = useWorkspaceQueryScope();
   const providerTriggerRef = useRef<HTMLButtonElement>(null);
   const [step, setStep] = useState<Step>("configure");
   const [draft, setDraft] = useState<ProviderConnectionDraft>(() => createProviderDraft("openai"));
@@ -76,9 +78,9 @@ export function ProviderRegistrationDrawer({
     onSuccess: async () => {
       setStep("summary");
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["provider-accounts"] }),
-        queryClient.invalidateQueries({ queryKey: ["model-deployments"] }),
-        queryClient.invalidateQueries({ queryKey: ["provider-cost"] }),
+        queryClient.invalidateQueries({ queryKey: workspace.key("provider-accounts") }),
+        queryClient.invalidateQueries({ queryKey: workspace.key("model-deployments") }),
+        queryClient.invalidateQueries({ queryKey: workspace.key("provider-cost") }),
       ]);
     },
   });
@@ -91,7 +93,7 @@ export function ProviderRegistrationDrawer({
       })));
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["model-deployments"] });
+      await queryClient.invalidateQueries({ queryKey: workspace.key("model-deployments") });
     },
   });
 
@@ -235,11 +237,12 @@ function SummaryStep({ onRetry, result, retryComplete, retryPending }: { onRetry
 
 function ExistingAccountModelForm({ account, onCreated }: { account: ProviderAccount; onCreated: () => void }) {
   const queryClient = useQueryClient();
+  const workspace = useWorkspaceQueryScope();
   const preset = providerPresets.find((item) => item.id === account.providerKind)!;
   const supportedTypes = preset.modelTypes as readonly ModelType[];
   const [modelId, setModelId] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [modelType, setModelType] = useState<ModelType>(supportedTypes[0] ?? "llm");
-  const add = useMutation({ mutationFn: api.registerModelDeployment, onSuccess: async (model) => { await queryClient.invalidateQueries({ queryKey: ["model-deployments"] }); if (model.status === "VALIDATED") onCreated(); } });
+  const add = useMutation({ mutationFn: api.registerModelDeployment, onSuccess: async (model) => { await queryClient.invalidateQueries({ queryKey: workspace.key("model-deployments") }); if (model.status === "VALIDATED") onCreated(); } });
   return <form className="space-y-5" onSubmit={(event) => { event.preventDefault(); add.mutate({ providerAccountId: account.id, modelId, displayName: displayName || modelId, modelType }); }}><div className="space-y-2"><Label htmlFor="existing-model-id">Model or deployment ID</Label><Input id="existing-model-id" value={modelId} required onChange={(event) => { setModelId(event.target.value); if (!displayName) setDisplayName(event.target.value); }} /></div><div className="space-y-2"><Label htmlFor="existing-model-name">Display name</Label><Input id="existing-model-name" value={displayName} required onChange={(event) => setDisplayName(event.target.value)} /></div><div className="space-y-2"><Label>Model type</Label><Select value={modelType} onValueChange={(value) => setModelType(value as ModelType)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{supportedTypes.map((type) => <SelectItem key={type} value={type}>{modelTypeLabels[type]}</SelectItem>)}</SelectContent></Select></div>{add.data?.status === "FAILED" ? <p role="alert" className="text-sm text-destructive">{add.data.validationMessage}</p> : null}{add.error ? <p role="alert" className="text-sm text-destructive">{add.error.message}</p> : null}<Button type="submit" disabled={add.isPending}>{add.isPending ? <Spinner /> : <Plus />}Validate and add model</Button></form>;
 }

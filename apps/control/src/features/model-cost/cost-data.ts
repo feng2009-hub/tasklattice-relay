@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useWorkspaceQueryScope } from "@/hooks/use-workspace-query-scope";
 import type {
   CostBreakdownItem,
   CostComparison,
@@ -141,8 +142,9 @@ function trend(response: ModelCostTrendResponse): CostTrendPoint[] {
 }
 
 export function useCostSummary(params: CostQueryParams) {
+  const workspace = useWorkspaceQueryScope();
   return useQuery({
-    queryKey: ["cost-summary", params] as const,
+    queryKey: workspace.key("cost-summary", params),
     queryFn: () => api.getCostSummary(params),
     select: summary,
     retry: false,
@@ -150,8 +152,9 @@ export function useCostSummary(params: CostQueryParams) {
 }
 
 export function useCostActivity(params: CostQueryParams) {
+  const workspace = useWorkspaceQueryScope();
   return useQuery({
-    queryKey: ["cost-activity", params, "daily"] as const,
+    queryKey: workspace.key("cost-activity", params, "daily"),
     queryFn: () => api.getCostActivity(params, "daily"),
     select: (response) => response.items.map((item) => ({
       date: item.date,
@@ -165,8 +168,9 @@ export function useCostActivity(params: CostQueryParams) {
 }
 
 export function useCostInsights(params: CostQueryParams) {
+  const workspace = useWorkspaceQueryScope();
   return useQuery({
-    queryKey: ["cost-insights", params] as const,
+    queryKey: workspace.key("cost-insights", params),
     queryFn: () => api.getCostInsights(params),
     select: (response) => insightRows(response, params),
     retry: false,
@@ -174,8 +178,9 @@ export function useCostInsights(params: CostQueryParams) {
 }
 
 export function useCostRanking(params: CostQueryParams) {
+  const workspace = useWorkspaceQueryScope();
   return useQuery({
-    queryKey: ["cost-ranking", params, 5] as const,
+    queryKey: workspace.key("cost-ranking", params, 5),
     queryFn: () => api.getCostRanking(params, 5),
     select: (response) => response.items.map((item): CostBreakdownItem => ({
       id: item.id,
@@ -192,8 +197,9 @@ export function useCostRanking(params: CostQueryParams) {
 }
 
 export function useCostTrend(params: CostQueryParams) {
+  const workspace = useWorkspaceQueryScope();
   return useQuery({
-    queryKey: ["cost-trend", params, "day", 5] as const,
+    queryKey: workspace.key("cost-trend", params, "day", 5),
     queryFn: () => api.getCostTrend(params, "day", 5),
     select: trend,
     retry: false,
@@ -201,8 +207,9 @@ export function useCostTrend(params: CostQueryParams) {
 }
 
 export function useCostBreakdown(params: CostQueryParams) {
+  const workspace = useWorkspaceQueryScope();
   return useQuery({
-    queryKey: ["cost-breakdown", params, 1, 200] as const,
+    queryKey: workspace.key("cost-breakdown", params, 1, 200),
     queryFn: () => api.getCostBreakdown(params),
     select: (response) => ({
       items: response.items.map(breakdownItem),

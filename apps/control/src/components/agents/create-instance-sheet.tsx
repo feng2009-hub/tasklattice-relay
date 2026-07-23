@@ -23,6 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { api } from "@/lib/api";
 import { getAgentPlatformPresentation } from "@/lib/agent-platforms";
+import { useWorkspaceQueryScope } from "@/hooks/use-workspace-query-scope";
 
 const steps: readonly CreateInstanceStep[] = [
   { label: "Identity & Capabilities", description: "Define the Agent and its capabilities" },
@@ -50,6 +51,7 @@ export function CreateInstanceSheet({
   open: boolean;
 }) {
   const navigate = useNavigate();
+  const workspace = useWorkspaceQueryScope();
   const [step, setStep] = useState(0);
   const [specializationId, setSpecializationId] = useState<SpecializationId>("general-purpose");
   const [customSystemPrompt, setCustomSystemPrompt] = useState("");
@@ -59,15 +61,15 @@ export function CreateInstanceSheet({
   const [skillsTouched, setSkillsTouched] = useState(false);
   const [mcpsTouched, setMcpsTouched] = useState(false);
   const [pendingSpecializationId, setPendingSpecializationId] = useState<SpecializationId | null>(null);
-  const extensionCatalog = useQuery({ queryKey: ["extension-catalog"], queryFn: api.getExtensionCatalog });
+  const extensionCatalog = useQuery({ queryKey: workspace.key("extension-catalog"), queryFn: api.getExtensionCatalog });
   const skills = extensionCatalog.data?.skills ?? [];
   const mcpServers = extensionCatalog.data?.mcpServers ?? [];
   const knowledgeSources = extensionCatalog.data?.knowledgeSources ?? [];
   const specializations = extensionCatalog.data?.specializations ?? [];
   const specialization = getSpecialization(specializations, specializationId);
   const pendingSpecialization = pendingSpecializationId ? getSpecialization(specializations, pendingSpecializationId) : null;
-  const modelProfiles = useQuery({ queryKey: ["model-profiles"], queryFn: api.listModelProfiles });
-  const policies = useQuery({ queryKey: ["sandbox-policies"], queryFn: api.listPolicies });
+  const modelProfiles = useQuery({ queryKey: workspace.key("model-profiles"), queryFn: api.listModelProfiles });
+  const policies = useQuery({ queryKey: workspace.key("sandbox-policies"), queryFn: api.listPolicies });
   const requestedModelProfile = modelProfileId
     ? (modelProfiles.data ?? []).find((profile) => profile.id === modelProfileId && profile.status === "READY")
     : undefined;

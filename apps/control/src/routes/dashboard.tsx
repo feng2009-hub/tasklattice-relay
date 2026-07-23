@@ -14,11 +14,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { api } from "@/lib/api";
+import { useWorkspaceQueryScope } from "@/hooks/use-workspace-query-scope";
 
 export const Route = createFileRoute("/dashboard")({ component: Overview });
 
 function Overview() {
-  const agents = useQuery({ queryKey: ["agents"], queryFn: api.listAgents });
+  const workspace = useWorkspaceQueryScope();
+  const agents = useQuery({ queryKey: workspace.key("agents"), queryFn: api.listAgents });
   const ready = agents.data?.filter((agent) => agent.status === "READY").length ?? 0;
   const primaryAgent = agents.data?.[0];
 

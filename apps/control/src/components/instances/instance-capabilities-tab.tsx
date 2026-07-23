@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useWorkspaceQueryScope } from "@/hooks/use-workspace-query-scope";
 import { DetailCardHeader } from "./instance-detail-shared";
 
 function EmptyCapability({ label }: { label: string }) {
@@ -12,7 +13,8 @@ function EmptyCapability({ label }: { label: string }) {
 }
 
 export function InstanceCapabilitiesTab({ agent }: { agent: Agent }) {
-  const catalog = useQuery({ queryKey: ["extension-catalog"], queryFn: api.getExtensionCatalog });
+  const workspace = useWorkspaceQueryScope();
+  const catalog = useQuery({ queryKey: workspace.key("extension-catalog"), queryFn: api.getExtensionCatalog });
   const skills = (agent.skillIds ?? []).map((id) => catalog.data?.skills.find((item) => item.id === id) ?? { id, name: id, description: "Catalog details unavailable.", version: undefined });
   const mcpServers = (agent.mcpServerIds ?? []).map((id) => catalog.data?.mcpServers.find((item) => item.id === id) ?? { id, name: id, status: "UNCHECKED" as const, tools: undefined, transport: undefined });
   const knowledgeBases = (agent.knowledgeSourceIds ?? []).map((id) => catalog.data?.knowledgeSources.find((item) => item.id === id) ?? { id, name: id, description: "Catalog details unavailable.", mode: undefined });

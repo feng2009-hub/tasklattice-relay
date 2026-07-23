@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useWorkspaceQueryScope } from "@/hooks/use-workspace-query-scope";
 
 export const Route = createFileRoute("/providers/model-profiles/$profileId")({ component: ModelProfileDetailPage });
 type Tab = "overview" | "routing" | "access" | "consumers" | "audit";
@@ -24,10 +25,11 @@ function ModelProfileDetailPage() {
   const [tab, setTab] = useState<Tab>("overview");
   const [deleteOpen, setDeleteOpen] = useState(false);
   const queryClient = useQueryClient();
+  const workspace = useWorkspaceQueryScope();
   const navigate = useNavigate();
-  const profile = useQuery({ queryKey: ["model-profile", profileId], queryFn: () => api.getModelProfile(profileId) });
-  const gateways = useQuery({ queryKey: ["inference-gateways"], queryFn: api.listInferenceGateways });
-  const refresh = useMutation({ mutationFn: () => api.refreshModelProfile(profileId), onSuccess: async () => Promise.all([queryClient.invalidateQueries({ queryKey: ["model-profile", profileId] }), queryClient.invalidateQueries({ queryKey: ["model-profiles"] })]) });
+  const profile = useQuery({ queryKey: workspace.key("model-profile", profileId), queryFn: () => api.getModelProfile(profileId) });
+  const gateways = useQuery({ queryKey: workspace.key("inference-gateways"), queryFn: api.listInferenceGateways });
+  const refresh = useMutation({ mutationFn: () => api.refreshModelProfile(profileId), onSuccess: async () => Promise.all([queryClient.invalidateQueries({ queryKey: workspace.key("model-profile", profileId) }), queryClient.invalidateQueries({ queryKey: workspace.key("model-profiles") })]) });
   const remove = useMutation({ mutationFn: () => api.deleteModelProfile(profileId), onSuccess: () => navigate({ to: "/providers/model-profiles" }) });
   if (profile.isPending) return <div className="grid min-h-72 place-items-center text-sm text-muted-foreground">Loading Model Profile…</div>;
   if (profile.error || !profile.data) return <div role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">{profile.error?.message ?? "Model Profile not found."}</div>;
@@ -97,8 +99,9 @@ function Overview({ profile, gatewayName }: { profile: ModelProfile; gatewayName
 }
 
 function RoutingTab({ profile, adminUiUrl }: { profile: ModelProfile; adminUiUrl?: string | undefined }) {
-  const accounts = useQuery({ queryKey: ["provider-accounts"], queryFn: api.listProviderAccounts });
-  const models = useQuery({ queryKey: ["model-deployments"], queryFn: api.listModelDeployments });
+  const workspace = useWorkspaceQueryScope();
+  const accounts = useQuery({ queryKey: workspace.key("provider-accounts"), queryFn: api.listProviderAccounts });
+  const models = useQuery({ queryKey: workspace.key("model-deployments"), queryFn: api.listModelDeployments });
   const capabilities = [
     ["Automatic routing", profile.capabilities.automaticRouting],
     ["Session affinity", profile.capabilities.sessionAffinity],
@@ -118,10 +121,11 @@ function RoutingTab({ profile, adminUiUrl }: { profile: ModelProfile; adminUiUrl
 
 function AccessTab({ profile, onDelete }: { profile: ModelProfile; onDelete: () => void }) {
   const queryClient = useQueryClient();
+  const workspace = useWorkspaceQueryScope();
   const [name, setName] = useState(profile.name);
   const [description, setDescription] = useState(profile.description);
   useEffect(() => { setName(profile.name); setDescription(profile.description); }, [profile]);
-  const update = useMutation({ mutationFn: (input: Parameters<typeof api.updateModelProfile>[1]) => api.updateModelProfile(profile.id, input), onSuccess: async () => Promise.all([queryClient.invalidateQueries({ queryKey: ["model-profile", profile.id] }), queryClient.invalidateQueries({ queryKey: ["model-profiles"] })]) });
+  const update = useMutation({ mutationFn: (input: Parameters<typeof api.updateModelProfile>[1]) => api.updateModelProfile(profile.id, input), onSuccess: async () => Promise.all([queryClient.invalidateQueries({ queryKey: workspace.key("model-profile", profile.id) }), queryClient.invalidateQueries({ queryKey: workspace.key("model-profiles") })]) });
   return <div className="space-y-4"><SettingsCard title="Profile identity" description="The human-readable identity shown in every model selection surface."><div className="grid gap-4 sm:grid-cols-2"><Field label="Name"><Input value={name} onChange={(event) => setName(event.target.value)} /></Field><Field label="Description"><Textarea value={description} onChange={(event) => setDescription(event.target.value)} /></Field></div><Button className="mt-4" disabled={update.isPending} onClick={() => update.mutate({ name, description })}>Save profile identity</Button></SettingsCard>
     <SettingsCard title="Access credentials" description="Key material is never displayed or persisted by the TaskLattice API."><div className="flex items-center gap-3 border bg-muted/20 p-3"><KeyRound className="size-4 text-primary" /><span><strong className="block text-sm">Per-Instance Virtual Keys enabled</strong><span className="text-xs text-muted-foreground">Team-scoped · model-restricted · independently revocable</span></span></div></SettingsCard>
     <SettingsCard title="Compliance policy" description="The Model Profile inherits the isolated LiteLLM Gateway domain."><div className="max-w-sm"><ReadOnly label="Compliance domain" value={profile.complianceDomain === "CN_MAINLAND" ? "CN Mainland" : "Global"} /></div><p className="mt-3 flex gap-2 text-xs text-muted-foreground"><CircleAlert className="size-4 shrink-0" />Every effective Router candidate must declare this same domain. A mismatch blocks new Instance bindings.</p></SettingsCard>
@@ -133,12 +137,14 @@ function AccessTab({ profile, onDelete }: { profile: ModelProfile; onDelete: () 
 }
 
 function ConsumersTab({ profileId }: { profileId: string }) {
-  const query = useQuery({ queryKey: ["model-profile-consumers", profileId], queryFn: () => api.listModelProfileConsumers(profileId) });
+  const workspace = useWorkspaceQueryScope();
+  const query = useQuery({ queryKey: workspace.key("model-profile-consumers", profileId), queryFn: () => api.listModelProfileConsumers(profileId) });
   return <Card><CardHeader><CardTitle className="flex items-center gap-2"><Boxes className="size-4" />Profile consumers</CardTitle><CardDescription>Instances using this Model Profile, each with an independently revocable Virtual Key.</CardDescription></CardHeader><CardContent>{query.isPending ? <p className="text-sm text-muted-foreground">Loading consumers…</p> : query.data?.length ? <div className="divide-y border">{query.data.map((binding) => <div key={binding.id} className="grid gap-2 p-3 text-xs sm:grid-cols-3"><span><span className="block text-muted-foreground">Instance</span><strong>{binding.agentId}</strong></span><span><span className="block text-muted-foreground">Key fingerprint</span><strong className="font-mono">{binding.keyFingerprint}</strong></span><span><span className="block text-muted-foreground">Attached</span><strong>{new Date(binding.createdAt).toLocaleString()}</strong></span></div>)}</div> : <p className="py-10 text-center text-sm text-muted-foreground">No Instance currently uses this Model Profile.</p>}</CardContent></Card>;
 }
 
 function AuditTab({ profileId }: { profileId: string }) {
-  const query = useQuery({ queryKey: ["model-profile-audit", profileId], queryFn: () => api.listModelProfileAudit(profileId) });
+  const workspace = useWorkspaceQueryScope();
+  const query = useQuery({ queryKey: workspace.key("model-profile-audit", profileId), queryFn: () => api.listModelProfileAudit(profileId) });
   return <Card><CardHeader><CardTitle className="flex items-center gap-2"><FileClock className="size-4" />Control-plane audit</CardTitle><CardDescription>Secrets and prompt content are excluded.</CardDescription></CardHeader><CardContent>{query.isPending ? <p className="text-sm text-muted-foreground">Loading audit events…</p> : query.data?.length ? <ol className="divide-y border">{query.data.map((event) => <li key={event.eventId} className="grid gap-2 p-3 text-xs sm:grid-cols-[11rem_1fr_auto]"><span className="text-muted-foreground">{new Date(event.timestamp).toLocaleString()}</span><span><strong className="block">{event.type}</strong><span className="mt-1 block text-muted-foreground">{event.reason}</span></span><span className={event.result === "SUCCESS" ? "text-emerald-700" : "text-destructive"}>{event.result}</span></li>)}</ol> : <p className="py-10 text-center text-sm text-muted-foreground">No audit events.</p>}</CardContent></Card>;
 }
 

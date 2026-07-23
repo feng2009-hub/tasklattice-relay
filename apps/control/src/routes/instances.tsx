@@ -21,6 +21,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { api } from "@/lib/api";
 import { getAgentPlatformPresentation } from "@/lib/agent-platforms";
 import { cn } from "@/lib/utils";
+import { useWorkspaceQueryScope } from "@/hooks/use-workspace-query-scope";
 
 export const Route = createFileRoute("/instances")({
   validateSearch: z.object({
@@ -153,12 +154,13 @@ function InstanceActions({ instance, onDelete }: { instance: Agent; onDelete: ()
 
 function Instances() {
   const queryClient = useQueryClient();
+  const workspace = useWorkspaceQueryScope();
   const navigate = useNavigate();
   const search = Route.useSearch();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<(typeof statusFilters)[number]>("ALL");
   const [deletingInstance, setDeletingInstance] = useState<Agent>();
-  const agents = useQuery({ queryKey: ["agents"], queryFn: api.listAgents, refetchInterval: 2_000 });
+  const agents = useQuery({ queryKey: workspace.key("agents"), queryFn: api.listAgents, refetchInterval: 2_000 });
   const filtered = useMemo(() => (agents.data ?? []).filter((agent) => {
     const matchesQuery = `${agent.name} ${agent.id} ${agent.sandboxName} ${getAgentPlatformPresentation(agent.agentPlatform).name}`.toLowerCase().includes(query.trim().toLowerCase());
     return matchesQuery && (status === "ALL" || agent.status === status);
@@ -167,7 +169,7 @@ function Instances() {
     mutationFn: api.deleteAgent,
     onSuccess: async () => {
       setDeletingInstance(undefined);
-      await queryClient.invalidateQueries({ queryKey: ["agents"] });
+      await queryClient.invalidateQueries({ queryKey: workspace.key("agents") });
     },
   });
 

@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useWorkspaceQueryScope } from "@/hooks/use-workspace-query-scope";
 
 export const Route = createFileRoute("/providers/")({ component: ProvidersPage });
 const pageSize = 10;
@@ -32,6 +33,7 @@ function money(value: number): string {
 }
 
 function ProvidersPage() {
+  const workspace = useWorkspaceQueryScope();
   const [registerOpen, setRegisterOpen] = useState(false);
   const [drawerAccount, setDrawerAccount] = useState<ProviderAccount>();
   const addProviderButtonRef = useRef<HTMLButtonElement>(null);
@@ -40,11 +42,11 @@ function ProvidersPage() {
   const [status, setStatus] = useState<"all" | ProviderResourceStatus>("all");
   const [page, setPage] = useState(1);
   const [expanded, setExpanded] = useState<string>();
-  const accounts = useQuery({ queryKey: ["provider-accounts"], queryFn: api.listProviderAccounts });
-  const models = useQuery({ queryKey: ["model-deployments"], queryFn: api.listModelDeployments });
+  const accounts = useQuery({ queryKey: workspace.key("provider-accounts"), queryFn: api.listProviderAccounts });
+  const models = useQuery({ queryKey: workspace.key("model-deployments"), queryFn: api.listModelDeployments });
   const range = useMemo(() => dateRange(30), []);
   const costs = useQuery({
-    queryKey: ["provider-cost", range],
+    queryKey: workspace.key("provider-cost", range),
     queryFn: () => api.getCostSummary({
       startTime: range.from,
       endTime: range.to,
@@ -56,7 +58,7 @@ function ProvidersPage() {
   });
   const validatedModels = (models.data ?? []).filter((model) => model.status === "VALIDATED");
   const accountCosts = useQuery({
-    queryKey: ["provider-cost-breakdown", range],
+    queryKey: workspace.key("provider-cost-breakdown", range),
     queryFn: () => api.getCostBreakdown({
       startTime: range.from,
       endTime: range.to,
@@ -138,8 +140,9 @@ function StatusBadge({ status }: { status: ProviderResourceStatus }) {
 
 function AccountActions({ account, models, onAddModel }: { account: ProviderAccount; models: ModelDeployment[]; onAddModel: () => void }) {
   const queryClient = useQueryClient();
-  const revalidate = useMutation({ mutationFn: () => api.revalidateProviderAccount(account.id), onSuccess: async () => Promise.all([queryClient.invalidateQueries({ queryKey: ["provider-accounts"] }), queryClient.invalidateQueries({ queryKey: ["model-deployments"] })]) });
-  const remove = useMutation({ mutationFn: () => api.deleteProviderAccount(account.id), onSuccess: async () => Promise.all([queryClient.invalidateQueries({ queryKey: ["provider-accounts"] }), queryClient.invalidateQueries({ queryKey: ["model-deployments"] })]) });
+  const workspace = useWorkspaceQueryScope();
+  const revalidate = useMutation({ mutationFn: () => api.revalidateProviderAccount(account.id), onSuccess: async () => Promise.all([queryClient.invalidateQueries({ queryKey: workspace.key("provider-accounts") }), queryClient.invalidateQueries({ queryKey: workspace.key("model-deployments") })]) });
+  const remove = useMutation({ mutationFn: () => api.deleteProviderAccount(account.id), onSuccess: async () => Promise.all([queryClient.invalidateQueries({ queryKey: workspace.key("provider-accounts") }), queryClient.invalidateQueries({ queryKey: workspace.key("model-deployments") })]) });
   return <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" aria-label={`Actions for ${account.name}`}>{revalidate.isPending || remove.isPending ? <Spinner /> : <Ellipsis />}</Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onSelect={onAddModel}><Plus />Add model</DropdownMenuItem><DropdownMenuItem onSelect={() => revalidate.mutate()} disabled={revalidate.isPending}><RefreshCw />Revalidate</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem className="text-destructive focus:text-destructive" disabled={remove.isPending} onSelect={() => { if (window.confirm(`Delete ${account.name} and its model configurations?`)) remove.mutate(); }}><Trash2 />Delete connection</DropdownMenuItem></DropdownMenuContent></DropdownMenu>;
 }
 

@@ -14,6 +14,7 @@ import { InstanceOverviewTab } from "@/components/instances/instance-overview-ta
 import { InstanceTerminalTab } from "@/components/instances/instance-terminal-tab";
 import { ApiError, api } from "@/lib/api";
 import { getAgentPlatformPresentation } from "@/lib/agent-platforms";
+import { useWorkspaceQueryScope } from "@/hooks/use-workspace-query-scope";
 import { useEffect, useRef, useState } from "react";
 
 const tabSearch = z.preprocess(
@@ -31,11 +32,12 @@ function AgentDetail() {
   const search = Route.useSearch();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const workspace = useWorkspaceQueryScope();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const activeTab = normalizeInstanceDetailTab(search.tab);
 
   const agent = useQuery({
-    queryKey: ["agent", agentId],
+    queryKey: workspace.key("agent", agentId),
     queryFn: () => api.getAgent(agentId),
     retry: (failureCount, error) => !(error instanceof ApiError && error.status === 404) && failureCount < 2,
     refetchInterval: (query) => {
@@ -46,14 +48,14 @@ function AgentDetail() {
     },
   });
   const modelProfile = useQuery({
-    queryKey: ["model-profile", agent.data?.modelProfileId],
+    queryKey: workspace.key("model-profile", agent.data?.modelProfileId),
     queryFn: () => api.getModelProfile(agent.data!.modelProfileId),
     enabled: Boolean(agent.data?.modelProfileId),
     retry: 1,
     staleTime: 30_000,
   });
   const terminalTargets = useQuery({
-    queryKey: ["agent-terminal-targets", agentId],
+    queryKey: workspace.key("agent-terminal-targets", agentId),
     queryFn: () => api.getTerminalTargets(agentId),
     enabled: agent.data?.status === "READY" && !search.creating,
     retry: 1,
@@ -61,7 +63,7 @@ function AgentDetail() {
     refetchInterval: activeTab === "terminal" ? 5_000 : false,
   });
   const audit = useQuery({
-    queryKey: ["agent-audit", agentId],
+    queryKey: workspace.key("agent-audit", agentId),
     queryFn: () => api.getAgentAudit(agentId),
     enabled: Boolean(agent.data) && !search.creating,
     retry: 1,
@@ -70,7 +72,7 @@ function AgentDetail() {
   const remove = useMutation({
     mutationFn: () => api.deleteAgent(agentId),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["agents"] });
+      await queryClient.invalidateQueries({ queryKey: workspace.key("agents") });
       await navigate({ to: "/instances", replace: true });
     },
   });

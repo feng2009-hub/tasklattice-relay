@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useWorkspaceQueryScope } from "@/hooks/use-workspace-query-scope";
 
 export const Route = createFileRoute("/Extensions/skill")({ component: SkillCatalog });
 
@@ -38,7 +39,8 @@ function skillInput(skill: SkillDefinition): CreateSkillDefinitionInput {
 
 function SkillCatalog() {
   const queryClient = useQueryClient();
-  const catalog = useQuery({ queryKey: ["extension-catalog"], queryFn: api.getExtensionCatalog });
+  const workspace = useWorkspaceQueryScope();
+  const catalog = useQuery({ queryKey: workspace.key("extension-catalog"), queryFn: api.getExtensionCatalog });
   const items = catalog.data?.skills ?? [];
   const [selectedId, setSelectedId] = useState("");
   const [query, setQuery] = useState("");
@@ -71,7 +73,7 @@ function SkillCatalog() {
       setSelectedId(skill.id);
       setMode("detail");
       setNotice(variables.id ? "Skill metadata saved to PostgreSQL." : "Skill registered in the PostgreSQL catalog.");
-      await queryClient.invalidateQueries({ queryKey: ["extension-catalog"] });
+      await queryClient.invalidateQueries({ queryKey: workspace.key("extension-catalog") });
     },
   });
   const verifySkill = useMutation({
@@ -82,7 +84,7 @@ function SkillCatalog() {
     }),
     onSuccess: async () => {
       setNotice("Source check recorded in PostgreSQL. Remote fetching remains simulated in development.");
-      await queryClient.invalidateQueries({ queryKey: ["extension-catalog"] });
+      await queryClient.invalidateQueries({ queryKey: workspace.key("extension-catalog") });
     },
   });
   const deleteSkill = useMutation({
@@ -91,7 +93,7 @@ function SkillCatalog() {
       setSelectedId("");
       setMode("detail");
       setNotice("Skill removed from the PostgreSQL catalog.");
-      await queryClient.invalidateQueries({ queryKey: ["extension-catalog"] });
+      await queryClient.invalidateQueries({ queryKey: workspace.key("extension-catalog") });
     },
   });
 

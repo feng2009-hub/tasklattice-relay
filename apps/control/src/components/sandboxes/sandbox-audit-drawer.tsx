@@ -27,6 +27,7 @@ import {
   type CsvColumn,
 } from "@/lib/csv";
 import { cn } from "@/lib/utils";
+import { useWorkspaceQueryScope } from "@/hooks/use-workspace-query-scope";
 
 const auditColumns = [
   { header: "Event ID", value: (event) => event.id },
@@ -160,9 +161,10 @@ export function SandboxAuditDrawer({
   trigger: ReactElement;
 }) {
   const [open, setOpen] = useState(false);
+  const workspace = useWorkspaceQueryScope();
   const ready = sandbox.status === "READY";
   const audit = useQuery({
-    queryKey: ["sandbox-audit", sandbox.id],
+    queryKey: workspace.key("sandbox-audit", sandbox.id),
     queryFn: () => api.getAgentAudit(sandbox.id),
     enabled: open && ready,
     retry: 1,

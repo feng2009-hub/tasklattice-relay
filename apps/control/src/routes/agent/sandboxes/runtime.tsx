@@ -18,24 +18,26 @@ import {
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { getAgentPlatformPresentation } from "@/lib/agent-platforms";
+import { useWorkspaceQueryScope } from "@/hooks/use-workspace-query-scope";
 
 export const Route = createFileRoute("/agent/sandboxes/runtime")({ component: OpenShellRuntimePage });
 
 function OpenShellRuntimePage() {
   const [selectedId, setSelectedId] = useState<string>();
+  const workspace = useWorkspaceQueryScope();
   const agents = useQuery({
-    queryKey: ["agents"],
+    queryKey: workspace.key("agents"),
     queryFn: api.listAgents,
     refetchInterval: 2_000,
   });
   const runtime = useQuery({
-    queryKey: ["runtime-status"],
+    queryKey: workspace.key("runtime-status"),
     queryFn: api.getRuntimeStatus,
     retry: 1,
     staleTime: 10_000,
     refetchInterval: 30_000,
   });
-  const policies = useQuery({ queryKey: ["sandbox-policies"], queryFn: api.listPolicies });
+  const policies = useQuery({ queryKey: workspace.key("sandbox-policies"), queryFn: api.listPolicies });
   const openShellAvailable =
     runtime.data?.terminal.available &&
     runtime.data.terminal.transport === "openshell";

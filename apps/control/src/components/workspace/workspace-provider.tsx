@@ -6,7 +6,7 @@ import {
   type ReactNode,
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useRouter, useRouterState } from "@tanstack/react-router";
+import { useRouter } from "@tanstack/react-router";
 import {
   getStoredWorkspaceId,
   storeWorkspaceId,
@@ -31,13 +31,10 @@ function workspaceIdFromUrl(): string | null {
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const router = useRouter();
-  const locationSignature = useRouterState({
-    select: (state) =>
-      `${state.location.pathname}?${JSON.stringify(state.location.search)}`,
-  });
   const [availableWorkspaces, setAvailableWorkspaces] = useState<Workspace[]>([]);
   const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(null);
   const [loading, setLoading] = useState(true);
+  const [switchingWorkspaceId, setSwitchingWorkspaceId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   const replaceWorkspaceInUrl = useCallback(
@@ -54,17 +51,20 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const refreshWorkspaces = useCallback(async () => {
     const workspaces = await getWorkspaces();
+    const selected =
+      workspaces.find((workspace) => workspace.id === currentWorkspace?.id) ??
+      workspaces.find((workspace) => workspace.type === "personal") ??
+      workspaces[0] ??
+      null;
     setAvailableWorkspaces(workspaces);
-    setCurrentWorkspace((current) => {
-      if (!current) return workspaces[0] ?? personalFallbackWorkspace;
-      return (
-        workspaces.find((workspace) => workspace.id === current.id) ??
-        workspaces[0] ??
-        personalFallbackWorkspace
-      );
-    });
+    setCurrentWorkspace(selected);
+    setError(selected ? "" : "No workspace available.");
+    if (selected) {
+      storeWorkspaceId(selected.id);
+      replaceWorkspaceInUrl(selected.id);
+    }
     return workspaces;
-  }, []);
+  }, [currentWorkspace?.id, replaceWorkspaceInUrl]);
 
   useEffect(() => {
     let disposed = false;
@@ -74,7 +74,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       try {
         const loaded = await getWorkspaces();
         if (disposed) return;
-        const workspaces = loaded.length ? loaded : [personalFallbackWorkspace];
+        if (!loaded.length) {
+          setAvailableWorkspaces([]);
+          setCurrentWorkspace(null);
+          setError("No workspace available.");
+          return;
+        }
+        const workspaces = loaded;
         const urlWorkspaceId = workspaceIdFromUrl();
         const storedWorkspaceId = getStoredWorkspaceId();
         const selected = selectInitialWorkspace(
@@ -112,13 +118,25 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       const nextWorkspace = availableWorkspaces.find(
         (workspace) => workspace.id === workspaceId,
       );
-      if (!nextWorkspace || nextWorkspace.id === currentWorkspace?.id) return;
+      if (
+        switchingWorkspaceId ||
+        !nextWorkspace ||
+        nextWorkspace.id === currentWorkspace?.id
+      ) return;
 
-      setLoading(true);
+      setSwitchingWorkspaceId(nextWorkspace.id);
       setError("");
       try {
-        await queryClient.cancelQueries();
         await persistWorkspaceSwitch(nextWorkspace.id);
+        if (currentWorkspace) {
+          await queryClient.cancelQueries({
+            queryKey: ["workspace", currentWorkspace.id],
+          });
+        }
+        await queryClient.invalidateQueries({
+          queryKey: ["workspace", nextWorkspace.id],
+          refetchType: "none",
+        });
         setCurrentWorkspace(nextWorkspace);
         replaceWorkspaceInUrl(nextWorkspace.id);
         if (typeof window !== "undefined") {
@@ -131,8 +149,6 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
             }),
           );
         }
-        await queryClient.invalidateQueries({ refetchType: "none" });
-        await queryClient.resetQueries({ type: "active" });
       } catch (reason) {
         setError(
           reason instanceof Error
@@ -141,7 +157,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         );
         throw reason;
       } finally {
-        setLoading(false);
+        setSwitchingWorkspaceId(null);
       }
     },
     [
@@ -149,38 +165,30 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       currentWorkspace?.id,
       queryClient,
       replaceWorkspaceInUrl,
+      switchingWorkspaceId,
     ],
   );
 
   useEffect(() => {
     const syncFromHistory = () => {
       const workspaceId = workspaceIdFromUrl();
-      if (workspaceId && workspaceId !== currentWorkspace?.id) {
+      if (!currentWorkspace) return;
+      if (!workspaceId) {
+        replaceWorkspaceInUrl(currentWorkspace.id);
+        return;
+      }
+      if (workspaceId === currentWorkspace.id) return;
+      if (availableWorkspaces.some((workspace) => workspace.id === workspaceId)) {
         void switchWorkspace(workspaceId);
+      } else {
+        replaceWorkspaceInUrl(currentWorkspace.id);
       }
     };
     window.addEventListener("popstate", syncFromHistory);
     return () => window.removeEventListener("popstate", syncFromHistory);
-  }, [currentWorkspace?.id, switchWorkspace]);
-
-  useEffect(() => {
-    if (!currentWorkspace || loading) return;
-    const workspaceId = workspaceIdFromUrl();
-    if (!workspaceId) {
-      replaceWorkspaceInUrl(currentWorkspace.id);
-      return;
-    }
-    if (
-      workspaceId !== currentWorkspace.id &&
-      availableWorkspaces.some((workspace) => workspace.id === workspaceId)
-    ) {
-      void switchWorkspace(workspaceId);
-    }
   }, [
     availableWorkspaces,
     currentWorkspace,
-    loading,
-    locationSignature,
     replaceWorkspaceInUrl,
     switchWorkspace,
   ]);
@@ -190,8 +198,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       availableWorkspaces,
       currentWorkspace,
       error,
+      isSwitching: switchingWorkspaceId !== null,
       loading,
       refreshWorkspaces,
+      switchingWorkspaceId,
       switchWorkspace,
     }),
     [
@@ -200,6 +210,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       error,
       loading,
       refreshWorkspaces,
+      switchingWorkspaceId,
       switchWorkspace,
     ],
   );
