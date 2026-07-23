@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createAgentSchema, createInferenceGroupSchema } from "@tasklattice/contracts";
+import { createAgentSchema, createModelProfileSchema } from "@tasklattice/contracts";
 import { createTestStore } from "../test/store";
-import type { LiteLLMAdminClient, LiteLLMInferenceInspection } from "../providers/litellm-client";
-import { InferenceGroupResolver, InferenceGroupService } from "./inference-group-service";
+import type { LiteLLMAdminClient, LiteLLMModelProfileInspection } from "../providers/litellm-client";
+import { ModelProfileResolver, ModelProfileService } from "./model-profile-service";
 
 beforeEach(() => vi.stubEnv("LITELLM_COMPLIANCE_DOMAIN", "CN_MAINLAND"));
 afterEach(() => vi.unstubAllEnvs());
@@ -21,7 +21,7 @@ const capabilities = {
   requestAudit: "ENABLED",
 } as const;
 
-function adapter(inspection: Omit<LiteLLMInferenceInspection, "configurationHash"> & { configurationHash?: string }): LiteLLMAdminClient {
+function adapter(inspection: Omit<LiteLLMModelProfileInspection, "configurationHash"> & { configurationHash?: string }): LiteLLMAdminClient {
   return {
     baseUrl: "http://litellm:4000",
     registerModel: vi.fn(),
@@ -30,15 +30,15 @@ function adapter(inspection: Omit<LiteLLMInferenceInspection, "configurationHash
     createInstanceKey: vi.fn(),
     revokeKey: vi.fn(),
     listSpendLogs: vi.fn(),
-    inspectInferenceGroup: vi.fn(async () => ({ configurationHash: "sha256:litellm", ...inspection })),
-    createInferenceGroupTeam: vi.fn(async () => "team-a"),
-    createInferenceGroupKey: vi.fn(async () => ({ secret: "sk-instance-secret", tokenId: "token-hash" })),
-    deleteInferenceGroupTeam: vi.fn(),
+    inspectModelProfile: vi.fn(async () => ({ configurationHash: "sha256:litellm", ...inspection })),
+    createModelProfileTeam: vi.fn(async () => "team-a"),
+    createModelProfileKey: vi.fn(async () => ({ secret: "sk-instance-secret", tokenId: "token-hash" })),
+    deleteModelProfileTeam: vi.fn(),
   };
 }
 
 function input(domain: "CN_MAINLAND" | "GLOBAL" = "CN_MAINLAND") {
-  return createInferenceGroupSchema.parse({
+  return createModelProfileSchema.parse({
     name: "Production inference",
     description: "Managed production inference access.",
     gatewayId: "litellm-default",
@@ -48,7 +48,7 @@ function input(domain: "CN_MAINLAND" | "GLOBAL" = "CN_MAINLAND") {
   });
 }
 
-describe("Inference Group contracts", () => {
+describe("Model Profile contracts", () => {
   it("keeps model selection out of Instance creation", () => {
     expect(() => createAgentSchema.parse({
       name: "Research Agent",
@@ -59,15 +59,15 @@ describe("Inference Group contracts", () => {
     })).toThrow();
   });
 
-  it("accepts an explicit Inference Group without exposing model routing", () => {
-    const inferenceGroupId = "2f3d37d9-fd85-49ee-80b3-06861b8c44b1";
+  it("accepts an explicit Model Profile without exposing model routing", () => {
+    const modelProfileId = "2f3d37d9-fd85-49ee-80b3-06861b8c44b1";
     expect(createAgentSchema.parse({
       name: "Research Agent",
       description: "",
       runtime: "openshell",
       systemPrompt: "Research the request and report the evidence.",
-      inferenceGroupId,
-    }).inferenceGroupId).toBe(inferenceGroupId);
+      modelProfileId,
+    }).modelProfileId).toBe(modelProfileId);
   });
 
   it("defaults secret-safe key and audit policies", () => {
@@ -78,16 +78,16 @@ describe("Inference Group contracts", () => {
   });
 
   it("accepts concise region-oriented names such as CN", () => {
-    expect(createInferenceGroupSchema.parse({
+    expect(createModelProfileSchema.parse({
       ...input(),
       name: "CN",
     }).name).toBe("CN");
   });
 });
 
-describe("Inference Group validation", () => {
+describe("Model Profile validation", () => {
   it("becomes READY and default only after a matching LiteLLM inspection", async () => {
-    const service = new InferenceGroupService(createTestStore(), adapter({
+    const service = new ModelProfileService(createTestStore(), adapter({
       exists: true,
       version: "1.94.1",
       modelCount: 2,
@@ -95,13 +95,13 @@ describe("Inference Group validation", () => {
       complianceUnknown: false,
       capabilities,
     }));
-    const group = await service.create(input());
-    expect(group).toMatchObject({ status: "READY", isDefault: true, capabilities });
-    expect(group.conditions).toContainEqual(expect.objectContaining({ type: "COMPLIANCE", status: "PASS" }));
+    const profile = await service.create(input());
+    expect(profile).toMatchObject({ status: "READY", isDefault: true, capabilities });
+    expect(profile.conditions).toContainEqual(expect.objectContaining({ type: "COMPLIANCE", status: "PASS" }));
   });
 
   it("rejects CN/GLOBAL mixing", async () => {
-    const service = new InferenceGroupService(createTestStore(), adapter({
+    const service = new ModelProfileService(createTestStore(), adapter({
       exists: true,
       version: "1.94.1",
       modelCount: 2,
@@ -109,12 +109,12 @@ describe("Inference Group validation", () => {
       complianceUnknown: false,
       capabilities,
     }));
-    const group = await service.create(input());
-    expect(group.status).toBe("NON_COMPLIANT");
-    expect(group.isDefault).toBe(false);
+    const profile = await service.create(input());
+    expect(profile.status).toBe("NON_COMPLIANT");
+    expect(profile.isDefault).toBe(false);
   });
 
-  it("rejects an Inference Group that does not match its Gateway compliance domain", async () => {
+  it("rejects a Model Profile that does not match its Gateway compliance domain", async () => {
     vi.stubEnv("LITELLM_COMPLIANCE_DOMAIN", "GLOBAL");
     const client = adapter({
       exists: true,
@@ -124,30 +124,30 @@ describe("Inference Group validation", () => {
       complianceUnknown: false,
       capabilities,
     });
-    const service = new InferenceGroupService(createTestStore(), client);
+    const service = new ModelProfileService(createTestStore(), client);
 
-    const group = await service.create(input("CN_MAINLAND"));
+    const profile = await service.create(input("CN_MAINLAND"));
 
-    expect(group.status).toBe("NON_COMPLIANT");
-    expect(group.conditions).toContainEqual(expect.objectContaining({ type: "COMPLIANCE", status: "FAIL" }));
-    expect(client.inspectInferenceGroup).not.toHaveBeenCalled();
+    expect(profile.status).toBe("NON_COMPLIANT");
+    expect(profile.conditions).toContainEqual(expect.objectContaining({ type: "COMPLIANCE", status: "FAIL" }));
+    expect(client.inspectModelProfile).not.toHaveBeenCalled();
   });
 
   it("fails closed when compliance metadata is UNKNOWN", async () => {
-    const service = new InferenceGroupService(createTestStore(), adapter({
+    const service = new ModelProfileService(createTestStore(), adapter({
       exists: true,
       modelCount: 1,
       complianceDomains: [],
       complianceUnknown: true,
       capabilities,
     }));
-    const group = await service.create(input());
-    expect(group.status).toBe("NON_COMPLIANT");
-    expect(group.conditions).toContainEqual(expect.objectContaining({ type: "COMPLIANCE", status: "UNKNOWN" }));
+    const profile = await service.create(input());
+    expect(profile.status).toBe("NON_COMPLIANT");
+    expect(profile.conditions).toContainEqual(expect.objectContaining({ type: "COMPLIANCE", status: "UNKNOWN" }));
   });
 
   it("marks unsupported Auto Router versions explicitly", async () => {
-    const service = new InferenceGroupService(createTestStore(), adapter({
+    const service = new ModelProfileService(createTestStore(), adapter({
       exists: true,
       version: "1.86.2",
       modelCount: 1,
@@ -160,31 +160,31 @@ describe("Inference Group validation", () => {
   });
 });
 
-describe("InferenceGroupResolver", () => {
+describe("ModelProfileResolver", () => {
   it("requires exactly one READY default", async () => {
     const store = createTestStore();
-    const service = new InferenceGroupService(store, adapter({ exists: true, modelCount: 1, complianceDomains: ["CN_MAINLAND"], complianceUnknown: false, capabilities }));
+    const service = new ModelProfileService(store, adapter({ exists: true, modelCount: 1, complianceDomains: ["CN_MAINLAND"], complianceUnknown: false, capabilities }));
     const ready = await service.create(input());
-    expect((await new InferenceGroupResolver(store).resolveDefault()).id).toBe(ready.id);
-    await store.saveInferenceGroup({ ...ready, id: "second", name: "Second default", createdAt: new Date().toISOString() });
-    await expect(new InferenceGroupResolver(store).resolveDefault()).rejects.toThrow("Multiple default");
+    expect((await new ModelProfileResolver(store).resolveDefault()).id).toBe(ready.id);
+    await store.saveModelProfile({ ...ready, id: "second", name: "Second default", createdAt: new Date().toISOString() });
+    await expect(new ModelProfileResolver(store).resolveDefault()).rejects.toThrow("Multiple default");
   });
 
-  it("does not resolve a suspended group", async () => {
+  it("does not resolve a suspended profile", async () => {
     const store = createTestStore();
-    const service = new InferenceGroupService(store, adapter({ exists: true, modelCount: 1, complianceDomains: ["CN_MAINLAND"], complianceUnknown: false, capabilities }));
+    const service = new ModelProfileService(store, adapter({ exists: true, modelCount: 1, complianceDomains: ["CN_MAINLAND"], complianceUnknown: false, capabilities }));
     const ready = await service.create(input());
     await service.update(ready.id, { suspended: true });
     await expect(service.resolver.resolveDefault()).rejects.toThrow("suspended");
   });
 
-  it("binds an explicitly selected READY group instead of the default", async () => {
+  it("binds an explicitly selected READY profile instead of the default", async () => {
     const store = createTestStore();
     const client = adapter({ exists: true, modelCount: 1, complianceDomains: ["CN_MAINLAND"], complianceUnknown: false, capabilities });
-    const service = new InferenceGroupService(store, client);
-    const defaultGroup = await service.create(input());
-    const selectedGroup = await store.saveInferenceGroup({
-      ...defaultGroup,
+    const service = new ModelProfileService(store, client);
+    const defaultProfile = await service.create(input());
+    const selectedProfile = await store.saveModelProfile({
+      ...defaultProfile,
       id: "2f3d37d9-fd85-49ee-80b3-06861b8c44b1",
       name: "Selected inference",
       publicModelAlias: "selected-chat",
@@ -193,31 +193,31 @@ describe("InferenceGroupResolver", () => {
       updatedAt: new Date().toISOString(),
     });
 
-    const binding = await service.bindAgent("agent-selected", selectedGroup.id);
+    const binding = await service.bindAgent("agent-selected", selectedProfile.id);
 
-    expect(binding.group.id).toBe(selectedGroup.id);
-    expect(client.createInferenceGroupKey).toHaveBeenCalledWith(expect.objectContaining({
-      inferenceGroupId: selectedGroup.id,
+    expect(binding.profile.id).toBe(selectedProfile.id);
+    expect(client.createModelProfileKey).toHaveBeenCalledWith(expect.objectContaining({
+      modelProfileId: selectedProfile.id,
       modelAlias: "selected-chat",
     }));
   });
 });
 
-describe("Inference Group deletion", () => {
+describe("Model Profile deletion", () => {
   it("blocks active consumers and deletes the LiteLLM team after they are removed", async () => {
     const store = createTestStore();
     const client = adapter({ exists: true, modelCount: 1, complianceDomains: ["CN_MAINLAND"], complianceUnknown: false, capabilities });
-    const service = new InferenceGroupService(store, client);
-    const group = await service.create(input());
-    await service.bindAgent("agent-consumer", group.id);
+    const service = new ModelProfileService(store, client);
+    const profile = await service.create(input());
+    await service.bindAgent("agent-consumer", profile.id);
 
-    await expect(service.delete(group.id)).rejects.toThrow("Remove all Consumers");
-    expect(await service.get(group.id)).toBeDefined();
+    await expect(service.delete(profile.id)).rejects.toThrow("Remove all Consumers");
+    expect(await service.get(profile.id)).toBeDefined();
 
     await service.unbindAgent("agent-consumer");
-    await service.delete(group.id);
+    await service.delete(profile.id);
 
-    expect(await service.get(group.id)).toBeUndefined();
-    expect(client.deleteInferenceGroupTeam).toHaveBeenCalledWith("team-a");
+    expect(await service.get(profile.id)).toBeUndefined();
+    expect(client.deleteModelProfileTeam).toHaveBeenCalledWith("team-a");
   });
 });

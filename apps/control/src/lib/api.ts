@@ -22,11 +22,11 @@ import type {
   ExtensionResourceKind,
   KnowledgeSourceDefinition,
   InferenceGateway,
-  InferenceGroup,
-  InferenceGroupAuditEvent,
-  InferenceGroupConsumer,
-  CreateInferenceGroupInput,
-  UpdateInferenceGroupInput,
+  ModelProfile,
+  ModelProfileAuditEvent,
+  ModelProfileConsumer,
+  CreateModelProfileInput,
+  UpdateModelProfileInput,
   McpServerDefinition,
   ModelDeployment,
   ProviderAccount,
@@ -94,24 +94,22 @@ function costSearch(params: CostQueryParams, extra: Record<string, string> = {})
 export const api = {
   listInferenceGateways: async () =>
     (await request<{ data: InferenceGateway[] }>("/api/v1/inference-gateways")).data,
-  listInferenceGroups: async () =>
-    (await request<{ data: InferenceGroup[] }>("/api/v1/inference-groups")).data,
-  getInferenceGroup: (id: string) =>
-    request<InferenceGroup>(`/api/v1/inference-groups/${encodeURIComponent(id)}`),
-  createInferenceGroup: (input: CreateInferenceGroupInput) =>
-    request<InferenceGroup>("/api/v1/inference-groups", { method: "POST", body: JSON.stringify(input) }),
-  updateInferenceGroup: (id: string, input: UpdateInferenceGroupInput) =>
-    request<InferenceGroup>(`/api/v1/inference-groups/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(input) }),
-  validateInferenceGroup: (id: string) =>
-    request<InferenceGroup>(`/api/v1/inference-groups/${encodeURIComponent(id)}/validate`, { method: "POST", body: "{}" }),
-  refreshInferenceGroup: (id: string) =>
-    request<InferenceGroup>(`/api/v1/inference-groups/${encodeURIComponent(id)}/refresh`, { method: "POST", body: "{}" }),
-  deleteInferenceGroup: (id: string) =>
-    request<{ message: string }>(`/api/v1/inference-groups/${encodeURIComponent(id)}`, { method: "DELETE" }),
-  listInferenceGroupConsumers: async (id: string) =>
-    (await request<{ data: InferenceGroupConsumer[] }>(`/api/v1/inference-groups/${encodeURIComponent(id)}/consumers`)).data,
-  listInferenceGroupAudit: async (id: string) =>
-    (await request<{ data: InferenceGroupAuditEvent[] }>(`/api/v1/inference-groups/${encodeURIComponent(id)}/audit`)).data,
+  listModelProfiles: async () =>
+    (await request<{ data: ModelProfile[] }>("/api/v1/model-profiles")).data,
+  getModelProfile: (id: string) =>
+    request<ModelProfile>(`/api/v1/model-profiles/${encodeURIComponent(id)}`),
+  createModelProfile: (input: CreateModelProfileInput) =>
+    request<ModelProfile>("/api/v1/model-profiles", { method: "POST", body: JSON.stringify(input) }),
+  updateModelProfile: (id: string, input: UpdateModelProfileInput) =>
+    request<ModelProfile>(`/api/v1/model-profiles/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(input) }),
+  refreshModelProfile: (id: string) =>
+    request<ModelProfile>(`/api/v1/model-profiles/${encodeURIComponent(id)}/refresh`, { method: "POST", body: "{}" }),
+  deleteModelProfile: (id: string) =>
+    request<{ message: string }>(`/api/v1/model-profiles/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  listModelProfileConsumers: async (id: string) =>
+    (await request<{ data: ModelProfileConsumer[] }>(`/api/v1/model-profiles/${encodeURIComponent(id)}/consumers`)).data,
+  listModelProfileAudit: async (id: string) =>
+    (await request<{ data: ModelProfileAuditEvent[] }>(`/api/v1/model-profiles/${encodeURIComponent(id)}/audit`)).data,
   getExtensionCatalog: () => request<ExtensionCatalog>("/api/v1/extensions"),
   createSkill: (input: CreateSkillDefinitionInput) =>
     request<SkillDefinition>("/api/v1/extensions/skills", {

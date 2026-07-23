@@ -149,7 +149,7 @@ clients. Use them only on a trusted local cluster.
 
 ## End-to-end runtime validation
 
-After registering a Provider and a ready default Inference Group, run the core
+After registering a Provider and a ready default Model Profile, run the core
 validation against the local control endpoint:
 
 ```sh

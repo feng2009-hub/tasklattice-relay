@@ -130,10 +130,10 @@ Secrets, image pull Secrets, and external runtime settings.
 After signing in:
 
 1. Register a Provider and validate at least one model.
-2. Create an Inference Group using a registered LiteLLM public model alias.
-3. Mark the first Inference Group as the default for new Instances.
-4. Create an Instance, choose OpenClaw or Hermes, and select a ready Inference
-   Group.
+2. Create a Model Profile using a registered LiteLLM public model alias.
+3. Mark the first Model Profile as the default for new Instances.
+4. Create an Instance, choose OpenClaw or Hermes, and select a ready Model
+   Profile.
 5. Keep the built-in Unrestricted Policy for the first validation run.
 
 A successful Instance reaches `READY`, exposes its Agent UI, and enables its

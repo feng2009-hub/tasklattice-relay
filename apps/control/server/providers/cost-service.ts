@@ -321,8 +321,8 @@ export class CostService {
     const environmentId = process.env.TALI_ENVIRONMENT_ID ?? "production";
     for (const agent of await this.store.listAgentsForReporting()) {
       const full = await this.store.get(agent.id);
-      const binding = await this.store.getInferenceGroupBindingForAgent(agent.id);
-      const group = binding ? await this.store.getInferenceGroup(binding.inferenceGroupId) : undefined;
+      const binding = await this.store.getModelProfileBindingForAgent(agent.id);
+      const profile = binding ? await this.store.getModelProfile(binding.modelProfileId) : undefined;
       const virtualKeyId = binding?.liteLLMTokenId
         ? tokenIdentifier(binding.liteLLMTokenId)
         : undefined;
@@ -333,12 +333,12 @@ export class CostService {
         instanceId: agent.id,
         instanceName: agent.name,
         ...(virtualKeyId ? { liteLLMVirtualKeyId: virtualKeyId } : {}),
-        hashedToken: agent.inferenceKeyFingerprint,
+        hashedToken: agent.modelProfileKeyFingerprint,
         virtualKeyAlias: binding?.keyAlias ?? agent.costKeyAlias,
         liteLLMUserId: agent.id,
         ...(binding?.liteLLMTeamId ? { liteLLMTeamId: binding.liteLLMTeamId } : {}),
-        ...(group?.gatewayId ?? full?.providerAccountId
-          ? { providerAccountId: group?.gatewayId ?? full!.providerAccountId! }
+        ...(profile?.gatewayId ?? full?.providerAccountId
+          ? { providerAccountId: profile?.gatewayId ?? full!.providerAccountId! }
           : {}),
         validFrom: binding?.createdAt ?? full?.createdAt ?? new Date(0).toISOString(),
         ...(binding?.revokedAt ? { validTo: binding.revokedAt } : {}),
@@ -363,20 +363,20 @@ export class CostService {
         updatedAt: deployment.updatedAt,
       });
     }
-    for (const group of await this.store.listInferenceGroups()) {
-      const gateway = await this.store.getInferenceGateway(group.gatewayId);
+    for (const profile of await this.store.listModelProfiles()) {
+      const gateway = await this.store.getInferenceGateway(profile.gatewayId);
       await analytics.saveModelEndpointMapping({
-        id: `inference-group:${group.id}:${group.createdAt}`,
-        modelEndpointId: `inference-group:${group.id}`,
-        modelEndpointName: group.name,
-        liteLLMModelName: group.publicModelAlias,
-        liteLLMModelGroup: group.publicModelAlias,
+        id: `model-profile:${profile.id}:${profile.createdAt}`,
+        modelEndpointId: `model-profile:${profile.id}`,
+        modelEndpointName: profile.name,
+        liteLLMModelName: profile.publicModelAlias,
+        liteLLMModelGroup: profile.publicModelAlias,
         provider: "LiteLLM",
-        providerAccountId: group.gatewayId,
-        providerAccountName: gateway?.name ?? group.gatewayId,
-        validFrom: group.createdAt,
-        createdAt: group.createdAt,
-        updatedAt: group.updatedAt,
+        providerAccountId: profile.gatewayId,
+        providerAccountName: gateway?.name ?? profile.gatewayId,
+        validFrom: profile.createdAt,
+        createdAt: profile.createdAt,
+        updatedAt: profile.updatedAt,
       });
     }
   }

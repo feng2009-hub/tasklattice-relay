@@ -85,7 +85,7 @@ CREATE TABLE IF NOT EXISTS tasklattice.inference_gateways (
   PRIMARY KEY (workspace_id, id)
 );
 
-CREATE TABLE IF NOT EXISTS tasklattice.inference_groups (
+CREATE TABLE IF NOT EXISTS tasklattice.model_profiles (
   workspace_id TEXT NOT NULL REFERENCES tasklattice.workspaces(id) ON DELETE CASCADE ON UPDATE CASCADE,
   id TEXT NOT NULL,
   payload JSONB NOT NULL,
@@ -93,26 +93,33 @@ CREATE TABLE IF NOT EXISTS tasklattice.inference_groups (
   PRIMARY KEY (workspace_id, id)
 );
 
-CREATE TABLE IF NOT EXISTS tasklattice.inference_group_bindings (
+CREATE TABLE IF NOT EXISTS tasklattice.model_profile_bindings (
   workspace_id TEXT NOT NULL REFERENCES tasklattice.workspaces(id) ON DELETE CASCADE ON UPDATE CASCADE,
   id TEXT NOT NULL,
-  inference_group_id TEXT NOT NULL,
+  model_profile_id TEXT NOT NULL,
   agent_id TEXT NOT NULL,
   payload JSONB NOT NULL,
   created_at TIMESTAMPTZ NOT NULL,
-  PRIMARY KEY (workspace_id, id)
+  PRIMARY KEY (workspace_id, id),
+  FOREIGN KEY (workspace_id, model_profile_id)
+    REFERENCES tasklattice.model_profiles(workspace_id, id)
+    ON DELETE CASCADE ON UPDATE CASCADE
 );
-CREATE INDEX IF NOT EXISTS inference_group_bindings_agent_idx
-  ON tasklattice.inference_group_bindings(workspace_id, agent_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS model_profile_bindings_agent_idx
+  ON tasklattice.model_profile_bindings(workspace_id, agent_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS model_profile_bindings_profile_idx
+  ON tasklattice.model_profile_bindings(workspace_id, model_profile_id, created_at DESC);
 
-CREATE TABLE IF NOT EXISTS tasklattice.inference_group_audit (
+CREATE TABLE IF NOT EXISTS tasklattice.model_profile_audit (
   workspace_id TEXT NOT NULL REFERENCES tasklattice.workspaces(id) ON DELETE CASCADE ON UPDATE CASCADE,
   event_id TEXT NOT NULL,
-  inference_group_id TEXT NOT NULL,
+  model_profile_id TEXT NOT NULL,
   payload JSONB NOT NULL,
   created_at TIMESTAMPTZ NOT NULL,
   PRIMARY KEY (workspace_id, event_id)
 );
+CREATE INDEX IF NOT EXISTS model_profile_audit_profile_idx
+  ON tasklattice.model_profile_audit(workspace_id, model_profile_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS tasklattice.sandbox_policies (
   workspace_id TEXT NOT NULL REFERENCES tasklattice.workspaces(id) ON DELETE CASCADE ON UPDATE CASCADE,

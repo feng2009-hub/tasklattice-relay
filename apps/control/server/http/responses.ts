@@ -31,7 +31,7 @@ export function errorResponse(error: unknown): Response {
       ? 403
       : /Invalid |must be|before end_time/i.test(message)
         ? 400
-    : /Consumer|default Inference Group|compliance|suspended|READY Inference Group|Multiple default/i.test(message)
+    : /Consumer|default Model Profile|compliance|suspended|READY Model Profile|Multiple default/i.test(message)
       ? 409
       : /LiteLLM|gateway is unavailable/i.test(message)
         ? 503

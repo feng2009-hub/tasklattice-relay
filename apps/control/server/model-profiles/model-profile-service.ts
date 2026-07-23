@@ -1,12 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
 import type {
   ComplianceDomain,
-  CreateInferenceGroupInput,
+  CreateModelProfileInput,
   InferenceGateway,
-  InferenceGroup,
-  InferenceGroupAuditEvent,
-  InferenceGroupBinding,
-  UpdateInferenceGroupInput,
+  ModelProfile,
+  ModelProfileAuditEvent,
+  ModelProfileBinding,
+  UpdateModelProfileInput,
 } from "@tasklattice/contracts";
 import { AgentStore } from "../data/agent-store";
 import { LiteLLMClient, type LiteLLMAdminClient } from "../providers/litellm-client";
@@ -24,39 +24,39 @@ const defaultCapabilities = {
   requestAudit: "UNKNOWN",
 } as const;
 
-export class InferenceGroupResolver {
+export class ModelProfileResolver {
   constructor(private readonly store: AgentStore) {}
 
-  async resolve(id?: string): Promise<InferenceGroup> {
-    let group: InferenceGroup;
+  async resolve(id?: string): Promise<ModelProfile> {
+    let profile: ModelProfile;
     if (id) {
-      const selected = await this.store.getInferenceGroup(id);
-      if (!selected) throw new Error("The selected Inference Group is unavailable.");
-      group = selected;
+      const selected = await this.store.getModelProfile(id);
+      if (!selected) throw new Error("The selected Model Profile is unavailable.");
+      profile = selected;
     } else {
-      const defaults = (await this.store.listInferenceGroups()).filter((candidate) => candidate.isDefault);
+      const defaults = (await this.store.listModelProfiles()).filter((candidate) => candidate.isDefault);
       if (defaults.length !== 1)
-        throw new Error(defaults.length ? "Multiple default Inference Groups are configured." : "No default Inference Group is configured.");
-      group = defaults[0]!;
+        throw new Error(defaults.length ? "Multiple default Model Profiles are configured." : "No default Model Profile is configured.");
+      profile = defaults[0]!;
     }
-    if (group.status !== "READY")
-      throw new Error(`The ${id ? "selected" : "default"} Inference Group is ${group.status.toLowerCase().replaceAll("_", " ")}.`);
-    return group;
+    if (profile.status !== "READY")
+      throw new Error(`The ${id ? "selected" : "default"} Model Profile is ${profile.status.toLowerCase().replaceAll("_", " ")}.`);
+    return profile;
   }
 
-  resolveDefault(): Promise<InferenceGroup> {
+  resolveDefault(): Promise<ModelProfile> {
     return this.resolve();
   }
 }
 
-export class InferenceGroupService {
-  readonly resolver: InferenceGroupResolver;
+export class ModelProfileService {
+  readonly resolver: ModelProfileResolver;
 
   constructor(
     readonly store = new AgentStore(),
     readonly litellm: LiteLLMAdminClient = new LiteLLMClient(),
   ) {
-    this.resolver = new InferenceGroupResolver(store);
+    this.resolver = new ModelProfileResolver(store);
   }
 
   async listGateways(): Promise<InferenceGateway[]> {
@@ -64,24 +64,24 @@ export class InferenceGroupService {
     return this.store.listInferenceGateways();
   }
 
-  async list(): Promise<InferenceGroup[]> {
+  async list(): Promise<ModelProfile[]> {
     await this.ensureDefaultGateway();
-    return Promise.all((await this.store.listInferenceGroups()).map((group) => this.withConsumerCount(group)));
+    return Promise.all((await this.store.listModelProfiles()).map((profile) => this.withConsumerCount(profile)));
   }
 
-  async get(id: string): Promise<InferenceGroup | undefined> {
-    const group = await this.store.getInferenceGroup(id);
-    return group ? await this.withConsumerCount(group) : undefined;
+  async get(id: string): Promise<ModelProfile | undefined> {
+    const profile = await this.store.getModelProfile(id);
+    return profile ? await this.withConsumerCount(profile) : undefined;
   }
 
-  async create(input: CreateInferenceGroupInput, actor = "control-api"): Promise<InferenceGroup> {
+  async create(input: CreateModelProfileInput, actor = "control-api"): Promise<ModelProfile> {
     await this.ensureDefaultGateway();
     if (!await this.store.getInferenceGateway(input.gatewayId)) throw new Error("Select an available LiteLLM Gateway.");
-    if (input.isDefault && (await this.store.listInferenceGroups()).some((group) => group.isDefault))
-      throw new Error("A default Inference Group already exists. Change the existing default first.");
+    if (input.isDefault && (await this.store.listModelProfiles()).some((profile) => profile.isDefault))
+      throw new Error("A default Model Profile already exists. Change the existing default first.");
     const now = new Date().toISOString();
     const id = randomUUID();
-    const group: InferenceGroup = {
+    const profile: ModelProfile = {
       id,
       name: input.name,
       description: input.description,
@@ -102,20 +102,20 @@ export class InferenceGroupService {
       createdAt: now,
       updatedAt: now,
     };
-    await this.store.saveInferenceGroup(group);
-    await this.audit(group, "inference_group.created", actor, "SUCCESS", "Inference Group definition stored.");
-    const validated = await this.validate(id, actor);
-    if (input.isDefault && validated.status === "READY") return this.update(id, { isDefault: true }, actor);
-    return validated;
+    await this.store.saveModelProfile(profile);
+    await this.audit(profile, "model_profile.created", actor, "SUCCESS", "Model Profile definition stored.");
+    const refreshed = await this.refresh(id, actor);
+    if (input.isDefault && refreshed.status === "READY") return this.update(id, { isDefault: true }, actor);
+    return refreshed;
   }
 
-  async update(id: string, input: UpdateInferenceGroupInput, actor = "control-api"): Promise<InferenceGroup> {
+  async update(id: string, input: UpdateModelProfileInput, actor = "control-api"): Promise<ModelProfile> {
     const current = await this.require(id);
-    if (input.isDefault && !current.isDefault && (await this.store.listInferenceGroups()).some((group) => group.isDefault && group.id !== id))
-      throw new Error("A default Inference Group already exists. Clear it before assigning another.");
-    if (input.isDefault && current.status !== "READY") throw new Error("Only a READY Inference Group can be the default.");
+    if (input.isDefault && !current.isDefault && (await this.store.listModelProfiles()).some((profile) => profile.isDefault && profile.id !== id))
+      throw new Error("A default Model Profile already exists. Clear it before assigning another.");
+    if (input.isDefault && current.status !== "READY") throw new Error("Only a READY Model Profile can be the default.");
     const values = withoutUndefined(input);
-    const next: InferenceGroup = {
+    const next: ModelProfile = {
       ...current,
       name: values.name ?? current.name,
       description: values.description ?? current.description,
@@ -132,20 +132,20 @@ export class InferenceGroupService {
       observedGeneration: current.observedGeneration + 1,
       validationMessage: current.validationMessage,
     };
-    await this.store.saveInferenceGroup(next);
-    await this.audit(next, input.suspended === true ? "inference_group.suspended" : "inference_group.updated", actor, "SUCCESS", "Inference Group policy updated.");
+    await this.store.saveModelProfile(next);
+    await this.audit(next, input.suspended === true ? "model_profile.suspended" : "model_profile.updated", actor, "SUCCESS", "Model Profile policy updated.");
     return this.withConsumerCount(next);
   }
 
-  async validate(id: string, actor = "control-api"): Promise<InferenceGroup> {
+  async refresh(id: string, actor = "control-api"): Promise<ModelProfile> {
     const current = await this.require(id);
     const gateway = await this.store.getInferenceGateway(current.gatewayId);
-    if (!gateway) throw new Error("The Inference Group gateway is unavailable.");
-    if (current.status === "SUSPENDED") throw new Error("Resume the Inference Group before validating it.");
-    await this.store.saveInferenceGroup({ ...current, status: "VALIDATING", updatedAt: new Date().toISOString() });
+    if (!gateway) throw new Error("The Model Profile gateway is unavailable.");
+    if (current.status === "SUSPENDED") throw new Error("Resume the Model Profile before validating it.");
+    await this.store.saveModelProfile({ ...current, status: "VALIDATING", updatedAt: new Date().toISOString() });
     if (gateway.complianceDomain !== current.complianceDomain) {
-      const reason = `Gateway compliance domain ${gateway.complianceDomain} does not match Inference Group domain ${current.complianceDomain}.`;
-      const next = await this.store.saveInferenceGroup({
+      const reason = `Gateway compliance domain ${gateway.complianceDomain} does not match Model Profile domain ${current.complianceDomain}.`;
+      const next = await this.store.saveModelProfile({
         ...current,
         status: "NON_COMPLIANT",
         isDefault: false,
@@ -158,13 +158,13 @@ export class InferenceGroupService {
         lastSynchronizedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
-      await this.audit(next, "inference_group.compliance_failed", actor, "FAILED", reason);
+      await this.audit(next, "model_profile.compliance_failed", actor, "FAILED", reason);
       return this.withConsumerCount(next);
     }
     try {
-      if (!this.litellm.inspectInferenceGroup) throw new Error("The configured LiteLLM adapter does not support Router inspection.");
-      const inspection = await this.litellm.inspectInferenceGroup(current.publicModelAlias);
-      const conditions: InferenceGroup["conditions"] = [];
+      if (!this.litellm.inspectModelProfile) throw new Error("The configured LiteLLM adapter does not support Router inspection.");
+      const inspection = await this.litellm.inspectModelProfile(current.publicModelAlias);
+      const conditions: ModelProfile["conditions"] = [];
       conditions.push({ type: "GATEWAY", status: "PASS", reason: `LiteLLM Gateway ${gateway.name} is reachable.` });
       conditions.push({
         type: "BINDING",
@@ -187,7 +187,7 @@ export class InferenceGroupService {
         status: inspection.unsupportedReason ? "FAIL" : "PASS",
         reason: inspection.unsupportedReason ?? "Routing capabilities were read from LiteLLM.",
       });
-      const status: InferenceGroup["status"] = inspection.unsupportedReason
+      const status: ModelProfile["status"] = inspection.unsupportedReason
         ? "UNSUPPORTED"
         : !inspection.exists
           ? "DEGRADED"
@@ -202,7 +202,7 @@ export class InferenceGroupService {
         auditPolicy: current.auditPolicy,
         liteLLM: inspection.configurationHash,
       });
-      const next = await this.store.saveInferenceGroup({
+      const next = await this.store.saveModelProfile({
         ...current,
         status,
         isDefault: current.isDefault,
@@ -225,12 +225,12 @@ export class InferenceGroupService {
         updatedAt: new Date().toISOString(),
       });
       const changed = current.status !== next.status || JSON.stringify(current.capabilities) !== JSON.stringify(next.capabilities) || JSON.stringify(current.conditions) !== JSON.stringify(next.conditions);
-      if (changed) await this.audit(next, "inference_group.sync_changed", actor, "SUCCESS", "Effective LiteLLM status or capabilities changed.");
-      await this.audit(next, status === "NON_COMPLIANT" ? "inference_group.compliance_failed" : "inference_group.validated", actor, status === "READY" ? "SUCCESS" : "FAILED", conditions.find((condition) => condition.status !== "PASS")?.reason ?? "Binding is ready.");
+      if (changed) await this.audit(next, "model_profile.sync_changed", actor, "SUCCESS", "Effective LiteLLM status or capabilities changed.");
+      await this.audit(next, status === "NON_COMPLIANT" ? "model_profile.compliance_failed" : "model_profile.validated", actor, status === "READY" ? "SUCCESS" : "FAILED", conditions.find((condition) => condition.status !== "PASS")?.reason ?? "Binding is ready.");
       return this.withConsumerCount(next);
     } catch (error) {
       const reason = error instanceof Error ? error.message : "LiteLLM validation failed.";
-      const next = await this.store.saveInferenceGroup({
+      const next = await this.store.saveModelProfile({
         ...current,
         status: "DEGRADED",
         isDefault: current.isDefault,
@@ -247,45 +247,45 @@ export class InferenceGroupService {
         validatedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
-      await this.audit(next, "inference_group.validated", actor, "FAILED", reason);
+      await this.audit(next, "model_profile.validated", actor, "FAILED", reason);
       return this.withConsumerCount(next);
     }
   }
 
-  async bindAgent(agentId: string, inferenceGroupId?: string): Promise<{ binding: InferenceGroupBinding; group: InferenceGroup; gateway: InferenceGateway; secret: string }> {
+  async bindAgent(agentId: string, modelProfileId?: string): Promise<{ binding: ModelProfileBinding; profile: ModelProfile; gateway: InferenceGateway; secret: string }> {
     await this.ensureDefaultGateway();
-    let group = await this.resolver.resolve(inferenceGroupId);
-    const gateway = await this.store.getInferenceGateway(group.gatewayId);
-    if (!gateway) throw new Error("The Inference Group gateway is unavailable.");
-    if (gateway.complianceDomain !== group.complianceDomain)
-      throw new Error("The Inference Group and LiteLLM Gateway compliance domains do not match.");
-    if (!group.conditions.some((condition) => condition.type === "COMPLIANCE" && condition.status === "PASS"))
-      throw new Error("The Inference Group compliance validation is not current.");
-    if (!this.litellm.createInferenceGroupKey || !this.litellm.createInferenceGroupTeam)
+    let profile = await this.resolver.resolve(modelProfileId);
+    const gateway = await this.store.getInferenceGateway(profile.gatewayId);
+    if (!gateway) throw new Error("The Model Profile gateway is unavailable.");
+    if (gateway.complianceDomain !== profile.complianceDomain)
+      throw new Error("The Model Profile and LiteLLM Gateway compliance domains do not match.");
+    if (!profile.conditions.some((condition) => condition.type === "COMPLIANCE" && condition.status === "PASS"))
+      throw new Error("The Model Profile compliance validation is not current.");
+    if (!this.litellm.createModelProfileKey || !this.litellm.createModelProfileTeam)
       throw new Error("The LiteLLM adapter does not support Team-scoped Virtual Keys.");
-    let teamId = group.liteLLMTeamId;
+    let teamId = profile.liteLLMTeamId;
     if (!teamId) {
-      teamId = await this.litellm.createInferenceGroupTeam({
-        alias: `tasklattice-${group.id}`,
-        modelAlias: group.publicModelAlias,
-        inferenceGroupId: group.id,
-        complianceDomain: group.complianceDomain,
+      teamId = await this.litellm.createModelProfileTeam({
+        alias: `tasklattice-${profile.id}`,
+        modelAlias: profile.publicModelAlias,
+        modelProfileId: profile.id,
+        complianceDomain: profile.complianceDomain,
       });
-      group = await this.store.saveInferenceGroup({ ...group, liteLLMTeamId: teamId, updatedAt: new Date().toISOString() });
+      profile = await this.store.saveModelProfile({ ...profile, liteLLMTeamId: teamId, updatedAt: new Date().toISOString() });
     }
-    const keyAlias = `tasklattice/${group.id.slice(0, 8)}/${agentId.slice(0, 8)}`;
-    const key = await this.litellm.createInferenceGroupKey({
+    const keyAlias = `tasklattice/${profile.id.slice(0, 8)}/${agentId.slice(0, 8)}`;
+    const key = await this.litellm.createModelProfileKey({
       agentId,
       alias: keyAlias,
-      modelAlias: group.publicModelAlias,
+      modelAlias: profile.publicModelAlias,
       teamId,
-      inferenceGroupId: group.id,
-      complianceDomain: group.complianceDomain,
+      modelProfileId: profile.id,
+      complianceDomain: profile.complianceDomain,
     });
     const now = new Date().toISOString();
-    const binding: InferenceGroupBinding = {
+    const binding: ModelProfileBinding = {
       id: randomUUID(),
-      inferenceGroupId: group.id,
+      modelProfileId: profile.id,
       agentId,
       liteLLMTeamId: teamId,
       liteLLMTokenId: key.tokenId,
@@ -294,39 +294,39 @@ export class InferenceGroupService {
       status: "ACTIVE",
       createdAt: now,
     };
-    await this.store.saveInferenceGroupBinding(binding);
-    await this.audit(group, "inference_binding.created", "agent-service", "SUCCESS", "Per-Instance Team-scoped Virtual Key created.", agentId);
-    await this.audit(group, "virtual_key.created", "agent-service", "SUCCESS", `Virtual Key fingerprint ${binding.keyFingerprint}.`, agentId);
-    return { binding, group: await this.withConsumerCount(group), gateway, secret: key.secret };
+    await this.store.saveModelProfileBinding(binding);
+    await this.audit(profile, "model_profile_binding.created", "agent-service", "SUCCESS", "Per-Instance Team-scoped Virtual Key created.", agentId);
+    await this.audit(profile, "virtual_key.created", "agent-service", "SUCCESS", `Virtual Key fingerprint ${binding.keyFingerprint}.`, agentId);
+    return { binding, profile: await this.withConsumerCount(profile), gateway, secret: key.secret };
   }
 
   async unbindAgent(agentId: string): Promise<void> {
-    const binding = await this.store.getInferenceGroupBindingForAgent(agentId);
+    const binding = await this.store.getModelProfileBindingForAgent(agentId);
     if (!binding || binding.status === "REVOKED") return;
-    const group = await this.require(binding.inferenceGroupId);
+    const profile = await this.require(binding.modelProfileId);
     await this.litellm.revokeKey(binding.liteLLMTokenId);
-    await this.store.saveInferenceGroupBinding({ ...binding, status: "REVOKED", revokedAt: new Date().toISOString() });
-    await this.audit(group, "inference_binding.revoked", "agent-service", "SUCCESS", "Instance binding revoked.", agentId);
-    await this.audit(group, "virtual_key.revoked", "agent-service", "SUCCESS", `Virtual Key fingerprint ${binding.keyFingerprint}.`, agentId);
+    await this.store.saveModelProfileBinding({ ...binding, status: "REVOKED", revokedAt: new Date().toISOString() });
+    await this.audit(profile, "model_profile_binding.revoked", "agent-service", "SUCCESS", "Instance binding revoked.", agentId);
+    await this.audit(profile, "virtual_key.revoked", "agent-service", "SUCCESS", `Virtual Key fingerprint ${binding.keyFingerprint}.`, agentId);
   }
 
-  async consumers(id: string): Promise<InferenceGroupBinding[]> {
+  async consumers(id: string): Promise<ModelProfileBinding[]> {
     await this.require(id);
-    return (await this.store.listInferenceGroupBindings(id)).filter((binding) => binding.status === "ACTIVE");
+    return (await this.store.listModelProfileBindings(id)).filter((binding) => binding.status === "ACTIVE");
   }
 
-  async auditEvents(id: string): Promise<InferenceGroupAuditEvent[]> {
+  async auditEvents(id: string): Promise<ModelProfileAuditEvent[]> {
     await this.require(id);
-    return this.store.listInferenceGroupAudit(id);
+    return this.store.listModelProfileAudit(id);
   }
 
   async delete(id: string, actor = "control-api"): Promise<void> {
-    const group = await this.require(id);
-    if ((await this.consumers(id)).length) throw new Error("Remove all Consumers before deleting this Inference Group.");
-    if (group.liteLLMTeamId && this.litellm.deleteInferenceGroupTeam)
-      await this.litellm.deleteInferenceGroupTeam(group.liteLLMTeamId);
-    await this.audit(group, "inference_group.deleted", actor, "SUCCESS", "Inference Group deleted.");
-    await this.store.deleteInferenceGroup(id);
+    const profile = await this.require(id);
+    if ((await this.consumers(id)).length) throw new Error("Remove all Consumers before deleting this Model Profile.");
+    if (profile.liteLLMTeamId && this.litellm.deleteModelProfileTeam)
+      await this.litellm.deleteModelProfileTeam(profile.liteLLMTeamId);
+    await this.audit(profile, "model_profile.deleted", actor, "SUCCESS", "Model Profile deleted.");
+    await this.store.deleteModelProfile(id);
   }
 
   private async ensureDefaultGateway(): Promise<void> {
@@ -346,26 +346,26 @@ export class InferenceGroupService {
     });
   }
 
-  private async require(id: string): Promise<InferenceGroup> {
-    const group = await this.store.getInferenceGroup(id);
-    if (!group) throw new Error("Inference Group not found.");
-    return group;
+  private async require(id: string): Promise<ModelProfile> {
+    const profile = await this.store.getModelProfile(id);
+    if (!profile) throw new Error("Model Profile not found.");
+    return profile;
   }
 
-  private async withConsumerCount(group: InferenceGroup): Promise<InferenceGroup> {
-    return { ...group, consumers: (await this.store.listInferenceGroupBindings(group.id)).filter((binding) => binding.status === "ACTIVE").length };
+  private async withConsumerCount(profile: ModelProfile): Promise<ModelProfile> {
+    return { ...profile, consumers: (await this.store.listModelProfileBindings(profile.id)).filter((binding) => binding.status === "ACTIVE").length };
   }
 
-  private async audit(group: InferenceGroup, type: string, actor: string, result: InferenceGroupAuditEvent["result"], reason: string, agentId?: string): Promise<void> {
-    await this.store.appendInferenceGroupAudit({
+  private async audit(profile: ModelProfile, type: string, actor: string, result: ModelProfileAuditEvent["result"], reason: string, agentId?: string): Promise<void> {
+    await this.store.appendModelProfileAudit({
       eventId: randomUUID(),
       timestamp: new Date().toISOString(),
       actor,
       type,
-      inferenceGroupId: group.id,
+      modelProfileId: profile.id,
       ...(agentId ? { agentId } : {}),
-      configurationHash: group.configurationHash,
-      complianceDomain: group.complianceDomain,
+      configurationHash: profile.configurationHash,
+      complianceDomain: profile.complianceDomain,
       result,
       reason,
     });

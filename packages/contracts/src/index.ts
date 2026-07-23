@@ -46,7 +46,7 @@ export const providerPresetIds = [...providerKinds, ...legacyProviderPresetIds] 
 export const modelTypes = ["llm", "text-embedding", "speech-to-text"] as const;
 
 export const complianceDomains = ["CN_MAINLAND", "GLOBAL"] as const;
-export const inferenceGroupStatuses = [
+export const modelProfileStatuses = [
   "DRAFT",
   "VALIDATING",
   "READY",
@@ -55,7 +55,7 @@ export const inferenceGroupStatuses = [
   "SUSPENDED",
   "UNSUPPORTED",
 ] as const;
-export const inferenceCapabilityStates = ["ENABLED", "DISABLED", "UNKNOWN"] as const;
+export const modelProfileCapabilityStates = ["ENABLED", "DISABLED", "UNKNOWN"] as const;
 
 export interface ProviderPresetModel {
   modelId: string;
@@ -540,7 +540,7 @@ export const createAgentSchema = z.object({
   description: z.string().trim().max(300).default(""),
   runtime: z.literal("openshell"),
   agentPlatform: z.enum(agentPlatformIds).default(defaultAgentPlatformId),
-  inferenceGroupId: z.string().uuid().optional(),
+  modelProfileId: z.string().uuid().optional(),
   policyId: sandboxPolicyIdSchema.optional(),
   systemPrompt: z.string().trim().min(10).max(8000),
   specializationId: z.string().trim().min(1).max(64).optional(),
@@ -557,7 +557,7 @@ export const createInferenceGatewaySchema = z.object({
   adminCredentialRef: z.string().trim().min(1).max(160),
 });
 
-export const createInferenceGroupSchema = z.object({
+export const createModelProfileSchema = z.object({
   name: z.string().trim().min(2).max(64),
   description: z.string().trim().max(300).default(""),
   gatewayId: z.string().trim().min(1),
@@ -575,7 +575,7 @@ export const createInferenceGroupSchema = z.object({
   }).default({ controlPlane: true, requestLogs: true, capturePrompts: false }),
 });
 
-export const updateInferenceGroupSchema = createInferenceGroupSchema.pick({
+export const updateModelProfileSchema = createModelProfileSchema.pick({
   name: true,
   description: true,
   isDefault: true,
@@ -616,11 +616,11 @@ export type CreateProviderConnectionInput = z.infer<typeof createProviderConnect
 export type CreateModelDeploymentInput = z.infer<typeof createModelDeploymentSchema>;
 export type CreateAgentInput = z.infer<typeof createAgentSchema>;
 export type ComplianceDomain = (typeof complianceDomains)[number];
-export type InferenceGroupStatus = (typeof inferenceGroupStatuses)[number];
-export type InferenceCapabilityState = (typeof inferenceCapabilityStates)[number];
+export type ModelProfileStatus = (typeof modelProfileStatuses)[number];
+export type ModelProfileCapabilityState = (typeof modelProfileCapabilityStates)[number];
 export type CreateInferenceGatewayInput = z.infer<typeof createInferenceGatewaySchema>;
-export type CreateInferenceGroupInput = z.infer<typeof createInferenceGroupSchema>;
-export type UpdateInferenceGroupInput = z.infer<typeof updateInferenceGroupSchema>;
+export type CreateModelProfileInput = z.infer<typeof createModelProfileSchema>;
+export type UpdateModelProfileInput = z.infer<typeof updateModelProfileSchema>;
 
 export interface InferenceGateway {
   id: string;
@@ -636,27 +636,27 @@ export interface InferenceGateway {
   updatedAt: string;
 }
 
-export interface InferenceGroupCondition {
+export interface ModelProfileCondition {
   type: "BINDING" | "GATEWAY" | "COMPLIANCE" | "CAPABILITY";
   status: "PASS" | "FAIL" | "UNKNOWN";
   reason: string;
 }
 
-export interface InferenceGroupCapabilities {
-  automaticRouting: InferenceCapabilityState;
+export interface ModelProfileCapabilities {
+  automaticRouting: ModelProfileCapabilityState;
   routerType: "COMPLEXITY_ROUTER" | "OTHER" | "UNKNOWN";
   complexityTierCount?: number;
-  sessionAffinity: InferenceCapabilityState;
-  adaptiveRouting: InferenceCapabilityState;
-  failover: InferenceCapabilityState;
-  generalFallback: InferenceCapabilityState;
-  contextWindowFallback: InferenceCapabilityState;
-  contentPolicyFallback: InferenceCapabilityState;
-  retries: InferenceCapabilityState;
-  requestAudit: InferenceCapabilityState;
+  sessionAffinity: ModelProfileCapabilityState;
+  adaptiveRouting: ModelProfileCapabilityState;
+  failover: ModelProfileCapabilityState;
+  generalFallback: ModelProfileCapabilityState;
+  contextWindowFallback: ModelProfileCapabilityState;
+  contentPolicyFallback: ModelProfileCapabilityState;
+  retries: ModelProfileCapabilityState;
+  requestAudit: ModelProfileCapabilityState;
 }
 
-export interface InferenceGroup {
+export interface ModelProfile {
   id: string;
   name: string;
   description: string;
@@ -664,12 +664,12 @@ export interface InferenceGroup {
   managementMode: "LITELLM_MANAGED";
   publicModelAlias: string;
   complianceDomain: ComplianceDomain;
-  status: InferenceGroupStatus;
+  status: ModelProfileStatus;
   isDefault: boolean;
-  keyPolicy: CreateInferenceGroupInput["keyPolicy"];
-  auditPolicy: CreateInferenceGroupInput["auditPolicy"];
-  capabilities: InferenceGroupCapabilities;
-  conditions: InferenceGroupCondition[];
+  keyPolicy: CreateModelProfileInput["keyPolicy"];
+  auditPolicy: CreateModelProfileInput["auditPolicy"];
+  capabilities: ModelProfileCapabilities;
+  conditions: ModelProfileCondition[];
   configurationHash: string;
   observedGeneration: number;
   validationMessage: string;
@@ -681,9 +681,9 @@ export interface InferenceGroup {
   updatedAt: string;
 }
 
-export interface InferenceGroupBinding {
+export interface ModelProfileBinding {
   id: string;
-  inferenceGroupId: string;
+  modelProfileId: string;
   agentId: string;
   liteLLMTeamId: string;
   liteLLMTokenId: string;
@@ -694,14 +694,14 @@ export interface InferenceGroupBinding {
   revokedAt?: string;
 }
 
-export type InferenceGroupConsumer = Omit<InferenceGroupBinding, "liteLLMTokenId">;
+export type ModelProfileConsumer = Omit<ModelProfileBinding, "liteLLMTokenId">;
 
-export interface InferenceGroupAuditEvent {
+export interface ModelProfileAuditEvent {
   eventId: string;
   timestamp: string;
   actor: string;
   type: string;
-  inferenceGroupId: string;
+  modelProfileId: string;
   agentId?: string;
   configurationHash: string;
   complianceDomain: ComplianceDomain;
@@ -1045,13 +1045,13 @@ export interface Agent extends Omit<CreateAgentInput, "policyId"> {
   model: string;
   modelType: "llm";
   inferenceMode: "PLATFORM_MANAGED";
-  inferenceGroupId: string;
-  inferenceBindingId: string;
-  inferenceStatus: InferenceGroupStatus;
-  inferenceComplianceDomain: ComplianceDomain;
-  inferenceCapabilities: InferenceGroupCapabilities;
-  inferenceKeyFingerprint: string;
-  inferenceLastSynchronizedAt?: string;
+  modelProfileId: string;
+  modelProfileBindingId: string;
+  modelProfileStatus: ModelProfileStatus;
+  modelProfileComplianceDomain: ComplianceDomain;
+  modelProfileCapabilities: ModelProfileCapabilities;
+  modelProfileKeyFingerprint: string;
+  modelProfileLastSynchronizedAt?: string;
   costKeyAlias: string;
   sandboxName: string;
   status: AgentStatus;

@@ -1,0 +1,152 @@
+import { useEffect, useState, type ReactNode } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { providerPresets, type ModelProfile } from "@tasklattice/contracts";
+import { Activity, ArrowLeft, ArrowRight, Bot, Boxes, Cable, Check, CheckCircle2, CircleAlert, Database, Ellipsis, ExternalLink, FileClock, KeyRound, RefreshCw, Route as RouteIcon, ShieldCheck, SlidersHorizontal, Trash2 } from "lucide-react";
+import { Status } from "./index";
+import { DeleteModelProfileDialog } from "@/components/providers/delete-model-profile-dialog";
+import { ProviderIcon } from "@/components/providers/provider-icon";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
+
+export const Route = createFileRoute("/providers/model-profiles/$profileId")({ component: ModelProfileDetailPage });
+type Tab = "overview" | "routing" | "access" | "consumers" | "audit";
+
+function ModelProfileDetailPage() {
+  const { profileId } = Route.useParams();
+  const [tab, setTab] = useState<Tab>("overview");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const profile = useQuery({ queryKey: ["model-profile", profileId], queryFn: () => api.getModelProfile(profileId) });
+  const gateways = useQuery({ queryKey: ["inference-gateways"], queryFn: api.listInferenceGateways });
+  const refresh = useMutation({ mutationFn: () => api.refreshModelProfile(profileId), onSuccess: async () => Promise.all([queryClient.invalidateQueries({ queryKey: ["model-profile", profileId] }), queryClient.invalidateQueries({ queryKey: ["model-profiles"] })]) });
+  const remove = useMutation({ mutationFn: () => api.deleteModelProfile(profileId), onSuccess: () => navigate({ to: "/providers/model-profiles" }) });
+  if (profile.isPending) return <div className="grid min-h-72 place-items-center text-sm text-muted-foreground">Loading Model Profile…</div>;
+  if (profile.error || !profile.data) return <div role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">{profile.error?.message ?? "Model Profile not found."}</div>;
+  const current = profile.data;
+  const gateway = gateways.data?.find((item) => item.id === current.gatewayId);
+  const ready = current.status === "READY";
+  const passingChecks = current.conditions.filter((condition) => condition.status === "PASS").length;
+  return <div className="space-y-4">
+    <div><Button asChild variant="ghost" size="sm" className="-ml-3 mb-2 text-muted-foreground hover:text-foreground"><Link to="/providers/model-profiles"><ArrowLeft />Model Profiles</Link></Button><div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2.5"><h1 className="text-2xl font-semibold tracking-tight">{current.name}</h1><Status status={current.status} />{current.isDefault ? <span className="rounded-sm border border-border/65 bg-muted/60 px-2 py-0.5 text-xs font-medium text-muted-foreground">Default profile</span> : null}</div><p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{current.description || "A reusable model, routing, and access profile."}</p></div><div className="flex flex-wrap gap-2"><Button variant="outline" disabled={refresh.isPending} onClick={() => refresh.mutate()}><RefreshCw className={cn(refresh.isPending && "animate-spin")} />Refresh profile</Button>{gateway ? <Button asChild variant="outline"><a href={gateway.adminUiUrl} target="_blank" rel="noreferrer">Inspect routing <ExternalLink /></a></Button> : null}<DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" size="icon" aria-label={`Actions for ${current.name}`}><Ellipsis /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => { remove.reset(); setDeleteOpen(true); }}><Trash2 />Delete Model Profile</DropdownMenuItem></DropdownMenuContent></DropdownMenu></div></div></div>
+    <section role="status" className={cn("flex flex-col gap-5 rounded-lg border border-border/45 border-l-[3px] px-5 py-[18px] sm:flex-row sm:items-center sm:justify-between", ready ? "border-l-emerald-600 bg-emerald-500/[0.035]" : "border-l-amber-600 bg-amber-500/[0.035]")}>
+      <div className="flex min-w-0 gap-3">
+        <span className={cn("grid size-8 shrink-0 place-items-center rounded-full", ready ? "bg-emerald-500/10 text-emerald-700" : "bg-amber-500/10 text-amber-700")}>{ready ? <CheckCircle2 className="size-[18px]" /> : <CircleAlert className="size-[18px]" />}</span>
+        <div><h2 className="font-sans text-sm font-semibold">{ready ? "This Model Profile is ready for Instances" : "This Model Profile needs attention"}</h2><p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">{ready ? `${current.publicModelAlias} passed ${passingChecks} routing, compliance, and access checks. Each Instance receives its own isolated Virtual Key.` : current.validationMessage}</p></div>
+      </div>
+      {ready ? <Button asChild className="shrink-0"><Link to="/instances" search={{ create: "instance", modelProfileId: current.id }}><Bot />Use profile in new Instance</Link></Button> : <Button className="shrink-0" disabled title="Resolve the failed checks before assigning this profile"><CircleAlert />Unavailable for Instances</Button>}
+    </section>
+    <Tabs value={tab} onValueChange={(value) => setTab(value as Tab)} className="gap-4">
+      <div className="overflow-x-auto">
+        <TabsList variant="line" aria-label="Model Profile detail" className="min-w-max">
+          {([
+            ["overview", "Overview"],
+            ["routing", "Routing & upstream"],
+            ["access", "Access & policy"],
+            ["consumers", "Consumers"],
+            ["audit", "Audit"],
+          ] as const).map(([item, label]) => <TabsTrigger key={item} value={item}>{label}</TabsTrigger>)}
+        </TabsList>
+      </div>
+      {refresh.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-3 text-sm text-destructive">{refresh.error.message}</p> : null}
+      <TabsContent value="overview"><Overview profile={current} {...(gateway?.name ? { gatewayName: gateway.name } : {})} /></TabsContent>
+      <TabsContent value="routing"><RoutingTab profile={current} adminUiUrl={gateway?.adminUiUrl} /></TabsContent>
+      <TabsContent value="access"><AccessTab profile={current} onDelete={() => { remove.reset(); setDeleteOpen(true); }} /></TabsContent>
+      <TabsContent value="consumers"><ConsumersTab profileId={current.id} /></TabsContent>
+      <TabsContent value="audit"><AuditTab profileId={current.id} /></TabsContent>
+    </Tabs>
+    <DeleteModelProfileDialog
+      consumers={current.consumers}
+      deleting={remove.isPending}
+      {...(remove.error?.message ? { error: remove.error.message } : {})}
+      onConfirm={() => remove.mutate()}
+      onOpenChange={setDeleteOpen}
+      onViewConsumers={() => setTab("consumers")}
+      open={deleteOpen}
+      profileName={current.name}
+    />
+  </div>;
+}
+
+function Overview({ profile, gatewayName }: { profile: ModelProfile; gatewayName?: string }) {
+  return <div className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,1fr)]">
+    <div className="space-y-4">
+      <Card><CardHeader><CardTitle className="flex items-center gap-2"><SlidersHorizontal className="size-4" />Profile contract</CardTitle><CardDescription>The stable model identity and guardrails every consumer receives.</CardDescription></CardHeader><CardContent className="grid gap-px overflow-hidden rounded-md border border-border/55 bg-border/40 sm:grid-cols-2"><Fact label="Public model alias" value={profile.publicModelAlias} mono /><Fact label="Routing mode" value={profile.capabilities.automaticRouting === "ENABLED" ? "Automatic" : "LiteLLM managed"} /><Fact label="Compliance boundary" value={profile.complianceDomain === "CN_MAINLAND" ? "CN Mainland" : "Global"} /><Fact label="Access isolation" value="Virtual Key per Instance" /></CardContent></Card>
+      <Card><CardHeader><CardTitle>Inference path</CardTitle><CardDescription>One Model Profile connects the complete upstream-to-consumer path.</CardDescription></CardHeader><CardContent>
+        <div className="grid overflow-hidden rounded-md border border-border/55 sm:grid-cols-[minmax(0,1fr)_1.5rem_minmax(0,1fr)_1.5rem_minmax(0,1fr)] sm:items-stretch">
+          <PathStep icon={Database} label="Upstream pool" value="Provider models" />
+          <PathArrow />
+          <PathStep icon={RouteIcon} label="Routing identity" value={profile.publicModelAlias} mono />
+          <PathArrow />
+          <PathStep icon={KeyRound} label="Consumer access" value={`${profile.consumers} Instance${profile.consumers === 1 ? "" : "s"}`} />
+        </div>
+        <p className="mt-3 text-xs leading-5 text-muted-foreground">Provider credentials and model deployments feed the LiteLLM resource pool. The exact candidate set is managed by the public alias and is not duplicated in TaskLattice.</p>
+      </CardContent></Card>
+    </div>
+    <div className="space-y-4"><Card><CardHeader><CardTitle className="flex items-center gap-2"><ShieldCheck className="size-4" />Profile readiness</CardTitle><CardDescription>Fail-closed checks across routing, compliance, and access.</CardDescription></CardHeader><CardContent className="divide-y divide-border/45">{profile.conditions.length ? profile.conditions.map((condition) => <div key={condition.type} className="flex gap-2.5 py-3 first:pt-0 last:pb-0"><span className={cn("mt-1.5 size-1.5 shrink-0 rounded-full", condition.status === "PASS" ? "bg-emerald-600" : condition.status === "UNKNOWN" ? "bg-amber-600" : "bg-destructive")} /><span><strong className="block text-[13px] font-medium">{conditionLabel(condition.type)}</strong><span className="mt-1 block text-xs leading-5 text-muted-foreground">{condition.reason}</span></span></div>) : <p className="text-sm text-muted-foreground">Refresh the profile to populate readiness checks.</p>}</CardContent></Card>
+      <Card><CardHeader><CardTitle>Operational status</CardTitle></CardHeader><CardContent className="divide-y divide-border/45"><FactRow label="Gateway" value={gatewayName ?? "Managed gateway"} /><FactRow label="Consumers" value={String(profile.consumers)} /><FactRow label="Control-plane audit" value="Enabled" /><FactRow label="Last synchronized" value={profile.lastSynchronizedAt ? new Date(profile.lastSynchronizedAt).toLocaleString() : "Never"} /><FactRow label="LiteLLM version" value={profile.liteLLMVersion ?? "Not reported"} /></CardContent></Card></div>
+  </div>;
+}
+
+function RoutingTab({ profile, adminUiUrl }: { profile: ModelProfile; adminUiUrl?: string | undefined }) {
+  const accounts = useQuery({ queryKey: ["provider-accounts"], queryFn: api.listProviderAccounts });
+  const models = useQuery({ queryKey: ["model-deployments"], queryFn: api.listModelDeployments });
+  const capabilities = [
+    ["Automatic routing", profile.capabilities.automaticRouting],
+    ["Session affinity", profile.capabilities.sessionAffinity],
+    ["Adaptive routing", profile.capabilities.adaptiveRouting],
+    ["Provider failover", profile.capabilities.failover],
+    ["Context fallback", profile.capabilities.contextWindowFallback],
+    ["Content policy fallback", profile.capabilities.contentPolicyFallback],
+    ["Retries", profile.capabilities.retries],
+    ["Request audit", profile.capabilities.requestAudit],
+  ] as const;
+  return <div className="space-y-4">
+    <Card><CardHeader><CardTitle className="flex items-center gap-2"><RouteIcon className="size-4" />Routing contract</CardTitle><CardDescription>The Profile exposes one public identity while LiteLLM owns candidate selection and failover.</CardDescription></CardHeader><CardContent><div className="grid gap-px overflow-hidden border bg-border sm:grid-cols-3"><Fact label="Public model alias" value={profile.publicModelAlias} mono /><Fact label="Router type" value={profile.capabilities.routerType === "COMPLEXITY_ROUTER" ? "Complexity router" : profile.capabilities.routerType === "OTHER" ? "Managed router" : "Not reported"} /><Fact label="Configuration source" value="LiteLLM" /></div>{adminUiUrl ? <Button asChild variant="outline" className="mt-4"><a href={adminUiUrl} target="_blank" rel="noreferrer">Inspect candidates and weights <ExternalLink /></a></Button> : null}</CardContent></Card>
+    <Card><CardHeader><CardTitle>Routing capabilities</CardTitle><CardDescription>Read-only behavior detected from the effective LiteLLM configuration.</CardDescription></CardHeader><CardContent className="grid gap-3 sm:grid-cols-2">{capabilities.map(([label, state]) => <div key={label} className="flex min-h-12 items-center gap-3 border px-3 text-sm"><span className={cn("grid size-6 place-items-center", state === "ENABLED" ? "bg-emerald-500/10 text-emerald-700" : "bg-muted text-muted-foreground")}>{state === "ENABLED" ? <Check className="size-4" /> : <Activity className="size-4" />}</span><span><strong className="block text-xs">{label}</strong><span className="text-xs text-muted-foreground">{state === "ENABLED" ? "Enabled in LiteLLM" : state === "DISABLED" ? "Not enabled" : "Not reported"}</span></span></div>)}</CardContent></Card>
+    <Card><CardHeader><CardTitle className="flex items-center gap-2"><Cable className="size-4" />Available upstream pool</CardTitle><CardDescription>Registered connections and deployments that can participate in routing. This inventory does not imply membership in this Profile’s alias.</CardDescription></CardHeader><CardContent>{accounts.isPending || models.isPending ? <p className="text-sm text-muted-foreground">Loading upstream resources…</p> : accounts.error || models.error ? <p role="alert" className="text-sm text-destructive">{accounts.error?.message ?? models.error?.message}</p> : accounts.data?.length ? <div className="divide-y border">{accounts.data.map((account) => { const accountModels = (models.data ?? []).filter((model) => model.providerAccountId === account.id); return <div key={account.id} className="grid gap-3 p-3 text-xs sm:grid-cols-[1fr_1fr_auto] sm:items-center"><div className="flex min-w-0 items-center gap-3"><ProviderIcon presetId={account.presetId} className="size-9 shrink-0 [&_img]:size-5" /><span className="min-w-0"><strong className="block truncate">{account.name}</strong><span className="text-muted-foreground">{providerPresets.find((preset) => preset.id === account.providerKind)?.name ?? account.providerKind}</span></span></div><span><strong className="block font-medium">{accountModels.filter((model) => model.status === "VALIDATED").length} ready models</strong><span className="block truncate text-muted-foreground">{accountModels.map((model) => model.displayName).join(", ") || "No models registered"}</span></span><span className={account.status === "VALIDATED" ? "text-emerald-700" : "text-amber-700"}>{account.status === "VALIDATED" ? "Healthy" : account.status.replaceAll("_", " ")}</span></div>; })}</div> : <div className="border border-dashed p-8 text-center"><Database className="mx-auto size-[18px] text-muted-foreground" /><p className="mt-3 text-sm">No upstream resources registered.</p><Button asChild variant="outline" className="mt-4"><Link to="/providers/model-profiles">Manage upstream pool <ArrowRight /></Link></Button></div>}</CardContent></Card>
+  </div>;
+}
+
+function AccessTab({ profile, onDelete }: { profile: ModelProfile; onDelete: () => void }) {
+  const queryClient = useQueryClient();
+  const [name, setName] = useState(profile.name);
+  const [description, setDescription] = useState(profile.description);
+  useEffect(() => { setName(profile.name); setDescription(profile.description); }, [profile]);
+  const update = useMutation({ mutationFn: (input: Parameters<typeof api.updateModelProfile>[1]) => api.updateModelProfile(profile.id, input), onSuccess: async () => Promise.all([queryClient.invalidateQueries({ queryKey: ["model-profile", profile.id] }), queryClient.invalidateQueries({ queryKey: ["model-profiles"] })]) });
+  return <div className="space-y-4"><SettingsCard title="Profile identity" description="The human-readable identity shown in every model selection surface."><div className="grid gap-4 sm:grid-cols-2"><Field label="Name"><Input value={name} onChange={(event) => setName(event.target.value)} /></Field><Field label="Description"><Textarea value={description} onChange={(event) => setDescription(event.target.value)} /></Field></div><Button className="mt-4" disabled={update.isPending} onClick={() => update.mutate({ name, description })}>Save profile identity</Button></SettingsCard>
+    <SettingsCard title="Access credentials" description="Key material is never displayed or persisted by the TaskLattice API."><div className="flex items-center gap-3 border bg-muted/20 p-3"><KeyRound className="size-4 text-primary" /><span><strong className="block text-sm">Per-Instance Virtual Keys enabled</strong><span className="text-xs text-muted-foreground">Team-scoped · model-restricted · independently revocable</span></span></div></SettingsCard>
+    <SettingsCard title="Compliance policy" description="The Model Profile inherits the isolated LiteLLM Gateway domain."><div className="max-w-sm"><ReadOnly label="Compliance domain" value={profile.complianceDomain === "CN_MAINLAND" ? "CN Mainland" : "Global"} /></div><p className="mt-3 flex gap-2 text-xs text-muted-foreground"><CircleAlert className="size-4 shrink-0" />Every effective Router candidate must declare this same domain. A mismatch blocks new Instance bindings.</p></SettingsCard>
+    <SettingsCard title="Audit policy" description="Control-plane events are always captured; request telemetry depends on LiteLLM callbacks."><div className="grid gap-3 sm:grid-cols-2"><ReadOnly label="Control-plane events" value="Enabled" /><ReadOnly label="Prompt and response capture" value="Disabled" /></div></SettingsCard>
+    <SettingsCard title="Lifecycle" description="Suspension removes this Profile from new Instance selection without deleting history."><Button variant="outline" onClick={() => { if (window.confirm(profile.status === "SUSPENDED" ? "Resume this Model Profile?" : "Suspend this Model Profile?")) update.mutate({ suspended: profile.status !== "SUSPENDED" }); }}>{profile.status === "SUSPENDED" ? "Resume Model Profile" : "Suspend Model Profile"}</Button></SettingsCard>
+    <Card className="border-destructive/30"><CardHeader><CardTitle className="text-destructive">Danger zone</CardTitle><CardDescription>{profile.consumers > 0 ? `${profile.consumers} active ${profile.consumers === 1 ? "Instance must" : "Instances must"} be reassigned before this Profile can be deleted.` : "Deleting removes this Profile, while keeping Provider connections and upstream model registrations."}</CardDescription></CardHeader><CardContent><Button variant="destructive" onClick={onDelete}><Trash2 />Delete Model Profile</Button></CardContent></Card>
+    {update.error ? <p role="alert" className="text-sm text-destructive">{update.error.message}</p> : null}
+  </div>;
+}
+
+function ConsumersTab({ profileId }: { profileId: string }) {
+  const query = useQuery({ queryKey: ["model-profile-consumers", profileId], queryFn: () => api.listModelProfileConsumers(profileId) });
+  return <Card><CardHeader><CardTitle className="flex items-center gap-2"><Boxes className="size-4" />Profile consumers</CardTitle><CardDescription>Instances using this Model Profile, each with an independently revocable Virtual Key.</CardDescription></CardHeader><CardContent>{query.isPending ? <p className="text-sm text-muted-foreground">Loading consumers…</p> : query.data?.length ? <div className="divide-y border">{query.data.map((binding) => <div key={binding.id} className="grid gap-2 p-3 text-xs sm:grid-cols-3"><span><span className="block text-muted-foreground">Instance</span><strong>{binding.agentId}</strong></span><span><span className="block text-muted-foreground">Key fingerprint</span><strong className="font-mono">{binding.keyFingerprint}</strong></span><span><span className="block text-muted-foreground">Attached</span><strong>{new Date(binding.createdAt).toLocaleString()}</strong></span></div>)}</div> : <p className="py-10 text-center text-sm text-muted-foreground">No Instance currently uses this Model Profile.</p>}</CardContent></Card>;
+}
+
+function AuditTab({ profileId }: { profileId: string }) {
+  const query = useQuery({ queryKey: ["model-profile-audit", profileId], queryFn: () => api.listModelProfileAudit(profileId) });
+  return <Card><CardHeader><CardTitle className="flex items-center gap-2"><FileClock className="size-4" />Control-plane audit</CardTitle><CardDescription>Secrets and prompt content are excluded.</CardDescription></CardHeader><CardContent>{query.isPending ? <p className="text-sm text-muted-foreground">Loading audit events…</p> : query.data?.length ? <ol className="divide-y border">{query.data.map((event) => <li key={event.eventId} className="grid gap-2 p-3 text-xs sm:grid-cols-[11rem_1fr_auto]"><span className="text-muted-foreground">{new Date(event.timestamp).toLocaleString()}</span><span><strong className="block">{event.type}</strong><span className="mt-1 block text-muted-foreground">{event.reason}</span></span><span className={event.result === "SUCCESS" ? "text-emerald-700" : "text-destructive"}>{event.result}</span></li>)}</ol> : <p className="py-10 text-center text-sm text-muted-foreground">No audit events.</p>}</CardContent></Card>;
+}
+
+function SettingsCard({ children, description, title }: { children: ReactNode; description: string; title: string }) { return <Card><CardHeader><CardTitle>{title}</CardTitle><CardDescription>{description}</CardDescription></CardHeader><CardContent>{children}</CardContent></Card>; }
+function Field({ children, label }: { children: ReactNode; label: string }) { return <div className="space-y-2"><Label>{label}</Label>{children}</div>; }
+function ReadOnly({ label, value }: { label: string; value: string }) { return <div><Label>{label}</Label><div className="mt-2 flex min-h-10 items-center border bg-muted/30 px-3 text-sm">{value}</div></div>; }
+function Fact({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) { return <div className="bg-card px-4 py-3.5"><span className="block text-xs text-muted-foreground">{label}</span><strong className={cn("mt-1 block text-sm font-medium [overflow-wrap:anywhere]", mono && "font-mono")}>{value}</strong></div>; }
+function FactRow({ label, value }: { label: string; value: string }) { return <div className="flex items-start justify-between gap-4 py-3 text-xs first:pt-0 last:pb-0"><span className="text-muted-foreground">{label}</span><strong className="text-right font-medium">{value}</strong></div>; }
+function PathStep({ icon: Icon, label, mono = false, value }: { icon: typeof Database; label: string; mono?: boolean; value: string }) { return <div className="flex min-h-20 items-center gap-3 p-4"><span className="grid size-8 shrink-0 place-items-center rounded-md bg-muted/70"><Icon className="size-4 text-primary" /></span><span className="min-w-0"><span className="block text-xs text-muted-foreground">{label}</span><strong className={cn("mt-1 block text-xs font-medium leading-5 [overflow-wrap:anywhere]", mono && "font-mono")}>{value}</strong></span></div>; }
+function PathArrow() { return <span className="hidden items-center justify-center border-x border-border/45 text-muted-foreground/60 sm:flex"><ArrowRight className="size-3.5" /></span>; }
+function conditionLabel(type: ModelProfile["conditions"][number]["type"]) { return type === "BINDING" ? "Routing binding" : type === "GATEWAY" ? "Gateway health" : type === "COMPLIANCE" ? "Compliance boundary" : "Capabilities"; }

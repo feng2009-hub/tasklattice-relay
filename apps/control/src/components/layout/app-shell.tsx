@@ -45,7 +45,7 @@ import { cn } from "@/lib/utils";
 type WorkspaceRoute =
   | "/providers"
   | "/providers/cost"
-  | "/providers/inference-groups"
+  | "/providers/model-profiles"
   | "/dashboard"
   | "/instances"
   | "/requests/new"
@@ -69,7 +69,7 @@ const navGroups: Array<{ items: NavItemDefinition[]; label: string }> = [
   {
     label: "Models",
     items: [
-      { icon: SlidersHorizontal, label: "Model Profiles", to: "/providers/inference-groups" },
+      { icon: SlidersHorizontal, label: "Model Profiles", to: "/providers/model-profiles" },
       { icon: CircleDollarSign, label: "Cost", to: "/providers/cost" },
     ],
   },
@@ -110,7 +110,7 @@ const routeLabels: Record<string, string> = {
   new: "Create Instance",
   policy: "Policy",
   providers: "Models",
-  "inference-groups": "Model Profiles",
+  "model-profiles": "Model Profiles",
   requests: "Requests",
   runtime: "Runtime",
   sandboxes: "Sandboxes",
@@ -123,7 +123,7 @@ const routeLabels: Record<string, string> = {
 
 function itemIsActive(item: NavItemDefinition, pathname: string) {
   if (item.to === "/instances") return pathname === "/instances" || pathname.startsWith("/agents");
-  if (item.to === "/providers/inference-groups") return pathname.startsWith("/providers/inference-groups");
+  if (item.to === "/providers/model-profiles") return pathname.startsWith("/providers/model-profiles");
   return pathname === item.to;
 }
 

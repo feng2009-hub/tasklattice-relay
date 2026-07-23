@@ -3,9 +3,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   providerPresets,
-  type InferenceCapabilityState,
-  type InferenceGroup,
-  type InferenceGroupStatus,
+  type ModelProfileCapabilityState,
+  type ModelProfile,
+  type ModelProfileStatus,
   type ModelDeployment,
   type ProviderAccount,
   type ProviderResourceStatus,
@@ -45,7 +45,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/providers/inference-groups/")({ component: ModelProfilesPage });
+export const Route = createFileRoute("/providers/model-profiles/")({ component: ModelProfilesPage });
 
 type ProfileFilter = "all" | "ready" | "attention";
 
@@ -56,14 +56,14 @@ function ModelProfilesPage() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ProfileFilter>("all");
   const queryClient = useQueryClient();
-  const groups = useQuery({ queryKey: ["inference-groups"], queryFn: api.listInferenceGroups });
+  const profileQuery = useQuery({ queryKey: ["model-profiles"], queryFn: api.listModelProfiles });
   const accounts = useQuery({ queryKey: ["provider-accounts"], queryFn: api.listProviderAccounts });
   const models = useQuery({ queryKey: ["model-deployments"], queryFn: api.listModelDeployments });
   const refresh = useMutation({
-    mutationFn: api.refreshInferenceGroup,
-    onSuccess: async () => queryClient.invalidateQueries({ queryKey: ["inference-groups"] }),
+    mutationFn: api.refreshModelProfile,
+    onSuccess: async () => queryClient.invalidateQueries({ queryKey: ["model-profiles"] }),
   });
-  const profiles = groups.data ?? [];
+  const profiles = profileQuery.data ?? [];
   const providerAccounts = accounts.data ?? [];
   const deployments = models.data ?? [];
   const filtered = useMemo(() => {
@@ -121,8 +121,8 @@ function ModelProfilesPage() {
           </div>
         </div>
 
-        {groups.isPending ? <LoadingState label="Loading Model Profiles…" />
-          : groups.error ? <ErrorState message={groups.error.message} />
+        {profileQuery.isPending ? <LoadingState label="Loading Model Profiles…" />
+          : profileQuery.error ? <ErrorState message={profileQuery.error.message} />
           : profiles.length ? (
             <Card className="overflow-hidden"><CardContent className="p-0">
               <div className="hidden overflow-x-auto md:block">
@@ -158,7 +158,7 @@ function Layer({ icon: Icon, label, value }: { icon: typeof Database; label: str
   return <div className="flex min-h-28 flex-col justify-between border-r p-4 last:border-r-0"><Icon className="size-4 text-primary" /><div><span className="block text-[11px] text-muted-foreground">{label}</span><strong className="mt-1 block text-xs font-medium">{value}</strong></div></div>;
 }
 
-function ProfileRow({ profile, onRefresh, refreshing }: { profile: InferenceGroup; onRefresh: () => void; refreshing: boolean }) {
+function ProfileRow({ profile, onRefresh, refreshing }: { profile: ModelProfile; onRefresh: () => void; refreshing: boolean }) {
   return <tr className="group hover:bg-muted/20">
     <td className="px-4 py-4"><div className="flex items-center gap-3"><span className="grid size-9 shrink-0 place-items-center border bg-background text-primary"><SlidersHorizontal className="size-4" /></span><span className="min-w-0"><span className="flex items-center gap-2"><strong className="block truncate">{profile.name}</strong>{profile.isDefault ? <span className="border bg-muted px-1.5 py-0.5 text-[10px] font-medium">Default</span> : null}</span><span className="mt-0.5 block max-w-64 truncate text-xs text-muted-foreground">{profile.description || "Managed model access profile"}</span></span></div></td>
     <td className="px-4 py-4"><code className="text-xs">{profile.publicModelAlias}</code></td>
@@ -166,26 +166,26 @@ function ProfileRow({ profile, onRefresh, refreshing }: { profile: InferenceGrou
     <td className="px-4 py-4 text-xs"><strong className="block font-medium">{profile.complianceDomain === "CN_MAINLAND" ? "CN Mainland" : "Global"}</strong><span className="text-muted-foreground">Isolated key</span></td>
     <td className="px-4 py-4 font-mono text-xs">{profile.consumers}</td>
     <td className="px-4 py-4"><Status status={profile.status} /></td>
-    <td className="px-3 py-4"><div className="flex justify-end gap-1"><Button size="icon" variant="ghost" aria-label={`Refresh ${profile.name}`} disabled={refreshing} onClick={onRefresh}><RefreshCw className={cn(refreshing && "animate-spin")} /></Button><Button asChild size="sm" variant="ghost"><Link to="/providers/inference-groups/$groupId" params={{ groupId: profile.id }}>Open <ArrowRight /></Link></Button></div></td>
+    <td className="px-3 py-4"><div className="flex justify-end gap-1"><Button size="icon" variant="ghost" aria-label={`Refresh ${profile.name}`} disabled={refreshing} onClick={onRefresh}><RefreshCw className={cn(refreshing && "animate-spin")} /></Button><Button asChild size="sm" variant="ghost"><Link to="/providers/model-profiles/$profileId" params={{ profileId: profile.id }}>Open <ArrowRight /></Link></Button></div></td>
   </tr>;
 }
 
-function ProfileMobileCard({ profile }: { profile: InferenceGroup }) {
-  return <Link to="/providers/inference-groups/$groupId" params={{ groupId: profile.id }} className="block p-4 hover:bg-muted/20 focus-visible:outline-2"><div className="flex items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><strong>{profile.name}</strong>{profile.isDefault ? <span className="border bg-muted px-1.5 py-0.5 text-[10px]">Default</span> : null}</div><code className="mt-1 block text-xs text-muted-foreground">{profile.publicModelAlias}</code></div><Status status={profile.status} /></div><div className="mt-4 grid grid-cols-3 border-y py-3 text-xs"><Fact label="Routing" value={capability(profile.capabilities.automaticRouting)} /><Fact label="Compliance" value={profile.complianceDomain === "CN_MAINLAND" ? "CN" : "Global"} /><Fact label="Consumers" value={String(profile.consumers)} /></div></Link>;
+function ProfileMobileCard({ profile }: { profile: ModelProfile }) {
+  return <Link to="/providers/model-profiles/$profileId" params={{ profileId: profile.id }} className="block p-4 hover:bg-muted/20 focus-visible:outline-2"><div className="flex items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><strong>{profile.name}</strong>{profile.isDefault ? <span className="border bg-muted px-1.5 py-0.5 text-[10px]">Default</span> : null}</div><code className="mt-1 block text-xs text-muted-foreground">{profile.publicModelAlias}</code></div><Status status={profile.status} /></div><div className="mt-4 grid grid-cols-3 border-y py-3 text-xs"><Fact label="Routing" value={capability(profile.capabilities.automaticRouting)} /><Fact label="Compliance" value={profile.complianceDomain === "CN_MAINLAND" ? "CN" : "Global"} /><Fact label="Consumers" value={String(profile.consumers)} /></div></Link>;
 }
 
 function Fact({ label, value }: { label: string; value: string }) {
   return <span><span className="block text-muted-foreground">{label}</span><strong className="mt-1 block font-medium">{value}</strong></span>;
 }
 
-export function Status({ status }: { status: InferenceGroupStatus }) {
+export function Status({ status }: { status: ModelProfileStatus }) {
   const ready = status === "READY";
   const warning = status === "DEGRADED" || status === "DRAFT" || status === "VALIDATING";
   const label = status === "READY" ? "Ready" : status === "VALIDATING" ? "Validating" : status === "DEGRADED" ? "Needs attention" : status.replaceAll("_", " ");
   return <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-medium", ready ? "text-emerald-700" : warning ? "text-amber-700" : "text-destructive")}><span className={cn("size-1.5 rounded-full", ready ? "bg-emerald-500" : warning ? "bg-amber-500" : "bg-current")} />{label}</span>;
 }
 
-function capability(value: InferenceCapabilityState): string {
+function capability(value: ModelProfileCapabilityState): string {
   return value === "ENABLED" ? "Automatic" : value === "DISABLED" ? "Direct" : "Managed";
 }
 
@@ -270,9 +270,9 @@ function CreateProfileSheet({
   }, [compatibleModels, modelSource, open, selectedModelId]);
 
   const mutation = useMutation({
-    mutationFn: () => api.createInferenceGroup({ name, description, gatewayId: gateway?.id ?? "", publicModelAlias, complianceDomain: gateway?.complianceDomain ?? "GLOBAL", isDefault: makeDefault, keyPolicy: { perInstance: true, rotationDays: 90 }, auditPolicy: { controlPlane: true, requestLogs: true, capturePrompts: false } }),
+    mutationFn: () => api.createModelProfile({ name, description, gatewayId: gateway?.id ?? "", publicModelAlias, complianceDomain: gateway?.complianceDomain ?? "GLOBAL", isDefault: makeDefault, keyPolicy: { perInstance: true, rotationDays: 90 }, auditPolicy: { controlPlane: true, requestLogs: true, capturePrompts: false } }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["inference-groups"] });
+      await queryClient.invalidateQueries({ queryKey: ["model-profiles"] });
       setName(""); setDescription(""); setSelectedModelId(""); setAlias(""); setAttempted(false);
       onOpenChange(false);
     },

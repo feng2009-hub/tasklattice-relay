@@ -3,7 +3,7 @@ import { parseAgent } from "./agent-store";
 import { createTestStore } from "../test/store";
 
 describe("AgentStore", () => {
-  it("rejects pre-Inference-Group Instance records", () => {
+  it("rejects pre-Model-Profile Instance records", () => {
     const now = new Date().toISOString();
     expect(() => parseAgent(JSON.stringify({
       id: "legacy-agent",
@@ -43,11 +43,11 @@ describe("AgentStore", () => {
       model: "deepseek-chat",
       modelType: "llm",
       inferenceMode: "PLATFORM_MANAGED",
-      inferenceGroupId: "group-a",
-      inferenceBindingId: "binding-a",
-      inferenceStatus: "READY",
-      inferenceComplianceDomain: "CN_MAINLAND",
-      inferenceCapabilities: {
+      modelProfileId: "profile-a",
+      modelProfileBindingId: "binding-a",
+      modelProfileStatus: "READY",
+      modelProfileComplianceDomain: "CN_MAINLAND",
+      modelProfileCapabilities: {
         automaticRouting: "ENABLED",
         routerType: "COMPLEXITY_ROUTER",
         complexityTierCount: 4,
@@ -60,7 +60,7 @@ describe("AgentStore", () => {
         retries: "ENABLED",
         requestAudit: "ENABLED",
       },
-      inferenceKeyFingerprint: "sha256:123456789abc",
+      modelProfileKeyFingerprint: "sha256:123456789abc",
       policyId: "restricted",
       systemPrompt: "You are a research agent.",
       createdAt: now,
@@ -116,11 +116,11 @@ describe("AgentStore", () => {
       model: "deepseek-chat",
       modelType: "llm",
       inferenceMode: "PLATFORM_MANAGED",
-      inferenceGroupId: "group-a",
-      inferenceBindingId: "binding-a",
-      inferenceStatus: "READY",
-      inferenceComplianceDomain: "CN_MAINLAND",
-      inferenceCapabilities: {
+      modelProfileId: "profile-a",
+      modelProfileBindingId: "binding-a",
+      modelProfileStatus: "READY",
+      modelProfileComplianceDomain: "CN_MAINLAND",
+      modelProfileCapabilities: {
         automaticRouting: "ENABLED",
         routerType: "COMPLEXITY_ROUTER",
         complexityTierCount: 4,
@@ -133,7 +133,7 @@ describe("AgentStore", () => {
         retries: "ENABLED",
         requestAudit: "ENABLED",
       },
-      inferenceKeyFingerprint: "sha256:123456789abc",
+      modelProfileKeyFingerprint: "sha256:123456789abc",
       policyId: "restricted",
       systemPrompt: "You are a research agent.",
       createdAt: now,

@@ -35,11 +35,11 @@ export function InstanceConfigurationTab({ agent, platform }: { agent: Agent; pl
         <DetailCardHeader title="Managed inference" description="TaskLattice resolved this access contract automatically when the Instance was created." />
         <CardContent><DefinitionList columns={2} items={[
           { label: "Inference mode", value: "Platform managed" },
-          { label: "Inference status", value: agent.inferenceStatus?.replaceAll("_", " ") ?? "Unavailable" },
-          { label: "Compliance", value: agent.inferenceComplianceDomain === "CN_MAINLAND" ? "CN Mainland" : "Global" },
-          { label: "Automatic routing", value: agent.inferenceCapabilities?.automaticRouting === "ENABLED" ? "Enabled" : "Not enabled" },
-          { label: "Failover", value: agent.inferenceCapabilities?.failover === "ENABLED" ? "Enabled" : "Not enabled" },
-          { label: "Key fingerprint", value: agent.inferenceKeyFingerprint ?? "Unavailable" },
+          { label: "Inference status", value: agent.modelProfileStatus?.replaceAll("_", " ") ?? "Unavailable" },
+          { label: "Compliance", value: agent.modelProfileComplianceDomain === "CN_MAINLAND" ? "CN Mainland" : "Global" },
+          { label: "Automatic routing", value: agent.modelProfileCapabilities?.automaticRouting === "ENABLED" ? "Enabled" : "Not enabled" },
+          { label: "Failover", value: agent.modelProfileCapabilities?.failover === "ENABLED" ? "Enabled" : "Not enabled" },
+          { label: "Key fingerprint", value: agent.modelProfileKeyFingerprint ?? "Unavailable" },
           { label: "Agent framework", value: platform.name },
           { label: "Runtime", value: platform.runtimeName },
         ]} /></CardContent>

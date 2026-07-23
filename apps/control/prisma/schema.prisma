@@ -37,28 +37,28 @@ model Workspace {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  creator             User                             @relation("WorkspaceCreator", fields: [createdBy], references: [id])
-  members             WorkspaceMember[]
-  invitations         WorkspaceInvitation[]
-  agents              AgentRecord[]
-  providerAccounts    ProviderAccountRecord[]
-  modelDeployments    ModelDeploymentRecord[]
-  agentCostKeys       AgentCostKey[]
-  inferenceGateways   InferenceGatewayRecord[]
-  inferenceGroups     InferenceGroupRecord[]
-  inferenceBindings   InferenceGroupBindingRecord[]
-  inferenceAudit      InferenceGroupAuditRecord[]
-  sandboxPolicies     SandboxPolicyRecord[]
-  skills              ExtensionSkillRecord[]
-  mcpServers          ExtensionMcpServerRecord[]
-  knowledgeSources    ExtensionKnowledgeSourceRecord[]
-  specializations     AgentSpecializationRecord[]
-  costAttributions    CostAttributionMappingRecord[]
-  modelEndpointMaps   ModelEndpointMappingRecord[]
-  usageFacts          ModelUsageFactRecord[]
-  usageObservations   ModelUsageFactObservation[]
-  usageDaily          ModelUsageDailyRecord[]
-  costSyncCheckpoints CostSyncCheckpointRecord[]
+  creator              User                             @relation("WorkspaceCreator", fields: [createdBy], references: [id])
+  members              WorkspaceMember[]
+  invitations          WorkspaceInvitation[]
+  agents               AgentRecord[]
+  providerAccounts     ProviderAccountRecord[]
+  modelDeployments     ModelDeploymentRecord[]
+  agentCostKeys        AgentCostKey[]
+  inferenceGateways    InferenceGatewayRecord[]
+  modelProfiles        ModelProfileRecord[]
+  modelProfileBindings ModelProfileBindingRecord[]
+  modelProfileAudit    ModelProfileAuditRecord[]
+  sandboxPolicies      SandboxPolicyRecord[]
+  skills               ExtensionSkillRecord[]
+  mcpServers           ExtensionMcpServerRecord[]
+  knowledgeSources     ExtensionKnowledgeSourceRecord[]
+  specializations      AgentSpecializationRecord[]
+  costAttributions     CostAttributionMappingRecord[]
+  modelEndpointMaps    ModelEndpointMappingRecord[]
+  usageFacts           ModelUsageFactRecord[]
+  usageObservations    ModelUsageFactObservation[]
+  usageDaily           ModelUsageDailyRecord[]
+  costSyncCheckpoints  CostSyncCheckpointRecord[]
 
   @@map("workspaces")
   @@schema("tasklattice")
@@ -160,43 +160,47 @@ model InferenceGatewayRecord {
   @@schema("tasklattice")
 }
 
-model InferenceGroupRecord {
-  workspaceId String    @map("workspace_id")
+model ModelProfileRecord {
+  workspaceId String                      @map("workspace_id")
   id          String
   payload     Json
-  createdAt   DateTime  @map("created_at") @db.Timestamptz(6)
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt   DateTime                    @map("created_at") @db.Timestamptz(6)
+  workspace   Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  bindings    ModelProfileBindingRecord[]
 
   @@id([workspaceId, id])
-  @@map("inference_groups")
+  @@map("model_profiles")
   @@schema("tasklattice")
 }
 
-model InferenceGroupBindingRecord {
-  workspaceId      String    @map("workspace_id")
-  id               String
-  inferenceGroupId String    @map("inference_group_id")
-  agentId          String    @map("agent_id")
-  payload          Json
-  createdAt        DateTime  @map("created_at") @db.Timestamptz(6)
-  workspace        Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+model ModelProfileBindingRecord {
+  workspaceId    String             @map("workspace_id")
+  id             String
+  modelProfileId String             @map("model_profile_id")
+  agentId        String             @map("agent_id")
+  payload        Json
+  createdAt      DateTime           @map("created_at") @db.Timestamptz(6)
+  workspace      Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  modelProfile   ModelProfileRecord @relation(fields: [workspaceId, modelProfileId], references: [workspaceId, id], onDelete: Cascade)
 
   @@id([workspaceId, id])
-  @@index([workspaceId, agentId, createdAt(sort: Desc)], map: "inference_group_bindings_agent_idx")
-  @@map("inference_group_bindings")
+  @@index([workspaceId, agentId, createdAt(sort: Desc)], map: "model_profile_bindings_agent_idx")
+  @@index([workspaceId, modelProfileId, createdAt(sort: Desc)], map: "model_profile_bindings_profile_idx")
+  @@map("model_profile_bindings")
   @@schema("tasklattice")
 }
 
-model InferenceGroupAuditRecord {
-  workspaceId      String    @map("workspace_id")
-  eventId          String    @map("event_id")
-  inferenceGroupId String    @map("inference_group_id")
-  payload          Json
-  createdAt        DateTime  @map("created_at") @db.Timestamptz(6)
-  workspace        Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+model ModelProfileAuditRecord {
+  workspaceId    String    @map("workspace_id")
+  eventId        String    @map("event_id")
+  modelProfileId String    @map("model_profile_id")
+  payload        Json
+  createdAt      DateTime  @map("created_at") @db.Timestamptz(6)
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@id([workspaceId, eventId])
-  @@map("inference_group_audit")
+  @@index([workspaceId, modelProfileId, createdAt(sort: Desc)], map: "model_profile_audit_profile_idx")
+  @@map("model_profile_audit")
   @@schema("tasklattice")
 }
 

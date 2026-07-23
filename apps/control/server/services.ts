@@ -1,7 +1,7 @@
 import { AgentService } from "./agents/agent-service";
 import { AgentStore } from "./data/agent-store";
 import { ExtensionCatalogService } from "./extensions/extension-catalog-service";
-import { InferenceGroupService } from "./inference-groups/inference-group-service";
+import { ModelProfileService } from "./model-profiles/model-profile-service";
 import { PolicyService } from "./policies/policy-service";
 import { CostService } from "./providers/cost-service";
 import { LiteLLMClient } from "./providers/litellm-client";
@@ -12,7 +12,7 @@ interface WorkspaceServices {
   agent: AgentService;
   cost: CostService;
   extensions: ExtensionCatalogService;
-  inferenceGroups: InferenceGroupService;
+  modelProfiles: ModelProfileService;
   policies: PolicyService;
   provider: ProviderService;
 }
@@ -24,15 +24,15 @@ const services = new Map<string, WorkspaceServices>();
 function createServices(workspaceId: string): WorkspaceServices {
   const store = new AgentStore(workspaceId);
   const policies = new PolicyService(store);
-  const inferenceGroups = new InferenceGroupService(store, litellm);
+  const modelProfiles = new ModelProfileService(store, litellm);
   const extensions = new ExtensionCatalogService(store);
   return {
-    agent: new AgentService(store, undefined, litellm, policies, extensions, inferenceGroups),
+    agent: new AgentService(store, undefined, litellm, policies, extensions, modelProfiles),
     provider: new ProviderService(store, undefined, litellm),
     cost: new CostService(store, litellm),
     policies,
     extensions,
-    inferenceGroups,
+    modelProfiles,
   };
 }
 
@@ -78,6 +78,6 @@ export async function getExtensionCatalogService(request?: Request): Promise<Ext
   return (await forRequest(request)).extensions;
 }
 
-export async function getInferenceGroupService(request?: Request): Promise<InferenceGroupService> {
-  return (await forRequest(request)).inferenceGroups;
+export async function getModelProfileService(request?: Request): Promise<ModelProfileService> {
+  return (await forRequest(request)).modelProfiles;
 }

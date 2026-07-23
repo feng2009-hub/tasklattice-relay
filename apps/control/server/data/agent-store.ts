@@ -6,9 +6,9 @@ import type {
   ExtensionResourceKind,
   KnowledgeSourceDefinition,
   InferenceGateway,
-  InferenceGroup,
-  InferenceGroupAuditEvent,
-  InferenceGroupBinding,
+  ModelProfile,
+  ModelProfileAuditEvent,
+  ModelProfileBinding,
   McpServerDefinition,
   ModelDeployment,
   ProviderAccount,
@@ -53,12 +53,12 @@ export function parseAgent(payload: string | Prisma.JsonValue): Agent {
     typeof agent.updatedAt !== "string" ||
     !Array.isArray(agent.logs) ||
     agent.inferenceMode !== "PLATFORM_MANAGED" ||
-    typeof agent.inferenceGroupId !== "string" ||
-    typeof agent.inferenceBindingId !== "string" ||
-    typeof agent.inferenceKeyFingerprint !== "string" ||
-    !agent.inferenceCapabilities ||
-    !agent.inferenceComplianceDomain ||
-    !agent.inferenceStatus
+    typeof agent.modelProfileId !== "string" ||
+    typeof agent.modelProfileBindingId !== "string" ||
+    typeof agent.modelProfileKeyFingerprint !== "string" ||
+    !agent.modelProfileCapabilities ||
+    !agent.modelProfileComplianceDomain ||
+    !agent.modelProfileStatus
   ) throw new Error("Stored Instance data is incomplete.");
   return agent as Agent;
 }
@@ -270,7 +270,7 @@ export class AgentStore {
       },
       update: { payload: jsonInput(agent) },
     });
-    const binding = await this.getInferenceGroupBindingForAgent(agent.id);
+    const binding = await this.getModelProfileBindingForAgent(agent.id);
     if (binding) await this.saveBindingAttribution(binding, agent);
     return agent;
   }
@@ -295,13 +295,13 @@ export class AgentStore {
     });
   }
 
-  async listAgentsForReporting(): Promise<Array<Pick<Agent, "id" | "name" | "sandboxName" | "costKeyAlias" | "inferenceKeyFingerprint">>> {
+  async listAgentsForReporting(): Promise<Array<Pick<Agent, "id" | "name" | "sandboxName" | "costKeyAlias" | "modelProfileKeyFingerprint">>> {
     return (await this.list()).map((agent) => ({
       id: agent.id,
       name: agent.name,
       sandboxName: agent.sandboxName,
       costKeyAlias: agent.costKeyAlias ?? `tali-${agent.name}`,
-      inferenceKeyFingerprint: agent.inferenceKeyFingerprint,
+      modelProfileKeyFingerprint: agent.modelProfileKeyFingerprint,
     }));
   }
 
@@ -489,57 +489,57 @@ export class AgentStore {
     return rows.map((row) => decode<InferenceGateway>(row.payload));
   }
 
-  async saveInferenceGroup(group: InferenceGroup): Promise<InferenceGroup> {
-    await this.db.inferenceGroupRecord.upsert({
-      where: { workspaceId_id: { workspaceId: this.workspaceId, id: group.id } },
+  async saveModelProfile(profile: ModelProfile): Promise<ModelProfile> {
+    await this.db.modelProfileRecord.upsert({
+      where: { workspaceId_id: { workspaceId: this.workspaceId, id: profile.id } },
       create: {
         workspaceId: this.workspaceId,
-        id: group.id,
-        payload: jsonInput(group),
-        createdAt: group.createdAt,
+        id: profile.id,
+        payload: jsonInput(profile),
+        createdAt: profile.createdAt,
       },
-      update: { payload: jsonInput(group) },
+      update: { payload: jsonInput(profile) },
     });
-    const gateway = await this.getInferenceGateway(group.gatewayId);
+    const gateway = await this.getInferenceGateway(profile.gatewayId);
     await this.costs.saveModelEndpointMapping({
-      id: `inference-group:${group.id}:${group.createdAt}`,
-      modelEndpointId: `inference-group:${group.id}`,
-      modelEndpointName: group.name,
-      liteLLMModelName: group.publicModelAlias,
-      liteLLMModelGroup: group.publicModelAlias,
+      id: `model-profile:${profile.id}:${profile.createdAt}`,
+      modelEndpointId: `model-profile:${profile.id}`,
+      modelEndpointName: profile.name,
+      liteLLMModelName: profile.publicModelAlias,
+      liteLLMModelGroup: profile.publicModelAlias,
       provider: "LiteLLM",
-      providerAccountId: group.gatewayId,
-      providerAccountName: gateway?.name ?? group.gatewayId,
-      validFrom: group.createdAt,
-      createdAt: group.createdAt,
-      updatedAt: group.updatedAt,
+      providerAccountId: profile.gatewayId,
+      providerAccountName: gateway?.name ?? profile.gatewayId,
+      validFrom: profile.createdAt,
+      createdAt: profile.createdAt,
+      updatedAt: profile.updatedAt,
     });
-    return group;
+    return profile;
   }
-  async getInferenceGroup(id: string): Promise<InferenceGroup | undefined> {
-    const row = await this.db.inferenceGroupRecord.findUnique({
+  async getModelProfile(id: string): Promise<ModelProfile | undefined> {
+    const row = await this.db.modelProfileRecord.findUnique({
       where: { workspaceId_id: { workspaceId: this.workspaceId, id } },
       select: { payload: true },
     });
-    return row ? decode<InferenceGroup>(row.payload) : undefined;
+    return row ? decode<ModelProfile>(row.payload) : undefined;
   }
-  async listInferenceGroups(): Promise<InferenceGroup[]> {
-    const rows = await this.db.inferenceGroupRecord.findMany({
+  async listModelProfiles(): Promise<ModelProfile[]> {
+    const rows = await this.db.modelProfileRecord.findMany({
       where: { workspaceId: this.workspaceId },
       orderBy: { createdAt: "desc" },
       select: { payload: true },
     });
-    return rows.map((row) => decode<InferenceGroup>(row.payload));
+    return rows.map((row) => decode<ModelProfile>(row.payload));
   }
-  async deleteInferenceGroup(id: string): Promise<boolean> {
-    const result = await this.db.inferenceGroupRecord.deleteMany({
+  async deleteModelProfile(id: string): Promise<boolean> {
+    const result = await this.db.modelProfileRecord.deleteMany({
       where: { workspaceId: this.workspaceId, id },
     });
     return result.count > 0;
   }
 
-  async saveInferenceGroupBinding(binding: InferenceGroupBinding): Promise<InferenceGroupBinding> {
-    const previous = await this.getInferenceGroupBindingForAgent(binding.agentId);
+  async saveModelProfileBinding(binding: ModelProfileBinding): Promise<ModelProfileBinding> {
+    const previous = await this.getModelProfileBindingForAgent(binding.agentId);
     if (previous && previous.id !== binding.id && !previous.revokedAt) {
       const previousAgent = await this.get(previous.agentId);
       await this.saveBindingAttribution(
@@ -547,12 +547,12 @@ export class AgentStore {
         previousAgent,
       );
     }
-    await this.db.inferenceGroupBindingRecord.upsert({
+    await this.db.modelProfileBindingRecord.upsert({
       where: { workspaceId_id: { workspaceId: this.workspaceId, id: binding.id } },
       create: {
         workspaceId: this.workspaceId,
         id: binding.id,
-        inferenceGroupId: binding.inferenceGroupId,
+        modelProfileId: binding.modelProfileId,
         agentId: binding.agentId,
         payload: jsonInput(binding),
         createdAt: binding.createdAt,
@@ -562,8 +562,8 @@ export class AgentStore {
     await this.saveBindingAttribution(binding, await this.get(binding.agentId));
     return binding;
   }
-  private async saveBindingAttribution(binding: InferenceGroupBinding, agent?: Agent): Promise<void> {
-    const group = await this.getInferenceGroup(binding.inferenceGroupId);
+  private async saveBindingAttribution(binding: ModelProfileBinding, agent?: Agent): Promise<void> {
+    const profile = await this.getModelProfile(binding.modelProfileId);
     await this.costs.saveAttribution({
       id: `binding:${binding.id}`,
       workspaceId: this.workspaceId,
@@ -575,48 +575,48 @@ export class AgentStore {
       virtualKeyAlias: binding.keyAlias,
       liteLLMUserId: binding.agentId,
       ...(binding.liteLLMTeamId ? { liteLLMTeamId: binding.liteLLMTeamId } : {}),
-      ...(group?.gatewayId ? { providerAccountId: group.gatewayId } : {}),
+      ...(profile?.gatewayId ? { providerAccountId: profile.gatewayId } : {}),
       validFrom: binding.createdAt,
       ...(binding.revokedAt ? { validTo: binding.revokedAt } : {}),
       createdAt: binding.createdAt,
       updatedAt: binding.revokedAt ?? agent?.updatedAt ?? binding.createdAt,
     });
   }
-  async getInferenceGroupBindingForAgent(agentId: string): Promise<InferenceGroupBinding | undefined> {
-    const row = await this.db.inferenceGroupBindingRecord.findFirst({
+  async getModelProfileBindingForAgent(agentId: string): Promise<ModelProfileBinding | undefined> {
+    const row = await this.db.modelProfileBindingRecord.findFirst({
       where: { workspaceId: this.workspaceId, agentId },
       orderBy: { createdAt: "desc" },
       select: { payload: true },
     });
-    return row ? decode<InferenceGroupBinding>(row.payload) : undefined;
+    return row ? decode<ModelProfileBinding>(row.payload) : undefined;
   }
-  async listInferenceGroupBindings(inferenceGroupId: string): Promise<InferenceGroupBinding[]> {
-    const rows = await this.db.inferenceGroupBindingRecord.findMany({
-      where: { workspaceId: this.workspaceId, inferenceGroupId },
+  async listModelProfileBindings(modelProfileId: string): Promise<ModelProfileBinding[]> {
+    const rows = await this.db.modelProfileBindingRecord.findMany({
+      where: { workspaceId: this.workspaceId, modelProfileId },
       orderBy: { createdAt: "desc" },
       select: { payload: true },
     });
-    return rows.map((row) => decode<InferenceGroupBinding>(row.payload));
+    return rows.map((row) => decode<ModelProfileBinding>(row.payload));
   }
-  async appendInferenceGroupAudit(event: InferenceGroupAuditEvent): Promise<InferenceGroupAuditEvent> {
-    await this.db.inferenceGroupAuditRecord.create({
+  async appendModelProfileAudit(event: ModelProfileAuditEvent): Promise<ModelProfileAuditEvent> {
+    await this.db.modelProfileAuditRecord.create({
       data: {
         workspaceId: this.workspaceId,
         eventId: event.eventId,
-        inferenceGroupId: event.inferenceGroupId,
+        modelProfileId: event.modelProfileId,
         payload: jsonInput(event),
         createdAt: event.timestamp,
       },
     });
     return event;
   }
-  async listInferenceGroupAudit(inferenceGroupId: string): Promise<InferenceGroupAuditEvent[]> {
-    const rows = await this.db.inferenceGroupAuditRecord.findMany({
-      where: { workspaceId: this.workspaceId, inferenceGroupId },
+  async listModelProfileAudit(modelProfileId: string): Promise<ModelProfileAuditEvent[]> {
+    const rows = await this.db.modelProfileAuditRecord.findMany({
+      where: { workspaceId: this.workspaceId, modelProfileId },
       orderBy: { createdAt: "desc" },
       select: { payload: true },
     });
-    return rows.map((row) => decode<InferenceGroupAuditEvent>(row.payload));
+    return rows.map((row) => decode<ModelProfileAuditEvent>(row.payload));
   }
 
   async saveSandboxPolicy(policy: SandboxPolicy): Promise<SandboxPolicy> {

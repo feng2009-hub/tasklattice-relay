@@ -1,6 +1,6 @@
 # Model Profile interaction design
 
-Status: Implemented frontend concept
+Status: Implemented full-stack domain
 
 ## Product definition
 
@@ -14,8 +14,9 @@ Provider connections and model deployments
   → consuming Instances
 ```
 
-The frontend no longer asks an Instance operator to reason about Provider
-accounts or Inference Groups. Those are implementation layers of the Profile.
+The Instance workflow no longer asks an operator to reason about Provider
+accounts, deployments, or routing internals. Those are upstream implementation
+details of the Profile.
 
 ## Information architecture
 
@@ -77,11 +78,13 @@ A READY Profile can start the Create Instance flow. Instance creation and
 Instance detail consistently display **Model Profile**, including its routing,
 compliance, and failover summary.
 
-## Migration notes
+## API and persistence
 
-The current backend contracts and URLs retain the `InferenceGroup` and
-`/providers/inference-groups` names for compatibility. This release changes the
-product language and frontend information architecture without a destructive
-data migration. A future API version can introduce `ModelProfile` resources
-and compatibility aliases after the router-candidate relationship is modeled
-explicitly.
+Model Profiles are first-class resources across contracts, control-plane
+services, REST routes, LiteLLM metadata, audit events, Agent bindings, and
+PostgreSQL persistence. The canonical collection is
+`/api/v1/model-profiles`; resource routes use `{profileId}`. There are no
+legacy aliases.
+
+Development databases created from the earlier schema must be recreated; the
+initial migration is intentionally destructive during this development phase.

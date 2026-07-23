@@ -23,8 +23,8 @@ const policyId = {
   schema: { type: "string", pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
 } as const;
 
-const groupId = {
-  name: "groupId",
+const profileId = {
+  name: "profileId",
   in: "path",
   required: true,
   schema: { type: "string", format: "uuid" },
@@ -252,40 +252,36 @@ export const openApiDocument = {
         responses: { "200": { description: "Inference Gateway collection", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/InferenceGateway" } } } }) } },
       },
     },
-    "/inference-groups": {
+    "/model-profiles": {
       get: {
-        operationId: "listInferenceGroups",
+        operationId: "listModelProfiles",
         summary: "List LiteLLM-managed inference access contracts",
-        responses: { "200": { description: "Inference Group collection", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/InferenceGroup" } } } }) } },
+        responses: { "200": { description: "Model Profile collection", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/ModelProfile" } } } }) } },
       },
       post: {
-        operationId: "createInferenceGroup",
-        summary: "Create and validate an Inference Group binding",
-        requestBody: { required: true, ...json({ $ref: "#/components/schemas/CreateInferenceGroupInput" }) },
-        responses: { "201": { description: "Inference Group", ...json({ $ref: "#/components/schemas/InferenceGroup" }) }, "400": { $ref: "#/components/responses/Error" } },
+        operationId: "createModelProfile",
+        summary: "Create and validate a Model Profile binding",
+        requestBody: { required: true, ...json({ $ref: "#/components/schemas/CreateModelProfileInput" }) },
+        responses: { "201": { description: "Model Profile", ...json({ $ref: "#/components/schemas/ModelProfile" }) }, "400": { $ref: "#/components/responses/Error" } },
       },
     },
-    "/inference-groups/{groupId}": {
-      parameters: [groupId],
-      get: { operationId: "getInferenceGroup", summary: "Read an Inference Group", responses: { "200": { description: "Inference Group", ...json({ $ref: "#/components/schemas/InferenceGroup" }) }, "404": { $ref: "#/components/responses/Error" } } },
-      put: { operationId: "updateInferenceGroup", summary: "Update TaskLattice-owned Inference Group policy", requestBody: { required: true, ...json({ type: "object", additionalProperties: false, properties: { name: { type: "string" }, description: { type: "string" }, isDefault: { type: "boolean" }, keyPolicy: { type: "object" }, auditPolicy: { type: "object" }, suspended: { type: "boolean" } } }) }, responses: { "200": { description: "Inference Group", ...json({ $ref: "#/components/schemas/InferenceGroup" }) } } },
-      delete: { operationId: "deleteInferenceGroup", summary: "Delete an Inference Group without active Consumers", responses: { "200": { description: "Inference Group deleted", ...json({ type: "object" }) }, "409": { $ref: "#/components/responses/Error" } } },
+    "/model-profiles/{profileId}": {
+      parameters: [profileId],
+      get: { operationId: "getModelProfile", summary: "Read a Model Profile", responses: { "200": { description: "Model Profile", ...json({ $ref: "#/components/schemas/ModelProfile" }) }, "404": { $ref: "#/components/responses/Error" } } },
+      put: { operationId: "updateModelProfile", summary: "Update TaskLattice-owned Model Profile policy", requestBody: { required: true, ...json({ type: "object", additionalProperties: false, properties: { name: { type: "string" }, description: { type: "string" }, isDefault: { type: "boolean" }, keyPolicy: { type: "object" }, auditPolicy: { type: "object" }, suspended: { type: "boolean" } } }) }, responses: { "200": { description: "Model Profile", ...json({ $ref: "#/components/schemas/ModelProfile" }) } } },
+      delete: { operationId: "deleteModelProfile", summary: "Delete a Model Profile without active Consumers", responses: { "200": { description: "Model Profile deleted", ...json({ type: "object" }) }, "409": { $ref: "#/components/responses/Error" } } },
     },
-    "/inference-groups/{groupId}/validate": {
-      parameters: [groupId],
-      post: { operationId: "validateInferenceGroup", summary: "Refresh binding, capability, version, and compliance status from LiteLLM", responses: { "200": { description: "Validated Inference Group", ...json({ $ref: "#/components/schemas/InferenceGroup" }) } } },
+    "/model-profiles/{profileId}/refresh": {
+      parameters: [profileId],
+      post: { operationId: "refreshModelProfile", summary: "Synchronize effective LiteLLM capability and compliance status", responses: { "200": { description: "Synchronized Model Profile", ...json({ $ref: "#/components/schemas/ModelProfile" }) } } },
     },
-    "/inference-groups/{groupId}/refresh": {
-      parameters: [groupId],
-      post: { operationId: "refreshInferenceGroup", summary: "Synchronize effective LiteLLM capability and compliance status", responses: { "200": { description: "Synchronized Inference Group", ...json({ $ref: "#/components/schemas/InferenceGroup" }) } } },
+    "/model-profiles/{profileId}/consumers": {
+      parameters: [profileId],
+      get: { operationId: "listModelProfileConsumers", summary: "List redacted active Instance bindings", responses: { "200": { description: "Redacted Consumers", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/ModelProfileConsumer" } } } }) } } },
     },
-    "/inference-groups/{groupId}/consumers": {
-      parameters: [groupId],
-      get: { operationId: "listInferenceGroupConsumers", summary: "List redacted active Instance bindings", responses: { "200": { description: "Redacted Consumers", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/InferenceGroupConsumer" } } } }) } } },
-    },
-    "/inference-groups/{groupId}/audit": {
-      parameters: [groupId],
-      get: { operationId: "listInferenceGroupAudit", summary: "List secret-safe control-plane audit events", responses: { "200": { description: "Audit events", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/InferenceGroupAuditEvent" } } } }) } } },
+    "/model-profiles/{profileId}/audit": {
+      parameters: [profileId],
+      get: { operationId: "listModelProfileAudit", summary: "List secret-safe control-plane audit events", responses: { "200": { description: "Audit events", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/ModelProfileAuditEvent" } } } }) } } },
     },
     "/costs/summary": {
       get: {
@@ -620,7 +616,7 @@ export const openApiDocument = {
             description:
               "Agent implementation configured by NemoClaw inside the OpenShell runtime.",
           },
-          inferenceGroupId: { type: "string", format: "uuid", description: "READY Inference Group to bind. Omit to use the platform default." },
+          modelProfileId: { type: "string", format: "uuid", description: "READY Model Profile to bind. Omit to use the platform default." },
           policyId: { type: "string", pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$", description: "Catalog Policy ID. Omit to use the deployment ConfigMap default." },
           systemPrompt: { type: "string", minLength: 10, maxLength: 8000 },
           specializationId: { type: "string", minLength: 1, maxLength: 64 },
@@ -634,7 +630,7 @@ export const openApiDocument = {
           { $ref: "#/components/schemas/CreateAgentInput" },
           {
             type: "object",
-            required: ["schemaVersion", "id", "policyId", "providerAccountId", "providerName", "model", "modelType", "costKeyAlias", "sandboxName", "status", "createdAt", "updatedAt", "logs", "inferenceMode", "inferenceGroupId", "inferenceBindingId", "inferenceStatus", "inferenceComplianceDomain", "inferenceKeyFingerprint"],
+            required: ["schemaVersion", "id", "policyId", "providerAccountId", "providerName", "model", "modelType", "costKeyAlias", "sandboxName", "status", "createdAt", "updatedAt", "logs", "inferenceMode", "modelProfileId", "modelProfileBindingId", "modelProfileStatus", "modelProfileComplianceDomain", "modelProfileKeyFingerprint"],
             properties: {
               schemaVersion: { type: "integer", const: 1 },
               id: { type: "string", format: "uuid" },
@@ -655,11 +651,11 @@ export const openApiDocument = {
               httpEndpoint: { $ref: "#/components/schemas/HttpEndpoint" },
               error: { type: "string" },
               inferenceMode: { type: "string", const: "PLATFORM_MANAGED" },
-              inferenceGroupId: { type: "string", format: "uuid" },
-              inferenceBindingId: { type: "string", format: "uuid" },
-              inferenceStatus: { type: "string", enum: ["DRAFT", "VALIDATING", "READY", "DEGRADED", "NON_COMPLIANT", "SUSPENDED", "UNSUPPORTED"] },
-              inferenceComplianceDomain: { type: "string", enum: ["CN_MAINLAND", "GLOBAL"] },
-              inferenceKeyFingerprint: { type: "string" },
+              modelProfileId: { type: "string", format: "uuid" },
+              modelProfileBindingId: { type: "string", format: "uuid" },
+              modelProfileStatus: { type: "string", enum: ["DRAFT", "VALIDATING", "READY", "DEGRADED", "NON_COMPLIANT", "SUSPENDED", "UNSUPPORTED"] },
+              modelProfileComplianceDomain: { type: "string", enum: ["CN_MAINLAND", "GLOBAL"] },
+              modelProfileKeyFingerprint: { type: "string" },
             },
           },
         ],
@@ -703,24 +699,24 @@ export const openApiDocument = {
         required: ["id", "name", "baseUrl", "adminUiUrl", "complianceDomain", "credentialSource", "status", "validationMessage", "createdAt", "updatedAt"],
         properties: { id: { type: "string" }, name: { type: "string" }, baseUrl: { type: "string", format: "uri" }, adminUiUrl: { type: "string", format: "uri" }, complianceDomain: { type: "string", enum: ["CN_MAINLAND", "GLOBAL"] }, credentialSource: { type: "string", enum: ["ENVIRONMENT", "SECRET_REFERENCE"] }, status: { type: "string", enum: ["UNKNOWN", "READY", "DEGRADED"] }, validationMessage: { type: "string" }, validatedAt: { type: "string", format: "date-time" }, createdAt: { type: "string", format: "date-time" }, updatedAt: { type: "string", format: "date-time" } },
       },
-      CreateInferenceGroupInput: {
+      CreateModelProfileInput: {
         type: "object",
         additionalProperties: false,
         required: ["name", "gatewayId", "publicModelAlias", "complianceDomain"],
         properties: { name: { type: "string", minLength: 2, maxLength: 64 }, description: { type: "string" }, gatewayId: { type: "string" }, publicModelAlias: { type: "string" }, complianceDomain: { type: "string", enum: ["CN_MAINLAND", "GLOBAL"] }, isDefault: { type: "boolean" }, keyPolicy: { type: "object" }, auditPolicy: { type: "object" } },
       },
-      InferenceGroup: {
-        allOf: [{ $ref: "#/components/schemas/CreateInferenceGroupInput" }, { type: "object", required: ["id", "managementMode", "status", "capabilities", "conditions", "configurationHash", "observedGeneration", "validationMessage", "consumers", "createdAt", "updatedAt"], properties: { id: { type: "string", format: "uuid" }, managementMode: { type: "string", const: "LITELLM_MANAGED" }, status: { type: "string", enum: ["DRAFT", "VALIDATING", "READY", "DEGRADED", "NON_COMPLIANT", "SUSPENDED", "UNSUPPORTED"] }, capabilities: { type: "object", required: ["automaticRouting", "routerType", "sessionAffinity", "adaptiveRouting", "failover", "generalFallback", "contextWindowFallback", "contentPolicyFallback", "retries", "requestAudit"], properties: { automaticRouting: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, routerType: { type: "string", enum: ["COMPLEXITY_ROUTER", "OTHER", "UNKNOWN"] }, complexityTierCount: { type: "integer", minimum: 0 }, sessionAffinity: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, adaptiveRouting: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, failover: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, generalFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, contextWindowFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, contentPolicyFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, retries: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, requestAudit: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] } } }, conditions: { type: "array", items: { type: "object" } }, configurationHash: { type: "string" }, observedGeneration: { type: "integer", minimum: 1 }, validationMessage: { type: "string" }, consumers: { type: "integer" }, lastSynchronizedAt: { type: "string", format: "date-time" }, createdAt: { type: "string", format: "date-time" }, updatedAt: { type: "string", format: "date-time" } } }],
+      ModelProfile: {
+        allOf: [{ $ref: "#/components/schemas/CreateModelProfileInput" }, { type: "object", required: ["id", "managementMode", "status", "capabilities", "conditions", "configurationHash", "observedGeneration", "validationMessage", "consumers", "createdAt", "updatedAt"], properties: { id: { type: "string", format: "uuid" }, managementMode: { type: "string", const: "LITELLM_MANAGED" }, status: { type: "string", enum: ["DRAFT", "VALIDATING", "READY", "DEGRADED", "NON_COMPLIANT", "SUSPENDED", "UNSUPPORTED"] }, capabilities: { type: "object", required: ["automaticRouting", "routerType", "sessionAffinity", "adaptiveRouting", "failover", "generalFallback", "contextWindowFallback", "contentPolicyFallback", "retries", "requestAudit"], properties: { automaticRouting: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, routerType: { type: "string", enum: ["COMPLEXITY_ROUTER", "OTHER", "UNKNOWN"] }, complexityTierCount: { type: "integer", minimum: 0 }, sessionAffinity: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, adaptiveRouting: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, failover: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, generalFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, contextWindowFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, contentPolicyFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, retries: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, requestAudit: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] } } }, conditions: { type: "array", items: { type: "object" } }, configurationHash: { type: "string" }, observedGeneration: { type: "integer", minimum: 1 }, validationMessage: { type: "string" }, consumers: { type: "integer" }, lastSynchronizedAt: { type: "string", format: "date-time" }, createdAt: { type: "string", format: "date-time" }, updatedAt: { type: "string", format: "date-time" } } }],
       },
-      InferenceGroupConsumer: {
+      ModelProfileConsumer: {
         type: "object",
-        required: ["id", "inferenceGroupId", "agentId", "liteLLMTeamId", "keyAlias", "keyFingerprint", "status", "createdAt"],
-        properties: { id: { type: "string" }, inferenceGroupId: { type: "string" }, agentId: { type: "string" }, liteLLMTeamId: { type: "string" }, keyAlias: { type: "string" }, keyFingerprint: { type: "string" }, status: { type: "string", enum: ["ACTIVE", "REVOKED"] }, createdAt: { type: "string", format: "date-time" }, revokedAt: { type: "string", format: "date-time" } },
+        required: ["id", "modelProfileId", "agentId", "liteLLMTeamId", "keyAlias", "keyFingerprint", "status", "createdAt"],
+        properties: { id: { type: "string" }, modelProfileId: { type: "string" }, agentId: { type: "string" }, liteLLMTeamId: { type: "string" }, keyAlias: { type: "string" }, keyFingerprint: { type: "string" }, status: { type: "string", enum: ["ACTIVE", "REVOKED"] }, createdAt: { type: "string", format: "date-time" }, revokedAt: { type: "string", format: "date-time" } },
       },
-      InferenceGroupAuditEvent: {
+      ModelProfileAuditEvent: {
         type: "object",
-        required: ["eventId", "timestamp", "actor", "type", "inferenceGroupId", "configurationHash", "complianceDomain", "result", "reason"],
-        properties: { eventId: { type: "string" }, timestamp: { type: "string", format: "date-time" }, actor: { type: "string" }, type: { type: "string" }, inferenceGroupId: { type: "string" }, agentId: { type: "string" }, configurationHash: { type: "string" }, complianceDomain: { type: "string", enum: ["CN_MAINLAND", "GLOBAL"] }, result: { type: "string", enum: ["SUCCESS", "FAILED"] }, reason: { type: "string" } },
+        required: ["eventId", "timestamp", "actor", "type", "modelProfileId", "configurationHash", "complianceDomain", "result", "reason"],
+        properties: { eventId: { type: "string" }, timestamp: { type: "string", format: "date-time" }, actor: { type: "string" }, type: { type: "string" }, modelProfileId: { type: "string" }, agentId: { type: "string" }, configurationHash: { type: "string" }, complianceDomain: { type: "string", enum: ["CN_MAINLAND", "GLOBAL"] }, result: { type: "string", enum: ["SUCCESS", "FAILED"] }, reason: { type: "string" } },
       },
       ProviderModelSelection: {
         type: "object",

@@ -15,14 +15,14 @@ describe("LiteLLM Router capability inspection", () => {
         }],
       } : { version: "1.86.2" }), { status: 200 });
     }));
-    const result = await new LiteLLMClient("http://litellm:4000", "master-secret").inspectInferenceGroup("production-chat");
+    const result = await new LiteLLMClient("http://litellm:4000", "master-secret").inspectModelProfile("production-chat");
     expect(result.capabilities).toMatchObject({ automaticRouting: "ENABLED", failover: "ENABLED", requestAudit: "ENABLED" });
     expect(result.unsupportedReason).toContain("1.94");
   });
 
   it("redacts virtual keys echoed by LiteLLM errors", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("failed sk-super-secret-value master-secret", { status: 500 })));
-    await expect(new LiteLLMClient("http://litellm:4000", "master-secret").inspectInferenceGroup("production-chat"))
+    await expect(new LiteLLMClient("http://litellm:4000", "master-secret").inspectModelProfile("production-chat"))
       .rejects.not.toThrow(/sk-super-secret-value|master-secret/);
   });
 
@@ -51,7 +51,7 @@ describe("LiteLLM Router capability inspection", () => {
       } : { version: "1.94.1" }), { status: 200 });
     }));
 
-    const result = await new LiteLLMClient("http://litellm:4000", "master-secret").inspectInferenceGroup("production-chat");
+    const result = await new LiteLLMClient("http://litellm:4000", "master-secret").inspectModelProfile("production-chat");
 
     expect(result).toMatchObject({
       exists: true,
@@ -81,18 +81,18 @@ describe("LiteLLM Router capability inspection", () => {
     }));
     const client = new LiteLLMClient("http://litellm:4000", "master-secret");
 
-    const teamId = await client.createInferenceGroupTeam({
-      alias: "tasklattice-group-a",
+    const teamId = await client.createModelProfileTeam({
+      alias: "tasklattice-profile-a",
       modelAlias: "production-chat",
-      inferenceGroupId: "group-a",
+      modelProfileId: "profile-a",
       complianceDomain: "GLOBAL",
     });
-    const key = await client.createInferenceGroupKey({
+    const key = await client.createModelProfileKey({
       agentId: "agent-a",
-      alias: "tasklattice/group-a/agent-a",
+      alias: "tasklattice/profile-a/agent-a",
       modelAlias: "production-chat",
       teamId,
-      inferenceGroupId: "group-a",
+      modelProfileId: "profile-a",
       complianceDomain: "GLOBAL",
     });
 
@@ -100,13 +100,13 @@ describe("LiteLLM Router capability inspection", () => {
     expect(bodies).toEqual([
       expect.objectContaining({
         models: ["production-chat"],
-        metadata: expect.objectContaining({ inference_group_id: "group-a", compliance_domain: "GLOBAL" }),
+        metadata: expect.objectContaining({ model_profile_id: "profile-a", compliance_domain: "GLOBAL" }),
       }),
       expect.objectContaining({
         team_id: "team-a",
         user_id: "agent-a",
         models: ["production-chat"],
-        metadata: expect.objectContaining({ inference_group_id: "group-a", agent_id: "agent-a", compliance_domain: "GLOBAL" }),
+        metadata: expect.objectContaining({ model_profile_id: "profile-a", agent_id: "agent-a", compliance_domain: "GLOBAL" }),
       }),
     ]);
   });

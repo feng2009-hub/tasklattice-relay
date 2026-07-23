@@ -41,11 +41,11 @@ describe("Instance lifecycle reconciliation", () => {
     model: "deepseek-chat",
     modelType: "llm" as const,
     inferenceMode: "PLATFORM_MANAGED" as const,
-    inferenceGroupId: "group-a",
-    inferenceBindingId: "binding-a",
-    inferenceStatus: "READY" as const,
-    inferenceComplianceDomain: "GLOBAL" as const,
-    inferenceCapabilities: {
+    modelProfileId: "profile-a",
+    modelProfileBindingId: "binding-a",
+    modelProfileStatus: "READY" as const,
+    modelProfileComplianceDomain: "GLOBAL" as const,
+    modelProfileCapabilities: {
       automaticRouting: "ENABLED" as const,
       routerType: "COMPLEXITY_ROUTER" as const,
       complexityTierCount: 4,
@@ -58,7 +58,7 @@ describe("Instance lifecycle reconciliation", () => {
       retries: "ENABLED" as const,
       requestAudit: "ENABLED" as const,
     },
-    inferenceKeyFingerprint: "sha256:123456789abc",
+    modelProfileKeyFingerprint: "sha256:123456789abc",
     costKeyAlias: "tali-research:deepseek-chat",
     sandboxName: "tali-research",
     status: "PROVISIONING" as const,
@@ -167,12 +167,12 @@ describe("Agent selection", () => {
   });
 });
 
-describe("Instance Inference Group binding lifecycle", () => {
+describe("Instance Model Profile binding lifecycle", () => {
   it("creates one Team-scoped key and revokes it when the Instance is destroyed", async () => {
     const store = createTestStore();
     const now = new Date().toISOString();
-    await store.saveInferenceGroup({
-      id: "group-a",
+    await store.saveModelProfile({
+      id: "profile-a",
       name: "Production inference",
       description: "Managed inference for production Instances.",
       gatewayId: "litellm-default",
@@ -219,8 +219,8 @@ describe("Instance Inference Group binding lifecycle", () => {
       deleteModel: vi.fn(),
       probeModel: vi.fn(),
       createInstanceKey: vi.fn(async () => ({ secret: "sk-instance", tokenId: "hashed-token" })),
-      createInferenceGroupTeam: vi.fn(async () => "team-a"),
-      createInferenceGroupKey: vi.fn(async () => ({ secret: "sk-instance", tokenId: "hashed-token" })),
+      createModelProfileTeam: vi.fn(async () => "team-a"),
+      createModelProfileKey: vi.fn(async () => ({ secret: "sk-instance", tokenId: "hashed-token" })),
       revokeKey: vi.fn(async () => undefined),
       listSpendLogs: vi.fn(),
     };
@@ -234,7 +234,7 @@ describe("Instance Inference Group binding lifecycle", () => {
       systemPrompt: "Research the request and report the resulting evidence.",
     });
 
-    expect(litellm.createInferenceGroupKey).toHaveBeenCalledWith(expect.objectContaining({ agentId: agent.id, modelAlias: "production-chat", teamId: "team-a" }));
+    expect(litellm.createModelProfileKey).toHaveBeenCalledWith(expect.objectContaining({ agentId: agent.id, modelAlias: "production-chat", teamId: "team-a" }));
     expect(runner.createSandbox).toHaveBeenCalledWith(expect.objectContaining({ apiKey: "sk-instance", inferenceEndpoint: "http://litellm:4000/v1" }));
     expect(runner.createSandbox).toHaveBeenCalledWith(expect.objectContaining({ policyYaml: expect.stringContaining("/dev/null") }));
     await service.destroy(agent.id);

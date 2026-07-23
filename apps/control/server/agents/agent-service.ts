@@ -10,7 +10,7 @@ import { ExtensionCatalogService } from "../extensions/extension-catalog-service
 import { NemoClawRunnerClient, type RunnerClient } from "../runtime/nemoclaw-runner-client";
 import { LiteLLMClient, type LiteLLMAdminClient } from "../providers/litellm-client";
 import { PolicyService } from "../policies/policy-service";
-import { InferenceGroupService } from "../inference-groups/inference-group-service";
+import { ModelProfileService } from "../model-profiles/model-profile-service";
 
 export function agentSandboxName(name: string, id: string): string {
   const slug =
@@ -68,7 +68,7 @@ export class AgentService {
     readonly litellm: LiteLLMAdminClient = new LiteLLMClient(),
     readonly policies = new PolicyService(store),
     readonly extensions = new ExtensionCatalogService(store),
-    readonly inferenceGroups = new InferenceGroupService(store, litellm),
+    readonly modelProfiles = new ModelProfileService(store, litellm),
   ) {}
 
   async list(): Promise<Agent[]> {
@@ -104,27 +104,27 @@ export class AgentService {
     const id = randomUUID();
     const now = new Date().toISOString();
     const sandboxName = agentSandboxName(input.name, id);
-    const managed = await this.inferenceGroups.bindAgent(id, input.inferenceGroupId);
-    const costKeyAlias = `tasklattice/${managed.group.id.slice(0, 8)}/${id.slice(0, 8)}`;
+    const managed = await this.modelProfiles.bindAgent(id, input.modelProfileId);
+    const costKeyAlias = `tasklattice/${managed.profile.id.slice(0, 8)}/${id.slice(0, 8)}`;
     const costKey = { secret: managed.secret, tokenId: managed.binding.liteLLMTokenId };
     let agent: Agent = {
       schemaVersion: 1,
       id,
       ...input,
       policyId: policy.id,
-      modelDeploymentId: `inference-group:${managed.group.id}`,
+      modelDeploymentId: `model-profile:${managed.profile.id}`,
       providerAccountId: managed.gateway.id,
       providerName: "LiteLLM managed",
-      model: managed.group.publicModelAlias,
+      model: managed.profile.publicModelAlias,
       modelType: "llm",
       inferenceMode: "PLATFORM_MANAGED",
-      inferenceGroupId: managed.group.id,
-      inferenceBindingId: managed.binding.id,
-      inferenceStatus: managed.group.status,
-      inferenceComplianceDomain: managed.group.complianceDomain,
-      inferenceCapabilities: managed.group.capabilities,
-      inferenceKeyFingerprint: managed.binding.keyFingerprint,
-      ...(managed.group.lastSynchronizedAt ? { inferenceLastSynchronizedAt: managed.group.lastSynchronizedAt } : {}),
+      modelProfileId: managed.profile.id,
+      modelProfileBindingId: managed.binding.id,
+      modelProfileStatus: managed.profile.status,
+      modelProfileComplianceDomain: managed.profile.complianceDomain,
+      modelProfileCapabilities: managed.profile.capabilities,
+      modelProfileKeyFingerprint: managed.binding.keyFingerprint,
+      ...(managed.profile.lastSynchronizedAt ? { modelProfileLastSynchronizedAt: managed.profile.lastSynchronizedAt } : {}),
       costKeyAlias,
       sandboxName,
       status: "PROVISIONING",
@@ -142,7 +142,7 @@ export class AgentService {
             name: agent.sandboxName,
             agentPlatform: agent.agentPlatform,
             providerName: "LiteLLM",
-            model: managed.group.publicModelAlias,
+            model: managed.profile.publicModelAlias,
             inferenceEndpoint: `${managed.gateway.baseUrl}/v1`,
             policyYaml: policy.policyYaml,
             systemPrompt: input.systemPrompt,
@@ -151,7 +151,7 @@ export class AgentService {
         ),
       );
     } catch (error) {
-      await this.inferenceGroups.unbindAgent(id).catch(() => undefined);
+      await this.modelProfiles.unbindAgent(id).catch(() => undefined);
       agent = await this.store.save({
         ...agent,
         status: "FAILED",
@@ -174,7 +174,7 @@ export class AgentService {
       updatedAt: new Date().toISOString(),
     });
     await this.runner.destroySandbox(agent.sandboxName, agent.agentPlatform);
-    await this.inferenceGroups.unbindAgent(id);
+    await this.modelProfiles.unbindAgent(id);
     await this.store.delete(id);
     return true;
   }

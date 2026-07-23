@@ -29,8 +29,8 @@ import { Route as AuthSsoCompleteRouteImport } from './routes/auth/sso-complete'
 import { Route as AgentsNewRouteImport } from './routes/agents/new'
 import { Route as AgentsAgentIdRouteImport } from './routes/agents/$agentId'
 import { Route as ExtensionsSkillRouteImport } from './routes/Extensions/skill'
-import { Route as ProvidersInferenceGroupsIndexRouteImport } from './routes/providers/inference-groups/index'
-import { Route as ProvidersInferenceGroupsGroupIdRouteImport } from './routes/providers/inference-groups/$groupId'
+import { Route as ProvidersModelProfilesIndexRouteImport } from './routes/providers/model-profiles/index'
+import { Route as ProvidersModelProfilesProfileIdRouteImport } from './routes/providers/model-profiles/$profileId'
 import { Route as AgentsInstaceNewRouteImport } from './routes/agents/instace/new'
 import { Route as AgentSandboxesRuntimeRouteImport } from './routes/agent/sandboxes/runtime'
 import { Route as AgentSandboxesPolicyRouteImport } from './routes/agent/sandboxes/policy'
@@ -135,16 +135,16 @@ const ExtensionsSkillRoute = ExtensionsSkillRouteImport.update({
   path: '/Extensions/skill',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ProvidersInferenceGroupsIndexRoute =
-  ProvidersInferenceGroupsIndexRouteImport.update({
-    id: '/inference-groups/',
-    path: '/inference-groups/',
+const ProvidersModelProfilesIndexRoute =
+  ProvidersModelProfilesIndexRouteImport.update({
+    id: '/model-profiles/',
+    path: '/model-profiles/',
     getParentRoute: () => ProvidersRoute,
   } as any)
-const ProvidersInferenceGroupsGroupIdRoute =
-  ProvidersInferenceGroupsGroupIdRouteImport.update({
-    id: '/inference-groups/$groupId',
-    path: '/inference-groups/$groupId',
+const ProvidersModelProfilesProfileIdRoute =
+  ProvidersModelProfilesProfileIdRouteImport.update({
+    id: '/model-profiles/$profileId',
+    path: '/model-profiles/$profileId',
     getParentRoute: () => ProvidersRoute,
   } as any)
 const AgentsInstaceNewRoute = AgentsInstaceNewRouteImport.update({
@@ -187,8 +187,8 @@ export interface FileRoutesByFullPath {
   '/agent/sandboxes/policy': typeof AgentSandboxesPolicyRoute
   '/agent/sandboxes/runtime': typeof AgentSandboxesRuntimeRoute
   '/agents/instace/new': typeof AgentsInstaceNewRoute
-  '/providers/inference-groups/$groupId': typeof ProvidersInferenceGroupsGroupIdRoute
-  '/providers/inference-groups/': typeof ProvidersInferenceGroupsIndexRoute
+  '/providers/model-profiles/$profileId': typeof ProvidersModelProfilesProfileIdRoute
+  '/providers/model-profiles/': typeof ProvidersModelProfilesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -213,8 +213,8 @@ export interface FileRoutesByTo {
   '/agent/sandboxes/policy': typeof AgentSandboxesPolicyRoute
   '/agent/sandboxes/runtime': typeof AgentSandboxesRuntimeRoute
   '/agents/instace/new': typeof AgentsInstaceNewRoute
-  '/providers/inference-groups/$groupId': typeof ProvidersInferenceGroupsGroupIdRoute
-  '/providers/inference-groups': typeof ProvidersInferenceGroupsIndexRoute
+  '/providers/model-profiles/$profileId': typeof ProvidersModelProfilesProfileIdRoute
+  '/providers/model-profiles': typeof ProvidersModelProfilesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -241,8 +241,8 @@ export interface FileRoutesById {
   '/agent/sandboxes/policy': typeof AgentSandboxesPolicyRoute
   '/agent/sandboxes/runtime': typeof AgentSandboxesRuntimeRoute
   '/agents/instace/new': typeof AgentsInstaceNewRoute
-  '/providers/inference-groups/$groupId': typeof ProvidersInferenceGroupsGroupIdRoute
-  '/providers/inference-groups/': typeof ProvidersInferenceGroupsIndexRoute
+  '/providers/model-profiles/$profileId': typeof ProvidersModelProfilesProfileIdRoute
+  '/providers/model-profiles/': typeof ProvidersModelProfilesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -270,8 +270,8 @@ export interface FileRouteTypes {
     | '/agent/sandboxes/policy'
     | '/agent/sandboxes/runtime'
     | '/agents/instace/new'
-    | '/providers/inference-groups/$groupId'
-    | '/providers/inference-groups/'
+    | '/providers/model-profiles/$profileId'
+    | '/providers/model-profiles/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -296,8 +296,8 @@ export interface FileRouteTypes {
     | '/agent/sandboxes/policy'
     | '/agent/sandboxes/runtime'
     | '/agents/instace/new'
-    | '/providers/inference-groups/$groupId'
-    | '/providers/inference-groups'
+    | '/providers/model-profiles/$profileId'
+    | '/providers/model-profiles'
   id:
     | '__root__'
     | '/'
@@ -323,8 +323,8 @@ export interface FileRouteTypes {
     | '/agent/sandboxes/policy'
     | '/agent/sandboxes/runtime'
     | '/agents/instace/new'
-    | '/providers/inference-groups/$groupId'
-    | '/providers/inference-groups/'
+    | '/providers/model-profiles/$profileId'
+    | '/providers/model-profiles/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -493,18 +493,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ExtensionsSkillRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/providers/inference-groups/': {
-      id: '/providers/inference-groups/'
-      path: '/inference-groups'
-      fullPath: '/providers/inference-groups/'
-      preLoaderRoute: typeof ProvidersInferenceGroupsIndexRouteImport
+    '/providers/model-profiles/': {
+      id: '/providers/model-profiles/'
+      path: '/model-profiles'
+      fullPath: '/providers/model-profiles/'
+      preLoaderRoute: typeof ProvidersModelProfilesIndexRouteImport
       parentRoute: typeof ProvidersRoute
     }
-    '/providers/inference-groups/$groupId': {
-      id: '/providers/inference-groups/$groupId'
-      path: '/inference-groups/$groupId'
-      fullPath: '/providers/inference-groups/$groupId'
-      preLoaderRoute: typeof ProvidersInferenceGroupsGroupIdRouteImport
+    '/providers/model-profiles/$profileId': {
+      id: '/providers/model-profiles/$profileId'
+      path: '/model-profiles/$profileId'
+      fullPath: '/providers/model-profiles/$profileId'
+      preLoaderRoute: typeof ProvidersModelProfilesProfileIdRouteImport
       parentRoute: typeof ProvidersRoute
     }
     '/agents/instace/new': {
@@ -534,15 +534,15 @@ declare module '@tanstack/react-router' {
 interface ProvidersRouteChildren {
   ProvidersCostRoute: typeof ProvidersCostRoute
   ProvidersIndexRoute: typeof ProvidersIndexRoute
-  ProvidersInferenceGroupsGroupIdRoute: typeof ProvidersInferenceGroupsGroupIdRoute
-  ProvidersInferenceGroupsIndexRoute: typeof ProvidersInferenceGroupsIndexRoute
+  ProvidersModelProfilesProfileIdRoute: typeof ProvidersModelProfilesProfileIdRoute
+  ProvidersModelProfilesIndexRoute: typeof ProvidersModelProfilesIndexRoute
 }
 
 const ProvidersRouteChildren: ProvidersRouteChildren = {
   ProvidersCostRoute: ProvidersCostRoute,
   ProvidersIndexRoute: ProvidersIndexRoute,
-  ProvidersInferenceGroupsGroupIdRoute: ProvidersInferenceGroupsGroupIdRoute,
-  ProvidersInferenceGroupsIndexRoute: ProvidersInferenceGroupsIndexRoute,
+  ProvidersModelProfilesProfileIdRoute: ProvidersModelProfilesProfileIdRoute,
+  ProvidersModelProfilesIndexRoute: ProvidersModelProfilesIndexRoute,
 }
 
 const ProvidersRouteWithChildren = ProvidersRoute._addFileChildren(

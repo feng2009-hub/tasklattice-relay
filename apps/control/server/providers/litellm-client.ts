@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type {
   ComplianceDomain,
-  InferenceGroupCapabilities,
+  ModelProfileCapabilities,
   ModelType,
   ProviderKind,
   ProviderModelSelection,
@@ -70,15 +70,27 @@ export interface LiteLLMSpendLog {
   fallback_used?: boolean;
 }
 
-export interface LiteLLMInferenceInspection {
+export interface LiteLLMModelProfileInspection {
   exists: boolean;
   version?: string;
   modelCount: number;
   complianceDomains: ComplianceDomain[];
   complianceUnknown: boolean;
-  capabilities: InferenceGroupCapabilities;
+  capabilities: ModelProfileCapabilities;
   configurationHash: string;
   unsupportedReason?: string;
+}
+
+export interface LiteLLMModelProfileIdentity {
+  alias: string;
+  modelAlias: string;
+  modelProfileId: string;
+  complianceDomain: ComplianceDomain;
+}
+
+export interface LiteLLMModelProfileKeyInput extends LiteLLMModelProfileIdentity {
+  agentId: string;
+  teamId: string;
 }
 
 export interface LiteLLMAdminClient {
@@ -96,10 +108,10 @@ export interface LiteLLMAdminClient {
   createInstanceKey(input: { agentId: string; alias: string; modelName: string }): Promise<LiteLLMVirtualKey>;
   revokeKey(tokenId: string): Promise<void>;
   listSpendLogs(from: string, to: string): Promise<LiteLLMSpendLog[]>;
-  inspectInferenceGroup?(modelAlias: string): Promise<LiteLLMInferenceInspection>;
-  createInferenceGroupTeam?(input: { alias: string; modelAlias: string; inferenceGroupId: string; complianceDomain: ComplianceDomain }): Promise<string>;
-  deleteInferenceGroupTeam?(teamId: string): Promise<void>;
-  createInferenceGroupKey?(input: { agentId: string; alias: string; modelAlias: string; teamId: string; inferenceGroupId: string; complianceDomain: ComplianceDomain }): Promise<LiteLLMVirtualKey>;
+  inspectModelProfile?(modelAlias: string): Promise<LiteLLMModelProfileInspection>;
+  createModelProfileTeam?(input: LiteLLMModelProfileIdentity): Promise<string>;
+  deleteModelProfileTeam?(teamId: string): Promise<void>;
+  createModelProfileKey?(input: LiteLLMModelProfileKeyInput): Promise<LiteLLMVirtualKey>;
 }
 
 export class LiteLLMClient implements LiteLLMAdminClient {
@@ -206,7 +218,7 @@ export class LiteLLMClient implements LiteLLMAdminClient {
     return { secret: response.key, tokenId: response.token ?? response.key };
   }
 
-  async createInferenceGroupTeam(input: { alias: string; modelAlias: string; inferenceGroupId: string; complianceDomain: ComplianceDomain }): Promise<string> {
+  async createModelProfileTeam(input: LiteLLMModelProfileIdentity): Promise<string> {
     this.assertConfigured();
     const response = await this.request<{ team_id?: string; id?: string }>("/team/new", {
       method: "POST",
@@ -215,8 +227,8 @@ export class LiteLLMClient implements LiteLLMAdminClient {
         models: [input.modelAlias],
         metadata: {
           managed_by: "tasklattice",
-          inference_group_id: input.inferenceGroupId,
-          inference_group_alias: input.modelAlias,
+          model_profile_id: input.modelProfileId,
+          model_profile_alias: input.modelAlias,
           compliance_domain: input.complianceDomain,
         },
       }),
@@ -226,7 +238,7 @@ export class LiteLLMClient implements LiteLLMAdminClient {
     return id;
   }
 
-  async deleteInferenceGroupTeam(teamId: string): Promise<void> {
+  async deleteModelProfileTeam(teamId: string): Promise<void> {
     this.assertConfigured();
     await this.request("/team/delete", {
       method: "POST",
@@ -234,7 +246,7 @@ export class LiteLLMClient implements LiteLLMAdminClient {
     });
   }
 
-  async createInferenceGroupKey(input: { agentId: string; alias: string; modelAlias: string; teamId: string; inferenceGroupId: string; complianceDomain: ComplianceDomain }): Promise<LiteLLMVirtualKey> {
+  async createModelProfileKey(input: LiteLLMModelProfileKeyInput): Promise<LiteLLMVirtualKey> {
     this.assertConfigured();
     const response = await this.request<LiteLLMVirtualKeyResponse>("/key/generate", {
       method: "POST",
@@ -245,7 +257,7 @@ export class LiteLLMClient implements LiteLLMAdminClient {
         models: [input.modelAlias],
         metadata: {
           managed_by: "tasklattice",
-          inference_group_id: input.inferenceGroupId,
+          model_profile_id: input.modelProfileId,
           agent_id: input.agentId,
           compliance_domain: input.complianceDomain,
         },
@@ -255,7 +267,7 @@ export class LiteLLMClient implements LiteLLMAdminClient {
     return { secret: response.key, tokenId: response.token ?? response.key };
   }
 
-  async inspectInferenceGroup(modelAlias: string): Promise<LiteLLMInferenceInspection> {
+  async inspectModelProfile(modelAlias: string): Promise<LiteLLMModelProfileInspection> {
     this.assertConfigured();
     const [models, health] = await Promise.all([
       this.request<{ data?: Array<{
@@ -271,15 +283,15 @@ export class LiteLLMClient implements LiteLLMAdminClient {
     const version = typeof versionValue === "string" ? versionValue : undefined;
     const targetModelNames = new Set<string>();
     let automaticRouting = false;
-    let routerType: InferenceGroupCapabilities["routerType"] = "UNKNOWN";
+    let routerType: ModelProfileCapabilities["routerType"] = "UNKNOWN";
     let complexityTierCount: number | undefined;
-    let sessionAffinity: InferenceGroupCapabilities["sessionAffinity"] = "UNKNOWN";
-    let adaptiveRouting: InferenceGroupCapabilities["adaptiveRouting"] = "UNKNOWN";
-    let generalFallback: InferenceGroupCapabilities["generalFallback"] = "UNKNOWN";
-    let contextWindowFallback: InferenceGroupCapabilities["contextWindowFallback"] = "UNKNOWN";
-    let contentPolicyFallback: InferenceGroupCapabilities["contentPolicyFallback"] = "UNKNOWN";
-    let retries: InferenceGroupCapabilities["retries"] = "UNKNOWN";
-    let requestAudit: InferenceGroupCapabilities["requestAudit"] = "UNKNOWN";
+    let sessionAffinity: ModelProfileCapabilities["sessionAffinity"] = "UNKNOWN";
+    let adaptiveRouting: ModelProfileCapabilities["adaptiveRouting"] = "UNKNOWN";
+    let generalFallback: ModelProfileCapabilities["generalFallback"] = "UNKNOWN";
+    let contextWindowFallback: ModelProfileCapabilities["contextWindowFallback"] = "UNKNOWN";
+    let contentPolicyFallback: ModelProfileCapabilities["contentPolicyFallback"] = "UNKNOWN";
+    let retries: ModelProfileCapabilities["retries"] = "UNKNOWN";
+    let requestAudit: ModelProfileCapabilities["requestAudit"] = "UNKNOWN";
     for (const item of matching) {
       const info = item.model_info ?? {};
       const params = item.litellm_params ?? {};
