@@ -123,6 +123,8 @@ function ProjectGeneralSettings({
   project: Project;
 }) {
   const permissions = useProjectPermissions(project.role);
+  const canRename =
+    permissions.canManageProject && project.type !== "personal";
   const [name, setName] = useState(project.name);
   useEffect(() => setName(project.name), [project.id, project.name]);
   const rename = useMutation({
@@ -136,7 +138,9 @@ function ProjectGeneralSettings({
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (name.trim() && name.trim() !== project.name) rename.mutate();
+    if (canRename && name.trim() && name.trim() !== project.name) {
+      rename.mutate();
+    }
   };
 
   return (
@@ -151,10 +155,14 @@ function ProjectGeneralSettings({
             id="project-name"
             className="h-11 max-w-lg"
             value={name}
-            disabled={!permissions.canManageProject}
+            disabled={!canRename}
             onChange={(event) => setName(event.target.value)}
           />
-          {!permissions.canManageProject ? (
+          {project.type === "personal" ? (
+            <p className="text-xs text-muted-foreground">
+              Your personal Project name always matches your username.
+            </p>
+          ) : !permissions.canManageProject ? (
             <p className="text-xs text-muted-foreground">
               Members have view-only access to Project settings.
             </p>
@@ -165,7 +173,7 @@ function ProjectGeneralSettings({
             </p>
           ) : null}
         </div>
-        {permissions.canManageProject ? (
+        {canRename ? (
           <Button
             className="h-11"
             type="submit"

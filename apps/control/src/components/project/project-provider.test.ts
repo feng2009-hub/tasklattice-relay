@@ -5,7 +5,7 @@ import type { Project } from "@/types/project";
 const projects: Project[] = [
   {
     id: "individual",
-    name: "AI Trading Agent",
+    name: "admin",
     type: "personal",
     memberCount: 1,
     role: "admin",
@@ -44,12 +44,9 @@ describe("selectInitialProject", () => {
     );
   });
 
-  it("guarantees a personal fallback when no projects are returned", () => {
-    expect(selectInitialProject([], null, null)).toMatchObject({
-      id: "individual",
-      name: "AI Trading Agent",
-      role: "admin",
-      type: "personal",
-    });
+  it("rejects an empty project list instead of inventing a client-side project", () => {
+    expect(() => selectInitialProject([], null, null)).toThrow(
+      "No project available.",
+    );
   });
 });

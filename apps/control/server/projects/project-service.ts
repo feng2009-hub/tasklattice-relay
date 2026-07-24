@@ -66,17 +66,17 @@ export class ProjectService {
       },
     });
     const projectId = personalProjectId(auth.user.username);
-    const defaultProjectName = process.env.TALI_DEFAULT_PROJECT_NAME ?? "AI Trading Agent";
+    const personalProjectName = auth.user.username;
     await this.db.project.upsert({
       where: { id: projectId },
       create: {
         id: projectId,
-        name: defaultProjectName,
+        name: personalProjectName,
         type: "personal",
         createdBy: id,
         members: { create: { userId: id, role: "admin" } },
       },
-      update: { name: defaultProjectName },
+      update: { name: personalProjectName },
     });
     await this.db.projectMember.upsert({
       where: { projectId_userId: { projectId, userId: id } },
@@ -221,6 +221,14 @@ export class ProjectService {
 
   async rename(projectId: string, currentUserId: string, name: string): Promise<ProjectView> {
     const role = await this.requireRole(projectId, currentUserId, ["admin"]);
+    const existing = await this.db.project.findUnique({
+      where: { id: projectId },
+      select: { type: true },
+    });
+    if (!existing) throw new Error("Project not found.");
+    if (existing.type === "personal") {
+      throw new Error("A personal Project name always matches its username.");
+    }
     const project = await this.db.project.update({
       where: { id: projectId },
       data: { name: name.trim() },

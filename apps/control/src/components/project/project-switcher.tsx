@@ -5,7 +5,7 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
-  Diamond,
+  FolderKanban,
   LoaderCircle,
   LogOut,
   Plus,
@@ -57,7 +57,7 @@ export function ProjectSwitcher({
 }) {
   const {
     availableProjects: projects,
-    currentProject: currentProject,
+    currentProject,
     isSwitching,
     loading,
     refreshProjects,
@@ -114,8 +114,8 @@ export function ProjectSwitcher({
             )}
             disabled={!currentProject || isSwitching}
           >
-            <span className="grid size-7 shrink-0 place-items-center rounded-sm border border-primary/15 bg-primary/[0.07] text-primary">
-              <Diamond className="size-3.5" />
+            <span className="grid size-6 shrink-0 place-items-center text-muted-foreground">
+              <FolderKanban className="size-4" />
             </span>
             {collapsed ? null : (
               <>
@@ -161,7 +161,7 @@ export function ProjectSwitcher({
                   ) : current ? (
                     <Check className="size-4" />
                   ) : (
-                    <Diamond className="size-3.5 text-muted-foreground" />
+                    <span className="size-4" aria-hidden="true" />
                   )}
                 </span>
                 <span className="min-w-0 flex-1 truncate">{project.name}</span>

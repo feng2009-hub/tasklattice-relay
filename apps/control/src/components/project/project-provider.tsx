@@ -16,7 +16,6 @@ import {
 } from "@/lib/project-storage";
 import { getProjects } from "@/services/project";
 import {
-  personalFallbackProject,
   selectInitialProject,
   PROJECT_CHANGED_EVENT,
   ProjectContext,
@@ -105,14 +104,12 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         replaceProjectInUrl(selected.id);
       } catch (reason) {
         if (disposed) return;
-        setAvailableProjects([personalFallbackProject]);
-        setCurrentProject(personalFallbackProject);
-        storeProjectId(personalFallbackProject.id);
-        replaceProjectInUrl(personalFallbackProject.id);
+        setAvailableProjects([]);
+        setCurrentProject(null);
         setError(
           reason instanceof Error
             ? reason.message
-            : "Unable to load projects. Using the default project.",
+            : "Unable to load projects.",
         );
       } finally {
         if (!disposed) setLoading(false);

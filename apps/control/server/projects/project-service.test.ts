@@ -27,7 +27,7 @@ describe("ProjectService", () => {
     expect(await service.list(local)).toEqual([
       expect.objectContaining({
         id: "individual",
-        name: "AI Trading Agent",
+        name: "admin",
         role: "admin",
         type: "personal",
       }),
@@ -40,6 +40,33 @@ describe("ProjectService", () => {
     })).toBe(await db.extensionSkillRecord.count({
       where: { projectId: "individual" },
     }));
+  });
+
+  it("creates one personal project named after each username", async () => {
+    const db = createTestPrisma();
+    const service = new ProjectService(db);
+    const alex = auth({
+      displayName: "Alex Chen",
+      email: "alex@example.com",
+      provider: "sso",
+      username: "alex",
+    });
+
+    expect(await service.list(alex)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "alex",
+          role: "admin",
+          type: "personal",
+        }),
+      ]),
+    );
+
+    const alexId = await service.ensureUser(alex);
+    const [personalProject] = await service.list(alex);
+    await expect(
+      service.rename(personalProject!.id, alexId, "Renamed"),
+    ).rejects.toThrow(/matches its username/i);
   });
 
   it("enforces project roles and keeps records isolated by project", async () => {

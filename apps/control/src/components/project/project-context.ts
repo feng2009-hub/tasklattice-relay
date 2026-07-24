@@ -18,14 +18,6 @@ export const ProjectContext = createContext<ProjectContextValue | null>(
   null,
 );
 
-export const personalFallbackProject: Project = {
-  id: "individual",
-  name: "AI Trading Agent",
-  type: "personal",
-  memberCount: 1,
-  role: "admin",
-};
-
 export function selectInitialProject(
   projects: Project[],
   urlProjectId: string | null,
@@ -33,8 +25,10 @@ export function selectInitialProject(
 ): Project {
   const personalProject =
     projects.find((project) => project.type === "personal") ??
-    projects[0] ??
-    personalFallbackProject;
+    projects[0];
+  if (!personalProject) {
+    throw new Error("No project available.");
+  }
   if (urlProjectId) {
     return (
       projects.find((project) => project.id === urlProjectId) ??
