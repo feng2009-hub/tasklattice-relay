@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { LoaderCircle } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-provider";
+import { getStoredProjectId, projectPath } from "@/lib/project-storage";
 
 export const Route = createFileRoute("/auth/sso-complete")({
   component: SsoComplete,
@@ -12,7 +13,7 @@ function SsoComplete() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.slice(1));
     const token = params.get("token");
-    const redirect = params.get("redirect") ?? "/dashboard";
+    const redirect = params.get("redirect") ?? projectPath(getStoredProjectId() ?? "individual");
     if (!token) {
       window.location.replace("/login?error=SSO%20did%20not%20return%20a%20session.");
       return;

@@ -135,7 +135,7 @@ export const developmentExtensionCatalog: ExtensionCatalog = {
     {
       id: "skill-code-generation",
       name: "Code Generation",
-      description: "Generate and revise code inside an approved workspace boundary.",
+      description: "Generate and revise code inside an approved project boundary.",
       category: "Developer Tools",
       version: "0.9.0",
       endpoint: "https://skills.internal.example/code-generation.tar.zst",
@@ -202,7 +202,7 @@ export const developmentExtensionCatalog: ExtensionCatalog = {
     { id: "hr-knowledge-base", name: "HR Knowledge Base", endpoint: "https://mcp.internal.example/hr-knowledge", transport: "Streamable HTTP", authReference: "vault://people/hr-knowledge", parameters: "{\n  \"scope\": \"employee-handbook\"\n}", status: "HEALTHY", tools: 6 },
     { id: "workday", name: "Workday", endpoint: "https://mcp.internal.example/workday", transport: "Streamable HTTP", authReference: "vault://people/workday-reader", parameters: "{\n  \"access\": \"employee-read\"\n}", status: "HEALTHY", tools: 9 },
     { id: "slack", name: "Slack", endpoint: "https://mcp.internal.example/slack", transport: "Streamable HTTP", authReference: "Not configured", parameters: "{\n  \"channels\": []\n}", status: "UNCHECKED", tools: 14 },
-    { id: "google-drive", name: "Google Drive", endpoint: "https://mcp.internal.example/google-drive", transport: "Streamable HTTP", authReference: "vault://workspace/google-drive-reader", parameters: "{\n  \"access\": \"read-only\"\n}", status: "HEALTHY", tools: 8 },
+    { id: "google-drive", name: "Google Drive", endpoint: "https://mcp.internal.example/google-drive", transport: "Streamable HTTP", authReference: "vault://project/google-drive-reader", parameters: "{\n  \"access\": \"read-only\"\n}", status: "HEALTHY", tools: 8 },
     { id: "mcp-github-tools", name: "GitHub Tools", endpoint: "https://mcp.internal.example/github", transport: "Streamable HTTP", authReference: "vault://platform/github-readonly", parameters: "{\n  \"toolsets\": [\"repos\", \"issues\", \"pull_requests\"]\n}", status: "HEALTHY", tools: 18 },
     { id: "mcp-data-warehouse", name: "Data Warehouse", endpoint: "https://mcp.internal.example/warehouse/events", transport: "SSE", authReference: "vault://data/warehouse-reader", parameters: "{\n  \"database\": \"analytics\",\n  \"readOnly\": true\n}", status: "UNCHECKED", tools: 7 },
   ],

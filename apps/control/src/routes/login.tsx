@@ -4,6 +4,7 @@ import { Eye, EyeOff, KeyRound, LoaderCircle, LockKeyhole, UserRound } from "luc
 import { z } from "zod";
 import { useAuth } from "@/components/auth/auth-provider";
 import { BrandLogo } from "@/components/brand/brand-logo";
+import { getStoredProjectId, projectPath } from "@/lib/project-storage";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
@@ -25,7 +26,7 @@ function LoginPage() {
   const redirect =
     search.redirect?.startsWith("/") && !search.redirect.startsWith("//")
       ? search.redirect
-      : "/dashboard";
+      : projectPath(getStoredProjectId() ?? "individual");
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

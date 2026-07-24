@@ -3,6 +3,7 @@ import type { InstanceAccessState, InstanceDetailTab } from "./instance-detail-m
 import { instanceDetailTabs } from "./instance-detail-model";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useCurrentProjectId } from "@/hooks/use-project";
 
 const labels: Record<InstanceDetailTab, string> = {
   overview: "Overview",
@@ -13,6 +14,7 @@ const labels: Record<InstanceDetailTab, string> = {
 };
 
 export function InstanceTabs({ active, agentId, terminal }: { active: InstanceDetailTab; agentId: string; terminal: InstanceAccessState["terminal"] }) {
+  const projectId = useCurrentProjectId();
   return (
     <Tabs value={active} activationMode="manual">
       <nav aria-label="Instance detail sections" className="-mx-1 overflow-x-auto">
@@ -40,8 +42,8 @@ export function InstanceTabs({ active, agentId, terminal }: { active: InstanceDe
             return (
               <TabsTrigger key={tab} value={tab} asChild>
                 <Link
-                  to="/agents/$agentId"
-                  params={{ agentId }}
+                  to="/$projectId/instances/$instanceId"
+                  params={{ projectId, instanceId: agentId }}
                   search={{ tab }}
                 >
                   {labels[tab]}

@@ -9,9 +9,9 @@ The control plane and LiteLLM use the same PostgreSQL instance and database:
 
 - LiteLLM keeps its tables and migration history in `public`.
 - TaskLattice keeps its tables and Prisma migration history in `tasklattice`.
-- Every workspace-owned control record includes `workspace_id`.
-- API requests resolve membership from `X-Workspace-ID`; stores apply that
-  workspace scope internally instead of accepting ad hoc page-level filters.
+- Every Project-owned control record includes `project_id`.
+- Project-scoped API routes use `/api/v1/projects/{projectId}/...`; stores apply
+  that Project scope internally instead of accepting ad hoc page-level filters.
 
 The shared instance reduces deployment and backup overhead. Separate schemas
 prevent table and migration-name collisions, but do not isolate CPU, memory,
@@ -23,7 +23,7 @@ connection limits, monitor both workloads, and back up the whole database.
 `prisma migrate deploy` is the only initialization path. The first migration
 creates the schema and tables. A following idempotent SQL migration inserts:
 
-- the local administrator, Individual workspace, and owner membership;
+- the local administrator, default Project, and administrator membership;
 - built-in Skills, MCP servers, Knowledge Base sources, specializations, and
   sandbox policies.
 

@@ -36,7 +36,7 @@ function adapter(overrides: Partial<LiteLLMAdminClient> = {}): LiteLLMAdminClien
 function secretStore(overrides: Partial<SecretStore> = {}): SecretStore {
   let secret = "";
   return {
-    put: vi.fn(async (_workspaceId, employeeId, value) => {
+    put: vi.fn(async (_projectId, employeeId, value) => {
       secret = value;
       return `test-secret://${employeeId}`;
     }),

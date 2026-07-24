@@ -40,9 +40,6 @@ export const providerKinds = [
   "custom-anthropic-compatible",
 ] as const;
 
-export const legacyProviderPresetIds = ["kimi-cn", "kimi-global"] as const;
-export const providerPresetIds = [...providerKinds, ...legacyProviderPresetIds] as const;
-
 export const modelTypes = ["llm", "text-embedding", "speech-to-text"] as const;
 
 export const complianceDomains = ["CN_MAINLAND", "GLOBAL"] as const;
@@ -509,22 +506,6 @@ export const extensionResourceKindSchema = z.enum([
   "knowledge-sources",
 ]);
 
-export const createProviderAccountSchema = z.object({
-  name: z.string().trim().min(3).max(48),
-  presetId: z.enum(providerPresetIds),
-  endpoint: z.string().trim().url(),
-  apiKey: z.string().trim().min(8).max(512),
-  complianceDomain: z.enum(complianceDomains),
-}).superRefine((input, context) => {
-  const preset = providerPresets.find((item) => item.id === input.presetId);
-  if (preset?.endpoint && input.endpoint.replace(/\/+$/, "") !== preset.endpoint)
-    context.addIssue({
-      code: "custom",
-      path: ["endpoint"],
-      message: `The ${preset.name} endpoint is managed by the platform catalog.`,
-    });
-});
-
 export const createModelDeploymentSchema = z.object({
   providerAccountId: z.string().trim().min(1),
   modelId: z.string().trim().min(1).max(160),
@@ -662,7 +643,6 @@ export const updateModelProfileSchema = createModelProfileSchema.pick({
 
 export type AgentStatus = (typeof agentStatuses)[number];
 export type ProvisioningStage = (typeof provisioningStages)[number];
-export type ProviderPresetId = (typeof providerPresetIds)[number];
 export type ProviderKind = (typeof providerKinds)[number];
 export type ModelType = (typeof modelTypes)[number];
 export type AgentPlatformId = (typeof agentPlatformIds)[number];
@@ -683,7 +663,6 @@ export type CreateKnowledgeSourceDefinitionInput = z.infer<typeof createKnowledg
 export type UpdateKnowledgeSourceDefinitionInput = z.infer<typeof updateKnowledgeSourceDefinitionSchema>;
 export type AgentSpecializationDefinition = z.infer<typeof agentSpecializationDefinitionSchema>;
 export type ExtensionResourceKind = z.infer<typeof extensionResourceKindSchema>;
-export type CreateProviderAccountInput = z.infer<typeof createProviderAccountSchema>;
 export type ProviderConnectionDraft = z.infer<typeof providerConnectionDraftSchema>;
 export type DiscoverProviderModelsInput = z.infer<typeof discoverProviderModelsSchema>;
 export type ProviderModelSelection = z.infer<typeof providerModelSelectionSchema>;
@@ -820,7 +799,7 @@ export interface ProviderAccount {
   id: string;
   name: string;
   providerKind: ProviderKind;
-  presetId: ProviderPresetId;
+  presetId: ProviderKind;
   endpoint: string;
   config: Record<string, unknown>;
   complianceDomain: ComplianceDomain;
@@ -860,7 +839,7 @@ export interface ProviderConnectionCreationResult {
 export interface ModelDeployment extends CreateModelDeploymentInput {
   id: string;
   isDefault: boolean;
-  providerPresetId: ProviderPresetId;
+  providerPresetId: ProviderKind;
   providerName: string;
   endpoint: string;
   complianceDomain: ComplianceDomain;
@@ -889,7 +868,7 @@ export type CostFilterKey =
   | "provider_account"
   | "virtual_key"
   | "environment"
-  | "workspace";
+  | "project";
 
 export type CostFilters = Partial<Record<CostFilterKey, string[]>>;
 

@@ -19,7 +19,7 @@ describe("ExtensionCatalogService", () => {
       .toEqual(expect.arrayContaining(["helm-chart-developer", "kubernetes-expert", "ocp-expert"]));
   });
 
-  it("persists workspace changes without overwriting them when defaults are seeded again", async () => {
+  it("persists project changes without overwriting them when defaults are seeded again", async () => {
     const store = createTestStore();
     const service = new ExtensionCatalogService(store);
     const current = (await service.catalog()).skills.find((skill) => skill.id === "helm-chart-developer")!;
@@ -31,7 +31,7 @@ describe("ExtensionCatalogService", () => {
       .toBe("Helm Platform Developer");
   });
 
-  it("creates and removes workspace extensions while protecting Role references", async () => {
+  it("creates and removes project extensions while protecting Role references", async () => {
     const service = new ExtensionCatalogService(createTestStore());
     const created = await service.createSkill({
       name: "Release Notes Writer",
@@ -40,7 +40,7 @@ describe("ExtensionCatalogService", () => {
       version: "1.0.0",
       endpoint: "https://skills.internal.example/release-notes.tar.zst",
       digest: "Pending source check",
-      owner: "Current workspace",
+      owner: "Current project",
       permissions: 0,
       status: "DRAFT",
     });

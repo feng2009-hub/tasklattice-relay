@@ -52,7 +52,7 @@ import type {
   VirtualEmployeeAuditEvent,
 } from "@tasklattice/contracts";
 import { clearAuthToken, getAuthToken } from "./auth-token";
-import { getStoredWorkspaceId } from "./workspace-storage";
+import { projectIdFromPathname } from "./project-storage";
 
 export class ApiError extends Error {
   constructor(message: string, readonly status: number) {
@@ -64,19 +64,23 @@ export class ApiError extends Error {
 export function projectScopedPath(path: string, projectId: string | null): string {
   if (!projectId) return path;
   const url = new URL(path, "http://tasklattice.local");
-  url.searchParams.set("project_id", projectId);
-  return `${url.pathname}${url.search}${url.hash}`;
+  const suffix = url.pathname
+    .replace(/^\/api\/v1\/projects\/[^/]+\/?/, "")
+    .replace(/^\/api\/v1\/?/, "");
+  return `/api/v1/projects/${encodeURIComponent(projectId)}/${suffix}${url.search}${url.hash}`;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = getAuthToken();
-  const projectId = getStoredWorkspaceId();
+  const projectId =
+    typeof window === "undefined"
+      ? null
+      : projectIdFromPathname(window.location.pathname);
   const response = await fetch(projectScopedPath(path, projectId), {
     ...init,
     headers: {
       "content-type": "application/json",
       ...(token ? { authorization: `Bearer ${token}` } : {}),
-      ...(projectId ? { "X-Project-ID": projectId } : {}),
       ...init?.headers,
     },
   });
@@ -213,14 +217,14 @@ export const api = {
       method: "DELETE",
     }),
   listModelDeployments: async () =>
-    (await request<{ data: ModelDeployment[] }>("/api/v1/providers/models")).data,
+    (await request<{ data: ModelDeployment[] }>("/api/v1/models")).data,
   registerModelDeployment: (input: CreateModelDeploymentInput) =>
-    request<ModelDeployment>("/api/v1/providers/models", {
+    request<ModelDeployment>("/api/v1/models", {
       method: "POST",
       body: JSON.stringify(input),
     }),
   markModelDeploymentAsDefault: (id: string) =>
-    request<ModelDeployment>(`/api/v1/providers/models/${encodeURIComponent(id)}/default`, {
+    request<ModelDeployment>(`/api/v1/models/${encodeURIComponent(id)}/default`, {
       method: "POST",
       body: "{}",
     }),
@@ -291,38 +295,38 @@ export const api = {
       method: "DELETE",
     }),
   listAgents: async () =>
-    (await request<{ data: Agent[] }>("/api/v1/agents")).data,
-  getAgent: (id: string) => request<Agent>(`/api/v1/agents/${id}`),
+    (await request<{ data: Agent[] }>("/api/v1/instances")).data,
+  getAgent: (id: string) => request<Agent>(`/api/v1/instances/${id}`),
   getAgentAudit: async (id: string) =>
     (
       await request<{ data: SandboxAuditEvent[] }>(
-        `/api/v1/agents/${id}/audit`,
+        `/api/v1/instances/${id}/audit`,
       )
     ).data,
   getRuntimeStatus: () => request<RuntimeStatus>("/api/v1/runtime"),
   getTerminalTargets: async (id: string) =>
     (
       await request<{ data: TerminalTarget[] }>(
-        `/api/v1/agents/${id}/terminal-targets`,
+        `/api/v1/instances/${id}/terminal-targets`,
       )
     ).data,
   createAgent: (input: CreateAgentInput) =>
-    request<Agent>("/api/v1/agents", {
+    request<Agent>("/api/v1/instances", {
       method: "POST",
       body: JSON.stringify(input),
     }),
   deleteAgent: (id: string) =>
-    request<void>(`/api/v1/agents/${id}`, { method: "DELETE" }),
+    request<void>(`/api/v1/instances/${id}`, { method: "DELETE" }),
   bindAgentVirtualEmployee: (id: string, virtualEmployeeId: string) =>
-    request<Agent>(`/api/v1/agents/${encodeURIComponent(id)}/virtual-employee`, {
+    request<Agent>(`/api/v1/instances/${encodeURIComponent(id)}/virtual-employee`, {
       method: "PUT",
       body: JSON.stringify({ virtualEmployeeId }),
     }),
   unbindAgentVirtualEmployee: (id: string) =>
-    request<Agent>(`/api/v1/agents/${encodeURIComponent(id)}/virtual-employee`, { method: "DELETE" }),
+    request<Agent>(`/api/v1/instances/${encodeURIComponent(id)}/virtual-employee`, { method: "DELETE" }),
   createTerminalSession: (id: string, targetId: string) =>
     request<TerminalSessionResponse>(
-      `/api/v1/agents/${id}/terminal-sessions`,
+      `/api/v1/instances/${id}/terminal-sessions`,
       { method: "POST", body: JSON.stringify({ targetId }) },
     ),
 };

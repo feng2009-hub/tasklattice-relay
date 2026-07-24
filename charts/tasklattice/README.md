@@ -54,7 +54,7 @@ TaskLattice control and LiteLLM intentionally use the same `database-url`.
 LiteLLM owns the PostgreSQL `public` schema; the control plane and its Prisma
 migration history live in the `tasklattice` schema. The control Deployment has
 an init container that runs `prisma migrate deploy`, including the SQL migration
-that creates the default Individual workspace and preconfigured extension and
+that creates the default Project and preconfigured extension and
 policy metadata.
 
 An external database supplied through `secrets.existingSecret` must allow the

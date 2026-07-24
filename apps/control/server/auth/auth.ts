@@ -325,7 +325,7 @@ function oidcCookieHeader(value: string, request: Request, maxAge = 600): string
 }
 
 function safeRedirect(value: string | null): string {
-  return value?.startsWith("/") && !value.startsWith("//") ? value : "/dashboard";
+  return value?.startsWith("/") && !value.startsWith("//") ? value : "/";
 }
 
 export async function handleSsoStart(request: Request): Promise<Response> {

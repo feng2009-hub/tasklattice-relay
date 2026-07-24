@@ -23,7 +23,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { api } from "@/lib/api";
 import { getAgentPlatformPresentation } from "@/lib/agent-platforms";
-import { useWorkspaceQueryScope } from "@/hooks/use-workspace-query-scope";
+import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
+import { useCurrentProjectId } from "@/hooks/use-project";
 
 const steps: readonly CreateInstanceStep[] = [
   { label: "Identity & Capabilities", description: "Define the Agent and its capabilities" },
@@ -49,7 +50,8 @@ export function CreateInstanceSheet({
   open: boolean;
 }) {
   const navigate = useNavigate();
-  const workspace = useWorkspaceQueryScope();
+  const projectId = useCurrentProjectId();
+  const scope = useProjectQueryScope();
   const [step, setStep] = useState(0);
   const [specializationId, setSpecializationId] = useState<SpecializationId>("general-purpose");
   const [customSystemPrompt, setCustomSystemPrompt] = useState("");
@@ -59,16 +61,16 @@ export function CreateInstanceSheet({
   const [skillsTouched, setSkillsTouched] = useState(false);
   const [mcpsTouched, setMcpsTouched] = useState(false);
   const [pendingSpecializationId, setPendingSpecializationId] = useState<SpecializationId | null>(null);
-  const extensionCatalog = useQuery({ queryKey: workspace.key("extension-catalog"), queryFn: api.getExtensionCatalog });
+  const extensionCatalog = useQuery({ queryKey: scope.key("extension-catalog"), queryFn: api.getExtensionCatalog });
   const skills = extensionCatalog.data?.skills ?? [];
   const mcpServers = extensionCatalog.data?.mcpServers ?? [];
   const knowledgeSources = extensionCatalog.data?.knowledgeSources ?? [];
   const specializations = extensionCatalog.data?.specializations ?? [];
   const specialization = getSpecialization(specializations, specializationId);
   const pendingSpecialization = pendingSpecializationId ? getSpecialization(specializations, pendingSpecializationId) : null;
-  const virtualEmployees = useQuery({ queryKey: workspace.key("virtual-employees"), queryFn: api.listVirtualEmployees });
+  const virtualEmployees = useQuery({ queryKey: scope.key("virtual-employees"), queryFn: api.listVirtualEmployees });
   const activeVirtualEmployees = (virtualEmployees.data ?? []).filter((employee) => employee.status === "active");
-  const policies = useQuery({ queryKey: workspace.key("sandbox-policies"), queryFn: api.listPolicies });
+  const policies = useQuery({ queryKey: scope.key("sandbox-policies"), queryFn: api.listPolicies });
   const currentSystemPrompt = specialization?.id === "custom" ? customSystemPrompt : specialization?.systemPrompt ?? "";
   const incompleteMcps = selectedIds(selectedMcps)
     .map((id) => mcpServers.find((item) => item.id === id))
@@ -76,7 +78,7 @@ export function CreateInstanceSheet({
   const mutation = useMutation({
     mutationFn: api.createAgent,
     onSuccess: (agent) => {
-      void navigate({ to: "/agents/$agentId", params: { agentId: agent.id }, search: { creating: true } });
+      void navigate({ to: "/$projectId/instances/$instanceId", params: { projectId, instanceId: agent.id }, search: { creating: true } });
     },
   });
   const form = useForm({
@@ -220,11 +222,11 @@ export function CreateInstanceSheet({
                   <form.Field name="agentPlatform">
                     {(field) => <div className="space-y-2"><Label htmlFor="instance-agent">Agent implementation</Label><AgentSelect id="instance-agent" value={field.state.value} onValueChange={field.handleChange} /><p className="text-xs leading-5 text-muted-foreground">Configured inside the OpenShell runtime during provisioning.</p></div>}
                   </form.Field>
-                  <form.Field name="virtualEmployeeId">{(field) => <div className="space-y-2"><div className="flex items-center justify-between gap-3"><Label>Virtual Employee</Label><Link to="/security/virtual-employees" className="text-xs font-medium underline underline-offset-4">Manage</Link></div><Select value={field.state.value} disabled={virtualEmployees.isPending || Boolean(virtualEmployees.error)} onValueChange={field.handleChange}><SelectTrigger className="min-h-12 h-auto" aria-label="Virtual Employee"><SelectValue placeholder={virtualEmployees.isPending ? "Loading Virtual Employees…" : "Select a Virtual Employee"} /></SelectTrigger><SelectContent>{activeVirtualEmployees.map((employee) => <SelectItem key={employee.id} value={employee.id}>{employee.displayName} · {employee.businessRole || employee.environment}</SelectItem>)}</SelectContent></Select>{virtualEmployees.error ? <p role="alert" className="text-xs text-destructive">{virtualEmployees.error.message}</p> : !virtualEmployees.isPending && !activeVirtualEmployees.length ? <p role="alert" className="border-l-2 border-amber-500 bg-amber-500/5 px-3 py-2 text-xs"><Link to="/security/virtual-employees" className="font-semibold underline underline-offset-4">Create and activate a Virtual Employee</Link> to continue.</p> : <p className="text-xs leading-5 text-muted-foreground">Provides LiteLLM model access, backing identities, and approved system scope.</p>}</div>}</form.Field>
+                  <form.Field name="virtualEmployeeId">{(field) => <div className="space-y-2"><div className="flex items-center justify-between gap-3"><Label>Virtual Employee</Label><Link to="/$projectId/virtual-employees" params={{ projectId }} className="text-xs font-medium underline underline-offset-4">Manage</Link></div><Select value={field.state.value} disabled={virtualEmployees.isPending || Boolean(virtualEmployees.error)} onValueChange={field.handleChange}><SelectTrigger className="min-h-12 h-auto" aria-label="Virtual Employee"><SelectValue placeholder={virtualEmployees.isPending ? "Loading Virtual Employees…" : "Select a Virtual Employee"} /></SelectTrigger><SelectContent>{activeVirtualEmployees.map((employee) => <SelectItem key={employee.id} value={employee.id}>{employee.displayName} · {employee.businessRole || employee.environment}</SelectItem>)}</SelectContent></Select>{virtualEmployees.error ? <p role="alert" className="text-xs text-destructive">{virtualEmployees.error.message}</p> : !virtualEmployees.isPending && !activeVirtualEmployees.length ? <p role="alert" className="border-l-2 border-amber-500 bg-amber-500/5 px-3 py-2 text-xs"><Link to="/$projectId/virtual-employees" params={{ projectId }} className="font-semibold underline underline-offset-4">Create and activate a Virtual Employee</Link> to continue.</p> : <p className="text-xs leading-5 text-muted-foreground">Provides LiteLLM model access, backing identities, and approved system scope.</p>}</div>}</form.Field>
                 </div>
                 <form.Subscribe selector={(state) => state.values.virtualEmployeeId}>{(virtualEmployeeId) => { const selected = activeVirtualEmployees.find((item) => item.id === virtualEmployeeId); return selected ? <div className="grid gap-3 border-y py-4 text-xs sm:grid-cols-3"><div><span className="text-muted-foreground">Model access</span><strong className="mt-1 block">{selected.modelAccess?.allowedModels.join(", ")}</strong></div><div><span className="text-muted-foreground">Budget</span><strong className="mt-1 block">{selected.modelAccess?.maxBudget !== undefined ? `$${selected.modelAccess.maxBudget} / month` : "No limit"}</strong></div><div><span className="text-muted-foreground">System access</span><strong className="mt-1 block">{selected.identities.length} identities · {selected.accessScopes.length} scopes</strong></div></div> : null;}}</form.Subscribe>
                 <form.Field name="policyId">
-                  {(field) => <div className="space-y-2"><div className="flex items-center justify-between gap-3"><Label>OpenShell policy</Label><Link to="/agent/sandboxes/policy" className="text-xs font-medium underline underline-offset-4">Inspect policies</Link></div><Select value={field.state.value} disabled={policies.isPending || Boolean(policies.error)} onValueChange={field.handleChange}><SelectTrigger aria-label="OpenShell policy" className="min-h-12 h-auto"><SelectValue placeholder={policies.isPending ? "Loading Policy catalog…" : "Select a Policy"} /></SelectTrigger><SelectContent>{policies.data?.policies.map((policy) => <SelectItem key={policy.id} value={policy.id}>{policy.name} · {policy.networkAccess}</SelectItem>)}</SelectContent></Select>{policies.error ? <p role="alert" className="text-xs text-destructive">{policies.error.message}</p> : <p className="text-xs leading-5 text-muted-foreground">Applied at Sandbox creation through the OpenShell policy boundary.</p>}</div>}
+                  {(field) => <div className="space-y-2"><div className="flex items-center justify-between gap-3"><Label>OpenShell policy</Label><Link to="/$projectId/runtime-policies" params={{ projectId }} className="text-xs font-medium underline underline-offset-4">Inspect policies</Link></div><Select value={field.state.value} disabled={policies.isPending || Boolean(policies.error)} onValueChange={field.handleChange}><SelectTrigger aria-label="OpenShell policy" className="min-h-12 h-auto"><SelectValue placeholder={policies.isPending ? "Loading Policy catalog…" : "Select a Policy"} /></SelectTrigger><SelectContent>{policies.data?.policies.map((policy) => <SelectItem key={policy.id} value={policy.id}>{policy.name} · {policy.networkAccess}</SelectItem>)}</SelectContent></Select>{policies.error ? <p role="alert" className="text-xs text-destructive">{policies.error.message}</p> : <p className="text-xs leading-5 text-muted-foreground">Applied at Sandbox creation through the OpenShell policy boundary.</p>}</div>}
                 </form.Field>
               </CardContent>
             </Card>

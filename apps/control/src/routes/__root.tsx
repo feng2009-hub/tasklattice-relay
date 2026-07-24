@@ -4,22 +4,18 @@ import {
   Outlet,
   Scripts,
   createRootRouteWithContext,
-  retainSearchParams,
   useRouterState,
 } from "@tanstack/react-router";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { AuthProvider } from "@/components/auth/auth-provider";
 import { AppShell } from "@/components/layout/app-shell";
-import { WorkspaceProvider } from "@/components/workspace/workspace-provider";
+import { ProjectProvider } from "@/components/project/project-provider";
 import appCss from "../styles.css?url";
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient;
 }>()({
   component: RootApplication,
-  search: {
-    middlewares: [retainSearchParams(["project_id"])],
-  },
   head: () => ({
     meta: [
       { charSet: "utf-8" },
@@ -51,9 +47,9 @@ function RootApplication() {
         <Outlet />
       ) : (
         <AuthGuard>
-          <WorkspaceProvider>
+          <ProjectProvider>
             <AppShell />
-          </WorkspaceProvider>
+          </ProjectProvider>
         </AuthGuard>
       )}
     </AuthProvider>

@@ -2,8 +2,15 @@ const json = (schema: object) => ({
   content: { "application/json": { schema } },
 });
 
-const agentId = {
-  name: "agentId",
+const projectIdParameter = {
+  name: "projectId",
+  in: "path",
+  required: true,
+  schema: { type: "string" },
+} as const;
+
+const instanceId = {
+  name: "instanceId",
   in: "path",
   required: true,
   schema: { type: "string", format: "uuid" },
@@ -69,7 +76,6 @@ const costCommonParameters = [
   { name: "start_time", in: "query", required: true, schema: { type: "string" } },
   { name: "end_time", in: "query", required: true, schema: { type: "string" } },
   { name: "timezone", in: "query", schema: { type: "string", default: "UTC" } },
-  { name: "workspace_id", in: "query", schema: { type: "string" } },
   { name: "environment_id", in: "query", schema: { type: "string" } },
   { name: "filters", in: "query", description: "JSON object whose values are arrays of business IDs.", schema: { type: "string", default: "{}" } },
 ] as const;
@@ -146,7 +152,49 @@ export const openApiDocument = {
         },
       },
     },
-    "/extensions": {
+    "/projects": {
+      get: {
+        operationId: "listProjects",
+        summary: "List projects available to the current user",
+        responses: { "200": { description: "Project list" } },
+      },
+      post: {
+        operationId: "createProject",
+        summary: "Create a project",
+        responses: { "201": { description: "Project created" } },
+      },
+    },
+    "/projects/{projectId}": {
+      parameters: [projectIdParameter],
+      patch: {
+        operationId: "updateProject",
+        summary: "Update project settings",
+        responses: { "200": { description: "Project updated" } },
+      },
+      delete: {
+        operationId: "deleteProject",
+        summary: "Delete a project",
+        responses: { "204": { description: "Project deleted" } },
+      },
+    },
+    "/projects/{projectId}/members": {
+      parameters: [projectIdParameter],
+      get: {
+        operationId: "listProjectMembers",
+        summary: "List project members",
+        responses: { "200": { description: "Project member list" } },
+      },
+    },
+    "/projects/{projectId}/members/invitations": {
+      parameters: [projectIdParameter],
+      post: {
+        operationId: "inviteProjectMember",
+        summary: "Invite a project member",
+        responses: { "201": { description: "Invitation created" } },
+      },
+    },
+    "/projects/{projectId}/extensions": {
+      parameters: [projectIdParameter],
       get: {
         operationId: "getExtensionCatalog",
         summary: "Read the PostgreSQL-backed extension and Agent Role catalog",
@@ -155,8 +203,8 @@ export const openApiDocument = {
         },
       },
     },
-    "/extensions/{kind}": {
-      parameters: [extensionKind],
+    "/projects/{projectId}/extensions/{kind}": {
+      parameters: [projectIdParameter, extensionKind],
       post: {
         operationId: "createExtension",
         summary: "Create a Skill, MCP server, or Knowledge source",
@@ -171,8 +219,8 @@ export const openApiDocument = {
         },
       },
     },
-    "/extensions/{kind}/{extensionId}": {
-      parameters: [extensionKind, extensionId],
+    "/projects/{projectId}/extensions/{kind}/{extensionId}": {
+      parameters: [projectIdParameter, extensionKind, extensionId],
       put: {
         operationId: "updateExtension",
         summary: "Update a persisted extension definition",
@@ -191,7 +239,8 @@ export const openApiDocument = {
         },
       },
     },
-    "/providers": {
+    "/projects/{projectId}/providers": {
+      parameters: [projectIdParameter],
       get: {
         operationId: "listProviderAccounts",
         summary: "List validated Endpoint and credential accounts",
@@ -209,7 +258,8 @@ export const openApiDocument = {
         },
       },
     },
-    "/providers/discover": {
+    "/projects/{projectId}/providers/discover": {
+      parameters: [projectIdParameter],
       post: {
         operationId: "discoverProviderModels",
         summary: "Validate a Provider draft and discover models without persisting credentials",
@@ -220,8 +270,8 @@ export const openApiDocument = {
         },
       },
     },
-    "/providers/{providerId}/validate": {
-      parameters: [providerId],
+    "/projects/{projectId}/providers/{providerId}/validate": {
+      parameters: [projectIdParameter, providerId],
       post: {
         operationId: "revalidateProviderAccount",
         summary: "Re-run Endpoint, credential, and catalog validation",
@@ -231,8 +281,8 @@ export const openApiDocument = {
         },
       },
     },
-    "/providers/{providerId}": {
-      parameters: [providerId],
+    "/projects/{projectId}/providers/{providerId}": {
+      parameters: [projectIdParameter, providerId],
       delete: {
         operationId: "deleteProviderAccount",
         summary: "Delete an unused Provider Account and its LiteLLM models",
@@ -242,7 +292,8 @@ export const openApiDocument = {
         },
       },
     },
-    "/providers/models": {
+    "/projects/{projectId}/models": {
+      parameters: [projectIdParameter],
       get: {
         operationId: "listModelDeployments",
         summary: "List categorized model deployments",
@@ -255,8 +306,8 @@ export const openApiDocument = {
         responses: { "201": { description: "Model validation result", ...json({ $ref: "#/components/schemas/ModelDeployment" }) } },
       },
     },
-    "/providers/models/{modelId}/default": {
-      parameters: [{ name: "modelId", in: "path", required: true, schema: { type: "string" } }],
+    "/projects/{projectId}/models/{modelId}/default": {
+      parameters: [projectIdParameter, { name: "modelId", in: "path", required: true, schema: { type: "string" } }],
       post: {
         operationId: "markModelDeploymentAsDefault",
         summary: "Mark one validated LLM deployment as the global default",
@@ -266,14 +317,16 @@ export const openApiDocument = {
         },
       },
     },
-    "/inference-gateways": {
+    "/projects/{projectId}/inference-gateways": {
+      parameters: [projectIdParameter],
       get: {
         operationId: "listInferenceGateways",
         summary: "List configured LiteLLM Gateways without credentials",
         responses: { "200": { description: "Inference Gateway collection", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/InferenceGateway" } } } }) } },
       },
     },
-    "/model-profiles": {
+    "/projects/{projectId}/model-profiles": {
+      parameters: [projectIdParameter],
       get: {
         operationId: "listModelProfiles",
         summary: "List LiteLLM-managed inference access contracts",
@@ -286,25 +339,26 @@ export const openApiDocument = {
         responses: { "201": { description: "Model Profile", ...json({ $ref: "#/components/schemas/ModelProfile" }) }, "400": { $ref: "#/components/responses/Error" } },
       },
     },
-    "/model-profiles/{profileId}": {
-      parameters: [profileId],
+    "/projects/{projectId}/model-profiles/{profileId}": {
+      parameters: [projectIdParameter, profileId],
       get: { operationId: "getModelProfile", summary: "Read a Model Profile", responses: { "200": { description: "Model Profile", ...json({ $ref: "#/components/schemas/ModelProfile" }) }, "404": { $ref: "#/components/responses/Error" } } },
       put: { operationId: "updateModelProfile", summary: "Update TaskLattice-owned Model Profile policy", requestBody: { required: true, ...json({ type: "object", additionalProperties: false, properties: { name: { type: "string" }, description: { type: "string" }, isDefault: { type: "boolean" }, keyPolicy: { type: "object" }, auditPolicy: { type: "object" }, suspended: { type: "boolean" } } }) }, responses: { "200": { description: "Model Profile", ...json({ $ref: "#/components/schemas/ModelProfile" }) } } },
       delete: { operationId: "deleteModelProfile", summary: "Delete a Model Profile without active Consumers", responses: { "200": { description: "Model Profile deleted", ...json({ type: "object" }) }, "409": { $ref: "#/components/responses/Error" } } },
     },
-    "/model-profiles/{profileId}/refresh": {
-      parameters: [profileId],
+    "/projects/{projectId}/model-profiles/{profileId}/refresh": {
+      parameters: [projectIdParameter, profileId],
       post: { operationId: "refreshModelProfile", summary: "Synchronize effective LiteLLM capability and compliance status", responses: { "200": { description: "Synchronized Model Profile", ...json({ $ref: "#/components/schemas/ModelProfile" }) } } },
     },
-    "/model-profiles/{profileId}/consumers": {
-      parameters: [profileId],
+    "/projects/{projectId}/model-profiles/{profileId}/consumers": {
+      parameters: [projectIdParameter, profileId],
       get: { operationId: "listModelProfileConsumers", summary: "List redacted active Instance bindings", responses: { "200": { description: "Redacted Consumers", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/ModelProfileConsumer" } } } }) } } },
     },
-    "/model-profiles/{profileId}/audit": {
-      parameters: [profileId],
+    "/projects/{projectId}/model-profiles/{profileId}/audit": {
+      parameters: [projectIdParameter, profileId],
       get: { operationId: "listModelProfileAudit", summary: "List secret-safe control-plane audit events", responses: { "200": { description: "Audit events", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/ModelProfileAuditEvent" } } } }) } } },
     },
-    "/costs/summary": {
+    "/projects/{projectId}/costs/summary": {
+      parameters: [projectIdParameter],
       get: {
         operationId: "getCostSummary",
         summary: "Read USD spend, token, request, and prior-period summary",
@@ -312,7 +366,8 @@ export const openApiDocument = {
         responses: { "200": { description: "Cost summary", ...json({ $ref: "#/components/schemas/ModelCostSummary" }) } },
       },
     },
-    "/costs/activity": {
+    "/projects/{projectId}/costs/activity": {
+      parameters: [projectIdParameter],
       get: {
         operationId: "getCostActivity",
         summary: "Read zero-filled spend activity in the requested timezone",
@@ -324,7 +379,8 @@ export const openApiDocument = {
         responses: { "200": { description: "Cost activity", ...json({ $ref: "#/components/schemas/ModelCostActivity" }) } },
       },
     },
-    "/costs/insights": {
+    "/projects/{projectId}/costs/insights": {
+      parameters: [projectIdParameter],
       get: {
         operationId: "getCostInsights",
         summary: "Read derived cost insights",
@@ -332,7 +388,8 @@ export const openApiDocument = {
         responses: { "200": { description: "Cost insights", ...json({ type: "object" }) } },
       },
     },
-    "/costs/ranking": {
+    "/projects/{projectId}/costs/ranking": {
+      parameters: [projectIdParameter],
       get: {
         operationId: "getCostRanking",
         summary: "Rank business objects by total USD spend",
@@ -344,7 +401,8 @@ export const openApiDocument = {
         responses: { "200": { description: "Cost ranking", ...json({ $ref: "#/components/schemas/ModelCostRanking" }) } },
       },
     },
-    "/costs/trend": {
+    "/projects/{projectId}/costs/trend": {
+      parameters: [projectIdParameter],
       get: {
         operationId: "getCostTrend",
         summary: "Read stable Top N cost series plus Others",
@@ -357,7 +415,8 @@ export const openApiDocument = {
         responses: { "200": { description: "Cost trend", ...json({ $ref: "#/components/schemas/ModelCostTrend" }) } },
       },
     },
-    "/costs/breakdown": {
+    "/projects/{projectId}/costs/breakdown": {
+      parameters: [projectIdParameter],
       get: {
         operationId: "getCostBreakdown",
         summary: "Search, sort, and paginate a dimensional cost breakdown",
@@ -373,7 +432,8 @@ export const openApiDocument = {
         responses: { "200": { description: "Cost breakdown", ...json({ $ref: "#/components/schemas/ModelCostBreakdown" }) } },
       },
     },
-    "/costs/data-quality": {
+    "/projects/{projectId}/costs/data-quality": {
+      parameters: [projectIdParameter],
       get: {
         operationId: "getCostDataQuality",
         summary: "Read internal ingestion and attribution quality diagnostics",
@@ -381,7 +441,8 @@ export const openApiDocument = {
         responses: { "200": { description: "Cost data quality", ...json({ type: "object" }) } },
       },
     },
-    "/policies": {
+    "/projects/{projectId}/policies": {
+      parameters: [projectIdParameter],
       get: {
         operationId: "listSandboxPolicies",
         summary: "List ConfigMap-managed and custom OpenShell Policies",
@@ -397,8 +458,8 @@ export const openApiDocument = {
         },
       },
     },
-    "/policies/{policyId}": {
-      parameters: [policyId],
+    "/projects/{projectId}/policies/{policyId}": {
+      parameters: [projectIdParameter, policyId],
       put: {
         operationId: "updateSandboxPolicy",
         summary: "Update a custom OpenShell Policy",
@@ -417,7 +478,8 @@ export const openApiDocument = {
         },
       },
     },
-    "/runtime": {
+    "/projects/{projectId}/runtime": {
+      parameters: [projectIdParameter],
       get: {
         operationId: "getRuntimeStatus",
         summary: "Read NemoClaw TUI runtime capability",
@@ -427,7 +489,8 @@ export const openApiDocument = {
         },
       },
     },
-    "/virtual-employees": {
+    "/projects/{projectId}/virtual-employees": {
+      parameters: [projectIdParameter],
       get: {
         operationId: "listVirtualEmployees",
         summary: "List project-scoped Virtual Employees",
@@ -446,8 +509,8 @@ export const openApiDocument = {
         },
       },
     },
-    "/virtual-employees/{virtualEmployeeId}": {
-      parameters: [virtualEmployeeId],
+    "/projects/{projectId}/virtual-employees/{virtualEmployeeId}": {
+      parameters: [projectIdParameter, virtualEmployeeId],
       get: {
         operationId: "getVirtualEmployee",
         summary: "Read a Virtual Employee with model, identity, scope, and Instance bindings",
@@ -465,24 +528,24 @@ export const openApiDocument = {
         responses: { "204": { description: "Deleted" }, "409": { $ref: "#/components/responses/Error" } },
       },
     },
-    "/virtual-employees/{virtualEmployeeId}/provision": {
-      parameters: [virtualEmployeeId],
+    "/projects/{projectId}/virtual-employees/{virtualEmployeeId}/provision": {
+      parameters: [projectIdParameter, virtualEmployeeId],
       post: { operationId: "provisionVirtualEmployee", summary: "Provision LiteLLM model access and store the credential in the Secret Store", responses: { "200": { description: "Active Virtual Employee", ...json({ $ref: "#/components/schemas/VirtualEmployee" }) } } },
     },
-    "/virtual-employees/{virtualEmployeeId}/suspend": {
-      parameters: [virtualEmployeeId],
+    "/projects/{projectId}/virtual-employees/{virtualEmployeeId}/suspend": {
+      parameters: [projectIdParameter, virtualEmployeeId],
       post: { operationId: "suspendVirtualEmployee", summary: "Suspend the Virtual Employee and block its LiteLLM key", responses: { "200": { description: "Suspended Virtual Employee", ...json({ $ref: "#/components/schemas/VirtualEmployee" }) } } },
     },
-    "/virtual-employees/{virtualEmployeeId}/activate": {
-      parameters: [virtualEmployeeId],
+    "/projects/{projectId}/virtual-employees/{virtualEmployeeId}/activate": {
+      parameters: [projectIdParameter, virtualEmployeeId],
       post: { operationId: "activateVirtualEmployee", summary: "Activate the Virtual Employee and enable its LiteLLM key", responses: { "200": { description: "Active Virtual Employee", ...json({ $ref: "#/components/schemas/VirtualEmployee" }) } } },
     },
-    "/virtual-employees/{virtualEmployeeId}/rotate-model-credential": {
-      parameters: [virtualEmployeeId],
+    "/projects/{projectId}/virtual-employees/{virtualEmployeeId}/rotate-model-credential": {
+      parameters: [projectIdParameter, virtualEmployeeId],
       post: { operationId: "rotateVirtualEmployeeCredential", summary: "Rotate the LiteLLM credential without exposing its value", responses: { "200": { description: "Virtual Employee with rotated credential metadata", ...json({ $ref: "#/components/schemas/VirtualEmployee" }) } } },
     },
-    "/virtual-employees/{virtualEmployeeId}/sync": {
-      parameters: [virtualEmployeeId],
+    "/projects/{projectId}/virtual-employees/{virtualEmployeeId}/sync": {
+      parameters: [projectIdParameter, virtualEmployeeId],
       post: {
         operationId: "syncVirtualEmployee",
         summary: "Detect LiteLLM drift or explicitly apply TALI desired configuration",
@@ -490,34 +553,35 @@ export const openApiDocument = {
         responses: { "200": { description: "Synchronized Virtual Employee", ...json({ $ref: "#/components/schemas/VirtualEmployee" }) } },
       },
     },
-    "/virtual-employees/{virtualEmployeeId}/identities": {
-      parameters: [virtualEmployeeId],
+    "/projects/{projectId}/virtual-employees/{virtualEmployeeId}/identities": {
+      parameters: [projectIdParameter, virtualEmployeeId],
       get: { operationId: "listVirtualEmployeeIdentities", summary: "List backing system identity references", responses: { "200": { description: "Identity bindings", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/IdentityBinding" } } } }) } } },
       post: { operationId: "attachVirtualEmployeeIdentity", summary: "Attach a non-secret external identity reference", requestBody: { required: true, ...json({ $ref: "#/components/schemas/IdentityBindingInput" }) }, responses: { "200": { description: "Updated Virtual Employee", ...json({ $ref: "#/components/schemas/VirtualEmployee" }) } } },
     },
-    "/virtual-employees/{virtualEmployeeId}/identities/{bindingId}": {
-      parameters: [virtualEmployeeId, bindingId],
+    "/projects/{projectId}/virtual-employees/{virtualEmployeeId}/identities/{bindingId}": {
+      parameters: [projectIdParameter, virtualEmployeeId, bindingId],
       delete: { operationId: "detachVirtualEmployeeIdentity", summary: "Detach a system identity reference", responses: { "204": { description: "Detached" } } },
     },
-    "/virtual-employees/{virtualEmployeeId}/access-scopes": {
-      parameters: [virtualEmployeeId],
+    "/projects/{projectId}/virtual-employees/{virtualEmployeeId}/access-scopes": {
+      parameters: [projectIdParameter, virtualEmployeeId],
       get: { operationId: "listVirtualEmployeeAccessScopes", summary: "List declared external-system access scopes and enforcement status", responses: { "200": { description: "Access scope bindings", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/AccessScopeBinding" } } } }) } } },
       post: { operationId: "attachVirtualEmployeeAccessScope", summary: "Attach a declared access scope", requestBody: { required: true, ...json({ $ref: "#/components/schemas/AccessScopeBindingInput" }) }, responses: { "200": { description: "Updated Virtual Employee", ...json({ $ref: "#/components/schemas/VirtualEmployee" }) } } },
     },
-    "/virtual-employees/{virtualEmployeeId}/access-scopes/{scopeId}": {
-      parameters: [virtualEmployeeId, scopeId],
+    "/projects/{projectId}/virtual-employees/{virtualEmployeeId}/access-scopes/{scopeId}": {
+      parameters: [projectIdParameter, virtualEmployeeId, scopeId],
       patch: { operationId: "updateVirtualEmployeeAccessScope", summary: "Update an access scope and enforcement status", requestBody: { required: true, ...json({ $ref: "#/components/schemas/AccessScopeBindingInput" }) }, responses: { "200": { description: "Updated Virtual Employee", ...json({ $ref: "#/components/schemas/VirtualEmployee" }) } } },
       delete: { operationId: "detachVirtualEmployeeAccessScope", summary: "Detach an access scope", responses: { "204": { description: "Detached" } } },
     },
-    "/virtual-employees/{virtualEmployeeId}/spend": {
-      parameters: [virtualEmployeeId],
+    "/projects/{projectId}/virtual-employees/{virtualEmployeeId}/spend": {
+      parameters: [projectIdParameter, virtualEmployeeId],
       get: { operationId: "getVirtualEmployeeSpend", summary: "Read 30-day LiteLLM spend attributed to the Virtual Employee key", responses: { "200": { description: "Spend summary", ...json({ $ref: "#/components/schemas/VirtualEmployeeSpend" }) } } },
     },
-    "/virtual-employees/{virtualEmployeeId}/audit-events": {
-      parameters: [virtualEmployeeId],
+    "/projects/{projectId}/virtual-employees/{virtualEmployeeId}/audit-events": {
+      parameters: [projectIdParameter, virtualEmployeeId],
       get: { operationId: "listVirtualEmployeeAuditEvents", summary: "List Virtual Employee lifecycle and binding events", responses: { "200": { description: "Audit events", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/VirtualEmployeeAuditEvent" } } } }) } } },
     },
-    "/agents": {
+    "/projects/{projectId}/instances": {
+      parameters: [projectIdParameter],
       get: {
         operationId: "listAgents",
         summary: "List Agents",
@@ -535,8 +599,8 @@ export const openApiDocument = {
         },
       },
     },
-    "/agents/{agentId}": {
-      parameters: [agentId],
+    "/projects/{projectId}/instances/{instanceId}": {
+      parameters: [projectIdParameter, instanceId],
       get: {
         operationId: "getAgent",
         summary: "Read an Agent and reconcile its runtime state",
@@ -554,8 +618,8 @@ export const openApiDocument = {
         },
       },
     },
-    "/agents/{agentId}/virtual-employee": {
-      parameters: [agentId],
+    "/projects/{projectId}/instances/{instanceId}/virtual-employee": {
+      parameters: [projectIdParameter, instanceId],
       put: {
         operationId: "bindAgentVirtualEmployee",
         summary: "Switch an Instance to an Active Virtual Employee and recreate its runtime",
@@ -568,8 +632,8 @@ export const openApiDocument = {
         responses: { "200": { description: "Stopped Agent", ...json({ $ref: "#/components/schemas/Agent" }) } },
       },
     },
-    "/agents/{agentId}/terminal-sessions": {
-      parameters: [agentId],
+    "/projects/{projectId}/instances/{instanceId}/terminal-sessions": {
+      parameters: [projectIdParameter, instanceId],
       post: {
         operationId: "createTerminalSession",
         summary: "Create a short-lived, single-use terminal session",
@@ -581,8 +645,8 @@ export const openApiDocument = {
         },
       },
     },
-    "/agents/{agentId}/terminal-targets": {
-      parameters: [agentId],
+    "/projects/{projectId}/instances/{instanceId}/terminal-targets": {
+      parameters: [projectIdParameter, instanceId],
       get: {
         operationId: "getTerminalTargets",
         summary: "List interactive terminal targets for a running Agent",
@@ -592,8 +656,8 @@ export const openApiDocument = {
         },
       },
     },
-    "/agents/{agentId}/audit": {
-      parameters: [agentId],
+    "/projects/{projectId}/instances/{instanceId}/audit": {
+      parameters: [projectIdParameter, instanceId],
       get: {
         operationId: "getAgentAudit",
         summary: "Read recent OpenShell OCSF audit events for an Agent sandbox",
@@ -976,13 +1040,13 @@ export const openApiDocument = {
       },
       ModelProfileConsumer: {
         type: "object",
-        required: ["id", "modelProfileId", "agentId", "liteLLMTeamId", "keyAlias", "keyFingerprint", "status", "createdAt"],
-        properties: { id: { type: "string" }, modelProfileId: { type: "string" }, agentId: { type: "string" }, liteLLMTeamId: { type: "string" }, keyAlias: { type: "string" }, keyFingerprint: { type: "string" }, status: { type: "string", enum: ["ACTIVE", "REVOKED"] }, createdAt: { type: "string", format: "date-time" }, revokedAt: { type: "string", format: "date-time" } },
+        required: ["id", "modelProfileId", "instanceId", "liteLLMTeamId", "keyAlias", "keyFingerprint", "status", "createdAt"],
+        properties: { id: { type: "string" }, modelProfileId: { type: "string" }, instanceId: { type: "string" }, liteLLMTeamId: { type: "string" }, keyAlias: { type: "string" }, keyFingerprint: { type: "string" }, status: { type: "string", enum: ["ACTIVE", "REVOKED"] }, createdAt: { type: "string", format: "date-time" }, revokedAt: { type: "string", format: "date-time" } },
       },
       ModelProfileAuditEvent: {
         type: "object",
         required: ["eventId", "timestamp", "actor", "type", "modelProfileId", "configurationHash", "complianceDomain", "result", "reason"],
-        properties: { eventId: { type: "string" }, timestamp: { type: "string", format: "date-time" }, actor: { type: "string" }, type: { type: "string" }, modelProfileId: { type: "string" }, agentId: { type: "string" }, configurationHash: { type: "string" }, complianceDomain: { type: "string", enum: ["CN_MAINLAND", "GLOBAL"] }, result: { type: "string", enum: ["SUCCESS", "FAILED"] }, reason: { type: "string" } },
+        properties: { eventId: { type: "string" }, timestamp: { type: "string", format: "date-time" }, actor: { type: "string" }, type: { type: "string" }, modelProfileId: { type: "string" }, instanceId: { type: "string" }, configurationHash: { type: "string" }, complianceDomain: { type: "string", enum: ["CN_MAINLAND", "GLOBAL"] }, result: { type: "string", enum: ["SUCCESS", "FAILED"] }, reason: { type: "string" } },
       },
       ProviderModelSelection: {
         type: "object",

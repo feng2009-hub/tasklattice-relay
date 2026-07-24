@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 
 export interface SecretStore {
-  put(workspaceId: string, virtualEmployeeId: string, secret: string): Promise<string>;
+  put(projectId: string, virtualEmployeeId: string, secret: string): Promise<string>;
   get(reference: string): Promise<string>;
   delete(reference: string): Promise<void>;
 }
@@ -9,11 +9,11 @@ export interface SecretStore {
 const memorySecrets = new Map<string, string>();
 
 export class DevelopmentSecretStore implements SecretStore {
-  async put(workspaceId: string, virtualEmployeeId: string, secret: string): Promise<string> {
+  async put(projectId: string, virtualEmployeeId: string, secret: string): Promise<string> {
     if (process.env.NODE_ENV === "production") {
       throw new Error("Secret storage failed: Kubernetes Secret storage is required in production.");
     }
-    const reference = `memory://${workspaceId}/${virtualEmployeeId}`;
+    const reference = `memory://${projectId}/${virtualEmployeeId}`;
     memorySecrets.set(reference, secret);
     return reference;
   }
@@ -36,7 +36,7 @@ export class KubernetesSecretStore implements SecretStore {
   private readonly api = `https://${process.env.KUBERNETES_SERVICE_HOST}:${process.env.KUBERNETES_SERVICE_PORT_HTTPS ?? "443"}`;
   private token?: string;
 
-  async put(workspaceId: string, virtualEmployeeId: string, secret: string): Promise<string> {
+  async put(projectId: string, virtualEmployeeId: string, secret: string): Promise<string> {
     const name = `tali-ve-${virtualEmployeeId.toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 48)}`;
     const path = `/api/v1/namespaces/${encodeURIComponent(this.namespace)}/secrets/${encodeURIComponent(name)}`;
     const body = {
@@ -47,7 +47,7 @@ export class KubernetesSecretStore implements SecretStore {
         namespace: this.namespace,
         labels: {
           "app.kubernetes.io/managed-by": "tasklattice",
-          "tali.io/workspace-id": workspaceId.slice(0, 63),
+          "tali.io/project-id": projectId.slice(0, 63),
           "tali.io/virtual-employee-id": virtualEmployeeId.slice(0, 63),
         },
       },

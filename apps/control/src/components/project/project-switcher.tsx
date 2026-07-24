@@ -41,10 +41,10 @@ import {
   ToastTitle,
   ToastViewport,
 } from "@/components/ui/toast";
-import { useWorkspace } from "@/hooks/use-workspace";
-import { useWorkspacePermissions } from "@/hooks/use-workspace-permissions";
+import { useProject } from "@/hooks/use-project";
+import { useProjectPermissions } from "@/hooks/use-project-permissions";
 import { cn } from "@/lib/utils";
-import { createWorkspace } from "@/services/workspace";
+import { createProject } from "@/services/project";
 
 export function ProjectSwitcher({
   collapsed = false,
@@ -56,15 +56,15 @@ export function ProjectSwitcher({
   user: AuthUser | null;
 }) {
   const {
-    availableWorkspaces: projects,
-    currentWorkspace: currentProject,
+    availableProjects: projects,
+    currentProject: currentProject,
     isSwitching,
     loading,
-    refreshWorkspaces,
+    refreshProjects,
     selectProject,
-    switchingWorkspaceId,
-  } = useWorkspace();
-  const permissions = useWorkspacePermissions();
+    switchingProjectId,
+  } = useProject();
+  const permissions = useProjectPermissions();
   const [open, setOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [switchError, setSwitchError] = useState("");
@@ -141,7 +141,7 @@ export function ProjectSwitcher({
           </DropdownMenuLabel>
           {projects.map((project) => {
             const current = project.id === currentProject?.id;
-            const switching = project.id === switchingWorkspaceId;
+            const switching = project.id === switchingProjectId;
             return (
               <DropdownMenuItem
                 key={project.id}
@@ -178,7 +178,7 @@ export function ProjectSwitcher({
           ) : null}
           <DropdownMenuSeparator />
           <DropdownMenuItem
-            disabled={!permissions.canCreateWorkspace}
+            disabled={!permissions.canCreateProject}
             onSelect={() => {
               setOpen(false);
               setCreateOpen(true);
@@ -189,13 +189,21 @@ export function ProjectSwitcher({
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem asChild>
-            <Link to="/settings/workspaces" onClick={() => setOpen(false)}>
+            <Link
+              to="/$projectId/setting"
+              params={{ projectId: currentProject?.id ?? "individual" }}
+              onClick={() => setOpen(false)}
+            >
               <Settings className="size-4" />
               Settings
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
-            <Link to="/mcp" onClick={() => setOpen(false)}>
+            <Link
+              to="/$projectId/mcp-servers"
+              params={{ projectId: currentProject?.id ?? "individual" }}
+              onClick={() => setOpen(false)}
+            >
               <Unplug className="size-4" />
               Integrations
             </Link>
@@ -215,7 +223,7 @@ export function ProjectSwitcher({
         open={createOpen}
         onOpenChange={setCreateOpen}
         onCreated={async (projectId, projectName) => {
-          await refreshWorkspaces();
+          await refreshProjects();
           await selectProject(projectId);
           setToastProject(projectName);
         }}
@@ -260,7 +268,7 @@ function CreateProjectDialog({
 }) {
   const [name, setName] = useState("");
   const create = useMutation({
-    mutationFn: () => createWorkspace({ name: name.trim() }),
+    mutationFn: () => createProject({ name: name.trim() }),
     onSuccess: async (project) => {
       await onCreated(project.id, project.name);
       setName("");

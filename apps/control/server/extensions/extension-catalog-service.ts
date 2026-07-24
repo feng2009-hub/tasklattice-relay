@@ -12,7 +12,7 @@ import type {
   UpdateMcpServerDefinitionInput,
   UpdateSkillDefinitionInput,
 } from "@tasklattice/contracts";
-import { AgentStore } from "../data/agent-store";
+import { ProjectStore } from "../projects/project-store";
 
 function resourceId(name: string): string {
   const slug = name
@@ -36,7 +36,7 @@ function assertJsonObject(input: string): void {
 }
 
 export class ExtensionCatalogService {
-  constructor(readonly store = new AgentStore()) {}
+  constructor(readonly store = new ProjectStore()) {}
 
   async catalog(): Promise<ExtensionCatalog> {
     return {

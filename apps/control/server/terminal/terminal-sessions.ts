@@ -36,7 +36,7 @@ export function createTerminalSession(
   return {
     id,
     expiresAt: new Date(expiresAt).toISOString(),
-    websocketUrl: `/api/v1/terminal-sessions/${id}/ws?token=${token}&project_id=${encodeURIComponent(projectId)}`,
+    websocketUrl: `/api/v1/projects/${encodeURIComponent(projectId)}/terminal-sessions/${id}/ws?token=${token}`,
   };
 }
 

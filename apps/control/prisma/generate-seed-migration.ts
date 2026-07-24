@@ -17,14 +17,14 @@ const statements: string[] = [
     (id, username, email, display_name, auth_provider)
    VALUES ('local-admin', 'admin', 'admin@tasklattice.local', 'Local Administrator', 'local')
    ON CONFLICT (id) DO NOTHING;`,
-  `INSERT INTO tasklattice.workspaces
+  `INSERT INTO tasklattice.projects
     (id, name, type, created_by)
    VALUES ('individual', 'AI Trading Agent', 'personal', 'local-admin')
    ON CONFLICT (id) DO NOTHING;`,
-  `INSERT INTO tasklattice.workspace_members
-    (workspace_id, user_id, role)
-   VALUES ('individual', 'local-admin', 'owner')
-   ON CONFLICT (workspace_id, user_id) DO NOTHING;`,
+  `INSERT INTO tasklattice.project_members
+    (project_id, user_id, role)
+   VALUES ('individual', 'local-admin', 'admin')
+   ON CONFLICT (project_id, user_id) DO NOTHING;`,
 ];
 
 const groups = [
@@ -37,18 +37,18 @@ const groups = [
 for (const [table, records] of groups) {
   for (const [sortOrder, record] of records.entries()) {
     statements.push(
-      `INSERT INTO tasklattice.${table} (workspace_id, id, payload, sort_order)
+      `INSERT INTO tasklattice.${table} (project_id, id, payload, sort_order)
        VALUES ('individual', ${literal(record.id)}, ${literal(JSON.stringify(record))}::jsonb, ${sortOrder})
-       ON CONFLICT (workspace_id, id) DO NOTHING;`,
+       ON CONFLICT (project_id, id) DO NOTHING;`,
     );
   }
 }
 
 for (const policy of new FilePolicyCatalogSource().load().policies) {
   statements.push(
-    `INSERT INTO tasklattice.sandbox_policies (workspace_id, id, payload, created_at)
+    `INSERT INTO tasklattice.sandbox_policies (project_id, id, payload, created_at)
      VALUES ('individual', ${literal(policy.id)}, ${literal(JSON.stringify(policy))}::jsonb, to_timestamp(0))
-     ON CONFLICT (workspace_id, id) DO NOTHING;`,
+     ON CONFLICT (project_id, id) DO NOTHING;`,
   );
 }
 

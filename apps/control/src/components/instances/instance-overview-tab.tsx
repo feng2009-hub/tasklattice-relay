@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import type { AgentPlatformPresentation } from "@/lib/agent-platforms";
 import { cn } from "@/lib/utils";
+import { useCurrentProjectId } from "@/hooks/use-project";
 import { endpointStatus, formatUptime, getCapabilityCounts, type InstanceAccessState } from "./instance-detail-model";
 import { CopyableValue, DefinitionList, DetailCardHeader, InstanceStatusBadge, RelativeTime } from "./instance-detail-shared";
 
@@ -49,6 +50,7 @@ function EndpointBadge({ agent }: { agent: Agent }) {
 }
 
 function ProvisioningSummary({ agent }: { agent: Agent }) {
+  const projectId = useCurrentProjectId();
   const state = resolveProvisioningState({ status: agent.status, ...(agent.provisioningStage ? { stage: agent.provisioningStage } : {}) });
   if (agent.status === "FAILED") {
     return (
@@ -56,7 +58,7 @@ function ProvisioningSummary({ agent }: { agent: Agent }) {
         <DetailCardHeader title="Instance creation failed" description="Provisioning stopped before the runtime became available." />
         <CardContent className="space-y-4">
           <p role="alert" className="flex gap-2 border-l-2 border-destructive bg-destructive/5 px-3 py-3 text-sm text-destructive"><AlertTriangle className="mt-0.5 size-4 shrink-0" />{agent.error ?? "The runtime did not return a failure summary."}</p>
-          <Button asChild variant="outline"><Link to="/agents/$agentId" params={{ agentId: agent.id }} search={{ tab: "auditor-log" }} hash="provisioning-logs">View error details</Link></Button>
+          <Button asChild variant="outline"><Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: agent.id }} search={{ tab: "auditor-log" }} hash="provisioning-logs">View error details</Link></Button>
         </CardContent>
       </Card>
     );
@@ -67,7 +69,7 @@ function ProvisioningSummary({ agent }: { agent: Agent }) {
       <CardContent className="space-y-3">
         <div className="flex items-center justify-between text-xs"><span>{state.statusLabel}</span><span className="tabular-nums text-muted-foreground">{state.progress}%</span></div>
         <Progress value={state.progress} aria-label="Instance creation progress" aria-valuetext={`${state.progress}% complete`} />
-        <Button asChild variant="link" className="h-auto min-h-0 p-0"><Link to="/agents/$agentId" params={{ agentId: agent.id }} search={{ tab: "auditor-log" }}>View auditor log</Link></Button>
+        <Button asChild variant="link" className="h-auto min-h-0 p-0"><Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: agent.id }} search={{ tab: "auditor-log" }}>View auditor log</Link></Button>
       </CardContent>
     </Card>
   );
@@ -81,6 +83,7 @@ export function InstanceOverviewTab({ access, agent, auditEvents, auditLoading, 
   modelProfileName?: string;
   platform: AgentPlatformPresentation;
 }) {
+  const projectId = useCurrentProjectId();
   const counts = getCapabilityCounts(agent);
   const activity = [
     ...(agent.status === "READY" ? [{ id: "ready", title: "Instance is ready", occurredAt: agent.updatedAt, status: "success" as const }] : []),
@@ -108,7 +111,7 @@ export function InstanceOverviewTab({ access, agent, auditEvents, auditLoading, 
             ]} />
             <div className="grid gap-3 border-t pt-4 sm:grid-cols-2">
               <AccessCard icon={Globe2} label="Agent Web UI" description="Interact with the running Agent." enabled={access.webUI.enabled} href={access.webUI.url} reason={access.webUI.disabledReason} external />
-              <AccessCard icon={SquareTerminal} label="Terminal" description="Open an interactive terminal for the running Agent." enabled={access.terminal.enabled} href={`/agents/${agent.id}?tab=terminal`} reason={access.terminal.disabledReason} />
+              <AccessCard icon={SquareTerminal} label="Terminal" description="Open an interactive terminal for the running Agent." enabled={access.terminal.enabled} href={`/${encodeURIComponent(projectId)}/instances/${agent.id}?tab=terminal`} reason={access.terminal.disabledReason} />
             </div>
           </CardContent>
         </Card>
@@ -124,7 +127,7 @@ export function InstanceOverviewTab({ access, agent, auditEvents, auditLoading, 
               { label: "Inference mode", value: "Platform managed" },
               { label: "Inference status", value: agent.modelProfileStatus?.replaceAll("_", " ") ?? "Unavailable" },
               { label: "Compliance", value: agent.modelProfileComplianceDomain === "CN_MAINLAND" ? "CN Mainland" : "Global" },
-              { label: "Model Profile", value: <Link to="/providers/model-profiles/$profileId" params={{ profileId: agent.modelProfileId }} className="font-medium text-primary underline underline-offset-4">{modelProfileName ?? "Managed model profile"}</Link> },
+              { label: "Model Profile", value: <Link to="/$projectId/setting/model-profiles/$profileId" params={{ projectId, profileId: agent.modelProfileId }} className="font-medium text-primary underline underline-offset-4">{modelProfileName ?? "Managed model profile"}</Link> },
               { label: "Endpoint status", value: <EndpointBadge agent={agent} /> },
               { label: "Endpoint URL", value: <CopyableValue value={agent.httpEndpoint?.url} externalUrl={agent.httpEndpoint?.url} /> },
             ]} />
@@ -141,7 +144,7 @@ export function InstanceOverviewTab({ access, agent, auditEvents, auditLoading, 
               { icon: Network, label: "MCP Servers", count: counts.mcpServers, hash: "mcp-servers" },
               { icon: BookOpen, label: "Knowledge Bases", count: counts.knowledgeBases, hash: "knowledge-bases" },
             ].map(({ icon: Icon, label, count, hash }) => (
-              <Link key={label} to="/agents/$agentId" params={{ agentId: agent.id }} search={{ tab: "capabilities" }} hash={hash} className="flex min-h-12 items-center gap-3 py-2 text-sm hover:text-primary focus-visible:outline-2">
+              <Link key={label} to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: agent.id }} search={{ tab: "capabilities" }} hash={hash} className="flex min-h-12 items-center gap-3 py-2 text-sm hover:text-primary focus-visible:outline-2">
                 <Icon className="size-4 text-primary" /><span>{label}</span><span className="ml-auto text-xs text-muted-foreground">{count} selected</span><ChevronRight className="size-4 text-muted-foreground" />
               </Link>
             ))}
@@ -171,7 +174,7 @@ export function InstanceOverviewTab({ access, agent, auditEvents, auditLoading, 
       </div>
 
       <Card>
-        <DetailCardHeader title="Recent activity" description="Observed events and status changes." action={<Button asChild variant="outline" size="sm"><Link to="/agents/$agentId" params={{ agentId: agent.id }} search={{ tab: "auditor-log" }}>View auditor log <ExternalLink /></Link></Button>} />
+        <DetailCardHeader title="Recent activity" description="Observed events and status changes." action={<Button asChild variant="outline" size="sm"><Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: agent.id }} search={{ tab: "auditor-log" }}>View auditor log <ExternalLink /></Link></Button>} />
         <CardContent>
           {auditLoading && activity.length <= 1 ? <p className="py-5 text-sm text-muted-foreground">Loading observed activity…</p> : (
             <ol className="grid gap-4 py-2 sm:grid-cols-2 xl:grid-cols-4">

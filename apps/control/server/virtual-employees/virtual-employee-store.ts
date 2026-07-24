@@ -79,7 +79,7 @@ function scope(row: Record<string, unknown>): AccessScopeBinding {
 function employee(row: EmployeeRow): VirtualEmployee {
   return {
     id: row.id,
-    projectId: row.workspaceId,
+    projectId: row.projectId,
     name: row.name,
     displayName: row.displayName,
     ...(row.description ? { description: row.description } : {}),
@@ -107,13 +107,13 @@ const include = {
 
 export class VirtualEmployeeStore {
   constructor(
-    readonly workspaceId: string,
+    readonly projectId: string,
     private readonly db: PrismaClient = prisma(),
   ) {}
 
   async list(): Promise<VirtualEmployee[]> {
     const rows = await this.db.virtualEmployeeRecord.findMany({
-      where: { workspaceId: this.workspaceId },
+      where: { projectId: this.projectId },
       include,
       orderBy: { updatedAt: "desc" },
     });
@@ -122,7 +122,7 @@ export class VirtualEmployeeStore {
 
   async get(id: string): Promise<VirtualEmployee | undefined> {
     const row = await this.db.virtualEmployeeRecord.findUnique({
-      where: { workspaceId_id: { workspaceId: this.workspaceId, id } },
+      where: { projectId_id: { projectId: this.projectId, id } },
       include,
     });
     return row ? employee(row as unknown as EmployeeRow) : undefined;
@@ -131,7 +131,7 @@ export class VirtualEmployeeStore {
   async create(input: Omit<VirtualEmployee, "modelAccess" | "identities" | "accessScopes" | "boundInstanceIds">): Promise<VirtualEmployee> {
     await this.db.virtualEmployeeRecord.create({
       data: {
-        workspaceId: this.workspaceId,
+        projectId: this.projectId,
         id: input.id,
         name: input.name,
         displayName: input.displayName,
@@ -151,7 +151,7 @@ export class VirtualEmployeeStore {
 
   async update(id: string, data: Partial<Pick<VirtualEmployee, "name" | "displayName" | "description" | "businessRole" | "ownerTeamId" | "environment" | "status" | "tags">>): Promise<VirtualEmployee> {
     await this.db.virtualEmployeeRecord.update({
-      where: { workspaceId_id: { workspaceId: this.workspaceId, id } },
+      where: { projectId_id: { projectId: this.projectId, id } },
       data: {
         ...Object.fromEntries(Object.entries(data).filter(([, value]) => value !== undefined)),
         ...(data.tags ? { tags: json(data.tags) } : {}),
@@ -184,9 +184,9 @@ export class VirtualEmployeeStore {
       lastSyncError: access.lastSyncError ?? null,
     };
     await this.db.virtualEmployeeModelAccessRecord.upsert({
-      where: { workspaceId_id: { workspaceId: this.workspaceId, id: access.id } },
+      where: { projectId_id: { projectId: this.projectId, id: access.id } },
       create: {
-        workspaceId: this.workspaceId,
+        projectId: this.projectId,
         id: access.id,
         virtualEmployeeId: access.virtualEmployeeId,
         ...data,
@@ -198,7 +198,7 @@ export class VirtualEmployeeStore {
   async attachIdentity(virtualEmployeeId: string, id: string, input: IdentityBindingInput): Promise<IdentityBinding> {
     const row = await this.db.identityBindingRecord.create({
       data: {
-        workspaceId: this.workspaceId,
+        projectId: this.projectId,
         id,
         virtualEmployeeId,
         identityType: input.identityType,
@@ -214,13 +214,13 @@ export class VirtualEmployeeStore {
   }
 
   async detachIdentity(id: string): Promise<boolean> {
-    return (await this.db.identityBindingRecord.deleteMany({ where: { workspaceId: this.workspaceId, id } })).count > 0;
+    return (await this.db.identityBindingRecord.deleteMany({ where: { projectId: this.projectId, id } })).count > 0;
   }
 
   async attachScope(virtualEmployeeId: string, id: string, input: AccessScopeBindingInput): Promise<AccessScopeBinding> {
     const row = await this.db.accessScopeBindingRecord.create({
       data: {
-        workspaceId: this.workspaceId,
+        projectId: this.projectId,
         id,
         virtualEmployeeId,
         resourceType: input.resourceType,
@@ -236,7 +236,7 @@ export class VirtualEmployeeStore {
 
   async updateScope(id: string, input: AccessScopeBindingInput): Promise<AccessScopeBinding> {
     const row = await this.db.accessScopeBindingRecord.update({
-      where: { workspaceId_id: { workspaceId: this.workspaceId, id } },
+      where: { projectId_id: { projectId: this.projectId, id } },
       data: {
         resourceType: input.resourceType,
         resourceId: input.resourceId,
@@ -250,25 +250,25 @@ export class VirtualEmployeeStore {
   }
 
   async detachScope(id: string): Promise<boolean> {
-    return (await this.db.accessScopeBindingRecord.deleteMany({ where: { workspaceId: this.workspaceId, id } })).count > 0;
+    return (await this.db.accessScopeBindingRecord.deleteMany({ where: { projectId: this.projectId, id } })).count > 0;
   }
 
   async bindInstance(instanceId: string, virtualEmployeeId: string, boundBy: string): Promise<void> {
     await this.db.agentInstanceVirtualEmployeeBindingRecord.upsert({
-      where: { workspaceId_instanceId: { workspaceId: this.workspaceId, instanceId } },
-      create: { workspaceId: this.workspaceId, id: crypto.randomUUID(), instanceId, virtualEmployeeId, boundBy },
+      where: { projectId_instanceId: { projectId: this.projectId, instanceId } },
+      create: { projectId: this.projectId, id: crypto.randomUUID(), instanceId, virtualEmployeeId, boundBy },
       update: { virtualEmployeeId, boundBy, boundAt: new Date() },
     });
   }
 
   async unbindInstance(instanceId: string): Promise<void> {
-    await this.db.agentInstanceVirtualEmployeeBindingRecord.deleteMany({ where: { workspaceId: this.workspaceId, instanceId } });
+    await this.db.agentInstanceVirtualEmployeeBindingRecord.deleteMany({ where: { projectId: this.projectId, instanceId } });
   }
 
   async audit(event: VirtualEmployeeAuditEvent, metadata: Record<string, unknown> = {}): Promise<void> {
     await this.db.virtualEmployeeAuditRecord.create({
       data: {
-        workspaceId: this.workspaceId,
+        projectId: this.projectId,
         id: event.id,
         virtualEmployeeId: event.virtualEmployeeId,
         eventType: event.type,
@@ -283,7 +283,7 @@ export class VirtualEmployeeStore {
 
   async auditEvents(virtualEmployeeId: string): Promise<VirtualEmployeeAuditEvent[]> {
     const rows = await this.db.virtualEmployeeAuditRecord.findMany({
-      where: { workspaceId: this.workspaceId, virtualEmployeeId },
+      where: { projectId: this.projectId, virtualEmployeeId },
       orderBy: { createdAt: "desc" },
     });
     return rows.map((row) => ({
@@ -299,11 +299,11 @@ export class VirtualEmployeeStore {
 
   async delete(id: string): Promise<void> {
     await this.db.$transaction([
-      this.db.identityBindingRecord.deleteMany({ where: { workspaceId: this.workspaceId, virtualEmployeeId: id } }),
-      this.db.accessScopeBindingRecord.deleteMany({ where: { workspaceId: this.workspaceId, virtualEmployeeId: id } }),
-      this.db.virtualEmployeeAuditRecord.deleteMany({ where: { workspaceId: this.workspaceId, virtualEmployeeId: id } }),
-      this.db.virtualEmployeeModelAccessRecord.deleteMany({ where: { workspaceId: this.workspaceId, virtualEmployeeId: id } }),
-      this.db.virtualEmployeeRecord.delete({ where: { workspaceId_id: { workspaceId: this.workspaceId, id } } }),
+      this.db.identityBindingRecord.deleteMany({ where: { projectId: this.projectId, virtualEmployeeId: id } }),
+      this.db.accessScopeBindingRecord.deleteMany({ where: { projectId: this.projectId, virtualEmployeeId: id } }),
+      this.db.virtualEmployeeAuditRecord.deleteMany({ where: { projectId: this.projectId, virtualEmployeeId: id } }),
+      this.db.virtualEmployeeModelAccessRecord.deleteMany({ where: { projectId: this.projectId, virtualEmployeeId: id } }),
+      this.db.virtualEmployeeRecord.delete({ where: { projectId_id: { projectId: this.projectId, id } } }),
     ]);
   }
 }

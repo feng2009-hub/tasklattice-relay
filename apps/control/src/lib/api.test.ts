@@ -3,19 +3,19 @@ import { projectScopedPath } from "./api";
 
 describe("projectScopedPath", () => {
   it("adds the active project to every resource request", () => {
-    expect(projectScopedPath("/api/v1/agents", "ai trading")).toBe(
-      "/api/v1/agents?project_id=ai+trading",
+    expect(projectScopedPath("/api/v1/instances", "ai trading")).toBe(
+      "/api/v1/projects/ai%20trading/instances",
     );
   });
 
   it("preserves existing query parameters and replaces stale project context", () => {
     expect(
       projectScopedPath(
-        "/api/v1/costs/summary?timezone=Asia%2FShanghai&project_id=old",
+        "/api/v1/projects/old/costs/summary?timezone=Asia%2FShanghai",
         "web3",
       ),
     ).toBe(
-      "/api/v1/costs/summary?timezone=Asia%2FShanghai&project_id=web3",
+      "/api/v1/projects/web3/costs/summary?timezone=Asia%2FShanghai",
     );
   });
 

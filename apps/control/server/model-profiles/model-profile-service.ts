@@ -8,7 +8,7 @@ import type {
   ModelProfileBinding,
   UpdateModelProfileInput,
 } from "@tasklattice/contracts";
-import { AgentStore } from "../data/agent-store";
+import { ProjectStore } from "../projects/project-store";
 import { LiteLLMClient, type LiteLLMAdminClient } from "../providers/litellm-client";
 
 const defaultCapabilities = {
@@ -25,7 +25,7 @@ const defaultCapabilities = {
 } as const;
 
 export class ModelProfileResolver {
-  constructor(private readonly store: AgentStore) {}
+  constructor(private readonly store: ProjectStore) {}
 
   async resolve(id?: string): Promise<ModelProfile> {
     let profile: ModelProfile;
@@ -53,7 +53,7 @@ export class ModelProfileService {
   readonly resolver: ModelProfileResolver;
 
   constructor(
-    readonly store = new AgentStore(),
+    readonly store = new ProjectStore(),
     readonly litellm: LiteLLMAdminClient = new LiteLLMClient(),
   ) {
     this.resolver = new ModelProfileResolver(store);
@@ -77,8 +77,6 @@ export class ModelProfileService {
   async create(input: CreateModelProfileInput, actor = "control-api"): Promise<ModelProfile> {
     await this.ensureDefaultGateway();
     if (!await this.store.getInferenceGateway(input.gatewayId)) throw new Error("Select an available LiteLLM Gateway.");
-    if (input.isDefault && (await this.store.listModelProfiles()).some((profile) => profile.isDefault))
-      throw new Error("A default Model Profile already exists. Change the existing default first.");
     const now = new Date().toISOString();
     const id = randomUUID();
     const profile: ModelProfile = {
@@ -105,14 +103,20 @@ export class ModelProfileService {
     await this.store.saveModelProfile(profile);
     await this.audit(profile, "model_profile.created", actor, "SUCCESS", "Model Profile definition stored.");
     const refreshed = await this.refresh(id, actor);
-    if (input.isDefault && refreshed.status === "READY") return this.update(id, { isDefault: true }, actor);
+    const hasDefault = (await this.store.listModelProfiles()).some(
+      (candidate) => candidate.isDefault,
+    );
+    if (refreshed.status === "READY" && (input.isDefault || !hasDefault))
+      return this.update(id, { isDefault: true }, actor);
     return refreshed;
   }
 
   async update(id: string, input: UpdateModelProfileInput, actor = "control-api"): Promise<ModelProfile> {
     const current = await this.require(id);
-    if (input.isDefault && !current.isDefault && (await this.store.listModelProfiles()).some((profile) => profile.isDefault && profile.id !== id))
-      throw new Error("A default Model Profile already exists. Clear it before assigning another.");
+    if (input.isDefault === false && current.isDefault)
+      throw new Error("Choose another default Model Profile before changing this one.");
+    if (input.suspended === true && current.isDefault)
+      throw new Error("Choose another default Model Profile before suspending this one.");
     if (input.isDefault && current.status !== "READY") throw new Error("Only a READY Model Profile can be the default.");
     const values = withoutUndefined(input);
     const next: ModelProfile = {
@@ -132,7 +136,8 @@ export class ModelProfileService {
       observedGeneration: current.observedGeneration + 1,
       validationMessage: current.validationMessage,
     };
-    await this.store.saveModelProfile(next);
+    if (input.isDefault) await this.store.saveDefaultModelProfile(next);
+    else await this.store.saveModelProfile(next);
     await this.audit(next, input.suspended === true ? "model_profile.suspended" : "model_profile.updated", actor, "SUCCESS", "Model Profile policy updated.");
     return this.withConsumerCount(next);
   }
@@ -322,6 +327,8 @@ export class ModelProfileService {
 
   async delete(id: string, actor = "control-api"): Promise<void> {
     const profile = await this.require(id);
+    if (profile.isDefault)
+      throw new Error("Choose another default Model Profile before deleting this one.");
     if ((await this.consumers(id)).length) throw new Error("Remove all Consumers before deleting this Model Profile.");
     if (profile.liteLLMTeamId && this.litellm.deleteModelProfileTeam)
       await this.litellm.deleteModelProfileTeam(profile.liteLLMTeamId);

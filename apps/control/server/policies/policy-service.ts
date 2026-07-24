@@ -10,7 +10,7 @@ import {
 } from "@tasklattice/contracts";
 import { parse, stringify } from "yaml";
 import { z } from "zod";
-import { AgentStore } from "../data/agent-store";
+import { ProjectStore } from "../projects/project-store";
 
 const recordSchema = z.record(z.string(), z.unknown());
 const catalogFileSchema = z.object({
@@ -162,7 +162,7 @@ export class FilePolicyCatalogSource implements PolicyCatalogSource {
 
 export class PolicyService {
   constructor(
-    readonly store = new AgentStore(),
+    readonly store = new ProjectStore(),
     readonly source?: PolicyCatalogSource,
   ) {}
 

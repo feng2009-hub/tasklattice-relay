@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 const corsHeaders = {
-  "access-control-allow-headers": "authorization, content-type, x-project-id",
+  "access-control-allow-headers": "authorization, content-type",
   "access-control-allow-methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
   "access-control-allow-origin": process.env.TALI_CORS_ORIGIN ?? "*",
 };

@@ -49,7 +49,7 @@ export class VirtualEmployeeService {
     const now = new Date().toISOString();
     await this.store.create({
       id,
-      projectId: this.store.workspaceId,
+      projectId: this.store.projectId,
       name: input.name,
       displayName: input.displayName,
       ...(input.description ? { description: input.description } : {}),
@@ -111,13 +111,13 @@ export class VirtualEmployeeService {
     try {
       const teamAlias = employee.ownerTeamId
         ? `tali-${slug(employee.ownerTeamId)}`
-        : `tali-${slug(this.store.workspaceId)}`;
+        : `tali-${slug(this.store.projectId)}`;
       const teamId = desired.litellmTeamId
         ?? await this.requireAdapter("ensureVirtualEmployeeTeam")(teamAlias, this.metadata(employee));
       const key = await this.requireAdapter("createVirtualEmployeeKey")(this.keyInput(employee, { ...desired, litellmTeamId: teamId }));
       let secretReference: string;
       try {
-        secretReference = await this.secrets.put(this.store.workspaceId, id, key.secret);
+        secretReference = await this.secrets.put(this.store.projectId, id, key.secret);
       } catch (error) {
         await this.litellm.revokeKey(key.tokenId).catch(() => undefined);
         throw error;
@@ -171,7 +171,7 @@ export class VirtualEmployeeService {
     if (!access?.litellmKeyId || !access.secretReference) throw new Error("Provision Model Access before rotating the credential.");
     const next = await this.requireAdapter("createVirtualEmployeeKey")(this.keyInput(employee, access));
     try {
-      await this.secrets.put(this.store.workspaceId, id, next.secret);
+      await this.secrets.put(this.store.projectId, id, next.secret);
       const nextExpiry = expiresAt(access.keyDuration);
       await this.store.saveModelAccess({
         ...access,
@@ -329,7 +329,7 @@ export class VirtualEmployeeService {
       provider: "litellm",
       ...(input.litellmTeamId ? { litellmTeamId: input.litellmTeamId } : current?.litellmTeamId ? { litellmTeamId: current.litellmTeamId } : {}),
       ...(current?.litellmKeyId ? { litellmKeyId: current.litellmKeyId } : {}),
-      keyAlias: `tali-${slug(this.store.workspaceId)}-${slug(name)}`,
+      keyAlias: `tali-${slug(this.store.projectId)}-${slug(name)}`,
       ...(current?.keyLastFour ? { keyLastFour: current.keyLastFour } : {}),
       allowedModels: input.allowedModels,
       accessGroups: input.accessGroups,
@@ -368,7 +368,7 @@ export class VirtualEmployeeService {
   private metadata(employee: VirtualEmployee): Record<string, string> {
     return {
       managed_by: "tali",
-      tali_project_id: this.store.workspaceId,
+      tali_project_id: this.store.projectId,
       tali_virtual_employee_id: employee.id,
       environment: employee.environment,
       ...(employee.ownerTeamId ? { owner_team_id: employee.ownerTeamId } : {}),

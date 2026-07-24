@@ -101,6 +101,48 @@ describe("Model Profile validation", () => {
     expect(profile.conditions).toContainEqual(expect.objectContaining({ type: "COMPLIANCE", status: "PASS" }));
   });
 
+  it("atomically replaces the Project default Model Profile", async () => {
+    const store = createTestStore();
+    const service = new ModelProfileService(store, adapter({
+      exists: true,
+      modelCount: 1,
+      complianceDomains: ["CN_MAINLAND"],
+      complianceUnknown: false,
+      capabilities,
+    }));
+    const first = await service.create(input());
+    const second = await service.create({
+      ...input(),
+      name: "Interactive inference",
+      publicModelAlias: "interactive-chat",
+      isDefault: false,
+    });
+
+    await service.update(second.id, { isDefault: true });
+
+    expect((await service.get(first.id))?.isDefault).toBe(false);
+    expect((await service.get(second.id))?.isDefault).toBe(true);
+    expect((await service.resolver.resolveDefault()).id).toBe(second.id);
+  });
+
+  it("keeps the Project default usable until another Profile replaces it", async () => {
+    const service = new ModelProfileService(createTestStore(), adapter({
+      exists: true,
+      modelCount: 1,
+      complianceDomains: ["CN_MAINLAND"],
+      complianceUnknown: false,
+      capabilities,
+    }));
+    const profile = await service.create(input());
+
+    await expect(service.update(profile.id, { isDefault: false }))
+      .rejects.toThrow("Choose another default");
+    await expect(service.update(profile.id, { suspended: true }))
+      .rejects.toThrow("Choose another default");
+    await expect(service.delete(profile.id))
+      .rejects.toThrow("Choose another default");
+  });
+
   it("rejects CN/GLOBAL mixing", async () => {
     const service = new ModelProfileService(createTestStore(), adapter({
       exists: true,
@@ -171,12 +213,18 @@ describe("ModelProfileResolver", () => {
     await expect(new ModelProfileResolver(store).resolveDefault()).rejects.toThrow("Multiple default");
   });
 
-  it("does not resolve a suspended profile", async () => {
+  it("does not resolve an explicitly selected suspended profile", async () => {
     const store = createTestStore();
     const service = new ModelProfileService(store, adapter({ exists: true, modelCount: 1, complianceDomains: ["CN_MAINLAND"], complianceUnknown: false, capabilities }));
-    const ready = await service.create(input());
-    await service.update(ready.id, { suspended: true });
-    await expect(service.resolver.resolveDefault()).rejects.toThrow("suspended");
+    await service.create(input());
+    const selected = await service.create({
+      ...input(),
+      name: "Suspendable inference",
+      publicModelAlias: "suspendable-chat",
+      isDefault: false,
+    });
+    await service.update(selected.id, { suspended: true });
+    await expect(service.resolver.resolve(selected.id)).rejects.toThrow("suspended");
   });
 
   it("binds an explicitly selected READY profile instead of the default", async () => {
@@ -209,7 +257,13 @@ describe("Model Profile deletion", () => {
     const store = createTestStore();
     const client = adapter({ exists: true, modelCount: 1, complianceDomains: ["CN_MAINLAND"], complianceUnknown: false, capabilities });
     const service = new ModelProfileService(store, client);
-    const profile = await service.create(input());
+    await service.create(input());
+    const profile = await service.create({
+      ...input(),
+      name: "Removable inference",
+      publicModelAlias: "removable-chat",
+      isDefault: false,
+    });
     await service.bindAgent("agent-consumer", profile.id);
 
     await expect(service.delete(profile.id)).rejects.toThrow("Remove all Consumers");

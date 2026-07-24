@@ -22,12 +22,12 @@ details of the Profile.
 
 The Models navigation contains:
 
-- **Model Profiles**: the primary workspace for profile readiness, upstream
+- **Model Profiles**: the primary settings surface for profile readiness, upstream
   inventory, creation, and consumption.
 - **Cost**: usage and cost evidence across profiles, models, connections, and
   Instances.
 
-The Model Profiles workspace has two ordered scopes:
+The Model Profiles settings surface has two ordered scopes:
 
 1. **Profiles** — reusable choices exposed to Agent and Instance workflows.
 2. **Upstream resource pool** — provider credentials and model deployments
@@ -68,7 +68,7 @@ claims that every registered model belongs to the selected Profile.
 ### Add an upstream
 
 The Provider registration drawer is opened inside the Model Profiles
-workspace. Provider selection, credential configuration, model discovery, and
+surface. Provider selection, credential configuration, model discovery, and
 registration remain one progressive flow, but their purpose is framed as
 supplying the upstream pool for Profiles.
 

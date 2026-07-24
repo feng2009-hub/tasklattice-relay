@@ -1,5 +1,5 @@
 CREATE TABLE "tasklattice"."virtual_employees" (
-    "workspace_id" TEXT NOT NULL,
+    "project_id" TEXT NOT NULL,
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "display_name" TEXT NOT NULL,
@@ -12,21 +12,21 @@ CREATE TABLE "tasklattice"."virtual_employees" (
     "created_by" TEXT NOT NULL,
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "virtual_employees_pkey" PRIMARY KEY ("workspace_id", "id"),
-    CONSTRAINT "virtual_employees_workspace_id_fkey"
-      FOREIGN KEY ("workspace_id") REFERENCES "tasklattice"."workspaces"("id")
+    CONSTRAINT "virtual_employees_pkey" PRIMARY KEY ("project_id", "id"),
+    CONSTRAINT "virtual_employees_project_id_fkey"
+      FOREIGN KEY ("project_id") REFERENCES "tasklattice"."projects"("id")
       ON DELETE CASCADE ON UPDATE CASCADE
 );
 
-CREATE UNIQUE INDEX "virtual_employees_workspace_id_name_key"
-  ON "tasklattice"."virtual_employees"("workspace_id", "name");
-CREATE INDEX "virtual_employees_workspace_id_status_idx"
-  ON "tasklattice"."virtual_employees"("workspace_id", "status");
-CREATE INDEX "virtual_employees_workspace_id_owner_team_id_idx"
-  ON "tasklattice"."virtual_employees"("workspace_id", "owner_team_id");
+CREATE UNIQUE INDEX "virtual_employees_project_id_name_key"
+  ON "tasklattice"."virtual_employees"("project_id", "name");
+CREATE INDEX "virtual_employees_project_id_status_idx"
+  ON "tasklattice"."virtual_employees"("project_id", "status");
+CREATE INDEX "virtual_employees_project_id_owner_team_id_idx"
+  ON "tasklattice"."virtual_employees"("project_id", "owner_team_id");
 
 CREATE TABLE "tasklattice"."virtual_employee_model_access" (
-    "workspace_id" TEXT NOT NULL,
+    "project_id" TEXT NOT NULL,
     "id" TEXT NOT NULL,
     "virtual_employee_id" TEXT NOT NULL,
     "provider" TEXT NOT NULL,
@@ -50,22 +50,22 @@ CREATE TABLE "tasklattice"."virtual_employee_model_access" (
     "last_sync_error" TEXT,
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "virtual_employee_model_access_pkey" PRIMARY KEY ("workspace_id", "id"),
-    CONSTRAINT "virtual_employee_model_access_workspace_id_fkey"
-      FOREIGN KEY ("workspace_id") REFERENCES "tasklattice"."workspaces"("id")
+    CONSTRAINT "virtual_employee_model_access_pkey" PRIMARY KEY ("project_id", "id"),
+    CONSTRAINT "virtual_employee_model_access_project_id_fkey"
+      FOREIGN KEY ("project_id") REFERENCES "tasklattice"."projects"("id")
       ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "virtual_employee_model_access_employee_fkey"
-      FOREIGN KEY ("workspace_id", "virtual_employee_id")
-      REFERENCES "tasklattice"."virtual_employees"("workspace_id", "id")
+      FOREIGN KEY ("project_id", "virtual_employee_id")
+      REFERENCES "tasklattice"."virtual_employees"("project_id", "id")
       ON DELETE RESTRICT ON UPDATE CASCADE
 );
 CREATE UNIQUE INDEX "virtual_employee_model_access_employee_unique"
-  ON "tasklattice"."virtual_employee_model_access"("workspace_id", "virtual_employee_id");
-CREATE INDEX "virtual_employee_model_access_workspace_employee_idx"
-  ON "tasklattice"."virtual_employee_model_access"("workspace_id", "virtual_employee_id");
+  ON "tasklattice"."virtual_employee_model_access"("project_id", "virtual_employee_id");
+CREATE INDEX "virtual_employee_model_access_project_employee_idx"
+  ON "tasklattice"."virtual_employee_model_access"("project_id", "virtual_employee_id");
 
 CREATE TABLE "tasklattice"."identity_bindings" (
-    "workspace_id" TEXT NOT NULL,
+    "project_id" TEXT NOT NULL,
     "id" TEXT NOT NULL,
     "virtual_employee_id" TEXT NOT NULL,
     "identity_type" TEXT NOT NULL,
@@ -77,20 +77,20 @@ CREATE TABLE "tasklattice"."identity_bindings" (
     "status" TEXT NOT NULL,
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "identity_bindings_pkey" PRIMARY KEY ("workspace_id", "id"),
-    CONSTRAINT "identity_bindings_workspace_id_fkey"
-      FOREIGN KEY ("workspace_id") REFERENCES "tasklattice"."workspaces"("id")
+    CONSTRAINT "identity_bindings_pkey" PRIMARY KEY ("project_id", "id"),
+    CONSTRAINT "identity_bindings_project_id_fkey"
+      FOREIGN KEY ("project_id") REFERENCES "tasklattice"."projects"("id")
       ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "identity_bindings_employee_fkey"
-      FOREIGN KEY ("workspace_id", "virtual_employee_id")
-      REFERENCES "tasklattice"."virtual_employees"("workspace_id", "id")
+      FOREIGN KEY ("project_id", "virtual_employee_id")
+      REFERENCES "tasklattice"."virtual_employees"("project_id", "id")
       ON DELETE RESTRICT ON UPDATE CASCADE
 );
-CREATE INDEX "identity_bindings_workspace_employee_idx"
-  ON "tasklattice"."identity_bindings"("workspace_id", "virtual_employee_id");
+CREATE INDEX "identity_bindings_project_employee_idx"
+  ON "tasklattice"."identity_bindings"("project_id", "virtual_employee_id");
 
 CREATE TABLE "tasklattice"."access_scope_bindings" (
-    "workspace_id" TEXT NOT NULL,
+    "project_id" TEXT NOT NULL,
     "id" TEXT NOT NULL,
     "virtual_employee_id" TEXT NOT NULL,
     "resource_type" TEXT NOT NULL,
@@ -101,41 +101,41 @@ CREATE TABLE "tasklattice"."access_scope_bindings" (
     "approval_status" TEXT NOT NULL,
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "access_scope_bindings_pkey" PRIMARY KEY ("workspace_id", "id"),
-    CONSTRAINT "access_scope_bindings_workspace_id_fkey"
-      FOREIGN KEY ("workspace_id") REFERENCES "tasklattice"."workspaces"("id")
+    CONSTRAINT "access_scope_bindings_pkey" PRIMARY KEY ("project_id", "id"),
+    CONSTRAINT "access_scope_bindings_project_id_fkey"
+      FOREIGN KEY ("project_id") REFERENCES "tasklattice"."projects"("id")
       ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "access_scope_bindings_employee_fkey"
-      FOREIGN KEY ("workspace_id", "virtual_employee_id")
-      REFERENCES "tasklattice"."virtual_employees"("workspace_id", "id")
+      FOREIGN KEY ("project_id", "virtual_employee_id")
+      REFERENCES "tasklattice"."virtual_employees"("project_id", "id")
       ON DELETE RESTRICT ON UPDATE CASCADE
 );
-CREATE INDEX "access_scope_bindings_workspace_employee_idx"
-  ON "tasklattice"."access_scope_bindings"("workspace_id", "virtual_employee_id");
+CREATE INDEX "access_scope_bindings_project_employee_idx"
+  ON "tasklattice"."access_scope_bindings"("project_id", "virtual_employee_id");
 
 CREATE TABLE "tasklattice"."agent_instance_virtual_employee_bindings" (
-    "workspace_id" TEXT NOT NULL,
+    "project_id" TEXT NOT NULL,
     "id" TEXT NOT NULL,
     "instance_id" TEXT NOT NULL,
     "virtual_employee_id" TEXT NOT NULL,
     "bound_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "bound_by" TEXT NOT NULL,
-    CONSTRAINT "agent_instance_virtual_employee_bindings_pkey" PRIMARY KEY ("workspace_id", "id"),
-    CONSTRAINT "agent_instance_virtual_employee_bindings_workspace_id_fkey"
-      FOREIGN KEY ("workspace_id") REFERENCES "tasklattice"."workspaces"("id")
+    CONSTRAINT "agent_instance_virtual_employee_bindings_pkey" PRIMARY KEY ("project_id", "id"),
+    CONSTRAINT "agent_instance_virtual_employee_bindings_project_id_fkey"
+      FOREIGN KEY ("project_id") REFERENCES "tasklattice"."projects"("id")
       ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "agent_instance_virtual_employee_bindings_employee_fkey"
-      FOREIGN KEY ("workspace_id", "virtual_employee_id")
-      REFERENCES "tasklattice"."virtual_employees"("workspace_id", "id")
+      FOREIGN KEY ("project_id", "virtual_employee_id")
+      REFERENCES "tasklattice"."virtual_employees"("project_id", "id")
       ON DELETE RESTRICT ON UPDATE CASCADE
 );
-CREATE UNIQUE INDEX "agent_instance_virtual_employee_bindings_workspace_instance_key"
-  ON "tasklattice"."agent_instance_virtual_employee_bindings"("workspace_id", "instance_id");
-CREATE INDEX "agent_instance_virtual_employee_bindings_workspace_employee_idx"
-  ON "tasklattice"."agent_instance_virtual_employee_bindings"("workspace_id", "virtual_employee_id");
+CREATE UNIQUE INDEX "agent_instance_virtual_employee_bindings_project_instance_key"
+  ON "tasklattice"."agent_instance_virtual_employee_bindings"("project_id", "instance_id");
+CREATE INDEX "agent_instance_virtual_employee_bindings_project_employee_idx"
+  ON "tasklattice"."agent_instance_virtual_employee_bindings"("project_id", "virtual_employee_id");
 
 CREATE TABLE "tasklattice"."virtual_employee_audit" (
-    "workspace_id" TEXT NOT NULL,
+    "project_id" TEXT NOT NULL,
     "id" TEXT NOT NULL,
     "virtual_employee_id" TEXT NOT NULL,
     "event_type" TEXT NOT NULL,
@@ -144,14 +144,14 @@ CREATE TABLE "tasklattice"."virtual_employee_audit" (
     "message" TEXT NOT NULL,
     "metadata" JSONB NOT NULL,
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "virtual_employee_audit_pkey" PRIMARY KEY ("workspace_id", "id"),
-    CONSTRAINT "virtual_employee_audit_workspace_id_fkey"
-      FOREIGN KEY ("workspace_id") REFERENCES "tasklattice"."workspaces"("id")
+    CONSTRAINT "virtual_employee_audit_pkey" PRIMARY KEY ("project_id", "id"),
+    CONSTRAINT "virtual_employee_audit_project_id_fkey"
+      FOREIGN KEY ("project_id") REFERENCES "tasklattice"."projects"("id")
       ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "virtual_employee_audit_employee_fkey"
-      FOREIGN KEY ("workspace_id", "virtual_employee_id")
-      REFERENCES "tasklattice"."virtual_employees"("workspace_id", "id")
+      FOREIGN KEY ("project_id", "virtual_employee_id")
+      REFERENCES "tasklattice"."virtual_employees"("project_id", "id")
       ON DELETE RESTRICT ON UPDATE CASCADE
 );
-CREATE INDEX "virtual_employee_audit_workspace_employee_created_idx"
-  ON "tasklattice"."virtual_employee_audit"("workspace_id", "virtual_employee_id", "created_at" DESC);
+CREATE INDEX "virtual_employee_audit_project_employee_created_idx"
+  ON "tasklattice"."virtual_employee_audit"("project_id", "virtual_employee_id", "created_at" DESC);

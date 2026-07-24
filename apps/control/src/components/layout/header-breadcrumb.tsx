@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { useWorkspace } from "@/hooks/use-workspace";
+import { useProject } from "@/hooks/use-project";
 import { cn } from "@/lib/utils";
 
 const routeLabels: Record<string, string> = {
@@ -20,12 +20,13 @@ const routeLabels: Record<string, string> = {
   security: "Security",
   runtime: "Runtime",
   sandboxes: "Sandboxes",
+  setting: "Settings",
   settings: "Settings",
   skill: "Skills",
   skills: "Skills",
   tickets: "Ticket List",
   "virtual-employees": "Virtual Employees",
-  workspaces: "Projects",
+  projects: "Projects",
 };
 
 export interface HeaderBreadcrumbItem {
@@ -43,24 +44,31 @@ function decodePathPart(part: string) {
 
 export function getHeaderBreadcrumbItems(pathname: string): HeaderBreadcrumbItem[] {
   const parts = pathname.split("/").filter(Boolean);
-  return parts.flatMap((part, index) => {
-    if (index === 1 && parts[0] === "agents" && part === "instace") return [];
+  const projectId = parts[0];
+  if (parts[1] === "cost") {
+    return [
+      { href: `/${projectId}/models`, label: "Models" },
+      { href: `/${projectId}/cost`, label: "Cost" },
+    ];
+  }
+  return parts.slice(1).flatMap((part, routeIndex) => {
+    const index = routeIndex + 1;
     const label =
-      index === 2 && parts[0] === "security" && parts[1] === "virtual-employees"
+      routeIndex === 1 && parts[1] === "virtual-employees"
         ? "Details"
         :
-      index === 1 && parts[0] === "requests" && part === "new"
+      routeIndex === 1 && parts[1] === "requests" && part === "new"
         ? "Raise Request"
         : routeLabels[part] ?? decodePathPart(part);
     return [{
-      href: `/${parts.slice(0, index + 1).join("/")}`,
+      href: `/${[projectId, ...parts.slice(1, index + 1)].join("/")}`,
       label,
     }];
   });
 }
 
 export function HeaderBreadcrumb({ pathname }: { pathname: string }) {
-  const { currentWorkspace: currentProject } = useWorkspace();
+  const { currentProject: currentProject } = useProject();
   const items = getHeaderBreadcrumbItems(pathname);
   const lastIndex = items.length - 1;
 

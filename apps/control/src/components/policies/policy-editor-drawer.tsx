@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
-import { useWorkspaceQueryScope } from "@/hooks/use-workspace-query-scope";
+import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
 
 export function PolicyEditorDrawer({
   open,
@@ -25,7 +25,7 @@ export function PolicyEditorDrawer({
   onSaved?: (policy: SandboxPolicy) => void;
 }) {
   const queryClient = useQueryClient();
-  const workspace = useWorkspaceQueryScope();
+  const scope = useProjectQueryScope();
   const [value, setValue] = useState<SandboxPolicyInput>({
     name: "",
     description: "",
@@ -36,7 +36,7 @@ export function PolicyEditorDrawer({
     mutationFn: (input: SandboxPolicyInput) =>
       policy ? api.updatePolicy(policy.id, input) : api.createPolicy(input),
     onSuccess: async (saved) => {
-      await queryClient.invalidateQueries({ queryKey: workspace.key("sandbox-policies") });
+      await queryClient.invalidateQueries({ queryKey: scope.key("sandbox-policies") });
       onSaved?.(saved);
       onOpenChange(false);
     },

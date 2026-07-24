@@ -38,76 +38,76 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { useWorkspace } from "@/hooks/use-workspace";
+import { useProject } from "@/hooks/use-project";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { HeaderBreadcrumb } from "@/components/layout/header-breadcrumb";
 import { ProjectSwitcher } from "@/components/project/project-switcher";
 
-type WorkspaceRoute =
-  | "/providers"
-  | "/providers/cost"
-  | "/providers/model-profiles"
-  | "/dashboard"
-  | "/instances"
-  | "/requests/new"
-  | "/agent/sandboxes/policy"
-  | "/knowledge"
-  | "/mcp"
-  | "/Extensions/skill"
-  | "/tickets"
-  | "/security/virtual-employees";
+type ProjectRoute =
+  | "/$projectId/models"
+  | "/$projectId/cost"
+  | "/$projectId/instances"
+  | "/$projectId/requests/new"
+  | "/$projectId/runtime-policies"
+  | "/$projectId/knowledge-base"
+  | "/$projectId/mcp-servers"
+  | "/$projectId/skills"
+  | "/$projectId/requests"
+  | "/$projectId/virtual-employees";
 
 type NavItemDefinition = {
   icon: LucideIcon;
   label: string;
-  to: WorkspaceRoute;
+  to: ProjectRoute;
 };
 
 const navGroups: Array<{ items: NavItemDefinition[]; label: string }> = [
   {
     label: "Agentic",
     items: [
-      { icon: Boxes, label: "Instances", to: "/instances" },
-      { icon: Sparkles, label: "Skills", to: "/Extensions/skill" },
-      { icon: ServerCog, label: "MCP Servers", to: "/mcp" },
-      { icon: Network, label: "Knowledge Base", to: "/knowledge" },
+      { icon: Boxes, label: "Instances", to: "/$projectId/instances" },
+      { icon: Sparkles, label: "Skills", to: "/$projectId/skills" },
+      { icon: ServerCog, label: "MCP Servers", to: "/$projectId/mcp-servers" },
+      { icon: Network, label: "Knowledge Base", to: "/$projectId/knowledge-base" },
     ],
   },
   {
     label: "Security",
     items: [
-      { icon: UserRoundCheck, label: "Virtual Employees", to: "/security/virtual-employees" },
-      { icon: FileLock2, label: "Runtime Policies", to: "/agent/sandboxes/policy" },
+      { icon: UserRoundCheck, label: "Virtual Employees", to: "/$projectId/virtual-employees" },
+      { icon: FileLock2, label: "Runtime Policies", to: "/$projectId/runtime-policies" },
     ],
   },
   {
     label: "Observer",
-    items: [{ icon: CircleDollarSign, label: "Cost", to: "/providers/cost" }],
+    items: [{ icon: CircleDollarSign, label: "Cost", to: "/$projectId/cost" }],
   },
 ];
 
-function itemIsActive(item: NavItemDefinition, pathname: string) {
-  if (item.to === "/instances") return pathname === "/instances" || pathname.startsWith("/agents");
-  if (item.to === "/providers/model-profiles") return pathname.startsWith("/providers/model-profiles");
-  if (item.to === "/security/virtual-employees") return pathname.startsWith("/security/virtual-employees");
-  return pathname === item.to;
+function itemIsActive(item: NavItemDefinition, pathname: string, projectId: string) {
+  const target = item.to.replace("$projectId", encodeURIComponent(projectId));
+  if (item.to === "/$projectId/instances") return pathname === target || pathname.startsWith(`${target}/`);
+  if (item.to === "/$projectId/virtual-employees") return pathname.startsWith(target);
+  return pathname === target;
 }
 
-function NavigationItem({ item, pathname }: {
+function NavigationItem({ item, pathname, projectId }: {
   item: NavItemDefinition;
   pathname: string;
+  projectId: string;
 }) {
   const { setOpenMobile } = useSidebar();
-  const active = itemIsActive(item, pathname);
+  const active = itemIsActive(item, pathname, projectId);
 
   return (
     <SidebarMenuItem>
       <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
         <Link
           to={item.to}
+          params={{ projectId }}
           onClick={() => setOpenMobile(false)}
-          aria-current={pathname === item.to ? "page" : undefined}
+          aria-current={active ? "page" : undefined}
           aria-label={item.label}
         >
           <item.icon className={cn(active && "text-primary")} />
@@ -134,16 +134,18 @@ function DisabledNav({ icon: Icon, label }: { icon: LucideIcon; label: string })
   );
 }
 
-function WorkspaceSidebar({ logout, pathname, user }: {
+function ProjectSidebar({ logout, pathname, user }: {
   logout: () => void | Promise<void>;
   pathname: string;
   user: AuthUser | null;
 }) {
   const { isMobile, setOpenMobile, state } = useSidebar();
+  const { currentProject } = useProject();
+  const projectId = currentProject?.id ?? "individual";
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="gap-1.5 border-b border-sidebar-border p-2">
-        <Link to="/dashboard" onClick={() => setOpenMobile(false)} className="flex min-h-11 min-w-0 items-center gap-3 px-2 focus-visible:outline-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0" aria-label="TaskLattice home">
+        <Link to="/$projectId" params={{ projectId }} onClick={() => setOpenMobile(false)} className="flex min-h-11 min-w-0 items-center gap-3 px-2 focus-visible:outline-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0" aria-label="TaskLattice home">
           <BrandLogo compact={!isMobile && state === "collapsed"} />
         </Link>
         <ProjectSwitcher
@@ -163,7 +165,7 @@ function WorkspaceSidebar({ logout, pathname, user }: {
                     <Fragment key={item.to}>
                       {group.label === "Agentic" && index === 1 ? <DisabledNav icon={Bot} label="Agent Garden" /> : null}
                       {group.label === "Observer" && index === 0 ? <DisabledNav icon={Waypoints} label="Traces" /> : null}
-                      <NavigationItem item={item} pathname={pathname} />
+                      <NavigationItem item={item} pathname={pathname} projectId={projectId} />
                     </Fragment>
                   ))}
                   {group.label === "Security" ? <DisabledNav icon={FileClock} label="Audit Logs" /> : null}
@@ -190,11 +192,11 @@ function WorkspaceSidebar({ logout, pathname, user }: {
 export function AppShell() {
   const { logout, user } = useAuth();
   const {
-    currentWorkspace,
-    error: workspaceError,
-    loading: workspaceLoading,
-    refreshWorkspaces,
-  } = useWorkspace();
+    currentProject,
+    error: projectError,
+    loading: projectLoading,
+    refreshProjects,
+  } = useProject();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -210,7 +212,7 @@ export function AppShell() {
   return (
     <TooltipProvider delayDuration={250}>
       <SidebarProvider open={sidebarOpen} onOpenChange={handleSidebarOpenChange}>
-        <WorkspaceSidebar
+        <ProjectSidebar
           logout={logout}
           pathname={pathname}
           user={user}
@@ -223,12 +225,12 @@ export function AppShell() {
             <div className="ml-auto flex min-h-10 items-center gap-2 rounded-full border px-3 text-xs font-semibold md:ml-2"><span className="size-2 rounded-full bg-[#79a93b]" />UAT</div>
           </header>
           <main id="main-content" className="mx-auto w-full max-w-[1320px] p-5 sm:p-6 lg:px-8 lg:py-6">
-            {workspaceError ? (
+            {projectError ? (
               <div role="status" className="mb-5 border-l-2 border-amber-500 bg-amber-500/5 px-4 py-3 text-sm text-amber-900">
-                {workspaceError}
+                {projectError}
               </div>
             ) : null}
-            {workspaceLoading ? (
+            {projectLoading ? (
               <div className="space-y-6" aria-label="Loading project data">
                 <div className="h-20 animate-pulse rounded-md bg-muted/70" />
                 <div className="grid gap-4 md:grid-cols-3">
@@ -238,7 +240,7 @@ export function AppShell() {
                 </div>
                 <div className="h-64 animate-pulse rounded-md bg-muted/50" />
               </div>
-            ) : !currentWorkspace ? (
+            ) : !currentProject ? (
               <section className="mx-auto max-w-md py-20 text-center" aria-labelledby="no-project-title">
                 <h1 id="no-project-title" className="text-lg font-semibold">
                   No project available
@@ -246,12 +248,12 @@ export function AppShell() {
                 <p className="mt-2 text-sm text-muted-foreground">
                   Create a Project before resources can be loaded.
                 </p>
-                <Button className="mt-5" onClick={() => void refreshWorkspaces()}>
+                <Button className="mt-5" onClick={() => void refreshProjects()}>
                   Reload projects
                 </Button>
               </section>
             ) : (
-              <div key={currentWorkspace.id}>
+              <div key={currentProject.id}>
                 <Outlet />
               </div>
             )}

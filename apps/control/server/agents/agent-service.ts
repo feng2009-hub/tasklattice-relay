@@ -5,7 +5,7 @@ import type {
   RunnerSandbox,
   SandboxAuditEvent,
 } from "@tasklattice/contracts";
-import { AgentStore } from "../data/agent-store";
+import { ProjectStore } from "../projects/project-store";
 import { ExtensionCatalogService } from "../extensions/extension-catalog-service";
 import { NemoClawRunnerClient, type RunnerClient } from "../runtime/nemoclaw-runner-client";
 import { LiteLLMClient, type LiteLLMAdminClient } from "../providers/litellm-client";
@@ -65,13 +65,13 @@ export function applyObservedState(agent: Agent, observed: RunnerSandbox): Agent
 
 export class AgentService {
   constructor(
-    readonly store = new AgentStore(),
+    readonly store = new ProjectStore(),
     readonly runner: RunnerClient = new NemoClawRunnerClient(),
     readonly litellm: LiteLLMAdminClient = new LiteLLMClient(),
     readonly policies = new PolicyService(store),
     readonly extensions = new ExtensionCatalogService(store),
     readonly modelProfiles = new ModelProfileService(store, litellm),
-    readonly virtualEmployees = new VirtualEmployeeService(new VirtualEmployeeStore(store.workspaceId, store.database()), litellm),
+    readonly virtualEmployees = new VirtualEmployeeService(new VirtualEmployeeStore(store.projectId, store.database()), litellm),
   ) {}
 
   async list(): Promise<Agent[]> {

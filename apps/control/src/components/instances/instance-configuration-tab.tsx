@@ -9,23 +9,25 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { AgentPlatformPresentation } from "@/lib/agent-platforms";
 import { api } from "@/lib/api";
-import { useWorkspaceQueryScope } from "@/hooks/use-workspace-query-scope";
+import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
+import { useCurrentProjectId } from "@/hooks/use-project";
 import { DefinitionList, DetailCardHeader } from "./instance-detail-shared";
 import { InstanceInstructionsDialog } from "./instance-instructions-dialog";
 
 export function InstanceConfigurationTab({ agent, platform }: { agent: Agent; platform: AgentPlatformPresentation }) {
+  const projectId = useCurrentProjectId();
   const [instructionsOpen, setInstructionsOpen] = useState(false);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(agent.virtualEmployeeId);
-  const workspace = useWorkspaceQueryScope();
+  const scope = useProjectQueryScope();
   const queryClient = useQueryClient();
-  const catalog = useQuery({ queryKey: workspace.key("extension-catalog"), queryFn: api.getExtensionCatalog });
-  const employees = useQuery({ queryKey: workspace.key("virtual-employees"), queryFn: api.listVirtualEmployees });
+  const catalog = useQuery({ queryKey: scope.key("extension-catalog"), queryFn: api.getExtensionCatalog });
+  const employees = useQuery({ queryKey: scope.key("virtual-employees"), queryFn: api.listVirtualEmployees });
   const currentEmployee = employees.data?.find((item) => item.id === agent.virtualEmployeeId);
   const switchEmployee = useMutation({
     mutationFn: () => api.bindAgentVirtualEmployee(agent.id, selectedEmployeeId),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: workspace.key("agent", agent.id) });
-      await queryClient.invalidateQueries({ queryKey: workspace.key("virtual-employees") });
+      await queryClient.invalidateQueries({ queryKey: scope.key("agent", agent.id) });
+      await queryClient.invalidateQueries({ queryKey: scope.key("virtual-employees") });
     },
   });
   const role = catalog.data?.specializations.find((item) => item.id === agent.specializationId);
@@ -55,7 +57,7 @@ export function InstanceConfigurationTab({ agent, platform }: { agent: Agent; pl
             <div>
               <div className="flex flex-wrap items-center gap-2"><strong>{currentEmployee?.displayName ?? agent.virtualEmployeeId}</strong>{currentEmployee ? <Badge variant="outline">{currentEmployee.status}</Badge> : null}</div>
               <p className="mt-1 text-xs text-muted-foreground">{currentEmployee?.businessRole || "Bound business identity"} · {currentEmployee?.modelAccess?.allowedModels.join(", ") || agent.model}</p>
-              <Link to="/security/virtual-employees/$virtualEmployeeId" params={{ virtualEmployeeId: agent.virtualEmployeeId }} className="mt-3 inline-flex min-h-9 items-center gap-1 text-xs font-medium text-primary hover:underline">Open Virtual Employee <ArrowUpRight className="size-3.5" /></Link>
+              <Link to="/$projectId/virtual-employees/$employeeId" params={{ projectId, employeeId: agent.virtualEmployeeId }} className="mt-3 inline-flex min-h-9 items-center gap-1 text-xs font-medium text-primary hover:underline">Open Virtual Employee <ArrowUpRight className="size-3.5" /></Link>
             </div>
           </div>
           <div className="space-y-2">

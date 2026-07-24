@@ -16,7 +16,7 @@ import type {
   ModelCostTrendGranularity,
   ModelCostTrendResponse,
 } from "@tasklattice/contracts";
-import { AgentStore } from "../data/agent-store";
+import { ProjectStore } from "../projects/project-store";
 import {
   type CostAttributionMapping,
   type ModelEndpointCostMapping,
@@ -29,7 +29,7 @@ export interface CostAnalyticsQuery {
   startTime: string;
   endTime: string;
   timezone: string;
-  workspaceId: string;
+  projectId: string;
   environmentId: string;
   filters: CostFilters;
 }
@@ -78,7 +78,7 @@ const groupLabels: Record<CostGroupBy, string> = {
 };
 const filterKeys: CostFilterKey[] = [
   "instance", "model_endpoint", "provider", "provider_account",
-  "virtual_key", "environment", "workspace",
+  "virtual_key", "environment", "project",
 ];
 
 function finite(value: unknown): number | undefined {
@@ -237,7 +237,7 @@ function filterValue(fact: ModelUsageFact, key: CostFilterKey): string {
   if (key === "provider_account") return fact.providerAccountId ?? "unmapped-provider-account";
   if (key === "virtual_key") return fact.virtualKeyId ?? "unmapped-virtual-key";
   if (key === "environment") return fact.environmentId;
-  return fact.workspaceId;
+  return fact.projectId;
 }
 
 function applyFilters(facts: ModelUsageFact[], filters: CostFilters): ModelUsageFact[] {
@@ -307,7 +307,7 @@ export class CostService {
   private syncPromise: Promise<void> | undefined;
 
   constructor(
-    readonly store = new AgentStore(),
+    readonly store = new ProjectStore(),
     readonly litellm: LiteLLMAdminClient = new LiteLLMClient(),
   ) {}
 
@@ -317,7 +317,7 @@ export class CostService {
 
   private async refreshMappings(): Promise<void> {
     const analytics = this.analytics();
-    const workspaceId = this.store.workspaceId;
+    const projectId = this.store.projectId;
     const environmentId = process.env.TALI_ENVIRONMENT_ID ?? "production";
     for (const agent of await this.store.listAgentsForReporting()) {
       const full = await this.store.get(agent.id);
@@ -328,7 +328,7 @@ export class CostService {
         : undefined;
       await analytics.saveAttribution({
         id: binding ? `binding:${binding.id}` : `agent:${agent.id}:${full?.createdAt ?? "unknown"}`,
-        workspaceId,
+        projectId,
         environmentId,
         instanceId: agent.id,
         instanceName: agent.name,
@@ -469,7 +469,7 @@ export class CostService {
       ...(log.response_end_time ?? log.end_time ? { responseEndTime: new Date(log.response_end_time ?? log.end_time!).toISOString() } : {}),
       usageDate: dateInTimezone(timestamp, "UTC"),
       usageHour: hourInTimezone(timestamp, "UTC"),
-      workspaceId: attribution?.workspaceId ?? (process.env.TALI_WORKSPACE_ID ?? "default"),
+      projectId: attribution?.projectId ?? (process.env.TALI_PROJECT_ID ?? "default"),
       environmentId: attribution?.environmentId ?? (process.env.TALI_ENVIRONMENT_ID ?? "production"),
       ...(attribution?.instanceId ? { instanceId: attribution.instanceId, instanceName: attribution.instanceName } : {}),
       ...(endpoint ? { modelEndpointId: endpoint.modelEndpointId, modelEndpointName: endpoint.modelEndpointName } : {}),
@@ -611,7 +611,7 @@ export class CostService {
     const all = await this.analytics().listFacts({
       startTime: start,
       endTime: normalized.end,
-      workspaceId: query.workspaceId,
+      projectId: query.projectId,
       environmentId: query.environmentId,
     });
     return { normalized, previous, all, current: applyFilters(all.filter((fact) => fact.requestStartTime >= normalized.start), query.filters) };
@@ -626,7 +626,7 @@ export class CostService {
       maps.provider_account.set(filterValue(fact, "provider_account"), fact.providerAccountName ?? groupLabels.provider_account);
       maps.virtual_key.set(filterValue(fact, "virtual_key"), fact.virtualKeyAlias ?? groupLabels.virtual_key);
       maps.environment.set(fact.environmentId, fact.environmentId);
-      maps.workspace.set(fact.workspaceId, fact.workspaceId);
+      maps.project.set(fact.projectId, fact.projectId);
     }
     return Object.fromEntries(filterKeys.map((key) => [
       key,
@@ -685,7 +685,7 @@ export class CostService {
         const current = map.get(key) ?? {
           usageDate,
           timezone: query.timezone,
-          workspaceId: fact.workspaceId,
+          projectId: fact.projectId,
           environmentId: fact.environmentId,
           groupType,
           groupId: dimension.id,
@@ -729,12 +729,12 @@ export class CostService {
     const unfiltered = await this.analytics().listFacts({
       startTime: normalized.start,
       endTime: normalized.end,
-      workspaceId: query.workspaceId,
+      projectId: query.projectId,
       environmentId: query.environmentId,
     });
     const dailyRows = this.dailyRows(unfiltered, normalized);
     await this.analytics().replaceDailyRows({
-      workspaceId: query.workspaceId,
+      projectId: query.projectId,
       environmentId: query.environmentId,
       timezone: query.timezone,
       from: normalized.from,
@@ -897,7 +897,7 @@ export class CostService {
     const unfiltered = await this.analytics().listFacts({
       startTime: normalized.start,
       endTime: normalized.end,
-      workspaceId: query.workspaceId,
+      projectId: query.projectId,
       environmentId: query.environmentId,
     });
     return {

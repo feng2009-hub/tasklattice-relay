@@ -16,7 +16,7 @@ const filterKeys: CostFilterKey[] = [
   "provider_account",
   "virtual_key",
   "environment",
-  "workspace",
+  "project",
 ];
 
 function selectedCount(filters: CostFilters): number {

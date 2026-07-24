@@ -13,6 +13,7 @@ import { MultiSelectCombobox, type MultiSelectOption } from "@/components/ui/mul
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { useCurrentProjectId } from "@/hooks/use-project";
 import { SpecializationIcon } from "./specialization-selector";
 import type { Specialization, SpecializationId } from "./specializations";
 import { SystemPromptViewer } from "./system-prompt-viewer";
@@ -58,6 +59,7 @@ export function IdentityCapabilitiesStep({ customSystemPrompt, knowledgeSources,
   specialization: Specialization;
   specializations: readonly Specialization[];
 }) {
+  const projectId = useCurrentProjectId();
   const [promptOpen, setPromptOpen] = useState(false);
   const [skillsOpen, setSkillsOpen] = useState(false);
   const [mcpOpen, setMcpOpen] = useState(false);
@@ -162,7 +164,7 @@ export function IdentityCapabilitiesStep({ customSystemPrompt, knowledgeSources,
             options={mcpOptions}
             selectedIds={selectedMcpServerIds}
             onChange={onMcpServerIdsChange}
-            footer={incompleteMcpServers.length ? <p role="alert" className="flex flex-wrap items-center gap-2 border-l-2 border-amber-500 bg-amber-500/5 px-3 py-2 text-xs text-amber-900 dark:text-amber-100"><Info className="size-4" />{incompleteMcpServers.map((item) => item.name).join(", ")} requires connection or access before this Instance is ready. <Button asChild variant="link" size="sm" className="h-auto min-h-0 p-0 text-current"><Link to="/mcp">Connect or request access</Link></Button></p> : undefined}
+            footer={incompleteMcpServers.length ? <p role="alert" className="flex flex-wrap items-center gap-2 border-l-2 border-amber-500 bg-amber-500/5 px-3 py-2 text-xs text-amber-900 dark:text-amber-100"><Info className="size-4" />{incompleteMcpServers.map((item) => item.name).join(", ")} requires connection or access before this Instance is ready. <Button asChild variant="link" size="sm" className="h-auto min-h-0 p-0 text-current"><Link to="/$projectId/mcp-servers" params={{ projectId }}>Connect or request access</Link></Button></p> : undefined}
           />
           <CapabilityRow
             icon={<Network className="size-4" />}

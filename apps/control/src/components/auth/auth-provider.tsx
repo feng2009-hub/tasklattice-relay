@@ -13,6 +13,7 @@ import {
   getAuthToken,
   storeAuthToken,
 } from "@/lib/auth-token";
+import { getStoredProjectId, projectPath } from "@/lib/project-storage";
 
 export interface AuthConfig {
   authRequired: boolean;
@@ -113,7 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const loginWithToken = useCallback(
-    async (token: string, remember = false, redirect = "/dashboard") => {
+    async (token: string, remember = false, redirect = "") => {
       storeAuthToken(token, remember);
       try {
         setUser(await loadUser(token));
@@ -124,9 +125,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const returnPath =
         redirect.startsWith("/") && !redirect.startsWith("//")
           ? redirect
-          : "/dashboard";
-      if (returnPath !== "/dashboard") window.location.assign(returnPath);
-      else await navigate({ to: "/dashboard" });
+          : projectPath(getStoredProjectId() ?? "individual");
+      window.location.assign(returnPath);
     },
     [navigate],
   );

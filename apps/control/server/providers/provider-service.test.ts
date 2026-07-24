@@ -1,19 +1,27 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createTestStore } from "../test/store";
 import type { LiteLLMAdminClient } from "./litellm-client";
-import type { ConnectionValidationResult, ProviderValidator } from "./provider-validator";
 import { ProviderService } from "./provider-service";
 
-const connectionResult: ConnectionValidationResult = {
-  checks: [
-    { id: "endpoint", label: "Endpoint reachability", status: "PASS" },
-    { id: "credentials", label: "Credential authorization", status: "PASS" },
-    { id: "catalog", label: "Model catalog discovery", status: "PASS" },
+const deepSeekConnection = {
+  connection: {
+    provider: "deepseek" as const,
+    name: "DeepSeek production",
+    config: { endpoint: "https://api.deepseek.com/v1" },
+    credentials: { apiKey: "provider-secret-value" },
+  },
+  models: [
+    { modelId: "deepseek-chat", displayName: "DeepSeek Chat", modelType: "llm" as const },
+    { modelId: "deepseek-reasoner", displayName: "DeepSeek Reasoner", modelType: "llm" as const },
   ],
-  latencyMs: 18,
-  message: "Connection validated.",
-  models: ["deepseek-v4-flash", "deepseek-v4-pro"],
+  complianceDomain: "GLOBAL" as const,
 };
+
+function mockDeepSeekCatalog(): void {
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+    data: deepSeekConnection.models.map(({ modelId: id }) => ({ id })),
+  }), { status: 200 })));
+}
 
 function liteLLM(): LiteLLMAdminClient {
   return {
@@ -30,29 +38,16 @@ function liteLLM(): LiteLLMAdminClient {
 describe("ProviderService", () => {
   afterEach(() => vi.unstubAllGlobals());
   it("stores one credential and automatically configures exposed catalog models", async () => {
-    const validator: ProviderValidator = {
-      validateConnection: vi.fn(async () => connectionResult),
-      validateModel: vi.fn(async (input): Promise<ConnectionValidationResult> => ({
-        ...connectionResult,
-        checks: [...connectionResult.checks, { id: "inference" as const, label: `${input.modelType} capability probe`, status: "PASS" as const }],
-        models: [input.modelId],
-      })),
-    };
+    mockDeepSeekCatalog();
     const store = createTestStore();
     const litellm = liteLLM();
-    const service = new ProviderService(store, validator, litellm);
-    const account = await service.registerAccount({
-      name: "DeepSeek production",
-      presetId: "deepseek",
-      endpoint: "https://api.deepseek.com/v1",
-      apiKey: "provider-secret-value",
-      complianceDomain: "GLOBAL",
-    });
+    const service = new ProviderService(store, litellm);
+    const { account } = await service.createConnection(deepSeekConnection);
     expect(account.status).toBe("VALIDATED");
-    expect(account.discoveredModels).toContain("deepseek-v4-flash");
+    expect(account.discoveredModels).toContain("deepseek-chat");
     expect(await service.listModels(account.id)).toEqual(expect.arrayContaining([
-      expect.objectContaining({ modelId: "deepseek-v4-pro", status: "VALIDATED" }),
-      expect.objectContaining({ modelId: "deepseek-v4-flash", status: "VALIDATED" }),
+      expect.objectContaining({ modelId: "deepseek-chat", status: "VALIDATED" }),
+      expect.objectContaining({ modelId: "deepseek-reasoner", status: "VALIDATED" }),
     ]));
     expect(await service.listModels(account.id)).toHaveLength(2);
     expect(litellm.registerModel).toHaveBeenCalledTimes(2);
@@ -65,18 +60,9 @@ describe("ProviderService", () => {
   });
 
   it("persists exactly one validated LLM as the global default", async () => {
-    const validator: ProviderValidator = {
-      validateConnection: vi.fn(async () => connectionResult),
-      validateModel: vi.fn(),
-    };
-    const service = new ProviderService(createTestStore(), validator, liteLLM());
-    const account = await service.registerAccount({
-      name: "DeepSeek defaults",
-      presetId: "deepseek",
-      endpoint: "https://api.deepseek.com/v1",
-      apiKey: "provider-secret-value",
-      complianceDomain: "GLOBAL",
-    });
+    mockDeepSeekCatalog();
+    const service = new ProviderService(createTestStore(), liteLLM());
+    const { account } = await service.createConnection(deepSeekConnection);
     const [first, second] = await service.listModels(account.id);
 
     expect(await service.markModelAsDefault(first!.id)).toMatchObject({ id: first!.id, isDefault: true });
@@ -91,20 +77,11 @@ describe("ProviderService", () => {
   });
 
   it("deletes an unused account and unregisters its LiteLLM models", async () => {
-    const validator: ProviderValidator = {
-      validateConnection: vi.fn(async () => connectionResult),
-      validateModel: vi.fn(),
-    };
+    mockDeepSeekCatalog();
     const store = createTestStore();
     const litellm = liteLLM();
-    const service = new ProviderService(store, validator, litellm);
-    const account = await service.registerAccount({
-      name: "DeepSeek disposable",
-      presetId: "deepseek",
-      endpoint: "https://api.deepseek.com/v1",
-      apiKey: "provider-secret-value",
-      complianceDomain: "GLOBAL",
-    });
+    const service = new ProviderService(store, litellm);
+    const { account } = await service.createConnection(deepSeekConnection);
 
     await expect(service.deleteAccount(account.id)).resolves.toBe(true);
     expect(litellm.deleteModel).toHaveBeenCalledTimes(2);
@@ -113,18 +90,11 @@ describe("ProviderService", () => {
   });
 
   it("does not persist a rejected Endpoint + key", async () => {
-    const validator: ProviderValidator = {
-      validateConnection: vi.fn(async () => { throw new Error("Provider rejected the credential."); }),
-      validateModel: vi.fn(),
-    };
-    const service = new ProviderService(createTestStore(), validator, liteLLM());
-    await expect(service.registerAccount({
-      name: "DeepSeek rejected",
-      presetId: "deepseek",
-      endpoint: "https://api.deepseek.com/v1",
-      apiKey: "provider-secret-value",
-      complianceDomain: "GLOBAL",
-    })).rejects.toThrow("rejected");
+    mockDeepSeekCatalog();
+    const litellm = liteLLM();
+    vi.mocked(litellm.probeModel).mockRejectedValue(new Error("Provider rejected the credential."));
+    const service = new ProviderService(createTestStore(), litellm);
+    await expect(service.createConnection(deepSeekConnection)).rejects.toThrow("rejected");
     expect(await service.listAccounts()).toEqual([]);
   });
 
@@ -137,7 +107,7 @@ describe("ProviderService", () => {
     vi.mocked(litellm.probeModel)
       .mockResolvedValueOnce(undefined)
       .mockRejectedValueOnce(new Error("Embedding deployment is unavailable."));
-    const service = new ProviderService(createTestStore(), undefined, litellm);
+    const service = new ProviderService(createTestStore(), litellm);
     const result = await service.createConnection({
       connection: {
         provider: "openai",

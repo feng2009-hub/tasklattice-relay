@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useCurrentProjectId } from "@/hooks/use-project";
 
 export function InstanceDetailSkeleton() {
   return (
@@ -16,6 +17,7 @@ export function InstanceDetailSkeleton() {
 }
 
 function State({ icon: Icon, title, description, retry }: { icon: typeof AlertTriangle; title: string; description: string; retry?: () => void }) {
+  const projectId = useCurrentProjectId();
   return (
     <Card className="mx-auto mt-16 max-w-xl">
       <CardContent className="flex min-h-72 flex-col items-center justify-center text-center">
@@ -24,7 +26,7 @@ function State({ icon: Icon, title, description, retry }: { icon: typeof AlertTr
         <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">{description}</p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           {retry ? <Button type="button" onClick={retry}>Retry</Button> : null}
-          <Button asChild variant="outline"><Link to="/instances"><ArrowLeft />Back to Instances</Link></Button>
+          <Button asChild variant="outline"><Link to="/$projectId/instances" params={{ projectId }}><ArrowLeft />Back to Instances</Link></Button>
         </div>
       </CardContent>
     </Card>

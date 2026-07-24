@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import {
   providerPresets,
   type CreateModelDeploymentInput,
-  type CreateProviderAccountInput,
   type CreateProviderConnectionInput,
   type ModelDeployment,
   type ProviderAccount,
@@ -11,13 +10,11 @@ import {
   type ProviderDiscoveryResult,
   type ProviderKind,
   type ProviderModelSelection,
-  type ProviderPresetId,
   type ProviderValidationCheck,
 } from "@tasklattice/contracts";
-import { AgentStore } from "../data/agent-store";
+import { ProjectStore } from "../projects/project-store";
 import { providerAdapter } from "./provider-adapters";
 import { LiteLLMClient, type LiteLLMAdminClient } from "./litellm-client";
-import type { ProviderValidator } from "./provider-validator";
 
 interface StoredProviderCredential {
   version: 1;
@@ -62,50 +59,21 @@ function encodeCredential(draft: ProviderConnectionDraft): string {
   } satisfies StoredProviderCredential);
 }
 
-function legacyKind(presetId: ProviderPresetId): ProviderKind {
-  if (presetId === "kimi-cn" || presetId === "kimi-global") return "moonshot";
-  return presetId;
-}
-
-function legacyDraft(account: ProviderAccount, rawCredential: string): ProviderConnectionDraft {
-  const kind = legacyKind(account.presetId);
-  if (kind === "moonshot")
-    return {
-      provider: "moonshot",
-      name: account.name,
-      config: {
-        region: account.presetId === "kimi-global" ? "global" : "cn",
-        endpoint: account.endpoint,
-      },
-      credentials: { apiKey: rawCredential },
-    };
-  return {
-    provider: kind,
-    name: account.name,
-    config: { endpoint: account.endpoint },
-    credentials: { apiKey: rawCredential },
-  } as ProviderConnectionDraft;
-}
-
 function decodeCredential(account: ProviderAccount, rawCredential: string): ProviderConnectionDraft {
-  try {
-    const stored = JSON.parse(rawCredential) as Partial<StoredProviderCredential>;
-    if (
-      stored.version === 1 &&
-      stored.provider &&
-      stored.config &&
-      stored.credentials
-    )
-      return {
-        provider: stored.provider,
-        name: account.name,
-        config: stored.config,
-        credentials: stored.credentials,
-      } as ProviderConnectionDraft;
-  } catch {
-    // Existing installations store a single API key in this column.
-  }
-  return legacyDraft(account, rawCredential);
+  const stored = JSON.parse(rawCredential) as Partial<StoredProviderCredential>;
+  if (
+    stored.version !== 1 ||
+    !stored.provider ||
+    !stored.config ||
+    !stored.credentials
+  )
+    throw new Error("Stored Provider credential data is invalid.");
+  return {
+    provider: stored.provider,
+    name: account.name,
+    config: stored.config,
+    credentials: stored.credentials,
+  } as ProviderConnectionDraft;
 }
 
 function toModelSelection(input: CreateModelDeploymentInput): ProviderModelSelection {
@@ -115,8 +83,7 @@ function toModelSelection(input: CreateModelDeploymentInput): ProviderModelSelec
 
 export class ProviderService {
   constructor(
-    readonly store = new AgentStore(),
-    readonly legacyValidator?: ProviderValidator,
+    readonly store = new ProjectStore(),
     readonly litellm: LiteLLMAdminClient = new LiteLLMClient(),
   ) {}
 
@@ -143,52 +110,6 @@ export class ProviderService {
   async createConnection(input: CreateProviderConnectionInput): Promise<ProviderConnectionCreationResult> {
     const discovery = await this.discover(input.connection);
     return this.createConnectionWithDiscovery(input, discovery);
-  }
-
-  /** Compatibility path for existing API callers while the UI moves to the wizard contract. */
-  async registerAccount(input: CreateProviderAccountInput): Promise<ProviderAccount> {
-    const provider = legacyKind(input.presetId);
-    const draft = legacyDraft({
-      id: "legacy-draft",
-      name: input.name,
-      providerKind: provider,
-      presetId: input.presetId,
-      endpoint: input.endpoint,
-      config: { endpoint: input.endpoint },
-      discoveredModels: [],
-      status: "FAILED",
-      checks: [],
-      credentialState: "STORED",
-      validationMessage: "",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      complianceDomain: input.complianceDomain,
-      endpointRegion: input.complianceDomain === "CN_MAINLAND" ? "cn-mainland" : "global",
-      crossBorderTransfer: false,
-    }, input.apiKey);
-    const item = catalog(provider);
-    const discovery = this.legacyValidator
-      ? await this.legacyValidator.validateConnection(input.endpoint, input.apiKey).then((result) => ({
-          providerKind: provider,
-          mode: "remote" as const,
-          models: result.models.map((modelId) =>
-            item.defaultModels.find((model) => model.modelId === modelId) ?? {
-              modelId,
-              displayName: modelId,
-              modelType: "llm" as const,
-            },
-          ),
-          checks: result.checks,
-          message: result.message,
-          latencyMs: result.latencyMs,
-        }))
-      : await this.discover(draft);
-    const available = new Set(discovery.models.map((model) => model.modelId));
-    const models = item.defaultModels.filter((model) =>
-      discovery.mode !== "remote" || available.has(model.modelId),
-    );
-    if (!models.length) throw new Error("Select at least one model before creating a Provider connection.");
-    return (await this.createConnectionWithDiscovery({ connection: draft, models: [...models], complianceDomain: input.complianceDomain }, discovery)).account;
   }
 
   async revalidateAccount(id: string): Promise<ProviderAccount | undefined> {

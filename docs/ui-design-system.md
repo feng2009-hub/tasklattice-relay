@@ -5,8 +5,8 @@ Status: Implemented baseline
 Version: 0.2
 
 This contract applies the Vibe Designing evidence model to TaskLattice. It
-covers the public landing page, authentication, and the protected control
-workspace.
+covers the public landing page, authentication, and the protected Project
+console.
 
 ## Product intent
 
@@ -65,12 +65,12 @@ The account control stays at the bottom of navigation and exposes the actual
 identity provider plus sign out. The top bar contains route context, the
 environment, and intentionally disabled future search.
 
-### Workspace page hierarchy
+### Project page hierarchy
 
-The top-bar breadcrumb is the only route-context label. Workspace pages must
+The top-bar breadcrumb is the only route-context label. Project pages must
 not repeat that context as an eyebrow above the page title.
 
-Every workspace route begins with the shared `PageHeader` structure:
+Every Project route begins with the shared `PageHeader` structure:
 
 1. a page-specific `h1` title with an optional status badge;
 2. a concise task or scope description when it adds useful context;
@@ -93,7 +93,7 @@ States:
 - Development defaults: explicitly warn that `admin / admin` is active.
 - SSO unavailable: keep local login available and surface the provider error.
 - SSO callback: show a single-purpose completion state, then validate the
-  returned TaskLattice session before entering the workspace.
+  returned TaskLattice session before entering the Project console.
 - Expired session: clear stored credentials and return to login.
 - Sign out: clear local credentials even if provider logout is unavailable.
 
@@ -130,7 +130,7 @@ Use `release_gate` for changes intended for deployment. A pass requires:
 7. The main CTA and primary control path produce visible feedback.
 8. Browser console has no application errors or missing first-party assets.
 
-Score landing pages with the Brand Landing profile and workspace pages with the
+Score landing pages with the Brand Landing profile and Project pages with the
 Product Console profile. Treat broken auth, a broken primary operation, generic
 template output, or an inconsistent component system as blockers regardless of
 the weighted score.

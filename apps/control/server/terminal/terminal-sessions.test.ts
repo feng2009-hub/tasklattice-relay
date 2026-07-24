@@ -16,7 +16,11 @@ describe("terminal sessions", () => {
     const url = new URL(created.websocketUrl, "http://tasklattice.local");
     const token = url.searchParams.get("token");
 
-    expect(url.searchParams.get("project_id")).toBe("web3 analytics");
+    expect(url.pathname).toBe(
+      "/api/v1/projects/web3%20analytics/terminal-sessions/" +
+        `${created.id}/ws`,
+    );
+    expect(url.searchParams.has("project_id")).toBe(false);
     expect(token).toBeTruthy();
     expect(
       consumeTerminalSession(created.id, token ?? ""),
