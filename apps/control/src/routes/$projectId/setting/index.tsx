@@ -17,23 +17,28 @@ import { deleteProject, renameProject } from "@/services/project";
 import type { Project } from "@/types/project";
 
 export const Route = createFileRoute("/$projectId/setting/")({
+  validateSearch: (search): { section?: ProjectSettingsSection } => {
+    const section =
+      search.section === "members" ||
+      search.section === "model-profiles" ||
+      search.section === "settings"
+        ? search.section
+        : undefined;
+    return section ? { section } : {};
+  },
   component: ProjectSettingsPage,
 });
 
 type ProjectSettingsSection = "settings" | "members" | "model-profiles";
 
 function ProjectSettingsPage() {
+  const navigate = Route.useNavigate();
+  const { section = "settings" } = Route.useSearch();
   const {
     currentProject: project,
     refreshProjects,
     selectProject,
   } = useProject();
-  const [section, setSection] = useState<ProjectSettingsSection>(() =>
-    typeof window !== "undefined" &&
-    window.location.hash === "#model-profiles"
-      ? "model-profiles"
-      : "settings",
-  );
 
   if (!project) {
     return (
@@ -64,9 +69,12 @@ function ProjectSettingsPage() {
 
         <Tabs
           value={section}
-          onValueChange={(value) =>
-            setSection(value as ProjectSettingsSection)
-          }
+          onValueChange={(value) => {
+            void navigate({
+              replace: true,
+              search: { section: value as ProjectSettingsSection },
+            });
+          }}
         >
           <TabsList
             variant="line"
@@ -78,7 +86,7 @@ function ProjectSettingsPage() {
             </TabsTrigger>
             <TabsTrigger value="members">
               <Users />
-              Members
+              Team
             </TabsTrigger>
             <TabsTrigger value="model-profiles">
               <SlidersHorizontal />

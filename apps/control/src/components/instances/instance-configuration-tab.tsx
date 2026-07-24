@@ -57,7 +57,7 @@ export function InstanceConfigurationTab({ agent, platform }: { agent: Agent; pl
             <div>
               <div className="flex flex-wrap items-center gap-2"><strong>{currentEmployee?.displayName ?? agent.virtualEmployeeId}</strong>{currentEmployee ? <Badge variant="outline">{currentEmployee.status}</Badge> : null}</div>
               <p className="mt-1 text-xs text-muted-foreground">{currentEmployee?.businessRole || "Bound business identity"} · {currentEmployee?.modelAccess?.allowedModels.join(", ") || agent.model}</p>
-              <Link to="/$projectId/virtual-employees/$employeeId" params={{ projectId, employeeId: agent.virtualEmployeeId }} className="mt-3 inline-flex min-h-9 items-center gap-1 text-xs font-medium text-primary hover:underline">Open Virtual Employee <ArrowUpRight className="size-3.5" /></Link>
+              <Link to="/$projectId/setting/virtual-employees/$employeeId" params={{ projectId, employeeId: agent.virtualEmployeeId }} className="mt-3 inline-flex min-h-9 items-center gap-1 text-xs font-medium text-primary hover:underline">Open Virtual Employee <ArrowUpRight className="size-3.5" /></Link>
             </div>
           </div>
           <div className="space-y-2">

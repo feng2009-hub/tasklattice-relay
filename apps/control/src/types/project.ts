@@ -11,13 +11,26 @@ export interface Project {
   role: ProjectRole;
 }
 
-export interface ProjectMember {
+export interface HumanProjectMember {
   id: string;
+  kind: "human";
   name: string;
   email: string;
   role: ProjectRole;
   status: "active" | "invited";
 }
+
+export interface VirtualProjectMember {
+  id: string;
+  kind: "virtual";
+  name: string;
+  businessRole?: string;
+  environment: string;
+  role: "virtual_employee";
+  status: VirtualEmployeeStatus;
+}
+
+export type ProjectMember = HumanProjectMember | VirtualProjectMember;
 
 export interface ProjectPermissions {
   canCreateAgents: boolean;
@@ -28,3 +41,4 @@ export interface ProjectPermissions {
   canManageProject: boolean;
   canViewResources: boolean;
 }
+import type { VirtualEmployeeStatus } from "@tasklattice/contracts";

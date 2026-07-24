@@ -181,16 +181,29 @@ export const openApiDocument = {
       parameters: [projectIdParameter],
       get: {
         operationId: "listProjectMembers",
-        summary: "List project members",
-        responses: { "200": { description: "Project member list" } },
+        summary: "List the human and virtual members of a Project team",
+        responses: {
+          "200": {
+            description: "Unified Project team member list",
+            ...json({
+              type: "array",
+              items: { $ref: "#/components/schemas/ProjectTeamMember" },
+            }),
+          },
+        },
       },
     },
     "/projects/{projectId}/members/invitations": {
       parameters: [projectIdParameter],
       post: {
         operationId: "inviteProjectMember",
-        summary: "Invite a project member",
-        responses: { "201": { description: "Invitation created" } },
+        summary: "Invite a human Project member",
+        responses: {
+          "201": {
+            description: "Invitation created",
+            ...json({ $ref: "#/components/schemas/HumanProjectMember" }),
+          },
+        },
       },
     },
     "/projects/{projectId}/extensions": {
@@ -720,6 +733,67 @@ export const openApiDocument = {
         properties: {
           identity: { type: "object", required: ["type", "username"], properties: { type: { type: "string", const: "authenticated" }, username: { type: "string" } } },
           user: { $ref: "#/components/schemas/AuthUser" },
+        },
+      },
+      HumanProjectMember: {
+        type: "object",
+        additionalProperties: false,
+        required: ["email", "id", "kind", "name", "role", "status"],
+        properties: {
+          email: { type: "string", format: "email" },
+          id: { type: "string" },
+          kind: { type: "string", const: "human" },
+          name: { type: "string" },
+          role: { type: "string", enum: ["admin", "member"] },
+          status: { type: "string", enum: ["active", "invited"] },
+        },
+      },
+      VirtualProjectMember: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "environment",
+          "id",
+          "kind",
+          "name",
+          "role",
+          "status",
+        ],
+        properties: {
+          businessRole: { type: "string" },
+          environment: {
+            type: "string",
+            enum: ["development", "uat", "production"],
+          },
+          id: { type: "string" },
+          kind: { type: "string", const: "virtual" },
+          name: { type: "string" },
+          role: { type: "string", const: "virtual_employee" },
+          status: {
+            type: "string",
+            enum: [
+              "active",
+              "draft",
+              "pending_approval",
+              "provisioning",
+              "suspended",
+              "expired",
+              "error",
+            ],
+          },
+        },
+      },
+      ProjectTeamMember: {
+        oneOf: [
+          { $ref: "#/components/schemas/HumanProjectMember" },
+          { $ref: "#/components/schemas/VirtualProjectMember" },
+        ],
+        discriminator: {
+          propertyName: "kind",
+          mapping: {
+            human: "#/components/schemas/HumanProjectMember",
+            virtual: "#/components/schemas/VirtualProjectMember",
+          },
         },
       },
       SkillDefinitionInput: {

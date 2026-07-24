@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
 import { inviteMember } from "@/services/project";
-import type { Project, ProjectMember } from "@/types/project";
+import type { HumanProjectMember, Project } from "@/types/project";
 
 export function ProjectInviteDialog({
   onInvited,
@@ -29,7 +29,7 @@ export function ProjectInviteDialog({
   open,
   project,
 }: {
-  onInvited: (member: ProjectMember) => void | Promise<void>;
+  onInvited: (member: HumanProjectMember) => void | Promise<void>;
   onOpenChange: (open: boolean) => void;
   open: boolean;
   project: Project;

@@ -33,7 +33,7 @@ import { api } from "@/lib/api";
 import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/$projectId/virtual-employees/$employeeId")({
+export const Route = createFileRoute("/$projectId/setting/virtual-employees/$employeeId")({
   component: VirtualEmployeeDetailPage,
 });
 
@@ -83,7 +83,14 @@ function VirtualEmployeeDetailPage() {
 
   return (
     <div className="space-y-6">
-      <Link to="/$projectId/virtual-employees" params={{ projectId }} className="inline-flex min-h-11 items-center gap-2 rounded-md text-sm text-muted-foreground hover:text-foreground focus-visible:outline-2"><ArrowLeft className="size-4" /> Virtual Employees</Link>
+      <Link
+        to="/$projectId/setting"
+        params={{ projectId }}
+        search={{ section: "members" }}
+        className="inline-flex min-h-11 items-center gap-2 rounded-md text-sm text-muted-foreground hover:text-foreground focus-visible:outline-2"
+      >
+        <ArrowLeft className="size-4" /> Project team
+      </Link>
       <PageHeader
         title={value.displayName}
         badge={<Badge variant="outline" className={cn("gap-1.5", value.status === "active" ? "border-emerald-500/25 bg-emerald-500/8 text-emerald-700" : value.status === "error" ? "border-destructive/25 bg-destructive/5 text-destructive" : "bg-muted/40")}><span className="size-1.5 rounded-full bg-current" />{statusLabels[value.status]}</Badge>}

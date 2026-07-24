@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import type { VirtualEmployeeStatus } from "@tasklattice/contracts";
 import type { AuthPayload, AuthUser } from "../auth/auth";
 import { requireAuth } from "../auth/auth";
 import { prisma } from "../db/prisma";
@@ -16,12 +17,32 @@ export interface ProjectView {
   role: ProjectRole;
 }
 
-export interface ProjectMemberView {
+export interface HumanProjectMemberView {
   id: string;
+  kind: "human";
   name: string;
   email: string;
   role: ProjectRole;
   status: "active" | "invited";
+}
+
+export interface VirtualProjectMemberView {
+  id: string;
+  kind: "virtual";
+  name: string;
+  businessRole?: string;
+  environment: string;
+  role: "virtual_employee";
+  status: VirtualEmployeeStatus;
+}
+
+export type ProjectMemberView =
+  | HumanProjectMemberView
+  | VirtualProjectMemberView;
+
+export interface InitialProjectInvitation {
+  email: string;
+  role: ProjectRole;
 }
 
 function personalProjectId(username: string): string {
@@ -74,7 +95,7 @@ export class ProjectService {
         name: personalProjectName,
         type: "personal",
         createdBy: id,
-        members: { create: { userId: id, role: "admin" } },
+        humanMembers: { create: { userId: id, role: "admin" } },
       },
       update: { name: personalProjectName },
     });
@@ -124,7 +145,15 @@ export class ProjectService {
     const currentUserId = await this.ensureUser(auth);
     const memberships = await this.db.projectMember.findMany({
       where: { userId: currentUserId },
-      include: { project: { include: { _count: { select: { members: true } } } } },
+      include: {
+        project: {
+          include: {
+            _count: {
+              select: { humanMembers: true, virtualEmployees: true },
+            },
+          },
+        },
+      },
       orderBy: { joinedAt: "asc" },
     });
     return memberships.map(({ project, role }) => ({
@@ -132,7 +161,8 @@ export class ProjectService {
       name: project.name,
       type: project.type as ProjectType,
       ...(project.avatar ? { avatar: project.avatar } : {}),
-      memberCount: project._count.members,
+      memberCount:
+        project._count.humanMembers + project._count.virtualEmployees,
       role: role as ProjectRole,
     }));
   }
@@ -151,8 +181,37 @@ export class ProjectService {
     return { auth, userId: currentUserId, projectId, role: membership.role as ProjectRole };
   }
 
-  async create(auth: AuthPayload, name: string): Promise<ProjectView> {
+  async create(
+    auth: AuthPayload,
+    name: string,
+    invitations: InitialProjectInvitation[],
+  ): Promise<ProjectView> {
     const currentUserId = await this.ensureUser(auth);
+    const creator = await this.db.user.findUniqueOrThrow({
+      where: { id: currentUserId },
+      select: { email: true },
+    });
+    const normalizedInvitations = invitations.map((invitation) => ({
+      email: invitation.email.trim().toLowerCase(),
+      role: invitation.role,
+    }));
+    const invitationEmails = normalizedInvitations.map(({ email }) => email);
+    if (new Set(invitationEmails).size !== invitationEmails.length) {
+      throw new Error("Each invited email address must be unique.");
+    }
+    if (invitationEmails.includes(creator.email)) {
+      throw new Error("The Project creator is already included as an administrator.");
+    }
+
+    const existingUsers = invitationEmails.length
+      ? await this.db.user.findMany({
+          where: { email: { in: invitationEmails } },
+          select: { email: true, id: true },
+        })
+      : [];
+    const existingUserByEmail = new Map(
+      existingUsers.map((user) => [user.email, user]),
+    );
     const id = `${slug(name)}-${randomUUID().slice(0, 8)}`;
     const project = await this.db.project.create({
       data: {
@@ -160,11 +219,39 @@ export class ProjectService {
         name: name.trim(),
         type: "team",
         createdBy: currentUserId,
-        members: { create: { userId: currentUserId, role: "admin" } },
+        humanMembers: {
+          create: [
+            { userId: currentUserId, role: "admin" },
+            ...normalizedInvitations.flatMap((invitation) => {
+              const user = existingUserByEmail.get(invitation.email);
+              return user
+                ? [{ userId: user.id, role: invitation.role }]
+                : [];
+            }),
+          ],
+        },
+        invitations: {
+          create: normalizedInvitations.flatMap((invitation) =>
+            existingUserByEmail.has(invitation.email)
+              ? []
+              : [{
+                  id: `invite-${randomUUID()}`,
+                  email: invitation.email,
+                  role: invitation.role,
+                  invitedBy: currentUserId,
+                }],
+          ),
+        },
       },
     });
     await this.seedProject(project.id);
-    return { id: project.id, name: project.name, type: "team", memberCount: 1, role: "admin" };
+    return {
+      id: project.id,
+      name: project.name,
+      type: "team",
+      memberCount: existingUsers.length + 1,
+      role: "admin",
+    };
   }
 
   private async seedProject(projectId: string): Promise<void> {
@@ -232,14 +319,19 @@ export class ProjectService {
     const project = await this.db.project.update({
       where: { id: projectId },
       data: { name: name.trim() },
-      include: { _count: { select: { members: true } } },
+      include: {
+        _count: {
+          select: { humanMembers: true, virtualEmployees: true },
+        },
+      },
     });
     return {
       id: project.id,
       name: project.name,
       type: project.type as ProjectType,
       ...(project.avatar ? { avatar: project.avatar } : {}),
-      memberCount: project._count.members,
+      memberCount:
+        project._count.humanMembers + project._count.virtualEmployees,
       role,
     };
   }
@@ -254,7 +346,7 @@ export class ProjectService {
 
   async members(projectId: string, currentUserId: string): Promise<ProjectMemberView[]> {
     await this.requireRole(projectId, currentUserId, ["admin", "member"]);
-    const [members, invitations] = await Promise.all([
+    const [members, invitations, virtualEmployees] = await Promise.all([
       this.db.projectMember.findMany({
         where: { projectId },
         include: { user: true },
@@ -264,10 +356,22 @@ export class ProjectService {
         where: { projectId, status: "pending" },
         orderBy: { createdAt: "asc" },
       }),
+      this.db.virtualEmployeeRecord.findMany({
+        where: { projectId },
+        orderBy: { createdAt: "asc" },
+        select: {
+          businessRole: true,
+          displayName: true,
+          environment: true,
+          id: true,
+          status: true,
+        },
+      }),
     ]);
     return [
       ...members.map(({ user, role }) => ({
         id: user.id,
+        kind: "human" as const,
         name: user.displayName,
         email: user.email,
         role: role as ProjectRole,
@@ -275,10 +379,22 @@ export class ProjectService {
       })),
       ...invitations.map((invite) => ({
         id: invite.id,
+        kind: "human" as const,
         name: invite.email.split("@")[0] || invite.email,
         email: invite.email,
         role: invite.role as ProjectRole,
         status: "invited" as const,
+      })),
+      ...virtualEmployees.map((employee) => ({
+        id: employee.id,
+        kind: "virtual" as const,
+        name: employee.displayName,
+        ...(employee.businessRole
+          ? { businessRole: employee.businessRole }
+          : {}),
+        environment: employee.environment,
+        role: "virtual_employee" as const,
+        status: employee.status as VirtualEmployeeStatus,
       })),
     ];
   }
@@ -288,7 +404,7 @@ export class ProjectService {
     currentUserId: string,
     email: string,
     role: ProjectRole,
-  ): Promise<ProjectMemberView> {
+  ): Promise<HumanProjectMemberView> {
     await this.requireRole(projectId, currentUserId, ["admin"]);
     const normalizedEmail = email.trim().toLowerCase();
     const existing = await this.db.user.findUnique({ where: { email: normalizedEmail } });
@@ -300,6 +416,7 @@ export class ProjectService {
       });
       return {
         id: existing.id,
+        kind: "human",
         name: existing.displayName,
         email: existing.email,
         role: membership.role as ProjectRole,
@@ -319,6 +436,7 @@ export class ProjectService {
     });
     return {
       id: invite.id,
+      kind: "human",
       name: normalizedEmail.split("@")[0] || normalizedEmail,
       email: normalizedEmail,
       role,

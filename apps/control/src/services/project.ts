@@ -1,5 +1,6 @@
 import { getAuthToken } from "@/lib/auth-token";
 import type {
+  HumanProjectMember,
   Project,
   ProjectMember,
   ProjectRole,
@@ -34,7 +35,10 @@ export async function getProjectMembers(projectId: string): Promise<ProjectMembe
   );
 }
 
-export async function createProject(input: { name: string }): Promise<Project> {
+export async function createProject(input: {
+  invitations: Array<{ email: string; role: ProjectRole }>;
+  name: string;
+}): Promise<Project> {
   return projectRequest<Project>("/api/v1/projects", {
     method: "POST",
     body: JSON.stringify(input),
@@ -58,8 +62,8 @@ export async function deleteProject(projectId: string): Promise<void> {
 export async function inviteMember(
   projectId: string,
   input: { email: string; role: ProjectRole },
-): Promise<ProjectMember> {
-  return projectRequest<ProjectMember>(
+): Promise<HumanProjectMember> {
+  return projectRequest<HumanProjectMember>(
     `/api/v1/projects/${encodeURIComponent(projectId)}/members/invitations`,
     { method: "POST", body: JSON.stringify(input) },
   );

@@ -54,7 +54,9 @@ export function getHeaderBreadcrumbItems(pathname: string): HeaderBreadcrumbItem
   return parts.slice(1).flatMap((part, routeIndex) => {
     const index = routeIndex + 1;
     const label =
-      routeIndex === 1 && parts[1] === "virtual-employees"
+      routeIndex === 2 &&
+      parts[1] === "setting" &&
+      parts[2] === "virtual-employees"
         ? "Details"
         :
       routeIndex === 1 && parts[1] === "requests" && part === "new"

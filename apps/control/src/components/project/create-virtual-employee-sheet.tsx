@@ -1,163 +1,19 @@
-import { useMemo, useState } from "react";
-import type { CreateVirtualEmployeeInput, VirtualEmployee, VirtualEmployeeStatus } from "@tasklattice/contracts";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-  ArrowLeft,
-  ArrowRight,
-  Bot,
-  Check,
-  ChevronDown,
-  Filter,
-  KeyRound,
-  MoreHorizontal,
-  Plus,
-  RefreshCw,
-  Search,
-  ShieldCheck,
-  UserRoundCheck,
-} from "lucide-react";
+import { useState, type ReactNode } from "react";
+import type { CreateVirtualEmployeeInput, VirtualEmployee } from "@tasklattice/contracts";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, ArrowRight, Bot, Check, KeyRound, ShieldCheck } from "lucide-react";
 import { EntityFormSheet } from "@/components/shared/entity-form-sheet";
-import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import { api } from "@/lib/api";
 import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
-import { useCurrentProjectId } from "@/hooks/use-project";
+import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
-
-export const Route = createFileRoute("/$projectId/virtual-employees/")({
-  component: VirtualEmployeesPage,
-});
-
-const statuses: Array<VirtualEmployeeStatus | "all"> = [
-  "all", "active", "draft", "pending_approval", "suspended", "expired", "error",
-];
-
-const statusLabels: Record<VirtualEmployeeStatus, string> = {
-  active: "Active",
-  draft: "Draft",
-  pending_approval: "Pending approval",
-  provisioning: "Provisioning",
-  suspended: "Suspended",
-  expired: "Expired",
-  error: "Error",
-};
-
-function StatusBadge({ status }: { status: VirtualEmployeeStatus }) {
-  const tone = status === "active"
-    ? "border-emerald-500/25 bg-emerald-500/8 text-emerald-700 dark:text-emerald-300"
-    : status === "error" || status === "expired"
-      ? "border-destructive/25 bg-destructive/5 text-destructive"
-      : status === "suspended"
-        ? "border-amber-500/25 bg-amber-500/8 text-amber-800 dark:text-amber-200"
-        : "border-border bg-muted/40 text-muted-foreground";
-  return <Badge variant="outline" className={cn("gap-1.5 font-medium", tone)}><span className="size-1.5 rounded-full bg-current" />{statusLabels[status]}</Badge>;
-}
-
-function relativeTime(value: string): string {
-  const minutes = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 60_000));
-  if (minutes < 1) return "Just now";
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} hr ago`;
-  return new Date(value).toLocaleDateString();
-}
-
-function VirtualEmployeesPage() {
-  const projectId = useCurrentProjectId();
-  const scope = useProjectQueryScope();
-  const queryClient = useQueryClient();
-  const [query, setQuery] = useState("");
-  const [status, setStatus] = useState<(typeof statuses)[number]>("all");
-  const [environment, setEnvironment] = useState("all");
-  const [createOpen, setCreateOpen] = useState(false);
-  const employees = useQuery({ queryKey: scope.key("virtual-employees"), queryFn: api.listVirtualEmployees });
-  const filtered = useMemo(() => (employees.data ?? []).filter((employee) => {
-    const matchesQuery = `${employee.displayName} ${employee.name} ${employee.businessRole ?? ""} ${employee.ownerTeamId ?? ""}`.toLowerCase().includes(query.toLowerCase());
-    return matchesQuery && (status === "all" || employee.status === status) && (environment === "all" || employee.environment === environment);
-  }), [employees.data, environment, query, status]);
-  const action = useMutation({
-    mutationFn: ({ id, kind }: { id: string; kind: "activate" | "provision" | "suspend" }) =>
-      kind === "suspend" ? api.suspendVirtualEmployee(id) : kind === "activate" ? api.activateVirtualEmployee(id) : api.provisionVirtualEmployee(id),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: scope.key("virtual-employees") }),
-  });
-
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Virtual Employees"
-        description="Manage the business identities, model access, and approved system access used by agent instances."
-        actions={<Button onClick={() => setCreateOpen(true)}><Plus /> Create virtual employee</Button>}
-      />
-
-      <section aria-label="Virtual Employee filters" className="flex flex-col gap-3 border-b pb-5 lg:flex-row lg:items-center">
-        <div className="relative min-w-0 flex-1 lg:max-w-md">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search virtual employees" aria-label="Search virtual employees" className="pl-9" />
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Select value={status} onValueChange={(value) => setStatus(value as typeof status)}>
-            <SelectTrigger className="w-44"><Filter className="size-4" /><SelectValue /></SelectTrigger>
-            <SelectContent>{statuses.map((value) => <SelectItem key={value} value={value}>{value === "all" ? "All statuses" : statusLabels[value]}</SelectItem>)}</SelectContent>
-          </Select>
-          <Select value={environment} onValueChange={setEnvironment}>
-            <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="all">All environments</SelectItem><SelectItem value="development">Development</SelectItem><SelectItem value="uat">UAT</SelectItem><SelectItem value="production">Production</SelectItem></SelectContent>
-          </Select>
-        </div>
-      </section>
-
-      {employees.isPending ? <div className="h-72 animate-pulse rounded-md bg-muted/50" /> : employees.error ? (
-        <div role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">{employees.error.message}</div>
-      ) : filtered.length ? (
-        <div className="overflow-x-auto border">
-          <table className="w-full min-w-[1050px] text-left text-sm">
-            <thead className="border-b bg-muted/35 text-xs text-muted-foreground">
-              <tr>{["Name", "Status", "Role / Purpose", "Model Access", "Backing Identities", "Bound Instances", "Monthly Spend", "Updated", ""].map((label) => <th key={label} className="px-4 py-3 font-medium">{label}</th>)}</tr>
-            </thead>
-            <tbody className="divide-y">
-              {filtered.map((employee) => (
-                <tr key={employee.id} className="group hover:bg-muted/20">
-                  <td className="px-4 py-4"><Link to="/$projectId/virtual-employees/$employeeId" params={{ projectId, employeeId: employee.id }} className="block min-w-48 rounded-sm focus-visible:outline-2"><strong className="block font-medium group-hover:text-primary">{employee.displayName}</strong><span className="mt-0.5 block font-mono text-[11px] text-muted-foreground">{employee.name}</span></Link></td>
-                  <td className="px-4 py-4"><StatusBadge status={employee.status} /></td>
-                  <td className="px-4 py-4 text-muted-foreground">{employee.businessRole || "—"}</td>
-                  <td className="px-4 py-4"><strong>{employee.modelAccess?.allowedModels.length ?? 0}</strong> <span className="text-muted-foreground">models</span></td>
-                  <td className="px-4 py-4"><strong>{employee.identities.length}</strong> <span className="text-muted-foreground">identities</span></td>
-                  <td className="px-4 py-4"><strong>{employee.boundInstanceIds.length}</strong> <span className="text-muted-foreground">instances</span></td>
-                  <td className="px-4 py-4 tabular-nums">${(employee.modelAccess?.currentSpend ?? 0).toFixed(2)}</td>
-                  <td className="px-4 py-4 text-muted-foreground">{relativeTime(employee.updatedAt)}</td>
-                  <td className="px-3 py-3">
-                    <DropdownMenu><DropdownMenuTrigger asChild><Button size="icon" variant="ghost" aria-label={`Actions for ${employee.displayName}`}><MoreHorizontal /></Button></DropdownMenuTrigger><DropdownMenuContent align="end">
-                      <DropdownMenuItem asChild><Link to="/$projectId/virtual-employees/$employeeId" params={{ projectId, employeeId: employee.id }}>View details</Link></DropdownMenuItem>
-                      {employee.status === "active" ? <DropdownMenuItem onSelect={() => action.mutate({ id: employee.id, kind: "suspend" })}>Suspend</DropdownMenuItem> : employee.status === "error" ? <DropdownMenuItem onSelect={() => action.mutate({ id: employee.id, kind: "provision" })}><RefreshCw /> Retry provisioning</DropdownMenuItem> : <DropdownMenuItem onSelect={() => action.mutate({ id: employee.id, kind: "activate" })}>Activate</DropdownMenuItem>}
-                    </DropdownMenuContent></DropdownMenu>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <div className="flex min-h-72 flex-col items-center justify-center border border-dashed px-6 text-center">
-          <span className="grid size-12 place-items-center rounded-full bg-primary/8 text-primary"><UserRoundCheck className="size-6" /></span>
-          <h2 className="mt-4 text-lg font-semibold">{employees.data?.length ? "No matching virtual employees" : "Create your first Virtual Employee"}</h2>
-          <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">{employees.data?.length ? "Adjust the search or filters to see more results." : "Bundle model access, backing identities, and approved system scope into one assignable business identity."}</p>
-          {!employees.data?.length ? <Button className="mt-5" onClick={() => setCreateOpen(true)}><Plus /> Create virtual employee</Button> : null}
-        </div>
-      )}
-      {action.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-3 text-sm text-destructive">{action.error.message}</p> : null}
-      <CreateVirtualEmployeeSheet open={createOpen} onOpenChange={setCreateOpen} />
-    </div>
-  );
-}
 
 type Draft = {
   name: string;
@@ -202,7 +58,15 @@ function numeric(value: string): number | undefined {
   return value.trim() && Number.isFinite(parsed) ? parsed : undefined;
 }
 
-function CreateVirtualEmployeeSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+export function CreateVirtualEmployeeSheet({
+  onCreated,
+  onOpenChange,
+  open,
+}: {
+  onCreated?: (employee: VirtualEmployee) => void;
+  onOpenChange: (open: boolean) => void;
+  open: boolean;
+}) {
   const scope = useProjectQueryScope();
   const queryClient = useQueryClient();
   const [step, setStep] = useState(0);
@@ -211,11 +75,14 @@ function CreateVirtualEmployeeSheet({ open, onOpenChange }: { open: boolean; onO
   const mutation = useMutation({
     mutationFn: (input: CreateVirtualEmployeeInput) => api.createVirtualEmployee(input),
     onSuccess: (employee) => {
-      void queryClient.invalidateQueries({ queryKey: scope.key("virtual-employees") });
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: scope.key("virtual-employees") }),
+        queryClient.invalidateQueries({ queryKey: ["project", employee.projectId, "members"] }),
+      ]);
       setDraft(initialDraft);
       setStep(0);
       onOpenChange(false);
-      window.location.assign(`/security/virtual-employees/${employee.id}`);
+      onCreated?.(employee);
     },
   });
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((current) => ({ ...current, [key]: value }));
@@ -269,7 +136,7 @@ function CreateVirtualEmployeeSheet({ open, onOpenChange }: { open: boolean; onO
       width="xl"
       eyebrow="Security"
       title="Create Virtual Employee"
-      description="Create one business identity for model access and approved system capabilities."
+      description="Add a virtual teammate with its own model access and approved system capabilities."
       footer={<div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-between">
         <Button variant="outline" disabled={mutation.isPending} onClick={() => step ? setStep(step - 1) : onOpenChange(false)}>{step ? <><ArrowLeft /> Back</> : "Cancel"}</Button>
         {step < 4 ? <Button disabled={!canContinue} onClick={() => setStep(step + 1)}>Next: {steps[step + 1]} <ArrowRight /></Button> : <Button disabled={mutation.isPending} onClick={create}><ShieldCheck /> {mutation.isPending ? "Provisioning model access…" : "Create virtual employee"}</Button>}
@@ -317,7 +184,7 @@ function CreateVirtualEmployeeSheet({ open, onOpenChange }: { open: boolean; onO
   );
 }
 
-function Field({ children, hint, label }: { children: React.ReactNode; hint?: string; label: string }) {
+function Field({ children, hint, label }: { children: ReactNode; hint?: string; label: string }) {
   return <label className="space-y-2"><Label>{label}</Label>{children}{hint ? <span className="block text-xs leading-5 text-muted-foreground">{hint}</span> : null}</label>;
 }
 

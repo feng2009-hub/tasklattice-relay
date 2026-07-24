@@ -4,6 +4,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import type { CreateMcpServerDefinitionInput, McpServerDefinition } from "@tasklattice/contracts";
 import { Activity, Braces, Pencil, Plus, ServerCog, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { EntityFormSheet } from "@/components/shared/entity-form-sheet";
 import { StatusDot } from "@/components/shared/status-dot";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,6 +39,7 @@ function McpServers() {
   const [editing, setEditing] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState(emptyDraft);
+  const [formError, setFormError] = useState("");
   const [notice, setNotice] = useState("");
   const selected = items.find((item) => item.id === selectedId) ?? items[0];
 
@@ -50,6 +52,7 @@ function McpServers() {
     onSuccess: async (server, variables) => {
       setSelectedId(server.id);
       setEditing(false);
+      setFormError("");
       setNotice(variables.id ? "MCP configuration saved to PostgreSQL. Run a connection check next." : "MCP server registered in PostgreSQL.");
       await queryClient.invalidateQueries({ queryKey: scope.key("extension-catalog") });
     },
@@ -71,17 +74,20 @@ function McpServers() {
   });
 
   const openForm = (item?: McpServerDefinition) => {
+    saveServer.reset();
     setEditing(true);
     setEditingId(item?.id ?? null);
     setDraft(item ? { authReference: item.authReference, endpoint: item.endpoint, name: item.name, parameters: item.parameters, transport: item.transport } : emptyDraft);
+    setFormError("");
     setNotice("");
   };
   const save = () => {
     if (!draft.name.trim() || !draft.endpoint.trim()) {
-      setNotice("Name and endpoint are required.");
+      setFormError("Name and endpoint are required.");
       return;
     }
-    try { JSON.parse(draft.parameters); } catch { setNotice("Parameters must be valid JSON."); return; }
+    try { JSON.parse(draft.parameters); } catch { setFormError("Parameters must be valid JSON."); return; }
+    setFormError("");
     const current = editingId ? items.find((item) => item.id === editingId) : undefined;
     void saveServer.mutate({
       ...(editingId ? { id: editingId } : {}),
@@ -102,7 +108,7 @@ function McpServers() {
       <PageHeader title="MCP Servers" description="Manage MCP connection metadata persisted in the current Project catalog." actions={<Button className="h-11" onClick={() => openForm()}><Plus /> Register MCP</Button>} />
       {catalog.isPending ? <p className="border p-4 text-sm text-muted-foreground">Loading MCP servers from PostgreSQL…</p> : null}
       {catalog.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">{catalog.error.message}</p> : null}
-      {saveServer.error || checkServer.error || deleteServer.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">{(saveServer.error ?? checkServer.error ?? deleteServer.error)?.message}</p> : null}
+      {checkServer.error || deleteServer.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">{(checkServer.error ?? deleteServer.error)?.message}</p> : null}
       {notice ? <p role="status" className="border-l-2 border-primary bg-muted/40 px-4 py-3 text-sm">{notice}</p> : null}
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_400px]">
         <Card>
@@ -118,19 +124,7 @@ function McpServers() {
           </CardContent>
         </Card>
         <Card className="self-start xl:sticky xl:top-24">
-          {editing ? (
-            <>
-              <CardHeader className="border-b"><CardTitle>{editingId ? "Update MCP" : "Register MCP"}</CardTitle><CardDescription>Store public connection metadata and a reference to managed credentials.</CardDescription></CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2"><Label htmlFor="mcp-name">Name</Label><Input id="mcp-name" className="h-11" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="Issue Tracker" /></div>
-                <div className="space-y-2"><Label htmlFor="mcp-endpoint">Endpoint</Label><Input id="mcp-endpoint" className="h-11" value={draft.endpoint} onChange={(event) => setDraft({ ...draft, endpoint: event.target.value })} placeholder="https://mcp.example.com/mcp" /></div>
-                <div className="space-y-2"><Label htmlFor="mcp-transport">Transport</Label><select id="mcp-transport" className="flex h-11 w-full border border-input bg-background px-3 text-sm" value={draft.transport} onChange={(event) => setDraft({ ...draft, transport: event.target.value as McpServerDefinition["transport"] })}><option>Streamable HTTP</option><option>SSE</option></select></div>
-                <div className="space-y-2"><Label htmlFor="mcp-auth">Credential reference</Label><Input id="mcp-auth" className="h-11" value={draft.authReference} onChange={(event) => setDraft({ ...draft, authReference: event.target.value })} placeholder="vault://team/credential" /><p className="text-xs text-muted-foreground">Reference only. Never paste a secret into this form.</p></div>
-                <div className="space-y-2"><Label htmlFor="mcp-parameters">Parameters (JSON)</Label><Textarea id="mcp-parameters" className="min-h-32 font-mono text-xs" value={draft.parameters} onChange={(event) => setDraft({ ...draft, parameters: event.target.value })} /></div>
-                <div className="flex gap-2"><Button className="flex-1" disabled={saveServer.isPending} onClick={save}>{saveServer.isPending ? "Saving…" : editingId ? "Save parameters" : "Register"}</Button><Button variant="outline" onClick={() => setEditing(false)}>Cancel</Button></div>
-              </CardContent>
-            </>
-          ) : selected ? (
+          {selected ? (
             <>
               <CardHeader className="border-b"><div className="flex items-center justify-between"><StatusDot label={selected.status} tone={selected.status === "HEALTHY" ? "success" : "neutral"} /><span className="text-xs text-muted-foreground">{selected.tools} tools</span></div><CardTitle className="mt-3">{selected.name}</CardTitle><CardDescription className="break-all font-mono text-xs">{selected.endpoint}</CardDescription></CardHeader>
               <CardContent className="space-y-4">
@@ -142,6 +136,37 @@ function McpServers() {
           ) : <CardContent className="py-16 text-center"><strong>No server selected</strong></CardContent>}
         </Card>
       </div>
+      <EntityFormSheet
+        open={editing}
+        onOpenChange={(open) => {
+          if (!saveServer.isPending) {
+            setEditing(open);
+            if (!open) {
+              setFormError("");
+              saveServer.reset();
+            }
+          }
+        }}
+        eyebrow="MCP Server"
+        title={editingId ? "Update MCP" : "Register MCP"}
+        description="Store public connection metadata and a reference to managed credentials."
+        width="md"
+        footer={(
+          <>
+            <Button variant="outline" disabled={saveServer.isPending} onClick={() => setEditing(false)}>Cancel</Button>
+            <Button type="submit" form="mcp-server-form" disabled={saveServer.isPending}>{saveServer.isPending ? "Saving…" : editingId ? "Save changes" : "Register MCP"}</Button>
+          </>
+        )}
+      >
+        <form id="mcp-server-form" className="space-y-4" onSubmit={(event) => { event.preventDefault(); save(); }}>
+          <div className="space-y-2"><Label htmlFor="mcp-name">Name</Label><Input id="mcp-name" className="h-11" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="Issue Tracker" autoFocus /></div>
+          <div className="space-y-2"><Label htmlFor="mcp-endpoint">Endpoint</Label><Input id="mcp-endpoint" className="h-11" value={draft.endpoint} onChange={(event) => setDraft({ ...draft, endpoint: event.target.value })} placeholder="https://mcp.example.com/mcp" /></div>
+          <div className="space-y-2"><Label htmlFor="mcp-transport">Transport</Label><select id="mcp-transport" className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm" value={draft.transport} onChange={(event) => setDraft({ ...draft, transport: event.target.value as McpServerDefinition["transport"] })}><option>Streamable HTTP</option><option>SSE</option></select></div>
+          <div className="space-y-2"><Label htmlFor="mcp-auth">Credential reference</Label><Input id="mcp-auth" className="h-11" value={draft.authReference} onChange={(event) => setDraft({ ...draft, authReference: event.target.value })} placeholder="vault://team/credential" /><p className="text-xs text-muted-foreground">Reference only. Never paste a secret into this form.</p></div>
+          <div className="space-y-2"><Label htmlFor="mcp-parameters">Parameters (JSON)</Label><Textarea id="mcp-parameters" className="min-h-32 font-mono text-xs" value={draft.parameters} onChange={(event) => setDraft({ ...draft, parameters: event.target.value })} /></div>
+          {formError || saveServer.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 px-3 py-2 text-sm text-destructive">{formError || saveServer.error?.message}</p> : null}
+        </form>
+      </EntityFormSheet>
     </div>
   );
 }

@@ -20,13 +20,12 @@ import { Route as ProjectIdModelsRouteImport } from './routes/$projectId/models'
 import { Route as ProjectIdMcpServersRouteImport } from './routes/$projectId/mcp-servers'
 import { Route as ProjectIdKnowledgeBaseRouteImport } from './routes/$projectId/knowledge-base'
 import { Route as ProjectIdCostRouteImport } from './routes/$projectId/cost'
-import { Route as ProjectIdVirtualEmployeesIndexRouteImport } from './routes/$projectId/virtual-employees/index'
 import { Route as ProjectIdSettingIndexRouteImport } from './routes/$projectId/setting/index'
 import { Route as ProjectIdRequestsIndexRouteImport } from './routes/$projectId/requests/index'
 import { Route as ProjectIdInstancesIndexRouteImport } from './routes/$projectId/instances/index'
-import { Route as ProjectIdVirtualEmployeesEmployeeIdRouteImport } from './routes/$projectId/virtual-employees/$employeeId'
 import { Route as ProjectIdRequestsNewRouteImport } from './routes/$projectId/requests/new'
 import { Route as ProjectIdInstancesInstanceIdRouteImport } from './routes/$projectId/instances/$instanceId'
+import { Route as ProjectIdSettingVirtualEmployeesEmployeeIdRouteImport } from './routes/$projectId/setting/virtual-employees/$employeeId'
 import { Route as ProjectIdSettingModelProfilesProfileIdRouteImport } from './routes/$projectId/setting/model-profiles/$profileId'
 
 const LoginRoute = LoginRouteImport.update({
@@ -85,12 +84,6 @@ const ProjectIdCostRoute = ProjectIdCostRouteImport.update({
   path: '/$projectId/cost',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ProjectIdVirtualEmployeesIndexRoute =
-  ProjectIdVirtualEmployeesIndexRouteImport.update({
-    id: '/$projectId/virtual-employees/',
-    path: '/$projectId/virtual-employees/',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const ProjectIdSettingIndexRoute = ProjectIdSettingIndexRouteImport.update({
   id: '/$projectId/setting/',
   path: '/$projectId/setting/',
@@ -106,12 +99,6 @@ const ProjectIdInstancesIndexRoute = ProjectIdInstancesIndexRouteImport.update({
   path: '/$projectId/instances/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ProjectIdVirtualEmployeesEmployeeIdRoute =
-  ProjectIdVirtualEmployeesEmployeeIdRouteImport.update({
-    id: '/$projectId/virtual-employees/$employeeId',
-    path: '/$projectId/virtual-employees/$employeeId',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const ProjectIdRequestsNewRoute = ProjectIdRequestsNewRouteImport.update({
   id: '/$projectId/requests/new',
   path: '/$projectId/requests/new',
@@ -121,6 +108,12 @@ const ProjectIdInstancesInstanceIdRoute =
   ProjectIdInstancesInstanceIdRouteImport.update({
     id: '/$projectId/instances/$instanceId',
     path: '/$projectId/instances/$instanceId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ProjectIdSettingVirtualEmployeesEmployeeIdRoute =
+  ProjectIdSettingVirtualEmployeesEmployeeIdRouteImport.update({
+    id: '/$projectId/setting/virtual-employees/$employeeId',
+    path: '/$projectId/setting/virtual-employees/$employeeId',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ProjectIdSettingModelProfilesProfileIdRoute =
@@ -144,12 +137,11 @@ export interface FileRoutesByFullPath {
   '/$projectId/': typeof ProjectIdIndexRoute
   '/$projectId/instances/$instanceId': typeof ProjectIdInstancesInstanceIdRoute
   '/$projectId/requests/new': typeof ProjectIdRequestsNewRoute
-  '/$projectId/virtual-employees/$employeeId': typeof ProjectIdVirtualEmployeesEmployeeIdRoute
   '/$projectId/instances/': typeof ProjectIdInstancesIndexRoute
   '/$projectId/requests/': typeof ProjectIdRequestsIndexRoute
   '/$projectId/setting/': typeof ProjectIdSettingIndexRoute
-  '/$projectId/virtual-employees/': typeof ProjectIdVirtualEmployeesIndexRoute
   '/$projectId/setting/model-profiles/$profileId': typeof ProjectIdSettingModelProfilesProfileIdRoute
+  '/$projectId/setting/virtual-employees/$employeeId': typeof ProjectIdSettingVirtualEmployeesEmployeeIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -165,12 +157,11 @@ export interface FileRoutesByTo {
   '/$projectId': typeof ProjectIdIndexRoute
   '/$projectId/instances/$instanceId': typeof ProjectIdInstancesInstanceIdRoute
   '/$projectId/requests/new': typeof ProjectIdRequestsNewRoute
-  '/$projectId/virtual-employees/$employeeId': typeof ProjectIdVirtualEmployeesEmployeeIdRoute
   '/$projectId/instances': typeof ProjectIdInstancesIndexRoute
   '/$projectId/requests': typeof ProjectIdRequestsIndexRoute
   '/$projectId/setting': typeof ProjectIdSettingIndexRoute
-  '/$projectId/virtual-employees': typeof ProjectIdVirtualEmployeesIndexRoute
   '/$projectId/setting/model-profiles/$profileId': typeof ProjectIdSettingModelProfilesProfileIdRoute
+  '/$projectId/setting/virtual-employees/$employeeId': typeof ProjectIdSettingVirtualEmployeesEmployeeIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -187,12 +178,11 @@ export interface FileRoutesById {
   '/$projectId/': typeof ProjectIdIndexRoute
   '/$projectId/instances/$instanceId': typeof ProjectIdInstancesInstanceIdRoute
   '/$projectId/requests/new': typeof ProjectIdRequestsNewRoute
-  '/$projectId/virtual-employees/$employeeId': typeof ProjectIdVirtualEmployeesEmployeeIdRoute
   '/$projectId/instances/': typeof ProjectIdInstancesIndexRoute
   '/$projectId/requests/': typeof ProjectIdRequestsIndexRoute
   '/$projectId/setting/': typeof ProjectIdSettingIndexRoute
-  '/$projectId/virtual-employees/': typeof ProjectIdVirtualEmployeesIndexRoute
   '/$projectId/setting/model-profiles/$profileId': typeof ProjectIdSettingModelProfilesProfileIdRoute
+  '/$projectId/setting/virtual-employees/$employeeId': typeof ProjectIdSettingVirtualEmployeesEmployeeIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -210,12 +200,11 @@ export interface FileRouteTypes {
     | '/$projectId/'
     | '/$projectId/instances/$instanceId'
     | '/$projectId/requests/new'
-    | '/$projectId/virtual-employees/$employeeId'
     | '/$projectId/instances/'
     | '/$projectId/requests/'
     | '/$projectId/setting/'
-    | '/$projectId/virtual-employees/'
     | '/$projectId/setting/model-profiles/$profileId'
+    | '/$projectId/setting/virtual-employees/$employeeId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -231,12 +220,11 @@ export interface FileRouteTypes {
     | '/$projectId'
     | '/$projectId/instances/$instanceId'
     | '/$projectId/requests/new'
-    | '/$projectId/virtual-employees/$employeeId'
     | '/$projectId/instances'
     | '/$projectId/requests'
     | '/$projectId/setting'
-    | '/$projectId/virtual-employees'
     | '/$projectId/setting/model-profiles/$profileId'
+    | '/$projectId/setting/virtual-employees/$employeeId'
   id:
     | '__root__'
     | '/'
@@ -252,12 +240,11 @@ export interface FileRouteTypes {
     | '/$projectId/'
     | '/$projectId/instances/$instanceId'
     | '/$projectId/requests/new'
-    | '/$projectId/virtual-employees/$employeeId'
     | '/$projectId/instances/'
     | '/$projectId/requests/'
     | '/$projectId/setting/'
-    | '/$projectId/virtual-employees/'
     | '/$projectId/setting/model-profiles/$profileId'
+    | '/$projectId/setting/virtual-employees/$employeeId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -274,12 +261,11 @@ export interface RootRouteChildren {
   ProjectIdIndexRoute: typeof ProjectIdIndexRoute
   ProjectIdInstancesInstanceIdRoute: typeof ProjectIdInstancesInstanceIdRoute
   ProjectIdRequestsNewRoute: typeof ProjectIdRequestsNewRoute
-  ProjectIdVirtualEmployeesEmployeeIdRoute: typeof ProjectIdVirtualEmployeesEmployeeIdRoute
   ProjectIdInstancesIndexRoute: typeof ProjectIdInstancesIndexRoute
   ProjectIdRequestsIndexRoute: typeof ProjectIdRequestsIndexRoute
   ProjectIdSettingIndexRoute: typeof ProjectIdSettingIndexRoute
-  ProjectIdVirtualEmployeesIndexRoute: typeof ProjectIdVirtualEmployeesIndexRoute
   ProjectIdSettingModelProfilesProfileIdRoute: typeof ProjectIdSettingModelProfilesProfileIdRoute
+  ProjectIdSettingVirtualEmployeesEmployeeIdRoute: typeof ProjectIdSettingVirtualEmployeesEmployeeIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -361,13 +347,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectIdCostRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/$projectId/virtual-employees/': {
-      id: '/$projectId/virtual-employees/'
-      path: '/$projectId/virtual-employees'
-      fullPath: '/$projectId/virtual-employees/'
-      preLoaderRoute: typeof ProjectIdVirtualEmployeesIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/$projectId/setting/': {
       id: '/$projectId/setting/'
       path: '/$projectId/setting'
@@ -389,13 +368,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectIdInstancesIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/$projectId/virtual-employees/$employeeId': {
-      id: '/$projectId/virtual-employees/$employeeId'
-      path: '/$projectId/virtual-employees/$employeeId'
-      fullPath: '/$projectId/virtual-employees/$employeeId'
-      preLoaderRoute: typeof ProjectIdVirtualEmployeesEmployeeIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/$projectId/requests/new': {
       id: '/$projectId/requests/new'
       path: '/$projectId/requests/new'
@@ -408,6 +380,13 @@ declare module '@tanstack/react-router' {
       path: '/$projectId/instances/$instanceId'
       fullPath: '/$projectId/instances/$instanceId'
       preLoaderRoute: typeof ProjectIdInstancesInstanceIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$projectId/setting/virtual-employees/$employeeId': {
+      id: '/$projectId/setting/virtual-employees/$employeeId'
+      path: '/$projectId/setting/virtual-employees/$employeeId'
+      fullPath: '/$projectId/setting/virtual-employees/$employeeId'
+      preLoaderRoute: typeof ProjectIdSettingVirtualEmployeesEmployeeIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$projectId/setting/model-profiles/$profileId': {
@@ -434,14 +413,13 @@ const rootRouteChildren: RootRouteChildren = {
   ProjectIdIndexRoute: ProjectIdIndexRoute,
   ProjectIdInstancesInstanceIdRoute: ProjectIdInstancesInstanceIdRoute,
   ProjectIdRequestsNewRoute: ProjectIdRequestsNewRoute,
-  ProjectIdVirtualEmployeesEmployeeIdRoute:
-    ProjectIdVirtualEmployeesEmployeeIdRoute,
   ProjectIdInstancesIndexRoute: ProjectIdInstancesIndexRoute,
   ProjectIdRequestsIndexRoute: ProjectIdRequestsIndexRoute,
   ProjectIdSettingIndexRoute: ProjectIdSettingIndexRoute,
-  ProjectIdVirtualEmployeesIndexRoute: ProjectIdVirtualEmployeesIndexRoute,
   ProjectIdSettingModelProfilesProfileIdRoute:
     ProjectIdSettingModelProfilesProfileIdRoute,
+  ProjectIdSettingVirtualEmployeesEmployeeIdRoute:
+    ProjectIdSettingVirtualEmployeesEmployeeIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

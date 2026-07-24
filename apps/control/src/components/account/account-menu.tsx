@@ -1,4 +1,5 @@
-import { ChevronDown, LogOut } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { ChevronDown, LogOut, Settings } from "lucide-react";
 
 import type { AuthUser } from "@/components/auth/auth-provider";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -15,6 +16,7 @@ import { cn } from "@/lib/utils";
 type AccountMenuProps = {
   collapsed?: boolean;
   onLogout: () => void | Promise<void>;
+  projectId: string;
   user: AuthUser | null;
 };
 
@@ -51,6 +53,7 @@ function UserAvatar({
 export function AccountMenu({
   collapsed = false,
   onLogout,
+  projectId,
   user,
 }: AccountMenuProps) {
   const displayName = user?.displayName || user?.username || "User";
@@ -98,6 +101,13 @@ export function AccountMenu({
             </span>
           </span>
         </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link to="/$projectId/setting" params={{ projectId }}>
+            <Settings className="size-4" />
+            Settings
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           className="text-destructive focus:bg-destructive/10 focus:text-destructive"

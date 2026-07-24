@@ -12,6 +12,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { EntityFormSheet } from "@/components/shared/entity-form-sheet";
 import { StatusDot } from "@/components/shared/status-dot";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,9 +46,10 @@ function SkillCatalog() {
   const [selectedId, setSelectedId] = useState("");
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
-  const [mode, setMode] = useState<"detail" | "form">("detail");
+  const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState(emptyDraft);
+  const [formError, setFormError] = useState("");
   const [notice, setNotice] = useState("");
 
   useEffect(() => {
@@ -71,7 +73,8 @@ function SkillCatalog() {
     mutationFn: ({ id, input }: { id?: string; input: CreateSkillDefinitionInput }) => id ? api.updateSkill(id, input) : api.createSkill(input),
     onSuccess: async (skill, variables) => {
       setSelectedId(skill.id);
-      setMode("detail");
+      setFormOpen(false);
+      setFormError("");
       setNotice(variables.id ? "Skill metadata saved to PostgreSQL." : "Skill registered in the PostgreSQL catalog.");
       await queryClient.invalidateQueries({ queryKey: scope.key("extension-catalog") });
     },
@@ -91,20 +94,22 @@ function SkillCatalog() {
     mutationFn: (id: string) => api.deleteExtension("skills", id),
     onSuccess: async () => {
       setSelectedId("");
-      setMode("detail");
       setNotice("Skill removed from the PostgreSQL catalog.");
       await queryClient.invalidateQueries({ queryKey: scope.key("extension-catalog") });
     },
   });
 
   const openCreate = () => {
+    saveSkill.reset();
     setEditingId(null);
     setDraft(emptyDraft);
-    setMode("form");
+    setFormError("");
+    setFormOpen(true);
     setNotice("");
   };
   const openEdit = () => {
     if (!selected) return;
+    saveSkill.reset();
     setEditingId(selected.id);
     setDraft({
       category: selected.category,
@@ -113,14 +118,16 @@ function SkillCatalog() {
       name: selected.name,
       version: selected.version,
     });
-    setMode("form");
+    setFormError("");
+    setFormOpen(true);
     setNotice("");
   };
   const save = () => {
     if (!draft.name.trim() || !draft.endpoint.trim()) {
-      setNotice("Name and source endpoint are required.");
+      setFormError("Name and source endpoint are required.");
       return;
     }
+    setFormError("");
     const current = editingId ? items.find((item) => item.id === editingId) : undefined;
     void saveSkill.mutate({
       ...(editingId ? { id: editingId } : {}),
@@ -148,7 +155,7 @@ function SkillCatalog() {
 
       {catalog.isPending ? <p className="border p-4 text-sm text-muted-foreground">Loading Skills from PostgreSQL…</p> : null}
       {catalog.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">{catalog.error.message}</p> : null}
-      {saveSkill.error || verifySkill.error || deleteSkill.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">{(saveSkill.error ?? verifySkill.error ?? deleteSkill.error)?.message}</p> : null}
+      {verifySkill.error || deleteSkill.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">{(verifySkill.error ?? deleteSkill.error)?.message}</p> : null}
 
       <div className="grid overflow-hidden border bg-card text-sm sm:grid-cols-4">
         {[
@@ -189,7 +196,7 @@ function SkillCatalog() {
                 key={skill.id}
                 type="button"
                 aria-pressed={selected?.id === skill.id}
-                onClick={() => { setSelectedId(skill.id); setMode("detail"); setNotice(""); }}
+                onClick={() => { setSelectedId(skill.id); setNotice(""); }}
                 className={cn(
                   "grid min-h-24 w-full gap-2 border-b px-5 py-4 text-left transition-colors last:border-b-0 hover:bg-muted/45 focus-visible:outline-2 focus-visible:outline-offset-[-2px] sm:grid-cols-[minmax(0,1fr)_120px_auto] sm:items-center",
                   selected?.id === skill.id && "bg-muted/70 shadow-[inset_3px_0_0_var(--primary)]",
@@ -209,21 +216,7 @@ function SkillCatalog() {
         </Card>
 
         <Card className="self-start xl:sticky xl:top-24">
-          {mode === "form" ? (
-            <>
-              <CardHeader className="border-b"><CardTitle>{editingId ? "Update Skill" : "Register Skill"}</CardTitle><CardDescription>Metadata is persisted in PostgreSQL. Source fetching remains simulated during development.</CardDescription></CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2"><Label htmlFor="skill-name">Name</Label><Input id="skill-name" className="h-11" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="Release Notes" /></div>
-                <div className="space-y-2"><Label htmlFor="skill-endpoint">Remote package endpoint</Label><Input id="skill-endpoint" className="h-11" value={draft.endpoint} onChange={(event) => setDraft({ ...draft, endpoint: event.target.value })} placeholder="https://…/bundle.tar.zst" /></div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2"><Label htmlFor="skill-version">Version</Label><Input id="skill-version" className="h-11" value={draft.version} onChange={(event) => setDraft({ ...draft, version: event.target.value })} /></div>
-                  <div className="space-y-2"><Label htmlFor="skill-category">Category</Label><select id="skill-category" className="flex h-11 w-full border border-input bg-background px-3 text-sm" value={draft.category} onChange={(event) => setDraft({ ...draft, category: event.target.value as SkillDefinition["category"] })}>{skillCategories.map((item) => <option key={item}>{item}</option>)}</select></div>
-                </div>
-                <div className="space-y-2"><Label htmlFor="skill-description">Description</Label><Textarea id="skill-description" value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></div>
-                <div className="flex gap-2"><Button className="h-11 flex-1" disabled={saveSkill.isPending} onClick={save}>{saveSkill.isPending ? "Saving…" : editingId ? "Save changes" : "Register"}</Button><Button className="h-11" variant="outline" onClick={() => setMode("detail")}>Cancel</Button></div>
-              </CardContent>
-            </>
-          ) : selected ? (
+          {selected ? (
             <>
               <CardHeader className="border-b">
                 <div className="flex items-center justify-between gap-3"><StatusDot label={selected.status} tone={selected.status === "PUBLISHED" ? "success" : "neutral"} /><span className="text-xs text-muted-foreground">{selected.bindings} instances</span></div>
@@ -247,6 +240,39 @@ function SkillCatalog() {
           )}
         </Card>
       </div>
+      <EntityFormSheet
+        open={formOpen}
+        onOpenChange={(open) => {
+          if (!saveSkill.isPending) {
+            setFormOpen(open);
+            if (!open) {
+              setFormError("");
+              saveSkill.reset();
+            }
+          }
+        }}
+        eyebrow="Skill Catalog"
+        title={editingId ? "Update Skill" : "Register Skill"}
+        description="Persist package metadata in PostgreSQL. Source fetching remains simulated during development."
+        width="md"
+        footer={(
+          <>
+            <Button variant="outline" disabled={saveSkill.isPending} onClick={() => setFormOpen(false)}>Cancel</Button>
+            <Button type="submit" form="skill-form" disabled={saveSkill.isPending}>{saveSkill.isPending ? "Saving…" : editingId ? "Save changes" : "Register Skill"}</Button>
+          </>
+        )}
+      >
+        <form id="skill-form" className="space-y-4" onSubmit={(event) => { event.preventDefault(); save(); }}>
+          <div className="space-y-2"><Label htmlFor="skill-name">Name</Label><Input id="skill-name" className="h-11" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="Release Notes" autoFocus /></div>
+          <div className="space-y-2"><Label htmlFor="skill-endpoint">Remote package endpoint</Label><Input id="skill-endpoint" className="h-11" value={draft.endpoint} onChange={(event) => setDraft({ ...draft, endpoint: event.target.value })} placeholder="https://…/bundle.tar.zst" /></div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-2"><Label htmlFor="skill-version">Version</Label><Input id="skill-version" className="h-11" value={draft.version} onChange={(event) => setDraft({ ...draft, version: event.target.value })} /></div>
+            <div className="space-y-2"><Label htmlFor="skill-category">Category</Label><select id="skill-category" className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm" value={draft.category} onChange={(event) => setDraft({ ...draft, category: event.target.value as SkillDefinition["category"] })}>{skillCategories.map((item) => <option key={item}>{item}</option>)}</select></div>
+          </div>
+          <div className="space-y-2"><Label htmlFor="skill-description">Description</Label><Textarea id="skill-description" className="min-h-28" value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></div>
+          {formError || saveSkill.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 px-3 py-2 text-sm text-destructive">{formError || saveSkill.error?.message}</p> : null}
+        </form>
+      </EntityFormSheet>
     </div>
   );
 }
