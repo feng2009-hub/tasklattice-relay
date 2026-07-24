@@ -21,7 +21,7 @@ export function AuthGuard({ children }: { children: ReactNode }) {
         <div className="text-center">
           <LoaderCircle className="mx-auto size-6 animate-spin text-primary" />
           <p className="mt-3 text-sm text-muted-foreground">
-            {error || "Checking your workspace session…"}
+            {error || "Checking your Project session…"}
           </p>
         </div>
       </main>

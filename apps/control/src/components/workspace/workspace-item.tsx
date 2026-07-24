@@ -62,7 +62,7 @@ export function WorkspaceItem({
 }) {
   const detail =
     workspace.type === "personal"
-      ? "Personal workspace"
+      ? "Default project"
       : `${workspace.memberCount} ${workspace.memberCount === 1 ? "member" : "members"}`;
 
   return (

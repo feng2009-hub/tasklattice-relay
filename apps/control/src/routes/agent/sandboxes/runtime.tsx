@@ -144,7 +144,7 @@ function OpenShellRuntimePage() {
                   ["Stable identity", selected.sandboxName],
                   ["Instance", selected.id.slice(0, 8)],
                   ["Pod", selected.status === "READY" ? "1 / 1" : "0 / 1"],
-                  ["Workspace", "Persistent PVC"],
+                  ["Project", "Persistent PVC"],
                   ["Policy", policies.data?.policies.find((policy) => policy.id === selected.policyId)?.name ?? selected.policyId],
                 ].map(([label, value]) => (
                   <div

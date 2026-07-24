@@ -27,7 +27,7 @@ export const costFilterLabels: Record<CostFilterKey, string> = {
   provider_account: "Provider account",
   virtual_key: "Virtual key",
   environment: "Environment",
-  workspace: "Workspace",
+  workspace: "Project",
 };
 
 function isoDate(date: Date): string {

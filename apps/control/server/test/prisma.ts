@@ -3,6 +3,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool, type Client as PgClient } from "pg";
 import migration from "../../prisma/migrations/20260723000000_initial_control_plane/migration.sql?raw";
 import seedMigration from "../../prisma/migrations/20260723001000_seed_control_plane/migration.sql?raw";
+import virtualEmployeeMigration from "../../prisma/migrations/20260724000000_virtual_employees/migration.sql?raw";
 import { PrismaClient } from "../generated/prisma/client";
 
 export function createTestPrisma(): PrismaClient {
@@ -19,6 +20,7 @@ export function createTestPrisma(): PrismaClient {
   // metadata. Production migrations retain Prisma's DECIMAL(65,30).
   memory.public.none(migration.replaceAll("DECIMAL(65,30)", "NUMERIC"));
   memory.public.none(seedMigration);
+  memory.public.none(virtualEmployeeMigration.replaceAll("DECIMAL(18,6)", "NUMERIC"));
   const pg = memory.adapters.createPg();
   const query = pg.Client.prototype.query;
   pg.Client.prototype.query = function (

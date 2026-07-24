@@ -54,20 +54,21 @@ describe("Model Profile contracts", () => {
       name: "Research Agent",
       description: "",
       runtime: "openshell",
+      virtualEmployeeId: "11111111-1111-4111-8111-111111111111",
       systemPrompt: "Research the request and report the evidence.",
       modelDeploymentId: "must-be-ignored",
     })).toThrow();
   });
 
-  it("accepts an explicit Model Profile without exposing model routing", () => {
-    const modelProfileId = "2f3d37d9-fd85-49ee-80b3-06861b8c44b1";
+  it("requires a Virtual Employee instead of an explicit Model Profile", () => {
+    const virtualEmployeeId = "2f3d37d9-fd85-49ee-80b3-06861b8c44b1";
     expect(createAgentSchema.parse({
       name: "Research Agent",
       description: "",
       runtime: "openshell",
       systemPrompt: "Research the request and report the evidence.",
-      modelProfileId,
-    }).modelProfileId).toBe(modelProfileId);
+      virtualEmployeeId,
+    }).virtualEmployeeId).toBe(virtualEmployeeId);
   });
 
   it("defaults secret-safe key and audit policies", () => {

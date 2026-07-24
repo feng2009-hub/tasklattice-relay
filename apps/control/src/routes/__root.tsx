@@ -18,7 +18,7 @@ export const Route = createRootRouteWithContext<{
 }>()({
   component: RootApplication,
   search: {
-    middlewares: [retainSearchParams(["workspace"])],
+    middlewares: [retainSearchParams(["project_id"])],
   },
   head: () => ({
     meta: [

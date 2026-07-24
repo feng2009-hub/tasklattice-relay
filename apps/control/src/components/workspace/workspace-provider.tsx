@@ -23,9 +23,9 @@ import {
 } from "@/components/workspace/workspace-context";
 import type { Workspace } from "@/types/workspace";
 
-function workspaceIdFromUrl(): string | null {
+function projectIdFromUrl(): string | null {
   if (typeof window === "undefined") return null;
-  return new URL(window.location.href).searchParams.get("workspace");
+  return new URL(window.location.href).searchParams.get("project_id");
 }
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
@@ -37,11 +37,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [switchingWorkspaceId, setSwitchingWorkspaceId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
-  const replaceWorkspaceInUrl = useCallback(
-    (workspaceId: string) => {
+  const replaceProjectInUrl = useCallback(
+    (projectId: string) => {
       if (typeof window === "undefined") return;
       const nextUrl = new URL(window.location.href);
-      nextUrl.searchParams.set("workspace", workspaceId);
+      nextUrl.searchParams.set("project_id", projectId);
       router.history.replace(
         `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`,
       );
@@ -58,13 +58,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       null;
     setAvailableWorkspaces(workspaces);
     setCurrentWorkspace(selected);
-    setError(selected ? "" : "No workspace available.");
+    setError(selected ? "" : "No project available.");
     if (selected) {
       storeWorkspaceId(selected.id);
-      replaceWorkspaceInUrl(selected.id);
+      replaceProjectInUrl(selected.id);
     }
     return workspaces;
-  }, [currentWorkspace?.id, replaceWorkspaceInUrl]);
+  }, [currentWorkspace?.id, replaceProjectInUrl]);
 
   useEffect(() => {
     let disposed = false;
@@ -77,11 +77,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         if (!loaded.length) {
           setAvailableWorkspaces([]);
           setCurrentWorkspace(null);
-          setError("No workspace available.");
+          setError("No project available.");
           return;
         }
         const workspaces = loaded;
-        const urlWorkspaceId = workspaceIdFromUrl();
+        const urlWorkspaceId = projectIdFromUrl();
         const storedWorkspaceId = getStoredWorkspaceId();
         const selected = selectInitialWorkspace(
           workspaces,
@@ -91,17 +91,17 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         setAvailableWorkspaces(workspaces);
         setCurrentWorkspace(selected);
         storeWorkspaceId(selected.id);
-        replaceWorkspaceInUrl(selected.id);
+        replaceProjectInUrl(selected.id);
       } catch (reason) {
         if (disposed) return;
         setAvailableWorkspaces([personalFallbackWorkspace]);
         setCurrentWorkspace(personalFallbackWorkspace);
         storeWorkspaceId(personalFallbackWorkspace.id);
-        replaceWorkspaceInUrl(personalFallbackWorkspace.id);
+        replaceProjectInUrl(personalFallbackWorkspace.id);
         setError(
           reason instanceof Error
             ? reason.message
-            : "Unable to load workspaces. Using the personal workspace.",
+            : "Unable to load projects. Using the default project.",
         );
       } finally {
         if (!disposed) setLoading(false);
@@ -111,13 +111,19 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     return () => {
       disposed = true;
     };
-  }, [replaceWorkspaceInUrl]);
+  }, [replaceProjectInUrl]);
 
-  const switchWorkspace = useCallback(
-    async (workspaceId: string) => {
-      const nextWorkspace = availableWorkspaces.find(
-        (workspace) => workspace.id === workspaceId,
+  const selectProject = useCallback(
+    async (projectId: string) => {
+      let projectList = availableWorkspaces;
+      let nextWorkspace = projectList.find(
+        (workspace) => workspace.id === projectId,
       );
+      if (!nextWorkspace) {
+        projectList = await getWorkspaces();
+        setAvailableWorkspaces(projectList);
+        nextWorkspace = projectList.find((workspace) => workspace.id === projectId);
+      }
       if (
         switchingWorkspaceId ||
         !nextWorkspace ||
@@ -138,7 +144,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           refetchType: "none",
         });
         setCurrentWorkspace(nextWorkspace);
-        replaceWorkspaceInUrl(nextWorkspace.id);
+        replaceProjectInUrl(nextWorkspace.id);
         if (typeof window !== "undefined") {
           window.dispatchEvent(
             new CustomEvent(WORKSPACE_CHANGED_EVENT, {
@@ -153,7 +159,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         setError(
           reason instanceof Error
             ? reason.message
-            : "Unable to switch workspaces.",
+            : "Unable to switch projects.",
         );
         throw reason;
       } finally {
@@ -164,24 +170,26 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       availableWorkspaces,
       currentWorkspace?.id,
       queryClient,
-      replaceWorkspaceInUrl,
+      replaceProjectInUrl,
       switchingWorkspaceId,
     ],
   );
 
+  const switchWorkspace = selectProject;
+
   useEffect(() => {
     const syncFromHistory = () => {
-      const workspaceId = workspaceIdFromUrl();
+      const workspaceId = projectIdFromUrl();
       if (!currentWorkspace) return;
       if (!workspaceId) {
-        replaceWorkspaceInUrl(currentWorkspace.id);
+        replaceProjectInUrl(currentWorkspace.id);
         return;
       }
       if (workspaceId === currentWorkspace.id) return;
       if (availableWorkspaces.some((workspace) => workspace.id === workspaceId)) {
-        void switchWorkspace(workspaceId);
+        void selectProject(workspaceId);
       } else {
-        replaceWorkspaceInUrl(currentWorkspace.id);
+        replaceProjectInUrl(currentWorkspace.id);
       }
     };
     window.addEventListener("popstate", syncFromHistory);
@@ -189,8 +197,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, [
     availableWorkspaces,
     currentWorkspace,
-    replaceWorkspaceInUrl,
-    switchWorkspace,
+    replaceProjectInUrl,
+    selectProject,
   ]);
 
   const value = useMemo(
@@ -201,6 +209,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       isSwitching: switchingWorkspaceId !== null,
       loading,
       refreshWorkspaces,
+      selectProject,
       switchingWorkspaceId,
       switchWorkspace,
     }),
@@ -210,6 +219,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       error,
       loading,
       refreshWorkspaces,
+      selectProject,
       switchingWorkspaceId,
       switchWorkspace,
     ],

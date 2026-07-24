@@ -11,6 +11,8 @@ import { NemoClawRunnerClient, type RunnerClient } from "../runtime/nemoclaw-run
 import { LiteLLMClient, type LiteLLMAdminClient } from "../providers/litellm-client";
 import { PolicyService } from "../policies/policy-service";
 import { ModelProfileService } from "../model-profiles/model-profile-service";
+import { VirtualEmployeeService } from "../virtual-employees/virtual-employee-service";
+import { VirtualEmployeeStore } from "../virtual-employees/virtual-employee-store";
 
 export function agentSandboxName(name: string, id: string): string {
   const slug =
@@ -69,6 +71,7 @@ export class AgentService {
     readonly policies = new PolicyService(store),
     readonly extensions = new ExtensionCatalogService(store),
     readonly modelProfiles = new ModelProfileService(store, litellm),
+    readonly virtualEmployees = new VirtualEmployeeService(new VirtualEmployeeStore(store.workspaceId, store.database()), litellm),
   ) {}
 
   async list(): Promise<Agent[]> {
@@ -104,27 +107,34 @@ export class AgentService {
     const id = randomUUID();
     const now = new Date().toISOString();
     const sandboxName = agentSandboxName(input.name, id);
-    const managed = await this.modelProfiles.bindAgent(id, input.modelProfileId);
-    const costKeyAlias = `tasklattice/${managed.profile.id.slice(0, 8)}/${id.slice(0, 8)}`;
-    const costKey = { secret: managed.secret, tokenId: managed.binding.liteLLMTokenId };
+    const virtualEmployee = await this.virtualEmployees.get(input.virtualEmployeeId);
+    if (virtualEmployee.status !== "active") throw new Error("Select an Active Virtual Employee before creating an Instance.");
+    const runtimeCredential = await this.virtualEmployees.runtimeCredential(virtualEmployee.id);
+    const profiles = await this.store.listModelProfiles();
+    const profile = profiles.find((item) => item.status === "READY" && item.publicModelAlias === runtimeCredential.model);
+    if (!profile) throw new Error(`Virtual Employee model ${runtimeCredential.model} is not backed by a READY Model Profile.`);
+    const gateway = await this.store.getInferenceGateway(profile.gatewayId);
+    if (!gateway) throw new Error("The Virtual Employee LiteLLM Gateway is unavailable.");
+    const modelAccess = virtualEmployee.modelAccess!;
+    const costKeyAlias = modelAccess.keyAlias;
     let agent: Agent = {
       schemaVersion: 1,
       id,
       ...input,
       policyId: policy.id,
-      modelDeploymentId: `model-profile:${managed.profile.id}`,
-      providerAccountId: managed.gateway.id,
+      modelDeploymentId: `model-profile:${profile.id}`,
+      providerAccountId: gateway.id,
       providerName: "LiteLLM managed",
-      model: managed.profile.publicModelAlias,
+      model: runtimeCredential.model,
       modelType: "llm",
       inferenceMode: "PLATFORM_MANAGED",
-      modelProfileId: managed.profile.id,
-      modelProfileBindingId: managed.binding.id,
-      modelProfileStatus: managed.profile.status,
-      modelProfileComplianceDomain: managed.profile.complianceDomain,
-      modelProfileCapabilities: managed.profile.capabilities,
-      modelProfileKeyFingerprint: managed.binding.keyFingerprint,
-      ...(managed.profile.lastSynchronizedAt ? { modelProfileLastSynchronizedAt: managed.profile.lastSynchronizedAt } : {}),
+      modelProfileId: profile.id,
+      modelProfileBindingId: modelAccess.id,
+      modelProfileStatus: profile.status,
+      modelProfileComplianceDomain: profile.complianceDomain,
+      modelProfileCapabilities: profile.capabilities,
+      modelProfileKeyFingerprint: modelAccess.keyLastFour ? `last4:${modelAccess.keyLastFour}` : "secret-reference",
+      ...(modelAccess.lastSyncedAt ? { modelProfileLastSynchronizedAt: modelAccess.lastSyncedAt } : {}),
       costKeyAlias,
       sandboxName,
       status: "PROVISIONING",
@@ -134,6 +144,7 @@ export class AgentService {
       logs: ["Agent request accepted. Waiting for the NemoClaw Runtime Host."],
     };
     await this.store.save(agent);
+    await this.virtualEmployees.bindInstance(virtualEmployee.id, id, "agent-service");
     try {
       agent = await this.store.save(
         applyObservedState(
@@ -142,16 +153,18 @@ export class AgentService {
             name: agent.sandboxName,
             agentPlatform: agent.agentPlatform,
             providerName: "LiteLLM",
-            model: managed.profile.publicModelAlias,
-            inferenceEndpoint: `${managed.gateway.baseUrl}/v1`,
+            model: runtimeCredential.model,
+            inferenceEndpoint: runtimeCredential.endpoint,
             policyYaml: policy.policyYaml,
             systemPrompt: input.systemPrompt,
-            apiKey: costKey.secret,
+            apiKey: runtimeCredential.key,
+            virtualEmployeeId: virtualEmployee.id,
+            instanceId: id,
           }),
         ),
       );
     } catch (error) {
-      await this.modelProfiles.unbindAgent(id).catch(() => undefined);
+      await this.virtualEmployees.unbindInstance(id, "agent-service").catch(() => undefined);
       agent = await this.store.save({
         ...agent,
         status: "FAILED",
@@ -174,9 +187,70 @@ export class AgentService {
       updatedAt: new Date().toISOString(),
     });
     await this.runner.destroySandbox(agent.sandboxName, agent.agentPlatform);
-    await this.modelProfiles.unbindAgent(id);
+    await this.virtualEmployees.unbindInstance(id, "agent-service");
     await this.store.delete(id);
     return true;
+  }
+
+  async bindVirtualEmployee(id: string, virtualEmployeeId: string, actor: string): Promise<Agent> {
+    const current = await this.store.get(id);
+    if (!current) throw new Error("Agent Instance not found.");
+    if (current.virtualEmployeeId === virtualEmployeeId) return current;
+    const employee = await this.virtualEmployees.get(virtualEmployeeId);
+    if (employee.status !== "active") throw new Error("Only an Active Virtual Employee can be bound to an Instance.");
+    const credential = await this.virtualEmployees.runtimeCredential(virtualEmployeeId);
+    const profile = (await this.store.listModelProfiles()).find((item) => item.status === "READY" && item.publicModelAlias === credential.model);
+    if (!profile) throw new Error(`Virtual Employee model ${credential.model} is not backed by a READY Model Profile.`);
+    const gateway = await this.store.getInferenceGateway(profile.gatewayId);
+    if (!gateway) throw new Error("The Virtual Employee LiteLLM Gateway is unavailable.");
+    const policy = await this.policies.resolve(current.policyId);
+    const access = employee.modelAccess!;
+
+    await this.runner.destroySandbox(current.sandboxName, current.agentPlatform);
+    const observed = await this.runner.createSandbox({
+      name: current.sandboxName,
+      agentPlatform: current.agentPlatform,
+      providerName: "LiteLLM",
+      model: credential.model,
+      inferenceEndpoint: credential.endpoint,
+      policyYaml: policy.policyYaml,
+      systemPrompt: current.systemPrompt,
+      apiKey: credential.key,
+      virtualEmployeeId,
+      instanceId: id,
+    });
+    await this.virtualEmployees.unbindInstance(id, actor);
+    await this.virtualEmployees.bindInstance(virtualEmployeeId, id, actor);
+    return this.store.save(applyObservedState({
+      ...current,
+      virtualEmployeeId,
+      model: credential.model,
+      modelDeploymentId: `model-profile:${profile.id}`,
+      providerAccountId: gateway.id,
+      modelProfileId: profile.id,
+      modelProfileBindingId: access.id,
+      modelProfileStatus: profile.status,
+      modelProfileComplianceDomain: profile.complianceDomain,
+      modelProfileCapabilities: profile.capabilities,
+      modelProfileKeyFingerprint: access.keyLastFour ? `last4:${access.keyLastFour}` : "secret-reference",
+      costKeyAlias: access.keyAlias,
+      updatedAt: new Date().toISOString(),
+      logs: [...current.logs, `Virtual Employee changed to ${employee.displayName}.`],
+    }, observed));
+  }
+
+  async unbindVirtualEmployee(id: string, actor: string): Promise<Agent> {
+    const current = await this.store.get(id);
+    if (!current) throw new Error("Agent Instance not found.");
+    await this.runner.destroySandbox(current.sandboxName, current.agentPlatform);
+    await this.virtualEmployees.unbindInstance(id, actor);
+    return this.store.save({
+      ...current,
+      status: "FAILED",
+      updatedAt: new Date().toISOString(),
+      error: "Virtual Employee unbound. Bind an Active Virtual Employee before restarting this Instance.",
+      logs: [...current.logs, "Virtual Employee unbound; runtime stopped to prevent credential reuse."],
+    });
   }
 
   private async refresh(agent: Agent): Promise<Agent> {

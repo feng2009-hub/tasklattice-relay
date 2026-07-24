@@ -5,7 +5,7 @@ INSERT INTO tasklattice.users
 
 INSERT INTO tasklattice.workspaces
     (id, name, type, created_by)
-   VALUES ('individual', 'Individual', 'personal', 'local-admin')
+   VALUES ('individual', 'AI Trading Agent', 'personal', 'local-admin')
    ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO tasklattice.workspace_members

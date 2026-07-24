@@ -51,7 +51,7 @@ function scopedCommon(url: URL): CostAnalyticsQuery {
   const workspaceId = process.env.TALI_WORKSPACE_ID ?? "default";
   const environmentId = process.env.TALI_ENVIRONMENT_ID ?? "production";
   if (input.workspaceId && input.workspaceId !== workspaceId) {
-    throw new Error("Workspace access denied.");
+    throw new Error("Project access denied.");
   }
   if (input.environmentId && input.environmentId !== environmentId) {
     throw new Error("Environment access denied.");

@@ -17,6 +17,7 @@ const agent = {
   model: "deepseek-chat",
   modelType: "llm",
   inferenceMode: "PLATFORM_MANAGED",
+  virtualEmployeeId: "11111111-1111-4111-8111-111111111111",
   modelProfileId: "profile-a",
   modelProfileBindingId: "binding-a",
   modelProfileStatus: "READY",

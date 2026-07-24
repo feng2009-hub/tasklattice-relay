@@ -24,7 +24,7 @@ spec:
         {{- end }}
     spec:
       serviceAccountName: {{ include "tasklattice.serviceAccountName" . }}
-      automountServiceAccountToken: false
+      automountServiceAccountToken: true
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -92,6 +92,18 @@ spec:
                 secretKeyRef:
                   name: {{ include "tasklattice.secretName" . }}
                   key: litellm-master-key
+            - name: LITELLM_REQUEST_TIMEOUT
+              value: {{ .Values.litellm.requestTimeout | quote }}
+            - name: LITELLM_SYNC_ENABLED
+              value: {{ .Values.litellm.syncEnabled | quote }}
+            - name: LITELLM_SYNC_INTERVAL_MS
+              value: {{ .Values.litellm.syncIntervalMs | quote }}
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: NODE_EXTRA_CA_CERTS
+              value: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
             - name: TALI_AUTH_MODE
               value: {{ .Values.auth.mode | quote }}
             - name: TALI_AUTH_JWT_SECRET

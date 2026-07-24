@@ -1,6 +1,5 @@
 import { Fragment } from "react";
-import { Link } from "@tanstack/react-router";
-import { WorkspaceSwitcher } from "@/components/workspace/workspace-switcher";
+import { useWorkspace } from "@/hooks/use-workspace";
 import { cn } from "@/lib/utils";
 
 const routeLabels: Record<string, string> = {
@@ -18,13 +17,15 @@ const routeLabels: Record<string, string> = {
   providers: "Models",
   "model-profiles": "Model Profiles",
   requests: "Requests",
+  security: "Security",
   runtime: "Runtime",
   sandboxes: "Sandboxes",
   settings: "Settings",
   skill: "Skills",
   skills: "Skills",
   tickets: "Ticket List",
-  workspaces: "Workspaces",
+  "virtual-employees": "Virtual Employees",
+  workspaces: "Projects",
 };
 
 export interface HeaderBreadcrumbItem {
@@ -45,6 +46,9 @@ export function getHeaderBreadcrumbItems(pathname: string): HeaderBreadcrumbItem
   return parts.flatMap((part, index) => {
     if (index === 1 && parts[0] === "agents" && part === "instace") return [];
     const label =
+      index === 2 && parts[0] === "security" && parts[1] === "virtual-employees"
+        ? "Details"
+        :
       index === 1 && parts[0] === "requests" && part === "new"
         ? "Raise Request"
         : routeLabels[part] ?? decodePathPart(part);
@@ -56,58 +60,49 @@ export function getHeaderBreadcrumbItems(pathname: string): HeaderBreadcrumbItem
 }
 
 export function HeaderBreadcrumb({ pathname }: { pathname: string }) {
+  const { currentWorkspace: currentProject } = useWorkspace();
   const items = getHeaderBreadcrumbItems(pathname);
   const lastIndex = items.length - 1;
 
   return (
-    <div className="flex min-w-0 items-center gap-1 text-xs">
-      <WorkspaceSwitcher />
-      {items.length ? (
-        <>
-          <span aria-hidden="true" className="shrink-0 text-muted-foreground/70">
-            /
-          </span>
-          <nav
-            aria-label="Breadcrumb"
-            className="flex min-w-0 items-center gap-1 text-muted-foreground"
-          >
-            {items.map((item, index) => {
-              const current = index === lastIndex;
-              return (
-                <Fragment key={item.href}>
-                  {index > 0 ? (
-                    <span
-                      aria-hidden="true"
-                      className={cn(
-                        "shrink-0 text-muted-foreground/70",
-                        index <= lastIndex && "hidden md:inline",
-                      )}
-                    >
-                      /
-                    </span>
-                  ) : null}
-                  {current ? (
-                    <span
-                      aria-current="page"
-                      className="min-w-0 truncate font-medium text-foreground"
-                      title={item.label}
-                    >
-                      {item.label}
-                    </span>
-                  ) : (
-                    <Link
-                      to={item.href as never}
-                      className="hidden shrink-0 rounded-sm px-1 py-1 outline-none transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/35 md:inline"
-                    >
-                      {item.label}
-                    </Link>
-                  )}
-                </Fragment>
-              );
-            })}
-          </nav>
-        </>
-      ) : null}
-    </div>
+    <nav
+      aria-label="Breadcrumb"
+      className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground"
+    >
+      <span
+        className="max-w-36 shrink-0 truncate font-medium text-foreground sm:max-w-48"
+        title={currentProject?.name}
+      >
+        {currentProject?.name ?? "Project"}
+      </span>
+      {items.map((item, index) => {
+        const current = index === lastIndex;
+        return (
+          <Fragment key={item.href}>
+            <span
+              aria-hidden="true"
+              className={cn(
+                "shrink-0 text-muted-foreground/70",
+                !current && "hidden md:inline",
+              )}
+            >
+              /
+            </span>
+            <span
+              aria-current={current ? "page" : undefined}
+              className={cn(
+                "shrink-0",
+                current
+                  ? "min-w-0 truncate font-medium text-foreground"
+                  : "hidden md:inline",
+              )}
+              title={item.label}
+            >
+              {item.label}
+            </span>
+          </Fragment>
+        );
+      })}
+    </nav>
   );
 }

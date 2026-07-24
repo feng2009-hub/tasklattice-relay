@@ -31,6 +31,8 @@ export default defineWebSocketHandler({
     const token = url.searchParams.get("token") ?? "";
     const session = consumeTerminalSession(sessionId, token);
     if (!session) throw new Response("Invalid terminal session.", { status: 401 });
+    if (url.searchParams.get("project_id") !== session.projectId)
+      throw new Response("Invalid project context.", { status: 401 });
     const service = await getAgentService(request);
     const agent = await service.get(session.agentId);
     if (!agent || agent.status !== "READY")

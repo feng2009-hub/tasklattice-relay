@@ -72,6 +72,9 @@ litellm:
     annotations: {}
   adminUiUrl: ""
   complianceDomain: GLOBAL
+  requestTimeout: "20000"
+  syncEnabled: "true"
+  syncIntervalMs: "300000"
   resources:
     requests:
       cpu: 100m

@@ -10,6 +10,7 @@ export interface WorkspaceContextValue {
   isSwitching: boolean;
   loading: boolean;
   refreshWorkspaces: () => Promise<Workspace[]>;
+  selectProject: (projectId: string) => Promise<void>;
   switchingWorkspaceId: string | null;
   switchWorkspace: (workspaceId: string) => Promise<void>;
 }
@@ -20,7 +21,7 @@ export const WorkspaceContext = createContext<WorkspaceContextValue | null>(
 
 export const personalFallbackWorkspace: Workspace = {
   id: "individual",
-  name: "Individual",
+  name: "AI Trading Agent",
   type: "personal",
   memberCount: 1,
   role: "owner",

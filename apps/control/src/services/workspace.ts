@@ -11,13 +11,15 @@ import type {
 
 async function workspaceRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const token = getAuthToken();
-  const workspaceId = getStoredWorkspaceId();
-  const response = await fetch(path, {
+  const projectId = getStoredWorkspaceId();
+  const url = new URL(path, "http://tasklattice.local");
+  if (projectId) url.searchParams.set("project_id", projectId);
+  const response = await fetch(`${url.pathname}${url.search}${url.hash}`, {
     ...init,
     headers: {
       "content-type": "application/json",
       ...(token ? { authorization: `Bearer ${token}` } : {}),
-      ...(workspaceId ? { "x-workspace-id": workspaceId } : {}),
+      ...(projectId ? { "x-project-id": projectId } : {}),
       ...init?.headers,
     },
   });

@@ -5,7 +5,7 @@ import type { Workspace } from "@/types/workspace";
 const workspaces: Workspace[] = [
   {
     id: "individual",
-    name: "Individual",
+    name: "AI Trading Agent",
     type: "personal",
     memberCount: 1,
     role: "owner",
@@ -47,7 +47,7 @@ describe("selectInitialWorkspace", () => {
   it("guarantees a personal fallback when no workspaces are returned", () => {
     expect(selectInitialWorkspace([], null, null)).toMatchObject({
       id: "individual",
-      name: "Individual",
+      name: "AI Trading Agent",
       role: "owner",
       type: "personal",
     });

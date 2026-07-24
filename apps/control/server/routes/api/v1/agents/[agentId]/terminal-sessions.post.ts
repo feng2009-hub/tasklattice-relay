@@ -46,6 +46,7 @@ export default defineHandler(async (event) => {
       );
     return jsonResponse(
       createTerminalSession(
+        service.store.workspaceId,
         id,
         agent.sandboxName,
         agent.agentPlatform,

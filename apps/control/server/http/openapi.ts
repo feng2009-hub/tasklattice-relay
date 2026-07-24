@@ -30,6 +30,27 @@ const profileId = {
   schema: { type: "string", format: "uuid" },
 } as const;
 
+const virtualEmployeeId = {
+  name: "virtualEmployeeId",
+  in: "path",
+  required: true,
+  schema: { type: "string", format: "uuid" },
+} as const;
+
+const bindingId = {
+  name: "bindingId",
+  in: "path",
+  required: true,
+  schema: { type: "string", format: "uuid" },
+} as const;
+
+const scopeId = {
+  name: "scopeId",
+  in: "path",
+  required: true,
+  schema: { type: "string", format: "uuid" },
+} as const;
+
 const extensionKind = {
   name: "kind",
   in: "path",
@@ -406,6 +427,96 @@ export const openApiDocument = {
         },
       },
     },
+    "/virtual-employees": {
+      get: {
+        operationId: "listVirtualEmployees",
+        summary: "List project-scoped Virtual Employees",
+        responses: {
+          "200": { description: "Virtual Employee collection", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/VirtualEmployee" } } } }) },
+        },
+      },
+      post: {
+        operationId: "createVirtualEmployee",
+        summary: "Create a Virtual Employee and optionally provision its LiteLLM Service Account Key",
+        requestBody: { required: true, ...json({ $ref: "#/components/schemas/CreateVirtualEmployeeInput" }) },
+        responses: {
+          "201": { description: "Virtual Employee", ...json({ $ref: "#/components/schemas/VirtualEmployee" }) },
+          "400": { $ref: "#/components/responses/Error" },
+          "409": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
+    "/virtual-employees/{virtualEmployeeId}": {
+      parameters: [virtualEmployeeId],
+      get: {
+        operationId: "getVirtualEmployee",
+        summary: "Read a Virtual Employee with model, identity, scope, and Instance bindings",
+        responses: { "200": { description: "Virtual Employee", ...json({ $ref: "#/components/schemas/VirtualEmployee" }) }, "404": { $ref: "#/components/responses/Error" } },
+      },
+      patch: {
+        operationId: "updateVirtualEmployee",
+        summary: "Update Virtual Employee desired configuration",
+        requestBody: { required: true, ...json({ $ref: "#/components/schemas/UpdateVirtualEmployeeInput" }) },
+        responses: { "200": { description: "Updated Virtual Employee", ...json({ $ref: "#/components/schemas/VirtualEmployee" }) } },
+      },
+      delete: {
+        operationId: "deleteVirtualEmployee",
+        summary: "Delete an unbound Virtual Employee and revoke its model credential",
+        responses: { "204": { description: "Deleted" }, "409": { $ref: "#/components/responses/Error" } },
+      },
+    },
+    "/virtual-employees/{virtualEmployeeId}/provision": {
+      parameters: [virtualEmployeeId],
+      post: { operationId: "provisionVirtualEmployee", summary: "Provision LiteLLM model access and store the credential in the Secret Store", responses: { "200": { description: "Active Virtual Employee", ...json({ $ref: "#/components/schemas/VirtualEmployee" }) } } },
+    },
+    "/virtual-employees/{virtualEmployeeId}/suspend": {
+      parameters: [virtualEmployeeId],
+      post: { operationId: "suspendVirtualEmployee", summary: "Suspend the Virtual Employee and block its LiteLLM key", responses: { "200": { description: "Suspended Virtual Employee", ...json({ $ref: "#/components/schemas/VirtualEmployee" }) } } },
+    },
+    "/virtual-employees/{virtualEmployeeId}/activate": {
+      parameters: [virtualEmployeeId],
+      post: { operationId: "activateVirtualEmployee", summary: "Activate the Virtual Employee and enable its LiteLLM key", responses: { "200": { description: "Active Virtual Employee", ...json({ $ref: "#/components/schemas/VirtualEmployee" }) } } },
+    },
+    "/virtual-employees/{virtualEmployeeId}/rotate-model-credential": {
+      parameters: [virtualEmployeeId],
+      post: { operationId: "rotateVirtualEmployeeCredential", summary: "Rotate the LiteLLM credential without exposing its value", responses: { "200": { description: "Virtual Employee with rotated credential metadata", ...json({ $ref: "#/components/schemas/VirtualEmployee" }) } } },
+    },
+    "/virtual-employees/{virtualEmployeeId}/sync": {
+      parameters: [virtualEmployeeId],
+      post: {
+        operationId: "syncVirtualEmployee",
+        summary: "Detect LiteLLM drift or explicitly apply TALI desired configuration",
+        requestBody: { ...json({ type: "object", additionalProperties: false, properties: { apply: { type: "boolean", default: false } } }) },
+        responses: { "200": { description: "Synchronized Virtual Employee", ...json({ $ref: "#/components/schemas/VirtualEmployee" }) } },
+      },
+    },
+    "/virtual-employees/{virtualEmployeeId}/identities": {
+      parameters: [virtualEmployeeId],
+      get: { operationId: "listVirtualEmployeeIdentities", summary: "List backing system identity references", responses: { "200": { description: "Identity bindings", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/IdentityBinding" } } } }) } } },
+      post: { operationId: "attachVirtualEmployeeIdentity", summary: "Attach a non-secret external identity reference", requestBody: { required: true, ...json({ $ref: "#/components/schemas/IdentityBindingInput" }) }, responses: { "200": { description: "Updated Virtual Employee", ...json({ $ref: "#/components/schemas/VirtualEmployee" }) } } },
+    },
+    "/virtual-employees/{virtualEmployeeId}/identities/{bindingId}": {
+      parameters: [virtualEmployeeId, bindingId],
+      delete: { operationId: "detachVirtualEmployeeIdentity", summary: "Detach a system identity reference", responses: { "204": { description: "Detached" } } },
+    },
+    "/virtual-employees/{virtualEmployeeId}/access-scopes": {
+      parameters: [virtualEmployeeId],
+      get: { operationId: "listVirtualEmployeeAccessScopes", summary: "List declared external-system access scopes and enforcement status", responses: { "200": { description: "Access scope bindings", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/AccessScopeBinding" } } } }) } } },
+      post: { operationId: "attachVirtualEmployeeAccessScope", summary: "Attach a declared access scope", requestBody: { required: true, ...json({ $ref: "#/components/schemas/AccessScopeBindingInput" }) }, responses: { "200": { description: "Updated Virtual Employee", ...json({ $ref: "#/components/schemas/VirtualEmployee" }) } } },
+    },
+    "/virtual-employees/{virtualEmployeeId}/access-scopes/{scopeId}": {
+      parameters: [virtualEmployeeId, scopeId],
+      patch: { operationId: "updateVirtualEmployeeAccessScope", summary: "Update an access scope and enforcement status", requestBody: { required: true, ...json({ $ref: "#/components/schemas/AccessScopeBindingInput" }) }, responses: { "200": { description: "Updated Virtual Employee", ...json({ $ref: "#/components/schemas/VirtualEmployee" }) } } },
+      delete: { operationId: "detachVirtualEmployeeAccessScope", summary: "Detach an access scope", responses: { "204": { description: "Detached" } } },
+    },
+    "/virtual-employees/{virtualEmployeeId}/spend": {
+      parameters: [virtualEmployeeId],
+      get: { operationId: "getVirtualEmployeeSpend", summary: "Read 30-day LiteLLM spend attributed to the Virtual Employee key", responses: { "200": { description: "Spend summary", ...json({ $ref: "#/components/schemas/VirtualEmployeeSpend" }) } } },
+    },
+    "/virtual-employees/{virtualEmployeeId}/audit-events": {
+      parameters: [virtualEmployeeId],
+      get: { operationId: "listVirtualEmployeeAuditEvents", summary: "List Virtual Employee lifecycle and binding events", responses: { "200": { description: "Audit events", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/VirtualEmployeeAuditEvent" } } } }) } } },
+    },
     "/agents": {
       get: {
         operationId: "listAgents",
@@ -441,6 +552,20 @@ export const openApiDocument = {
           "202": { description: "Sandbox destroyed and resource removed", ...json({ $ref: "#/components/schemas/DeleteAgentResult" }) },
           "404": { $ref: "#/components/responses/Error" },
         },
+      },
+    },
+    "/agents/{agentId}/virtual-employee": {
+      parameters: [agentId],
+      put: {
+        operationId: "bindAgentVirtualEmployee",
+        summary: "Switch an Instance to an Active Virtual Employee and recreate its runtime",
+        requestBody: { required: true, ...json({ type: "object", additionalProperties: false, required: ["virtualEmployeeId"], properties: { virtualEmployeeId: { type: "string", format: "uuid" } } }) },
+        responses: { "200": { description: "Updated Agent", ...json({ $ref: "#/components/schemas/Agent" }) }, "409": { $ref: "#/components/responses/Error" } },
+      },
+      delete: {
+        operationId: "unbindAgentVirtualEmployee",
+        summary: "Stop an Instance runtime and remove its Virtual Employee binding",
+        responses: { "200": { description: "Stopped Agent", ...json({ $ref: "#/components/schemas/Agent" }) } },
       },
     },
     "/agents/{agentId}/terminal-sessions": {
@@ -601,10 +726,151 @@ export const openApiDocument = {
           specializations: { type: "array", items: { $ref: "#/components/schemas/AgentSpecializationDefinition" } },
         },
       },
+      VirtualEmployeeModelAccessInput: {
+        type: "object",
+        additionalProperties: false,
+        required: ["allowedModels"],
+        properties: {
+          litellmTeamId: { type: "string" },
+          allowedModels: { type: "array", minItems: 1, items: { type: "string" } },
+          accessGroups: { type: "array", default: [], items: { type: "string" } },
+          maxBudget: { type: "number", minimum: 0 },
+          budgetDuration: { type: "string", default: "30d" },
+          rpmLimit: { type: "integer", minimum: 1 },
+          tpmLimit: { type: "integer", minimum: 1 },
+          maxParallelRequests: { type: "integer", minimum: 1 },
+          keyDuration: { type: "string", pattern: "^\\d+(?:s|m|h|d|w)$", default: "90d" },
+          fallbackModels: { type: "array", default: [], items: { type: "string" } },
+        },
+      },
+      IdentityBindingInput: {
+        type: "object",
+        additionalProperties: false,
+        required: ["identityType", "provider", "externalReference", "displayName"],
+        properties: {
+          identityType: { type: "string", enum: ["kubernetes_service_account", "functional_id", "oauth_client", "api_credential", "cloud_role", "custom"] },
+          provider: { type: "string" },
+          externalReference: { type: "string", description: "A non-secret reference. Credential values are not accepted." },
+          displayName: { type: "string" },
+          system: { type: "string" },
+          metadata: { type: "object", additionalProperties: true, default: {} },
+        },
+      },
+      IdentityBinding: {
+        allOf: [
+          { $ref: "#/components/schemas/IdentityBindingInput" },
+          { type: "object", required: ["id", "virtualEmployeeId", "status", "createdAt", "updatedAt"], properties: {
+            id: { type: "string", format: "uuid" },
+            virtualEmployeeId: { type: "string", format: "uuid" },
+            status: { type: "string", enum: ["active", "inactive", "error"] },
+            createdAt: { type: "string", format: "date-time" },
+            updatedAt: { type: "string", format: "date-time" },
+          } },
+        ],
+      },
+      AccessScopeBindingInput: {
+        type: "object",
+        additionalProperties: false,
+        required: ["resourceType", "resourceId", "actions", "enforcementProvider"],
+        properties: {
+          resourceType: { type: "string" },
+          resourceId: { type: "string" },
+          actions: { type: "array", minItems: 1, items: { type: "string" } },
+          conditions: { type: "object", additionalProperties: true, default: {} },
+          enforcementProvider: { type: "string", enum: ["litellm", "kubernetes_rbac", "target_system", "adapter", "metadata_only"] },
+          approvalStatus: { type: "string", enum: ["not_required", "pending", "approved", "rejected"], default: "not_required" },
+        },
+      },
+      AccessScopeBinding: {
+        allOf: [
+          { $ref: "#/components/schemas/AccessScopeBindingInput" },
+          { type: "object", required: ["id", "virtualEmployeeId", "createdAt", "updatedAt"], properties: {
+            id: { type: "string", format: "uuid" },
+            virtualEmployeeId: { type: "string", format: "uuid" },
+            createdAt: { type: "string", format: "date-time" },
+            updatedAt: { type: "string", format: "date-time" },
+          } },
+        ],
+      },
+      CreateVirtualEmployeeInput: {
+        type: "object",
+        additionalProperties: false,
+        required: ["name", "displayName", "environment"],
+        properties: {
+          name: { type: "string", pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+          displayName: { type: "string", minLength: 2, maxLength: 160 },
+          description: { type: "string", maxLength: 500, default: "" },
+          businessRole: { type: "string" },
+          ownerTeamId: { type: "string" },
+          environment: { type: "string", enum: ["development", "uat", "production"] },
+          tags: { type: "array", default: [], items: { type: "string" } },
+          modelAccess: { $ref: "#/components/schemas/VirtualEmployeeModelAccessInput" },
+          identities: { type: "array", default: [], items: { $ref: "#/components/schemas/IdentityBindingInput" } },
+          accessScopes: { type: "array", default: [], items: { $ref: "#/components/schemas/AccessScopeBindingInput" } },
+          activate: { type: "boolean", default: false },
+        },
+      },
+      UpdateVirtualEmployeeInput: {
+        type: "object",
+        additionalProperties: false,
+        description: "All properties are optional; identity and access-scope bindings use dedicated endpoints.",
+        properties: {
+          name: { type: "string", pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+          displayName: { type: "string", minLength: 2, maxLength: 160 },
+          description: { type: "string", maxLength: 500 },
+          businessRole: { type: "string" },
+          ownerTeamId: { type: "string" },
+          environment: { type: "string", enum: ["development", "uat", "production"] },
+          tags: { type: "array", items: { type: "string" } },
+          modelAccess: { $ref: "#/components/schemas/VirtualEmployeeModelAccessInput" },
+        },
+      },
+      VirtualEmployee: {
+        allOf: [
+          { $ref: "#/components/schemas/CreateVirtualEmployeeInput" },
+          { type: "object", required: ["id", "projectId", "status", "createdBy", "createdAt", "updatedAt", "identities", "accessScopes", "boundInstanceIds"], properties: {
+            id: { type: "string", format: "uuid" },
+            projectId: { type: "string" },
+            status: { type: "string", enum: ["draft", "pending_approval", "provisioning", "active", "suspended", "expired", "error"] },
+            createdBy: { type: "string" },
+            createdAt: { type: "string", format: "date-time" },
+            updatedAt: { type: "string", format: "date-time" },
+            modelAccess: { type: "object", description: "Safe LiteLLM identifiers, limits, synchronization state, and last-four fingerprint. Never contains a credential or Secret Store reference." },
+            identities: { type: "array", items: { $ref: "#/components/schemas/IdentityBinding" } },
+            accessScopes: { type: "array", items: { $ref: "#/components/schemas/AccessScopeBinding" } },
+            boundInstanceIds: { type: "array", items: { type: "string", format: "uuid" } },
+          } },
+        ],
+      },
+      VirtualEmployeeSpend: {
+        type: "object",
+        required: ["totalSpend", "requests", "tokens", "byModel", "daily"],
+        properties: {
+          totalSpend: { type: "number" },
+          requests: { type: "integer" },
+          tokens: { type: "integer" },
+          budgetUtilization: { type: "number" },
+          byModel: { type: "array", items: { type: "object", required: ["model", "spend", "requests", "tokens"], properties: { model: { type: "string" }, spend: { type: "number" }, requests: { type: "integer" }, tokens: { type: "integer" } } } },
+          daily: { type: "array", items: { type: "object", required: ["date", "spend"], properties: { date: { type: "string", format: "date" }, spend: { type: "number" } } } },
+        },
+      },
+      VirtualEmployeeAuditEvent: {
+        type: "object",
+        required: ["id", "virtualEmployeeId", "type", "actor", "result", "message", "createdAt"],
+        properties: {
+          id: { type: "string", format: "uuid" },
+          virtualEmployeeId: { type: "string", format: "uuid" },
+          type: { type: "string" },
+          actor: { type: "string" },
+          result: { type: "string", enum: ["success", "failed"] },
+          message: { type: "string" },
+          createdAt: { type: "string", format: "date-time" },
+        },
+      },
       CreateAgentInput: {
         type: "object",
         additionalProperties: false,
-        required: ["name", "runtime", "agentPlatform", "systemPrompt"],
+        required: ["name", "runtime", "agentPlatform", "virtualEmployeeId", "systemPrompt"],
         properties: {
           name: { type: "string", minLength: 3, maxLength: 64 },
           description: { type: "string", maxLength: 300, default: "" },
@@ -616,7 +882,7 @@ export const openApiDocument = {
             description:
               "Agent implementation configured by NemoClaw inside the OpenShell runtime.",
           },
-          modelProfileId: { type: "string", format: "uuid", description: "READY Model Profile to bind. Omit to use the platform default." },
+          virtualEmployeeId: { type: "string", format: "uuid", description: "Active business identity that owns model and system access for this Instance." },
           policyId: { type: "string", pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$", description: "Catalog Policy ID. Omit to use the deployment ConfigMap default." },
           systemPrompt: { type: "string", minLength: 10, maxLength: 8000 },
           specializationId: { type: "string", minLength: 1, maxLength: 64 },

@@ -14,7 +14,7 @@ function auth(user: AuthUser): AuthPayload {
 }
 
 describe("WorkspaceService", () => {
-  it("creates an Individual workspace and copies SQL-seeded metadata into teams", async () => {
+  it("creates the default project and copies SQL-seeded metadata into teams", async () => {
     const db = createTestPrisma();
     const service = new WorkspaceService(db);
     const local = auth({
@@ -27,7 +27,7 @@ describe("WorkspaceService", () => {
     expect(await service.list(local)).toEqual([
       expect.objectContaining({
         id: "individual",
-        name: "Individual",
+        name: "AI Trading Agent",
         role: "owner",
         type: "personal",
       }),

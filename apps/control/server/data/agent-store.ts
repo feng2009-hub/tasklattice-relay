@@ -128,6 +128,10 @@ export class AgentStore {
     return this.costs;
   }
 
+  database(): PrismaClient {
+    return this.db;
+  }
+
   private extensionDelegate(name: ExtensionDelegateName): {
     upsert(args: unknown): Promise<unknown>;
     findUnique(args: unknown): Promise<{ payload: Prisma.JsonValue } | null>;

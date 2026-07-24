@@ -59,8 +59,163 @@ model Workspace {
   usageObservations    ModelUsageFactObservation[]
   usageDaily           ModelUsageDailyRecord[]
   costSyncCheckpoints  CostSyncCheckpointRecord[]
+  virtualEmployees     VirtualEmployeeRecord[]
+  virtualEmployeeModelAccess VirtualEmployeeModelAccessRecord[]
+  virtualEmployeeIdentities IdentityBindingRecord[]
+  virtualEmployeeAccessScopes AccessScopeBindingRecord[]
+  virtualEmployeeInstanceBindings AgentInstanceVirtualEmployeeBindingRecord[]
+  virtualEmployeeAudit VirtualEmployeeAuditRecord[]
 
   @@map("workspaces")
+  @@schema("tasklattice")
+}
+
+model VirtualEmployeeRecord {
+  workspaceId  String   @map("workspace_id")
+  id           String
+  name         String
+  displayName  String   @map("display_name")
+  description  String?
+  businessRole String?  @map("business_role")
+  ownerTeamId  String?  @map("owner_team_id")
+  environment  String
+  status       String
+  tags         Json
+  createdBy    String   @map("created_by")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  modelAccess  VirtualEmployeeModelAccessRecord?
+  identities   IdentityBindingRecord[]
+  accessScopes AccessScopeBindingRecord[]
+  instances    AgentInstanceVirtualEmployeeBindingRecord[]
+  auditEvents  VirtualEmployeeAuditRecord[]
+
+  @@id([workspaceId, id])
+  @@unique([workspaceId, name])
+  @@index([workspaceId, status])
+  @@index([workspaceId, ownerTeamId])
+  @@map("virtual_employees")
+  @@schema("tasklattice")
+}
+
+model VirtualEmployeeModelAccessRecord {
+  workspaceId        String    @map("workspace_id")
+  id                 String
+  virtualEmployeeId  String    @map("virtual_employee_id")
+  provider           String
+  litellmTeamId      String?   @map("litellm_team_id")
+  litellmKeyId       String?   @map("litellm_key_id")
+  keyAlias           String    @map("key_alias")
+  keyLastFour        String?   @map("key_last_four")
+  allowedModels      Json      @map("allowed_models")
+  accessGroups       Json      @map("access_groups")
+  maxBudget          Decimal?  @map("max_budget") @db.Decimal(18, 6)
+  budgetDuration     String?   @map("budget_duration")
+  rpmLimit           Int?      @map("rpm_limit")
+  tpmLimit           Int?      @map("tpm_limit")
+  maxParallelRequests Int?     @map("max_parallel_requests")
+  keyDuration        String    @map("key_duration")
+  expiresAt          DateTime? @map("expires_at") @db.Timestamptz(6)
+  fallbackModels     Json      @map("fallback_models")
+  secretReference    String?   @map("secret_reference")
+  syncStatus         String    @map("sync_status")
+  lastSyncedAt       DateTime? @map("last_synced_at") @db.Timestamptz(6)
+  lastSyncError      String?   @map("last_sync_error")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  workspace       Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  virtualEmployee VirtualEmployeeRecord @relation(fields: [workspaceId, virtualEmployeeId], references: [workspaceId, id], onDelete: Restrict)
+
+  @@id([workspaceId, id])
+  @@unique([workspaceId, virtualEmployeeId], map: "virtual_employee_model_access_employee_unique")
+  @@index([workspaceId, virtualEmployeeId])
+  @@map("virtual_employee_model_access")
+  @@schema("tasklattice")
+}
+
+model IdentityBindingRecord {
+  workspaceId       String   @map("workspace_id")
+  id                String
+  virtualEmployeeId String   @map("virtual_employee_id")
+  identityType      String   @map("identity_type")
+  provider          String
+  externalReference String   @map("external_reference")
+  displayName       String   @map("display_name")
+  system            String?
+  metadata          Json
+  status            String
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  workspace       Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  virtualEmployee VirtualEmployeeRecord @relation(fields: [workspaceId, virtualEmployeeId], references: [workspaceId, id], onDelete: Restrict)
+
+  @@id([workspaceId, id])
+  @@index([workspaceId, virtualEmployeeId])
+  @@map("identity_bindings")
+  @@schema("tasklattice")
+}
+
+model AccessScopeBindingRecord {
+  workspaceId        String   @map("workspace_id")
+  id                 String
+  virtualEmployeeId  String   @map("virtual_employee_id")
+  resourceType       String   @map("resource_type")
+  resourceId         String   @map("resource_id")
+  actions            Json
+  conditions         Json
+  enforcementProvider String @map("enforcement_provider")
+  approvalStatus     String   @map("approval_status")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  workspace       Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  virtualEmployee VirtualEmployeeRecord @relation(fields: [workspaceId, virtualEmployeeId], references: [workspaceId, id], onDelete: Restrict)
+
+  @@id([workspaceId, id])
+  @@index([workspaceId, virtualEmployeeId])
+  @@map("access_scope_bindings")
+  @@schema("tasklattice")
+}
+
+model AgentInstanceVirtualEmployeeBindingRecord {
+  workspaceId       String   @map("workspace_id")
+  id                String
+  instanceId        String   @map("instance_id")
+  virtualEmployeeId String   @map("virtual_employee_id")
+  boundAt           DateTime @default(now()) @map("bound_at") @db.Timestamptz(6)
+  boundBy           String   @map("bound_by")
+
+  workspace       Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  virtualEmployee VirtualEmployeeRecord @relation(fields: [workspaceId, virtualEmployeeId], references: [workspaceId, id], onDelete: Restrict)
+
+  @@id([workspaceId, id])
+  @@unique([workspaceId, instanceId])
+  @@index([workspaceId, virtualEmployeeId])
+  @@map("agent_instance_virtual_employee_bindings")
+  @@schema("tasklattice")
+}
+
+model VirtualEmployeeAuditRecord {
+  workspaceId       String   @map("workspace_id")
+  id                String
+  virtualEmployeeId String   @map("virtual_employee_id")
+  eventType         String   @map("event_type")
+  actor             String
+  result            String
+  message           String
+  metadata          Json
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  workspace       Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  virtualEmployee VirtualEmployeeRecord @relation(fields: [workspaceId, virtualEmployeeId], references: [workspaceId, id], onDelete: Restrict)
+
+  @@id([workspaceId, id])
+  @@index([workspaceId, virtualEmployeeId, createdAt(sort: Desc)])
+  @@map("virtual_employee_audit")
   @@schema("tasklattice")
 }
 

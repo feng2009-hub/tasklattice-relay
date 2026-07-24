@@ -43,6 +43,13 @@ import type {
   UpdateKnowledgeSourceDefinitionInput,
   UpdateMcpServerDefinitionInput,
   UpdateSkillDefinitionInput,
+  VirtualEmployee,
+  CreateVirtualEmployeeInput,
+  UpdateVirtualEmployeeInput,
+  IdentityBindingInput,
+  AccessScopeBindingInput,
+  VirtualEmployeeSpend,
+  VirtualEmployeeAuditEvent,
 } from "@tasklattice/contracts";
 import { clearAuthToken, getAuthToken } from "./auth-token";
 import { getStoredWorkspaceId } from "./workspace-storage";
@@ -54,15 +61,22 @@ export class ApiError extends Error {
   }
 }
 
+export function projectScopedPath(path: string, projectId: string | null): string {
+  if (!projectId) return path;
+  const url = new URL(path, "http://tasklattice.local");
+  url.searchParams.set("project_id", projectId);
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = getAuthToken();
-  const workspaceId = getStoredWorkspaceId();
-  const response = await fetch(path, {
+  const projectId = getStoredWorkspaceId();
+  const response = await fetch(projectScopedPath(path, projectId), {
     ...init,
     headers: {
       "content-type": "application/json",
       ...(token ? { authorization: `Bearer ${token}` } : {}),
-      ...(workspaceId ? { "X-Workspace-ID": workspaceId } : {}),
+      ...(projectId ? { "X-Project-ID": projectId } : {}),
       ...init?.headers,
     },
   });
@@ -73,7 +87,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
   if (!response.ok)
     throw new ApiError(
-      "error" in (payload as object)
+      "error" in (payload as object) && typeof (payload as { error?: unknown }).error === "string"
         ? (payload as { error: string }).error
         : `Request failed (${response.status})`,
       response.status,
@@ -92,6 +106,38 @@ function costSearch(params: CostQueryParams, extra: Record<string, string> = {})
 }
 
 export const api = {
+  listVirtualEmployees: async () =>
+    (await request<{ data: VirtualEmployee[] }>("/api/v1/virtual-employees")).data,
+  getVirtualEmployee: (id: string) =>
+    request<VirtualEmployee>(`/api/v1/virtual-employees/${encodeURIComponent(id)}`),
+  createVirtualEmployee: (input: CreateVirtualEmployeeInput) =>
+    request<VirtualEmployee>("/api/v1/virtual-employees", { method: "POST", body: JSON.stringify(input) }),
+  updateVirtualEmployee: (id: string, input: UpdateVirtualEmployeeInput) =>
+    request<VirtualEmployee>(`/api/v1/virtual-employees/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(input) }),
+  deleteVirtualEmployee: (id: string) =>
+    request<void>(`/api/v1/virtual-employees/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  provisionVirtualEmployee: (id: string) =>
+    request<VirtualEmployee>(`/api/v1/virtual-employees/${encodeURIComponent(id)}/provision`, { method: "POST", body: "{}" }),
+  suspendVirtualEmployee: (id: string) =>
+    request<VirtualEmployee>(`/api/v1/virtual-employees/${encodeURIComponent(id)}/suspend`, { method: "POST", body: "{}" }),
+  activateVirtualEmployee: (id: string) =>
+    request<VirtualEmployee>(`/api/v1/virtual-employees/${encodeURIComponent(id)}/activate`, { method: "POST", body: "{}" }),
+  rotateVirtualEmployeeCredential: (id: string) =>
+    request<VirtualEmployee>(`/api/v1/virtual-employees/${encodeURIComponent(id)}/rotate-model-credential`, { method: "POST", body: "{}" }),
+  syncVirtualEmployee: (id: string, apply = false) =>
+    request<VirtualEmployee>(`/api/v1/virtual-employees/${encodeURIComponent(id)}/sync`, { method: "POST", body: JSON.stringify({ apply }) }),
+  attachVirtualEmployeeIdentity: (id: string, input: IdentityBindingInput) =>
+    request<VirtualEmployee>(`/api/v1/virtual-employees/${encodeURIComponent(id)}/identities`, { method: "POST", body: JSON.stringify(input) }),
+  detachVirtualEmployeeIdentity: (id: string, bindingId: string) =>
+    request<void>(`/api/v1/virtual-employees/${encodeURIComponent(id)}/identities/${encodeURIComponent(bindingId)}`, { method: "DELETE" }),
+  attachVirtualEmployeeScope: (id: string, input: AccessScopeBindingInput) =>
+    request<VirtualEmployee>(`/api/v1/virtual-employees/${encodeURIComponent(id)}/access-scopes`, { method: "POST", body: JSON.stringify(input) }),
+  detachVirtualEmployeeScope: (id: string, scopeId: string) =>
+    request<void>(`/api/v1/virtual-employees/${encodeURIComponent(id)}/access-scopes/${encodeURIComponent(scopeId)}`, { method: "DELETE" }),
+  getVirtualEmployeeSpend: (id: string) =>
+    request<VirtualEmployeeSpend>(`/api/v1/virtual-employees/${encodeURIComponent(id)}/spend`),
+  getVirtualEmployeeAudit: async (id: string) =>
+    (await request<{ data: VirtualEmployeeAuditEvent[] }>(`/api/v1/virtual-employees/${encodeURIComponent(id)}/audit-events`)).data,
   listInferenceGateways: async () =>
     (await request<{ data: InferenceGateway[] }>("/api/v1/inference-gateways")).data,
   listModelProfiles: async () =>
@@ -267,6 +313,13 @@ export const api = {
     }),
   deleteAgent: (id: string) =>
     request<void>(`/api/v1/agents/${id}`, { method: "DELETE" }),
+  bindAgentVirtualEmployee: (id: string, virtualEmployeeId: string) =>
+    request<Agent>(`/api/v1/agents/${encodeURIComponent(id)}/virtual-employee`, {
+      method: "PUT",
+      body: JSON.stringify({ virtualEmployeeId }),
+    }),
+  unbindAgentVirtualEmployee: (id: string) =>
+    request<Agent>(`/api/v1/agents/${encodeURIComponent(id)}/virtual-employee`, { method: "DELETE" }),
   createTerminalSession: (id: string, targetId: string) =>
     request<TerminalSessionResponse>(
       `/api/v1/agents/${id}/terminal-sessions`,

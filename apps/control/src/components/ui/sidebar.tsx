@@ -135,7 +135,7 @@ function Sidebar({
           style={{ "--sidebar-width": SIDEBAR_WIDTH_MOBILE } as React.CSSProperties}
         >
           <SheetHeader className="sr-only">
-            <SheetTitle>Workspace navigation</SheetTitle>
+            <SheetTitle>Project navigation</SheetTitle>
             <SheetDescription>Navigate TaskLattice resources.</SheetDescription>
           </SheetHeader>
           <div className="flex h-full w-full flex-col">{children}</div>

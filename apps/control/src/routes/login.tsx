@@ -56,7 +56,7 @@ function LoginPage() {
         <div className="relative z-10 max-w-xl pb-8">
           <p className="font-mono text-xs uppercase tracking-[0.08em] text-primary">Authenticated operations</p>
           <h1 className="mt-7 text-6xl leading-[0.98] tracking-[-0.035em]">A clear boundary<br />before the work.</h1>
-          <p className="mt-7 max-w-md text-base leading-7 text-muted-foreground">Local operators and your OIDC identity provider enter the same inspectable workspace.</p>
+          <p className="mt-7 max-w-md text-base leading-7 text-muted-foreground">Local operators and your OIDC identity provider enter the same inspectable Project context.</p>
         </div>
         <div className="relative z-10 flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground"><LockKeyhole className="size-4" />Session-protected control plane</div>
       </section>
@@ -66,7 +66,7 @@ function LoginPage() {
           <Link to="/" className="mb-14 flex min-h-11 items-center gap-3 text-sm font-semibold lg:hidden">
             <BrandLogo />
           </Link>
-          <p className="font-mono text-xs uppercase tracking-[0.08em] text-primary">Workspace access</p>
+          <p className="font-mono text-xs uppercase tracking-[0.08em] text-primary">Project access</p>
           <h2 className="mt-4 text-4xl tracking-[-0.025em]">Welcome back</h2>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">Sign in to create and operate isolated agents.</p>
 

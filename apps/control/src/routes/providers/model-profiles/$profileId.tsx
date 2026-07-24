@@ -44,7 +44,7 @@ function ModelProfileDetailPage() {
         <span className={cn("grid size-8 shrink-0 place-items-center rounded-full", ready ? "bg-emerald-500/10 text-emerald-700" : "bg-amber-500/10 text-amber-700")}>{ready ? <CheckCircle2 className="size-[18px]" /> : <CircleAlert className="size-[18px]" />}</span>
         <div><h2 className="font-sans text-sm font-semibold">{ready ? "This Model Profile is ready for Instances" : "This Model Profile needs attention"}</h2><p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">{ready ? `${current.publicModelAlias} passed ${passingChecks} routing, compliance, and access checks. Each Instance receives its own isolated Virtual Key.` : current.validationMessage}</p></div>
       </div>
-      {ready ? <Button asChild className="shrink-0"><Link to="/instances" search={{ create: "instance", modelProfileId: current.id }}><Bot />Use profile in new Instance</Link></Button> : <Button className="shrink-0" disabled title="Resolve the failed checks before assigning this profile"><CircleAlert />Unavailable for Instances</Button>}
+      {ready ? <Button asChild className="shrink-0"><Link to="/security/virtual-employees"><Bot />Manage Virtual Employees</Link></Button> : <Button className="shrink-0" disabled title="Resolve the failed checks before using this model through a Virtual Employee"><CircleAlert />Unavailable for Virtual Employees</Button>}
     </section>
     <Tabs value={tab} onValueChange={(value) => setTab(value as Tab)} className="gap-4">
       <div className="overflow-x-auto">

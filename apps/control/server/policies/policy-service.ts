@@ -174,7 +174,7 @@ export class PolicyService {
       policies = catalog.policies;
     }
     if (!policies.length) {
-      throw new Error("No Sandbox Policies are configured in the workspace database.");
+      throw new Error("No Sandbox Policies are configured for this project.");
     }
     const defaultPolicyId = process.env.TALI_DEFAULT_POLICY_ID ?? "unrestricted";
     const defaultPolicy = policies.find((policy) => policy.id === defaultPolicyId) ?? policies[0]!;

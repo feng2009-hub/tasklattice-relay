@@ -27,7 +27,6 @@ export const Route = createFileRoute("/instances")({
   validateSearch: z.object({
     create: z.literal("instance").optional(),
     created: z.string().optional(),
-    modelProfileId: z.string().uuid().optional(),
   }),
   component: Instances,
 });
@@ -239,9 +238,6 @@ function Instances() {
       {search.create === "instance" ? (
         <CreateInstanceSheet
           open
-          {...(search.modelProfileId
-            ? { modelProfileId: search.modelProfileId }
-            : {})}
           onOpenChange={(open) => {
             if (open) return;
             void navigate({

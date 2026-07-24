@@ -1,19 +1,19 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import {
   Boxes,
+  Bot,
   CircleDollarSign,
   CircleHelp,
   FileLock2,
-  FilePlus2,
-  LayoutDashboard,
-  ListChecks,
+  FileClock,
   Network,
   Search,
   ServerCog,
   Settings,
   Sparkles,
-  SlidersHorizontal,
+  UserRoundCheck,
+  Waypoints,
   type LucideIcon,
 } from "lucide-react";
 import type { AuthUser } from "@/components/auth/auth-provider";
@@ -42,6 +42,7 @@ import { useWorkspace } from "@/hooks/use-workspace";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { HeaderBreadcrumb } from "@/components/layout/header-breadcrumb";
+import { ProjectSwitcher } from "@/components/project/project-switcher";
 
 type WorkspaceRoute =
   | "/providers"
@@ -54,7 +55,8 @@ type WorkspaceRoute =
   | "/knowledge"
   | "/mcp"
   | "/Extensions/skill"
-  | "/tickets";
+  | "/tickets"
+  | "/security/virtual-employees";
 
 type NavItemDefinition = {
   icon: LucideIcon;
@@ -64,43 +66,31 @@ type NavItemDefinition = {
 
 const navGroups: Array<{ items: NavItemDefinition[]; label: string }> = [
   {
-    label: "Overview",
-    items: [{ icon: LayoutDashboard, label: "Workspace", to: "/dashboard" }],
-  },
-  {
-    label: "Models",
-    items: [
-      { icon: SlidersHorizontal, label: "Model Profiles", to: "/providers/model-profiles" },
-      { icon: CircleDollarSign, label: "Cost", to: "/providers/cost" },
-    ],
-  },
-  {
-    label: "Agent",
+    label: "Agentic",
     items: [
       { icon: Boxes, label: "Instances", to: "/instances" },
-      { icon: FileLock2, label: "Policy", to: "/agent/sandboxes/policy" },
-    ],
-  },
-  {
-    label: "Extensions",
-    items: [
       { icon: Sparkles, label: "Skills", to: "/Extensions/skill" },
       { icon: ServerCog, label: "MCP Servers", to: "/mcp" },
       { icon: Network, label: "Knowledge Base", to: "/knowledge" },
     ],
   },
   {
-    label: "Approval",
+    label: "Security",
     items: [
-      { icon: FilePlus2, label: "Raise Request", to: "/requests/new" },
-      { icon: ListChecks, label: "Ticket List", to: "/tickets" },
+      { icon: UserRoundCheck, label: "Virtual Employees", to: "/security/virtual-employees" },
+      { icon: FileLock2, label: "Runtime Policies", to: "/agent/sandboxes/policy" },
     ],
+  },
+  {
+    label: "Observer",
+    items: [{ icon: CircleDollarSign, label: "Cost", to: "/providers/cost" }],
   },
 ];
 
 function itemIsActive(item: NavItemDefinition, pathname: string) {
   if (item.to === "/instances") return pathname === "/instances" || pathname.startsWith("/agents");
   if (item.to === "/providers/model-profiles") return pathname.startsWith("/providers/model-profiles");
+  if (item.to === "/security/virtual-employees") return pathname.startsWith("/security/virtual-employees");
   return pathname === item.to;
 }
 
@@ -152,21 +142,31 @@ function WorkspaceSidebar({ logout, pathname, user }: {
   const { isMobile, setOpenMobile, state } = useSidebar();
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="h-16 justify-center border-b border-sidebar-border px-4 group-data-[collapsible=icon]:px-2">
-        <Link to="/dashboard" onClick={() => setOpenMobile(false)} className="flex min-h-11 min-w-0 items-center gap-3 focus-visible:outline-2" aria-label="TaskLattice workspace">
+      <SidebarHeader className="gap-1.5 border-b border-sidebar-border p-2">
+        <Link to="/dashboard" onClick={() => setOpenMobile(false)} className="flex min-h-11 min-w-0 items-center gap-3 px-2 focus-visible:outline-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0" aria-label="TaskLattice home">
           <BrandLogo compact={!isMobile && state === "collapsed"} />
         </Link>
+        <ProjectSwitcher
+          collapsed={!isMobile && state === "collapsed"}
+          onLogout={logout}
+          user={user}
+        />
       </SidebarHeader>
       <SidebarContent>
-        <nav aria-label="Workspace navigation" className="flex flex-col py-1">
+        <nav aria-label="Project navigation" className="flex flex-col py-1">
           {navGroups.map((group) => (
             <SidebarGroup key={group.label}>
               <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {group.items.map((item) => (
-                    <NavigationItem key={item.to} item={item} pathname={pathname} />
+                  {group.items.map((item, index) => (
+                    <Fragment key={item.to}>
+                      {group.label === "Agentic" && index === 1 ? <DisabledNav icon={Bot} label="Agent Garden" /> : null}
+                      {group.label === "Observer" && index === 0 ? <DisabledNav icon={Waypoints} label="Traces" /> : null}
+                      <NavigationItem item={item} pathname={pathname} />
+                    </Fragment>
                   ))}
+                  {group.label === "Security" ? <DisabledNav icon={FileClock} label="Audit Logs" /> : null}
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
@@ -219,7 +219,7 @@ export function AppShell() {
           <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-background/94 px-4 backdrop-blur-md sm:px-6 lg:px-8">
             <SidebarTrigger />
             <HeaderBreadcrumb pathname={pathname} />
-            <button disabled className="ml-auto hidden h-9 w-64 cursor-not-allowed items-center gap-2 rounded-md border border-border/70 bg-muted/30 px-3 text-sm text-muted-foreground/45 md:flex"><Search className="size-3.5" />Search workspace<span className="ml-auto text-[10px] uppercase">Later</span></button>
+            <button disabled className="ml-auto hidden h-9 w-64 cursor-not-allowed items-center gap-2 rounded-md border border-border/70 bg-muted/30 px-3 text-sm text-muted-foreground/45 md:flex"><Search className="size-3.5" />Search project<span className="ml-auto text-[10px] uppercase">Later</span></button>
             <div className="ml-auto flex min-h-10 items-center gap-2 rounded-full border px-3 text-xs font-semibold md:ml-2"><span className="size-2 rounded-full bg-[#79a93b]" />UAT</div>
           </header>
           <main id="main-content" className="mx-auto w-full max-w-[1320px] p-5 sm:p-6 lg:px-8 lg:py-6">
@@ -229,7 +229,7 @@ export function AppShell() {
               </div>
             ) : null}
             {workspaceLoading ? (
-              <div className="space-y-6" aria-label="Loading workspace data">
+              <div className="space-y-6" aria-label="Loading project data">
                 <div className="h-20 animate-pulse rounded-md bg-muted/70" />
                 <div className="grid gap-4 md:grid-cols-3">
                   <div className="h-28 animate-pulse rounded-md bg-muted/60" />
@@ -239,15 +239,15 @@ export function AppShell() {
                 <div className="h-64 animate-pulse rounded-md bg-muted/50" />
               </div>
             ) : !currentWorkspace ? (
-              <section className="mx-auto max-w-md py-20 text-center" aria-labelledby="no-workspace-title">
-                <h1 id="no-workspace-title" className="text-lg font-semibold">
-                  No workspace available
+              <section className="mx-auto max-w-md py-20 text-center" aria-labelledby="no-project-title">
+                <h1 id="no-project-title" className="text-lg font-semibold">
+                  No project available
                 </h1>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Every account needs a personal workspace before resources can be loaded.
+                  Create a Project before resources can be loaded.
                 </p>
                 <Button className="mt-5" onClick={() => void refreshWorkspaces()}>
-                  Create personal workspace
+                  Reload projects
                 </Button>
               </section>
             ) : (

@@ -74,13 +74,13 @@ function WorkspacesPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Manage workspaces"
-        description="Workspaces isolate agents, models, extensions, costs, and provider connections."
+        title="Project settings"
+        description="Projects isolate agents, models, extensions, policies, costs, and provider connections."
         actions={
           permissions.canCreateWorkspace ? (
             <Button className="h-11" onClick={() => setCreateOpen(true)}>
               <Plus />
-              Create workspace
+              New Project
             </Button>
           ) : null
         }
@@ -89,9 +89,9 @@ function WorkspacesPage() {
       <section className="overflow-hidden rounded-lg border bg-background">
         <div className="flex min-h-14 items-center justify-between border-b px-4">
           <div>
-            <h2 className="text-sm font-semibold">Workspace list</h2>
+            <h2 className="text-sm font-semibold">Projects</h2>
             <p className="text-xs text-muted-foreground">
-              Select a workspace to view its members and settings.
+              Select a Project to view its members and settings.
             </p>
           </div>
           <span className="text-xs text-muted-foreground">
@@ -213,7 +213,7 @@ function WorkspacesPage() {
                 {selectedWorkspace.name}
               </h2>
               <p className="text-xs capitalize text-muted-foreground">
-                {selectedWorkspace.type} workspace · {selectedWorkspace.role}
+                {selectedWorkspace.type === "personal" ? "Default project" : "Team project"} · {selectedWorkspace.role}
               </p>
             </div>
           </div>
@@ -291,9 +291,9 @@ function CreateWorkspaceDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Create workspace</DialogTitle>
+          <DialogTitle>New Project</DialogTitle>
           <DialogDescription>
-            Create an isolated team space for agents, extensions, models, and
+            Create an isolated context for agents, extensions, models, and
             costs.
           </DialogDescription>
         </DialogHeader>
@@ -304,7 +304,7 @@ function CreateWorkspaceDialog({
           }}
         >
           <div className="space-y-2 px-6 py-6">
-            <Label htmlFor="new-workspace-name">Workspace name</Label>
+            <Label htmlFor="new-workspace-name">Project name</Label>
             <Input
               id="new-workspace-name"
               className="h-11"
@@ -335,7 +335,7 @@ function CreateWorkspaceDialog({
               disabled={!name.trim() || create.isPending}
             >
               {create.isPending ? <Spinner /> : <Building2 />}
-              Create workspace
+              Create Project
             </Button>
           </DialogFooter>
         </form>
@@ -378,7 +378,7 @@ function WorkspaceSettings({
       >
         <div className="space-y-2">
           <Label htmlFor={`workspace-name-${workspace.id}`}>
-            Workspace name
+            Project name
           </Label>
           <Input
             id={`workspace-name-${workspace.id}`}
@@ -389,7 +389,7 @@ function WorkspaceSettings({
           />
           {!permissions.canManageWorkspace ? (
             <p className="text-xs text-muted-foreground">
-              Members have view-only access to workspace settings.
+              Members have view-only access to Project settings.
             </p>
           ) : null}
           {rename.isError ? (
@@ -416,7 +416,7 @@ function WorkspaceSettings({
       </form>
 
       <div className="grid gap-1 p-5 text-sm">
-        <span className="font-medium">Workspace ID</span>
+        <span className="font-medium">Project ID</span>
         <code className="text-xs text-muted-foreground">{workspace.id}</code>
       </div>
 
@@ -424,10 +424,10 @@ function WorkspaceSettings({
         <div className="flex flex-col justify-between gap-4 p-5 sm:flex-row sm:items-center">
           <div>
             <h3 className="text-sm font-semibold text-destructive">
-              Delete workspace
+              Delete Project
             </h3>
             <p className="mt-1 text-xs text-muted-foreground">
-              Permanently remove this workspace and its isolated resources.
+              Permanently remove this Project and its isolated resources.
             </p>
           </div>
           <Button
@@ -445,7 +445,7 @@ function WorkspaceSettings({
             }}
           >
             {remove.isPending ? <Spinner /> : <Trash2 />}
-            Delete workspace
+            Delete Project
           </Button>
           {remove.isError ? (
             <p className="text-sm text-destructive" role="alert">

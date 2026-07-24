@@ -66,16 +66,17 @@ export class WorkspaceService {
       },
     });
     const workspaceId = personalWorkspaceId(auth.user.username);
+    const defaultProjectName = process.env.TALI_DEFAULT_PROJECT_NAME ?? "AI Trading Agent";
     await this.db.workspace.upsert({
       where: { id: workspaceId },
       create: {
         id: workspaceId,
-        name: "Individual",
+        name: defaultProjectName,
         type: "personal",
         createdBy: id,
         members: { create: { userId: id, role: "owner" } },
       },
-      update: {},
+      update: { name: defaultProjectName },
     });
     await this.db.workspaceMember.upsert({
       where: { workspaceId_userId: { workspaceId, userId: id } },
@@ -138,12 +139,14 @@ export class WorkspaceService {
 
   async resolve(request: Request): Promise<{ auth: AuthPayload; userId: string; workspaceId: string; role: WorkspaceRole }> {
     const { auth, userId: currentUserId } = await this.authenticate(request);
-    const requested = request.headers.get("x-workspace-id")?.trim();
+    const requestUrl = new URL(request.url);
+    const requested = request.headers.get("x-project-id")?.trim()
+      || requestUrl.searchParams.get("project_id")?.trim();
     const workspaceId = requested || personalWorkspaceId(auth.user.username);
     const membership = await this.db.workspaceMember.findUnique({
       where: { workspaceId_userId: { workspaceId, userId: currentUserId } },
     });
-    if (!membership) throw new Error("Workspace not found or access denied.");
+    if (!membership) throw new Error("Project not found or access denied.");
     return { auth, userId: currentUserId, workspaceId, role: membership.role as WorkspaceRole };
   }
 
@@ -210,7 +213,7 @@ export class WorkspaceService {
       where: { workspaceId_userId: { workspaceId, userId: currentUserId } },
     });
     if (!membership || !roles.includes(membership.role as WorkspaceRole)) {
-      throw new Error("You do not have permission to manage this workspace.");
+      throw new Error("You do not have permission to manage this project.");
     }
     return membership.role as WorkspaceRole;
   }
@@ -235,8 +238,8 @@ export class WorkspaceService {
   async delete(workspaceId: string, currentUserId: string): Promise<void> {
     await this.requireRole(workspaceId, currentUserId, ["owner"]);
     const workspace = await this.db.workspace.findUnique({ where: { id: workspaceId } });
-    if (!workspace) throw new Error("Workspace not found.");
-    if (workspace.type === "personal") throw new Error("The personal workspace cannot be deleted.");
+    if (!workspace) throw new Error("Project not found.");
+    if (workspace.type === "personal") throw new Error("The default project cannot be deleted.");
     await this.db.workspace.delete({ where: { id: workspaceId } });
   }
 
@@ -323,8 +326,8 @@ export class WorkspaceService {
     const target = await this.db.workspaceMember.findUnique({
       where: { workspaceId_userId: { workspaceId, userId: memberId } },
     });
-    if (!target) throw new Error("Workspace member not found.");
-    if (target.role === "owner") throw new Error("The workspace owner cannot be removed.");
+    if (!target) throw new Error("Project member not found.");
+    if (target.role === "owner") throw new Error("The project owner cannot be removed.");
     await this.db.workspaceMember.delete({
       where: { workspaceId_userId: { workspaceId, userId: memberId } },
     });

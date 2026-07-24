@@ -99,14 +99,14 @@ function McpServers() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="MCP Servers" description="Manage MCP connection metadata persisted in the workspace PostgreSQL catalog." actions={<Button className="h-11" onClick={() => openForm()}><Plus /> Register MCP</Button>} />
+      <PageHeader title="MCP Servers" description="Manage MCP connection metadata persisted in the current Project catalog." actions={<Button className="h-11" onClick={() => openForm()}><Plus /> Register MCP</Button>} />
       {catalog.isPending ? <p className="border p-4 text-sm text-muted-foreground">Loading MCP servers from PostgreSQL…</p> : null}
       {catalog.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">{catalog.error.message}</p> : null}
       {saveServer.error || checkServer.error || deleteServer.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">{(saveServer.error ?? checkServer.error ?? deleteServer.error)?.message}</p> : null}
       {notice ? <p role="status" className="border-l-2 border-primary bg-muted/40 px-4 py-3 text-sm">{notice}</p> : null}
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_400px]">
         <Card>
-          <CardHeader className="border-b"><CardTitle>Registered servers</CardTitle><CardDescription>{items.length} MCP integrations available to this workspace.</CardDescription></CardHeader>
+          <CardHeader className="border-b"><CardTitle>Registered servers</CardTitle><CardDescription>{items.length} MCP integrations available to this Project.</CardDescription></CardHeader>
           <CardContent className="px-0">
             {items.length ? items.map((item) => (
               <button key={item.id} type="button" aria-pressed={selected?.id === item.id} onClick={() => { setSelectedId(item.id); setEditing(false); setNotice(""); }} className={cn("grid min-h-24 w-full gap-3 border-b px-5 py-4 text-left transition-colors last:border-b-0 hover:bg-muted/45 focus-visible:outline-2 focus-visible:outline-offset-[-2px] sm:grid-cols-[minmax(0,1fr)_150px_auto] sm:items-center", selected?.id === item.id && "bg-muted/70 shadow-[inset_3px_0_0_var(--primary)]")}>

@@ -29,7 +29,9 @@ import { Route as AuthSsoCompleteRouteImport } from './routes/auth/sso-complete'
 import { Route as AgentsNewRouteImport } from './routes/agents/new'
 import { Route as AgentsAgentIdRouteImport } from './routes/agents/$agentId'
 import { Route as ExtensionsSkillRouteImport } from './routes/Extensions/skill'
+import { Route as SecurityVirtualEmployeesIndexRouteImport } from './routes/security/virtual-employees/index'
 import { Route as ProvidersModelProfilesIndexRouteImport } from './routes/providers/model-profiles/index'
+import { Route as SecurityVirtualEmployeesVirtualEmployeeIdRouteImport } from './routes/security/virtual-employees/$virtualEmployeeId'
 import { Route as ProvidersModelProfilesProfileIdRouteImport } from './routes/providers/model-profiles/$profileId'
 import { Route as AgentsInstaceNewRouteImport } from './routes/agents/instace/new'
 import { Route as AgentSandboxesRuntimeRouteImport } from './routes/agent/sandboxes/runtime'
@@ -135,11 +137,23 @@ const ExtensionsSkillRoute = ExtensionsSkillRouteImport.update({
   path: '/Extensions/skill',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SecurityVirtualEmployeesIndexRoute =
+  SecurityVirtualEmployeesIndexRouteImport.update({
+    id: '/security/virtual-employees/',
+    path: '/security/virtual-employees/',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ProvidersModelProfilesIndexRoute =
   ProvidersModelProfilesIndexRouteImport.update({
     id: '/model-profiles/',
     path: '/model-profiles/',
     getParentRoute: () => ProvidersRoute,
+  } as any)
+const SecurityVirtualEmployeesVirtualEmployeeIdRoute =
+  SecurityVirtualEmployeesVirtualEmployeeIdRouteImport.update({
+    id: '/security/virtual-employees/$virtualEmployeeId',
+    path: '/security/virtual-employees/$virtualEmployeeId',
+    getParentRoute: () => rootRouteImport,
   } as any)
 const ProvidersModelProfilesProfileIdRoute =
   ProvidersModelProfilesProfileIdRouteImport.update({
@@ -188,7 +202,9 @@ export interface FileRoutesByFullPath {
   '/agent/sandboxes/runtime': typeof AgentSandboxesRuntimeRoute
   '/agents/instace/new': typeof AgentsInstaceNewRoute
   '/providers/model-profiles/$profileId': typeof ProvidersModelProfilesProfileIdRoute
+  '/security/virtual-employees/$virtualEmployeeId': typeof SecurityVirtualEmployeesVirtualEmployeeIdRoute
   '/providers/model-profiles/': typeof ProvidersModelProfilesIndexRoute
+  '/security/virtual-employees/': typeof SecurityVirtualEmployeesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -214,7 +230,9 @@ export interface FileRoutesByTo {
   '/agent/sandboxes/runtime': typeof AgentSandboxesRuntimeRoute
   '/agents/instace/new': typeof AgentsInstaceNewRoute
   '/providers/model-profiles/$profileId': typeof ProvidersModelProfilesProfileIdRoute
+  '/security/virtual-employees/$virtualEmployeeId': typeof SecurityVirtualEmployeesVirtualEmployeeIdRoute
   '/providers/model-profiles': typeof ProvidersModelProfilesIndexRoute
+  '/security/virtual-employees': typeof SecurityVirtualEmployeesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -242,7 +260,9 @@ export interface FileRoutesById {
   '/agent/sandboxes/runtime': typeof AgentSandboxesRuntimeRoute
   '/agents/instace/new': typeof AgentsInstaceNewRoute
   '/providers/model-profiles/$profileId': typeof ProvidersModelProfilesProfileIdRoute
+  '/security/virtual-employees/$virtualEmployeeId': typeof SecurityVirtualEmployeesVirtualEmployeeIdRoute
   '/providers/model-profiles/': typeof ProvidersModelProfilesIndexRoute
+  '/security/virtual-employees/': typeof SecurityVirtualEmployeesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -271,7 +291,9 @@ export interface FileRouteTypes {
     | '/agent/sandboxes/runtime'
     | '/agents/instace/new'
     | '/providers/model-profiles/$profileId'
+    | '/security/virtual-employees/$virtualEmployeeId'
     | '/providers/model-profiles/'
+    | '/security/virtual-employees/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -297,7 +319,9 @@ export interface FileRouteTypes {
     | '/agent/sandboxes/runtime'
     | '/agents/instace/new'
     | '/providers/model-profiles/$profileId'
+    | '/security/virtual-employees/$virtualEmployeeId'
     | '/providers/model-profiles'
+    | '/security/virtual-employees'
   id:
     | '__root__'
     | '/'
@@ -324,7 +348,9 @@ export interface FileRouteTypes {
     | '/agent/sandboxes/runtime'
     | '/agents/instace/new'
     | '/providers/model-profiles/$profileId'
+    | '/security/virtual-employees/$virtualEmployeeId'
     | '/providers/model-profiles/'
+    | '/security/virtual-employees/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -349,6 +375,8 @@ export interface RootRouteChildren {
   AgentSandboxesPolicyRoute: typeof AgentSandboxesPolicyRoute
   AgentSandboxesRuntimeRoute: typeof AgentSandboxesRuntimeRoute
   AgentsInstaceNewRoute: typeof AgentsInstaceNewRoute
+  SecurityVirtualEmployeesVirtualEmployeeIdRoute: typeof SecurityVirtualEmployeesVirtualEmployeeIdRoute
+  SecurityVirtualEmployeesIndexRoute: typeof SecurityVirtualEmployeesIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -493,12 +521,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ExtensionsSkillRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/security/virtual-employees/': {
+      id: '/security/virtual-employees/'
+      path: '/security/virtual-employees'
+      fullPath: '/security/virtual-employees/'
+      preLoaderRoute: typeof SecurityVirtualEmployeesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/providers/model-profiles/': {
       id: '/providers/model-profiles/'
       path: '/model-profiles'
       fullPath: '/providers/model-profiles/'
       preLoaderRoute: typeof ProvidersModelProfilesIndexRouteImport
       parentRoute: typeof ProvidersRoute
+    }
+    '/security/virtual-employees/$virtualEmployeeId': {
+      id: '/security/virtual-employees/$virtualEmployeeId'
+      path: '/security/virtual-employees/$virtualEmployeeId'
+      fullPath: '/security/virtual-employees/$virtualEmployeeId'
+      preLoaderRoute: typeof SecurityVirtualEmployeesVirtualEmployeeIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/providers/model-profiles/$profileId': {
       id: '/providers/model-profiles/$profileId'
@@ -571,6 +613,9 @@ const rootRouteChildren: RootRouteChildren = {
   AgentSandboxesPolicyRoute: AgentSandboxesPolicyRoute,
   AgentSandboxesRuntimeRoute: AgentSandboxesRuntimeRoute,
   AgentsInstaceNewRoute: AgentsInstaceNewRoute,
+  SecurityVirtualEmployeesVirtualEmployeeIdRoute:
+    SecurityVirtualEmployeesVirtualEmployeeIdRoute,
+  SecurityVirtualEmployeesIndexRoute: SecurityVirtualEmployeesIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

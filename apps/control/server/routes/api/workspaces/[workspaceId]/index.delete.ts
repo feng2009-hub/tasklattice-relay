@@ -8,7 +8,7 @@ export default defineHandler(async (event) => {
   try {
     const { userId } = await service.authenticate(event.req);
     await service.delete(decodeURIComponent(event.context.params?.workspaceId ?? ""), userId);
-    return jsonResponse({ message: "Workspace deleted." });
+    return jsonResponse({ message: "Project deleted." });
   } catch (error) {
     if (error instanceof Error && error.message.includes("authentication")) return unauthorizedResponse(error);
     return errorResponse(error);

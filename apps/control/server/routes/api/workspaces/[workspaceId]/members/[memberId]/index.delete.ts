@@ -12,7 +12,7 @@ export default defineHandler(async (event) => {
       userId,
       decodeURIComponent(event.context.params?.memberId ?? ""),
     );
-    return jsonResponse({ message: "Workspace member removed." });
+    return jsonResponse({ message: "Project member removed." });
   } catch (error) {
     if (error instanceof Error && error.message.includes("authentication")) return unauthorizedResponse(error);
     return errorResponse(error);

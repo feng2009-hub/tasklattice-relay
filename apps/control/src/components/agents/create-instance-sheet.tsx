@@ -3,7 +3,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { defaultAgentPlatformId, type AgentPlatformId, type CreateAgentInput } from "@tasklattice/contracts";
-import { ArrowLeft, ArrowRight, Bot, Check, CircleAlert, Route as RouteIcon, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ArrowRight, Bot, Check, CircleAlert, ShieldCheck, UserRoundCheck } from "lucide-react";
 import { AgentSelect } from "@/components/agents/agent-select";
 import { ChangeSpecializationDialog } from "@/components/agents/change-specialization-dialog";
 import {
@@ -42,11 +42,9 @@ function selectedIds(items: readonly SelectedCapability[]): string[] {
 }
 
 export function CreateInstanceSheet({
-  modelProfileId,
   onOpenChange,
   open,
 }: {
-  modelProfileId?: string;
   onOpenChange: (open: boolean) => void;
   open: boolean;
 }) {
@@ -68,14 +66,9 @@ export function CreateInstanceSheet({
   const specializations = extensionCatalog.data?.specializations ?? [];
   const specialization = getSpecialization(specializations, specializationId);
   const pendingSpecialization = pendingSpecializationId ? getSpecialization(specializations, pendingSpecializationId) : null;
-  const modelProfiles = useQuery({ queryKey: workspace.key("model-profiles"), queryFn: api.listModelProfiles });
+  const virtualEmployees = useQuery({ queryKey: workspace.key("virtual-employees"), queryFn: api.listVirtualEmployees });
+  const activeVirtualEmployees = (virtualEmployees.data ?? []).filter((employee) => employee.status === "active");
   const policies = useQuery({ queryKey: workspace.key("sandbox-policies"), queryFn: api.listPolicies });
-  const requestedModelProfile = modelProfileId
-    ? (modelProfiles.data ?? []).find((profile) => profile.id === modelProfileId && profile.status === "READY")
-    : undefined;
-  const defaultModelProfile = (modelProfiles.data ?? []).find((profile) => profile.isDefault && profile.status === "READY");
-  const modelProfile = modelProfileId ? requestedModelProfile : defaultModelProfile;
-  const requestedModelProfileUnavailable = Boolean(modelProfileId && !modelProfiles.isPending && !requestedModelProfile);
   const currentSystemPrompt = specialization?.id === "custom" ? customSystemPrompt : specialization?.systemPrompt ?? "";
   const incompleteMcps = selectedIds(selectedMcps)
     .map((id) => mcpServers.find((item) => item.id === id))
@@ -93,6 +86,7 @@ export function CreateInstanceSheet({
       runtime: "openshell" as const,
       agentPlatform: defaultAgentPlatformId as AgentPlatformId,
       policyId: "",
+      virtualEmployeeId: "",
       systemPrompt: "",
     },
     onSubmit: ({ value }) => mutation.mutateAsync({
@@ -102,7 +96,6 @@ export function CreateInstanceSheet({
       skillIds: selectedIds(selectedSkills),
       mcpServerIds: selectedIds(selectedMcps),
       knowledgeSourceIds: selectedIds(selectedKnowledgeSources),
-      ...(modelProfile ? { modelProfileId: modelProfile.id } : {}),
     } satisfies CreateAgentInput),
   });
 
@@ -151,7 +144,7 @@ export function CreateInstanceSheet({
   }, [mcpServers, pendingSpecialization, selectedMcps, selectedSkills, skills]);
 
   const shellProps = {
-    description: "Define the Agent identity, runtime, Model Profile, capabilities, and OpenShell policy before provisioning.",
+    description: "Define the Agent, choose one Virtual Employee, and apply an independent OpenShell Runtime Policy.",
     eyebrow: "Agent Instance",
     onOpenChange: (next: boolean) => !mutation.isPending && onOpenChange(next),
     open,
@@ -179,10 +172,10 @@ export function CreateInstanceSheet({
             </form.Subscribe>
           ) : step === 1 ? (
             <form.Subscribe selector={(state) => state.values.policyId}>
-              {(policyId) => <Button key="next-review" type="button" disabled={!modelProfile || !String(policyId)} onClick={() => setStep(2)}>Next: Review <ArrowRight /></Button>}
+              {(policyId) => <form.Subscribe selector={(state) => state.values.virtualEmployeeId}>{(virtualEmployeeId) => <Button key="next-review" type="button" disabled={!String(virtualEmployeeId) || !String(policyId)} onClick={() => setStep(2)}>Next: Review <ArrowRight /></Button>}</form.Subscribe>}
             </form.Subscribe>
           ) : (
-            <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting, state.values.policyId]}>{([canSubmit, isSubmitting, policyId]) => <Button key="approve-create" type="button" disabled={!canSubmit || Boolean(isSubmitting) || mutation.isPending || !modelProfile || !String(policyId)} onClick={() => void form.handleSubmit()}><ShieldCheck /> {mutation.isPending ? "Creating OpenShell sandbox…" : "Next: Approve to Create"}</Button>}</form.Subscribe>
+            <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting, state.values.policyId, state.values.virtualEmployeeId]}>{([canSubmit, isSubmitting, policyId, virtualEmployeeId]) => <Button key="approve-create" type="button" disabled={!canSubmit || Boolean(isSubmitting) || mutation.isPending || !String(virtualEmployeeId) || !String(policyId)} onClick={() => void form.handleSubmit()}><ShieldCheck /> {mutation.isPending ? "Creating OpenShell sandbox…" : "Approve and Create"}</Button>}</form.Subscribe>
           )}
         </div>
       )}
@@ -220,16 +213,16 @@ export function CreateInstanceSheet({
 
           {step === 1 ? (
             <Card>
-              <CardHeader><CardTitle className="flex items-center gap-2"><Bot className="size-5" /> Runtime & Inference</CardTitle><CardDescription>Choose the Agent implementation and OpenShell policy. Inference is configured automatically by TaskLattice.</CardDescription></CardHeader>
+              <CardHeader><CardTitle className="flex items-center gap-2"><Bot className="size-5" /> Runtime & Security</CardTitle><CardDescription>Choose the runtime implementation, business identity, and independent OpenShell Runtime Policy.</CardDescription></CardHeader>
               <CardContent className="space-y-5">
                 <div className="rounded-md border bg-muted/20 px-4 py-3 text-sm"><span className="text-xs text-muted-foreground">Runtime</span><strong className="mt-1 block">OpenShell (UAT)</strong></div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <form.Field name="agentPlatform">
                     {(field) => <div className="space-y-2"><Label htmlFor="instance-agent">Agent implementation</Label><AgentSelect id="instance-agent" value={field.state.value} onValueChange={field.handleChange} /><p className="text-xs leading-5 text-muted-foreground">Configured inside the OpenShell runtime during provisioning.</p></div>}
                   </form.Field>
-                  <div className="space-y-2"><Label>Model Profile</Label>{modelProfiles.isPending ? <div className="flex min-h-12 items-center border bg-muted/20 px-3 text-sm text-muted-foreground">Checking available Model Profiles…</div> : modelProfile ? <div className="flex min-h-12 items-center gap-3 border border-emerald-500/25 bg-emerald-500/5 px-3 py-2"><span className="grid size-8 shrink-0 place-items-center bg-emerald-500/10 text-emerald-700"><RouteIcon className="size-4" /></span><span className="min-w-0"><strong className="block truncate text-sm">{modelProfile.name}</strong><span className="block text-xs text-muted-foreground">Ready · {modelProfileId ? "selected for this Instance" : "platform default"}</span></span></div> : <div className="flex min-h-12 items-center border border-amber-500/30 bg-amber-500/5 px-3 text-xs">{requestedModelProfileUnavailable ? "The selected Model Profile is not ready or no longer exists" : "No ready Model Profile is available"}</div>}<p className="text-xs leading-5 text-muted-foreground">The profile supplies the endpoint, model alias, routing policy, compliance boundary, and isolated Virtual Key.</p></div>
+                  <form.Field name="virtualEmployeeId">{(field) => <div className="space-y-2"><div className="flex items-center justify-between gap-3"><Label>Virtual Employee</Label><Link to="/security/virtual-employees" className="text-xs font-medium underline underline-offset-4">Manage</Link></div><Select value={field.state.value} disabled={virtualEmployees.isPending || Boolean(virtualEmployees.error)} onValueChange={field.handleChange}><SelectTrigger className="min-h-12 h-auto" aria-label="Virtual Employee"><SelectValue placeholder={virtualEmployees.isPending ? "Loading Virtual Employees…" : "Select a Virtual Employee"} /></SelectTrigger><SelectContent>{activeVirtualEmployees.map((employee) => <SelectItem key={employee.id} value={employee.id}>{employee.displayName} · {employee.businessRole || employee.environment}</SelectItem>)}</SelectContent></Select>{virtualEmployees.error ? <p role="alert" className="text-xs text-destructive">{virtualEmployees.error.message}</p> : !virtualEmployees.isPending && !activeVirtualEmployees.length ? <p role="alert" className="border-l-2 border-amber-500 bg-amber-500/5 px-3 py-2 text-xs"><Link to="/security/virtual-employees" className="font-semibold underline underline-offset-4">Create and activate a Virtual Employee</Link> to continue.</p> : <p className="text-xs leading-5 text-muted-foreground">Provides LiteLLM model access, backing identities, and approved system scope.</p>}</div>}</form.Field>
                 </div>
-                {modelProfile ? <div className="grid gap-3 border-y py-4 text-xs sm:grid-cols-3"><div><span className="text-muted-foreground">Compliance</span><strong className="mt-1 block">{modelProfile.complianceDomain === "CN_MAINLAND" ? "CN Mainland" : "Global"}</strong></div><div><span className="text-muted-foreground">Routing</span><strong className="mt-1 block">{modelProfile.capabilities.automaticRouting === "ENABLED" ? "Automatic" : "Managed"}</strong></div><div><span className="text-muted-foreground">Provider failover</span><strong className="mt-1 block">{modelProfile.capabilities.failover === "ENABLED" ? "Enabled" : "Managed"}</strong></div></div> : modelProfiles.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 px-3 py-3 text-xs text-destructive">{modelProfiles.error.message}</p> : !modelProfiles.isPending ? <p role="alert" className="border-l-2 border-amber-500 bg-amber-500/5 px-3 py-3 text-xs"><Link to="/providers/model-profiles" className="font-semibold underline underline-offset-4">{requestedModelProfileUnavailable ? "Choose another ready Model Profile" : "Configure a ready default Model Profile"}</Link> to continue.</p> : null}
+                <form.Subscribe selector={(state) => state.values.virtualEmployeeId}>{(virtualEmployeeId) => { const selected = activeVirtualEmployees.find((item) => item.id === virtualEmployeeId); return selected ? <div className="grid gap-3 border-y py-4 text-xs sm:grid-cols-3"><div><span className="text-muted-foreground">Model access</span><strong className="mt-1 block">{selected.modelAccess?.allowedModels.join(", ")}</strong></div><div><span className="text-muted-foreground">Budget</span><strong className="mt-1 block">{selected.modelAccess?.maxBudget !== undefined ? `$${selected.modelAccess.maxBudget} / month` : "No limit"}</strong></div><div><span className="text-muted-foreground">System access</span><strong className="mt-1 block">{selected.identities.length} identities · {selected.accessScopes.length} scopes</strong></div></div> : null;}}</form.Subscribe>
                 <form.Field name="policyId">
                   {(field) => <div className="space-y-2"><div className="flex items-center justify-between gap-3"><Label>OpenShell policy</Label><Link to="/agent/sandboxes/policy" className="text-xs font-medium underline underline-offset-4">Inspect policies</Link></div><Select value={field.state.value} disabled={policies.isPending || Boolean(policies.error)} onValueChange={field.handleChange}><SelectTrigger aria-label="OpenShell policy" className="min-h-12 h-auto"><SelectValue placeholder={policies.isPending ? "Loading Policy catalog…" : "Select a Policy"} /></SelectTrigger><SelectContent>{policies.data?.policies.map((policy) => <SelectItem key={policy.id} value={policy.id}>{policy.name} · {policy.networkAccess}</SelectItem>)}</SelectContent></Select>{policies.error ? <p role="alert" className="text-xs text-destructive">{policies.error.message}</p> : <p className="text-xs leading-5 text-muted-foreground">Applied at Sandbox creation through the OpenShell policy boundary.</p>}</div>}
                 </form.Field>
@@ -245,7 +238,7 @@ export function CreateInstanceSheet({
                   <CardContent className="space-y-6">
                     <div className="grid gap-5 sm:grid-cols-2">
                       <ReviewSection title="Identity"><ReviewRow label="Name" value={values.name} /><ReviewRow label="Role" value={specialization.name} /><ReviewRow label="System instructions" value={specialization.id === "custom" ? "Custom instructions" : `Managed by ${specialization.name}`} /></ReviewSection>
-                      <ReviewSection title="Runtime & Model"><ReviewRow label="Runtime" value="OpenShell (UAT)" /><ReviewRow label="Agent" value={getAgentPlatformPresentation(values.agentPlatform).name} /><ReviewRow label="Model Profile" value={modelProfile?.name ?? "Unavailable"} /><ReviewRow label="Compliance" value={modelProfile?.complianceDomain === "CN_MAINLAND" ? "CN Mainland" : modelProfile ? "Global" : "Unavailable"} /><ReviewRow label="Sandbox policy" value={policyName(values.policyId)} /></ReviewSection>
+                      <ReviewSection title="Runtime & Security"><ReviewRow label="Runtime" value="OpenShell (UAT)" /><ReviewRow label="Agent" value={getAgentPlatformPresentation(values.agentPlatform).name} /><ReviewRow label="Virtual Employee" value={activeVirtualEmployees.find((item) => item.id === values.virtualEmployeeId)?.displayName ?? "Unavailable"} /><ReviewRow label="Runtime Policy" value={policyName(values.policyId)} /></ReviewSection>
                     </div>
                     <Separator />
                     <div className="grid gap-5 lg:grid-cols-3">

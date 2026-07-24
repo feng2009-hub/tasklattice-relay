@@ -12,7 +12,7 @@ export default defineHandler(async (event) => {
     const service = new WorkspaceService();
     const context = await service.resolve(event.req);
     if (context.role === "member")
-      throw new Error("You do not have permission to create a workspace.");
+      throw new Error("You do not have permission to create a project.");
     const input = inputSchema.parse(await event.req.json());
     return jsonResponse(await service.create(context.auth, input.name), { status: 201 });
   } catch (error) {

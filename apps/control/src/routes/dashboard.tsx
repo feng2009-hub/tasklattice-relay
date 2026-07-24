@@ -27,7 +27,7 @@ function Overview() {
   return (
     <div className="space-y-8">
       <PageHeader
-        title="Operations workspace"
+        title="Project operations"
         description="Manage Provider connections, runtime Instances, Sandboxes, Skills, approvals, and monitoring from one control path."
         actions={
           <Button asChild size="lg">

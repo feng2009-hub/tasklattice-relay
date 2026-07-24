@@ -193,7 +193,7 @@ function RaiseRequest() {
                 <Textarea
                   id="request-reason"
                   className="min-h-32"
-                  defaultValue="Increase capacity for the research workspace."
+                  defaultValue="Increase capacity for the research Project."
                 />
               </div>
               {feedback ? (

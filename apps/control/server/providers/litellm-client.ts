@@ -17,6 +17,32 @@ export interface LiteLLMVirtualKey {
   tokenId: string;
 }
 
+export interface LiteLLMVirtualEmployeeKeyInput {
+  alias: string;
+  teamId: string;
+  models: string[];
+  accessGroups: string[];
+  maxBudget?: number;
+  budgetDuration?: string;
+  rpmLimit?: number;
+  tpmLimit?: number;
+  maxParallelRequests?: number;
+  keyDuration: string;
+  metadata: Record<string, string>;
+}
+
+export interface LiteLLMVirtualEmployeeKeyDetails {
+  tokenId: string;
+  alias?: string;
+  teamId?: string;
+  models: string[];
+  maxBudget?: number;
+  rpmLimit?: number;
+  tpmLimit?: number;
+  expiresAt?: string;
+  blocked: boolean;
+}
+
 export interface LiteLLMSpendLog {
   api_key?: string;
   api_key_id?: string;
@@ -112,6 +138,13 @@ export interface LiteLLMAdminClient {
   createModelProfileTeam?(input: LiteLLMModelProfileIdentity): Promise<string>;
   deleteModelProfileTeam?(teamId: string): Promise<void>;
   createModelProfileKey?(input: LiteLLMModelProfileKeyInput): Promise<LiteLLMVirtualKey>;
+  ensureVirtualEmployeeTeam?(alias: string, metadata: Record<string, string>): Promise<string>;
+  createVirtualEmployeeKey?(input: LiteLLMVirtualEmployeeKeyInput): Promise<LiteLLMVirtualKey>;
+  updateVirtualEmployeeKey?(tokenId: string, input: LiteLLMVirtualEmployeeKeyInput): Promise<void>;
+  getVirtualEmployeeKey?(tokenId: string): Promise<LiteLLMVirtualEmployeeKeyDetails>;
+  disableVirtualEmployeeKey?(tokenId: string): Promise<void>;
+  enableVirtualEmployeeKey?(tokenId: string): Promise<void>;
+  testConnection?(): Promise<{ ok: boolean; version?: string }>;
 }
 
 export class LiteLLMClient implements LiteLLMAdminClient {
@@ -120,6 +153,7 @@ export class LiteLLMClient implements LiteLLMAdminClient {
   constructor(
     baseUrl = process.env.LITELLM_BASE_URL ?? "http://127.0.0.1:4000",
     private readonly masterKey = process.env.LITELLM_MASTER_KEY ?? "",
+    private readonly requestTimeoutMs = Number(process.env.LITELLM_REQUEST_TIMEOUT ?? "20000"),
   ) {
     this.baseUrl = baseUrl.replace(/\/+$/, "");
   }
@@ -206,7 +240,7 @@ export class LiteLLMClient implements LiteLLMAdminClient {
     modelName: string;
   }): Promise<LiteLLMVirtualKey> {
     this.assertConfigured();
-    const response = await this.request<LiteLLMVirtualKeyResponse>("/key/generate", {
+    const response = await this.request<LiteLLMVirtualKeyResponse>("/key/service-account/generate", {
       method: "POST",
       body: JSON.stringify({
         key_alias: input.alias,
@@ -265,6 +299,73 @@ export class LiteLLMClient implements LiteLLMAdminClient {
     });
     if (!response.key) throw new Error("LiteLLM did not return a virtual key.");
     return { secret: response.key, tokenId: response.token ?? response.key };
+  }
+
+  async ensureVirtualEmployeeTeam(alias: string, metadata: Record<string, string>): Promise<string> {
+    this.assertConfigured();
+    const existing = await this.request<Array<{ team_id?: string; team_alias?: string }> | { data?: Array<{ team_id?: string; team_alias?: string }> }>("/team/list");
+    const teams = Array.isArray(existing) ? existing : existing.data ?? [];
+    const found = teams.find((team) => team.team_alias === alias)?.team_id;
+    if (found) return found;
+    const created = await this.request<{ team_id?: string; id?: string }>("/team/new", {
+      method: "POST",
+      body: JSON.stringify({ team_alias: alias, metadata }),
+    });
+    const id = created.team_id ?? created.id;
+    if (!id) throw new Error("LiteLLM did not return a Team identifier.");
+    return id;
+  }
+
+  async createVirtualEmployeeKey(input: LiteLLMVirtualEmployeeKeyInput): Promise<LiteLLMVirtualKey> {
+    this.assertConfigured();
+    const response = await this.request<LiteLLMVirtualKeyResponse>("/key/generate", {
+      method: "POST",
+      body: JSON.stringify(virtualEmployeeKeyBody(input)),
+    });
+    if (!response.key) throw new Error("LiteLLM did not return a Virtual Key.");
+    return { secret: response.key, tokenId: response.token ?? response.key };
+  }
+
+  async updateVirtualEmployeeKey(tokenId: string, input: LiteLLMVirtualEmployeeKeyInput): Promise<void> {
+    this.assertConfigured();
+    await this.request("/key/update", {
+      method: "POST",
+      body: JSON.stringify({ key: tokenId, ...virtualEmployeeKeyBody(input) }),
+    });
+  }
+
+  async getVirtualEmployeeKey(tokenId: string): Promise<LiteLLMVirtualEmployeeKeyDetails> {
+    this.assertConfigured();
+    const response = await this.request<Record<string, unknown>>(`/key/info?key=${encodeURIComponent(tokenId)}`);
+    const info = record(response.info) ?? response;
+    return {
+      tokenId,
+      ...(typeof info.key_alias === "string" ? { alias: info.key_alias } : {}),
+      ...(typeof info.team_id === "string" ? { teamId: info.team_id } : {}),
+      models: Array.isArray(info.models) ? info.models.filter((value): value is string => typeof value === "string") : [],
+      ...(typeof info.max_budget === "number" ? { maxBudget: info.max_budget } : {}),
+      ...(typeof info.rpm_limit === "number" ? { rpmLimit: info.rpm_limit } : {}),
+      ...(typeof info.tpm_limit === "number" ? { tpmLimit: info.tpm_limit } : {}),
+      ...(typeof info.expires === "string" ? { expiresAt: info.expires } : {}),
+      blocked: info.blocked === true,
+    };
+  }
+
+  async disableVirtualEmployeeKey(tokenId: string): Promise<void> {
+    this.assertConfigured();
+    await this.request("/key/block", { method: "POST", body: JSON.stringify({ key: tokenId }) });
+  }
+
+  async enableVirtualEmployeeKey(tokenId: string): Promise<void> {
+    this.assertConfigured();
+    await this.request("/key/unblock", { method: "POST", body: JSON.stringify({ key: tokenId }) });
+  }
+
+  async testConnection(): Promise<{ ok: boolean; version?: string }> {
+    this.assertConfigured();
+    const response = await this.request<Record<string, unknown>>("/health/liveliness");
+    const version = response.version ?? response.litellm_version;
+    return { ok: true, ...(typeof version === "string" ? { version } : {}) };
   }
 
   async inspectModelProfile(modelAlias: string): Promise<LiteLLMModelProfileInspection> {
@@ -408,13 +509,28 @@ export class LiteLLMClient implements LiteLLMAdminClient {
         ...(!formData ? { "content-type": "application/json" } : {}),
         ...init.headers,
       },
-      signal: AbortSignal.timeout(20_000),
+      signal: AbortSignal.timeout(this.requestTimeoutMs),
     });
     const body = await response.text();
     if (!response.ok)
       throw new Error(`LiteLLM returned ${response.status}${body ? `: ${redactSecrets(body.slice(0, 320), this.masterKey)}` : "."}`);
     return (body ? JSON.parse(body) : undefined) as T;
   }
+}
+
+function virtualEmployeeKeyBody(input: LiteLLMVirtualEmployeeKeyInput): Record<string, unknown> {
+  return {
+    key_alias: input.alias,
+    team_id: input.teamId,
+    models: [...new Set([...input.models, ...input.accessGroups])],
+    ...(input.maxBudget !== undefined ? { max_budget: input.maxBudget } : {}),
+    ...(input.budgetDuration ? { budget_duration: input.budgetDuration } : {}),
+    ...(input.rpmLimit !== undefined ? { rpm_limit: input.rpmLimit } : {}),
+    ...(input.tpmLimit !== undefined ? { tpm_limit: input.tpmLimit } : {}),
+    ...(input.maxParallelRequests !== undefined ? { max_parallel_requests: input.maxParallelRequests } : {}),
+    duration: input.keyDuration,
+    metadata: input.metadata,
+  };
 }
 
 function redactSecrets(value: string, masterKey: string): string {

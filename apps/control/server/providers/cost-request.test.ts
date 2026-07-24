@@ -43,7 +43,7 @@ describe("cost request parsing", () => {
     process.env.TALI_WORKSPACE_ID = "workspace-a";
     expect(() => parseCostQuery(new Request(
       "http://localhost/api/v1/costs/summary?start_time=2026-06-01&end_time=2026-06-30&workspace_id=workspace-b",
-    ))).toThrow("Workspace access denied");
+    ))).toThrow("Project access denied");
     expect(() => parseCostQuery(new Request(
       "http://localhost/api/v1/costs/summary?start_time=2026-06-01&end_time=2026-06-30&filters=not-json",
     ))).toThrow();

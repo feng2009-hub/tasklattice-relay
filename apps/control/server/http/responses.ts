@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 const corsHeaders = {
-  "access-control-allow-headers": "authorization, content-type, x-workspace-id",
+  "access-control-allow-headers": "authorization, content-type, x-project-id",
   "access-control-allow-methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
   "access-control-allow-origin": process.env.TALI_CORS_ORIGIN ?? "*",
 };
@@ -31,7 +31,7 @@ export function errorResponse(error: unknown): Response {
       ? 403
       : /Invalid |must be|before end_time/i.test(message)
         ? 400
-    : /Consumer|default Model Profile|compliance|suspended|READY Model Profile|Multiple default/i.test(message)
+    : /Consumer|in use|already exists|default Model Profile|compliance|suspended|READY Model Profile|Multiple default/i.test(message)
       ? 409
       : /LiteLLM|gateway is unavailable/i.test(message)
         ? 503
