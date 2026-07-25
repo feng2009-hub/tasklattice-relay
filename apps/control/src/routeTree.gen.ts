@@ -23,8 +23,10 @@ import { Route as ProjectIdCostRouteImport } from './routes/$projectId/cost'
 import { Route as ProjectIdSettingIndexRouteImport } from './routes/$projectId/setting/index'
 import { Route as ProjectIdRequestsIndexRouteImport } from './routes/$projectId/requests/index'
 import { Route as ProjectIdInstancesIndexRouteImport } from './routes/$projectId/instances/index'
+import { Route as ProjectIdAccessPoliciesIndexRouteImport } from './routes/$projectId/access-policies/index'
 import { Route as ProjectIdRequestsNewRouteImport } from './routes/$projectId/requests/new'
 import { Route as ProjectIdInstancesInstanceIdRouteImport } from './routes/$projectId/instances/$instanceId'
+import { Route as ProjectIdAccessPoliciesPolicyIdRouteImport } from './routes/$projectId/access-policies/$policyId'
 import { Route as ProjectIdSettingVirtualEmployeesEmployeeIdRouteImport } from './routes/$projectId/setting/virtual-employees/$employeeId'
 import { Route as ProjectIdSettingModelProfilesProfileIdRouteImport } from './routes/$projectId/setting/model-profiles/$profileId'
 
@@ -99,6 +101,12 @@ const ProjectIdInstancesIndexRoute = ProjectIdInstancesIndexRouteImport.update({
   path: '/$projectId/instances/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProjectIdAccessPoliciesIndexRoute =
+  ProjectIdAccessPoliciesIndexRouteImport.update({
+    id: '/$projectId/access-policies/',
+    path: '/$projectId/access-policies/',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ProjectIdRequestsNewRoute = ProjectIdRequestsNewRouteImport.update({
   id: '/$projectId/requests/new',
   path: '/$projectId/requests/new',
@@ -108,6 +116,12 @@ const ProjectIdInstancesInstanceIdRoute =
   ProjectIdInstancesInstanceIdRouteImport.update({
     id: '/$projectId/instances/$instanceId',
     path: '/$projectId/instances/$instanceId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ProjectIdAccessPoliciesPolicyIdRoute =
+  ProjectIdAccessPoliciesPolicyIdRouteImport.update({
+    id: '/$projectId/access-policies/$policyId',
+    path: '/$projectId/access-policies/$policyId',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ProjectIdSettingVirtualEmployeesEmployeeIdRoute =
@@ -135,8 +149,10 @@ export interface FileRoutesByFullPath {
   '/$projectId/skills': typeof ProjectIdSkillsRoute
   '/auth/sso-complete': typeof AuthSsoCompleteRoute
   '/$projectId/': typeof ProjectIdIndexRoute
+  '/$projectId/access-policies/$policyId': typeof ProjectIdAccessPoliciesPolicyIdRoute
   '/$projectId/instances/$instanceId': typeof ProjectIdInstancesInstanceIdRoute
   '/$projectId/requests/new': typeof ProjectIdRequestsNewRoute
+  '/$projectId/access-policies/': typeof ProjectIdAccessPoliciesIndexRoute
   '/$projectId/instances/': typeof ProjectIdInstancesIndexRoute
   '/$projectId/requests/': typeof ProjectIdRequestsIndexRoute
   '/$projectId/setting/': typeof ProjectIdSettingIndexRoute
@@ -155,8 +171,10 @@ export interface FileRoutesByTo {
   '/$projectId/skills': typeof ProjectIdSkillsRoute
   '/auth/sso-complete': typeof AuthSsoCompleteRoute
   '/$projectId': typeof ProjectIdIndexRoute
+  '/$projectId/access-policies/$policyId': typeof ProjectIdAccessPoliciesPolicyIdRoute
   '/$projectId/instances/$instanceId': typeof ProjectIdInstancesInstanceIdRoute
   '/$projectId/requests/new': typeof ProjectIdRequestsNewRoute
+  '/$projectId/access-policies': typeof ProjectIdAccessPoliciesIndexRoute
   '/$projectId/instances': typeof ProjectIdInstancesIndexRoute
   '/$projectId/requests': typeof ProjectIdRequestsIndexRoute
   '/$projectId/setting': typeof ProjectIdSettingIndexRoute
@@ -176,8 +194,10 @@ export interface FileRoutesById {
   '/$projectId/skills': typeof ProjectIdSkillsRoute
   '/auth/sso-complete': typeof AuthSsoCompleteRoute
   '/$projectId/': typeof ProjectIdIndexRoute
+  '/$projectId/access-policies/$policyId': typeof ProjectIdAccessPoliciesPolicyIdRoute
   '/$projectId/instances/$instanceId': typeof ProjectIdInstancesInstanceIdRoute
   '/$projectId/requests/new': typeof ProjectIdRequestsNewRoute
+  '/$projectId/access-policies/': typeof ProjectIdAccessPoliciesIndexRoute
   '/$projectId/instances/': typeof ProjectIdInstancesIndexRoute
   '/$projectId/requests/': typeof ProjectIdRequestsIndexRoute
   '/$projectId/setting/': typeof ProjectIdSettingIndexRoute
@@ -198,8 +218,10 @@ export interface FileRouteTypes {
     | '/$projectId/skills'
     | '/auth/sso-complete'
     | '/$projectId/'
+    | '/$projectId/access-policies/$policyId'
     | '/$projectId/instances/$instanceId'
     | '/$projectId/requests/new'
+    | '/$projectId/access-policies/'
     | '/$projectId/instances/'
     | '/$projectId/requests/'
     | '/$projectId/setting/'
@@ -218,8 +240,10 @@ export interface FileRouteTypes {
     | '/$projectId/skills'
     | '/auth/sso-complete'
     | '/$projectId'
+    | '/$projectId/access-policies/$policyId'
     | '/$projectId/instances/$instanceId'
     | '/$projectId/requests/new'
+    | '/$projectId/access-policies'
     | '/$projectId/instances'
     | '/$projectId/requests'
     | '/$projectId/setting'
@@ -238,8 +262,10 @@ export interface FileRouteTypes {
     | '/$projectId/skills'
     | '/auth/sso-complete'
     | '/$projectId/'
+    | '/$projectId/access-policies/$policyId'
     | '/$projectId/instances/$instanceId'
     | '/$projectId/requests/new'
+    | '/$projectId/access-policies/'
     | '/$projectId/instances/'
     | '/$projectId/requests/'
     | '/$projectId/setting/'
@@ -259,8 +285,10 @@ export interface RootRouteChildren {
   ProjectIdSkillsRoute: typeof ProjectIdSkillsRoute
   AuthSsoCompleteRoute: typeof AuthSsoCompleteRoute
   ProjectIdIndexRoute: typeof ProjectIdIndexRoute
+  ProjectIdAccessPoliciesPolicyIdRoute: typeof ProjectIdAccessPoliciesPolicyIdRoute
   ProjectIdInstancesInstanceIdRoute: typeof ProjectIdInstancesInstanceIdRoute
   ProjectIdRequestsNewRoute: typeof ProjectIdRequestsNewRoute
+  ProjectIdAccessPoliciesIndexRoute: typeof ProjectIdAccessPoliciesIndexRoute
   ProjectIdInstancesIndexRoute: typeof ProjectIdInstancesIndexRoute
   ProjectIdRequestsIndexRoute: typeof ProjectIdRequestsIndexRoute
   ProjectIdSettingIndexRoute: typeof ProjectIdSettingIndexRoute
@@ -368,6 +396,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectIdInstancesIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/$projectId/access-policies/': {
+      id: '/$projectId/access-policies/'
+      path: '/$projectId/access-policies'
+      fullPath: '/$projectId/access-policies/'
+      preLoaderRoute: typeof ProjectIdAccessPoliciesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/$projectId/requests/new': {
       id: '/$projectId/requests/new'
       path: '/$projectId/requests/new'
@@ -380,6 +415,13 @@ declare module '@tanstack/react-router' {
       path: '/$projectId/instances/$instanceId'
       fullPath: '/$projectId/instances/$instanceId'
       preLoaderRoute: typeof ProjectIdInstancesInstanceIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$projectId/access-policies/$policyId': {
+      id: '/$projectId/access-policies/$policyId'
+      path: '/$projectId/access-policies/$policyId'
+      fullPath: '/$projectId/access-policies/$policyId'
+      preLoaderRoute: typeof ProjectIdAccessPoliciesPolicyIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$projectId/setting/virtual-employees/$employeeId': {
@@ -411,8 +453,10 @@ const rootRouteChildren: RootRouteChildren = {
   ProjectIdSkillsRoute: ProjectIdSkillsRoute,
   AuthSsoCompleteRoute: AuthSsoCompleteRoute,
   ProjectIdIndexRoute: ProjectIdIndexRoute,
+  ProjectIdAccessPoliciesPolicyIdRoute: ProjectIdAccessPoliciesPolicyIdRoute,
   ProjectIdInstancesInstanceIdRoute: ProjectIdInstancesInstanceIdRoute,
   ProjectIdRequestsNewRoute: ProjectIdRequestsNewRoute,
+  ProjectIdAccessPoliciesIndexRoute: ProjectIdAccessPoliciesIndexRoute,
   ProjectIdInstancesIndexRoute: ProjectIdInstancesIndexRoute,
   ProjectIdRequestsIndexRoute: ProjectIdRequestsIndexRoute,
   ProjectIdSettingIndexRoute: ProjectIdSettingIndexRoute,

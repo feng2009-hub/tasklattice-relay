@@ -19,6 +19,7 @@ import {
   UserRoundCheck,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { VirtualEmployeeEffectiveAccessPreview } from "@/components/access/virtual-employee-effective-access-preview";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -87,7 +88,7 @@ function VirtualEmployeeDetailPage() {
         search={{ section: "members" }}
         className="inline-flex min-h-11 items-center gap-2 rounded-md text-sm text-muted-foreground hover:text-foreground focus-visible:outline-2"
       >
-        <ArrowLeft className="size-4" /> Project team
+        <ArrowLeft className="size-4" /> Project members
       </Link>
       <PageHeader
         title={value.displayName}
@@ -106,9 +107,15 @@ function VirtualEmployeeDetailPage() {
       <Tabs value={tab} onValueChange={setTab}>
         <div className="overflow-x-auto"><TabsList variant="line">
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="effective">
+            Effective Access
+            <span className="rounded-sm border border-primary/20 bg-primary/5 px-1 py-0.5 text-[9px] uppercase tracking-wide text-primary">
+              Preview
+            </span>
+          </TabsTrigger>
           <TabsTrigger value="model">Model Access</TabsTrigger>
           <TabsTrigger value="identities">System Identities</TabsTrigger>
-          <TabsTrigger value="scope">Access Scope</TabsTrigger>
+          <TabsTrigger value="scope">System Access</TabsTrigger>
           <TabsTrigger value="instances">Instances</TabsTrigger>
           <TabsTrigger value="spend">Spend</TabsTrigger>
           <TabsTrigger value="audit">Audit Activity</TabsTrigger>
@@ -122,6 +129,13 @@ function VirtualEmployeeDetailPage() {
           </div>
           <Card><CardHeader><CardTitle>Business identity</CardTitle></CardHeader><CardContent><dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2 lg:grid-cols-3"><Definition label="Identifier" value={value.name} mono /><Definition label="Business role" value={value.businessRole || "Not set"} /><Definition label="Owner team" value={value.ownerTeamId || "Unassigned"} /><Definition label="Environment" value={value.environment} /><Definition label="Created by" value={value.createdBy} /><Definition label="Updated" value={new Date(value.updatedAt).toLocaleString()} /></dl></CardContent></Card>
           <Card><CardHeader><CardTitle>Control boundary</CardTitle><CardDescription>Virtual Employee defines business identity and model scope. Runtime Policy remains an independent OpenShell control.</CardDescription></CardHeader><CardContent className="grid gap-3 md:grid-cols-2"><Boundary title="Model scope" body="LiteLLM enforced per Instance" detail={access?.allowedModels.join(", ") || "No models"} tone="good" /><Boundary title="System scope" body={value.accessScopes.some((item) => item.enforcementProvider !== "metadata_only") ? "Mixed enforcement" : "Metadata only"} detail={`${value.accessScopes.length} approved resource scopes`} tone="warn" /></CardContent></Card>
+        </TabsContent>
+
+        <TabsContent value="effective" className="mt-5">
+          <VirtualEmployeeEffectiveAccessPreview
+            employee={value}
+            projectId={projectId}
+          />
         </TabsContent>
 
         <TabsContent value="model" className="mt-5">

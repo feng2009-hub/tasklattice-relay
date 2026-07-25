@@ -11,6 +11,7 @@ import {
   Network,
   Search,
   ServerCog,
+  ShieldCheck,
   Sparkles,
   Waypoints,
   type LucideIcon,
@@ -57,6 +58,7 @@ type ProjectRoute =
   | "/$projectId/cost"
   | "/$projectId/instances"
   | "/$projectId/requests/new"
+  | "/$projectId/access-policies"
   | "/$projectId/runtime-policies"
   | "/$projectId/knowledge-base"
   | "/$projectId/mcp-servers"
@@ -66,6 +68,7 @@ type ProjectRoute =
 type NavItemDefinition = {
   icon: LucideIcon;
   label: string;
+  preview?: boolean;
   to: ProjectRoute;
 };
 
@@ -82,6 +85,12 @@ const navGroups: Array<{ items: NavItemDefinition[]; label: string }> = [
   {
     label: "Security",
     items: [
+      {
+        icon: ShieldCheck,
+        label: "Access Policies",
+        preview: true,
+        to: "/$projectId/access-policies",
+      },
       { icon: FileLock2, label: "Runtime Policies", to: "/$projectId/runtime-policies" },
     ],
   },
@@ -93,7 +102,11 @@ const navGroups: Array<{ items: NavItemDefinition[]; label: string }> = [
 
 function itemIsActive(item: NavItemDefinition, pathname: string, projectId: string) {
   const target = item.to.replace("$projectId", encodeURIComponent(projectId));
-  if (item.to === "/$projectId/instances") return pathname === target || pathname.startsWith(`${target}/`);
+  if (
+    item.to === "/$projectId/instances" ||
+    item.to === "/$projectId/access-policies"
+  )
+    return pathname === target || pathname.startsWith(`${target}/`);
   return pathname === target;
 }
 
@@ -117,6 +130,11 @@ function NavigationItem({ item, pathname, projectId }: {
         >
           <item.icon className={cn(active && "text-primary")} />
           <span>{item.label}</span>
+          {item.preview ? (
+            <span className="ml-auto rounded-sm border border-primary/20 bg-primary/5 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-primary group-data-[collapsible=icon]:hidden">
+              Preview
+            </span>
+          ) : null}
         </Link>
       </SidebarMenuButton>
     </SidebarMenuItem>

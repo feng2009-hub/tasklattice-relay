@@ -8,7 +8,7 @@ import { useCurrentProjectId } from "@/hooks/use-project";
 const labels: Record<InstanceDetailTab, string> = {
   overview: "Overview",
   configuration: "Configuration",
-  capabilities: "Capabilities",
+  capabilities: "Access",
   terminal: "Terminal",
   "auditor-log": "Auditor Log",
 };

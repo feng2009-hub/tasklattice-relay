@@ -96,10 +96,10 @@ export function ProjectMembers({ project }: { project: Project }) {
     <div>
       <div className="flex min-h-16 flex-col justify-between gap-3 border-b px-4 py-3 sm:flex-row sm:items-center">
         <div>
-          <h2 className="text-sm font-semibold">Team members</h2>
+          <h2 className="text-sm font-semibold">Project members</h2>
           <p className="text-xs text-muted-foreground">
             {members.isLoading
-              ? "Loading team…"
+              ? "Loading members…"
               : `${humanCount} human · ${virtualCount} virtual`}
           </p>
         </div>
@@ -131,7 +131,7 @@ export function ProjectMembers({ project }: { project: Project }) {
       {members.isLoading ? (
         <div className="flex min-h-52 items-center justify-center gap-2 text-sm text-muted-foreground">
           <Spinner />
-          Loading team members…
+          Loading Project members…
         </div>
       ) : members.isError ? (
         <div className="m-4 border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">
@@ -146,7 +146,7 @@ export function ProjectMembers({ project }: { project: Project }) {
           </Button>
         </div>
       ) : team.length ? (
-        <ul className="divide-y" aria-label={`${project.name} team members`}>
+        <ul className="divide-y" aria-label={`${project.name} Project members`}>
           {team.map((member) => {
             const virtual = member.kind === "virtual";
             const pending =
@@ -218,7 +218,7 @@ export function ProjectMembers({ project }: { project: Project }) {
                   </span>
                 </span>
                 <span className="hidden text-xs font-medium capitalize text-muted-foreground sm:block">
-                  {virtual ? "Virtual Employee" : member.role}
+                  {virtual ? "Virtual member" : member.role}
                 </span>
                 {permissions.canManageProject ? (
                   <DropdownMenu>
@@ -317,7 +317,8 @@ export function ProjectMembers({ project }: { project: Project }) {
             <UserRound className="mx-auto size-6 text-muted-foreground" />
             <p className="mt-3 text-sm font-medium">No team members found</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Invite a person or create a Virtual Employee to build this team.
+              Invite a person or create a Virtual Employee to build this
+              Project roster.
             </p>
           </div>
         </div>

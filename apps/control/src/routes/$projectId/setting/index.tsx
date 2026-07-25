@@ -88,7 +88,7 @@ function ProjectSettingsPage() {
             </TabsTrigger>
             <TabsTrigger value="members">
               <Users />
-              Team
+              Members
             </TabsTrigger>
             <TabsTrigger value="model-profiles">
               <SlidersHorizontal />
