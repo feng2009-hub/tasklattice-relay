@@ -155,20 +155,6 @@ function SkillCatalog() {
       {catalog.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">{catalog.error.message}</p> : null}
       {verifySkill.error || deleteSkill.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">{(verifySkill.error ?? deleteSkill.error)?.message}</p> : null}
 
-      <div className="grid overflow-hidden border bg-card text-sm sm:grid-cols-4">
-        {[
-          ["Available", items.length],
-          ["Published", items.filter((item) => item.status === "PUBLISHED").length],
-          ["Categories", new Set(items.map((item) => item.category)).size],
-          ["Storage", "S3 immutable mirror"],
-        ].map(([label, value]) => (
-          <div key={label} className="border-b px-4 py-3 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0">
-            <span className="block text-xs text-muted-foreground">{label}</span>
-            <strong className="mt-1 block">{value}</strong>
-          </div>
-        ))}
-      </div>
-
       {notice ? <p role="status" className="border-l-2 border-primary bg-primary/5 px-4 py-3 text-sm">{notice}</p> : null}
 
       <Card>
