@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import type { CreateVirtualEmployeeInput, VirtualEmployee } from "@tasklattice/contracts";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Bot, Check, KeyRound, ShieldCheck } from "lucide-react";
-import { EntityFormSheet } from "@/components/shared/entity-form-sheet";
+import { EntitySheet } from "@/components/shared/entity-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -114,7 +114,7 @@ export function CreateVirtualEmployeeSheet({
   });
 
   return (
-    <EntityFormSheet
+    <EntitySheet
       open={open}
       onOpenChange={(next) => !mutation.isPending && onOpenChange(next)}
       width="xl"
@@ -158,7 +158,7 @@ export function CreateVirtualEmployeeSheet({
         <p className="flex items-start gap-2 text-xs leading-5 text-muted-foreground"><Bot className="mt-0.5 size-4 shrink-0" />Runtime Policy remains an independent OpenShell control and will be selected when an Instance is created.</p>
       </CardContent></Card> : null}
       {mutation.error ? <p role="alert" className="mt-4 border-l-2 border-destructive bg-destructive/5 p-3 text-sm text-destructive">{mutation.error.message}</p> : null}
-    </EntityFormSheet>
+    </EntitySheet>
   );
 }
 

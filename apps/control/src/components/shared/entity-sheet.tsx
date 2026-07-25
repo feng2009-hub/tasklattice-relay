@@ -15,7 +15,30 @@ const widthClasses = {
   xl: "!w-full sm:!w-[min(96vw,56rem)] sm:!max-w-[56rem]",
 } as const;
 
-export function EntityFormSheet({
+export function EntityDetailList({
+  items,
+}: {
+  items: readonly {
+    label: string;
+    value: ReactNode;
+    mono?: boolean;
+  }[];
+}) {
+  return (
+    <dl className="divide-y border-y text-sm">
+      {items.map((item) => (
+        <div key={item.label} className="grid gap-1 py-3 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-4">
+          <dt className="text-muted-foreground">{item.label}</dt>
+          <dd className={cn("min-w-0 break-words font-medium", item.mono && "font-mono text-xs")}>
+            {item.value}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+export function EntitySheet({
   bodyClassName,
   children,
   description,

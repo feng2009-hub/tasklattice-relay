@@ -8,7 +8,7 @@ import {
   KeyRound,
   ShieldCheck,
 } from "lucide-react";
-import { EntityFormSheet } from "@/components/shared/entity-form-sheet";
+import { EntitySheet } from "@/components/shared/entity-sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -135,7 +135,7 @@ export function CreateModelProfileSheet({
   };
 
   return (
-    <EntityFormSheet
+    <EntitySheet
       open={open}
       onOpenChange={(next) => !mutation.isPending && onOpenChange(next)}
       eyebrow="Model Profile"
@@ -426,7 +426,7 @@ export function CreateModelProfileSheet({
           </p>
         ) : null}
       </div>
-    </EntityFormSheet>
+    </EntitySheet>
   );
 }
 

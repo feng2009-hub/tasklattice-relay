@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { SandboxPolicy, SandboxPolicyInput } from "@tasklattice/contracts";
 import { FilePlus2, Save, ShieldCheck } from "lucide-react";
-import { EntityFormSheet } from "@/components/shared/entity-form-sheet";
+import { EntitySheet } from "@/components/shared/entity-sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -62,7 +62,7 @@ export function PolicyEditorDrawer({
     setValue((current) => ({ ...current, [key]: next }));
 
   return (
-    <EntityFormSheet
+    <EntitySheet
       open={open}
       onOpenChange={(next) => !mutation.isPending && onOpenChange(next)}
       eyebrow="OpenShell Policy"
@@ -112,6 +112,6 @@ export function PolicyEditorDrawer({
           </div>
           {mutation.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 px-3 py-2 text-sm text-destructive">{mutation.error.message}</p> : null}
         </form>
-    </EntityFormSheet>
+    </EntitySheet>
   );
 }

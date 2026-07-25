@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { LockKeyhole, Plus, Trash2 } from "lucide-react";
 import type { AuthUser } from "@/components/auth/auth-provider";
-import { EntityFormSheet } from "@/components/shared/entity-form-sheet";
+import { EntitySheet } from "@/components/shared/entity-sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -108,7 +108,7 @@ export function CreateProjectSheet({
   };
 
   return (
-    <EntityFormSheet
+    <EntitySheet
       open={open}
       onOpenChange={(next) => {
         if (next) {
@@ -306,6 +306,6 @@ export function CreateProjectSheet({
           </p>
         ) : null}
       </div>
-    </EntityFormSheet>
+    </EntitySheet>
   );
 }

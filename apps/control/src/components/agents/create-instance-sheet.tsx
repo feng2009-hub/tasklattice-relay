@@ -15,7 +15,7 @@ import {
 import { CreateInstanceLayout, type CreateInstanceStep } from "@/components/agents/create-instance-layout";
 import { IdentityCapabilitiesStep } from "@/components/agents/identity-capabilities-step";
 import { getSpecialization, type SpecializationId } from "@/components/agents/specializations";
-import { EntityFormSheet } from "@/components/shared/entity-form-sheet";
+import { EntitySheet } from "@/components/shared/entity-sheet";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -155,15 +155,15 @@ export function CreateInstanceSheet({
   };
 
   if (resourceCatalog.isPending)
-    return <EntityFormSheet {...shellProps} footer={<Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>}><div className="flex min-h-72 items-center justify-center border text-sm text-muted-foreground">Loading Roles and resource catalog from PostgreSQL…</div></EntityFormSheet>;
+    return <EntitySheet {...shellProps} footer={<Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>}><div className="flex min-h-72 items-center justify-center border text-sm text-muted-foreground">Loading Roles and resource catalog from PostgreSQL…</div></EntitySheet>;
   if (resourceCatalog.error)
-    return <EntityFormSheet {...shellProps} footer={<Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>}><p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">{resourceCatalog.error.message}</p></EntityFormSheet>;
+    return <EntitySheet {...shellProps} footer={<Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>}><p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">{resourceCatalog.error.message}</p></EntitySheet>;
   if (!specialization)
-    return <EntityFormSheet {...shellProps} footer={<Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>}><p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">The PostgreSQL catalog does not contain an Agent Role.</p></EntityFormSheet>;
+    return <EntitySheet {...shellProps} footer={<Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>}><p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">The PostgreSQL catalog does not contain an Agent Role.</p></EntitySheet>;
 
   return (
     <>
-    <EntityFormSheet
+    <EntitySheet
       {...shellProps}
       footer={(
         <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -259,7 +259,7 @@ export function CreateInstanceSheet({
           {mutation.error ? <p role="alert" className="border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{mutation.error.message}</p> : null}
         </form>
       </CreateInstanceLayout>
-    </EntityFormSheet>
+    </EntitySheet>
       {pendingSpecialization ? <ChangeSpecializationDialog open add={pendingChange.add} keep={pendingChange.keep} remove={pendingChange.remove} fromName={specialization.name} toName={pendingSpecialization.name} onCancel={() => setPendingSpecializationId(null)} onConfirm={() => applySpecialization(pendingSpecialization.id)} /> : null}
     </>
   );

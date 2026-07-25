@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { skillCategories, type CreateSkillDefinitionInput, type SkillDefinition } from "@tasklattice/contracts";
@@ -12,7 +12,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
-import { EntityFormSheet } from "@/components/shared/entity-form-sheet";
+import { EntityDetailList, EntitySheet } from "@/components/shared/entity-sheet";
 import { StatusDot } from "@/components/shared/status-dot";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,7 +20,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
-import { cn } from "@/lib/utils";
 import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
 
 export const Route = createFileRoute("/$projectId/skills")({ component: SkillCatalog });
@@ -44,6 +43,7 @@ function SkillCatalog() {
   const catalog = useQuery({ queryKey: scope.key("resource-catalog"), queryFn: api.getResourceCatalog });
   const items = catalog.data?.skills ?? [];
   const [selectedId, setSelectedId] = useState("");
+  const [detailOpen, setDetailOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
   const [formOpen, setFormOpen] = useState(false);
@@ -51,10 +51,6 @@ function SkillCatalog() {
   const [draft, setDraft] = useState(emptyDraft);
   const [formError, setFormError] = useState("");
   const [notice, setNotice] = useState("");
-
-  useEffect(() => {
-    if (items.length && !items.some((item) => item.id === selectedId)) setSelectedId(items[0]!.id);
-  }, [items, selectedId]);
 
   const categories = ["All", ...new Set(items.map((item) => item.category))];
   const visible = useMemo(
@@ -68,7 +64,7 @@ function SkillCatalog() {
       ),
     [category, items, query],
   );
-  const selected = items.find((item) => item.id === selectedId) ?? items[0];
+  const selected = items.find((item) => item.id === selectedId);
   const saveSkill = useMutation({
     mutationFn: ({ id, input }: { id?: string; input: CreateSkillDefinitionInput }) => id ? api.updateSkill(id, input) : api.createSkill(input),
     onSuccess: async (skill, variables) => {
@@ -93,6 +89,7 @@ function SkillCatalog() {
   const deleteSkill = useMutation({
     mutationFn: (id: string) => api.deleteResource("skills", id),
     onSuccess: async () => {
+      setDetailOpen(false);
       setSelectedId("");
       setNotice("Skill removed from the PostgreSQL catalog.");
       await queryClient.invalidateQueries({ queryKey: scope.key("resource-catalog") });
@@ -109,6 +106,7 @@ function SkillCatalog() {
   };
   const openEdit = () => {
     if (!selected) return;
+    setDetailOpen(false);
     saveSkill.reset();
     setEditingId(selected.id);
     setDraft({
@@ -173,8 +171,7 @@ function SkillCatalog() {
 
       {notice ? <p role="status" className="border-l-2 border-primary bg-primary/5 px-4 py-3 text-sm">{notice}</p> : null}
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <Card>
+      <Card>
           <CardHeader className="border-b">
             <CardTitle>Skill catalog</CardTitle>
             <CardDescription>Search and filter Project packages, following the catalog pattern used by Hermes Skills Hub.</CardDescription>
@@ -195,12 +192,15 @@ function SkillCatalog() {
               <button
                 key={skill.id}
                 type="button"
-                aria-pressed={selected?.id === skill.id}
-                onClick={() => { setSelectedId(skill.id); setNotice(""); }}
-                className={cn(
-                  "grid min-h-24 w-full gap-2 border-b px-5 py-4 text-left transition-colors last:border-b-0 hover:bg-muted/45 focus-visible:outline-2 focus-visible:outline-offset-[-2px] sm:grid-cols-[minmax(0,1fr)_120px_auto] sm:items-center",
-                  selected?.id === skill.id && "bg-muted/70 shadow-[inset_3px_0_0_var(--primary)]",
-                )}
+                aria-haspopup="dialog"
+                onClick={() => {
+                  verifySkill.reset();
+                  deleteSkill.reset();
+                  setSelectedId(skill.id);
+                  setDetailOpen(true);
+                  setNotice("");
+                }}
+                className="grid min-h-24 w-full gap-2 border-b px-5 py-4 text-left transition-colors last:border-b-0 hover:bg-muted/45 focus-visible:outline-2 focus-visible:outline-offset-[-2px] sm:grid-cols-[minmax(0,1fr)_120px_auto] sm:items-center"
               >
                 <span className="min-w-0">
                   <span className="flex flex-wrap items-center gap-2"><strong>{skill.name}</strong><span className="border px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">{skill.category}</span></span>
@@ -213,34 +213,51 @@ function SkillCatalog() {
               <div className="px-6 py-16 text-center"><Search className="mx-auto size-6 text-muted-foreground" /><strong className="mt-3 block">No matching skills</strong><p className="mt-1 text-xs text-muted-foreground">Try another search or category.</p></div>
             )}
           </CardContent>
-        </Card>
+      </Card>
 
-        <Card className="self-start xl:sticky xl:top-24">
-          {selected ? (
-            <>
-              <CardHeader className="border-b">
-                <div className="flex items-center justify-between gap-3"><StatusDot label={selected.status} tone={selected.status === "PUBLISHED" ? "success" : "neutral"} /><span className="text-xs text-muted-foreground">{selected.bindings} instances</span></div>
-                <CardTitle className="mt-3">{selected.name}</CardTitle><CardDescription>{selected.description}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <dl className="text-xs">
-                  {[["Source endpoint", selected.endpoint], ["Content digest", selected.digest], ["Version", `v${selected.version}`], ["Owner", selected.owner]].map(([label, value]) => (
-                    <div key={label} className="border-b py-3"><dt className="text-muted-foreground">{label}</dt><dd className="mt-1 break-all font-medium">{value}</dd></div>
-                  ))}
-                </dl>
-                <div className="space-y-3 border bg-muted/30 p-3 text-xs leading-5">
-                  <p className="flex gap-2"><ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" /><span><strong className="block">Platform verified</strong>TaskLattice fetches and checks the remote source outside the agent sandbox.</span></p>
-                  <p className="flex gap-2"><Cloud className="mt-0.5 size-4 shrink-0 text-primary" /><span><strong className="block">Immutable S3 mirror</strong>Addressed by content SHA-256. Agents never receive S3 credentials.</span></p>
-                </div>
-                <div className="grid gap-2"><Button disabled={verifySkill.isPending} onClick={checkSource}><CheckCircle2 />{verifySkill.isPending ? "Checking…" : "Check source"}</Button><Button variant="outline" onClick={openEdit}><Pencil /> Update metadata</Button><Button variant="destructive" disabled={deleteSkill.isPending} onClick={remove}><Trash2 />{deleteSkill.isPending ? "Removing…" : "Remove Skill"}</Button></div>
-              </CardContent>
-            </>
-          ) : (
-            <CardContent className="py-16 text-center"><strong>No skills registered</strong><p className="mt-2 text-xs text-muted-foreground">Register a remote package to begin.</p></CardContent>
-          )}
-        </Card>
-      </div>
-      <EntityFormSheet
+      <EntitySheet
+        open={detailOpen && Boolean(selected)}
+        onOpenChange={setDetailOpen}
+        eyebrow="Skill"
+        title={selected?.name ?? "Skill details"}
+        description={selected?.description ?? "Review this Skill's source, ownership, and publication status."}
+        width="md"
+        footer={(
+          <>
+            <Button variant="destructive" disabled={deleteSkill.isPending} onClick={remove}>
+              <Trash2 />{deleteSkill.isPending ? "Removing…" : "Remove Skill"}
+            </Button>
+            <Button variant="outline" onClick={openEdit}><Pencil /> Update metadata</Button>
+            <Button disabled={verifySkill.isPending} onClick={checkSource}>
+              <CheckCircle2 />{verifySkill.isPending ? "Checking…" : "Check source"}
+            </Button>
+          </>
+        )}
+      >
+        {selected ? (
+          <div className="space-y-5">
+            <div className="flex items-center justify-between gap-3">
+              <StatusDot label={selected.status} tone={selected.status === "PUBLISHED" ? "success" : "neutral"} />
+              <span className="text-xs text-muted-foreground">{selected.bindings} instances</span>
+            </div>
+            <EntityDetailList items={[
+              { label: "Category", value: selected.category },
+              { label: "Version", value: `v${selected.version}`, mono: true },
+              { label: "Owner", value: selected.owner },
+              { label: "Source endpoint", value: selected.endpoint, mono: true },
+              { label: "Content digest", value: selected.digest, mono: true },
+            ]} />
+            <div className="space-y-4 border-l-2 border-primary bg-muted/30 px-4 py-3 text-sm leading-6">
+              <p className="flex gap-3"><ShieldCheck className="mt-1 size-4 shrink-0 text-primary" /><span><strong className="block">Platform verified</strong>TaskLattice fetches and checks the remote source outside the agent sandbox.</span></p>
+              <p className="flex gap-3"><Cloud className="mt-1 size-4 shrink-0 text-primary" /><span><strong className="block">Immutable S3 mirror</strong>Content is addressed by SHA-256. Agents never receive S3 credentials.</span></p>
+            </div>
+            {notice ? <p role="status" className="border-l-2 border-primary bg-primary/5 p-3 text-sm">{notice}</p> : null}
+            {verifySkill.error || deleteSkill.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-3 text-sm text-destructive">{(verifySkill.error ?? deleteSkill.error)?.message}</p> : null}
+          </div>
+        ) : null}
+      </EntitySheet>
+
+      <EntitySheet
         open={formOpen}
         onOpenChange={(open) => {
           if (!saveSkill.isPending) {
@@ -272,7 +289,7 @@ function SkillCatalog() {
           <div className="space-y-2"><Label htmlFor="skill-description">Description</Label><Textarea id="skill-description" className="min-h-28" value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></div>
           {formError || saveSkill.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 px-3 py-2 text-sm text-destructive">{formError || saveSkill.error?.message}</p> : null}
         </form>
-      </EntityFormSheet>
+      </EntitySheet>
     </div>
   );
 }
