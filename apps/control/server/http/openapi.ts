@@ -308,6 +308,20 @@ export const openApiDocument = {
         },
       },
     },
+    "/projects/{projectId}/catalog/mcp-servers/{resourceId}/discover": {
+      parameters: [projectIdParameter, resourceId],
+      post: {
+        operationId: "discoverMcpServerTools",
+        summary: "Connect to an MCP server, run tools/list, and persist the discovered tools",
+        responses: {
+          "200": {
+            description: "Updated MCP server discovery snapshot",
+            ...json({ $ref: "#/components/schemas/McpServerDefinition" }),
+          },
+          "400": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
     "/projects/{projectId}/providers": {
       parameters: [projectIdParameter],
       get: {
@@ -908,33 +922,122 @@ export const openApiDocument = {
       McpServerDefinitionInput: {
         type: "object",
         additionalProperties: false,
-        required: ["name", "endpoint", "transport", "authReference", "parameters", "status", "tools"],
+        required: ["name", "alias", "description", "category", "transport", "args", "environment", "authType", "authReference", "accessGroups", "allowedTools", "extraHeaders", "staticHeaders", "internalNetworkOnly"],
         properties: {
-          name: { type: "string" }, endpoint: { type: "string", format: "uri" }, transport: { type: "string", enum: ["Streamable HTTP", "SSE"] },
-          authReference: { type: "string" }, parameters: { type: "string", description: "Serialized JSON object." },
-          status: { type: "string", enum: ["HEALTHY", "PERMISSION_REQUIRED", "UNCHECKED", "UNAVAILABLE"] }, tools: { type: "integer", minimum: 0 },
+          templateId: { type: "string" },
+          name: { type: "string" },
+          alias: { type: "string" },
+          description: { type: "string" },
+          category: { type: "string" },
+          logoUrl: { type: "string", format: "uri" },
+          sourceUrl: { type: "string", format: "uri" },
+          endpoint: { type: "string", format: "uri" },
+          specPath: { type: "string" },
+          transport: { type: "string", enum: ["http", "sse", "stdio", "openapi"] },
+          command: { type: "string" },
+          args: { type: "array", items: { type: "string" } },
+          environment: {
+            type: "array",
+            items: {
+              type: "object",
+              required: ["name", "valueReference"],
+              properties: { name: { type: "string" }, valueReference: { type: "string" } },
+            },
+          },
+          authType: { type: "string", enum: ["none", "bearer_token", "api_key", "basic", "authorization", "oauth2", "aws_sigv4"] },
+          authReference: { type: "string", description: "Secret reference; never a plaintext credential." },
+          oauth: {
+            type: "object",
+            properties: {
+              flow: { type: "string", enum: ["client_credentials", "authorization_code"] },
+              authorizationUrl: { type: "string", format: "uri" },
+              tokenUrl: { type: "string", format: "uri" },
+              registrationUrl: { type: "string", format: "uri" },
+            },
+          },
+          accessGroups: { type: "array", items: { type: "string" } },
+          allowedTools: { type: "array", items: { type: "string" } },
+          extraHeaders: { type: "array", items: { type: "string" } },
+          staticHeaders: {
+            type: "array",
+            items: {
+              type: "object",
+              required: ["name", "valueReference"],
+              properties: { name: { type: "string" }, valueReference: { type: "string" } },
+            },
+          },
+          internalNetworkOnly: { type: "boolean" },
+        },
+      },
+      McpToolDefinition: {
+        type: "object",
+        additionalProperties: false,
+        required: ["name", "inputSchema", "discoveredAt"],
+        properties: {
+          name: { type: "string" },
+          title: { type: "string" },
+          description: { type: "string" },
+          inputSchema: { type: "object", additionalProperties: true },
+          outputSchema: { type: "object", additionalProperties: true },
+          annotations: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              title: { type: "string" },
+              readOnlyHint: { type: "boolean" },
+              destructiveHint: { type: "boolean" },
+              idempotentHint: { type: "boolean" },
+              openWorldHint: { type: "boolean" },
+            },
+          },
+          discoveredAt: { type: "string", format: "date-time" },
         },
       },
       McpServerDefinition: {
         allOf: [
           { $ref: "#/components/schemas/McpServerDefinitionInput" },
-          { type: "object", required: ["id"], properties: { id: { type: "string" } } },
+          {
+            type: "object",
+            required: ["id", "litellmServerId", "status", "tools", "lastDiscoveryAttemptAt", "lastDiscoveredAt", "lastDiscoveryError"],
+            properties: {
+              id: { type: "string" },
+              litellmServerId: { type: "string" },
+              status: { type: "string", enum: ["HEALTHY", "PERMISSION_REQUIRED", "UNCHECKED", "UNAVAILABLE"] },
+              tools: { type: "array", items: { $ref: "#/components/schemas/McpToolDefinition" } },
+              lastDiscoveryAttemptAt: { type: ["string", "null"], format: "date-time" },
+              lastDiscoveredAt: { type: ["string", "null"], format: "date-time" },
+              lastDiscoveryError: { type: ["string", "null"] },
+            },
+          },
         ],
       },
       KnowledgeSourceDefinitionInput: {
         type: "object",
         additionalProperties: false,
-        required: ["name", "description", "endpoint", "mode", "authReference", "status", "topK"],
+        required: ["name", "description", "vectorStoreId", "provider", "credentialReference", "topK"],
         properties: {
-          name: { type: "string" }, description: { type: "string" }, endpoint: { type: "string", format: "uri" },
-          mode: { type: "string", enum: ["Hybrid", "Vector", "Keyword"] }, authReference: { type: "string" },
-          status: { type: "string", enum: ["READY", "UNCHECKED"] }, topK: { type: "integer", minimum: 1, maximum: 50 },
+          name: { type: "string" },
+          description: { type: "string" },
+          vectorStoreId: { type: "string" },
+          provider: { type: "string", enum: ["openai", "azure", "bedrock", "vertex_ai"] },
+          apiBase: { type: "string", format: "uri" },
+          embeddingModel: { type: "string" },
+          credentialReference: { type: "string", description: "Secret reference; never a plaintext credential." },
+          topK: { type: "integer", minimum: 1, maximum: 50 },
         },
       },
       KnowledgeSourceDefinition: {
         allOf: [
           { $ref: "#/components/schemas/KnowledgeSourceDefinitionInput" },
-          { type: "object", required: ["id"], properties: { id: { type: "string" } } },
+          {
+            type: "object",
+            required: ["id", "status", "lastReconciliationError"],
+            properties: {
+              id: { type: "string" },
+              status: { type: "string", enum: ["REGISTERED", "UNAVAILABLE"] },
+              lastReconciliationError: { type: ["string", "null"] },
+            },
+          },
         ],
       },
       AgentSpecializationDefinition: {
@@ -948,10 +1051,25 @@ export const openApiDocument = {
       },
       ResourceCatalog: {
         type: "object",
-        required: ["skills", "mcpServers", "knowledgeSources", "specializations"],
+        required: ["skills", "mcpServers", "mcpServerTemplates", "knowledgeSources", "specializations"],
         properties: {
           skills: { type: "array", items: { $ref: "#/components/schemas/SkillDefinition" } },
           mcpServers: { type: "array", items: { $ref: "#/components/schemas/McpServerDefinition" } },
+          mcpServerTemplates: {
+            type: "array",
+            items: {
+              type: "object",
+              required: ["id", "name", "description", "category", "logo", "sourceUrl", "transport", "args", "defaultAuthType"],
+              properties: {
+                id: { type: "string" }, name: { type: "string" }, description: { type: "string" },
+                category: { type: "string" }, logo: { type: "string" }, sourceUrl: { type: "string", format: "uri" },
+                transport: { type: "string", enum: ["http", "sse", "stdio", "openapi"] },
+                endpointPlaceholder: { type: "string" }, command: { type: "string" },
+                args: { type: "array", items: { type: "string" } },
+                defaultAuthType: { type: "string" },
+              },
+            },
+          },
           knowledgeSources: { type: "array", items: { $ref: "#/components/schemas/KnowledgeSourceDefinition" } },
           specializations: { type: "array", items: { $ref: "#/components/schemas/AgentSpecializationDefinition" } },
         },

@@ -68,7 +68,7 @@ export function IdentityCapabilitiesStep({ customSystemPrompt, knowledgeSources,
   const mcpOptions: MultiSelectOption[] = mcpServers.map((server) => ({
     value: server.id,
     label: server.name,
-    description: `${server.transport} · ${server.tools} tools`,
+    description: `${server.transport} · ${server.tools.length} tools`,
     meta: mcpStatus(server),
     metaTone: mcpStatusTone(server),
     disabled: server.status === "UNAVAILABLE",
@@ -77,8 +77,9 @@ export function IdentityCapabilitiesStep({ customSystemPrompt, knowledgeSources,
     value: source.id,
     label: source.name,
     description: source.description,
-    meta: source.status === "READY" ? "Ready" : "Not checked",
-    metaTone: source.status === "READY" ? "success" : "neutral",
+    meta: source.status === "REGISTERED" ? source.provider.toUpperCase() : "Unavailable",
+    metaTone: source.status === "REGISTERED" ? "success" : "neutral",
+    disabled: source.status === "UNAVAILABLE",
   }));
   const incompleteMcpServers = selectedMcpServerIds
     .map((id) => mcpServers.find((item) => item.id === id))

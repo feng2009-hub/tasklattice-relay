@@ -32,7 +32,7 @@ function createServices(projectId: string): ProjectServices {
   const policies = new PolicyService(store);
   const modelProfiles = new ModelProfileService(store, litellm);
   const quotas = new ProjectQuotaService(store, litellm);
-  const catalog = new ResourceCatalogService(store, quotas);
+  const catalog = new ResourceCatalogService(store, quotas, litellm);
   const virtualEmployees = new VirtualEmployeeService(new VirtualEmployeeStore(projectId), litellm);
   scheduleVirtualEmployeeReconciliation(projectId, virtualEmployees);
   return {

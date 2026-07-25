@@ -181,6 +181,11 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(input),
     }),
+  discoverMcpServer: (id: string) =>
+    request<McpServerDefinition>(`/api/v1/catalog/mcp-servers/${encodeURIComponent(id)}/discover`, {
+      method: "POST",
+      body: "{}",
+    }),
   createKnowledgeSource: (input: CreateKnowledgeSourceDefinitionInput) =>
     request<KnowledgeSourceDefinition>("/api/v1/catalog/knowledge-sources", {
       method: "POST",

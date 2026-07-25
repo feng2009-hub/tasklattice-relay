@@ -245,6 +245,17 @@ describe("Instance Virtual Employee binding lifecycle", () => {
       listSpendLogs: vi.fn(),
     };
     const service = new AgentService(store, runner, litellm);
+    await store.saveKnowledgeSourceDefinition({
+      id: "engineering-handbook",
+      name: "Engineering Handbook",
+      description: "Approved engineering standards and operational runbooks.",
+      vectorStoreId: "vs_engineering_handbook",
+      provider: "openai",
+      credentialReference: "",
+      status: "REGISTERED",
+      lastReconciliationError: null,
+      topK: 8,
+    });
     const virtualEmployee = await service.virtualEmployees.create({
       name: "research-worker",
       displayName: "Research Worker",
@@ -276,6 +287,7 @@ describe("Instance Virtual Employee binding lifecycle", () => {
       agentPlatform: "openclaw",
       policyId: "restricted",
       systemPrompt: "Research the request and report the resulting evidence.",
+      knowledgeSourceIds: ["engineering-handbook"],
     });
 
     expect(litellm.createVirtualEmployeeKey).not.toHaveBeenCalled();
@@ -286,6 +298,9 @@ describe("Instance Virtual Employee binding lifecycle", () => {
         tali_project_id: "individual",
         tali_virtual_employee_id: virtualEmployee.id,
         tali_instance_id: agent.id,
+      }),
+      objectPermissions: expect.objectContaining({
+        vectorStores: ["vs_engineering_handbook"],
       }),
     }));
     expect(runner.createSandbox).toHaveBeenCalledWith(expect.objectContaining({ apiKey: "sk-instance-service-account", inferenceEndpoint: "http://litellm:4000/v1", virtualEmployeeId: virtualEmployee.id }));

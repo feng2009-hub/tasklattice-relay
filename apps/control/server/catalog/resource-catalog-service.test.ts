@@ -1,9 +1,71 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import type { LiteLLMAdminClient } from "../providers/litellm-client";
+import { ProjectQuotaService } from "../quotas/project-quota-service";
 import { createTestStore } from "../test/store";
 import { ResourceCatalogService } from "./resource-catalog-service";
 
+function adapter(overrides: Partial<LiteLLMAdminClient> = {}): LiteLLMAdminClient {
+  return {
+    baseUrl: "http://litellm.test",
+    registerModel: vi.fn(),
+    deleteModel: vi.fn(),
+    probeModel: vi.fn(),
+    createInstanceKey: vi.fn(),
+    revokeKey: vi.fn(),
+    listSpendLogs: vi.fn(async () => []),
+    ensureProjectTeam: vi.fn(async () => "team-project"),
+    updateProjectObjectPermissions: vi.fn(async () => undefined),
+    registerMcpServer: vi.fn(async () => undefined),
+    updateMcpServer: vi.fn(async () => undefined),
+    deleteMcpServer: vi.fn(async () => undefined),
+    discoverMcpTools: vi.fn(async () => [{
+      name: "search_documents",
+      description: "Search approved documents.",
+      inputSchema: { type: "object", properties: { query: { type: "string" } } },
+      annotations: { readOnlyHint: true },
+      discoveredAt: "2026-07-25T00:00:00.000Z",
+    }]),
+    registerVectorStore: vi.fn(async () => undefined),
+    updateVectorStore: vi.fn(async () => undefined),
+    deleteVectorStore: vi.fn(async () => undefined),
+    ...overrides,
+  };
+}
+
+function serviceWithAdapter(overrides: Partial<LiteLLMAdminClient> = {}) {
+  const store = createTestStore();
+  const litellm = adapter(overrides);
+  return {
+    store,
+    litellm,
+    service: new ResourceCatalogService(
+      store,
+      new ProjectQuotaService(store, litellm),
+      litellm,
+    ),
+  };
+}
+
+const connection = {
+  name: "Document Search MCP",
+  alias: "document_search",
+  description: "Search the Project's approved document collection.",
+  category: "Knowledge",
+  endpoint: "https://mcp.example.test/mcp",
+  transport: "http" as const,
+  authType: "none" as const,
+  authReference: "",
+  args: [],
+  environment: [],
+  accessGroups: ["knowledge-read"],
+  allowedTools: [],
+  extraHeaders: [],
+  staticHeaders: [],
+  internalNetworkOnly: true,
+};
+
 describe("ResourceCatalogService", () => {
-  it("loads PostgreSQL catalog defaults and platform skills", async () => {
+  it("loads PostgreSQL catalog defaults and curated MCP templates", async () => {
     const service = new ResourceCatalogService(createTestStore());
     const catalog = await service.catalog();
 
@@ -13,10 +75,14 @@ describe("ResourceCatalogService", () => {
       "Kubernetes Expert",
       "OCP Expert",
     ]));
-    expect(catalog.skills.find((skill) => skill.id === "kubernetes-expert")?.category)
-      .toBe(catalog.skills.find((skill) => skill.id === "helm-chart-developer")?.category);
-    expect(catalog.specializations.find((item) => item.id === "devops-engineer")?.defaultSkillIds)
-      .toEqual(expect.arrayContaining(["helm-chart-developer", "kubernetes-expert", "ocp-expert"]));
+    expect(catalog.mcpServers).toEqual([]);
+    expect(catalog.mcpServerTemplates.map((template) => template.name)).toEqual(expect.arrayContaining([
+      "GitHub",
+      "Atlassian (Jira & Confluence)",
+      "PostgreSQL",
+      "MySQL",
+      "Redis",
+    ]));
   });
 
   it("persists project changes without overwriting them when defaults are seeded again", async () => {
@@ -50,16 +116,84 @@ describe("ResourceCatalogService", () => {
       .rejects.toThrow("assigned to a Role or Instance");
   });
 
-  it("requires MCP parameters to be a JSON object", async () => {
-    const service = new ResourceCatalogService(createTestStore());
+  it("registers with LiteLLM, snapshots tools, and binds the Project Team", async () => {
+    const { service, store, litellm } = serviceWithAdapter();
+    const created = await service.createMcpServer(connection);
+
+    expect(created.status).toBe("HEALTHY");
+    expect(created.tools.map((tool) => tool.name)).toEqual(["search_documents"]);
+    expect(created.litellmServerId).toMatch(/^tali_[a-f0-9]{10}_/);
+    expect(litellm.registerMcpServer).toHaveBeenCalledWith(expect.objectContaining({
+      serverId: created.litellmServerId,
+      alias: "document_search",
+      availableOnPublicInternet: false,
+    }));
+    expect(litellm.updateProjectObjectPermissions).toHaveBeenCalledWith(
+      "team-project",
+      { mcpServers: [created.litellmServerId], vectorStores: [] },
+    );
+    expect(await store.database().mcpToolRecord.count({
+      where: { projectId: store.projectId, mcpServerId: created.id },
+    })).toBe(1);
+  });
+
+  it("keeps the last successful tool snapshot when LiteLLM refresh fails", async () => {
+    let attempt = 0;
+    const { service } = serviceWithAdapter({
+      discoverMcpTools: vi.fn(async () => {
+        attempt += 1;
+        if (attempt > 1) throw new Error("LiteLLM MCP endpoint unavailable");
+        return [{
+          name: "read_document",
+          inputSchema: { type: "object", properties: {} },
+          discoveredAt: "2026-07-25T00:00:00.000Z",
+        }];
+      }),
+    });
+    const created = await service.createMcpServer(connection);
+    const refreshed = await service.discoverMcpServer(created.id);
+
+    expect(refreshed.status).toBe("UNAVAILABLE");
+    expect(refreshed.lastDiscoveryError).toContain("LiteLLM MCP endpoint unavailable");
+    expect(refreshed.tools.map((tool) => tool.name)).toEqual(["read_document"]);
+    expect(refreshed.lastDiscoveredAt).toBe(created.lastDiscoveredAt);
+  });
+
+  it("rejects arbitrary stdio commands before they reach the LiteLLM host", async () => {
+    const { service, litellm } = serviceWithAdapter();
+
     await expect(service.createMcpServer({
-      name: "Invalid MCP",
-      endpoint: "https://mcp.internal.example/invalid",
-      transport: "Streamable HTTP",
-      authReference: "",
-      parameters: "[]",
-      status: "UNCHECKED",
-      tools: 0,
-    })).rejects.toThrow("JSON object");
+      ...connection,
+      name: "Unreviewed local process",
+      alias: "unreviewed_process",
+      transport: "stdio",
+      endpoint: undefined,
+      command: "node",
+      args: ["malicious.js"],
+    })).rejects.toThrow("reviewed built-in MCP Server template");
+    expect(litellm.registerMcpServer).not.toHaveBeenCalled();
+  });
+
+  it("registers a Knowledge Base as a LiteLLM Vector Store and adds it to the Project Team", async () => {
+    const { service, litellm } = serviceWithAdapter();
+    const created = await service.createKnowledgeSource({
+      name: "Engineering Handbook",
+      description: "Approved engineering standards and operational runbooks.",
+      vectorStoreId: "vs_engineering_handbook",
+      provider: "openai",
+      topK: 8,
+      credentialReference: "",
+    });
+
+    expect(created.status).toBe("REGISTERED");
+    expect(litellm.registerVectorStore).toHaveBeenCalledWith(expect.objectContaining({
+      vectorStoreId: "vs_engineering_handbook",
+      provider: "openai",
+      metadata: expect.objectContaining({ tali_project_id: "individual", top_k: 8 }),
+    }));
+    expect(litellm.updateProjectObjectPermissions).toHaveBeenLastCalledWith(
+      "team-project",
+      { mcpServers: [], vectorStores: ["vs_engineering_handbook"] },
+    );
   });
 });

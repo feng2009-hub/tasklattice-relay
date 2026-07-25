@@ -63,7 +63,10 @@ export function EntitySheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className={cn("gap-0 bg-background", widthClasses[width])}
+        className={cn(
+          "gap-0 bg-background [&>button]:size-11",
+          widthClasses[width],
+        )}
       >
         <SheetHeader className="shrink-0 gap-1.5 border-b px-5 py-5 pr-14 sm:px-6">
           {eyebrow ? (
@@ -86,7 +89,7 @@ export function EntitySheet({
           {children}
         </div>
 
-        <SheetFooter className="shrink-0 flex-col-reverse items-stretch justify-end gap-2 border-t px-5 py-4 sm:flex-row sm:items-center sm:px-6">
+        <SheetFooter className="shrink-0 flex-col-reverse items-stretch justify-end gap-2 border-t px-5 py-4 sm:flex-row sm:items-center sm:px-6 [&_[data-slot=button]]:h-11">
           {footer}
         </SheetFooter>
       </SheetContent>

@@ -1,0 +1,81 @@
+import type { McpServerTemplate } from "@tasklattice/contracts";
+
+/**
+ * A deliberately small, reviewed catalog. These entries are registration
+ * presets, not shared MCP instances: selecting one always creates a new
+ * Project-owned LiteLLM MCP Server and a Team permission binding.
+ */
+export const mcpServerTemplates: McpServerTemplate[] = [
+  {
+    id: "github",
+    name: "GitHub",
+    description: "Work with repositories, issues, pull requests, code, and GitHub Actions.",
+    category: "Developer Tools",
+    logo: "github",
+    sourceUrl: "https://github.com/github/github-mcp-server",
+    transport: "http",
+    endpointPlaceholder: "https://api.githubcopilot.com/mcp/",
+    defaultAuthType: "oauth2",
+    args: [],
+  },
+  {
+    id: "atlassian",
+    name: "Atlassian (Jira & Confluence)",
+    description: "Search and update Jira work items, Confluence pages, and Compass resources.",
+    category: "Developer Tools",
+    logo: "atlassian",
+    sourceUrl: "https://support.atlassian.com/atlassian-rovo-mcp-server/",
+    transport: "http",
+    endpointPlaceholder: "https://mcp.atlassian.com/v1/mcp/authv2",
+    defaultAuthType: "oauth2",
+    args: [],
+  },
+  {
+    id: "postgresql",
+    name: "PostgreSQL",
+    description: "Inspect PostgreSQL schemas and run explicitly governed database queries.",
+    category: "Databases",
+    logo: "database",
+    sourceUrl: "https://registry.modelcontextprotocol.io/",
+    transport: "stdio",
+    command: "uvx",
+    args: ["postgresql-mcp"],
+    defaultAuthType: "none",
+  },
+  {
+    id: "mysql",
+    name: "MySQL",
+    description: "Inspect MySQL schemas and execute queries through a Project-scoped connection.",
+    category: "Databases",
+    logo: "database",
+    sourceUrl: "https://registry.modelcontextprotocol.io/",
+    transport: "stdio",
+    command: "npx",
+    args: ["-y", "@benborla29/mcp-server-mysql"],
+    defaultAuthType: "none",
+  },
+  {
+    id: "redis",
+    name: "Redis",
+    description: "Inspect and manage Redis data structures, streams, JSON, and search indexes.",
+    category: "Databases",
+    logo: "database-zap",
+    sourceUrl: "https://github.com/redis/mcp-redis",
+    transport: "stdio",
+    command: "uvx",
+    args: ["--from", "redis-mcp-server@latest", "redis-mcp-server"],
+    defaultAuthType: "none",
+  },
+  {
+    id: "slack",
+    name: "Slack",
+    description: "Search approved conversations and post messages to explicitly allowed channels.",
+    category: "Communication",
+    logo: "message-square",
+    sourceUrl: "https://registry.modelcontextprotocol.io/",
+    transport: "http",
+    endpointPlaceholder: "https://your-slack-mcp.example.com/mcp",
+    defaultAuthType: "bearer_token",
+    args: [],
+  },
+];

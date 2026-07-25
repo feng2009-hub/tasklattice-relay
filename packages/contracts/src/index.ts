@@ -460,32 +460,156 @@ export const createSkillDefinitionSchema = skillDefinitionSchema.omit({
 });
 export const updateSkillDefinitionSchema = createSkillDefinitionSchema;
 
-export const mcpServerDefinitionSchema = z.object({
-  id: z.string().trim().min(1).max(160),
-  name: z.string().trim().min(3).max(120),
-  endpoint: z.string().trim().url(),
-  transport: z.enum(["Streamable HTTP", "SSE"]),
-  authReference: z.string().trim().max(500),
-  parameters: z.string().trim().min(2).max(64_000),
-  status: z.enum(["HEALTHY", "PERMISSION_REQUIRED", "UNCHECKED", "UNAVAILABLE"]),
-  tools: z.number().int().min(0).max(100_000),
+export const mcpToolAnnotationsSchema = z.object({
+  title: z.string().trim().min(1).max(200).optional(),
+  readOnlyHint: z.boolean().optional(),
+  destructiveHint: z.boolean().optional(),
+  idempotentHint: z.boolean().optional(),
+  openWorldHint: z.boolean().optional(),
+}).strict();
+
+export const mcpToolDefinitionSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  title: z.string().trim().min(1).max(200).optional(),
+  description: z.string().max(4_000).optional(),
+  inputSchema: z.record(z.string(), z.unknown()),
+  outputSchema: z.record(z.string(), z.unknown()).optional(),
+  annotations: mcpToolAnnotationsSchema.optional(),
+  discoveredAt: z.string().datetime(),
 });
 
-export const createMcpServerDefinitionSchema = mcpServerDefinitionSchema.omit({ id: true });
+export const mcpTransportSchema = z.enum(["http", "sse", "stdio", "openapi"]);
+export const mcpAuthTypeSchema = z.enum([
+  "none",
+  "bearer_token",
+  "api_key",
+  "basic",
+  "authorization",
+  "oauth2",
+  "aws_sigv4",
+]);
+
+export const mcpSecretReferenceSchema = z.string().trim().min(1).max(500).refine(
+  (value) => /^(?:k8s|memory):\/\//.test(value),
+  "Credentials must use a supported Secret reference.",
+);
+
+const optionalMcpSecretReferenceSchema = z.string().trim().max(500).refine(
+  (value) => !value || /^(?:k8s|memory):\/\//.test(value),
+  "Credentials must use a supported Secret reference.",
+);
+
+export const mcpStaticHeaderSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  valueReference: mcpSecretReferenceSchema,
+}).strict();
+
+export const mcpEnvironmentVariableSchema = z.object({
+  name: z.string().trim().regex(/^[A-Z_][A-Z0-9_]*$/).max(120),
+  valueReference: mcpSecretReferenceSchema,
+}).strict();
+
+export const mcpOauthConfigurationSchema = z.object({
+  flow: z.enum(["client_credentials", "authorization_code"]),
+  authorizationUrl: z.string().trim().url().optional(),
+  tokenUrl: z.string().trim().url().optional(),
+  registrationUrl: z.string().trim().url().optional(),
+}).strict();
+
+const mcpServerConnectionFields = {
+  templateId: z.string().trim().min(1).max(120).optional(),
+  name: z.string().trim().min(3).max(120),
+  alias: z.string().trim().regex(/^[a-zA-Z0-9_]+$/, "Alias may contain letters, numbers, and underscores only.").max(120),
+  description: z.string().trim().min(10).max(1_000),
+  category: z.string().trim().min(2).max(80),
+  logoUrl: z.string().trim().url().optional(),
+  sourceUrl: z.string().trim().url().optional(),
+  transport: mcpTransportSchema,
+  endpoint: z.string().trim().url().optional(),
+  specPath: z.string().trim().min(1).max(1_000).optional(),
+  command: z.string().trim().min(1).max(240).optional(),
+  args: z.array(z.string().max(1_000)).max(64).default([]),
+  environment: z.array(mcpEnvironmentVariableSchema).max(64).default([]),
+  authType: mcpAuthTypeSchema.default("none"),
+  authReference: optionalMcpSecretReferenceSchema.default(""),
+  oauth: mcpOauthConfigurationSchema.optional(),
+  accessGroups: z.array(z.string().trim().min(1).max(120)).max(64).default([]),
+  allowedTools: z.array(z.string().trim().min(1).max(200)).max(10_000).default([]),
+  extraHeaders: z.array(z.string().trim().min(1).max(120)).max(64).default([]),
+  staticHeaders: z.array(mcpStaticHeaderSchema).max(64).default([]),
+  internalNetworkOnly: z.boolean().default(false),
+};
+
+function validateMcpServerConnection(
+  value: Record<string, unknown>,
+  context: z.RefinementCtx,
+): void {
+  if (["http", "sse"].includes(String(value.transport)) && !value.endpoint) {
+    context.addIssue({ code: "custom", path: ["endpoint"], message: "Endpoint is required for HTTP and SSE transports." });
+  }
+  if (value.transport === "openapi" && !value.specPath) {
+    context.addIssue({ code: "custom", path: ["specPath"], message: "OpenAPI spec path is required." });
+  }
+  if (value.transport === "stdio" && (!value.command || !Array.isArray(value.args) || value.args.length === 0)) {
+    context.addIssue({ code: "custom", path: ["command"], message: "Command and arguments are required for stdio transport." });
+  }
+  if (value.authType !== "none" && value.authType !== "oauth2" && !value.authReference) {
+    context.addIssue({ code: "custom", path: ["authReference"], message: "A Secret reference is required for this authentication type." });
+  }
+  if (value.authType === "oauth2" && !value.oauth) {
+    context.addIssue({ code: "custom", path: ["oauth"], message: "OAuth configuration is required." });
+  }
+}
+
+export const mcpServerConnectionSchema = z.object(mcpServerConnectionFields).strict().superRefine(validateMcpServerConnection);
+
+export const mcpServerDefinitionSchema = z.object({
+  ...mcpServerConnectionFields,
+  id: z.string().trim().min(1).max(160),
+  litellmServerId: z.string().trim().min(1).max(240),
+  status: z.enum(["HEALTHY", "PERMISSION_REQUIRED", "UNCHECKED", "UNAVAILABLE"]),
+  tools: z.array(mcpToolDefinitionSchema).max(10_000),
+  lastDiscoveryAttemptAt: z.string().datetime().nullable(),
+  lastDiscoveredAt: z.string().datetime().nullable(),
+  lastDiscoveryError: z.string().max(4_000).nullable(),
+}).strict().superRefine(validateMcpServerConnection);
+
+export const createMcpServerDefinitionSchema = mcpServerConnectionSchema;
 export const updateMcpServerDefinitionSchema = createMcpServerDefinitionSchema;
+
+export const mcpServerTemplateSchema = z.object({
+  id: z.string().trim().min(1).max(120),
+  name: z.string().trim().min(2).max(120),
+  description: z.string().trim().min(10).max(1_000),
+  category: z.string().trim().min(2).max(80),
+  logo: z.string().trim().min(1).max(120),
+  sourceUrl: z.string().trim().url(),
+  transport: mcpTransportSchema,
+  endpointPlaceholder: z.string().trim().max(500).optional(),
+  command: z.string().trim().max(240).optional(),
+  args: z.array(z.string().max(1_000)).max(64).default([]),
+  defaultAuthType: mcpAuthTypeSchema,
+}).strict();
 
 export const knowledgeSourceDefinitionSchema = z.object({
   id: z.string().trim().min(1).max(160),
   name: z.string().trim().min(3).max(120),
   description: z.string().trim().min(10).max(500),
-  endpoint: z.string().trim().url(),
-  mode: z.enum(["Hybrid", "Vector", "Keyword"]),
-  authReference: z.string().trim().max(500),
-  status: z.enum(["READY", "UNCHECKED"]),
+  vectorStoreId: z.string().trim().min(1).max(240),
+  provider: z.enum(["openai", "azure", "bedrock", "vertex_ai"]),
+  apiBase: z.string().trim().url().optional(),
+  embeddingModel: z.string().trim().min(1).max(240).optional(),
+  credentialReference: optionalMcpSecretReferenceSchema.default(""),
+  status: z.enum(["REGISTERED", "UNAVAILABLE"]),
+  lastReconciliationError: z.string().max(4_000).nullable(),
   topK: z.number().int().min(1).max(50),
-});
+}).strict();
 
-export const createKnowledgeSourceDefinitionSchema = knowledgeSourceDefinitionSchema.omit({ id: true });
+export const createKnowledgeSourceDefinitionSchema = knowledgeSourceDefinitionSchema.omit({
+  id: true,
+  status: true,
+  lastReconciliationError: true,
+});
 export const updateKnowledgeSourceDefinitionSchema = createKnowledgeSourceDefinitionSchema;
 
 export const agentSpecializationDefinitionSchema = z.object({
@@ -674,6 +798,9 @@ export type SkillDefinition = z.infer<typeof skillDefinitionSchema>;
 export type CreateSkillDefinitionInput = z.infer<typeof createSkillDefinitionSchema>;
 export type UpdateSkillDefinitionInput = z.infer<typeof updateSkillDefinitionSchema>;
 export type McpServerDefinition = z.infer<typeof mcpServerDefinitionSchema>;
+export type McpServerConnection = z.infer<typeof mcpServerConnectionSchema>;
+export type McpToolDefinition = z.infer<typeof mcpToolDefinitionSchema>;
+export type McpServerTemplate = z.infer<typeof mcpServerTemplateSchema>;
 export type CreateMcpServerDefinitionInput = z.infer<typeof createMcpServerDefinitionSchema>;
 export type UpdateMcpServerDefinitionInput = z.infer<typeof updateMcpServerDefinitionSchema>;
 export type KnowledgeSourceDefinition = z.infer<typeof knowledgeSourceDefinitionSchema>;
@@ -788,6 +915,7 @@ export interface ModelProfileAuditEvent {
 export interface ResourceCatalog {
   skills: SkillDefinition[];
   mcpServers: McpServerDefinition[];
+  mcpServerTemplates: McpServerTemplate[];
   knowledgeSources: KnowledgeSourceDefinition[];
   specializations: AgentSpecializationDefinition[];
 }

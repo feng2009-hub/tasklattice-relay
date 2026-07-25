@@ -252,7 +252,6 @@ export class ProjectService {
     const sourceProjectId = "individual";
     const delegates = [
       this.db.skillRecord,
-      this.db.mcpServerRecord,
       this.db.knowledgeSourceRecord,
       this.db.agentSpecializationRecord,
     ] as const;

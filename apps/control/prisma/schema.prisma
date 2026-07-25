@@ -42,6 +42,16 @@ enum UserStatus {
   @@schema("tasklattice")
 }
 
+enum McpDiscoveryStatus {
+  HEALTHY
+  PERMISSION_REQUIRED
+  UNCHECKED
+  UNAVAILABLE
+
+  @@map("mcp_discovery_status")
+  @@schema("tasklattice")
+}
+
 model User {
   id          String     @id
   username    String     @unique
@@ -465,16 +475,41 @@ model SkillRecord {
 }
 
 model McpServerRecord {
-  projectId String   @map("project_id")
-  id        String
-  payload   Json
-  sortOrder Int      @default(1000) @map("sort_order")
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId             String             @map("project_id")
+  id                    String
+  litellmServerId       String             @unique @map("litellm_server_id")
+  payload               Json
+  discoveryStatus       McpDiscoveryStatus @default(UNCHECKED) @map("discovery_status")
+  lastDiscoveryAttemptAt DateTime?          @map("last_discovery_attempt_at") @db.Timestamptz(6)
+  lastDiscoveredAt      DateTime?           @map("last_discovered_at") @db.Timestamptz(6)
+  lastDiscoveryError    String?             @map("last_discovery_error")
+  sortOrder             Int                @default(1000) @map("sort_order")
+  createdAt             DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  project               Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tools                 McpToolRecord[]
 
   @@id([projectId, id])
   @@map("mcp_servers")
+  @@schema("tasklattice")
+}
+
+model McpToolRecord {
+  projectId    String   @map("project_id")
+  mcpServerId  String   @map("mcp_server_id")
+  name         String
+  title        String?
+  description  String?
+  inputSchema  Json     @map("input_schema")
+  outputSchema Json?    @map("output_schema")
+  annotations  Json?
+  discoveredAt DateTime @map("discovered_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  server       McpServerRecord @relation(fields: [projectId, mcpServerId], references: [projectId, id], onDelete: Cascade)
+
+  @@id([projectId, mcpServerId, name])
+  @@index([projectId, mcpServerId])
+  @@map("mcp_tools")
   @@schema("tasklattice")
 }
 

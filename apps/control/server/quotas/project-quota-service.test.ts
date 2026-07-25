@@ -84,6 +84,9 @@ describe("ProjectQuotaService", () => {
         tali_instance_id: "instance-1",
         service_account_id: "tali-instance-instance-1",
       },
+      objectPermissions: {
+        mcpServers: [],
+      },
     });
 
     expect(result.teamId).toBe("team-project");

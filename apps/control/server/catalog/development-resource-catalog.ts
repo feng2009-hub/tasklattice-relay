@@ -1,4 +1,5 @@
 import type { ResourceCatalog } from "@tasklattice/contracts";
+import { mcpServerTemplates } from "./mcp-server-templates";
 
 export const developmentResourceCatalog: ResourceCatalog = {
   skills: [
@@ -198,21 +199,9 @@ export const developmentResourceCatalog: ResourceCatalog = {
       status: "PUBLISHED",
     },
   ],
-  mcpServers: [
-    { id: "hr-knowledge-base", name: "HR Knowledge Base", endpoint: "https://mcp.internal.example/hr-knowledge", transport: "Streamable HTTP", authReference: "vault://people/hr-knowledge", parameters: "{\n  \"scope\": \"employee-handbook\"\n}", status: "HEALTHY", tools: 6 },
-    { id: "workday", name: "Workday", endpoint: "https://mcp.internal.example/workday", transport: "Streamable HTTP", authReference: "vault://people/workday-reader", parameters: "{\n  \"access\": \"employee-read\"\n}", status: "HEALTHY", tools: 9 },
-    { id: "slack", name: "Slack", endpoint: "https://mcp.internal.example/slack", transport: "Streamable HTTP", authReference: "Not configured", parameters: "{\n  \"channels\": []\n}", status: "UNCHECKED", tools: 14 },
-    { id: "google-drive", name: "Google Drive", endpoint: "https://mcp.internal.example/google-drive", transport: "Streamable HTTP", authReference: "vault://project/google-drive-reader", parameters: "{\n  \"access\": \"read-only\"\n}", status: "HEALTHY", tools: 8 },
-    { id: "mcp-github-tools", name: "GitHub Tools", endpoint: "https://mcp.internal.example/github", transport: "Streamable HTTP", authReference: "vault://platform/github-readonly", parameters: "{\n  \"toolsets\": [\"repos\", \"issues\", \"pull_requests\"]\n}", status: "HEALTHY", tools: 18 },
-    { id: "mcp-data-warehouse", name: "Data Warehouse", endpoint: "https://mcp.internal.example/warehouse/events", transport: "SSE", authReference: "vault://data/warehouse-reader", parameters: "{\n  \"database\": \"analytics\",\n  \"readOnly\": true\n}", status: "UNCHECKED", tools: 7 },
-  ],
-  knowledgeSources: [
-    { id: "company-hr-handbook", name: "Company HR Handbook", description: "Current company policies, benefits, onboarding, and people operations guidance.", endpoint: "https://knowledge.internal.example/hr-handbook", mode: "Hybrid", authReference: "vault://knowledge/hr-handbook", status: "READY", topK: 8 },
-    { id: "research-library", name: "Research Library", description: "Approved research sources and internal citation guidance.", endpoint: "https://knowledge.internal.example/research-library", mode: "Hybrid", authReference: "vault://knowledge/research-library", status: "READY", topK: 10 },
-    { id: "support-handbook", name: "Support Handbook", description: "Product support policies, troubleshooting guides, and escalation paths.", endpoint: "https://knowledge.internal.example/support-handbook", mode: "Hybrid", authReference: "vault://knowledge/support-handbook", status: "READY", topK: 8 },
-    { id: "kb-product-docs", name: "Product Documentation", description: "Published product specifications, runbooks, and release notes.", endpoint: "https://knowledge.internal.example/v1/search", mode: "Hybrid", authReference: "vault://knowledge/product-docs", status: "READY", topK: 8 },
-    { id: "kb-incident-history", name: "Incident History", description: "Resolved incident timelines and operational learning notes.", endpoint: "https://knowledge.internal.example/incidents/query", mode: "Vector", authReference: "vault://knowledge/incidents", status: "UNCHECKED", topK: 5 },
-  ],
+  mcpServers: [],
+  mcpServerTemplates,
+  knowledgeSources: [],
   specializations: [
     {
       id: "general-purpose",
@@ -233,8 +222,8 @@ export const developmentResourceCatalog: ResourceCatalog = {
       description: "Provides support for HR policies, employee onboarding, benefits, and internal HR processes.",
       systemPrompt: "You are an HR support Agent. Answer employee questions using approved company policies and connected knowledge sources. Be clear about policy scope, protect confidential employee data, and escalate decisions that require a People Operations owner.",
       defaultSkillIds: ["employee-policy-search", "document-summarization", "onboarding-guidance"],
-      defaultMcpServerIds: ["hr-knowledge-base", "workday"],
-      defaultKnowledgeSourceIds: ["company-hr-handbook"],
+      defaultMcpServerIds: [],
+      defaultKnowledgeSourceIds: [],
     },
     {
       id: "research-analyst",
@@ -244,8 +233,8 @@ export const developmentResourceCatalog: ResourceCatalog = {
       description: "Collects evidence, compares sources, and produces citation-backed research.",
       systemPrompt: "You are a research analyst. Investigate the request using approved sources, distinguish evidence from inference, cite material claims, surface uncertainty, and provide a concise decision-ready synthesis.",
       defaultSkillIds: ["skill-web-research", "citation-builder", "document-summarization"],
-      defaultMcpServerIds: ["mcp-github-tools", "google-drive"],
-      defaultKnowledgeSourceIds: ["research-library"],
+      defaultMcpServerIds: [],
+      defaultKnowledgeSourceIds: [],
     },
     {
       id: "devops-engineer",
@@ -255,8 +244,8 @@ export const developmentResourceCatalog: ResourceCatalog = {
       description: "Investigates operational issues and reviews infrastructure changes safely.",
       systemPrompt: "You are a DevOps engineering Agent. Diagnose from observable evidence, preserve production safety, explain operational risk, and propose reversible changes with explicit verification and rollback steps.",
       defaultSkillIds: ["incident-triage", "infrastructure-change-review", "helm-chart-developer", "kubernetes-expert", "ocp-expert"],
-      defaultMcpServerIds: ["mcp-github-tools", "slack"],
-      defaultKnowledgeSourceIds: ["kb-incident-history"],
+      defaultMcpServerIds: [],
+      defaultKnowledgeSourceIds: [],
     },
     {
       id: "customer-support",
@@ -266,8 +255,8 @@ export const developmentResourceCatalog: ResourceCatalog = {
       description: "Resolves product questions using approved support knowledge and escalation paths.",
       systemPrompt: "You are a customer support Agent. Understand the customer's goal, use approved support knowledge, give precise next actions, avoid unsupported claims, and escalate account or product issues that require a human owner.",
       defaultSkillIds: ["customer-conversation-summary", "knowledge-answering"],
-      defaultMcpServerIds: ["google-drive", "slack"],
-      defaultKnowledgeSourceIds: ["support-handbook"],
+      defaultMcpServerIds: [],
+      defaultKnowledgeSourceIds: [],
     },
     {
       id: "custom",

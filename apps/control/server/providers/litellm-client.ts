@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type {
   ComplianceDomain,
+  McpToolDefinition,
   ModelProfileCapabilities,
   ModelType,
   ProviderKind,
@@ -126,11 +127,53 @@ export interface LiteLLMProjectQuotaInput {
   tpmLimit?: number;
 }
 
+export interface LiteLLMObjectPermissions {
+  mcpServers: string[];
+  mcpAccessGroups?: string[];
+  mcpToolPermissions?: Record<string, string[]>;
+  vectorStores?: string[];
+}
+
 export interface LiteLLMInstanceServiceAccountInput {
   alias: string;
   teamId: string;
   models: string[];
   metadata: Record<string, string>;
+  objectPermissions: LiteLLMObjectPermissions;
+}
+
+export interface LiteLLMMcpServerInput {
+  serverId: string;
+  serverName: string;
+  alias: string;
+  description: string;
+  transport: "http" | "sse" | "stdio";
+  authType?: "none" | "bearer_token" | "api_key" | "basic" | "authorization" | "oauth2" | "aws_sigv4";
+  credential?: string;
+  url?: string;
+  specPath?: string;
+  sourceUrl?: string;
+  accessGroups: string[];
+  allowedTools: string[];
+  extraHeaders: string[];
+  staticHeaders: Record<string, string>;
+  command?: string;
+  args: string[];
+  environment: Record<string, string>;
+  authorizationUrl?: string;
+  tokenUrl?: string;
+  registrationUrl?: string;
+  oauth2Flow?: "client_credentials" | "authorization_code";
+  availableOnPublicInternet: boolean;
+}
+
+export interface LiteLLMVectorStoreInput {
+  vectorStoreId: string;
+  provider: "openai" | "azure" | "bedrock" | "vertex_ai";
+  name: string;
+  description: string;
+  metadata: Record<string, string | number | boolean>;
+  litellmParams: Record<string, unknown>;
 }
 
 export interface LiteLLMAdminClient {
@@ -155,10 +198,18 @@ export interface LiteLLMAdminClient {
   ensureVirtualEmployeeTeam?(alias: string, metadata: Record<string, string>): Promise<string>;
   ensureProjectTeam?(alias: string, metadata: Record<string, string>): Promise<string>;
   updateProjectTeam?(teamId: string, input: LiteLLMProjectQuotaInput): Promise<void>;
+  updateProjectObjectPermissions?(teamId: string, input: LiteLLMObjectPermissions): Promise<void>;
   addProjectTeamMember?(teamId: string, member: { userId: string; email: string; role: "admin" | "user" }): Promise<void>;
   removeProjectTeamMember?(teamId: string, userId: string): Promise<void>;
   deleteProjectTeam?(teamId: string): Promise<void>;
   createInstanceServiceAccountKey?(input: LiteLLMInstanceServiceAccountInput): Promise<LiteLLMVirtualKey>;
+  registerMcpServer?(input: LiteLLMMcpServerInput): Promise<void>;
+  updateMcpServer?(input: LiteLLMMcpServerInput): Promise<void>;
+  deleteMcpServer?(serverId: string): Promise<void>;
+  discoverMcpTools?(serverId: string): Promise<McpToolDefinition[]>;
+  registerVectorStore?(input: LiteLLMVectorStoreInput): Promise<void>;
+  updateVectorStore?(input: LiteLLMVectorStoreInput): Promise<void>;
+  deleteVectorStore?(vectorStoreId: string): Promise<void>;
   createVirtualEmployeeKey?(input: LiteLLMVirtualEmployeeKeyInput): Promise<LiteLLMVirtualKey>;
   updateVirtualEmployeeKey?(tokenId: string, input: LiteLLMVirtualEmployeeKeyInput): Promise<void>;
   getVirtualEmployeeKey?(tokenId: string): Promise<LiteLLMVirtualEmployeeKeyDetails>;
@@ -353,6 +404,17 @@ export class LiteLLMClient implements LiteLLMAdminClient {
     });
   }
 
+  async updateProjectObjectPermissions(teamId: string, input: LiteLLMObjectPermissions): Promise<void> {
+    this.assertConfigured();
+    await this.request("/team/update", {
+      method: "POST",
+      body: JSON.stringify({
+        team_id: teamId,
+        object_permission: liteLLMObjectPermission(input),
+      }),
+    });
+  }
+
   async addProjectTeamMember(
     teamId: string,
     member: { userId: string; email: string; role: "admin" | "user" },
@@ -392,10 +454,93 @@ export class LiteLLMClient implements LiteLLMAdminClient {
         team_id: input.teamId,
         models: input.models,
         metadata: input.metadata,
+        object_permission: liteLLMObjectPermission(input.objectPermissions),
       }),
     });
     if (!response.key) throw new Error("LiteLLM did not return an Instance Service Account Key.");
     return { secret: response.key, tokenId: response.token ?? response.key };
+  }
+
+  async registerMcpServer(input: LiteLLMMcpServerInput): Promise<void> {
+    this.assertConfigured();
+    await this.request("/v1/mcp/server", {
+      method: "POST",
+      body: JSON.stringify(liteLLMMcpServerBody(input)),
+    });
+  }
+
+  async updateMcpServer(input: LiteLLMMcpServerInput): Promise<void> {
+    this.assertConfigured();
+    await this.request("/v1/mcp/server", {
+      method: "PUT",
+      body: JSON.stringify(liteLLMMcpServerBody(input)),
+    });
+  }
+
+  async deleteMcpServer(serverId: string): Promise<void> {
+    this.assertConfigured();
+    await this.request(`/v1/mcp/server/${encodeURIComponent(serverId)}`, {
+      method: "DELETE",
+    });
+  }
+
+  async registerVectorStore(input: LiteLLMVectorStoreInput): Promise<void> {
+    this.assertConfigured();
+    await this.request("/vector_store/new", {
+      method: "POST",
+      body: JSON.stringify(liteLLMVectorStoreBody(input)),
+    });
+  }
+
+  async updateVectorStore(input: LiteLLMVectorStoreInput): Promise<void> {
+    this.assertConfigured();
+    await this.request("/vector_store/update", {
+      method: "POST",
+      body: JSON.stringify(liteLLMVectorStoreBody(input)),
+    });
+  }
+
+  async deleteVectorStore(vectorStoreId: string): Promise<void> {
+    this.assertConfigured();
+    await this.request("/vector_store/delete", {
+      method: "POST",
+      body: JSON.stringify({ vector_store_id: vectorStoreId }),
+    });
+  }
+
+  async discoverMcpTools(serverId: string): Promise<McpToolDefinition[]> {
+    this.assertConfigured();
+    const response = await this.request<
+      { tools?: unknown[]; error?: string | null; message?: string }
+      | unknown[]
+    >(`/mcp-rest/tools/list?server_id=${encodeURIComponent(serverId)}`);
+    const values = Array.isArray(response) ? response : response.tools ?? [];
+    const discoveredAt = new Date().toISOString();
+    return values.flatMap((value) => {
+      const tool = record(value);
+      if (!tool || typeof tool.name !== "string") return [];
+      const annotations = record(tool.annotations);
+      const normalizedAnnotations = annotations ? {
+        ...(typeof annotations.title === "string" ? { title: annotations.title } : {}),
+        ...(typeof annotations.readOnlyHint === "boolean" ? { readOnlyHint: annotations.readOnlyHint } : {}),
+        ...(typeof annotations.destructiveHint === "boolean" ? { destructiveHint: annotations.destructiveHint } : {}),
+        ...(typeof annotations.idempotentHint === "boolean" ? { idempotentHint: annotations.idempotentHint } : {}),
+        ...(typeof annotations.openWorldHint === "boolean" ? { openWorldHint: annotations.openWorldHint } : {}),
+      } : undefined;
+      return [{
+        name: tool.name,
+        ...(typeof tool.title === "string" ? { title: tool.title } : {}),
+        ...(typeof tool.description === "string" ? { description: tool.description } : {}),
+        inputSchema: record(tool.inputSchema) ?? record(tool.input_schema) ?? {},
+        ...(record(tool.outputSchema) ?? record(tool.output_schema)
+          ? { outputSchema: (record(tool.outputSchema) ?? record(tool.output_schema))! }
+          : {}),
+        ...(normalizedAnnotations && Object.keys(normalizedAnnotations).length
+          ? { annotations: normalizedAnnotations }
+          : {}),
+        discoveredAt,
+      }];
+    });
   }
 
   async createVirtualEmployeeKey(input: LiteLLMVirtualEmployeeKeyInput): Promise<LiteLLMVirtualKey> {
@@ -598,6 +743,56 @@ export class LiteLLMClient implements LiteLLMAdminClient {
       throw new Error(`LiteLLM returned ${response.status}${body ? `: ${redactSecrets(body.slice(0, 320), this.masterKey)}` : "."}`);
     return (body ? JSON.parse(body) : undefined) as T;
   }
+}
+
+function liteLLMObjectPermission(input: LiteLLMObjectPermissions): Record<string, unknown> {
+  return {
+    mcp_servers: [...new Set(input.mcpServers)],
+    mcp_access_groups: [...new Set(input.mcpAccessGroups ?? [])],
+    mcp_tool_permissions: input.mcpToolPermissions ?? {},
+    vector_stores: [...new Set(input.vectorStores ?? [])],
+  };
+}
+
+function liteLLMMcpServerBody(input: LiteLLMMcpServerInput): Record<string, unknown> {
+  return {
+    server_id: input.serverId,
+    server_name: input.serverName,
+    alias: input.alias,
+    description: input.description,
+    transport: input.transport,
+    auth_type: input.authType ?? "none",
+    ...(input.credential ? { credentials: { auth_value: input.credential } } : {}),
+    ...(input.url ? { url: input.url } : {}),
+    ...(input.specPath ? { spec_path: input.specPath } : {}),
+    ...(input.sourceUrl ? { source_url: input.sourceUrl } : {}),
+    mcp_access_groups: [...new Set(input.accessGroups)],
+    allowed_tools: input.allowedTools.length ? [...new Set(input.allowedTools)] : null,
+    extra_headers: [...new Set(input.extraHeaders)],
+    static_headers: input.staticHeaders,
+    ...(input.command ? { command: input.command } : {}),
+    args: input.args,
+    env: input.environment,
+    ...(input.authorizationUrl ? { authorization_url: input.authorizationUrl } : {}),
+    ...(input.tokenUrl ? { token_url: input.tokenUrl } : {}),
+    ...(input.registrationUrl ? { registration_url: input.registrationUrl } : {}),
+    ...(input.oauth2Flow ? { oauth2_flow: input.oauth2Flow } : {}),
+    allow_all_keys: false,
+    available_on_public_internet: input.availableOnPublicInternet,
+    delegate_auth_to_upstream: false,
+    is_byok: false,
+  };
+}
+
+function liteLLMVectorStoreBody(input: LiteLLMVectorStoreInput): Record<string, unknown> {
+  return {
+    vector_store_id: input.vectorStoreId,
+    custom_llm_provider: input.provider,
+    vector_store_name: input.name,
+    vector_store_description: input.description,
+    vector_store_metadata: input.metadata,
+    litellm_params: input.litellmParams,
+  };
 }
 
 function virtualEmployeeKeyBody(input: LiteLLMVirtualEmployeeKeyInput): Record<string, unknown> {

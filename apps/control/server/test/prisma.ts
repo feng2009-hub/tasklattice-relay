@@ -9,6 +9,8 @@ import personalProfileMigration from "../../prisma/migrations/20260725120000_per
 import accountPreferencesMigration from "../../prisma/migrations/20260725130000_account_preferences/migration.sql?raw";
 import userIdentitiesMigration from "../../prisma/migrations/20260725140000_user_identities/migration.sql?raw";
 import resourceCatalogNamesMigration from "../../prisma/migrations/20260725150000_resource_catalog_names/migration.sql?raw";
+import mcpToolDiscoveryMigration from "../../prisma/migrations/20260725160000_mcp_tool_discovery/migration.sql?raw";
+import liteLLMResourceControlPlaneMigration from "../../prisma/migrations/20260725190000_litellm_resource_control_plane/migration.sql?raw";
 import { PrismaClient } from "../generated/prisma/client";
 
 export function createTestPrisma(): PrismaClient {
@@ -41,6 +43,8 @@ export function createTestPrisma(): PrismaClient {
       "",
     ),
   );
+  memory.public.none(mcpToolDiscoveryMigration);
+  memory.public.none(liteLLMResourceControlPlaneMigration);
   const pg = memory.adapters.createPg();
   const query = pg.Client.prototype.query;
   pg.Client.prototype.query = function (

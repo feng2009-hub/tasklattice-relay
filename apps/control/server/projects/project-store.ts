@@ -9,6 +9,7 @@ import type {
   ModelProfileAuditEvent,
   ModelProfileBinding,
   McpServerDefinition,
+  McpToolDefinition,
   ModelDeployment,
   ProviderAccount,
   SandboxPolicy,
@@ -36,6 +37,20 @@ function decode<T>(payload: Prisma.JsonValue): T {
 
 function jsonInput(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
+
+function mcpConnectionPayload(server: McpServerDefinition): Prisma.InputJsonValue {
+  const {
+    id: _id,
+    litellmServerId: _litellmServerId,
+    status: _status,
+    tools: _tools,
+    lastDiscoveryAttemptAt: _lastDiscoveryAttemptAt,
+    lastDiscoveredAt: _lastDiscoveredAt,
+    lastDiscoveryError: _lastDiscoveryError,
+    ...connection
+  } = server;
+  return jsonInput(connection);
 }
 
 export function parseAgent(payload: string | Prisma.JsonValue): Agent {
@@ -165,14 +180,90 @@ export class ProjectStore {
   deleteSkillDefinition(id: string): Promise<boolean> {
     return this.deleteResourceRecord("skillRecord", id);
   }
-  saveMcpServerDefinition(server: McpServerDefinition): Promise<McpServerDefinition> {
-    return this.saveResourceRecord("mcpServerRecord", server);
+  async saveMcpServerDefinition(server: McpServerDefinition): Promise<McpServerDefinition> {
+    await this.db.mcpServerRecord.upsert({
+      where: { projectId_id: { projectId: this.projectId, id: server.id } },
+      create: {
+        projectId: this.projectId,
+        id: server.id,
+        litellmServerId: server.litellmServerId,
+        payload: mcpConnectionPayload(server),
+        discoveryStatus: server.status,
+        lastDiscoveryAttemptAt: server.lastDiscoveryAttemptAt,
+        lastDiscoveredAt: server.lastDiscoveredAt,
+        lastDiscoveryError: server.lastDiscoveryError,
+      },
+      update: {
+        litellmServerId: server.litellmServerId,
+        payload: mcpConnectionPayload(server),
+        discoveryStatus: server.status,
+        lastDiscoveryAttemptAt: server.lastDiscoveryAttemptAt,
+        lastDiscoveredAt: server.lastDiscoveredAt,
+        lastDiscoveryError: server.lastDiscoveryError,
+      },
+    });
+    return server;
   }
-  getMcpServerDefinition(id: string): Promise<McpServerDefinition | undefined> {
-    return this.getResourceRecord("mcpServerRecord", id);
+  async getMcpServerDefinition(id: string): Promise<McpServerDefinition | undefined> {
+    const row = await this.db.mcpServerRecord.findUnique({
+      where: { projectId_id: { projectId: this.projectId, id } },
+      include: { tools: { orderBy: { name: "asc" } } },
+    });
+    return row ? this.decodeMcpServer(row) : undefined;
   }
-  listMcpServerDefinitions(): Promise<McpServerDefinition[]> {
-    return this.listResourceRecords("mcpServerRecord");
+  async listMcpServerDefinitions(): Promise<McpServerDefinition[]> {
+    const rows = await this.db.mcpServerRecord.findMany({
+      where: { projectId: this.projectId },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+      include: { tools: { orderBy: { name: "asc" } } },
+    });
+    return rows.map((row) => this.decodeMcpServer(row));
+  }
+  async saveMcpDiscovery(
+    id: string,
+    result: {
+      status: McpServerDefinition["status"];
+      attemptedAt: string;
+      discoveredAt?: string;
+      error?: string;
+      tools?: McpToolDefinition[];
+    },
+  ): Promise<McpServerDefinition> {
+    const attemptedAt = new Date(result.attemptedAt);
+    await this.db.$transaction(async (transaction) => {
+      await transaction.mcpServerRecord.update({
+        where: { projectId_id: { projectId: this.projectId, id } },
+        data: {
+          discoveryStatus: result.status,
+          lastDiscoveryAttemptAt: attemptedAt,
+          ...(result.discoveredAt ? { lastDiscoveredAt: new Date(result.discoveredAt) } : {}),
+          lastDiscoveryError: result.error ?? null,
+        },
+      });
+      if (result.tools) {
+        await transaction.mcpToolRecord.deleteMany({
+          where: { projectId: this.projectId, mcpServerId: id },
+        });
+        if (result.tools.length) {
+          await transaction.mcpToolRecord.createMany({
+            data: result.tools.map((tool) => ({
+              projectId: this.projectId,
+              mcpServerId: id,
+              name: tool.name,
+              title: tool.title ?? null,
+              description: tool.description ?? null,
+              inputSchema: jsonInput(tool.inputSchema),
+              ...(tool.outputSchema ? { outputSchema: jsonInput(tool.outputSchema) } : {}),
+              ...(tool.annotations ? { annotations: jsonInput(tool.annotations) } : {}),
+              discoveredAt: new Date(tool.discoveredAt),
+            })),
+          });
+        }
+      }
+    });
+    const server = await this.getMcpServerDefinition(id);
+    if (!server) throw new Error("MCP server was not found.");
+    return server;
   }
   deleteMcpServerDefinition(id: string): Promise<boolean> {
     return this.deleteResourceRecord("mcpServerRecord", id);
@@ -191,6 +282,45 @@ export class ProjectStore {
   }
   listAgentSpecializations(): Promise<AgentSpecializationDefinition[]> {
     return this.listResourceRecords("agentSpecializationRecord");
+  }
+
+  private decodeMcpServer(row: {
+    id: string;
+    litellmServerId: string;
+    payload: Prisma.JsonValue;
+    discoveryStatus: McpServerDefinition["status"];
+    lastDiscoveryAttemptAt: Date | null;
+    lastDiscoveredAt: Date | null;
+    lastDiscoveryError: string | null;
+    tools: Array<{
+      name: string;
+      title: string | null;
+      description: string | null;
+      inputSchema: Prisma.JsonValue;
+      outputSchema: Prisma.JsonValue | null;
+      annotations: Prisma.JsonValue | null;
+      discoveredAt: Date;
+    }>;
+  }): McpServerDefinition {
+    const connection = decode<Omit<McpServerDefinition, "id" | "litellmServerId" | "status" | "tools" | "lastDiscoveryAttemptAt" | "lastDiscoveredAt" | "lastDiscoveryError">>(row.payload);
+    return {
+      id: row.id,
+      litellmServerId: row.litellmServerId,
+      ...connection,
+      status: row.discoveryStatus,
+      tools: row.tools.map((tool) => ({
+        name: tool.name,
+        ...(tool.title ? { title: tool.title } : {}),
+        ...(tool.description ? { description: tool.description } : {}),
+        inputSchema: decode<Record<string, unknown>>(tool.inputSchema),
+        ...(tool.outputSchema ? { outputSchema: decode<Record<string, unknown>>(tool.outputSchema) } : {}),
+        ...(tool.annotations ? { annotations: decode<McpToolDefinition["annotations"]>(tool.annotations) } : {}),
+        discoveredAt: tool.discoveredAt.toISOString(),
+      })),
+      lastDiscoveryAttemptAt: row.lastDiscoveryAttemptAt?.toISOString() ?? null,
+      lastDiscoveredAt: row.lastDiscoveredAt?.toISOString() ?? null,
+      lastDiscoveryError: row.lastDiscoveryError,
+    };
   }
 
   async isResourceInUse(kind: ResourceKind, id: string): Promise<boolean> {

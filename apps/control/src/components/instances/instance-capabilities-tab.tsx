@@ -18,7 +18,7 @@ export function InstanceCapabilitiesTab({ agent }: { agent: Agent }) {
   const catalog = useQuery({ queryKey: scope.key("resource-catalog"), queryFn: api.getResourceCatalog });
   const skills = (agent.skillIds ?? []).map((id) => catalog.data?.skills.find((item) => item.id === id) ?? { id, name: id, description: "Catalog details unavailable.", version: undefined });
   const mcpServers = (agent.mcpServerIds ?? []).map((id) => catalog.data?.mcpServers.find((item) => item.id === id) ?? { id, name: id, status: "UNCHECKED" as const, tools: undefined, transport: undefined });
-  const knowledgeBases = (agent.knowledgeSourceIds ?? []).map((id) => catalog.data?.knowledgeSources.find((item) => item.id === id) ?? { id, name: id, description: "Catalog details unavailable.", mode: undefined });
+  const knowledgeBases = (agent.knowledgeSourceIds ?? []).map((id) => catalog.data?.knowledgeSources.find((item) => item.id === id) ?? { id, name: id, description: "Catalog details unavailable.", provider: undefined });
   return (
     <div role="tabpanel" aria-label="Access" className="space-y-4 pt-5">
       <InstanceEffectiveAccessPreview agent={agent} />
@@ -43,7 +43,7 @@ export function InstanceCapabilitiesTab({ agent }: { agent: Agent }) {
               return (
                 <article key={server.id} className="py-4 first:pt-0 last:pb-0">
                   <div className="flex items-start justify-between gap-3"><h3 className="text-sm font-medium">{server.name}</h3><Badge variant="outline" className={cn("border-transparent", connected ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "bg-muted text-muted-foreground")}><span className={cn("size-1.5 rounded-full", connected ? "bg-emerald-500" : "bg-muted-foreground")} />{connected ? "Connected" : server.status === "UNAVAILABLE" ? "Unavailable" : "Disconnected"}</Badge></div>
-                  <p className="mt-2 text-xs text-muted-foreground">{server.transport ?? "Transport unavailable"}{typeof server.tools === "number" ? ` · ${server.tools} tools` : ""}</p>
+                  <p className="mt-2 text-xs text-muted-foreground">{server.transport ?? "Transport unavailable"}{Array.isArray(server.tools) ? ` · ${server.tools.length} tools` : ""}</p>
                 </article>
               );
             }) : <EmptyCapability label="MCP Servers" />}
@@ -55,7 +55,7 @@ export function InstanceCapabilitiesTab({ agent }: { agent: Agent }) {
           <CardContent className="divide-y">
             {knowledgeBases.length ? knowledgeBases.map((source) => (
               <article key={source.id} className="py-4 first:pt-0 last:pb-0">
-                <div className="flex items-start justify-between gap-3"><h3 className="text-sm font-medium">{source.name}</h3>{source.mode ? <Badge variant="secondary">{source.mode}</Badge> : null}</div>
+                <div className="flex items-start justify-between gap-3"><h3 className="text-sm font-medium">{source.name}</h3>{source.provider ? <Badge variant="secondary">{source.provider.toUpperCase()}</Badge> : null}</div>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">{source.description}</p>
               </article>
             )) : <EmptyCapability label="Knowledge Bases" />}
