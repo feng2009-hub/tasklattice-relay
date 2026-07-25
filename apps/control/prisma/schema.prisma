@@ -126,6 +126,8 @@ model Project {
   modelProfileBindings            ModelProfileBindingRecord[]
   modelProfileAudit               ModelProfileAuditRecord[]
   sandboxPolicies                 SandboxPolicyRecord[]
+  accessPolicies                  AccessPolicyRecord[]
+  accessPolicyVersions            AccessPolicyVersionRecord[]
   skills                          SkillRecord[]
   mcpServers                      McpServerRecord[]
   knowledgeSources                KnowledgeSourceRecord[]
@@ -457,6 +459,38 @@ model SandboxPolicyRecord {
 
   @@id([projectId, id])
   @@map("sandbox_policies")
+  @@schema("tasklattice")
+}
+
+model AccessPolicyRecord {
+  projectId String   @map("project_id")
+  id        String
+  payload   Json
+  createdAt DateTime @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @map("updated_at") @db.Timestamptz(6)
+
+  project  Project                     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  versions AccessPolicyVersionRecord[]
+
+  @@id([projectId, id])
+  @@index([projectId, updatedAt(sort: Desc)], map: "access_policies_updated_idx")
+  @@map("access_policies")
+  @@schema("tasklattice")
+}
+
+model AccessPolicyVersionRecord {
+  projectId String   @map("project_id")
+  policyId  String   @map("policy_id")
+  revision  Int
+  payload   Json
+  createdAt DateTime @map("created_at") @db.Timestamptz(6)
+
+  project Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  policy  AccessPolicyRecord @relation(fields: [projectId, policyId], references: [projectId, id], onDelete: Cascade)
+
+  @@id([projectId, policyId, revision])
+  @@index([projectId, policyId, createdAt(sort: Desc)], map: "access_policy_versions_created_idx")
+  @@map("access_policy_versions")
   @@schema("tasklattice")
 }
 

@@ -203,6 +203,7 @@ export interface LiteLLMAdminClient {
   removeProjectTeamMember?(teamId: string, userId: string): Promise<void>;
   deleteProjectTeam?(teamId: string): Promise<void>;
   createInstanceServiceAccountKey?(input: LiteLLMInstanceServiceAccountInput): Promise<LiteLLMVirtualKey>;
+  updateInstanceObjectPermissions?(tokenId: string, input: LiteLLMObjectPermissions): Promise<void>;
   registerMcpServer?(input: LiteLLMMcpServerInput): Promise<void>;
   updateMcpServer?(input: LiteLLMMcpServerInput): Promise<void>;
   deleteMcpServer?(serverId: string): Promise<void>;
@@ -459,6 +460,20 @@ export class LiteLLMClient implements LiteLLMAdminClient {
     });
     if (!response.key) throw new Error("LiteLLM did not return an Instance Service Account Key.");
     return { secret: response.key, tokenId: response.token ?? response.key };
+  }
+
+  async updateInstanceObjectPermissions(
+    tokenId: string,
+    input: LiteLLMObjectPermissions,
+  ): Promise<void> {
+    this.assertConfigured();
+    await this.request("/key/update", {
+      method: "POST",
+      body: JSON.stringify({
+        key: tokenId,
+        object_permission: liteLLMObjectPermission(input),
+      }),
+    });
   }
 
   async registerMcpServer(input: LiteLLMMcpServerInput): Promise<void> {

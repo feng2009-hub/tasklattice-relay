@@ -1,6 +1,9 @@
 import type {
+  AccessPolicy,
+  AccessPolicyVersion,
   Agent,
   CreateKnowledgeSourceDefinitionInput,
+  CreateAccessPolicyInput,
   CreateAgentInput,
   CostQueryParams,
   ModelCostActivityResponse,
@@ -41,6 +44,7 @@ import type {
   TerminalTarget,
   SkillDefinition,
   UpdateKnowledgeSourceDefinitionInput,
+  UpdateAccessPolicyInput,
   UpdateMcpServerDefinitionInput,
   UpdateSkillDefinitionInput,
   VirtualEmployee,
@@ -110,6 +114,28 @@ function costSearch(params: CostQueryParams, extra: Record<string, string> = {})
 }
 
 export const api = {
+  listAccessPolicies: async () =>
+    (await request<{ data: AccessPolicy[] }>("/api/v1/access-policies")).data,
+  getAccessPolicy: (id: string) =>
+    request<AccessPolicy>(`/api/v1/access-policies/${encodeURIComponent(id)}`),
+  createAccessPolicy: (input: CreateAccessPolicyInput) =>
+    request<AccessPolicy>("/api/v1/access-policies", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateAccessPolicy: (id: string, input: UpdateAccessPolicyInput) =>
+    request<AccessPolicy>(`/api/v1/access-policies/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
+  deleteAccessPolicy: (id: string) =>
+    request<void>(`/api/v1/access-policies/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    }),
+  listAccessPolicyVersions: async (id: string) =>
+    (await request<{ data: AccessPolicyVersion[] }>(
+      `/api/v1/access-policies/${encodeURIComponent(id)}/versions`,
+    )).data,
   listVirtualEmployees: async () =>
     (await request<{ data: VirtualEmployee[] }>("/api/v1/virtual-employees")).data,
   getVirtualEmployee: (id: string) =>

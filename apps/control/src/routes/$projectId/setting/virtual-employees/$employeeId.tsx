@@ -108,12 +108,7 @@ function VirtualEmployeeDetailPage() {
       <Tabs value={tab} onValueChange={setTab}>
         <div className="overflow-x-auto"><TabsList variant="line">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="effective">
-            Effective Access
-            <span className="rounded-sm border border-primary/20 bg-primary/5 px-1 py-0.5 text-[9px] uppercase tracking-wide text-primary">
-              Preview
-            </span>
-          </TabsTrigger>
+          <TabsTrigger value="effective">Effective Access</TabsTrigger>
           <TabsTrigger value="model">Model Access</TabsTrigger>
           <TabsTrigger value="identities">System Identities</TabsTrigger>
           <TabsTrigger value="scope">System Access</TabsTrigger>

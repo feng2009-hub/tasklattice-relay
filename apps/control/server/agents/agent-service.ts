@@ -2,18 +2,17 @@ import { randomUUID } from "node:crypto";
 import type {
   Agent,
   CreateAgentInput,
-  KnowledgeSourceDefinition,
-  McpServerDefinition,
   RunnerSandbox,
   SandboxAuditEvent,
 } from "@tasklattice/contracts";
+import { AccessPolicyService } from "../access-policies/access-policy-service";
+import { AccessPolicyStore } from "../access-policies/access-policy-store";
 import { ProjectStore } from "../projects/project-store";
 import { ResourceCatalogService } from "../catalog/resource-catalog-service";
 import { NemoClawRunnerClient, type RunnerClient } from "../runtime/nemoclaw-runner-client";
 import {
   LiteLLMClient,
   type LiteLLMAdminClient,
-  type LiteLLMObjectPermissions,
 } from "../providers/litellm-client";
 import { PolicyService } from "../policies/policy-service";
 import { ModelProfileService } from "../model-profiles/model-profile-service";
@@ -30,23 +29,6 @@ export function agentSandboxName(name: string, id: string): string {
       .slice(0, 14)
       .replace(/-$/, "") || "agent";
   return `tali-${slug}-${id.slice(0, 8)}`;
-}
-
-function instanceObjectPermissions(
-  servers: McpServerDefinition[],
-  knowledgeSources: KnowledgeSourceDefinition[],
-): LiteLLMObjectPermissions {
-  return {
-    mcpServers: servers.map((server) => server.litellmServerId),
-    mcpAccessGroups: [...new Set(servers.flatMap((server) => server.accessGroups))],
-    mcpToolPermissions: Object.fromEntries(servers.map((server) => [
-      server.litellmServerId,
-      server.allowedTools.length
-        ? server.allowedTools
-        : server.tools.map((tool) => tool.name),
-    ])),
-    vectorStores: knowledgeSources.map((source) => source.vectorStoreId),
-  };
 }
 
 export function applyObservedState(agent: Agent, observed: RunnerSandbox): Agent {
@@ -97,6 +79,11 @@ export class AgentService {
     readonly modelProfiles = new ModelProfileService(store, litellm),
     readonly virtualEmployees = new VirtualEmployeeService(new VirtualEmployeeStore(store.projectId, store.database()), litellm),
     readonly quotas = new ProjectQuotaService(store, litellm),
+    readonly accessPolicies = new AccessPolicyService(
+      new AccessPolicyStore(store.projectId, store.database()),
+      store,
+      litellm,
+    ),
   ) {}
 
   async list(): Promise<Agent[]> {
@@ -144,10 +131,11 @@ export class AgentService {
     const modelAccess = virtualEmployee.modelAccess!;
     const costKeyAlias = `tali-instance-${id}`;
     const serviceAccountId = `tali-instance-${id}`;
-    const objectPermissions = instanceObjectPermissions(
-      catalog.mcpServers.filter((server) => (input.mcpServerIds ?? []).includes(server.id)),
-      catalog.knowledgeSources.filter((source) => (input.knowledgeSourceIds ?? []).includes(source.id)),
-    );
+    const objectPermissions = await this.accessPolicies.permissionsForAgent({
+      virtualEmployeeId: virtualEmployee.id,
+      mcpServerIds: input.mcpServerIds,
+      knowledgeSourceIds: input.knowledgeSourceIds,
+    });
     const { teamId, key: instanceKey } = await this.quotas.createInstanceKey({
       alias: costKeyAlias,
       models: [...new Set([runtimeConfiguration.model, ...modelAccess.accessGroups])],
@@ -272,11 +260,11 @@ export class AgentService {
     const access = employee.modelAccess!;
     const keyAlias = `tali-instance-${id}`;
     const serviceAccountId = `tali-instance-${id}`;
-    const catalog = await this.catalog.catalog();
-    const objectPermissions = instanceObjectPermissions(
-      catalog.mcpServers.filter((server) => (current.mcpServerIds ?? []).includes(server.id)),
-      catalog.knowledgeSources.filter((source) => (current.knowledgeSourceIds ?? []).includes(source.id)),
-    );
+    const objectPermissions = await this.accessPolicies.permissionsForAgent({
+      virtualEmployeeId,
+      mcpServerIds: current.mcpServerIds,
+      knowledgeSourceIds: current.knowledgeSourceIds,
+    });
     const { teamId, key: instanceKey } = await this.quotas.createInstanceKey({
       alias: keyAlias,
       models: [...new Set([configuration.model, ...access.accessGroups])],

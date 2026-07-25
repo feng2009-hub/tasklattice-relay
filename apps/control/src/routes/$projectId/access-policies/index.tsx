@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { AccessPoliciesPreview } from "@/components/access/access-policies-preview";
+import { AccessPolicies } from "@/components/access/access-policies";
 
 export const Route = createFileRoute("/$projectId/access-policies/")({
   component: AccessPoliciesRoute,
@@ -8,5 +8,5 @@ export const Route = createFileRoute("/$projectId/access-policies/")({
 
 function AccessPoliciesRoute() {
   const { projectId } = Route.useParams();
-  return <AccessPoliciesPreview projectId={projectId} />;
+  return <AccessPolicies projectId={projectId} />;
 }

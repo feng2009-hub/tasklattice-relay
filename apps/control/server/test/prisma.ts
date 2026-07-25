@@ -11,6 +11,7 @@ import userIdentitiesMigration from "../../prisma/migrations/20260725140000_user
 import resourceCatalogNamesMigration from "../../prisma/migrations/20260725150000_resource_catalog_names/migration.sql?raw";
 import mcpToolDiscoveryMigration from "../../prisma/migrations/20260725160000_mcp_tool_discovery/migration.sql?raw";
 import liteLLMResourceControlPlaneMigration from "../../prisma/migrations/20260725190000_litellm_resource_control_plane/migration.sql?raw";
+import accessPoliciesMigration from "../../prisma/migrations/20260725200000_access_policies/migration.sql?raw";
 import { PrismaClient } from "../generated/prisma/client";
 
 export function createTestPrisma(): PrismaClient {
@@ -45,6 +46,7 @@ export function createTestPrisma(): PrismaClient {
   );
   memory.public.none(mcpToolDiscoveryMigration);
   memory.public.none(liteLLMResourceControlPlaneMigration);
+  memory.public.none(accessPoliciesMigration);
   const pg = memory.adapters.createPg();
   const query = pg.Client.prototype.query;
   pg.Client.prototype.query = function (

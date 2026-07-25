@@ -577,6 +577,36 @@ export const mcpServerDefinitionSchema = z.object({
 export const createMcpServerDefinitionSchema = mcpServerConnectionSchema;
 export const updateMcpServerDefinitionSchema = createMcpServerDefinitionSchema;
 
+export const accessPolicyStatuses = ["DRAFT", "ACTIVE"] as const;
+export const accessPolicyDecisions = ["INHERIT", "ALLOW", "DENY"] as const;
+
+export const accessPolicyToolRuleSchema = z.object({
+  toolName: z.string().trim().min(1).max(200),
+  decision: z.enum(accessPolicyDecisions),
+}).strict();
+
+export const accessPolicyServerRuleSchema = z.object({
+  mcpServerId: z.string().trim().min(1).max(160),
+  defaultDecision: z.enum(["ALLOW", "DENY"]),
+  tools: z.array(accessPolicyToolRuleSchema).max(10_000).default([]),
+}).strict();
+
+export const createAccessPolicySchema = z.object({
+  name: z.string().trim().min(3).max(120),
+  description: z.string().trim().min(10).max(500),
+  status: z.enum(accessPolicyStatuses).default("DRAFT"),
+  virtualEmployeeIds: z.array(z.string().uuid()).max(1_000).default([]),
+  serverRules: z.array(accessPolicyServerRuleSchema).min(1).max(1_000),
+}).strict();
+
+export const updateAccessPolicySchema = z.object({
+  name: z.string().trim().min(3).max(120).optional(),
+  description: z.string().trim().min(10).max(500).optional(),
+  status: z.enum(accessPolicyStatuses).optional(),
+  virtualEmployeeIds: z.array(z.string().uuid()).max(1_000).optional(),
+  serverRules: z.array(accessPolicyServerRuleSchema).min(1).max(1_000).optional(),
+}).strict();
+
 export const mcpServerTemplateSchema = z.object({
   id: z.string().trim().min(1).max(120),
   name: z.string().trim().min(2).max(120),
@@ -846,6 +876,12 @@ export type McpToolDefinition = z.infer<typeof mcpToolDefinitionSchema>;
 export type McpServerTemplate = z.infer<typeof mcpServerTemplateSchema>;
 export type CreateMcpServerDefinitionInput = z.infer<typeof createMcpServerDefinitionSchema>;
 export type UpdateMcpServerDefinitionInput = z.infer<typeof updateMcpServerDefinitionSchema>;
+export type AccessPolicyStatus = (typeof accessPolicyStatuses)[number];
+export type AccessPolicyDecision = (typeof accessPolicyDecisions)[number];
+export type AccessPolicyToolRule = z.infer<typeof accessPolicyToolRuleSchema>;
+export type AccessPolicyServerRule = z.infer<typeof accessPolicyServerRuleSchema>;
+export type CreateAccessPolicyInput = z.infer<typeof createAccessPolicySchema>;
+export type UpdateAccessPolicyInput = z.infer<typeof updateAccessPolicySchema>;
 export type KnowledgeSourceDefinition = z.infer<typeof knowledgeSourceDefinitionSchema>;
 export type CreateKnowledgeSourceDefinitionInput = z.infer<typeof createKnowledgeSourceDefinitionSchema>;
 export type UpdateKnowledgeSourceDefinitionInput = z.infer<typeof updateKnowledgeSourceDefinitionSchema>;
@@ -961,6 +997,25 @@ export interface ResourceCatalog {
   mcpServerTemplates: McpServerTemplate[];
   knowledgeSources: KnowledgeSourceDefinition[];
   specializations: AgentSpecializationDefinition[];
+}
+
+export interface AccessPolicy extends CreateAccessPolicyInput {
+  id: string;
+  revision: number;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  lastReconciledAt?: string;
+  lastReconciliationError?: string;
+}
+
+export interface AccessPolicyVersion {
+  policyId: string;
+  revision: number;
+  actor: string;
+  summary: string;
+  snapshot: AccessPolicy;
+  createdAt: string;
 }
 
 export interface SandboxPolicy extends SandboxPolicyInput {

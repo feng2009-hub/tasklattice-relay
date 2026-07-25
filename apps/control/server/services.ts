@@ -1,4 +1,6 @@
 import { AgentService } from "./agents/agent-service";
+import { AccessPolicyService } from "./access-policies/access-policy-service";
+import { AccessPolicyStore } from "./access-policies/access-policy-store";
 import { ResourceCatalogService } from "./catalog/resource-catalog-service";
 import { ModelProfileService } from "./model-profiles/model-profile-service";
 import { PolicyService } from "./policies/policy-service";
@@ -13,6 +15,7 @@ import { ProjectQuotaService } from "./quotas/project-quota-service";
 
 interface ProjectServices {
   agent: AgentService;
+  accessPolicies: AccessPolicyService;
   cost: CostService;
   catalog: ResourceCatalogService;
   modelProfiles: ModelProfileService;
@@ -34,9 +37,15 @@ function createServices(projectId: string): ProjectServices {
   const quotas = new ProjectQuotaService(store, litellm);
   const catalog = new ResourceCatalogService(store, quotas, litellm);
   const virtualEmployees = new VirtualEmployeeService(new VirtualEmployeeStore(projectId), litellm);
+  const accessPolicies = new AccessPolicyService(
+    new AccessPolicyStore(projectId, store.database()),
+    store,
+    litellm,
+  );
   scheduleVirtualEmployeeReconciliation(projectId, virtualEmployees);
   return {
-    agent: new AgentService(store, undefined, litellm, policies, catalog, modelProfiles, virtualEmployees, quotas),
+    agent: new AgentService(store, undefined, litellm, policies, catalog, modelProfiles, virtualEmployees, quotas, accessPolicies),
+    accessPolicies,
     provider: new ProviderService(store, litellm),
     cost: new CostService(store, litellm),
     policies,
@@ -114,4 +123,8 @@ export async function getVirtualEmployeeService(request?: Request): Promise<Virt
 
 export async function getProjectQuotaService(request?: Request): Promise<ProjectQuotaService> {
   return (await forRequest(request)).quotas;
+}
+
+export async function getAccessPolicyService(request?: Request): Promise<AccessPolicyService> {
+  return (await forRequest(request)).accessPolicies;
 }
