@@ -169,7 +169,7 @@ export interface LiteLLMMcpServerInput {
 
 export interface LiteLLMVectorStoreInput {
   vectorStoreId: string;
-  provider: "openai" | "azure" | "bedrock" | "vertex_ai";
+  provider: "openai" | "azure" | "bedrock" | "vertex_ai" | "pg_vector";
   name: string;
   description: string;
   metadata: Record<string, string | number | boolean>;

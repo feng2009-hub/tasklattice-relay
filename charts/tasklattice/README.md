@@ -99,6 +99,29 @@ are lost when its pod is replaced. It intentionally cannot be combined with
 credentials and `control.toml`. Use `auth.oidc` with an independently managed
 identity provider for production.
 
+## Example MCP Server for integration tests
+
+Set `exampleMcp.enabled=true` to deploy a test-only, in-cluster Streamable HTTP
+MCP Server. It exposes three deterministic tools: `echo_message`,
+`calculate_sum`, and `get_platform_status`. The Service is not exposed outside
+the cluster and is available to LiteLLM at:
+
+```text
+http://tasklattice-example-mcp:3000/mcp
+```
+
+Build and deploy the local example together with Keycloak:
+
+```bash
+npm run images:build:example-mcp
+npm run helm:deploy:dev:keycloak:example-mcp
+```
+
+Register the endpoint as a custom HTTP MCP Server in a Project. TaskLattice
+then asks LiteLLM to discover the tools and stores the resulting names,
+descriptions, input schemas, and discovery status in the Project database.
+This component has no authentication and must not be enabled in production.
+
 ## Shared database
 
 TaskLattice control and LiteLLM intentionally use the same `database-url`.

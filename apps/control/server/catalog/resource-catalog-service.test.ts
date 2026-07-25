@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { LiteLLMAdminClient } from "../providers/litellm-client";
 import { ProjectQuotaService } from "../quotas/project-quota-service";
 import { createTestStore } from "../test/store";
+import type { SecretStore } from "../virtual-employees/secret-store";
 import { ResourceCatalogService } from "./resource-catalog-service";
 
 function adapter(overrides: Partial<LiteLLMAdminClient> = {}): LiteLLMAdminClient {
@@ -195,5 +196,79 @@ describe("ResourceCatalogService", () => {
       "team-project",
       { mcpServers: [], vectorStores: ["vs_engineering_handbook"] },
     );
+  });
+
+  it("registers the native LiteLLM PGVector connector", async () => {
+    const store = createTestStore();
+    const litellm = adapter();
+    const secrets: SecretStore = {
+      put: vi.fn(),
+      get: vi.fn(async () => "pgvector-secret"),
+      delete: vi.fn(),
+    };
+    const service = new ResourceCatalogService(
+      store,
+      new ProjectQuotaService(store, litellm),
+      litellm,
+      secrets,
+    );
+
+    const created = await service.createKnowledgeSource({
+      name: "Product documentation",
+      description: "Product documentation indexed in PostgreSQL with pgvector.",
+      vectorStoreId: "vs_product_docs",
+      provider: "pg_vector",
+      apiBase: "https://pgvector.example.test",
+      topK: 6,
+      credentialReference: "k8s://tasklattice/pgvector#API_KEY",
+    });
+
+    expect(created.status).toBe("REGISTERED");
+    expect(litellm.registerVectorStore).toHaveBeenCalledWith(expect.objectContaining({
+      provider: "pg_vector",
+      litellmParams: {
+        api_base: "https://pgvector.example.test",
+        api_key: "pgvector-secret",
+      },
+    }));
+  });
+
+  it("registers Elasticsearch through the authenticated TaskLattice bridge", async () => {
+    const store = createTestStore();
+    const litellm = adapter();
+    const secrets: SecretStore = {
+      put: vi.fn(),
+      get: vi.fn(async () => "elastic-api-key"),
+      delete: vi.fn(),
+    };
+    const service = new ResourceCatalogService(
+      store,
+      new ProjectQuotaService(store, litellm),
+      litellm,
+      secrets,
+    );
+
+    const created = await service.createKnowledgeSource({
+      name: "Search knowledge",
+      description: "Operational knowledge indexed for Elasticsearch semantic search.",
+      vectorStoreId: "knowledge-chunks",
+      provider: "elasticsearch",
+      apiBase: "https://elastic.example.test",
+      semanticField: "content_semantic",
+      contentField: "content",
+      topK: 10,
+      credentialReference: "k8s://tasklattice/elasticsearch#API_KEY",
+    });
+
+    expect(created.status).toBe("REGISTERED");
+    expect(litellm.registerVectorStore).toHaveBeenCalledWith(expect.objectContaining({
+      provider: "pg_vector",
+      metadata: expect.objectContaining({ tasklattice_provider: "elasticsearch" }),
+      litellmParams: expect.objectContaining({
+        api_base: "http://127.0.0.1:8080/api/internal/vector-stores/individual",
+        api_key: expect.any(String),
+      }),
+    }));
+    expect(secrets.get).not.toHaveBeenCalled();
   });
 });

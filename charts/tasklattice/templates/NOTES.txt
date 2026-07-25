@@ -8,7 +8,11 @@ Wait for the core workloads:
 Control service:
   kubectl -n {{ .Release.Namespace }} get service {{ include "tasklattice.componentName" (dict "root" . "component" "control") }}
 
+{{- if .Values.exampleMcp.enabled }}
+Example MCP endpoint for Project registration:
+  http://{{ include "tasklattice.componentName" (dict "root" . "component" "example-mcp") }}:{{ .Values.exampleMcp.service.port }}/mcp
+{{- end }}
+
 The default credentials are admin/admin and the default OpenShell endpoint is
 plaintext and unauthenticated. Change secrets.* and configure trusted ingress,
 TLS, and authentication before exposing this deployment outside a local cluster.
-

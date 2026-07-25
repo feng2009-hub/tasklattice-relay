@@ -23,6 +23,7 @@ const controlConfigSchema = z.object({
   schema_version: z.literal(1),
   server: z.object({
     public_url: z.string().url(),
+    internal_url: z.string().url().optional(),
   }),
   database: z.object({
     url: z.string().trim().min(1),

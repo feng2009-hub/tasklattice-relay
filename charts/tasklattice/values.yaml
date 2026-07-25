@@ -20,6 +20,10 @@ images:
     repository: tasklattice-litellm
     tag: ""
     pullPolicy: IfNotPresent
+  exampleMcp:
+    repository: tasklattice-example-mcp
+    tag: ""
+    pullPolicy: IfNotPresent
   openclawSandbox:
     repository: tasklattice-nemoclaw-sandbox
     tag: ""
@@ -85,6 +89,21 @@ litellm:
       cpu: "1"
       memory: 4Gi
   extraEnv: []
+
+# Test-only Streamable HTTP MCP Server. It exposes deterministic, side-effect
+# free tools and is reachable only through its in-cluster Service.
+exampleMcp:
+  enabled: false
+  replicaCount: 1
+  service:
+    port: 3000
+  resources:
+    requests:
+      cpu: 10m
+      memory: 48Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
 
 postgresql:
   persistence:

@@ -591,25 +591,68 @@ export const mcpServerTemplateSchema = z.object({
   defaultAuthType: mcpAuthTypeSchema,
 }).strict();
 
-export const knowledgeSourceDefinitionSchema = z.object({
+const knowledgeSourceDefinitionBaseSchema = z.object({
   id: z.string().trim().min(1).max(160),
   name: z.string().trim().min(3).max(120),
   description: z.string().trim().min(10).max(500),
   vectorStoreId: z.string().trim().min(1).max(240),
-  provider: z.enum(["openai", "azure", "bedrock", "vertex_ai"]),
+  provider: z.enum(["openai", "azure", "bedrock", "vertex_ai", "pg_vector", "elasticsearch"]),
   apiBase: z.string().trim().url().optional(),
   embeddingModel: z.string().trim().min(1).max(240).optional(),
+  semanticField: z.string().trim().min(1).max(240).optional(),
+  contentField: z.string().trim().min(1).max(240).optional(),
   credentialReference: optionalMcpSecretReferenceSchema.default(""),
   status: z.enum(["REGISTERED", "UNAVAILABLE"]),
   lastReconciliationError: z.string().max(4_000).nullable(),
   topK: z.number().int().min(1).max(50),
 }).strict();
 
-export const createKnowledgeSourceDefinitionSchema = knowledgeSourceDefinitionSchema.omit({
+function validateKnowledgeSourceProvider(
+  source: {
+    provider: "openai" | "azure" | "bedrock" | "vertex_ai" | "pg_vector" | "elasticsearch";
+    apiBase?: string | undefined;
+    semanticField?: string | undefined;
+    contentField?: string | undefined;
+    credentialReference: string;
+  },
+  context: z.RefinementCtx,
+): void {
+  if (source.provider === "pg_vector") {
+    if (!source.apiBase) {
+      context.addIssue({
+        code: "custom",
+        path: ["apiBase"],
+        message: "PGVector connector API base is required.",
+      });
+    }
+    if (!source.credentialReference) {
+      context.addIssue({
+        code: "custom",
+        path: ["credentialReference"],
+        message: "PGVector connector credential is required.",
+      });
+    }
+  }
+  if (source.provider === "elasticsearch") {
+    for (const [path, value, message] of [
+      ["apiBase", source.apiBase, "Elasticsearch URL is required."],
+      ["semanticField", source.semanticField, "Elasticsearch semantic_text field is required."],
+      ["contentField", source.contentField, "Elasticsearch content field is required."],
+      ["credentialReference", source.credentialReference, "Elasticsearch credential is required."],
+    ] as const) {
+      if (!value) context.addIssue({ code: "custom", path: [path], message });
+    }
+  }
+}
+
+export const knowledgeSourceDefinitionSchema = knowledgeSourceDefinitionBaseSchema
+  .superRefine(validateKnowledgeSourceProvider);
+
+export const createKnowledgeSourceDefinitionSchema = knowledgeSourceDefinitionBaseSchema.omit({
   id: true,
   status: true,
   lastReconciliationError: true,
-});
+}).superRefine(validateKnowledgeSourceProvider);
 export const updateKnowledgeSourceDefinitionSchema = createKnowledgeSourceDefinitionSchema;
 
 export const agentSpecializationDefinitionSchema = z.object({

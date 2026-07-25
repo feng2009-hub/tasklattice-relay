@@ -6,6 +6,7 @@ if (( $# > 0 )); then
   shift
 fi
 enable_keycloak=false
+enable_example_mcp=false
 release_name="${HELM_RELEASE_NAME:-tasklattice}"
 namespace="${HELM_NAMESPACE:-tasklattice-sandboxes}"
 helm_timeout="${HELM_TIMEOUT:-15m}"
@@ -16,7 +17,7 @@ repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 case "$action" in
   deploy | delete) ;;
   *)
-    echo "usage: $0 [deploy|delete] [--keycloak]" >&2
+    echo "usage: $0 [deploy|delete] [--keycloak] [--example-mcp]" >&2
     exit 2
     ;;
 esac
@@ -26,9 +27,12 @@ while (( $# > 0 )); do
     --keycloak)
       enable_keycloak=true
       ;;
+    --example-mcp)
+      enable_example_mcp=true
+      ;;
     *)
       echo "Unknown option: $1" >&2
-      echo "usage: $0 [deploy|delete] [--keycloak]" >&2
+      echo "usage: $0 [deploy|delete] [--keycloak] [--example-mcp]" >&2
       exit 2
       ;;
   esac
@@ -83,6 +87,9 @@ images=(
   "$image_registry/tasklattice-nemoclaw-sandbox:$image_tag"
   "$image_registry/tasklattice-nemoclaw-hermes-sandbox:$image_tag"
 )
+if [[ "$enable_example_mcp" == "true" ]]; then
+  images+=("$image_registry/tasklattice-example-mcp:$image_tag")
+fi
 
 missing_images=()
 for image_name in "${images[@]}"; do
@@ -147,9 +154,15 @@ if [[ "$enable_keycloak" == "true" ]]; then
   )
 fi
 
+example_mcp_helm_args=()
+if [[ "$enable_example_mcp" == "true" ]]; then
+  example_mcp_helm_args+=(--set exampleMcp.enabled=true)
+fi
+
 helm lint "$repository_root/charts/tasklattice" \
   --values "$repository_root/charts/tasklattice/values-dev.yaml" \
-  "${keycloak_helm_args[@]}"
+  "${keycloak_helm_args[@]}" \
+  "${example_mcp_helm_args[@]}"
 helm upgrade --install "$release_name" "$repository_root/charts/tasklattice" \
   --kube-context "$kube_context" \
   --namespace "$namespace" \
@@ -157,6 +170,7 @@ helm upgrade --install "$release_name" "$repository_root/charts/tasklattice" \
   --values "$repository_root/charts/tasklattice/values-dev.yaml" \
   --set-string "global.rolloutRevision=$rollout_revision" \
   "${keycloak_helm_args[@]}" \
+  "${example_mcp_helm_args[@]}" \
   --wait \
   --wait-for-jobs \
   --timeout "$helm_timeout"

@@ -22,6 +22,10 @@ import { ProjectStore } from "../projects/project-store";
 import { ProjectQuotaService } from "../quotas/project-quota-service";
 import { createSecretStore, type SecretStore } from "../virtual-employees/secret-store";
 import { mcpServerTemplates } from "./mcp-server-templates";
+import {
+  vectorStoreBridgeApiBase,
+  vectorStoreBridgeApiKey,
+} from "./vector-store-bridge-auth";
 
 function resourceId(name: string): string {
   const slug = name
@@ -273,23 +277,32 @@ export class ResourceCatalogService {
   }
 
   private async liteLLMVectorStoreInput(source: KnowledgeSourceDefinition): Promise<LiteLLMVectorStoreInput> {
-    const credential = source.credentialReference
+    const credential = source.provider !== "elasticsearch" && source.credentialReference
       ? await this.secrets.get(source.credentialReference)
       : undefined;
+    const usesElasticsearchBridge = source.provider === "elasticsearch";
     return {
       vectorStoreId: source.vectorStoreId,
-      provider: source.provider,
+      provider: source.provider === "elasticsearch" ? "pg_vector" : source.provider,
       name: source.name,
       description: source.description,
       metadata: {
         managed_by: "tali",
         tali_project_id: this.store.projectId,
+        tasklattice_provider: source.provider,
         top_k: source.topK,
       },
       litellmParams: {
-        ...(source.apiBase ? { api_base: source.apiBase } : {}),
-        ...(source.embeddingModel ? { litellm_embedding_model: source.embeddingModel } : {}),
-        ...this.vectorStoreCredentialParams(source.provider, credential),
+        ...(usesElasticsearchBridge
+          ? {
+              api_base: vectorStoreBridgeApiBase(this.store.projectId),
+              api_key: vectorStoreBridgeApiKey(),
+            }
+          : {
+              ...(source.apiBase ? { api_base: source.apiBase } : {}),
+              ...(source.embeddingModel ? { litellm_embedding_model: source.embeddingModel } : {}),
+              ...this.vectorStoreCredentialParams(source.provider, credential),
+            }),
       },
     };
   }
