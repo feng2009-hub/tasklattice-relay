@@ -1,11 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createAgentSchema, createModelProfileSchema } from "@tasklattice/contracts";
 import { createTestStore } from "../test/store";
 import type { LiteLLMAdminClient, LiteLLMModelProfileInspection } from "../providers/litellm-client";
 import { ModelProfileResolver, ModelProfileService } from "./model-profile-service";
-
-beforeEach(() => vi.stubEnv("LITELLM_COMPLIANCE_DOMAIN", "CN_MAINLAND"));
-afterEach(() => vi.unstubAllEnvs());
 
 const capabilities = {
   automaticRouting: "ENABLED",
@@ -157,8 +154,7 @@ describe("Model Profile validation", () => {
     expect(profile.isDefault).toBe(false);
   });
 
-  it("rejects a Model Profile that does not match its Gateway compliance domain", async () => {
-    vi.stubEnv("LITELLM_COMPLIANCE_DOMAIN", "GLOBAL");
+  it("uses LiteLLM model metadata instead of a configured Gateway domain", async () => {
     const client = adapter({
       exists: true,
       version: "1.94.1",
@@ -171,9 +167,11 @@ describe("Model Profile validation", () => {
 
     const profile = await service.create(input("CN_MAINLAND"));
 
-    expect(profile.status).toBe("NON_COMPLIANT");
-    expect(profile.conditions).toContainEqual(expect.objectContaining({ type: "COMPLIANCE", status: "FAIL" }));
-    expect(client.inspectModelProfile).not.toHaveBeenCalled();
+    expect(profile.status).toBe("READY");
+    expect(profile.conditions).toContainEqual(
+      expect.objectContaining({ type: "COMPLIANCE", status: "PASS" }),
+    );
+    expect(client.inspectModelProfile).toHaveBeenCalledWith("production-chat");
   });
 
   it("fails closed when compliance metadata is UNKNOWN", async () => {

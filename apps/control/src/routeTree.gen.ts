@@ -16,6 +16,7 @@ import { Route as AuthSsoCompleteRouteImport } from './routes/auth/sso-complete'
 import { Route as ProjectIdSkillsRouteImport } from './routes/$projectId/skills'
 import { Route as ProjectIdRuntimePoliciesRouteImport } from './routes/$projectId/runtime-policies'
 import { Route as ProjectIdRuntimeRouteImport } from './routes/$projectId/runtime'
+import { Route as ProjectIdProfileRouteImport } from './routes/$projectId/profile'
 import { Route as ProjectIdModelsRouteImport } from './routes/$projectId/models'
 import { Route as ProjectIdMcpServersRouteImport } from './routes/$projectId/mcp-servers'
 import { Route as ProjectIdKnowledgeBaseRouteImport } from './routes/$projectId/knowledge-base'
@@ -64,6 +65,11 @@ const ProjectIdRuntimePoliciesRoute =
 const ProjectIdRuntimeRoute = ProjectIdRuntimeRouteImport.update({
   id: '/$projectId/runtime',
   path: '/$projectId/runtime',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProjectIdProfileRoute = ProjectIdProfileRouteImport.update({
+  id: '/$projectId/profile',
+  path: '/$projectId/profile',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProjectIdModelsRoute = ProjectIdModelsRouteImport.update({
@@ -144,6 +150,7 @@ export interface FileRoutesByFullPath {
   '/$projectId/knowledge-base': typeof ProjectIdKnowledgeBaseRoute
   '/$projectId/mcp-servers': typeof ProjectIdMcpServersRoute
   '/$projectId/models': typeof ProjectIdModelsRoute
+  '/$projectId/profile': typeof ProjectIdProfileRoute
   '/$projectId/runtime': typeof ProjectIdRuntimeRoute
   '/$projectId/runtime-policies': typeof ProjectIdRuntimePoliciesRoute
   '/$projectId/skills': typeof ProjectIdSkillsRoute
@@ -166,6 +173,7 @@ export interface FileRoutesByTo {
   '/$projectId/knowledge-base': typeof ProjectIdKnowledgeBaseRoute
   '/$projectId/mcp-servers': typeof ProjectIdMcpServersRoute
   '/$projectId/models': typeof ProjectIdModelsRoute
+  '/$projectId/profile': typeof ProjectIdProfileRoute
   '/$projectId/runtime': typeof ProjectIdRuntimeRoute
   '/$projectId/runtime-policies': typeof ProjectIdRuntimePoliciesRoute
   '/$projectId/skills': typeof ProjectIdSkillsRoute
@@ -189,6 +197,7 @@ export interface FileRoutesById {
   '/$projectId/knowledge-base': typeof ProjectIdKnowledgeBaseRoute
   '/$projectId/mcp-servers': typeof ProjectIdMcpServersRoute
   '/$projectId/models': typeof ProjectIdModelsRoute
+  '/$projectId/profile': typeof ProjectIdProfileRoute
   '/$projectId/runtime': typeof ProjectIdRuntimeRoute
   '/$projectId/runtime-policies': typeof ProjectIdRuntimePoliciesRoute
   '/$projectId/skills': typeof ProjectIdSkillsRoute
@@ -213,6 +222,7 @@ export interface FileRouteTypes {
     | '/$projectId/knowledge-base'
     | '/$projectId/mcp-servers'
     | '/$projectId/models'
+    | '/$projectId/profile'
     | '/$projectId/runtime'
     | '/$projectId/runtime-policies'
     | '/$projectId/skills'
@@ -235,6 +245,7 @@ export interface FileRouteTypes {
     | '/$projectId/knowledge-base'
     | '/$projectId/mcp-servers'
     | '/$projectId/models'
+    | '/$projectId/profile'
     | '/$projectId/runtime'
     | '/$projectId/runtime-policies'
     | '/$projectId/skills'
@@ -257,6 +268,7 @@ export interface FileRouteTypes {
     | '/$projectId/knowledge-base'
     | '/$projectId/mcp-servers'
     | '/$projectId/models'
+    | '/$projectId/profile'
     | '/$projectId/runtime'
     | '/$projectId/runtime-policies'
     | '/$projectId/skills'
@@ -280,6 +292,7 @@ export interface RootRouteChildren {
   ProjectIdKnowledgeBaseRoute: typeof ProjectIdKnowledgeBaseRoute
   ProjectIdMcpServersRoute: typeof ProjectIdMcpServersRoute
   ProjectIdModelsRoute: typeof ProjectIdModelsRoute
+  ProjectIdProfileRoute: typeof ProjectIdProfileRoute
   ProjectIdRuntimeRoute: typeof ProjectIdRuntimeRoute
   ProjectIdRuntimePoliciesRoute: typeof ProjectIdRuntimePoliciesRoute
   ProjectIdSkillsRoute: typeof ProjectIdSkillsRoute
@@ -345,6 +358,13 @@ declare module '@tanstack/react-router' {
       path: '/$projectId/runtime'
       fullPath: '/$projectId/runtime'
       preLoaderRoute: typeof ProjectIdRuntimeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$projectId/profile': {
+      id: '/$projectId/profile'
+      path: '/$projectId/profile'
+      fullPath: '/$projectId/profile'
+      preLoaderRoute: typeof ProjectIdProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$projectId/models': {
@@ -448,6 +468,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProjectIdKnowledgeBaseRoute: ProjectIdKnowledgeBaseRoute,
   ProjectIdMcpServersRoute: ProjectIdMcpServersRoute,
   ProjectIdModelsRoute: ProjectIdModelsRoute,
+  ProjectIdProfileRoute: ProjectIdProfileRoute,
   ProjectIdRuntimeRoute: ProjectIdRuntimeRoute,
   ProjectIdRuntimePoliciesRoute: ProjectIdRuntimePoliciesRoute,
   ProjectIdSkillsRoute: ProjectIdSkillsRoute,

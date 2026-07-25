@@ -4,12 +4,10 @@ A Model Profile is TaskLattice's stable access contract for routing managed in L
 
 ## Gateway configuration
 
-The built-in Gateway is configured through environment variables:
-
-- `LITELLM_BASE_URL`: LiteLLM API base URL, without `/v1`.
-- `LITELLM_ADMIN_UI_URL`: trusted administrator UI URL used by **Open in LiteLLM**.
-- `LITELLM_MASTER_KEY`: control-plane credential. It is never returned by the API or passed to an Instance.
-- `LITELLM_COMPLIANCE_DOMAIN`: `CN_MAINLAND` or `GLOBAL`. It defaults to `GLOBAL` and is inherited by new Model Profiles.
+The built-in Gateway connection is configured by the `[litellm]` table in
+`control.toml`. The URL is the LiteLLM API base URL without `/v1`; the master
+key is a control-plane credential and is never returned by the API or passed
+to an Instance. The administrator UI URL is derived by appending `/ui`.
 
 Every Instance receives a separate Team-scoped Virtual Key restricted to the profile's public model alias. Only the key fingerprint and LiteLLM token identifier are persisted; plaintext key material exists only while the Sandbox is being created.
 
@@ -23,7 +21,9 @@ Opening the general Instance creation flow remains low-friction: TaskLattice sel
 
 ## Compliance boundary
 
-Compliance is fail closed. The Gateway domain, Model Profile domain, and every effective LiteLLM Router candidate must match. Missing candidate metadata or a CN/Global mixture prevents the profile from becoming `READY` and blocks new bindings.
+Compliance is fail closed. Every effective LiteLLM Router candidate must match
+the Model Profile domain. Missing candidate metadata or a CN/Global mixture
+prevents the profile from becoming `READY` and blocks new bindings.
 
 For strict deployments, run CN Mainland and Global traffic through separate LiteLLM Gateways, databases, secrets, and network egress. Do not treat request tags, user agents, or client-supplied routing fields as a compliance boundary.
 

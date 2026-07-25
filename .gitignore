@@ -8,4 +8,5 @@ coverage/
 apps/control/server/generated/
 *.log
 .env
+control.toml
 apps/control/server/generated/

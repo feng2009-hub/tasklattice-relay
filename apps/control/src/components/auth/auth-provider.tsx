@@ -27,7 +27,9 @@ export interface AuthConfig {
 export interface AuthUser {
   displayName: string;
   email: string;
+  id: string;
   provider: "local" | "sso";
+  systemRole: "user" | "super_administrator";
   username: string;
 }
 

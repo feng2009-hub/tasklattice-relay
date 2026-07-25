@@ -79,7 +79,9 @@ function LoginPage() {
           ) : null}
           {config?.developmentDefaults ? (
             <div className="mt-7 border-l-2 border-primary bg-primary/5 px-4 py-3 text-sm text-foreground">
-              Local development defaults are active: <strong>admin / admin</strong>. Configure credentials before deployment.
+              The initial local account is <strong>admin / admin</strong>. Its
+              password is written to the database on first sign-in and can be
+              reset from My Account.
             </div>
           ) : null}
 
@@ -111,14 +113,36 @@ function LoginPage() {
             </button>
           </form>
 
-          {config?.ssoEnabled ? (
-            <div className="mt-8">
-              <div className="flex items-center gap-4 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground"><span className="h-px flex-1 bg-border" />or<span className="h-px flex-1 bg-border" /></div>
-              <button type="button" onClick={() => window.location.assign(`/api/v1/auth/sso/start?redirect=${encodeURIComponent(redirect)}`)} className="mt-6 flex min-h-12 w-full items-center justify-center gap-2 border border-input bg-background px-6 text-sm font-medium hover:border-foreground focus-visible:outline-2 focus-visible:outline-offset-2">
-                <LockKeyhole className="size-4" />Continue with {config.providerName}
-              </button>
+          <div className="mt-8">
+            <div className="flex items-center gap-4 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+              <span className="h-px flex-1 bg-border" />
+              or
+              <span className="h-px flex-1 bg-border" />
             </div>
-          ) : null}
+            <button
+              type="button"
+              aria-describedby="sso-login-description"
+              disabled={loading || !config?.ssoEnabled}
+              onClick={() => {
+                if (!config?.ssoEnabled) return;
+                window.location.assign(
+                  `/api/v1/auth/sso/start?redirect=${encodeURIComponent(redirect)}`,
+                );
+              }}
+              className="mt-6 flex min-h-12 w-full items-center justify-center gap-2 border border-input bg-background px-6 text-sm font-medium transition-colors hover:border-foreground focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:bg-muted/50 disabled:text-muted-foreground"
+            >
+              <LockKeyhole className="size-4" />
+              SSO login
+            </button>
+            <p
+              id="sso-login-description"
+              className="mt-3 text-center text-xs leading-5 text-muted-foreground"
+            >
+              {config?.ssoEnabled
+                ? `Continue with ${config.providerName}.`
+                : "SSO is not configured for this deployment."}
+            </p>
+          </div>
           <p className="mt-10 text-center text-xs leading-5 text-muted-foreground">Access is limited to configured operators. Authentication events may be audited.</p>
         </div>
       </section>

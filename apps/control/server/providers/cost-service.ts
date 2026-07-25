@@ -318,7 +318,7 @@ export class CostService {
   private async refreshMappings(): Promise<void> {
     const analytics = this.analytics();
     const projectId = this.store.projectId;
-    const environmentId = process.env.TALI_ENVIRONMENT_ID ?? "production";
+    const environmentId = "production";
     for (const agent of await this.store.listAgentsForReporting()) {
       const full = await this.store.get(agent.id);
       const binding = await this.store.getModelProfileBindingForAgent(agent.id);
@@ -394,15 +394,7 @@ export class CostService {
 
   private async usdCost(log: LiteLLMSpendLog, mapping: ModelEndpointCostMapping | undefined): Promise<ResolvedUsdCost> {
     const currency = (log.currency ?? "USD").toUpperCase();
-    const rateConfig = process.env.TALI_COST_FX_RATES;
     let rate = currency === "USD" ? 1 : undefined;
-    if (!rate && rateConfig) {
-      try {
-        rate = finite((JSON.parse(rateConfig) as Record<string, number>)[currency]);
-      } catch {
-        rate = undefined;
-      }
-    }
     const prompt = finite(log.prompt_cost);
     const completion = finite(log.completion_cost);
     const spend = finite(log.spend);
@@ -469,8 +461,8 @@ export class CostService {
       ...(log.response_end_time ?? log.end_time ? { responseEndTime: new Date(log.response_end_time ?? log.end_time!).toISOString() } : {}),
       usageDate: dateInTimezone(timestamp, "UTC"),
       usageHour: hourInTimezone(timestamp, "UTC"),
-      projectId: attribution?.projectId ?? (process.env.TALI_PROJECT_ID ?? "default"),
-      environmentId: attribution?.environmentId ?? (process.env.TALI_ENVIRONMENT_ID ?? "production"),
+      projectId: attribution?.projectId ?? "default",
+      environmentId: attribution?.environmentId ?? "production",
       ...(attribution?.instanceId ? { instanceId: attribution.instanceId, instanceName: attribution.instanceName } : {}),
       ...(endpoint ? { modelEndpointId: endpoint.modelEndpointId, modelEndpointName: endpoint.modelEndpointName } : {}),
       ...(endpoint?.providerAccountId ?? attribution?.providerAccountId ? {

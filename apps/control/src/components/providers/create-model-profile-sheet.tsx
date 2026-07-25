@@ -62,8 +62,7 @@ export function CreateModelProfileSheet({
     () =>
       availableModels.filter(
         (model) =>
-          model.status === "VALIDATED" &&
-          (!gateway || model.complianceDomain === gateway.complianceDomain),
+          model.status === "VALIDATED",
       ),
     [availableModels, gateway],
   );
@@ -105,7 +104,7 @@ export function CreateModelProfileSheet({
         description,
         gatewayId: gateway?.id ?? "",
         publicModelAlias,
-        complianceDomain: gateway?.complianceDomain ?? "GLOBAL",
+        complianceDomain: selectedModel?.complianceDomain ?? "GLOBAL",
         isDefault: makeDefault,
         keyPolicy: { perInstance: true, rotationDays: 90 },
         auditPolicy: {
@@ -332,7 +331,7 @@ export function CreateModelProfileSheet({
                 {availableModels.some(
                   (model) => model.status === "VALIDATED",
                 )
-                  ? `No validated model matches the ${gateway?.complianceDomain === "CN_MAINLAND" ? "CN Mainland" : "Global"} Gateway compliance boundary.`
+                  ? "No validated model is available for this profile."
                   : "No validated upstream model is available yet."}
               </span>
               <Button
@@ -373,9 +372,11 @@ export function CreateModelProfileSheet({
               icon={ShieldCheck}
               label="Compliance"
               value={
-                gateways.data?.[0]?.complianceDomain === "CN_MAINLAND"
+                selectedModel?.complianceDomain === "CN_MAINLAND"
                   ? "CN Mainland"
-                  : "Global"
+                  : selectedModel?.complianceDomain === "GLOBAL"
+                    ? "Global"
+                    : "From LiteLLM metadata"
               }
             />
             <PolicyFact

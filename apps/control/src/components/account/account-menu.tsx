@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ChevronDown, LogOut, Settings } from "lucide-react";
+import { ChevronDown, CircleUserRound, LogOut } from "lucide-react";
 
 import type { AuthUser } from "@/components/auth/auth-provider";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -103,9 +103,9 @@ export function AccountMenu({
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link to="/$projectId/setting" params={{ projectId }}>
-            <Settings className="size-4" />
-            Settings
+          <Link to="/$projectId/profile" params={{ projectId }}>
+            <CircleUserRound className="size-4" />
+            My Account
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />

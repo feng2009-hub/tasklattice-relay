@@ -16,7 +16,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { formatPlatformDate } from "@/lib/platform-preferences";
 import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
+import { usePlatformTimezone } from "@/hooks/use-platform-timezone";
 
 export const Route = createFileRoute("/$projectId/models")({ component: ProvidersPage });
 const pageSize = 10;
@@ -34,6 +36,7 @@ function money(value: number): string {
 
 function ProvidersPage() {
   const scope = useProjectQueryScope();
+  const timezone = usePlatformTimezone();
   const [registerOpen, setRegisterOpen] = useState(false);
   const [drawerAccount, setDrawerAccount] = useState<ProviderAccount>();
   const addProviderButtonRef = useRef<HTMLButtonElement>(null);
@@ -52,7 +55,7 @@ function ProvidersPage() {
       endTime: range.to,
       groupBy: "provider_account",
       filters: {},
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      timezone,
     }),
     retry: false,
   });
@@ -64,7 +67,7 @@ function ProvidersPage() {
       endTime: range.to,
       groupBy: "provider_account",
       filters: {},
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      timezone,
     }),
     retry: false,
   });
@@ -162,5 +165,5 @@ function relativeTime(value: string): string {
   if (minutes < 60) return `${minutes}m ago`;
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours}h ago`;
-  return new Date(value).toLocaleDateString();
+  return formatPlatformDate(value);
 }

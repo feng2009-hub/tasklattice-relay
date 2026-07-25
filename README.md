@@ -5,6 +5,9 @@ running OpenClaw or Hermes Agents in OpenShell sandboxes. OpenShell is the fixed
 runtime; OpenClaw is the default Agent implementation and Hermes is the second
 supported implementation.
 
+Control Plane runtime settings use a single TOML file; see
+[Control Plane configuration](docs/control-configuration.md).
+
 ```text
 Browser (TanStack Start + shadcn/ui)
                   |

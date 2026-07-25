@@ -51,9 +51,8 @@ function scheduleVirtualEmployeeReconciliation(
   projectId: string,
   virtualEmployees: VirtualEmployeeService,
 ): void {
-  if (process.env.LITELLM_SYNC_ENABLED !== "true" || reconciliationTimers.has(projectId)) return;
-  const configured = Number(process.env.LITELLM_SYNC_INTERVAL_MS ?? 300_000);
-  const intervalMs = Number.isFinite(configured) && configured >= 60_000 ? configured : 300_000;
+  if (reconciliationTimers.has(projectId)) return;
+  const intervalMs = 300_000;
   const timer = setInterval(() => {
     void virtualEmployees.reconcileAll().catch((error) => {
       console.error("Virtual Employee reconciliation failed.", error);
@@ -66,7 +65,7 @@ function scheduleVirtualEmployeeReconciliation(
 async function forRequest(request?: Request): Promise<ProjectServices> {
   const projectId = request
     ? (await projectService.resolve(request)).projectId
-    : process.env.TALI_BOOTSTRAP_PROJECT_ID ?? "individual";
+    : "individual";
   let scoped = services.get(projectId);
   if (!scoped) {
     scoped = createServices(projectId);

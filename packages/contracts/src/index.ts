@@ -628,7 +628,6 @@ export const createInferenceGatewaySchema = z.object({
   name: z.string().trim().min(3).max(64),
   baseUrl: z.string().trim().url(),
   adminUiUrl: z.string().trim().url(),
-  complianceDomain: z.enum(complianceDomains),
   adminCredentialRef: z.string().trim().min(1).max(160),
 });
 
@@ -705,7 +704,6 @@ export interface InferenceGateway {
   name: string;
   baseUrl: string;
   adminUiUrl: string;
-  complianceDomain: ComplianceDomain;
   credentialSource: "ENVIRONMENT" | "SECRET_REFERENCE";
   status: "UNKNOWN" | "READY" | "DEGRADED";
   validationMessage: string;

@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import type { VirtualEmployeeStatus } from "@tasklattice/contracts";
 import type { AuthPayload, AuthUser } from "../auth/auth";
 import { requireAuth } from "../auth/auth";
+import { getControlConfig } from "../config/control-config";
 import { prisma } from "../db/prisma";
 import type { PrismaClient } from "../generated/prisma/client";
 import { LiteLLMClient, type LiteLLMAdminClient } from "../providers/litellm-client";
@@ -48,18 +49,9 @@ export interface InitialProjectInvitation {
   role: ProjectRole;
 }
 
-function personalProjectId(username: string): string {
-  if (username === (process.env.TALI_AUTH_LOCAL_USERNAME ?? "admin")) {
-    return process.env.TALI_BOOTSTRAP_PROJECT_ID ?? "individual";
-  }
-  return `individual-${createHash("sha256").update(username).digest("hex").slice(0, 12)}`;
-}
-
-function userId(username: string): string {
-  if (username === (process.env.TALI_AUTH_LOCAL_USERNAME ?? "admin")) {
-    return process.env.TALI_BOOTSTRAP_USER_ID ?? "local-admin";
-  }
-  return `user-${createHash("sha256").update(username).digest("hex").slice(0, 16)}`;
+function personalProjectId(userId: string): string {
+  if (userId === "local-admin") return "individual";
+  return `individual-${createHash("sha256").update(userId).digest("hex").slice(0, 12)}`;
 }
 
 function slug(value: string): string {
@@ -73,27 +65,16 @@ export class ProjectService {
   ) {}
 
   async ensureUser(auth: AuthPayload): Promise<string> {
-    const id = userId(auth.user.username);
-    const email = (
-      auth.user.email || `${auth.user.username}@tasklattice.local`
-    ).trim().toLowerCase();
-    await this.db.user.upsert({
-      where: { id },
-      create: {
-        id,
-        username: auth.user.username,
-        email,
-        displayName: auth.user.displayName,
-        authProvider: auth.user.provider,
-      },
-      update: {
-        email,
-        displayName: auth.user.displayName,
-        authProvider: auth.user.provider,
-      },
+    const user = await this.db.user.findUnique({
+      where: { id: auth.sub },
     });
-    const projectId = personalProjectId(auth.user.username);
-    const personalProjectName = auth.user.username;
+    if (!user || user.status !== "active") {
+      throw new Error("The authenticated TaskLattice user is unavailable.");
+    }
+    const id = user.id;
+    const email = user.email.trim().toLowerCase();
+    const projectId = personalProjectId(id);
+    const personalProjectName = user.username;
     await this.db.project.upsert({
       where: { id: projectId },
       create: {
@@ -141,7 +122,7 @@ export class ProjectService {
       ]);
       await this.syncProjectTeam(invitation.projectId);
     }
-    if (projectId !== (process.env.TALI_BOOTSTRAP_PROJECT_ID ?? "individual")) {
+    if (projectId !== "individual") {
       const seeded = await this.db.extensionSkillRecord.count({ where: { projectId } });
       if (!seeded) await this.seedProject(projectId);
     }
@@ -269,7 +250,7 @@ export class ProjectService {
   }
 
   private async seedProject(projectId: string): Promise<void> {
-    const sourceProjectId = process.env.TALI_BOOTSTRAP_PROJECT_ID ?? "individual";
+    const sourceProjectId = "individual";
     const delegates = [
       this.db.extensionSkillRecord,
       this.db.extensionMcpServerRecord,
@@ -356,7 +337,7 @@ export class ProjectService {
     if (!project) throw new Error("Project not found.");
     if (project.type === "personal") throw new Error("The default project cannot be deleted.");
     const quota = await this.db.projectQuotaRecord.findUnique({ where: { projectId } });
-    if (quota?.litellmTeamId && process.env.LITELLM_MASTER_KEY) {
+    if (quota?.litellmTeamId && getControlConfig().litellm.master_key) {
       await this.litellm.deleteProjectTeam?.(quota.litellmTeamId).catch(() => undefined);
     }
     await this.db.project.delete({ where: { id: projectId } });
@@ -485,24 +466,51 @@ export class ProjectService {
       where: { projectId_userId: { projectId, userId: memberId } },
     });
     const quota = await this.db.projectQuotaRecord.findUnique({ where: { projectId } });
-    if (quota?.litellmTeamId && process.env.LITELLM_MASTER_KEY) {
+    if (quota?.litellmTeamId && getControlConfig().litellm.master_key) {
       await this.litellm.removeProjectTeamMember?.(quota.litellmTeamId, memberId).catch(() => undefined);
     }
   }
 
   private async syncProjectTeam(projectId: string): Promise<void> {
-    if (!process.env.LITELLM_MASTER_KEY) return;
+    if (!getControlConfig().litellm.master_key) return;
     await new ProjectQuotaService(new ProjectStore(projectId, this.db), this.litellm)
       .sync()
       .catch(() => undefined);
   }
 
   async syncAuthUser(user: AuthUser): Promise<string> {
+    await this.db.user.upsert({
+      where: { id: user.id },
+      create: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        displayName: user.displayName,
+        systemRole: user.systemRole,
+        status: "active",
+        identities: {
+          create: {
+            id: `identity-${user.id}`,
+            type: user.provider === "local" ? "local" : "oidc",
+            issuer:
+              user.provider === "local" ? "tasklattice:local" : "test:sso",
+            subject: user.username,
+            username: user.username,
+            email: user.email,
+          },
+        },
+      },
+      update: {
+        displayName: user.displayName,
+        email: user.email,
+        systemRole: user.systemRole,
+      },
+    });
     return this.ensureUser({
       exp: Number.MAX_SAFE_INTEGER,
       iat: 0,
       iss: "tasklattice",
-      sub: user.username,
+      sub: user.id,
       user,
     });
   }

@@ -46,11 +46,8 @@ spec:
             - --workspace
             - "@tasklattice/control"
           env:
-            - name: TALI_DATABASE_URL
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "tasklattice.secretName" . }}
-                  key: database-url
+            - name: TASKLATTICE_CONFIG
+              value: /etc/tasklattice/control.toml
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -59,6 +56,9 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            - name: control-config
+              mountPath: /etc/tasklattice
+              readOnly: true
       containers:
         - name: control
           image: {{ include "tasklattice.image" (dict "root" . "image" .Values.images.control) }}
@@ -69,76 +69,14 @@ spec:
           env:
             - name: PORT
               value: "8080"
-            - name: TALI_DATABASE_URL
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "tasklattice.secretName" . }}
-                  key: database-url
-            - name: NEMOCLAW_RUNNER_URL
-              value: {{ printf "http://%s:9090" (include "tasklattice.componentName" (dict "root" . "component" "runner")) | quote }}
-            - name: NEMOCLAW_RUNNER_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "tasklattice.secretName" . }}
-                  key: runner-token
-            - name: LITELLM_BASE_URL
-              value: {{ printf "http://%s:4000" (include "tasklattice.componentName" (dict "root" . "component" "litellm")) | quote }}
-            - name: LITELLM_ADMIN_UI_URL
-              value: {{ default (printf "http://%s:4000/ui" (include "tasklattice.componentName" (dict "root" . "component" "litellm"))) .Values.litellm.adminUiUrl | quote }}
-            - name: LITELLM_COMPLIANCE_DOMAIN
-              value: {{ .Values.litellm.complianceDomain | quote }}
-            - name: LITELLM_MASTER_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "tasklattice.secretName" . }}
-                  key: litellm-master-key
-            - name: LITELLM_REQUEST_TIMEOUT
-              value: {{ .Values.litellm.requestTimeout | quote }}
-            - name: LITELLM_SYNC_ENABLED
-              value: {{ .Values.litellm.syncEnabled | quote }}
-            - name: LITELLM_SYNC_INTERVAL_MS
-              value: {{ .Values.litellm.syncIntervalMs | quote }}
+            - name: TASKLATTICE_CONFIG
+              value: /etc/tasklattice/control.toml
             - name: POD_NAMESPACE
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
             - name: NODE_EXTRA_CA_CERTS
               value: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-            - name: TALI_AUTH_MODE
-              value: {{ .Values.auth.mode | quote }}
-            - name: TALI_AUTH_JWT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "tasklattice.secretName" . }}
-                  key: jwt-secret
-            - name: TALI_AUTH_LOCAL_USERNAME
-              value: {{ .Values.auth.local.username | quote }}
-            - name: TALI_AUTH_LOCAL_DISPLAY_NAME
-              value: {{ .Values.auth.local.displayName | quote }}
-            - name: TALI_AUTH_LOCAL_EMAIL
-              value: {{ .Values.auth.local.email | quote }}
-            - name: TALI_AUTH_LOCAL_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "tasklattice.secretName" . }}
-                  key: local-password
-            {{- if eq .Values.auth.mode "local-sso" }}
-            - name: TALI_AUTH_OIDC_ISSUER
-              value: {{ required "auth.oidc.issuer is required for local-sso" .Values.auth.oidc.issuer | quote }}
-            - name: TALI_AUTH_OIDC_CLIENT_ID
-              value: {{ required "auth.oidc.clientId is required for local-sso" .Values.auth.oidc.clientId | quote }}
-            - name: TALI_AUTH_OIDC_CLIENT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "tasklattice.secretName" . }}
-                  key: oidc-client-secret
-            - name: TALI_AUTH_OIDC_REDIRECT_URI
-              value: {{ .Values.auth.oidc.redirectUri | quote }}
-            - name: TALI_AUTH_OIDC_PROVIDER_NAME
-              value: {{ .Values.auth.oidc.providerName | quote }}
-            - name: TALI_AUTH_OIDC_SCOPES
-              value: {{ .Values.auth.oidc.scopes | quote }}
-            {{- end }}
             {{- with .Values.control.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -164,10 +102,19 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            - name: control-config
+              mountPath: /etc/tasklattice
+              readOnly: true
       volumes:
         - name: tmp
           emptyDir:
             sizeLimit: 32Mi
+        - name: control-config
+          secret:
+            secretName: {{ include "tasklattice.secretName" . }}
+            items:
+              - key: control.toml
+                path: control.toml
 ---
 apiVersion: v1
 kind: Service

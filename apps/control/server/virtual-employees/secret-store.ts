@@ -30,9 +30,7 @@ export class DevelopmentSecretStore implements SecretStore {
 }
 
 export class KubernetesSecretStore implements SecretStore {
-  private readonly namespace = process.env.TALI_SECRET_NAMESPACE
-    ?? process.env.POD_NAMESPACE
-    ?? "tasklattice";
+  private readonly namespace = process.env.POD_NAMESPACE ?? "tasklattice";
   private readonly api = `https://${process.env.KUBERNETES_SERVICE_HOST}:${process.env.KUBERNETES_SERVICE_PORT_HTTPS ?? "443"}`;
   private token?: string;
 

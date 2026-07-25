@@ -148,24 +148,6 @@ export class ModelProfileService {
     if (!gateway) throw new Error("The Model Profile gateway is unavailable.");
     if (current.status === "SUSPENDED") throw new Error("Resume the Model Profile before validating it.");
     await this.store.saveModelProfile({ ...current, status: "VALIDATING", updatedAt: new Date().toISOString() });
-    if (gateway.complianceDomain !== current.complianceDomain) {
-      const reason = `Gateway compliance domain ${gateway.complianceDomain} does not match Model Profile domain ${current.complianceDomain}.`;
-      const next = await this.store.saveModelProfile({
-        ...current,
-        status: "NON_COMPLIANT",
-        isDefault: false,
-        capabilities: defaultCapabilities,
-        conditions: [
-          { type: "GATEWAY", status: "PASS", reason: `Bound to ${gateway.name}.` },
-          { type: "COMPLIANCE", status: "FAIL", reason },
-        ],
-        validationMessage: reason,
-        lastSynchronizedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
-      await this.audit(next, "model_profile.compliance_failed", actor, "FAILED", reason);
-      return this.withConsumerCount(next);
-    }
     try {
       if (!this.litellm.inspectModelProfile) throw new Error("The configured LiteLLM adapter does not support Router inspection.");
       const inspection = await this.litellm.inspectModelProfile(current.publicModelAlias);
@@ -262,8 +244,6 @@ export class ModelProfileService {
     let profile = await this.resolver.resolve(modelProfileId);
     const gateway = await this.store.getInferenceGateway(profile.gatewayId);
     if (!gateway) throw new Error("The Model Profile gateway is unavailable.");
-    if (gateway.complianceDomain !== profile.complianceDomain)
-      throw new Error("The Model Profile and LiteLLM Gateway compliance domains do not match.");
     if (!profile.conditions.some((condition) => condition.type === "COMPLIANCE" && condition.status === "PASS"))
       throw new Error("The Model Profile compliance validation is not current.");
     if (!this.litellm.createModelProfileKey || !this.litellm.createModelProfileTeam)
@@ -341,10 +321,9 @@ export class ModelProfileService {
     const now = new Date().toISOString();
     await this.store.saveInferenceGateway({
       id: "litellm-default",
-      name: process.env.LITELLM_GATEWAY_NAME ?? "Primary LiteLLM Gateway",
+      name: "Primary LiteLLM Gateway",
       baseUrl: this.litellm.baseUrl,
-      adminUiUrl: trustedAdminUiUrl(process.env.LITELLM_ADMIN_UI_URL, this.litellm.baseUrl),
-      complianceDomain: configuredGatewayComplianceDomain(),
+      adminUiUrl: trustedAdminUiUrl(undefined, this.litellm.baseUrl),
       credentialSource: "ENVIRONMENT",
       status: "UNKNOWN",
       validationMessage: "The gateway has not been validated yet.",
@@ -399,16 +378,11 @@ function withoutUndefined<T extends object>(input: T): Partial<T> {
 }
 
 function trustedAdminUiUrl(configured: string | undefined, baseUrl: string): string {
-  const url = new URL(configured ?? baseUrl);
+  const url = configured
+    ? new URL(configured)
+    : new URL(`${baseUrl.replace(/\/$/, "")}/ui`);
   if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("LITELLM_ADMIN_UI_URL must use HTTP or HTTPS.");
   return url.toString().replace(/\/$/, "");
-}
-
-function configuredGatewayComplianceDomain(): ComplianceDomain {
-  const value = process.env.LITELLM_COMPLIANCE_DOMAIN ?? "GLOBAL";
-  if (value !== "CN_MAINLAND" && value !== "GLOBAL")
-    throw new Error("LITELLM_COMPLIANCE_DOMAIN must be CN_MAINLAND or GLOBAL.");
-  return value;
 }
 
 export function complianceDomainsMatch(expected: ComplianceDomain, actual: readonly ComplianceDomain[], hasUnknown: boolean): boolean {

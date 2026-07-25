@@ -31,6 +31,7 @@ import {
   serializeCostFilters,
   type CostRange,
 } from "@/features/model-cost/cost-utils";
+import { usePlatformTimezone } from "@/hooks/use-platform-timezone";
 
 const groupSearch = z.preprocess(
   (value) => typeof value === "string" && ["instance", "model_endpoint", "provider_account", "virtual_key"].includes(value) ? value : undefined,
@@ -127,7 +128,7 @@ function ModelCostPage() {
     }),
     [range, search.from, search.to],
   );
-  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  const timezone = usePlatformTimezone();
   const params = useMemo<CostQueryParams>(() => ({
     startTime: dates.from,
     endTime: dates.to,

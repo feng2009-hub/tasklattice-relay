@@ -141,6 +141,62 @@ export const openApiDocument = {
         },
       },
     },
+    "/profile": {
+      get: {
+        operationId: "getPersonalProfile",
+        summary: "Read the current user's personal profile",
+        responses: {
+          "200": { description: "Personal profile", ...json({ $ref: "#/components/schemas/PersonalProfile" }) },
+          "401": { $ref: "#/components/responses/Error" },
+        },
+      },
+      patch: {
+        operationId: "updatePersonalProfile",
+        summary: "Update personal details that are independent of a Project",
+        requestBody: {
+          required: true,
+          ...json({
+            type: "object",
+            additionalProperties: false,
+            required: ["city", "theme", "timezone"],
+            properties: {
+              city: { type: "string", maxLength: 120 },
+              theme: { type: "string", enum: ["system", "light", "dark"] },
+              timezone: { type: "string", maxLength: 120 },
+            },
+          }),
+        },
+        responses: {
+          "200": { description: "Updated personal profile", ...json({ $ref: "#/components/schemas/PersonalProfile" }) },
+          "400": { $ref: "#/components/responses/Error" },
+          "401": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
+    "/profile/password": {
+      post: {
+        operationId: "resetLocalPassword",
+        summary: "Reset the current local account password",
+        requestBody: {
+          required: true,
+          ...json({
+            type: "object",
+            additionalProperties: false,
+            required: ["currentPassword", "newPassword"],
+            properties: {
+              currentPassword: { type: "string", maxLength: 128 },
+              newPassword: { type: "string", minLength: 12, maxLength: 128 },
+            },
+          }),
+        },
+        responses: {
+          "204": { description: "Password reset" },
+          "400": { $ref: "#/components/responses/Error" },
+          "401": { $ref: "#/components/responses/Error" },
+          "403": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
     "/auth/sso/start": {
       get: {
         operationId: "startSso",
@@ -711,7 +767,7 @@ export const openApiDocument = {
         properties: {
           authRequired: { type: "boolean", const: true },
           developmentDefaults: { type: "boolean" },
-          localEnabled: { type: "boolean", const: true },
+          localEnabled: { type: "boolean" },
           mode: { type: "string", enum: ["local", "local-sso"] },
           providerName: { type: "string" },
           ssoEnabled: { type: "boolean" },
@@ -719,11 +775,13 @@ export const openApiDocument = {
       },
       AuthUser: {
         type: "object",
-        required: ["displayName", "email", "provider", "username"],
+        required: ["displayName", "email", "id", "provider", "systemRole", "username"],
         properties: {
           displayName: { type: "string" },
           email: { type: "string" },
+          id: { type: "string" },
           provider: { type: "string", enum: ["local", "sso"] },
+          systemRole: { type: "string", enum: ["user", "super_administrator"] },
           username: { type: "string" },
         },
       },
@@ -750,8 +808,23 @@ export const openApiDocument = {
         type: "object",
         required: ["identity", "user"],
         properties: {
-          identity: { type: "object", required: ["type", "username"], properties: { type: { type: "string", const: "authenticated" }, username: { type: "string" } } },
+          identity: { type: "object", required: ["type", "userId", "username"], properties: { type: { type: "string", const: "authenticated" }, userId: { type: "string" }, username: { type: "string" } } },
           user: { $ref: "#/components/schemas/AuthUser" },
+        },
+      },
+      PersonalProfile: {
+        type: "object",
+        additionalProperties: false,
+        required: ["city", "displayName", "email", "provider", "systemRole", "theme", "timezone", "username"],
+        properties: {
+          city: { type: "string" },
+          displayName: { type: "string" },
+          email: { type: "string" },
+          provider: { type: "string", enum: ["local", "sso"] },
+          systemRole: { type: "string", enum: ["user", "super_administrator"] },
+          theme: { type: "string", enum: ["system", "light", "dark"] },
+          timezone: { type: "string" },
+          username: { type: "string" },
         },
       },
       HumanProjectMember: {
@@ -1119,8 +1192,8 @@ export const openApiDocument = {
       },
       InferenceGateway: {
         type: "object",
-        required: ["id", "name", "baseUrl", "adminUiUrl", "complianceDomain", "credentialSource", "status", "validationMessage", "createdAt", "updatedAt"],
-        properties: { id: { type: "string" }, name: { type: "string" }, baseUrl: { type: "string", format: "uri" }, adminUiUrl: { type: "string", format: "uri" }, complianceDomain: { type: "string", enum: ["CN_MAINLAND", "GLOBAL"] }, credentialSource: { type: "string", enum: ["ENVIRONMENT", "SECRET_REFERENCE"] }, status: { type: "string", enum: ["UNKNOWN", "READY", "DEGRADED"] }, validationMessage: { type: "string" }, validatedAt: { type: "string", format: "date-time" }, createdAt: { type: "string", format: "date-time" }, updatedAt: { type: "string", format: "date-time" } },
+        required: ["id", "name", "baseUrl", "adminUiUrl", "credentialSource", "status", "validationMessage", "createdAt", "updatedAt"],
+        properties: { id: { type: "string" }, name: { type: "string" }, baseUrl: { type: "string", format: "uri" }, adminUiUrl: { type: "string", format: "uri" }, credentialSource: { type: "string", enum: ["ENVIRONMENT", "SECRET_REFERENCE"] }, status: { type: "string", enum: ["UNKNOWN", "READY", "DEGRADED"] }, validationMessage: { type: "string" }, validatedAt: { type: "string", format: "date-time" }, createdAt: { type: "string", format: "date-time" }, updatedAt: { type: "string", format: "date-time" } },
       },
       CreateModelProfileInput: {
         type: "object",

@@ -27,6 +27,7 @@ import {
   type CsvColumn,
 } from "@/lib/csv";
 import { cn } from "@/lib/utils";
+import { formatPlatformDateTime } from "@/lib/platform-preferences";
 import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
 
 const auditColumns = [
@@ -46,13 +47,8 @@ const blockedDecisions = new Set<SandboxAuditEvent["decision"]>([
   "DENIED",
   "REJECTED",
 ]);
-const eventDateFormatter = new Intl.DateTimeFormat(undefined, {
-  dateStyle: "medium",
-  timeStyle: "medium",
-});
-
 function formatEventTime(timestamp: string): string {
-  return eventDateFormatter.format(new Date(timestamp));
+  return formatPlatformDateTime(timestamp, { timeStyle: "medium" });
 }
 
 function AuditEvent({ event }: { event: SandboxAuditEvent }) {

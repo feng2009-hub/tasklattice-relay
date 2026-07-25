@@ -19,9 +19,7 @@ interface TerminalConnection {
 }
 
 const connections = new Map<string, TerminalConnection>();
-const connectTimeoutMs = Number(
-  process.env.TALI_TERMINAL_CONNECT_TIMEOUT_MS ?? 15_000,
-);
+const connectTimeoutMs = 15_000;
 
 export default defineWebSocketHandler({
   async upgrade(request) {

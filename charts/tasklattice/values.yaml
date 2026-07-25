@@ -34,6 +34,7 @@ images:
 
 control:
   replicaCount: 1
+  publicUrl: http://localhost:8080
   service:
     type: LoadBalancer
     port: 80
@@ -70,11 +71,6 @@ litellm:
     type: ClusterIP
     port: 4000
     annotations: {}
-  adminUiUrl: ""
-  complianceDomain: GLOBAL
-  requestTimeout: "20000"
-  syncEnabled: "true"
-  syncIntervalMs: "300000"
   resources:
     requests:
       cpu: 100m
@@ -105,24 +101,21 @@ secrets:
   postgresPassword: tasklattice-local
   databaseUrl: ""
   jwtSecret: tasklattice-local-development-secret
-  localPassword: admin
+  initialSuperAdminPasswordHash: '$2b$12$Zx2mCLJZ0n/iY4Tq.Z3eXu0O.z5SHM.pKJyNNurKX/Z7CD5HHOg.e'
   litellmUiUsername: admin
   litellmUiPassword: tasklattice-local-admin
   litellmSaltKey: tasklattice-local-litellm-salt-v1
 
 auth:
-  mode: local
   local:
+    enabled: true
     username: admin
-    displayName: Local Administrator
-    email: ""
   oidc:
+    enabled: false
     issuer: ""
     clientId: ""
     clientSecret: ""
-    redirectUri: ""
-    providerName: Company SSO
-    scopes: openid profile email
+    displayName: Keycloak SSO
 
 serviceAccount:
   create: true

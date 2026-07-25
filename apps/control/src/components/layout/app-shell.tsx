@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import {
   Boxes,
@@ -41,6 +42,11 @@ import { Button } from "@/components/ui/button";
 import { useProject } from "@/hooks/use-project";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { applyPlatformPreferences, getPlatformTheme } from "@/lib/platform-preferences";
+import {
+  getPersonalProfile,
+  personalProfileQueryKey,
+} from "@/services/personal-profile";
 import { HeaderBreadcrumb } from "@/components/layout/header-breadcrumb";
 import { CreateProjectSheet } from "@/components/project/create-project-sheet";
 import { ProjectSwitcher } from "@/components/project/project-switcher";
@@ -184,12 +190,10 @@ function ProjectSidebar({ logout, pathname, user }: {
               setOpenMobile(false);
               setCreateProjectOpen(true);
             }}
-            onLogout={logout}
             onProjectSwitchSuccess={(projectName) => {
               setOpenMobile(false);
               setToastProject(projectName);
             }}
-            user={user}
           />
         </SidebarHeader>
         <SidebarContent>
@@ -270,6 +274,11 @@ function ProjectSidebar({ logout, pathname, user }: {
 
 export function AppShell() {
   const { logout, user } = useAuth();
+  const account = useQuery({
+    queryKey: personalProfileQueryKey,
+    queryFn: getPersonalProfile,
+    staleTime: 5 * 60_000,
+  });
   const {
     currentProject,
     error: projectError,
@@ -278,6 +287,24 @@ export function AppShell() {
   } = useProject();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  useEffect(() => {
+    if (account.data) {
+      applyPlatformPreferences(account.data);
+    }
+  }, [account.data]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const syncSystemTheme = () => {
+      if (getPlatformTheme() === "system") {
+        document.documentElement.classList.toggle("dark", media.matches);
+        document.documentElement.style.colorScheme = media.matches ? "dark" : "light";
+      }
+    };
+    media.addEventListener("change", syncSystemTheme);
+    return () => media.removeEventListener("change", syncSystemTheme);
+  }, []);
 
   useEffect(() => {
     setSidebarOpen(window.localStorage.getItem("tasklattice.sidebar.collapsed") !== "true");

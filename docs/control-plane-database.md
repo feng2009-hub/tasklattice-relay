@@ -28,13 +28,16 @@ creates the schema and tables. A following idempotent SQL migration inserts:
   sandbox policies.
 
 Helm runs migrations in the control Deployment init container before the
-application starts. Runtime code does not seed from TypeScript, YAML,
-ConfigMaps, or local files.
+application starts. On the first Local login, runtime initialization copies
+the configured initial Super Administrator bcrypt hash into
+`local_credentials` only when that database credential is missing.
 
 For local development:
 
 ```sh
-export TALI_DATABASE_URL='postgresql://postgres:postgres@localhost:5432/tasklattice'
+cp control.example.toml control.toml
+# Set database.url in control.toml for the local PostgreSQL instance.
+export TASKLATTICE_CONFIG="$PWD/control.toml"
 npm run db:migrate --workspace @tasklattice/control
 npm run dev --workspace @tasklattice/control
 ```

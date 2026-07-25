@@ -80,7 +80,7 @@ export class ProjectStore {
   private readonly db: PrismaClient;
 
   constructor(
-    projectId = process.env.TALI_BOOTSTRAP_PROJECT_ID ?? "individual",
+    projectId = "individual",
     db?: PrismaClient,
   ) {
     this.projectId = projectId;
@@ -530,7 +530,7 @@ export class ProjectStore {
     await this.costs.saveAttribution({
       id: `binding:${binding.id}`,
       projectId: this.projectId,
-      environmentId: process.env.TALI_ENVIRONMENT_ID ?? "production",
+      environmentId: "production",
       instanceId: binding.agentId,
       instanceName: agent?.name ?? binding.agentId,
       liteLLMVirtualKeyId: costKeyIdentifier(binding.liteLLMTokenId),

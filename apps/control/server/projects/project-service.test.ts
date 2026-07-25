@@ -3,12 +3,24 @@ import type { AuthPayload, AuthUser } from "../auth/auth";
 import { createTestPrisma } from "../test/prisma";
 import { ProjectService } from "./project-service";
 
-function auth(user: AuthUser): AuthPayload {
+function auth(
+  input: Omit<AuthUser, "id" | "systemRole"> &
+    Partial<Pick<AuthUser, "id" | "systemRole">>,
+): AuthPayload {
+  const user: AuthUser = {
+    ...input,
+    id:
+      input.id ??
+      (input.provider === "local" ? "local-admin" : `test-${input.username}`),
+    systemRole:
+      input.systemRole ??
+      (input.provider === "local" ? "super_administrator" : "user"),
+  };
   return {
     exp: Number.MAX_SAFE_INTEGER,
     iat: 0,
     iss: "tasklattice",
-    sub: user.username,
+    sub: user.id,
     user,
   };
 }
@@ -51,10 +63,13 @@ describe("ProjectService", () => {
       provider: "sso",
       username: "administrator",
     });
+    await service.syncAuthUser(administrator.user);
     await service.syncAuthUser({
       displayName: "Existing Member",
       email: "member@example.com",
+      id: "test-existing-member",
       provider: "sso",
+      systemRole: "user",
       username: "existing-member",
     });
 
@@ -128,6 +143,7 @@ describe("ProjectService", () => {
       provider: "sso",
       username: "administrator",
     });
+    await service.syncAuthUser(administrator.user);
 
     await expect(service.create(administrator, "Duplicate Team", [
       { email: "member@example.com", role: "member" },
@@ -147,6 +163,7 @@ describe("ProjectService", () => {
       provider: "sso",
       username: "alex",
     });
+    await service.syncAuthUser(alex.user);
 
     expect(await service.list(alex)).toEqual(
       expect.arrayContaining([
@@ -174,10 +191,13 @@ describe("ProjectService", () => {
       provider: "sso",
       username: "administrator",
     });
+    await service.syncAuthUser(administrator.user);
     const member = {
       displayName: "Member",
       email: "member@example.com",
+      id: "test-member",
       provider: "sso" as const,
+      systemRole: "user" as const,
       username: "member",
     };
     const administratorId = await service.ensureUser(administrator);
@@ -220,6 +240,7 @@ describe("ProjectService", () => {
       provider: "sso",
       username: "administrator",
     });
+    await service.syncAuthUser(administrator.user);
     const administratorId = await service.ensureUser(administrator);
     const team = await service.create(administrator, "SRE", []);
     await service.invite(
@@ -235,6 +256,7 @@ describe("ProjectService", () => {
       provider: "sso",
       username: "new-user",
     });
+    await service.syncAuthUser(invitedUser.user);
     expect(await service.list(invitedUser)).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: team.id, role: "admin" }),
     ]));
@@ -252,11 +274,48 @@ describe("ProjectService", () => {
       provider: "sso",
       username: "administrator",
     });
+    await service.syncAuthUser(administrator.user);
     const administratorId = await service.ensureUser(administrator);
     const team = await service.create(administrator, "Security", []);
 
     await expect(
       service.removeMember(team.id, administratorId, administratorId),
     ).rejects.toThrow(/at least one administrator/i);
+  });
+
+  it("does not let the system Super Administrator bypass Project membership", async () => {
+    const db = createTestPrisma();
+    const service = new ProjectService(db);
+    const owner = auth({
+      displayName: "Project Owner",
+      email: "owner@example.com",
+      provider: "sso",
+      username: "owner",
+    });
+    await service.syncAuthUser(owner.user);
+    const team = await service.create(owner, "Restricted Project", []);
+    const local = auth({
+      displayName: "Local Administrator",
+      email: "admin@tasklattice.local",
+      provider: "local",
+      username: "admin",
+    });
+
+    expect(
+      await db.projectMember.findUnique({
+        where: {
+          projectId_userId: {
+            projectId: team.id,
+            userId: "local-admin",
+          },
+        },
+      }),
+    ).toBeNull();
+    expect(await service.list(local)).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: team.id })]),
+    );
+    await expect(
+      service.rename(team.id, "local-admin", "Managed Globally"),
+    ).rejects.toThrow(/permission/i);
   });
 });

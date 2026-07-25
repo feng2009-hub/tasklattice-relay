@@ -6,6 +6,7 @@ import type {
   ProviderKind,
   ProviderModelSelection,
 } from "@tasklattice/contracts";
+import { getControlConfig } from "../config/control-config";
 
 interface LiteLLMVirtualKeyResponse {
   key: string;
@@ -170,9 +171,9 @@ export class LiteLLMClient implements LiteLLMAdminClient {
   readonly baseUrl: string;
 
   constructor(
-    baseUrl = process.env.LITELLM_BASE_URL ?? "http://127.0.0.1:4000",
-    private readonly masterKey = process.env.LITELLM_MASTER_KEY ?? "",
-    private readonly requestTimeoutMs = Number(process.env.LITELLM_REQUEST_TIMEOUT ?? "20000"),
+    baseUrl = getControlConfig().litellm.url,
+    private readonly masterKey = getControlConfig().litellm.master_key,
+    private readonly requestTimeoutMs = 20_000,
   ) {
     this.baseUrl = baseUrl.replace(/\/+$/, "");
   }

@@ -22,4 +22,13 @@ describe("getHeaderBreadcrumbItems", () => {
       { href: "/individual/requests/new", label: "Raise Request" },
     ]);
   });
+
+  it("distinguishes My Account from Project settings", () => {
+    expect(getHeaderBreadcrumbItems("/individual/profile")).toEqual([
+      { href: "/individual/profile", label: "My Account" },
+    ]);
+    expect(getHeaderBreadcrumbItems("/individual/setting")).toEqual([
+      { href: "/individual/setting", label: "Project Settings" },
+    ]);
+  });
 });

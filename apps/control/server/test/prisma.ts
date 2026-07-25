@@ -5,6 +5,9 @@ import migration from "../../prisma/migrations/20260723000000_initial_control_pl
 import seedMigration from "../../prisma/migrations/20260723001000_seed_control_plane/migration.sql?raw";
 import virtualEmployeeMigration from "../../prisma/migrations/20260724000000_virtual_employees/migration.sql?raw";
 import projectQuotaMigration from "../../prisma/migrations/20260725000000_project_quotas/migration.sql?raw";
+import personalProfileMigration from "../../prisma/migrations/20260725120000_personal_profile/migration.sql?raw";
+import accountPreferencesMigration from "../../prisma/migrations/20260725130000_account_preferences/migration.sql?raw";
+import userIdentitiesMigration from "../../prisma/migrations/20260725140000_user_identities/migration.sql?raw";
 import { PrismaClient } from "../generated/prisma/client";
 
 export function createTestPrisma(): PrismaClient {
@@ -23,6 +26,14 @@ export function createTestPrisma(): PrismaClient {
   memory.public.none(seedMigration);
   memory.public.none(virtualEmployeeMigration.replaceAll("DECIMAL(18,6)", "NUMERIC"));
   memory.public.none(projectQuotaMigration.replaceAll("DECIMAL(18,6)", "NUMERIC"));
+  memory.public.none(personalProfileMigration);
+  memory.public.none(accountPreferencesMigration);
+  memory.public.none(
+    userIdentitiesMigration.replace(
+      /CREATE INDEX user_identities_user_id_idx[\s\S]*?;/,
+      "",
+    ),
+  );
   const pg = memory.adapters.createPg();
   const query = pg.Client.prototype.query;
   pg.Client.prototype.query = function (

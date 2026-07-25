@@ -48,8 +48,13 @@ function scopedCommon(url: URL): CostAnalyticsQuery {
     environmentId: url.searchParams.get("environment_id") ?? undefined,
     filters: url.searchParams.get("filters") ?? undefined,
   });
-  const projectId = process.env.TALI_PROJECT_ID ?? "default";
-  const environmentId = process.env.TALI_ENVIRONMENT_ID ?? "production";
+  const projectMatch = url.pathname.match(
+    /^\/api\/v1\/projects\/([^/]+)(?:\/|$)/,
+  );
+  const projectId = projectMatch
+    ? decodeURIComponent(projectMatch[1]!)
+    : "default";
+  const environmentId = "production";
   if (input.projectId && input.projectId !== projectId) {
     throw new Error("Project access denied.");
   }

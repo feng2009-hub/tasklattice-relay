@@ -42,10 +42,11 @@ If the Agent Sandbox controller already exists cluster-wide, set
 pull Secret and add it to both `global.imagePullSecrets` and
 `openshell.server.sandboxImagePullSecrets`.
 
-When `secrets.existingSecret` is used it must contain `runner-token`,
-`litellm-master-key`, `postgres-password`, `database-url`, `jwt-secret`,
-`local-password`, `oidc-client-secret`, `litellm-ui-username`,
-`litellm-ui-password`, and `litellm-salt-key`. Set `runner.gatewayEndpoint`
+When `secrets.existingSecret` is used it must contain `control.toml`,
+`runner-token`, `litellm-master-key`, `postgres-password`, `database-url`,
+`litellm-ui-username`, `litellm-ui-password`, and `litellm-salt-key`.
+`control.toml` contains the Control Plane database, Local/OIDC authentication,
+Runner, and LiteLLM settings. Set `runner.gatewayEndpoint`
 when `openshell.enabled=false` and the gateway is managed outside this release.
 
 ## Shared database

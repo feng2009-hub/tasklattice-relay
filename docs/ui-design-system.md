@@ -95,7 +95,13 @@ States:
 - SSO callback: show a single-purpose completion state, then validate the
   returned TaskLattice session before entering the Project console.
 - Expired session: clear stored credentials and return to login.
-- Sign out: clear local credentials even if provider logout is unavailable.
+- Project switcher: switch Project context and expose Project settings to
+  administrators; it never owns session actions.
+- My Account: open from the account menu and contain user-owned details,
+  accessible Projects, account type, theme, local time zone, and local-account
+  password reset independently of the current Project.
+- Sign out: live only in the account menu and clear local credentials even if
+  provider logout is unavailable.
 
 Production requires an explicit signing secret and local password/hash. OIDC
 uses discovery, Authorization Code, PKCE, nonce, signed state storage, issuer,

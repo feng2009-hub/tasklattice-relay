@@ -18,21 +18,81 @@ enum ProjectRole {
   @@schema("tasklattice")
 }
 
+enum IdentityType {
+  local
+  oidc
+
+  @@map("identity_type")
+  @@schema("tasklattice")
+}
+
+enum SystemRole {
+  user
+  super_administrator
+
+  @@map("system_role")
+  @@schema("tasklattice")
+}
+
+enum UserStatus {
+  active
+  disabled
+
+  @@map("user_status")
+  @@schema("tasklattice")
+}
+
 model User {
-  id              String   @id
-  username        String   @unique
-  email           String   @unique
-  displayName     String   @map("display_name")
-  authProvider    String   @default("local") @map("auth_provider")
-  externalSubject String?  @map("external_subject")
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id          String     @id
+  username    String     @unique
+  email       String     @unique
+  displayName String     @map("display_name")
+  city        String?
+  timezone    String     @default("UTC")
+  theme       String     @default("system")
+  systemRole  SystemRole @default(user) @map("system_role")
+  status      UserStatus @default(active)
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   createdProjects Project[]           @relation("ProjectCreator")
+  identities      UserIdentity[]
   memberships     ProjectMember[]
   invitations     ProjectInvitation[] @relation("InvitationCreator")
 
   @@map("users")
+  @@schema("tasklattice")
+}
+
+model UserIdentity {
+  id        String       @id
+  userId    String       @map("user_id")
+  type      IdentityType
+  issuer    String
+  subject   String
+  username  String?
+  email     String?
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credential LocalCredential?
+
+  @@unique([issuer, subject])
+  @@unique([type, username])
+  @@index([userId])
+  @@map("user_identities")
+  @@schema("tasklattice")
+}
+
+model LocalCredential {
+  identityId   String   @id @map("identity_id")
+  passwordHash String   @map("password_hash")
+  changedAt    DateTime @default(now()) @map("changed_at") @db.Timestamptz(6)
+
+  identity UserIdentity @relation(fields: [identityId], references: [id], onDelete: Cascade)
+
+  @@map("local_credentials")
   @@schema("tasklattice")
 }
 

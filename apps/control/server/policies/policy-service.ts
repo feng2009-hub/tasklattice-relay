@@ -115,13 +115,12 @@ export interface PolicyCatalogSource {
 
 export class FilePolicyCatalogSource implements PolicyCatalogSource {
   constructor(
-    readonly path = process.env.TALI_BUILTIN_POLICIES_PATH ??
-      fileURLToPath(
-        new URL(
-          "../../../../charts/tasklattice/files/policy-catalog.yaml",
-          import.meta.url,
-        ),
+    readonly path = fileURLToPath(
+      new URL(
+        "../../../../charts/tasklattice/files/policy-catalog.yaml",
+        import.meta.url,
       ),
+    ),
   ) {}
 
   load(): SandboxPolicyCatalog {
@@ -176,7 +175,7 @@ export class PolicyService {
     if (!policies.length) {
       throw new Error("No Sandbox Policies are configured for this project.");
     }
-    const defaultPolicyId = process.env.TALI_DEFAULT_POLICY_ID ?? "unrestricted";
+    const defaultPolicyId = "unrestricted";
     const defaultPolicy = policies.find((policy) => policy.id === defaultPolicyId) ?? policies[0]!;
     return {
       defaultPolicyId: defaultPolicy.id,

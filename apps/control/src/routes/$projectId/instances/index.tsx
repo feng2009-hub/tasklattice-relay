@@ -21,6 +21,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { api } from "@/lib/api";
 import { getAgentPlatformPresentation } from "@/lib/agent-platforms";
 import { cn } from "@/lib/utils";
+import { formatPlatformDate } from "@/lib/platform-preferences";
 import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
 import { useCurrentProjectId } from "@/hooks/use-project";
 
@@ -41,7 +42,7 @@ function relativeTime(value: string): string {
   if (minutes < 60) return `${minutes} min ago`;
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours} hr ago`;
-  return new Date(value).toLocaleDateString();
+  return formatPlatformDate(value);
 }
 
 function CreationNotice({ onClose }: { onClose: () => void }) {

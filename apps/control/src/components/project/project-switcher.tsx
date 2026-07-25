@@ -5,11 +5,9 @@ import {
   ChevronDown,
   FolderKanban,
   LoaderCircle,
-  LogOut,
   Plus,
   Settings,
 } from "lucide-react";
-import type { AuthUser } from "@/components/auth/auth-provider";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,15 +23,11 @@ import { cn } from "@/lib/utils";
 export function ProjectSwitcher({
   collapsed = false,
   onCreateProject,
-  onLogout,
   onProjectSwitchSuccess,
-  user,
 }: {
   collapsed?: boolean;
   onCreateProject: () => void;
-  onLogout: () => void | Promise<void>;
   onProjectSwitchSuccess: (projectName: string) => void;
-  user: AuthUser | null;
 }) {
   const {
     availableProjects: projects,
@@ -164,24 +158,26 @@ export function ProjectSwitcher({
             New Project
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem asChild>
-            <Link
-              to="/$projectId/setting"
-              params={{ projectId: currentProject?.id ?? "individual" }}
-              onClick={() => setOpen(false)}
-            >
+          {permissions.canManageProject ? (
+            <DropdownMenuItem asChild>
+              <Link
+                to="/$projectId/setting"
+                params={{ projectId: currentProject?.id ?? "individual" }}
+                onClick={() => setOpen(false)}
+              >
+                <Settings className="size-4" />
+                Project settings
+              </Link>
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem disabled>
               <Settings className="size-4" />
-              Settings
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            className="text-destructive focus:bg-destructive/10 focus:text-destructive"
-            onSelect={() => void onLogout()}
-          >
-            <LogOut className="size-4" />
-            Sign out
-            <span className="sr-only">{user?.displayName || user?.username}</span>
-          </DropdownMenuItem>
+              <span className="flex min-w-0 flex-1 items-center justify-between gap-3">
+                Project settings
+                <span className="text-xs text-muted-foreground">Admins only</span>
+              </span>
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
     </DropdownMenu>
   );

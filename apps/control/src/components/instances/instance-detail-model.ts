@@ -1,4 +1,5 @@
 import type { Agent, AgentStatus, TerminalTarget } from "@tasklattice/contracts";
+import { formatPlatformDateTime } from "@/lib/platform-preferences";
 
 export const instanceDetailTabs = ["overview", "configuration", "capabilities", "terminal", "auditor-log"] as const;
 export type InstanceDetailTab = (typeof instanceDetailTabs)[number];
@@ -121,8 +122,7 @@ export function formatRelativeTime(value: string, now = Date.now()): string {
 }
 
 export function formatAbsoluteTime(value: string): string {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString();
+  return formatPlatformDateTime(value);
 }
 
 export function formatUptime(agent: Agent, now = Date.now()): string {

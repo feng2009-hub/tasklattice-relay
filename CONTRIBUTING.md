@@ -196,7 +196,10 @@ docker run --rm --name tasklattice-dev-postgres \
 Terminal 3:
 
 ```sh
-export TALI_DATABASE_URL=postgresql://postgres:tasklattice@127.0.0.1:5432/tasklattice
+cp control.example.toml control.toml
+# Set database.url to:
+# postgresql://postgres:tasklattice@127.0.0.1:5432/tasklattice
+export TASKLATTICE_CONFIG="$PWD/control.toml"
 npm run db:migrate --workspace @tasklattice/control
 PORT=18080 npm run dev:control
 ```

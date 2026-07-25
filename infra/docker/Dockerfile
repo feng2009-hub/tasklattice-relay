@@ -49,6 +49,7 @@ COPY package.json package-lock.json ./
 COPY apps/control/package.json apps/control/package.json
 COPY --from=build /app/apps/control/prisma ./apps/control/prisma
 COPY --from=build /app/apps/control/prisma.config.ts ./apps/control/prisma.config.ts
+COPY --from=build /app/apps/control/server/config ./apps/control/server/config
 COPY --from=build /app/apps/control/.output ./apps/control/.output
 USER 10001
 EXPOSE 8080

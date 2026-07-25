@@ -179,7 +179,6 @@ describe("Instance Virtual Employee binding lifecycle", () => {
       name: "LiteLLM",
       baseUrl: "http://litellm:4000",
       adminUiUrl: "http://litellm:4000",
-      complianceDomain: "GLOBAL",
       credentialSource: "ENVIRONMENT",
       status: "READY",
       validationMessage: "Ready",

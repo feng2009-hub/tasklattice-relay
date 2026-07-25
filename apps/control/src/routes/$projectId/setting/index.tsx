@@ -41,12 +41,35 @@ function ProjectSettingsPage() {
     refreshProjects,
     selectProject,
   } = useProject();
+  const permissions = useProjectPermissions(project?.role);
 
   if (!project) {
     return (
       <div className="grid min-h-72 place-items-center text-sm text-muted-foreground">
         Loading Project settings…
       </div>
+    );
+  }
+
+  if (!permissions.canManageProject) {
+    return (
+      <section
+        className="mx-auto max-w-xl rounded-lg border bg-background p-6"
+        aria-labelledby="project-settings-restricted"
+      >
+        <ShieldCheck className="size-8 text-muted-foreground" />
+        <h1
+          id="project-settings-restricted"
+          className="mt-4 font-heading text-2xl"
+        >
+          Project settings are restricted
+        </h1>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">
+          Only Project administrators can manage Project identity, members,
+          Model Profiles, and quota. Your personal details remain available
+          from Personal profile in the account menu.
+        </p>
+      </section>
     );
   }
 
