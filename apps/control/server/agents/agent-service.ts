@@ -6,7 +6,7 @@ import type {
   SandboxAuditEvent,
 } from "@tasklattice/contracts";
 import { ProjectStore } from "../projects/project-store";
-import { ExtensionCatalogService } from "../extensions/extension-catalog-service";
+import { ResourceCatalogService } from "../catalog/resource-catalog-service";
 import { NemoClawRunnerClient, type RunnerClient } from "../runtime/nemoclaw-runner-client";
 import { LiteLLMClient, type LiteLLMAdminClient } from "../providers/litellm-client";
 import { PolicyService } from "../policies/policy-service";
@@ -70,7 +70,7 @@ export class AgentService {
     readonly runner: RunnerClient = new NemoClawRunnerClient(),
     readonly litellm: LiteLLMAdminClient = new LiteLLMClient(),
     readonly policies = new PolicyService(store),
-    readonly extensions = new ExtensionCatalogService(store),
+    readonly catalog = new ResourceCatalogService(store),
     readonly modelProfiles = new ModelProfileService(store, litellm),
     readonly virtualEmployees = new VirtualEmployeeService(new VirtualEmployeeStore(store.projectId, store.database()), litellm),
     readonly quotas = new ProjectQuotaService(store, litellm),
@@ -94,7 +94,7 @@ export class AgentService {
 
   async create(input: CreateAgentInput): Promise<Agent> {
     await this.quotas.assertCanCreate("instances");
-    const catalog = await this.extensions.catalog();
+    const catalog = await this.catalog.catalog();
     if (input.specializationId && !catalog.specializations.some((item) => item.id === input.specializationId))
       throw new Error("Select an available Agent Role before creating an Instance.");
     const references: Array<[string, readonly string[] | undefined, Set<string>]> = [

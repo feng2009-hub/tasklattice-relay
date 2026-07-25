@@ -34,7 +34,7 @@ function knowledgeSourceInput(source: KnowledgeSourceDefinition): CreateKnowledg
 function KnowledgeBase() {
   const queryClient = useQueryClient();
   const scope = useProjectQueryScope();
-  const catalog = useQuery({ queryKey: scope.key("extension-catalog"), queryFn: api.getExtensionCatalog });
+  const catalog = useQuery({ queryKey: scope.key("resource-catalog"), queryFn: api.getResourceCatalog });
   const items = catalog.data?.knowledgeSources ?? [];
   const [selectedId, setSelectedId] = useState("");
   const [editing, setEditing] = useState(false);
@@ -54,22 +54,22 @@ function KnowledgeBase() {
       setSelectedId(source.id);
       setEditing(false);
       setNotice(variables.id ? "Knowledge source saved to PostgreSQL." : "Knowledge source added to PostgreSQL.");
-      await queryClient.invalidateQueries({ queryKey: scope.key("extension-catalog") });
+      await queryClient.invalidateQueries({ queryKey: scope.key("resource-catalog") });
     },
   });
   const checkSource = useMutation({
     mutationFn: (source: KnowledgeSourceDefinition) => api.updateKnowledgeSource(source.id, { ...knowledgeSourceInput(source), status: "READY" }),
     onSuccess: async (_source, input) => {
       setNotice(`Retrieval check for “${testQuery.trim()}” recorded in PostgreSQL with Top ${input.topK}. Remote retrieval remains simulated in development.`);
-      await queryClient.invalidateQueries({ queryKey: scope.key("extension-catalog") });
+      await queryClient.invalidateQueries({ queryKey: scope.key("resource-catalog") });
     },
   });
   const deleteSource = useMutation({
-    mutationFn: (id: string) => api.deleteExtension("knowledge-sources", id),
+    mutationFn: (id: string) => api.deleteResource("knowledge-sources", id),
     onSuccess: async () => {
       setSelectedId("");
       setNotice("Knowledge source removed from PostgreSQL.");
-      await queryClient.invalidateQueries({ queryKey: scope.key("extension-catalog") });
+      await queryClient.invalidateQueries({ queryKey: scope.key("resource-catalog") });
     },
   });
 

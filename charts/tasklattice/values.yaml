@@ -31,10 +31,16 @@ images:
     tag: 17-alpine
     pullPolicy: IfNotPresent
     useGlobalRegistry: false
+  keycloak:
+    repository: quay.io/keycloak/keycloak
+    tag: 26.7.0
+    pullPolicy: IfNotPresent
+    useGlobalRegistry: false
 
 control:
   replicaCount: 1
   publicUrl: http://localhost:8080
+  hostAliases: []
   service:
     type: LoadBalancer
     port: 80
@@ -102,6 +108,9 @@ secrets:
   databaseUrl: ""
   jwtSecret: tasklattice-local-development-secret
   initialSuperAdminPasswordHash: '$2b$12$Zx2mCLJZ0n/iY4Tq.Z3eXu0O.z5SHM.pKJyNNurKX/Z7CD5HHOg.e'
+  keycloakAdminPassword: admin
+  keycloakClientSecret: tasklattice-keycloak-test-client-secret
+  keycloakTestUserPassword: password
   litellmUiUsername: admin
   litellmUiPassword: tasklattice-local-admin
   litellmSaltKey: tasklattice-local-litellm-salt-v1
@@ -116,6 +125,91 @@ auth:
     clientId: ""
     clientSecret: ""
     displayName: Keycloak SSO
+
+# Test-only identity provider. Enable with:
+#   --set keycloak.enabled=true \
+#   --set keycloak.publicUrl=http://<reachable-keycloak-host>:8080
+# The embedded provider overrides auth.oidc while enabled. It uses ephemeral
+# storage and must not be used as a production identity provider.
+keycloak:
+  enabled: false
+  publicUrl: ""
+  adminUsername: admin
+  service:
+    type: LoadBalancer
+    port: 8080
+    loadBalancerIP: ""
+    annotations: {}
+  testUsers:
+    # Stable IDs keep OIDC subject mappings valid when the ephemeral test
+    # Keycloak Pod is recreated and imports the realm again.
+    - id: 247cf669-9e00-4948-bc83-39d4fd3626fc
+      username: alice
+      email: alice@tasklattice.test
+      firstName: Alice
+      lastName: Operator
+    - id: 3ff7cb62-d951-4ea0-b5ca-cb465594f5e9
+      username: bob
+      email: bob@tasklattice.test
+      firstName: Bob
+      lastName: Auditor
+    - id: b7ebdb4c-caa3-4177-9196-71652156da38
+      username: sso-1
+      email: sso-1@tasklattice.test
+      firstName: SSO
+      lastName: "1"
+    - id: 7cffa5b7-e1e5-4f78-bddb-85a2cd610f5b
+      username: sso-2
+      email: sso-2@tasklattice.test
+      firstName: SSO
+      lastName: "2"
+    - id: fa8f658d-c7ce-4f5c-8bd3-ff0c08e18c7c
+      username: sso-3
+      email: sso-3@tasklattice.test
+      firstName: SSO
+      lastName: "3"
+    - id: b3f4b61d-06f9-467e-8f77-dc6c2ef87b5f
+      username: sso-4
+      email: sso-4@tasklattice.test
+      firstName: SSO
+      lastName: "4"
+    - id: 2681c7d0-e0f3-46e3-817d-566ddc9f42b8
+      username: sso-5
+      email: sso-5@tasklattice.test
+      firstName: SSO
+      lastName: "5"
+    - id: 9702bd2a-f9e4-40f2-aa52-3d0f0bd69cdb
+      username: sso-6
+      email: sso-6@tasklattice.test
+      firstName: SSO
+      lastName: "6"
+    - id: dba7ab69-0b5d-4338-b303-c48c4fbeb333
+      username: sso-7
+      email: sso-7@tasklattice.test
+      firstName: SSO
+      lastName: "7"
+    - id: 3ce07a30-6124-4dbd-8277-d737b6221110
+      username: sso-8
+      email: sso-8@tasklattice.test
+      firstName: SSO
+      lastName: "8"
+    - id: a43c0d28-e4f3-4e59-ad88-d9e9edc80e1e
+      username: sso-9
+      email: sso-9@tasklattice.test
+      firstName: SSO
+      lastName: "9"
+    - id: 1d020297-1cf1-403e-99a1-a902bb1e54ea
+      username: sso-10
+      email: sso-10@tasklattice.test
+      firstName: SSO
+      lastName: "10"
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
 
 serviceAccount:
   create: true

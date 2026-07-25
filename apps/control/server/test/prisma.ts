@@ -8,6 +8,7 @@ import projectQuotaMigration from "../../prisma/migrations/20260725000000_projec
 import personalProfileMigration from "../../prisma/migrations/20260725120000_personal_profile/migration.sql?raw";
 import accountPreferencesMigration from "../../prisma/migrations/20260725130000_account_preferences/migration.sql?raw";
 import userIdentitiesMigration from "../../prisma/migrations/20260725140000_user_identities/migration.sql?raw";
+import resourceCatalogNamesMigration from "../../prisma/migrations/20260725150000_resource_catalog_names/migration.sql?raw";
 import { PrismaClient } from "../generated/prisma/client";
 
 export function createTestPrisma(): PrismaClient {
@@ -31,6 +32,12 @@ export function createTestPrisma(): PrismaClient {
   memory.public.none(
     userIdentitiesMigration.replace(
       /CREATE INDEX user_identities_user_id_idx[\s\S]*?;/,
+      "",
+    ),
+  );
+  memory.public.none(
+    resourceCatalogNamesMigration.replace(
+      /ALTER TABLE tasklattice\.(?:skills|mcp_servers|knowledge_sources)\s+RENAME CONSTRAINT[\s\S]*?;/g,
       "",
     ),
   );

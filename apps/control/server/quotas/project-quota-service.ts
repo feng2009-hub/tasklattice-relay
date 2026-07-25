@@ -30,8 +30,8 @@ export class ProjectQuotaService {
         _sum: { totalCostUsd: true, totalTokens: true },
       }),
       this.db.agentRecord.count({ where: { projectId: this.store.projectId } }),
-      this.db.extensionMcpServerRecord.count({ where: { projectId: this.store.projectId } }),
-      this.db.extensionKnowledgeSourceRecord.count({ where: { projectId: this.store.projectId } }),
+      this.db.mcpServerRecord.count({ where: { projectId: this.store.projectId } }),
+      this.db.knowledgeSourceRecord.count({ where: { projectId: this.store.projectId } }),
     ]);
     return {
       projectId: quota.projectId,
@@ -158,8 +158,8 @@ export class ProjectQuotaService {
     const [limit, count, label] = resource === "instances"
       ? [quota.maxInstances, await this.db.agentRecord.count({ where: { projectId: this.store.projectId } }), "Instance"]
       : resource === "mcp"
-        ? [quota.maxMcpIntegrations, await this.db.extensionMcpServerRecord.count({ where: { projectId: this.store.projectId } }), "MCP integration"]
-        : [quota.maxKnowledgeBaseIntegrations, await this.db.extensionKnowledgeSourceRecord.count({ where: { projectId: this.store.projectId } }), "Knowledge Base integration"];
+        ? [quota.maxMcpIntegrations, await this.db.mcpServerRecord.count({ where: { projectId: this.store.projectId } }), "MCP integration"]
+        : [quota.maxKnowledgeBaseIntegrations, await this.db.knowledgeSourceRecord.count({ where: { projectId: this.store.projectId } }), "Knowledge Base integration"];
     if (limit !== null && count >= limit) {
       throw new Error(`${label} quota exceeded (${count}/${limit}). Increase the Project quota before adding another.`);
     }

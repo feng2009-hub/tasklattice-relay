@@ -3,7 +3,6 @@ import { useProject } from "@/hooks/use-project";
 import { cn } from "@/lib/utils";
 
 const routeLabels: Record<string, string> = {
-  Extensions: "Extensions",
   "access-policies": "Access Policies",
   agent: "Agent",
   agents: "Instances",

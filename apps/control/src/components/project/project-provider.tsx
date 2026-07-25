@@ -84,15 +84,6 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         const projects = loaded;
         const urlProjectId = projectIdFromUrl();
         const storedProjectId = getStoredProjectId();
-        if (
-          urlProjectId &&
-          !projects.some((project) => project.id === urlProjectId)
-        ) {
-          setAvailableProjects(projects);
-          setCurrentProject(null);
-          setError("Project not found or access denied.");
-          return;
-        }
         const selected = selectInitialProject(
           projects,
           urlProjectId,

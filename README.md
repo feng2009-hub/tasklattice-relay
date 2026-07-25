@@ -125,6 +125,8 @@ The checked-in Chart defaults are suitable only for a trusted cluster: local
 login is `admin / admin`, and OpenShell permits unauthenticated plaintext
 gateway clients. Before shared or internet-facing use, override every
 `secrets.*` value and configure authenticated ingress plus OpenShell TLS/OIDC.
+For an end-to-end SSO test environment, enable the Chart's ephemeral,
+preconfigured Keycloak with `keycloak.enabled=true`.
 See the [Chart documentation](charts/tasklattice/README.md) for existing
 Secrets, image pull Secrets, and external runtime settings.
 

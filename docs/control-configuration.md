@@ -69,3 +69,9 @@ capabilities; it never grants implicit access to Project business operations.
 The configuration file contains credentials and must be treated as a secret.
 Do not commit a deployed `control.toml`; `control.example.toml` is the tracked
 template.
+
+For complete SSO integration tests, the Helm Chart can generate this OIDC
+section and deploy a preconfigured ephemeral Keycloak instance. Enable it with
+`keycloak.enabled=true` and set `keycloak.publicUrl` to an address reachable
+from both users' browsers and the Control pod. See the Chart README for test
+users and deployment examples.

@@ -33,7 +33,7 @@ function mcpInput(server: McpServerDefinition): CreateMcpServerDefinitionInput {
 function McpServers() {
   const queryClient = useQueryClient();
   const scope = useProjectQueryScope();
-  const catalog = useQuery({ queryKey: scope.key("extension-catalog"), queryFn: api.getExtensionCatalog });
+  const catalog = useQuery({ queryKey: scope.key("resource-catalog"), queryFn: api.getResourceCatalog });
   const items = catalog.data?.mcpServers ?? [];
   const [selectedId, setSelectedId] = useState("");
   const [editing, setEditing] = useState(false);
@@ -54,22 +54,22 @@ function McpServers() {
       setEditing(false);
       setFormError("");
       setNotice(variables.id ? "MCP configuration saved to PostgreSQL. Run a connection check next." : "MCP server registered in PostgreSQL.");
-      await queryClient.invalidateQueries({ queryKey: scope.key("extension-catalog") });
+      await queryClient.invalidateQueries({ queryKey: scope.key("resource-catalog") });
     },
   });
   const checkServer = useMutation({
     mutationFn: (server: McpServerDefinition) => api.updateMcpServer(server.id, { ...mcpInput(server), status: "HEALTHY", tools: server.tools || 12 }),
     onSuccess: async () => {
       setNotice("Connection check result saved to PostgreSQL. Tool discovery remains simulated in development.");
-      await queryClient.invalidateQueries({ queryKey: scope.key("extension-catalog") });
+      await queryClient.invalidateQueries({ queryKey: scope.key("resource-catalog") });
     },
   });
   const deleteServer = useMutation({
-    mutationFn: (id: string) => api.deleteExtension("mcp-servers", id),
+    mutationFn: (id: string) => api.deleteResource("mcp-servers", id),
     onSuccess: async () => {
       setSelectedId("");
       setNotice("MCP server removed from PostgreSQL.");
-      await queryClient.invalidateQueries({ queryKey: scope.key("extension-catalog") });
+      await queryClient.invalidateQueries({ queryKey: scope.key("resource-catalog") });
     },
   });
 

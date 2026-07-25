@@ -58,15 +58,15 @@ const scopeId = {
   schema: { type: "string", format: "uuid" },
 } as const;
 
-const extensionKind = {
+const resourceKind = {
   name: "kind",
   in: "path",
   required: true,
   schema: { type: "string", enum: ["skills", "mcp-servers", "knowledge-sources"] },
 } as const;
 
-const extensionId = {
-  name: "extensionId",
+const resourceId = {
+  name: "resourceId",
   in: "path",
   required: true,
   schema: { type: "string" },
@@ -262,20 +262,20 @@ export const openApiDocument = {
         },
       },
     },
-    "/projects/{projectId}/extensions": {
+    "/projects/{projectId}/catalog": {
       parameters: [projectIdParameter],
       get: {
-        operationId: "getExtensionCatalog",
-        summary: "Read the PostgreSQL-backed extension and Agent Role catalog",
+        operationId: "getResourceCatalog",
+        summary: "Read the PostgreSQL-backed resource and Agent Role catalog",
         responses: {
-          "200": { description: "Extension catalog", ...json({ $ref: "#/components/schemas/ExtensionCatalog" }) },
+          "200": { description: "Resource catalog", ...json({ $ref: "#/components/schemas/ResourceCatalog" }) },
         },
       },
     },
-    "/projects/{projectId}/extensions/{kind}": {
-      parameters: [projectIdParameter, extensionKind],
+    "/projects/{projectId}/catalog/{kind}": {
+      parameters: [projectIdParameter, resourceKind],
       post: {
-        operationId: "createExtension",
+        operationId: "createResource",
         summary: "Create a Skill, MCP server, or Knowledge source",
         requestBody: { required: true, ...json({ oneOf: [
           { $ref: "#/components/schemas/SkillDefinitionInput" },
@@ -283,27 +283,27 @@ export const openApiDocument = {
           { $ref: "#/components/schemas/KnowledgeSourceDefinitionInput" },
         ] }) },
         responses: {
-          "201": { description: "Created extension", ...json({ type: "object" }) },
+          "201": { description: "Created resource", ...json({ type: "object" }) },
           "400": { $ref: "#/components/responses/Error" },
         },
       },
     },
-    "/projects/{projectId}/extensions/{kind}/{extensionId}": {
-      parameters: [projectIdParameter, extensionKind, extensionId],
+    "/projects/{projectId}/catalog/{kind}/{resourceId}": {
+      parameters: [projectIdParameter, resourceKind, resourceId],
       put: {
-        operationId: "updateExtension",
-        summary: "Update a persisted extension definition",
+        operationId: "updateResource",
+        summary: "Update a persisted resource definition",
         requestBody: { required: true, ...json({ type: "object" }) },
         responses: {
-          "200": { description: "Updated extension", ...json({ type: "object" }) },
+          "200": { description: "Updated resource", ...json({ type: "object" }) },
           "400": { $ref: "#/components/responses/Error" },
         },
       },
       delete: {
-        operationId: "deleteExtension",
-        summary: "Delete an extension that is not assigned to a Role or Instance",
+        operationId: "deleteResource",
+        summary: "Delete a resource that is not assigned to a Role or Instance",
         responses: {
-          "200": { description: "Extension deleted", ...json({ type: "object", required: ["message"], properties: { message: { type: "string" } } }) },
+          "200": { description: "Resource deleted", ...json({ type: "object", required: ["message"], properties: { message: { type: "string" } } }) },
           "404": { $ref: "#/components/responses/Error" },
         },
       },
@@ -946,7 +946,7 @@ export const openApiDocument = {
           defaultSkillIds: { type: "array", items: { type: "string" } }, defaultMcpServerIds: { type: "array", items: { type: "string" } }, defaultKnowledgeSourceIds: { type: "array", items: { type: "string" } },
         },
       },
-      ExtensionCatalog: {
+      ResourceCatalog: {
         type: "object",
         required: ["skills", "mcpServers", "knowledgeSources", "specializations"],
         properties: {

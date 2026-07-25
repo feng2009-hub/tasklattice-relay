@@ -91,10 +91,9 @@ export class ProjectService {
       create: { projectId, userId: id, role: "admin" },
       update: { role: "admin" },
     });
-    await this.db.projectQuotaRecord.upsert({
-      where: { projectId },
-      create: { projectId },
-      update: {},
+    await this.db.projectQuotaRecord.createMany({
+      data: [{ projectId }],
+      skipDuplicates: true,
     });
     const invitations = await this.db.projectInvitation.findMany({
       where: { email, status: "pending" },
@@ -123,7 +122,7 @@ export class ProjectService {
       await this.syncProjectTeam(invitation.projectId);
     }
     if (projectId !== "individual") {
-      const seeded = await this.db.extensionSkillRecord.count({ where: { projectId } });
+      const seeded = await this.db.skillRecord.count({ where: { projectId } });
       if (!seeded) await this.seedProject(projectId);
     }
     return id;
@@ -252,41 +251,39 @@ export class ProjectService {
   private async seedProject(projectId: string): Promise<void> {
     const sourceProjectId = "individual";
     const delegates = [
-      this.db.extensionSkillRecord,
-      this.db.extensionMcpServerRecord,
-      this.db.extensionKnowledgeSourceRecord,
+      this.db.skillRecord,
+      this.db.mcpServerRecord,
+      this.db.knowledgeSourceRecord,
       this.db.agentSpecializationRecord,
     ] as const;
     for (const delegate of delegates) {
       const records = await (delegate.findMany as Function)({
         where: { projectId: sourceProjectId },
       }) as Array<{ id: string; payload: unknown; sortOrder: number }>;
-      for (const record of records) {
-        await (delegate.upsert as Function)({
-          where: { projectId_id: { projectId, id: record.id } },
-          create: {
+      if (records.length) {
+        await (delegate.createMany as Function)({
+          data: records.map((record) => ({
             projectId,
             id: record.id,
             payload: record.payload,
             sortOrder: record.sortOrder,
-          },
-          update: {},
+          })),
+          skipDuplicates: true,
         });
       }
     }
     const policies = await this.db.sandboxPolicyRecord.findMany({
       where: { projectId: sourceProjectId },
     });
-    for (const policy of policies) {
-      await this.db.sandboxPolicyRecord.upsert({
-        where: { projectId_id: { projectId, id: policy.id } },
-        create: {
+    if (policies.length) {
+      await this.db.sandboxPolicyRecord.createMany({
+        data: policies.map((policy) => ({
           projectId,
           id: policy.id,
           payload: JSON.parse(JSON.stringify(policy.payload)),
           createdAt: policy.createdAt,
-        },
-        update: {},
+        })),
+        skipDuplicates: true,
       });
     }
   }

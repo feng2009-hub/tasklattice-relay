@@ -8,7 +8,7 @@ describe("permissionsForRole", () => {
       canCreateProject: true,
       canDeleteProject: true,
       canInviteMembers: true,
-      canManageExtensions: true,
+      canManageResources: true,
       canManageProject: true,
       canViewResources: true,
     });
@@ -20,7 +20,7 @@ describe("permissionsForRole", () => {
       canCreateProject: false,
       canDeleteProject: false,
       canInviteMembers: false,
-      canManageExtensions: false,
+      canManageResources: false,
       canManageProject: false,
       canViewResources: true,
     });

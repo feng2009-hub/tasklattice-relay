@@ -37,7 +37,7 @@ export interface ProjectPermissions {
   canCreateProject: boolean;
   canDeleteProject: boolean;
   canInviteMembers: boolean;
-  canManageExtensions: boolean;
+  canManageResources: boolean;
   canManageProject: boolean;
   canViewResources: boolean;
 }

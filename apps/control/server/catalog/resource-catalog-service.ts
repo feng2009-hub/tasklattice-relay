@@ -3,8 +3,8 @@ import type {
   CreateKnowledgeSourceDefinitionInput,
   CreateMcpServerDefinitionInput,
   CreateSkillDefinitionInput,
-  ExtensionCatalog,
-  ExtensionResourceKind,
+  ResourceCatalog,
+  ResourceKind,
   KnowledgeSourceDefinition,
   McpServerDefinition,
   SkillDefinition,
@@ -21,7 +21,7 @@ function resourceId(name: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "")
     .slice(0, 80)
-    .replace(/-$/, "") || "extension";
+    .replace(/-$/, "") || "resource";
   return `${slug}-${randomUUID().slice(0, 8)}`;
 }
 
@@ -36,13 +36,13 @@ function assertJsonObject(input: string): void {
     throw new Error("MCP parameters must be a JSON object.");
 }
 
-export class ExtensionCatalogService {
+export class ResourceCatalogService {
   constructor(
     readonly store = new ProjectStore(),
     readonly quotas = new ProjectQuotaService(store),
   ) {}
 
-  async catalog(): Promise<ExtensionCatalog> {
+  async catalog(): Promise<ResourceCatalog> {
     return {
       skills: await this.store.listSkillDefinitions(),
       mcpServers: await this.store.listMcpServerDefinitions(),
@@ -85,9 +85,9 @@ export class ExtensionCatalogService {
     return this.store.saveKnowledgeSourceDefinition({ ...current, ...input, id });
   }
 
-  async delete(kind: ExtensionResourceKind, id: string): Promise<boolean> {
-    if (await this.store.isExtensionResourceInUse(kind, id))
-      throw new Error("This extension is assigned to a Role or Instance and cannot be deleted.");
+  async delete(kind: ResourceKind, id: string): Promise<boolean> {
+    if (await this.store.isResourceInUse(kind, id))
+      throw new Error("This resource is assigned to a Role or Instance and cannot be deleted.");
     if (kind === "skills") return this.store.deleteSkillDefinition(id);
     if (kind === "mcp-servers") return this.store.deleteMcpServerDefinition(id);
     return this.store.deleteKnowledgeSourceDefinition(id);

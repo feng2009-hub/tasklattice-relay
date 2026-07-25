@@ -20,7 +20,7 @@ export function InstanceConfigurationTab({ agent, platform }: { agent: Agent; pl
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(agent.virtualEmployeeId);
   const scope = useProjectQueryScope();
   const queryClient = useQueryClient();
-  const catalog = useQuery({ queryKey: scope.key("extension-catalog"), queryFn: api.getExtensionCatalog });
+  const catalog = useQuery({ queryKey: scope.key("resource-catalog"), queryFn: api.getResourceCatalog });
   const employees = useQuery({ queryKey: scope.key("virtual-employees"), queryFn: api.listVirtualEmployees });
   const currentEmployee = employees.data?.find((item) => item.id === agent.virtualEmployeeId);
   const switchEmployee = useMutation({

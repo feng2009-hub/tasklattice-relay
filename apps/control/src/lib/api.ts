@@ -18,8 +18,8 @@ import type {
   CreateProviderConnectionInput,
   CreateSandboxPolicyInput,
   CreateSkillDefinitionInput,
-  ExtensionCatalog,
-  ExtensionResourceKind,
+  ResourceCatalog,
+  ResourceKind,
   KnowledgeSourceDefinition,
   InferenceGateway,
   ModelProfile,
@@ -160,39 +160,39 @@ export const api = {
     (await request<{ data: ModelProfileConsumer[] }>(`/api/v1/model-profiles/${encodeURIComponent(id)}/consumers`)).data,
   listModelProfileAudit: async (id: string) =>
     (await request<{ data: ModelProfileAuditEvent[] }>(`/api/v1/model-profiles/${encodeURIComponent(id)}/audit`)).data,
-  getExtensionCatalog: () => request<ExtensionCatalog>("/api/v1/extensions"),
+  getResourceCatalog: () => request<ResourceCatalog>("/api/v1/catalog"),
   createSkill: (input: CreateSkillDefinitionInput) =>
-    request<SkillDefinition>("/api/v1/extensions/skills", {
+    request<SkillDefinition>("/api/v1/catalog/skills", {
       method: "POST",
       body: JSON.stringify(input),
     }),
   updateSkill: (id: string, input: UpdateSkillDefinitionInput) =>
-    request<SkillDefinition>(`/api/v1/extensions/skills/${encodeURIComponent(id)}`, {
+    request<SkillDefinition>(`/api/v1/catalog/skills/${encodeURIComponent(id)}`, {
       method: "PUT",
       body: JSON.stringify(input),
     }),
   createMcpServer: (input: CreateMcpServerDefinitionInput) =>
-    request<McpServerDefinition>("/api/v1/extensions/mcp-servers", {
+    request<McpServerDefinition>("/api/v1/catalog/mcp-servers", {
       method: "POST",
       body: JSON.stringify(input),
     }),
   updateMcpServer: (id: string, input: UpdateMcpServerDefinitionInput) =>
-    request<McpServerDefinition>(`/api/v1/extensions/mcp-servers/${encodeURIComponent(id)}`, {
+    request<McpServerDefinition>(`/api/v1/catalog/mcp-servers/${encodeURIComponent(id)}`, {
       method: "PUT",
       body: JSON.stringify(input),
     }),
   createKnowledgeSource: (input: CreateKnowledgeSourceDefinitionInput) =>
-    request<KnowledgeSourceDefinition>("/api/v1/extensions/knowledge-sources", {
+    request<KnowledgeSourceDefinition>("/api/v1/catalog/knowledge-sources", {
       method: "POST",
       body: JSON.stringify(input),
     }),
   updateKnowledgeSource: (id: string, input: UpdateKnowledgeSourceDefinitionInput) =>
-    request<KnowledgeSourceDefinition>(`/api/v1/extensions/knowledge-sources/${encodeURIComponent(id)}`, {
+    request<KnowledgeSourceDefinition>(`/api/v1/catalog/knowledge-sources/${encodeURIComponent(id)}`, {
       method: "PUT",
       body: JSON.stringify(input),
     }),
-  deleteExtension: (kind: ExtensionResourceKind, id: string) =>
-    request<{ message: string }>(`/api/v1/extensions/${kind}/${encodeURIComponent(id)}`, {
+  deleteResource: (kind: ResourceKind, id: string) =>
+    request<{ message: string }>(`/api/v1/catalog/${kind}/${encodeURIComponent(id)}`, {
       method: "DELETE",
     }),
   listProviderAccounts: async () =>

@@ -500,7 +500,7 @@ export const agentSpecializationDefinitionSchema = z.object({
   defaultKnowledgeSourceIds: z.array(z.string().trim().min(1).max(160)).max(64),
 });
 
-export const extensionResourceKindSchema = z.enum([
+export const resourceKindSchema = z.enum([
   "skills",
   "mcp-servers",
   "knowledge-sources",
@@ -680,7 +680,7 @@ export type KnowledgeSourceDefinition = z.infer<typeof knowledgeSourceDefinition
 export type CreateKnowledgeSourceDefinitionInput = z.infer<typeof createKnowledgeSourceDefinitionSchema>;
 export type UpdateKnowledgeSourceDefinitionInput = z.infer<typeof updateKnowledgeSourceDefinitionSchema>;
 export type AgentSpecializationDefinition = z.infer<typeof agentSpecializationDefinitionSchema>;
-export type ExtensionResourceKind = z.infer<typeof extensionResourceKindSchema>;
+export type ResourceKind = z.infer<typeof resourceKindSchema>;
 export type ProviderConnectionDraft = z.infer<typeof providerConnectionDraftSchema>;
 export type DiscoverProviderModelsInput = z.infer<typeof discoverProviderModelsSchema>;
 export type ProviderModelSelection = z.infer<typeof providerModelSelectionSchema>;
@@ -785,7 +785,7 @@ export interface ModelProfileAuditEvent {
   reason: string;
 }
 
-export interface ExtensionCatalog {
+export interface ResourceCatalog {
   skills: SkillDefinition[];
   mcpServers: McpServerDefinition[];
   knowledgeSources: KnowledgeSourceDefinition[];

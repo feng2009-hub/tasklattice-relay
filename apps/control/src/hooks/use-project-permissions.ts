@@ -11,7 +11,7 @@ export function permissionsForRole(role: ProjectRole): ProjectPermissions {
     canCreateProject: isManager,
     canDeleteProject: role === "admin",
     canInviteMembers: isManager,
-    canManageExtensions: isManager,
+    canManageResources: isManager,
     canManageProject: isManager,
     canViewResources: true,
   };

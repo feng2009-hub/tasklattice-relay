@@ -1,10 +1,10 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { developmentExtensionCatalog } from "../server/extensions/development-extension-catalog";
+import { developmentResourceCatalog } from "../server/catalog/development-resource-catalog";
 import { FilePolicyCatalogSource } from "../server/policies/policy-service";
 
 const target = fileURLToPath(new URL(
-  "./migrations/20260723001000_seed_control_plane/migration.sql",
+  "./migrations/20260725151000_seed_resource_catalog/migration.sql",
   import.meta.url,
 ));
 
@@ -28,10 +28,10 @@ const statements: string[] = [
 ];
 
 const groups = [
-  ["extension_skills", developmentExtensionCatalog.skills],
-  ["extension_mcp_servers", developmentExtensionCatalog.mcpServers],
-  ["extension_knowledge_sources", developmentExtensionCatalog.knowledgeSources],
-  ["agent_specializations", developmentExtensionCatalog.specializations],
+  ["skills", developmentResourceCatalog.skills],
+  ["mcp_servers", developmentResourceCatalog.mcpServers],
+  ["knowledge_sources", developmentResourceCatalog.knowledgeSources],
+  ["agent_specializations", developmentResourceCatalog.specializations],
 ] as const;
 
 for (const [table, records] of groups) {
@@ -52,7 +52,7 @@ for (const policy of new FilePolicyCatalogSource().load().policies) {
   );
 }
 
-mkdirSync(fileURLToPath(new URL("./migrations/20260723001000_seed_control_plane", import.meta.url)), {
+mkdirSync(fileURLToPath(new URL("./migrations/20260725151000_seed_resource_catalog", import.meta.url)), {
   recursive: true,
 });
 writeFileSync(target, `${statements.join("\n\n")}\n`);

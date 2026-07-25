@@ -41,7 +41,7 @@ function skillInput(skill: SkillDefinition): CreateSkillDefinitionInput {
 function SkillCatalog() {
   const queryClient = useQueryClient();
   const scope = useProjectQueryScope();
-  const catalog = useQuery({ queryKey: scope.key("extension-catalog"), queryFn: api.getExtensionCatalog });
+  const catalog = useQuery({ queryKey: scope.key("resource-catalog"), queryFn: api.getResourceCatalog });
   const items = catalog.data?.skills ?? [];
   const [selectedId, setSelectedId] = useState("");
   const [query, setQuery] = useState("");
@@ -76,7 +76,7 @@ function SkillCatalog() {
       setFormOpen(false);
       setFormError("");
       setNotice(variables.id ? "Skill metadata saved to PostgreSQL." : "Skill registered in the PostgreSQL catalog.");
-      await queryClient.invalidateQueries({ queryKey: scope.key("extension-catalog") });
+      await queryClient.invalidateQueries({ queryKey: scope.key("resource-catalog") });
     },
   });
   const verifySkill = useMutation({
@@ -87,15 +87,15 @@ function SkillCatalog() {
     }),
     onSuccess: async () => {
       setNotice("Source check recorded in PostgreSQL. Remote fetching remains simulated in development.");
-      await queryClient.invalidateQueries({ queryKey: scope.key("extension-catalog") });
+      await queryClient.invalidateQueries({ queryKey: scope.key("resource-catalog") });
     },
   });
   const deleteSkill = useMutation({
-    mutationFn: (id: string) => api.deleteExtension("skills", id),
+    mutationFn: (id: string) => api.deleteResource("skills", id),
     onSuccess: async () => {
       setSelectedId("");
       setNotice("Skill removed from the PostgreSQL catalog.");
-      await queryClient.invalidateQueries({ queryKey: scope.key("extension-catalog") });
+      await queryClient.invalidateQueries({ queryKey: scope.key("resource-catalog") });
     },
   });
 

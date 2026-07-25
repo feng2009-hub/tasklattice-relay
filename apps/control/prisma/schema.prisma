@@ -116,9 +116,9 @@ model Project {
   modelProfileBindings            ModelProfileBindingRecord[]
   modelProfileAudit               ModelProfileAuditRecord[]
   sandboxPolicies                 SandboxPolicyRecord[]
-  skills                          ExtensionSkillRecord[]
-  mcpServers                      ExtensionMcpServerRecord[]
-  knowledgeSources                ExtensionKnowledgeSourceRecord[]
+  skills                          SkillRecord[]
+  mcpServers                      McpServerRecord[]
+  knowledgeSources                KnowledgeSourceRecord[]
   specializations                 AgentSpecializationRecord[]
   costAttributions                CostAttributionMappingRecord[]
   modelEndpointMaps               ModelEndpointMappingRecord[]
@@ -450,7 +450,7 @@ model SandboxPolicyRecord {
   @@schema("tasklattice")
 }
 
-model ExtensionSkillRecord {
+model SkillRecord {
   projectId String   @map("project_id")
   id        String
   payload   Json
@@ -460,11 +460,11 @@ model ExtensionSkillRecord {
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@id([projectId, id])
-  @@map("extension_skills")
+  @@map("skills")
   @@schema("tasklattice")
 }
 
-model ExtensionMcpServerRecord {
+model McpServerRecord {
   projectId String   @map("project_id")
   id        String
   payload   Json
@@ -474,11 +474,11 @@ model ExtensionMcpServerRecord {
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@id([projectId, id])
-  @@map("extension_mcp_servers")
+  @@map("mcp_servers")
   @@schema("tasklattice")
 }
 
-model ExtensionKnowledgeSourceRecord {
+model KnowledgeSourceRecord {
   projectId String   @map("project_id")
   id        String
   payload   Json
@@ -488,7 +488,7 @@ model ExtensionKnowledgeSourceRecord {
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@id([projectId, id])
-  @@map("extension_knowledge_sources")
+  @@map("knowledge_sources")
   @@schema("tasklattice")
 }
 

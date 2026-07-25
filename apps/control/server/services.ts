@@ -1,5 +1,5 @@
 import { AgentService } from "./agents/agent-service";
-import { ExtensionCatalogService } from "./extensions/extension-catalog-service";
+import { ResourceCatalogService } from "./catalog/resource-catalog-service";
 import { ModelProfileService } from "./model-profiles/model-profile-service";
 import { PolicyService } from "./policies/policy-service";
 import { ProjectStore } from "./projects/project-store";
@@ -14,7 +14,7 @@ import { ProjectQuotaService } from "./quotas/project-quota-service";
 interface ProjectServices {
   agent: AgentService;
   cost: CostService;
-  extensions: ExtensionCatalogService;
+  catalog: ResourceCatalogService;
   modelProfiles: ModelProfileService;
   policies: PolicyService;
   provider: ProviderService;
@@ -32,15 +32,15 @@ function createServices(projectId: string): ProjectServices {
   const policies = new PolicyService(store);
   const modelProfiles = new ModelProfileService(store, litellm);
   const quotas = new ProjectQuotaService(store, litellm);
-  const extensions = new ExtensionCatalogService(store, quotas);
+  const catalog = new ResourceCatalogService(store, quotas);
   const virtualEmployees = new VirtualEmployeeService(new VirtualEmployeeStore(projectId), litellm);
   scheduleVirtualEmployeeReconciliation(projectId, virtualEmployees);
   return {
-    agent: new AgentService(store, undefined, litellm, policies, extensions, modelProfiles, virtualEmployees, quotas),
+    agent: new AgentService(store, undefined, litellm, policies, catalog, modelProfiles, virtualEmployees, quotas),
     provider: new ProviderService(store, litellm),
     cost: new CostService(store, litellm),
     policies,
-    extensions,
+    catalog,
     modelProfiles,
     virtualEmployees,
     quotas,
@@ -100,8 +100,8 @@ export async function getPolicyService(request?: Request): Promise<PolicyService
   return (await forRequest(request)).policies;
 }
 
-export async function getExtensionCatalogService(request?: Request): Promise<ExtensionCatalogService> {
-  return (await forRequest(request)).extensions;
+export async function getResourceCatalogService(request?: Request): Promise<ResourceCatalogService> {
+  return (await forRequest(request)).catalog;
 }
 
 export async function getModelProfileService(request?: Request): Promise<ModelProfileService> {

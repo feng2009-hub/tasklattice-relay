@@ -2,6 +2,10 @@
 set -euo pipefail
 
 action="${1:-deploy}"
+if (( $# > 0 )); then
+  shift
+fi
+enable_keycloak=false
 release_name="${HELM_RELEASE_NAME:-tasklattice}"
 namespace="${HELM_NAMESPACE:-tasklattice-sandboxes}"
 helm_timeout="${HELM_TIMEOUT:-15m}"
@@ -12,12 +16,26 @@ repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 case "$action" in
   deploy | delete) ;;
   *)
-    echo "usage: $0 [deploy|delete]" >&2
+    echo "usage: $0 [deploy|delete] [--keycloak]" >&2
     exit 2
     ;;
 esac
 
-required_commands=(helm kubectl)
+while (( $# > 0 )); do
+  case "$1" in
+    --keycloak)
+      enable_keycloak=true
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      echo "usage: $0 [deploy|delete] [--keycloak]" >&2
+      exit 2
+      ;;
+  esac
+  shift
+done
+
+required_commands=(helm jq kubectl)
 if [[ "$action" == "deploy" ]]; then
   required_commands+=(docker)
 fi
@@ -88,15 +106,57 @@ if [[ "$kube_context" == kind-* ]]; then
 fi
 
 rollout_revision="dev-$(date -u +%Y%m%d%H%M%S)"
+keycloak_helm_args=()
+if [[ "$enable_keycloak" == "true" ]]; then
+  keycloak_service_port="${KEYCLOAK_SERVICE_PORT:-8180}"
+  if [[ "$kube_context" == "orbstack" ]]; then
+    node_ip="$(
+      kubectl --context "$kube_context" get nodes -o json |
+        jq -r '
+          [
+            .items[0].status.addresses[]
+            | select(.type == "InternalIP")
+            | .address
+            | select(test("^[0-9]+(\\.[0-9]+){3}$"))
+          ][0] // empty
+        '
+    )"
+    if [[ -z "$node_ip" ]]; then
+      echo "Unable to find an IPv4 InternalIP for the OrbStack Kubernetes node." >&2
+      exit 1
+    fi
+    control_public_url="${CONTROL_PUBLIC_URL:-http://tasklattice.localhost}"
+    keycloak_public_url="${KEYCLOAK_PUBLIC_URL:-http://keycloak.localhost:${keycloak_service_port}}"
+    keycloak_helm_args+=(
+      --set-string "control.hostAliases[0].ip=$node_ip"
+      --set-string "control.hostAliases[0].hostnames[0]=keycloak.localhost"
+    )
+  else
+    control_public_url="${CONTROL_PUBLIC_URL:-}"
+    keycloak_public_url="${KEYCLOAK_PUBLIC_URL:-}"
+    if [[ -z "$control_public_url" || -z "$keycloak_public_url" ]]; then
+      echo "CONTROL_PUBLIC_URL and KEYCLOAK_PUBLIC_URL are required with --keycloak outside OrbStack." >&2
+      exit 1
+    fi
+  fi
+  keycloak_helm_args+=(
+    --set-string "control.publicUrl=$control_public_url"
+    --set keycloak.enabled=true
+    --set-string "keycloak.publicUrl=$keycloak_public_url"
+    --set "keycloak.service.port=$keycloak_service_port"
+  )
+fi
 
 helm lint "$repository_root/charts/tasklattice" \
-  --values "$repository_root/charts/tasklattice/values-dev.yaml"
+  --values "$repository_root/charts/tasklattice/values-dev.yaml" \
+  "${keycloak_helm_args[@]}"
 helm upgrade --install "$release_name" "$repository_root/charts/tasklattice" \
   --kube-context "$kube_context" \
   --namespace "$namespace" \
   --create-namespace \
   --values "$repository_root/charts/tasklattice/values-dev.yaml" \
   --set-string "global.rolloutRevision=$rollout_revision" \
+  "${keycloak_helm_args[@]}" \
   --wait \
   --wait-for-jobs \
   --timeout "$helm_timeout"

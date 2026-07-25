@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { createTestStore } from "../test/store";
-import { ExtensionCatalogService } from "./extension-catalog-service";
+import { ResourceCatalogService } from "./resource-catalog-service";
 
-describe("ExtensionCatalogService", () => {
+describe("ResourceCatalogService", () => {
   it("loads PostgreSQL catalog defaults and platform skills", async () => {
-    const service = new ExtensionCatalogService(createTestStore());
+    const service = new ResourceCatalogService(createTestStore());
     const catalog = await service.catalog();
 
     expect(catalog.skills).toHaveLength(15);
@@ -21,18 +21,18 @@ describe("ExtensionCatalogService", () => {
 
   it("persists project changes without overwriting them when defaults are seeded again", async () => {
     const store = createTestStore();
-    const service = new ExtensionCatalogService(store);
+    const service = new ResourceCatalogService(store);
     const current = (await service.catalog()).skills.find((skill) => skill.id === "helm-chart-developer")!;
 
     await service.updateSkill(current.id, { ...current, name: "Helm Platform Developer" });
-    const restarted = new ExtensionCatalogService(store);
+    const restarted = new ResourceCatalogService(store);
 
     expect((await restarted.catalog()).skills.find((skill) => skill.id === current.id)?.name)
       .toBe("Helm Platform Developer");
   });
 
-  it("creates and removes project extensions while protecting Role references", async () => {
-    const service = new ExtensionCatalogService(createTestStore());
+  it("creates and removes project resources while protecting Role references", async () => {
+    const service = new ResourceCatalogService(createTestStore());
     const created = await service.createSkill({
       name: "Release Notes Writer",
       description: "Draft structured release notes from approved change records.",
@@ -51,7 +51,7 @@ describe("ExtensionCatalogService", () => {
   });
 
   it("requires MCP parameters to be a JSON object", async () => {
-    const service = new ExtensionCatalogService(createTestStore());
+    const service = new ResourceCatalogService(createTestStore());
     await expect(service.createMcpServer({
       name: "Invalid MCP",
       endpoint: "https://mcp.internal.example/invalid",

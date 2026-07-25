@@ -35,10 +35,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function mergeRecords(
   base: Record<string, unknown>,
-  extension: Record<string, unknown>,
+  overlay: Record<string, unknown>,
 ): Record<string, unknown> {
   const result = { ...base };
-  for (const [key, value] of Object.entries(extension)) {
+  for (const [key, value] of Object.entries(overlay)) {
     const current = result[key];
     result[key] =
       isRecord(current) && isRecord(value)

@@ -24,6 +24,7 @@
     "images:build:sandbox:openclaw": "NEMOCLAW_AGENT_PLATFORM=openclaw bash scripts/build-nemoclaw-sandbox.sh",
     "images:build:sandbox:hermes": "NEMOCLAW_AGENT_PLATFORM=hermes bash scripts/build-nemoclaw-sandbox.sh",
     "helm:deploy:dev": "bash scripts/deploy-local.sh deploy",
+    "helm:deploy:dev:keycloak": "bash scripts/deploy-local.sh deploy --keycloak",
     "helm:delete:dev": "bash scripts/deploy-local.sh delete",
     "k8s:deploy": "npm run helm:deploy:dev",
     "k8s:deploy:openshell": "npm run helm:deploy:dev",

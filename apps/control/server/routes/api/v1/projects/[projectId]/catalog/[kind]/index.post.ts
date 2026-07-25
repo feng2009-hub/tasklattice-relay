@@ -2,20 +2,20 @@ import {
   createKnowledgeSourceDefinitionSchema,
   createMcpServerDefinitionSchema,
   createSkillDefinitionSchema,
-  extensionResourceKindSchema,
+  resourceKindSchema,
 } from "@tasklattice/contracts";
 import { defineHandler } from "nitro";
 import { requireAuth, unauthorizedResponse } from "../../../../../../../auth/auth";
 import { errorResponse, jsonResponse } from "../../../../../../../http/responses";
-import { getExtensionCatalogService, requireProjectRole } from "../../../../../../../services";
+import { getResourceCatalogService, requireProjectRole } from "../../../../../../../services";
 
 export default defineHandler(async (event) => {
   try { requireAuth(event.req); } catch (error) { return unauthorizedResponse(error); }
   try {
     await requireProjectRole(event.req, ["admin"]);
-    const kind = extensionResourceKindSchema.parse(event.context.params?.kind);
+    const kind = resourceKindSchema.parse(event.context.params?.kind);
     const body = await event.req.json();
-    const service = await getExtensionCatalogService(event.req);
+    const service = await getResourceCatalogService(event.req);
     const created = await (kind === "skills"
       ? service.createSkill(createSkillDefinitionSchema.parse(body))
       : kind === "mcp-servers"
@@ -23,7 +23,7 @@ export default defineHandler(async (event) => {
         : service.createKnowledgeSource(createKnowledgeSourceDefinitionSchema.parse(body)));
     return jsonResponse(created, {
       status: 201,
-      headers: { location: `/api/v1/projects/${encodeURIComponent(event.context.params?.projectId ?? "")}/extensions/${kind}/${created.id}` },
+      headers: { location: `/api/v1/projects/${encodeURIComponent(event.context.params?.projectId ?? "")}/catalog/${kind}/${created.id}` },
     });
   } catch (error) {
     return errorResponse(error);

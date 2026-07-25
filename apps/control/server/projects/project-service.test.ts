@@ -47,11 +47,102 @@ describe("ProjectService", () => {
 
     const team = await service.create(local, "AI Platform", []);
     expect(team).toMatchObject({ name: "AI Platform", role: "admin", type: "team" });
-    expect(await db.extensionSkillRecord.count({
+    expect(await db.skillRecord.count({
       where: { projectId: team.id },
-    })).toBe(await db.extensionSkillRecord.count({
+    })).toBe(await db.skillRecord.count({
       where: { projectId: "individual" },
     }));
+  });
+
+  it("initializes the personal Project quota idempotently under concurrent requests", async () => {
+    const db = createTestPrisma();
+    const service = new ProjectService(db);
+    const local = auth({
+      displayName: "Local Administrator",
+      email: "admin@tasklattice.local",
+      provider: "local",
+      username: "admin",
+    });
+    await db.projectQuotaRecord.deleteMany({
+      where: { projectId: "individual" },
+    });
+
+    await Promise.all(Array.from({ length: 4 }, () => service.ensureUser(local)));
+
+    expect(await db.projectQuotaRecord.count({
+      where: { projectId: "individual" },
+    })).toBe(1);
+  });
+
+  it("seeds a personal Project idempotently under concurrent requests", async () => {
+    const db = createTestPrisma();
+    const service = new ProjectService(db);
+    const user = auth({
+      displayName: "Concurrent SSO User",
+      email: "concurrent-sso@example.com",
+      provider: "sso",
+      username: "concurrent-sso",
+    });
+    await service.syncAuthUser(user.user);
+    const personalProject = (await service.list(user)).find(
+      ({ type }) => type === "personal",
+    )!;
+    await Promise.all([
+      db.skillRecord.deleteMany({
+        where: { projectId: personalProject.id },
+      }),
+      db.mcpServerRecord.deleteMany({
+        where: { projectId: personalProject.id },
+      }),
+      db.knowledgeSourceRecord.deleteMany({
+        where: { projectId: personalProject.id },
+      }),
+      db.agentSpecializationRecord.deleteMany({
+        where: { projectId: personalProject.id },
+      }),
+      db.sandboxPolicyRecord.deleteMany({
+        where: { projectId: personalProject.id },
+      }),
+    ]);
+
+    await Promise.all(Array.from({ length: 4 }, () => service.ensureUser(user)));
+
+    const [
+      sourceSkills,
+      personalSkills,
+      sourceMcpServers,
+      personalMcpServers,
+      sourceKnowledgeSources,
+      personalKnowledgeSources,
+      sourceSpecializations,
+      personalSpecializations,
+      sourcePolicies,
+      personalPolicies,
+    ] = await Promise.all([
+      db.skillRecord.count({ where: { projectId: "individual" } }),
+      db.skillRecord.count({ where: { projectId: personalProject.id } }),
+      db.mcpServerRecord.count({ where: { projectId: "individual" } }),
+      db.mcpServerRecord.count({ where: { projectId: personalProject.id } }),
+      db.knowledgeSourceRecord.count({ where: { projectId: "individual" } }),
+      db.knowledgeSourceRecord.count({ where: { projectId: personalProject.id } }),
+      db.agentSpecializationRecord.count({ where: { projectId: "individual" } }),
+      db.agentSpecializationRecord.count({ where: { projectId: personalProject.id } }),
+      db.sandboxPolicyRecord.count({ where: { projectId: "individual" } }),
+      db.sandboxPolicyRecord.count({ where: { projectId: personalProject.id } }),
+    ]);
+    expect([
+      personalSkills,
+      personalMcpServers,
+      personalKnowledgeSources,
+      personalSpecializations,
+      personalPolicies,
+    ]).toEqual([
+      sourceSkills,
+      sourceMcpServers,
+      sourceKnowledgeSources,
+      sourceSpecializations,
+      sourcePolicies,
+    ]);
   });
 
   it("creates the initial member set and pending invitations with assigned roles", async () => {
@@ -213,7 +304,7 @@ describe("ProjectService", () => {
     await expect(service.requireRole(team.id, memberId, ["admin"]))
       .rejects.toThrow(/permission/i);
 
-    await db.extensionSkillRecord.delete({
+    await db.skillRecord.delete({
       where: {
         projectId_id: {
           projectId: team.id,
@@ -221,7 +312,7 @@ describe("ProjectService", () => {
         },
       },
     });
-    expect(await db.extensionSkillRecord.findUnique({
+    expect(await db.skillRecord.findUnique({
       where: {
         projectId_id: {
           projectId: "individual",

@@ -1,6 +1,6 @@
-import type { ExtensionCatalog } from "@tasklattice/contracts";
+import type { ResourceCatalog } from "@tasklattice/contracts";
 
-export const developmentExtensionCatalog: ExtensionCatalog = {
+export const developmentResourceCatalog: ResourceCatalog = {
   skills: [
     {
       id: "employee-policy-search",

@@ -104,7 +104,7 @@ export function ProjectInviteDialog({
                     <span className="flex flex-col items-start">
                       <span>Admin</span>
                       <span className="text-xs text-muted-foreground">
-                        Invite people and manage extensions
+                        Invite people and manage Project resources
                       </span>
                     </span>
                   </SelectItem>

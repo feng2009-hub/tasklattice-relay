@@ -1,5 +1,5 @@
 import {
-  extensionResourceKindSchema,
+  resourceKindSchema,
   updateKnowledgeSourceDefinitionSchema,
   updateMcpServerDefinitionSchema,
   updateSkillDefinitionSchema,
@@ -7,16 +7,16 @@ import {
 import { defineHandler } from "nitro";
 import { requireAuth, unauthorizedResponse } from "../../../../../../../../auth/auth";
 import { errorResponse, jsonResponse } from "../../../../../../../../http/responses";
-import { getExtensionCatalogService, requireProjectRole } from "../../../../../../../../services";
+import { getResourceCatalogService, requireProjectRole } from "../../../../../../../../services";
 
 export default defineHandler(async (event) => {
   try { requireAuth(event.req); } catch (error) { return unauthorizedResponse(error); }
   try {
     await requireProjectRole(event.req, ["admin"]);
-    const kind = extensionResourceKindSchema.parse(event.context.params?.kind);
+    const kind = resourceKindSchema.parse(event.context.params?.kind);
     const id = decodeURIComponent(event.context.params?.id ?? "");
     const body = await event.req.json();
-    const service = await getExtensionCatalogService(event.req);
+    const service = await getResourceCatalogService(event.req);
     const updated = await (kind === "skills"
       ? service.updateSkill(id, updateSkillDefinitionSchema.parse(body))
       : kind === "mcp-servers"

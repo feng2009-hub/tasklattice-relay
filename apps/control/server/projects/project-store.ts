@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type {
   Agent,
   AgentSpecializationDefinition,
-  ExtensionResourceKind,
+  ResourceKind,
   KnowledgeSourceDefinition,
   InferenceGateway,
   ModelProfile,
@@ -18,10 +18,10 @@ import { prisma } from "../db/prisma";
 import type { Prisma, PrismaClient } from "../generated/prisma/client";
 import { CostAnalyticsStore } from "../providers/cost-analytics-store";
 
-type ExtensionDelegateName =
-  | "extensionSkillRecord"
-  | "extensionMcpServerRecord"
-  | "extensionKnowledgeSourceRecord"
+type ResourceDelegateName =
+  | "skillRecord"
+  | "mcpServerRecord"
+  | "knowledgeSourceRecord"
   | "agentSpecializationRecord";
 
 function costKeyIdentifier(value: string): string {
@@ -96,7 +96,7 @@ export class ProjectStore {
     return this.db;
   }
 
-  private extensionDelegate(name: ExtensionDelegateName): {
+  private resourceDelegate(name: ResourceDelegateName): {
     upsert(args: unknown): Promise<unknown>;
     findUnique(args: unknown): Promise<{ payload: Prisma.JsonValue } | null>;
     findMany(args: unknown): Promise<Array<{ payload: Prisma.JsonValue }>>;
@@ -105,11 +105,11 @@ export class ProjectStore {
     return this.db[name] as never;
   }
 
-  private async saveExtensionRecord<T extends { id: string }>(
-    delegateName: ExtensionDelegateName,
+  private async saveResourceRecord<T extends { id: string }>(
+    delegateName: ResourceDelegateName,
     record: T,
   ): Promise<T> {
-    await this.extensionDelegate(delegateName).upsert({
+    await this.resourceDelegate(delegateName).upsert({
       where: { projectId_id: { projectId: this.projectId, id: record.id } },
       create: {
         projectId: this.projectId,
@@ -121,19 +121,19 @@ export class ProjectStore {
     return record;
   }
 
-  private async getExtensionRecord<T>(
-    delegateName: ExtensionDelegateName,
+  private async getResourceRecord<T>(
+    delegateName: ResourceDelegateName,
     id: string,
   ): Promise<T | undefined> {
-    const row = await this.extensionDelegate(delegateName).findUnique({
+    const row = await this.resourceDelegate(delegateName).findUnique({
       where: { projectId_id: { projectId: this.projectId, id } },
       select: { payload: true },
     });
     return row ? decode<T>(row.payload) : undefined;
   }
 
-  private async listExtensionRecords<T>(delegateName: ExtensionDelegateName): Promise<T[]> {
-    const rows = await this.extensionDelegate(delegateName).findMany({
+  private async listResourceRecords<T>(delegateName: ResourceDelegateName): Promise<T[]> {
+    const rows = await this.resourceDelegate(delegateName).findMany({
       where: { projectId: this.projectId },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }, { id: "asc" }],
       select: { payload: true },
@@ -141,59 +141,59 @@ export class ProjectStore {
     return rows.map((row) => decode<T>(row.payload));
   }
 
-  private async deleteExtensionRecord(delegateName: ExtensionDelegateName, id: string): Promise<boolean> {
-    const result = await this.extensionDelegate(delegateName).deleteMany({
+  private async deleteResourceRecord(delegateName: ResourceDelegateName, id: string): Promise<boolean> {
+    const result = await this.resourceDelegate(delegateName).deleteMany({
       where: { projectId: this.projectId, id },
     });
     return result.count > 0;
   }
 
   saveSkillDefinition(skill: SkillDefinition): Promise<SkillDefinition> {
-    return this.saveExtensionRecord("extensionSkillRecord", skill);
+    return this.saveResourceRecord("skillRecord", skill);
   }
   getSkillDefinition(id: string): Promise<SkillDefinition | undefined> {
-    return this.getExtensionRecord("extensionSkillRecord", id);
+    return this.getResourceRecord("skillRecord", id);
   }
   async listSkillDefinitions(): Promise<SkillDefinition[]> {
     const bindings = new Map<string, number>();
     for (const agent of await this.list()) {
       for (const id of new Set(agent.skillIds ?? [])) bindings.set(id, (bindings.get(id) ?? 0) + 1);
     }
-    return (await this.listExtensionRecords<SkillDefinition>("extensionSkillRecord"))
+    return (await this.listResourceRecords<SkillDefinition>("skillRecord"))
       .map((skill) => ({ ...skill, bindings: bindings.get(skill.id) ?? 0 }));
   }
   deleteSkillDefinition(id: string): Promise<boolean> {
-    return this.deleteExtensionRecord("extensionSkillRecord", id);
+    return this.deleteResourceRecord("skillRecord", id);
   }
   saveMcpServerDefinition(server: McpServerDefinition): Promise<McpServerDefinition> {
-    return this.saveExtensionRecord("extensionMcpServerRecord", server);
+    return this.saveResourceRecord("mcpServerRecord", server);
   }
   getMcpServerDefinition(id: string): Promise<McpServerDefinition | undefined> {
-    return this.getExtensionRecord("extensionMcpServerRecord", id);
+    return this.getResourceRecord("mcpServerRecord", id);
   }
   listMcpServerDefinitions(): Promise<McpServerDefinition[]> {
-    return this.listExtensionRecords("extensionMcpServerRecord");
+    return this.listResourceRecords("mcpServerRecord");
   }
   deleteMcpServerDefinition(id: string): Promise<boolean> {
-    return this.deleteExtensionRecord("extensionMcpServerRecord", id);
+    return this.deleteResourceRecord("mcpServerRecord", id);
   }
   saveKnowledgeSourceDefinition(source: KnowledgeSourceDefinition): Promise<KnowledgeSourceDefinition> {
-    return this.saveExtensionRecord("extensionKnowledgeSourceRecord", source);
+    return this.saveResourceRecord("knowledgeSourceRecord", source);
   }
   getKnowledgeSourceDefinition(id: string): Promise<KnowledgeSourceDefinition | undefined> {
-    return this.getExtensionRecord("extensionKnowledgeSourceRecord", id);
+    return this.getResourceRecord("knowledgeSourceRecord", id);
   }
   listKnowledgeSourceDefinitions(): Promise<KnowledgeSourceDefinition[]> {
-    return this.listExtensionRecords("extensionKnowledgeSourceRecord");
+    return this.listResourceRecords("knowledgeSourceRecord");
   }
   deleteKnowledgeSourceDefinition(id: string): Promise<boolean> {
-    return this.deleteExtensionRecord("extensionKnowledgeSourceRecord", id);
+    return this.deleteResourceRecord("knowledgeSourceRecord", id);
   }
   listAgentSpecializations(): Promise<AgentSpecializationDefinition[]> {
-    return this.listExtensionRecords("agentSpecializationRecord");
+    return this.listResourceRecords("agentSpecializationRecord");
   }
 
-  async isExtensionResourceInUse(kind: ExtensionResourceKind, id: string): Promise<boolean> {
+  async isResourceInUse(kind: ResourceKind, id: string): Promise<boolean> {
     const agentField = kind === "skills" ? "skillIds" : kind === "mcp-servers" ? "mcpServerIds" : "knowledgeSourceIds";
     if ((await this.list()).some((agent) => (agent[agentField] ?? []).includes(id))) return true;
     const specializationField = kind === "skills" ? "defaultSkillIds" : kind === "mcp-servers" ? "defaultMcpServerIds" : "defaultKnowledgeSourceIds";

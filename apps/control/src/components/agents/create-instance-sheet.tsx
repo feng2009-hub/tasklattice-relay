@@ -61,11 +61,11 @@ export function CreateInstanceSheet({
   const [skillsTouched, setSkillsTouched] = useState(false);
   const [mcpsTouched, setMcpsTouched] = useState(false);
   const [pendingSpecializationId, setPendingSpecializationId] = useState<SpecializationId | null>(null);
-  const extensionCatalog = useQuery({ queryKey: scope.key("extension-catalog"), queryFn: api.getExtensionCatalog });
-  const skills = extensionCatalog.data?.skills ?? [];
-  const mcpServers = extensionCatalog.data?.mcpServers ?? [];
-  const knowledgeSources = extensionCatalog.data?.knowledgeSources ?? [];
-  const specializations = extensionCatalog.data?.specializations ?? [];
+  const resourceCatalog = useQuery({ queryKey: scope.key("resource-catalog"), queryFn: api.getResourceCatalog });
+  const skills = resourceCatalog.data?.skills ?? [];
+  const mcpServers = resourceCatalog.data?.mcpServers ?? [];
+  const knowledgeSources = resourceCatalog.data?.knowledgeSources ?? [];
+  const specializations = resourceCatalog.data?.specializations ?? [];
   const specialization = getSpecialization(specializations, specializationId);
   const pendingSpecialization = pendingSpecializationId ? getSpecialization(specializations, pendingSpecializationId) : null;
   const virtualEmployees = useQuery({ queryKey: scope.key("virtual-employees"), queryFn: api.listVirtualEmployees });
@@ -154,10 +154,10 @@ export function CreateInstanceSheet({
     width: "xl" as const,
   };
 
-  if (extensionCatalog.isPending)
-    return <EntityFormSheet {...shellProps} footer={<Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>}><div className="flex min-h-72 items-center justify-center border text-sm text-muted-foreground">Loading Roles and extension catalog from PostgreSQL…</div></EntityFormSheet>;
-  if (extensionCatalog.error)
-    return <EntityFormSheet {...shellProps} footer={<Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>}><p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">{extensionCatalog.error.message}</p></EntityFormSheet>;
+  if (resourceCatalog.isPending)
+    return <EntityFormSheet {...shellProps} footer={<Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>}><div className="flex min-h-72 items-center justify-center border text-sm text-muted-foreground">Loading Roles and resource catalog from PostgreSQL…</div></EntityFormSheet>;
+  if (resourceCatalog.error)
+    return <EntityFormSheet {...shellProps} footer={<Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>}><p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">{resourceCatalog.error.message}</p></EntityFormSheet>;
   if (!specialization)
     return <EntityFormSheet {...shellProps} footer={<Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>}><p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">The PostgreSQL catalog does not contain an Agent Role.</p></EntityFormSheet>;
 
@@ -249,7 +249,7 @@ export function CreateInstanceSheet({
                       <ReviewSection title={`Knowledge (${selectedKnowledgeSources.length})`}>{selectedKnowledgeSources.length ? selectedKnowledgeSources.map((item) => <ReviewPill key={item.id} label={knowledgeSources.find((source) => source.id === item.id)?.name ?? item.id} />) : <EmptyReview label="No Knowledge selected" />}</ReviewSection>
                     </div>
                     {incompleteMcps.length ? <p role="alert" className="flex gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs leading-5"><CircleAlert className="mt-0.5 size-4 shrink-0" />Complete the connection or access request for {incompleteMcps.map((item) => item?.name).join(", ")} before relying on those tools.</p> : null}
-                    <p className="border bg-muted/30 p-3 text-xs leading-5 text-muted-foreground">Role and capability references are saved with this Instance. Runtime provisioning remains asynchronous and connected extension services govern final attachment.</p>
+                    <p className="border bg-muted/30 p-3 text-xs leading-5 text-muted-foreground">Role and capability references are saved with this Instance. Runtime provisioning remains asynchronous and connected resource services govern final attachment.</p>
                   </CardContent>
                 </Card>
               )}

@@ -25,6 +25,10 @@ spec:
     spec:
       serviceAccountName: {{ include "tasklattice.serviceAccountName" . }}
       automountServiceAccountToken: true
+      {{- with .Values.control.hostAliases }}
+      hostAliases:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
