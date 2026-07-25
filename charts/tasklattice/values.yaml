@@ -95,6 +95,9 @@ litellm:
 exampleMcp:
   enabled: false
   replicaCount: 1
+  auth:
+    username: Username
+    password: Password
   service:
     port: 3000
   resources:

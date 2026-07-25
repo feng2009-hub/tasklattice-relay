@@ -119,7 +119,6 @@ export class AccessPolicyService {
     const current = await this.get(id);
     const nextInput: CreateAccessPolicyInput = {
       name: input.name ?? current.name,
-      description: input.description ?? current.description,
       status: input.status ?? current.status,
       virtualEmployeeIds: input.virtualEmployeeIds ?? current.virtualEmployeeIds,
       serverRules: input.serverRules ?? current.serverRules,
@@ -268,8 +267,8 @@ export class AccessPolicyService {
       JSON.stringify(current.virtualEmployeeIds) !== JSON.stringify(next.virtualEmployeeIds)
         ? "Virtual Employee bindings updated."
         : "",
-      current.name !== next.name || current.description !== next.description
-        ? "Policy details updated."
+      current.name !== next.name
+        ? "Policy name updated."
         : "",
     ].filter(Boolean);
     return changes.join(" ") || "Policy saved.";

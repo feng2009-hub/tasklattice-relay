@@ -78,12 +78,42 @@ describe("ResourceCatalogService", () => {
     ]));
     expect(catalog.mcpServers).toEqual([]);
     expect(catalog.mcpServerTemplates.map((template) => template.name)).toEqual(expect.arrayContaining([
+      "Cloudflare Documentation",
+      "Context7 Documentation",
+      "DeepWiki Public Repositories",
       "GitHub",
       "Atlassian (Jira & Confluence)",
       "PostgreSQL",
       "MySQL",
       "Redis",
     ]));
+    expect(catalog.mcpServerTemplates.filter((template) => template.category === "Example")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "cloudflare-docs",
+          endpointPlaceholder: "https://docs.mcp.cloudflare.com/mcp",
+          defaultAuthType: "none",
+        }),
+        expect.objectContaining({
+          id: "context7-docs",
+          endpointPlaceholder: "https://mcp.context7.com/mcp",
+          defaultAuthType: "none",
+        }),
+        expect.objectContaining({
+          id: "deepwiki",
+          endpointPlaceholder: "https://mcp.deepwiki.com/mcp",
+          defaultAuthType: "none",
+        }),
+      ]),
+    );
+    expect(Object.fromEntries(
+      catalog.mcpServerTemplates.map((template) => [template.id, template.logo]),
+    )).toMatchObject({
+      postgresql: "postgresql",
+      mysql: "mysql",
+      redis: "redis",
+      slack: "slack",
+    });
   });
 
   it("persists project changes without overwriting them when defaults are seeded again", async () => {

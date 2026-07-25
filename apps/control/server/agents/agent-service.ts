@@ -128,7 +128,7 @@ export class AgentService {
     if (!profile) throw new Error(`Virtual Employee model ${runtimeConfiguration.model} is not backed by a READY Model Profile.`);
     const gateway = await this.store.getInferenceGateway(profile.gatewayId);
     if (!gateway) throw new Error("The Virtual Employee LiteLLM Gateway is unavailable.");
-    const modelAccess = virtualEmployee.modelAccess!;
+    const modelAccess = virtualEmployee.modelAccess;
     const costKeyAlias = `tali-instance-${id}`;
     const serviceAccountId = `tali-instance-${id}`;
     const objectPermissions = await this.accessPolicies.permissionsForAgent({
@@ -138,7 +138,12 @@ export class AgentService {
     });
     const { teamId, key: instanceKey } = await this.quotas.createInstanceKey({
       alias: costKeyAlias,
-      models: [...new Set([runtimeConfiguration.model, ...modelAccess.accessGroups])],
+      models: [
+        ...new Set([
+          runtimeConfiguration.model,
+          ...(modelAccess?.accessGroups ?? []),
+        ]),
+      ],
       metadata: {
         managed_by: "tali",
         tali_project_id: this.store.projectId,
@@ -160,12 +165,15 @@ export class AgentService {
       modelType: "llm",
       inferenceMode: "PLATFORM_MANAGED",
       modelProfileId: profile.id,
-      modelProfileBindingId: modelAccess.id,
+      modelProfileBindingId:
+        modelAccess?.id ?? `project-default:${profile.id}`,
       modelProfileStatus: profile.status,
       modelProfileComplianceDomain: profile.complianceDomain,
       modelProfileCapabilities: profile.capabilities,
       modelProfileKeyFingerprint: `token:${instanceKey.tokenId.slice(-12)}`,
-      ...(modelAccess.lastSyncedAt ? { modelProfileLastSynchronizedAt: modelAccess.lastSyncedAt } : {}),
+      ...(modelAccess?.lastSyncedAt
+        ? { modelProfileLastSynchronizedAt: modelAccess.lastSyncedAt }
+        : {}),
       costKeyAlias,
       liteLLMTokenId: instanceKey.tokenId,
       liteLLMTeamId: teamId,
@@ -257,7 +265,7 @@ export class AgentService {
     const gateway = await this.store.getInferenceGateway(profile.gatewayId);
     if (!gateway) throw new Error("The Virtual Employee LiteLLM Gateway is unavailable.");
     const policy = await this.policies.resolve(current.policyId);
-    const access = employee.modelAccess!;
+    const access = employee.modelAccess;
     const keyAlias = `tali-instance-${id}`;
     const serviceAccountId = `tali-instance-${id}`;
     const objectPermissions = await this.accessPolicies.permissionsForAgent({
@@ -267,7 +275,12 @@ export class AgentService {
     });
     const { teamId, key: instanceKey } = await this.quotas.createInstanceKey({
       alias: keyAlias,
-      models: [...new Set([configuration.model, ...access.accessGroups])],
+      models: [
+        ...new Set([
+          configuration.model,
+          ...(access?.accessGroups ?? []),
+        ]),
+      ],
       metadata: {
         managed_by: "tali",
         tali_project_id: this.store.projectId,
@@ -324,7 +337,8 @@ export class AgentService {
       modelDeploymentId: `model-profile:${profile.id}`,
       providerAccountId: gateway.id,
       modelProfileId: profile.id,
-      modelProfileBindingId: access.id,
+      modelProfileBindingId:
+        access?.id ?? `project-default:${profile.id}`,
       modelProfileStatus: profile.status,
       modelProfileComplianceDomain: profile.complianceDomain,
       modelProfileCapabilities: profile.capabilities,

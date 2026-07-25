@@ -89,7 +89,7 @@ export function AccessPolicyDetail({
             <Badge variant="outline">v{current.revision}</Badge>
           </div>
         }
-        description={current.description}
+        description="MCP tool permissions and their effective Virtual Employee bindings."
         actions={
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => setEditing(true)}><Pencil /> Edit policy</Button>

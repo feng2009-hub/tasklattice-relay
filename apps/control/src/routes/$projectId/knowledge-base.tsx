@@ -19,7 +19,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
 
@@ -238,7 +237,7 @@ function KnowledgeBase() {
         )}
       >
         <div className="space-y-4">
-          <div className="space-y-2"><Label htmlFor="kb-name">Display name</Label><Input id="kb-name" className="h-11" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="Engineering Handbook" /></div>
+          <div className="space-y-2"><Label htmlFor="kb-name">Name</Label><Input id="kb-name" className="h-11" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="Engineering Handbook" /></div>
           <div className="space-y-2">
             <Label htmlFor="kb-vector-store-id">{draft.provider === "elasticsearch" ? "Elasticsearch index or alias" : "Provider Vector Store ID"}</Label>
             <Input
@@ -302,7 +301,6 @@ function KnowledgeBase() {
                 : "Use a JSON object for AWS or multi-field provider credentials. Leave blank for workload identity."}
             </p>
           </div>
-          <div className="space-y-2"><Label htmlFor="kb-description">Description</Label><Textarea id="kb-description" value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></div>
           {formError || saveSource.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 px-3 py-2 text-sm text-destructive">{formError || saveSource.error?.message}</p> : null}
         </div>
       </EntitySheet>

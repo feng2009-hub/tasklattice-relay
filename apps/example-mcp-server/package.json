@@ -8,6 +8,7 @@
     "build": "rm -rf dist && tsc -p tsconfig.json",
     "dev": "node --import tsx --watch src/index.ts",
     "start": "node dist/index.js",
+    "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
@@ -19,6 +20,7 @@
     "@types/express": "^5.0.6",
     "@types/node": "^24.10.1",
     "tsx": "^4.21.0",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
   }
 }

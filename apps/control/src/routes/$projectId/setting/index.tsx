@@ -1,9 +1,10 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { Gauge, ShieldCheck, SlidersHorizontal, Trash2, Users } from "lucide-react";
+import { Bot, Gauge, ShieldCheck, SlidersHorizontal, Trash2, Users } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { ProjectModelProfilesSettings } from "@/components/project/project-model-profiles-settings";
+import { ProjectVirtualEmployees } from "@/components/project/project-virtual-employees";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,6 +22,7 @@ export const Route = createFileRoute("/$projectId/setting/")({
   validateSearch: (search): { section?: ProjectSettingsSection } => {
     const section =
       search.section === "members" ||
+      search.section === "virtual-employees" ||
       search.section === "model-profiles" ||
       search.section === "quota" ||
       search.section === "settings"
@@ -31,7 +33,12 @@ export const Route = createFileRoute("/$projectId/setting/")({
   component: ProjectSettingsPage,
 });
 
-type ProjectSettingsSection = "settings" | "members" | "model-profiles" | "quota";
+type ProjectSettingsSection =
+  | "settings"
+  | "members"
+  | "virtual-employees"
+  | "model-profiles"
+  | "quota";
 
 function ProjectSettingsPage() {
   const navigate = Route.useNavigate();
@@ -77,7 +84,7 @@ function ProjectSettingsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Project settings"
-        description="Manage this Project’s identity, members, and default Model Profile."
+        description="Manage Project identity, human membership, Virtual Employees, models, and quota."
       />
 
       <section className="overflow-hidden rounded-lg border bg-background">
@@ -113,6 +120,10 @@ function ProjectSettingsPage() {
               <Users />
               Members
             </TabsTrigger>
+            <TabsTrigger value="virtual-employees">
+              <Bot />
+              Virtual Employees
+            </TabsTrigger>
             <TabsTrigger value="model-profiles">
               <SlidersHorizontal />
               Model Profiles
@@ -138,6 +149,9 @@ function ProjectSettingsPage() {
           </TabsContent>
           <TabsContent value="members" className="mt-0">
             <ProjectMembers project={project} />
+          </TabsContent>
+          <TabsContent value="virtual-employees" className="mt-0">
+            <ProjectVirtualEmployees project={project} />
           </TabsContent>
           <TabsContent value="model-profiles" className="mt-0">
             <ProjectModelProfilesSettings

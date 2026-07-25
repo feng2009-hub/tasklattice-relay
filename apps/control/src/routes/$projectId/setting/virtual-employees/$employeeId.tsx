@@ -86,10 +86,10 @@ function VirtualEmployeeDetailPage() {
       <Link
         to="/$projectId/setting"
         params={{ projectId }}
-        search={{ section: "members" }}
+        search={{ section: "virtual-employees" }}
         className="inline-flex min-h-11 items-center gap-2 rounded-md text-sm text-muted-foreground hover:text-foreground focus-visible:outline-2"
       >
-        <ArrowLeft className="size-4" /> Project members
+        <ArrowLeft className="size-4" /> Virtual Employees
       </Link>
       <PageHeader
         title={value.displayName}

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  createAccessPolicySchema,
   updateAccessPolicySchema,
   type AccessPolicy,
   type McpServerDefinition,
@@ -44,7 +45,6 @@ function policy(overrides: Partial<AccessPolicy>): AccessPolicy {
   return {
     id: "policy-a",
     name: "Document access",
-    description: "Controls access to document search and mutation tools.",
     status: "ACTIVE",
     virtualEmployeeIds: [employeeId],
     serverRules: [{
@@ -74,6 +74,26 @@ function adapter(): LiteLLMAdminClient {
 }
 
 describe("Access Policy enforcement", () => {
+  it("accepts permission rules without policy description metadata", () => {
+    expect(createAccessPolicySchema.parse({
+      name: "Research read-only",
+      serverRules: [{
+        mcpServerId: server.id,
+        defaultDecision: "DENY",
+        tools: [{ toolName: "search", decision: "ALLOW" }],
+      }],
+    })).toEqual({
+      name: "Research read-only",
+      status: "DRAFT",
+      virtualEmployeeIds: [],
+      serverRules: [{
+        mcpServerId: server.id,
+        defaultDecision: "DENY",
+        tools: [{ toolName: "search", decision: "ALLOW" }],
+      }],
+    });
+  });
+
   it("does not inject create defaults into a partial status update", () => {
     expect(updateAccessPolicySchema.parse({ status: "DRAFT" })).toEqual({
       status: "DRAFT",
@@ -148,7 +168,6 @@ describe("Access Policy enforcement", () => {
     const service = new AccessPolicyService(store, projects, litellm);
     const created = await service.create({
       name: "Research read-only",
-      description: "Allows research search while denying document mutation.",
       status: "DRAFT",
       virtualEmployeeIds: [employeeId],
       serverRules: [{

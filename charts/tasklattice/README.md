@@ -104,10 +104,20 @@ identity provider for production.
 Set `exampleMcp.enabled=true` to deploy a test-only, in-cluster Streamable HTTP
 MCP Server. It exposes three deterministic tools: `echo_message`,
 `calculate_sum`, and `get_platform_status`. The Service is not exposed outside
-the cluster and is available to LiteLLM at:
+the cluster, requires HTTP Basic authentication, and is available to LiteLLM at:
 
 ```text
 http://tasklattice-example-mcp:3000/mcp
+```
+
+The test credentials are `Username` / `Password`. LiteLLM accepts the Basic
+credential as `username:password` and encodes it when creating the HTTP
+Authorization header, so the Chart creates `tasklattice-example-mcp-auth` with
+an `auth-value` containing `Username:Password`. Register it with:
+
+```text
+auth type: basic
+Secret reference: k8s://<namespace>/tasklattice-example-mcp-auth#auth-value
 ```
 
 Build and deploy the local example together with Keycloak:
@@ -120,7 +130,8 @@ npm run helm:deploy:dev:keycloak:example-mcp
 Register the endpoint as a custom HTTP MCP Server in a Project. TaskLattice
 then asks LiteLLM to discover the tools and stores the resulting names,
 descriptions, input schemas, and discovery status in the Project database.
-This component has no authentication and must not be enabled in production.
+This component uses fixed test credentials and must not be enabled in
+production.
 
 ## Shared database
 

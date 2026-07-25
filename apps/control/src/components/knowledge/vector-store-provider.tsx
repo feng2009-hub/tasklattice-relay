@@ -88,7 +88,7 @@ export function VectorStoreProviderSelect({
       value={value}
       onValueChange={(next) => onValueChange(next as VectorStoreProvider)}
     >
-      <SelectTrigger id={id} className="h-11 w-full">
+      <SelectTrigger id={id} className="w-full data-[size=default]:h-11">
         <SelectValue>
           <span className="flex min-w-0 items-center gap-2">
             <VectorStoreProviderIcon

@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { McpTemplateCatalog } from "@/components/mcp/mcp-template-catalog";
-import { McpBrandIcon } from "@/components/mcp/mcp-brand-icon";
+import { McpBrandIcon, resolveMcpServerBrand } from "@/components/mcp/mcp-brand-icon";
 import { McpToolList } from "@/components/mcp/mcp-tool-list";
 import { EntityDetailList, EntitySheet } from "@/components/shared/entity-sheet";
 import { StatusDot } from "@/components/shared/status-dot";
@@ -213,7 +213,11 @@ function McpServers() {
             >
               <span className="flex min-w-0 items-center gap-3">
                 <span className="grid size-11 shrink-0 place-items-center rounded-md border bg-background shadow-xs">
-                  <McpBrandIcon brand={item.templateId ?? ""} className="size-6" />
+                  <McpBrandIcon
+                    brand={resolveMcpServerBrand(item, templates)}
+                    className="size-6"
+                    logoUrl={item.logoUrl}
+                  />
                 </span>
                 <span className="min-w-0">
                   <strong className="block">{item.name}</strong>

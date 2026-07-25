@@ -98,7 +98,7 @@ export function McpTemplateCatalog({
                     )}
                   >
                     <span className="grid size-12 shrink-0 place-items-center rounded-md border bg-background shadow-xs transition-transform duration-200 group-hover:scale-[1.03]">
-                      <McpBrandIcon brand={template.id} />
+                      <McpBrandIcon brand={template.logo} />
                     </span>
                     <span className="flex min-w-0 flex-1 flex-col self-stretch">
                       <span className="flex min-h-7 flex-wrap items-start gap-2">

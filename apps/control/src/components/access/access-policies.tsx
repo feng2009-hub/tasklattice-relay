@@ -40,7 +40,7 @@ export function AccessPolicies({ projectId }: { projectId: string }) {
               </Link>
             </Button>
             <Button asChild variant="outline">
-              <Link to="/$projectId/setting" params={{ projectId }} search={{ section: "members" }}>
+              <Link to="/$projectId/setting" params={{ projectId }} search={{ section: "virtual-employees" }}>
                 <Users /> Virtual Employees
               </Link>
             </Button>
@@ -98,7 +98,9 @@ export function AccessPolicies({ projectId }: { projectId: string }) {
                           <Badge variant="outline" className="border-destructive/30 text-destructive">Sync failed</Badge>
                         ) : null}
                       </span>
-                      <span className="mt-1 block max-w-xl text-xs leading-5 text-muted-foreground">{policy.description}</span>
+                      <span className="mt-1 block max-w-xl text-xs leading-5 text-muted-foreground">
+                        {policy.serverRules.length} MCP server{policy.serverRules.length === 1 ? "" : "s"} · {policy.virtualEmployeeIds.length} binding{policy.virtualEmployeeIds.length === 1 ? "" : "s"}
+                      </span>
                     </span>
                     <DataCell label="Status" value={<Badge variant={policy.status === "ACTIVE" ? "secondary" : "outline"}>{policy.status}</Badge>} />
                     <DataCell icon={ServerCog} label="Servers" value={policy.serverRules.length} />

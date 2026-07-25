@@ -73,6 +73,33 @@ const input = {
 };
 
 describe("VirtualEmployeeService", () => {
+  it("creates an Active Project permission identity without dedicated Model Access", async () => {
+    const service = new VirtualEmployeeService(
+      new VirtualEmployeeStore("individual", createTestPrisma()),
+      adapter(),
+      secretStore(),
+    );
+
+    const employee = await service.create(
+      {
+        ...input,
+        name: "security-reviewer",
+        displayName: "Security Reviewer",
+        modelAccess: undefined,
+      },
+      "admin",
+    );
+
+    expect(employee.status).toBe("active");
+    expect(employee.modelAccess).toBeUndefined();
+    expect((await service.suspend(employee.id, "admin")).status).toBe(
+      "suspended",
+    );
+    expect((await service.activate(employee.id, "admin")).status).toBe(
+      "active",
+    );
+  });
+
   it("maps the business identity to the Project Team without issuing a shared credential", async () => {
     const litellm = adapter();
     const secrets = secretStore();

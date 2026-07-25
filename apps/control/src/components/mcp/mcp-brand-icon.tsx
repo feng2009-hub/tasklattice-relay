@@ -1,16 +1,25 @@
 import {
   siAtlassian,
+  siCloudflare,
   siGithub,
   siMysql,
   siPostgresql,
   siRedis,
+  siUpstash,
   type SimpleIcon,
 } from "simple-icons";
-import { ServerCog } from "lucide-react";
+import type { McpServerDefinition, McpServerTemplate } from "@tasklattice/contracts";
+import { useState } from "react";
+import { BookOpenText, ServerCog } from "lucide-react";
+import { BrandMark } from "@/components/brand/brand-logo";
 import { cn } from "@/lib/utils";
 
 const icons: Record<string, SimpleIcon> = {
   atlassian: siAtlassian,
+  cloudflare: siCloudflare,
+  "cloudflare-docs": siCloudflare,
+  context7: siUpstash,
+  "context7-docs": siUpstash,
   github: siGithub,
   mysql: siMysql,
   postgresql: siPostgresql,
@@ -20,11 +29,27 @@ const icons: Record<string, SimpleIcon> = {
 export function McpBrandIcon({
   brand,
   className,
+  logoUrl,
 }: {
   brand: string;
   className?: string;
+  logoUrl?: string | undefined;
 }) {
+  const [failedLogoUrl, setFailedLogoUrl] = useState<string | null>(null);
+  if (logoUrl && failedLogoUrl !== logoUrl) {
+    return (
+      <img
+        alt=""
+        aria-hidden="true"
+        className={cn("size-7 object-contain", className)}
+        onError={() => setFailedLogoUrl(logoUrl)}
+        src={logoUrl}
+      />
+    );
+  }
+  if (brand === "tasklattice") return <BrandMark className={cn("size-7", className)} />;
   if (brand === "slack") return <SlackMark className={className} />;
+  if (brand === "deepwiki") return <BookOpenText aria-hidden="true" className={cn("size-7 text-foreground", className)} />;
   const icon = icons[brand];
   if (!icon) return <ServerCog aria-hidden="true" className={cn("size-6", className)} />;
   return (
@@ -42,6 +67,36 @@ export function McpBrandIcon({
       <path d={icon.path} fill="currentColor" />
     </svg>
   );
+}
+
+type BrandableServer = Pick<McpServerDefinition, "endpoint" | "name" | "templateId">;
+
+function normalizedEndpoint(endpoint: string | undefined): string {
+  return endpoint?.trim().replace(/\/+$/, "").toLowerCase() ?? "";
+}
+
+/**
+ * Resolve the durable brand of a registered server. Endpoint matching keeps
+ * instances created before a catalog template was introduced visually linked
+ * to that template without rewriting their Project-owned configuration.
+ */
+export function resolveMcpServerBrand(
+  server: BrandableServer,
+  templates: readonly McpServerTemplate[],
+): string {
+  const matchingTemplate = templates.find((template) => template.id === server.templateId)
+    ?? templates.find((template) =>
+      Boolean(template.endpointPlaceholder)
+      && normalizedEndpoint(template.endpointPlaceholder) === normalizedEndpoint(server.endpoint));
+
+  if (matchingTemplate) return matchingTemplate.logo;
+
+  const identity = `${server.name} ${server.endpoint ?? ""}`.toLowerCase();
+  if (identity.includes("tasklattice") || identity.includes("tasklattice-example-mcp")) {
+    return "tasklattice";
+  }
+
+  return "";
 }
 
 function SlackMark({ className }: { className?: string | undefined }) {

@@ -57,7 +57,7 @@ export class VirtualEmployeeService {
       ...(input.businessRole ? { businessRole: input.businessRole } : {}),
       ...(input.ownerTeamId ? { ownerTeamId: input.ownerTeamId } : {}),
       environment: input.environment,
-      status: "draft",
+      status: input.activate && !input.modelAccess ? "active" : "draft",
       tags: input.tags,
       createdBy: actor,
       createdAt: now,
@@ -68,8 +68,17 @@ export class VirtualEmployeeService {
     }
     for (const identity of input.identities) await this.store.attachIdentity(id, randomUUID(), identity);
     for (const scope of input.accessScopes) await this.store.attachScope(id, randomUUID(), scope);
-    await this.audit(id, "virtual_employee.created", actor, "success", "Virtual Employee created as Draft.");
+    await this.audit(
+      id,
+      "virtual_employee.created",
+      actor,
+      "success",
+      input.activate && !input.modelAccess
+        ? "Virtual Employee created as an Active Project permission identity."
+        : "Virtual Employee created as Draft.",
+    );
     if (!input.activate) return this.get(id);
+    if (!input.modelAccess) return this.get(id);
     try {
       return await this.provision(id, actor);
     } catch {
@@ -98,7 +107,15 @@ export class VirtualEmployeeService {
   async provision(id: string, actor: string): Promise<VirtualEmployee> {
     const employee = await this.getStored(id);
     if (!employee.modelAccess?.allowedModels.length) {
-      throw new Error("Virtual Employee must have Model Access before activation.");
+      await this.store.update(id, { status: "active" });
+      await this.audit(
+        id,
+        "virtual_employee.activated",
+        actor,
+        "success",
+        "Virtual Employee activated with Project-inherited model configuration.",
+      );
+      return this.get(id);
     }
     if (
       employee.status === "active" &&
@@ -134,13 +151,23 @@ export class VirtualEmployeeService {
   async suspend(id: string, actor: string): Promise<VirtualEmployee> {
     await this.getStored(id);
     await this.store.update(id, { status: "suspended" });
-    await this.audit(id, "virtual_employee.suspended", actor, "success", "Model access disabled for this Virtual Employee.");
+    await this.audit(id, "virtual_employee.suspended", actor, "success", "Virtual Employee permission identity suspended.");
     return this.get(id);
   }
 
   async activate(id: string, actor: string): Promise<VirtualEmployee> {
     const employee = await this.getStored(id);
-    if (!employee.modelAccess) throw new Error("Virtual Employee must have Model Access before activation.");
+    if (!employee.modelAccess) {
+      await this.store.update(id, { status: "active" });
+      await this.audit(
+        id,
+        "virtual_employee.activated",
+        actor,
+        "success",
+        "Virtual Employee permission identity activated.",
+      );
+      return this.get(id);
+    }
     return this.provision(id, actor);
   }
 
@@ -153,7 +180,16 @@ export class VirtualEmployeeService {
   async sync(id: string, actor: string, _apply = false): Promise<VirtualEmployee> {
     const employee = await this.getStored(id);
     const access = employee.modelAccess;
-    if (!access) throw new Error("Configure Model Access before synchronizing.");
+    if (!access) {
+      await this.audit(
+        id,
+        "configuration.synchronized",
+        actor,
+        "success",
+        "Virtual Employee uses the current Project model configuration.",
+      );
+      return this.get(id);
+    }
     const teamId = await this.projectQuota().ensureProjectTeam();
     await this.removeLegacyCredential(access);
     const { lastSyncError: _lastSyncError, ...accessWithoutError } = access;
@@ -239,8 +275,28 @@ export class VirtualEmployeeService {
   async runtimeConfiguration(id: string): Promise<{ endpoint: string; model: string }> {
     const employee = await this.getStored(id);
     if (employee.status !== "active") throw new Error("Virtual Employee is not Active.");
-    const model = employee.modelAccess?.allowedModels[0];
-    if (!model) throw new Error("Virtual Employee Model Access is incomplete.");
+    const configuredModel = employee.modelAccess?.allowedModels[0];
+    const defaults = configuredModel
+      ? []
+      : (await new ProjectStore(
+          this.store.projectId,
+          this.store.database(),
+        ).listModelProfiles()).filter((profile) => profile.isDefault);
+    if (!configuredModel && defaults.length !== 1) {
+      throw new Error(
+        defaults.length
+          ? "Multiple default Model Profiles are configured."
+          : "No default Model Profile is configured.",
+      );
+    }
+    const inheritedModel = defaults[0];
+    if (inheritedModel && inheritedModel.status !== "READY") {
+      throw new Error(
+        `The default Model Profile is ${inheritedModel.status.toLowerCase().replaceAll("_", " ")}.`,
+      );
+    }
+    const model = configuredModel ?? inheritedModel?.publicModelAlias;
+    if (!model) throw new Error("Project model configuration is incomplete.");
     return { endpoint: `${this.litellm.baseUrl}/v1`, model };
   }
 

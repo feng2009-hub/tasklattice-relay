@@ -11,6 +11,11 @@ Control service:
 {{- if .Values.exampleMcp.enabled }}
 Example MCP endpoint for Project registration:
   http://{{ include "tasklattice.componentName" (dict "root" . "component" "example-mcp") }}:{{ .Values.exampleMcp.service.port }}/mcp
+Basic authentication:
+  Username: {{ .Values.exampleMcp.auth.username }}
+  Password: {{ .Values.exampleMcp.auth.password }}
+LiteLLM auth-value Secret reference:
+  k8s://{{ .Release.Namespace }}/{{ include "tasklattice.componentName" (dict "root" . "component" "example-mcp") }}-auth#auth-value
 {{- end }}
 
 The default credentials are admin/admin and the default OpenShell endpoint is

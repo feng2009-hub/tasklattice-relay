@@ -593,7 +593,6 @@ export const accessPolicyServerRuleSchema = z.object({
 
 export const createAccessPolicySchema = z.object({
   name: z.string().trim().min(3).max(120),
-  description: z.string().trim().min(10).max(500),
   status: z.enum(accessPolicyStatuses).default("DRAFT"),
   virtualEmployeeIds: z.array(z.string().uuid()).max(1_000).default([]),
   serverRules: z.array(accessPolicyServerRuleSchema).min(1).max(1_000),
@@ -601,7 +600,6 @@ export const createAccessPolicySchema = z.object({
 
 export const updateAccessPolicySchema = z.object({
   name: z.string().trim().min(3).max(120).optional(),
-  description: z.string().trim().min(10).max(500).optional(),
   status: z.enum(accessPolicyStatuses).optional(),
   virtualEmployeeIds: z.array(z.string().uuid()).max(1_000).optional(),
   serverRules: z.array(accessPolicyServerRuleSchema).min(1).max(1_000).optional(),

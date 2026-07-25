@@ -3,6 +3,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { createMcpExpressApp } from "@modelcontextprotocol/sdk/server/express.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
+import { requireBasicAuthentication } from "./basic-auth.js";
 
 const host = process.env.HOST?.trim() || "0.0.0.0";
 const port = parsePort(process.env.PORT);
@@ -94,6 +95,8 @@ app.get("/healthz", (_request, response) => {
     status: "ok",
   });
 });
+
+app.use("/mcp", requireBasicAuthentication);
 
 app.post("/mcp", async (request: Request, response: Response) => {
   const server = createExampleServer();
