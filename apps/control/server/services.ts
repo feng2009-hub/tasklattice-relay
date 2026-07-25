@@ -9,6 +9,7 @@ import { ProviderService } from "./providers/provider-service";
 import { ProjectService, type ProjectRole } from "./projects/project-service";
 import { VirtualEmployeeService } from "./virtual-employees/virtual-employee-service";
 import { VirtualEmployeeStore } from "./virtual-employees/virtual-employee-store";
+import { ProjectQuotaService } from "./quotas/project-quota-service";
 
 interface ProjectServices {
   agent: AgentService;
@@ -18,6 +19,7 @@ interface ProjectServices {
   policies: PolicyService;
   provider: ProviderService;
   virtualEmployees: VirtualEmployeeService;
+  quotas: ProjectQuotaService;
 }
 
 const litellm = new LiteLLMClient();
@@ -29,17 +31,19 @@ function createServices(projectId: string): ProjectServices {
   const store = new ProjectStore(projectId);
   const policies = new PolicyService(store);
   const modelProfiles = new ModelProfileService(store, litellm);
-  const extensions = new ExtensionCatalogService(store);
+  const quotas = new ProjectQuotaService(store, litellm);
+  const extensions = new ExtensionCatalogService(store, quotas);
   const virtualEmployees = new VirtualEmployeeService(new VirtualEmployeeStore(projectId), litellm);
   scheduleVirtualEmployeeReconciliation(projectId, virtualEmployees);
   return {
-    agent: new AgentService(store, undefined, litellm, policies, extensions, modelProfiles, virtualEmployees),
+    agent: new AgentService(store, undefined, litellm, policies, extensions, modelProfiles, virtualEmployees, quotas),
     provider: new ProviderService(store, litellm),
     cost: new CostService(store, litellm),
     policies,
     extensions,
     modelProfiles,
     virtualEmployees,
+    quotas,
   };
 }
 
@@ -107,4 +111,8 @@ export async function getModelProfileService(request?: Request): Promise<ModelPr
 
 export async function getVirtualEmployeeService(request?: Request): Promise<VirtualEmployeeService> {
   return (await forRequest(request)).virtualEmployees;
+}
+
+export async function getProjectQuotaService(request?: Request): Promise<ProjectQuotaService> {
+  return (await forRequest(request)).quotas;
 }

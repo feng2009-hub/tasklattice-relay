@@ -1,5 +1,9 @@
 import { getAuthToken } from "@/lib/auth-token";
 import type {
+  ProjectQuota,
+  UpdateProjectQuotaInput,
+} from "@tasklattice/contracts";
+import type {
   HumanProjectMember,
   Project,
   ProjectMember,
@@ -73,5 +77,21 @@ export async function removeMember(projectId: string, memberId: string): Promise
   await projectRequest(
     `/api/v1/projects/${encodeURIComponent(projectId)}/members/${encodeURIComponent(memberId)}`,
     { method: "DELETE" },
+  );
+}
+
+export async function getProjectQuota(projectId: string): Promise<ProjectQuota> {
+  return projectRequest<ProjectQuota>(
+    `/api/v1/projects/${encodeURIComponent(projectId)}/quota`,
+  );
+}
+
+export async function updateProjectQuota(
+  projectId: string,
+  input: UpdateProjectQuotaInput,
+): Promise<ProjectQuota> {
+  return projectRequest<ProjectQuota>(
+    `/api/v1/projects/${encodeURIComponent(projectId)}/quota`,
+    { method: "PUT", body: JSON.stringify(input) },
   );
 }

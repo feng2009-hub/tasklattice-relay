@@ -23,14 +23,8 @@ type Draft = {
   ownerTeamId: string;
   environment: "development" | "uat" | "production";
   tags: string;
-  litellmTeamId: string;
   allowedModels: string;
   accessGroups: string;
-  maxBudget: string;
-  rpmLimit: string;
-  tpmLimit: string;
-  maxParallelRequests: string;
-  keyDuration: string;
   fallbackModels: string;
   identityType: "none" | "kubernetes_service_account" | "functional_id" | "oauth_client" | "api_credential" | "cloud_role" | "custom";
   identityDisplayName: string;
@@ -44,18 +38,13 @@ type Draft = {
 
 const initialDraft: Draft = {
   name: "", displayName: "", description: "", businessRole: "", ownerTeamId: "", environment: "production", tags: "",
-  litellmTeamId: "", allowedModels: "", accessGroups: "", maxBudget: "100", rpmLimit: "60", tpmLimit: "500000", maxParallelRequests: "10", keyDuration: "90d", fallbackModels: "",
+  allowedModels: "", accessGroups: "", fallbackModels: "",
   identityType: "none", identityDisplayName: "", identityProvider: "", identityReference: "",
   resourceType: "", resourceId: "", actions: "", enforcementProvider: "metadata_only",
 };
 
 function list(value: string): string[] {
   return value.split(",").map((item) => item.trim()).filter(Boolean);
-}
-
-function numeric(value: string): number | undefined {
-  const parsed = Number(value);
-  return value.trim() && Number.isFinite(parsed) ? parsed : undefined;
 }
 
 export function CreateVirtualEmployeeSheet({
@@ -89,7 +78,7 @@ export function CreateVirtualEmployeeSheet({
   const canContinue = step === 0
     ? /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(draft.name) && draft.displayName.trim().length >= 2
     : step === 1
-      ? list(draft.allowedModels).length > 0 && /^\d+(?:s|m|h|d|w)$/.test(draft.keyDuration)
+      ? list(draft.allowedModels).length > 0
       : true;
   const create = () => mutation.mutate({
     name: draft.name,
@@ -100,15 +89,10 @@ export function CreateVirtualEmployeeSheet({
     environment: draft.environment,
     tags: list(draft.tags),
     modelAccess: {
-      litellmTeamId: draft.litellmTeamId || undefined,
       allowedModels: list(draft.allowedModels),
       accessGroups: list(draft.accessGroups),
-      maxBudget: numeric(draft.maxBudget),
       budgetDuration: "30d",
-      rpmLimit: numeric(draft.rpmLimit),
-      tpmLimit: numeric(draft.tpmLimit),
-      maxParallelRequests: numeric(draft.maxParallelRequests),
-      keyDuration: draft.keyDuration,
+      keyDuration: "90d",
       fallbackModels: list(draft.fallbackModels),
     },
     identities: draft.identityType === "none" ? [] : [{
@@ -152,19 +136,13 @@ export function CreateVirtualEmployeeSheet({
         <Field label="Tags" hint="Comma separated"><Input value={draft.tags} onChange={(event) => set("tags", event.target.value)} placeholder="analytics, notebooks" /></Field>
         <div className="sm:col-span-2"><Field label="Description"><Textarea value={draft.description} onChange={(event) => set("description", event.target.value)} placeholder="Runs approved notebook and data analysis tasks." /></Field></div>
       </CardContent></Card> : null}
-      {step === 1 ? <Card><CardHeader><CardTitle className="flex items-center gap-2"><KeyRound className="size-5" /> Model access</CardTitle><CardDescription>A dedicated LiteLLM Service Account Key will enforce models, budgets, rate limits, and spend attribution.</CardDescription></CardHeader><CardContent className="space-y-5">
+      {step === 1 ? <Card><CardHeader><CardTitle className="flex items-center gap-2"><KeyRound className="size-5" /> Model access</CardTitle><CardDescription>Choose the model scope for this business identity. Each Instance receives an independent key under the Project LiteLLM Team.</CardDescription></CardHeader><CardContent className="space-y-5">
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="LiteLLM team" hint="Leave blank to create or reuse the owner team."><Input value={draft.litellmTeamId} onChange={(event) => set("litellmTeamId", event.target.value)} placeholder="Data Platform" /></Field>
           <Field label="Allowed models" hint="Comma separated model aliases."><Input value={draft.allowedModels} onChange={(event) => set("allowedModels", event.target.value)} placeholder="gpt-5.2, qwen-coder" /></Field>
           <Field label="Access groups"><Input value={draft.accessGroups} onChange={(event) => set("accessGroups", event.target.value)} placeholder="approved-coding-models" /></Field>
           <Field label="Fallback models"><Input value={draft.fallbackModels} onChange={(event) => set("fallbackModels", event.target.value)} placeholder="internal-small-model" /></Field>
-          <Field label="Monthly budget (USD)"><Input inputMode="decimal" value={draft.maxBudget} onChange={(event) => set("maxBudget", event.target.value)} /></Field>
-          <Field label="Key lifetime"><Select value={draft.keyDuration} onValueChange={(value) => set("keyDuration", value)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="30d">30 days</SelectItem><SelectItem value="90d">90 days</SelectItem><SelectItem value="180d">180 days</SelectItem><SelectItem value="365d">1 year</SelectItem></SelectContent></Select></Field>
-          <Field label="RPM limit"><Input inputMode="numeric" value={draft.rpmLimit} onChange={(event) => set("rpmLimit", event.target.value)} /></Field>
-          <Field label="TPM limit"><Input inputMode="numeric" value={draft.tpmLimit} onChange={(event) => set("tpmLimit", event.target.value)} /></Field>
-          <Field label="Maximum parallel requests"><Input inputMode="numeric" value={draft.maxParallelRequests} onChange={(event) => set("maxParallelRequests", event.target.value)} /></Field>
         </div>
-        <p className="border-l-2 border-primary bg-primary/5 px-4 py-3 text-xs leading-5">The complete key is never stored in a business table or returned by list APIs. TALI writes it to Kubernetes Secret storage; local development uses an ephemeral process-only store.</p>
+        <p className="border-l-2 border-primary bg-primary/5 px-4 py-3 text-xs leading-5">The Virtual Employee has no shared model credential. Instance keys carry Project, Virtual Employee, and Instance attribution metadata and are revoked independently.</p>
       </CardContent></Card> : null}
       {step === 2 ? <Card><CardHeader><div className="flex items-center justify-between gap-3"><div><CardTitle>System identities</CardTitle><CardDescription>Attach references only. Never paste a password, token, or OAuth secret.</CardDescription></div><Badge variant="outline">Optional</Badge></div></CardHeader><CardContent className="space-y-4">
         <Field label="Identity type"><Select value={draft.identityType} onValueChange={(value) => set("identityType", value as Draft["identityType"])}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">No system identity</SelectItem><SelectItem value="kubernetes_service_account">Kubernetes ServiceAccount</SelectItem><SelectItem value="functional_id">Functional ID</SelectItem><SelectItem value="oauth_client">OAuth Client</SelectItem><SelectItem value="api_credential">API Credential Reference</SelectItem><SelectItem value="cloud_role">Cloud Role</SelectItem><SelectItem value="custom">Custom Identity Provider</SelectItem></SelectContent></Select></Field>
@@ -174,8 +152,8 @@ export function CreateVirtualEmployeeSheet({
         <div className="grid gap-4 sm:grid-cols-2"><Field label="Resource type"><Input value={draft.resourceType} onChange={(event) => set("resourceType", event.target.value)} placeholder="Kubernetes" /></Field><Field label="Resource"><Input value={draft.resourceId} onChange={(event) => set("resourceId", event.target.value)} placeholder="namespace/data-analysis" /></Field><Field label="Actions" hint="Comma separated"><Input value={draft.actions} onChange={(event) => set("actions", event.target.value)} placeholder="get, list" /></Field><Field label="Enforcement provider"><Select value={draft.enforcementProvider} onValueChange={(value) => set("enforcementProvider", value as Draft["enforcementProvider"])}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="kubernetes_rbac">Kubernetes RBAC · Enforced</SelectItem><SelectItem value="target_system">Target system · Enforced</SelectItem><SelectItem value="adapter">TALI adapter · Partially enforced</SelectItem><SelectItem value="metadata_only">Metadata only · Not enforced</SelectItem></SelectContent></Select></Field></div>
         <p className="border-l-2 border-amber-500 bg-amber-500/5 px-4 py-3 text-xs leading-5">LiteLLM enforces model scope only. Kubernetes, JupyterHub, MCP, and internal API permissions remain the responsibility of the named enforcement provider.</p>
       </CardContent></Card> : null}
-      {step === 4 ? <Card><CardHeader><CardTitle className="flex items-center gap-2"><Check className="size-5" /> Review</CardTitle><CardDescription>TALI creates the business identity first, then provisions LiteLLM and stores the credential. Failed provisioning preserves this configuration for retry.</CardDescription></CardHeader><CardContent className="space-y-5">
-        <div className="grid gap-5 sm:grid-cols-2"><Summary title="Virtual Employee" rows={[["Name", draft.displayName], ["Identifier", draft.name], ["Owner", draft.ownerTeamId || "Unassigned"], ["Environment", draft.environment]]} /><Summary title="Model access" rows={[["Models", list(draft.allowedModels).join(", ")], ["Access groups", list(draft.accessGroups).join(", ") || "None"], ["Budget", `$${draft.maxBudget || "No limit"} / 30d`], ["Rate limits", `${draft.rpmLimit || "—"} RPM · ${draft.tpmLimit || "—"} TPM`]]} /><Summary title="Backing identities" rows={[["Identity", draft.identityType === "none" ? "None" : draft.identityDisplayName], ["Credential destination", "Kubernetes Secret / ephemeral dev store"]]} /><Summary title="Approved scope" rows={[["Resource", draft.resourceId || "None"], ["Enforcement", draft.resourceId ? draft.enforcementProvider.replaceAll("_", " ") : "Not configured"]]} /></div>
+      {step === 4 ? <Card><CardHeader><CardTitle className="flex items-center gap-2"><Check className="size-5" /> Review</CardTitle><CardDescription>TALI creates the business identity and maps it to the Project Team. Failed synchronization preserves this configuration for retry.</CardDescription></CardHeader><CardContent className="space-y-5">
+        <div className="grid gap-5 sm:grid-cols-2"><Summary title="Virtual Employee" rows={[["Name", draft.displayName], ["Identifier", draft.name], ["Owner", draft.ownerTeamId || "Unassigned"], ["Environment", draft.environment]]} /><Summary title="Model access" rows={[["Models", list(draft.allowedModels).join(", ")], ["Access groups", list(draft.accessGroups).join(", ") || "None"], ["Quota", "Inherited from Project"]]} /><Summary title="Backing identities" rows={[["Identity", draft.identityType === "none" ? "None" : draft.identityDisplayName], ["Model credential", "Issued per Instance"]]} /><Summary title="Approved scope" rows={[["Resource", draft.resourceId || "None"], ["Enforcement", draft.resourceId ? draft.enforcementProvider.replaceAll("_", " ") : "Not configured"]]} /></div>
         <Separator />
         <p className="flex items-start gap-2 text-xs leading-5 text-muted-foreground"><Bot className="mt-0.5 size-4 shrink-0" />Runtime Policy remains an independent OpenShell control and will be selected when an Instance is created.</p>
       </CardContent></Card> : null}

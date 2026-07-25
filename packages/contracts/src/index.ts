@@ -530,6 +530,25 @@ export const createAgentSchema = z.object({
   knowledgeSourceIds: z.array(z.string().trim().min(1).max(160)).max(64).optional(),
 }).strict();
 
+const nullableQuotaInteger = z.number().int().min(0).max(1_000_000_000).nullable();
+
+export const updateProjectQuotaSchema = z.object({
+  hardBudgetUsd: z.number().min(0).max(10_000_000).nullable(),
+  budgetDuration: z.enum(["1d", "7d", "30d"]).nullable(),
+  tpmLimit: nullableQuotaInteger,
+  maxInstances: nullableQuotaInteger,
+  maxMcpIntegrations: nullableQuotaInteger,
+  maxKnowledgeBaseIntegrations: nullableQuotaInteger,
+}).strict().superRefine((value, context) => {
+  if (value.hardBudgetUsd !== null && value.budgetDuration === null) {
+    context.addIssue({
+      code: "custom",
+      path: ["budgetDuration"],
+      message: "Select a reset period when a spend budget is configured.",
+    });
+  }
+});
+
 export const virtualEmployeeStatuses = [
   "draft",
   "pending_approval",
@@ -669,6 +688,7 @@ export type ProviderModelSelection = z.infer<typeof providerModelSelectionSchema
 export type CreateProviderConnectionInput = z.infer<typeof createProviderConnectionSchema>;
 export type CreateModelDeploymentInput = z.infer<typeof createModelDeploymentSchema>;
 export type CreateAgentInput = z.infer<typeof createAgentSchema>;
+export type UpdateProjectQuotaInput = z.infer<typeof updateProjectQuotaSchema>;
 export type CreateVirtualEmployeeInput = z.infer<typeof createVirtualEmployeeSchema>;
 export type UpdateVirtualEmployeeInput = z.infer<typeof updateVirtualEmployeeSchema>;
 export type IdentityBindingInput = z.infer<typeof identityBindingInputSchema>;
@@ -1193,6 +1213,9 @@ export interface Agent extends Omit<CreateAgentInput, "policyId"> {
   modelProfileKeyFingerprint: string;
   modelProfileLastSynchronizedAt?: string;
   costKeyAlias: string;
+  liteLLMTokenId?: string;
+  liteLLMTeamId?: string;
+  serviceAccountId?: string;
   sandboxName: string;
   status: AgentStatus;
   createdAt: string;
@@ -1203,6 +1226,30 @@ export interface Agent extends Omit<CreateAgentInput, "policyId"> {
   logs: string[];
   httpEndpoint?: HttpEndpoint;
   error?: string;
+}
+
+export interface ProjectQuotaUsage {
+  spendUsd: number;
+  totalTokens: number;
+  instances: number;
+  mcpIntegrations: number;
+  knowledgeBaseIntegrations: number;
+}
+
+export interface ProjectQuota {
+  projectId: string;
+  hardBudgetUsd: number | null;
+  budgetDuration: "1d" | "7d" | "30d" | null;
+  tpmLimit: number | null;
+  maxInstances: number | null;
+  maxMcpIntegrations: number | null;
+  maxKnowledgeBaseIntegrations: number | null;
+  litellmTeamId: string | null;
+  syncStatus: "pending" | "synced" | "failed";
+  lastSyncedAt: string | null;
+  lastSyncError: string | null;
+  revision: number;
+  usage: ProjectQuotaUsage;
 }
 
 export interface HttpEndpoint {

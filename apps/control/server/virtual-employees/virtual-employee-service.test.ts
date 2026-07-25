@@ -15,6 +15,8 @@ function adapter(overrides: Partial<LiteLLMAdminClient> = {}): LiteLLMAdminClien
     revokeKey: vi.fn(async () => undefined),
     listSpendLogs: vi.fn(async () => []),
     ensureVirtualEmployeeTeam: vi.fn(async () => "team-data"),
+    ensureProjectTeam: vi.fn(async () => "team-data"),
+    addProjectTeamMember: vi.fn(async () => undefined),
     createVirtualEmployeeKey: vi.fn(async () => ({ secret: "sk-virtual-employee-secret", tokenId: "hashed-ve-key" })),
     updateVirtualEmployeeKey: vi.fn(async () => undefined),
     getVirtualEmployeeKey: vi.fn(async () => ({
@@ -71,7 +73,7 @@ const input = {
 };
 
 describe("VirtualEmployeeService", () => {
-  it("provisions a Service Account Key while persisting only its reference and safe metadata", async () => {
+  it("maps the business identity to the Project Team without issuing a shared credential", async () => {
     const litellm = adapter();
     const secrets = secretStore();
     const service = new VirtualEmployeeService(
@@ -85,44 +87,38 @@ describe("VirtualEmployeeService", () => {
     expect(employee.status).toBe("active");
     expect(employee.modelAccess).toMatchObject({
       litellmTeamId: "team-data",
-      litellmKeyId: "hashed-ve-key",
-      keyLastFour: "cret",
       syncStatus: "synced",
     });
     expect(employee.modelAccess).not.toHaveProperty("secretReference");
+    expect(employee.modelAccess).not.toHaveProperty("litellmKeyId");
     expect(JSON.stringify(employee)).not.toContain("sk-virtual-employee-secret");
-    await expect(service.runtimeCredential(employee.id)).resolves.toMatchObject({
+    await expect(service.runtimeConfiguration(employee.id)).resolves.toMatchObject({
       endpoint: "http://litellm:4000/v1",
-      key: "sk-virtual-employee-secret",
       model: "production-chat",
     });
+    expect(litellm.createVirtualEmployeeKey).not.toHaveBeenCalled();
   });
 
-  it("preserves the Draft and compensates LiteLLM when Secret storage fails", async () => {
-    const litellm = adapter();
+  it("preserves the configuration when Project Team synchronization fails", async () => {
+    const litellm = adapter({
+      ensureProjectTeam: vi.fn(async () => { throw new Error("Project Team synchronization failed."); }),
+    });
     const service = new VirtualEmployeeService(
       new VirtualEmployeeStore("individual", createTestPrisma()),
       litellm,
-      secretStore({ put: vi.fn(async () => { throw new Error("Secret storage failed."); }) }),
+      secretStore(),
     );
 
     const employee = await service.create(input, "admin");
 
     expect(employee.status).toBe("error");
     expect(employee.modelAccess?.allowedModels).toEqual(["production-chat"]);
-    expect(employee.modelAccess?.lastSyncError).toContain("Secret storage failed");
-    expect(litellm.revokeKey).toHaveBeenCalledWith("hashed-ve-key");
+    expect(employee.modelAccess?.lastSyncError).toContain("Project Team synchronization failed");
+    expect(litellm.createVirtualEmployeeKey).not.toHaveBeenCalled();
   });
 
-  it("detects drift without overwriting LiteLLM, then applies intent explicitly", async () => {
-    const litellm = adapter({
-      getVirtualEmployeeKey: vi.fn(async () => ({
-        tokenId: "hashed-ve-key",
-        teamId: "team-data",
-        models: ["unexpected-model"],
-        blocked: false,
-      })),
-    });
+  it("synchronizes the Virtual Employee mapping without creating or updating a shared key", async () => {
+    const litellm = adapter();
     const service = new VirtualEmployeeService(
       new VirtualEmployeeStore("individual", createTestPrisma()),
       litellm,
@@ -130,10 +126,9 @@ describe("VirtualEmployeeService", () => {
     );
     const employee = await service.create(input, "admin");
 
-    expect((await service.sync(employee.id, "admin")).modelAccess?.syncStatus).toBe("drifted");
-    expect(litellm.updateVirtualEmployeeKey).not.toHaveBeenCalled();
     expect((await service.sync(employee.id, "admin", true)).modelAccess?.syncStatus).toBe("synced");
-    expect(litellm.updateVirtualEmployeeKey).toHaveBeenCalled();
+    expect(litellm.createVirtualEmployeeKey).not.toHaveBeenCalled();
+    expect(litellm.updateVirtualEmployeeKey).not.toHaveBeenCalled();
   });
 
   it("disables model access on suspension and blocks deletion while bound", async () => {
@@ -148,18 +143,11 @@ describe("VirtualEmployeeService", () => {
 
     await expect(service.delete(employee.id, "admin")).rejects.toThrow("in use");
     expect((await service.suspend(employee.id, "admin")).status).toBe("suspended");
-    expect(litellm.disableVirtualEmployeeKey).toHaveBeenCalledWith("hashed-ve-key");
+    expect(litellm.disableVirtualEmployeeKey).not.toHaveBeenCalled();
   });
 
-  it("reconciles all provisioned employees without overwriting drift", async () => {
-    const litellm = adapter({
-      getVirtualEmployeeKey: vi.fn(async () => ({
-        tokenId: "hashed-ve-key",
-        teamId: "team-data",
-        models: ["out-of-band-model"],
-        blocked: false,
-      })),
-    });
+  it("reconciles all Project Team mappings", async () => {
+    const litellm = adapter();
     const service = new VirtualEmployeeService(
       new VirtualEmployeeStore("individual", createTestPrisma()),
       litellm,
@@ -169,7 +157,7 @@ describe("VirtualEmployeeService", () => {
 
     await service.reconcileAll();
 
-    expect((await service.get(employee.id)).modelAccess?.syncStatus).toBe("drifted");
+    expect((await service.get(employee.id)).modelAccess?.syncStatus).toBe("synced");
     expect(litellm.updateVirtualEmployeeKey).not.toHaveBeenCalled();
   });
 });

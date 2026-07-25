@@ -111,6 +111,10 @@ export class VirtualEmployeeStore {
     private readonly db: PrismaClient = prisma(),
   ) {}
 
+  database(): PrismaClient {
+    return this.db;
+  }
+
   async list(): Promise<VirtualEmployee[]> {
     const rows = await this.db.virtualEmployeeRecord.findMany({
       where: { projectId: this.projectId },

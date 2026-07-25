@@ -4,6 +4,9 @@ import type { AuthPayload, AuthUser } from "../auth/auth";
 import { requireAuth } from "../auth/auth";
 import { prisma } from "../db/prisma";
 import type { PrismaClient } from "../generated/prisma/client";
+import { LiteLLMClient, type LiteLLMAdminClient } from "../providers/litellm-client";
+import { ProjectQuotaService } from "../quotas/project-quota-service";
+import { ProjectStore } from "./project-store";
 
 export type ProjectRole = "admin" | "member";
 export type ProjectType = "personal" | "team";
@@ -64,7 +67,10 @@ function slug(value: string): string {
 }
 
 export class ProjectService {
-  constructor(private readonly db: PrismaClient = prisma()) {}
+  constructor(
+    private readonly db: PrismaClient = prisma(),
+    private readonly litellm: LiteLLMAdminClient = new LiteLLMClient(),
+  ) {}
 
   async ensureUser(auth: AuthPayload): Promise<string> {
     const id = userId(auth.user.username);
@@ -104,6 +110,11 @@ export class ProjectService {
       create: { projectId, userId: id, role: "admin" },
       update: { role: "admin" },
     });
+    await this.db.projectQuotaRecord.upsert({
+      where: { projectId },
+      create: { projectId },
+      update: {},
+    });
     const invitations = await this.db.projectInvitation.findMany({
       where: { email, status: "pending" },
     });
@@ -128,6 +139,7 @@ export class ProjectService {
           data: { status: "accepted" },
         }),
       ]);
+      await this.syncProjectTeam(invitation.projectId);
     }
     if (projectId !== (process.env.TALI_BOOTSTRAP_PROJECT_ID ?? "individual")) {
       const seeded = await this.db.extensionSkillRecord.count({ where: { projectId } });
@@ -244,7 +256,9 @@ export class ProjectService {
         },
       },
     });
+    await this.db.projectQuotaRecord.create({ data: { projectId: project.id } });
     await this.seedProject(project.id);
+    await this.syncProjectTeam(project.id);
     return {
       id: project.id,
       name: project.name,
@@ -341,6 +355,10 @@ export class ProjectService {
     const project = await this.db.project.findUnique({ where: { id: projectId } });
     if (!project) throw new Error("Project not found.");
     if (project.type === "personal") throw new Error("The default project cannot be deleted.");
+    const quota = await this.db.projectQuotaRecord.findUnique({ where: { projectId } });
+    if (quota?.litellmTeamId && process.env.LITELLM_MASTER_KEY) {
+      await this.litellm.deleteProjectTeam?.(quota.litellmTeamId).catch(() => undefined);
+    }
     await this.db.project.delete({ where: { id: projectId } });
   }
 
@@ -414,6 +432,7 @@ export class ProjectService {
         create: { projectId, userId: existing.id, role },
         update: { role },
       });
+      await this.syncProjectTeam(projectId);
       return {
         id: existing.id,
         kind: "human",
@@ -465,6 +484,17 @@ export class ProjectService {
     await this.db.projectMember.delete({
       where: { projectId_userId: { projectId, userId: memberId } },
     });
+    const quota = await this.db.projectQuotaRecord.findUnique({ where: { projectId } });
+    if (quota?.litellmTeamId && process.env.LITELLM_MASTER_KEY) {
+      await this.litellm.removeProjectTeamMember?.(quota.litellmTeamId, memberId).catch(() => undefined);
+    }
+  }
+
+  private async syncProjectTeam(projectId: string): Promise<void> {
+    if (!process.env.LITELLM_MASTER_KEY) return;
+    await new ProjectQuotaService(new ProjectStore(projectId, this.db), this.litellm)
+      .sync()
+      .catch(() => undefined);
   }
 
   async syncAuthUser(user: AuthUser): Promise<string> {

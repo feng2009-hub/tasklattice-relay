@@ -119,6 +119,19 @@ export interface LiteLLMModelProfileKeyInput extends LiteLLMModelProfileIdentity
   teamId: string;
 }
 
+export interface LiteLLMProjectQuotaInput {
+  maxBudget?: number;
+  budgetDuration?: string;
+  tpmLimit?: number;
+}
+
+export interface LiteLLMInstanceServiceAccountInput {
+  alias: string;
+  teamId: string;
+  models: string[];
+  metadata: Record<string, string>;
+}
+
 export interface LiteLLMAdminClient {
   readonly baseUrl: string;
   registerModel(input: {
@@ -139,6 +152,12 @@ export interface LiteLLMAdminClient {
   deleteModelProfileTeam?(teamId: string): Promise<void>;
   createModelProfileKey?(input: LiteLLMModelProfileKeyInput): Promise<LiteLLMVirtualKey>;
   ensureVirtualEmployeeTeam?(alias: string, metadata: Record<string, string>): Promise<string>;
+  ensureProjectTeam?(alias: string, metadata: Record<string, string>): Promise<string>;
+  updateProjectTeam?(teamId: string, input: LiteLLMProjectQuotaInput): Promise<void>;
+  addProjectTeamMember?(teamId: string, member: { userId: string; email: string; role: "admin" | "user" }): Promise<void>;
+  removeProjectTeamMember?(teamId: string, userId: string): Promise<void>;
+  deleteProjectTeam?(teamId: string): Promise<void>;
+  createInstanceServiceAccountKey?(input: LiteLLMInstanceServiceAccountInput): Promise<LiteLLMVirtualKey>;
   createVirtualEmployeeKey?(input: LiteLLMVirtualEmployeeKeyInput): Promise<LiteLLMVirtualKey>;
   updateVirtualEmployeeKey?(tokenId: string, input: LiteLLMVirtualEmployeeKeyInput): Promise<void>;
   getVirtualEmployeeKey?(tokenId: string): Promise<LiteLLMVirtualEmployeeKeyDetails>;
@@ -314,6 +333,68 @@ export class LiteLLMClient implements LiteLLMAdminClient {
     const id = created.team_id ?? created.id;
     if (!id) throw new Error("LiteLLM did not return a Team identifier.");
     return id;
+  }
+
+  async ensureProjectTeam(alias: string, metadata: Record<string, string>): Promise<string> {
+    return this.ensureVirtualEmployeeTeam(alias, metadata);
+  }
+
+  async updateProjectTeam(teamId: string, input: LiteLLMProjectQuotaInput): Promise<void> {
+    this.assertConfigured();
+    await this.request("/team/update", {
+      method: "POST",
+      body: JSON.stringify({
+        team_id: teamId,
+        max_budget: input.maxBudget ?? null,
+        budget_duration: input.budgetDuration ?? null,
+        tpm_limit: input.tpmLimit ?? null,
+      }),
+    });
+  }
+
+  async addProjectTeamMember(
+    teamId: string,
+    member: { userId: string; email: string; role: "admin" | "user" },
+  ): Promise<void> {
+    this.assertConfigured();
+    await this.request("/team/member_add", {
+      method: "POST",
+      body: JSON.stringify({
+        team_id: teamId,
+        member: {
+          user_id: member.userId,
+          user_email: member.email,
+          role: member.role,
+        },
+      }),
+    });
+  }
+
+  async removeProjectTeamMember(teamId: string, userId: string): Promise<void> {
+    this.assertConfigured();
+    await this.request("/team/member_delete", {
+      method: "POST",
+      body: JSON.stringify({ team_id: teamId, user_id: userId }),
+    });
+  }
+
+  async deleteProjectTeam(teamId: string): Promise<void> {
+    return this.deleteModelProfileTeam(teamId);
+  }
+
+  async createInstanceServiceAccountKey(input: LiteLLMInstanceServiceAccountInput): Promise<LiteLLMVirtualKey> {
+    this.assertConfigured();
+    const response = await this.request<LiteLLMVirtualKeyResponse>("/key/service-account/generate", {
+      method: "POST",
+      body: JSON.stringify({
+        key_alias: input.alias,
+        team_id: input.teamId,
+        models: input.models,
+        metadata: input.metadata,
+      }),
+    });
+    if (!response.key) throw new Error("LiteLLM did not return an Instance Service Account Key.");
+    return { secret: response.key, tokenId: response.token ?? response.key };
   }
 
   async createVirtualEmployeeKey(input: LiteLLMVirtualEmployeeKeyInput): Promise<LiteLLMVirtualKey> {

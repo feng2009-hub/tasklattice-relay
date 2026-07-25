@@ -14,7 +14,6 @@ import {
   Link2,
   Plus,
   RefreshCw,
-  RotateCw,
   Shield,
   Trash2,
   UserRoundCheck,
@@ -58,11 +57,10 @@ function VirtualEmployeeDetailPage() {
     void queryClient.invalidateQueries({ queryKey: scope.key("virtual-employees") });
   };
   const action = useMutation({
-    mutationFn: (kind: "activate" | "provision" | "rotate" | "suspend" | "sync" | "apply") => {
+    mutationFn: (kind: "activate" | "provision" | "suspend" | "sync" | "apply") => {
       if (kind === "suspend") return api.suspendVirtualEmployee(virtualEmployeeId);
       if (kind === "activate") return api.activateVirtualEmployee(virtualEmployeeId);
       if (kind === "provision") return api.provisionVirtualEmployee(virtualEmployeeId);
-      if (kind === "rotate") return api.rotateVirtualEmployeeCredential(virtualEmployeeId);
       return api.syncVirtualEmployee(virtualEmployeeId, kind === "apply");
     },
     onSuccess: refresh,
@@ -98,7 +96,6 @@ function VirtualEmployeeDetailPage() {
         actions={<div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => setEditOpen(true)}><Edit3 /> Edit</Button>
           {value.status === "active" ? <Button variant="outline" disabled={action.isPending} onClick={() => action.mutate("suspend")}><Shield /> Suspend</Button> : <Button variant="outline" disabled={action.isPending || !access} onClick={() => action.mutate(value.status === "error" ? "provision" : "activate")}><CheckCircle2 /> {value.status === "error" ? "Retry provisioning" : "Activate"}</Button>}
-          <Button variant="outline" disabled={action.isPending || !access?.litellmKeyId} onClick={() => action.mutate("rotate")}><RotateCw /> Rotate credential</Button>
         </div>}
       />
 
@@ -124,12 +121,12 @@ function VirtualEmployeeDetailPage() {
             <Metric icon={<Link2 />} label="Bound instances" value={String(value.boundInstanceIds.length)} detail="Live references" />
           </div>
           <Card><CardHeader><CardTitle>Business identity</CardTitle></CardHeader><CardContent><dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2 lg:grid-cols-3"><Definition label="Identifier" value={value.name} mono /><Definition label="Business role" value={value.businessRole || "Not set"} /><Definition label="Owner team" value={value.ownerTeamId || "Unassigned"} /><Definition label="Environment" value={value.environment} /><Definition label="Created by" value={value.createdBy} /><Definition label="Updated" value={new Date(value.updatedAt).toLocaleString()} /></dl></CardContent></Card>
-          <Card><CardHeader><CardTitle>Control boundary</CardTitle><CardDescription>Virtual Employee defines identity and access. Runtime Policy remains an independent OpenShell control.</CardDescription></CardHeader><CardContent className="grid gap-3 md:grid-cols-2"><Boundary title="Model scope" body="LiteLLM enforced" detail={`${access?.allowedModels.join(", ") || "No models"} · ${access?.rpmLimit ?? "—"} RPM / ${access?.tpmLimit ?? "—"} TPM`} tone="good" /><Boundary title="System scope" body={value.accessScopes.some((item) => item.enforcementProvider !== "metadata_only") ? "Mixed enforcement" : "Metadata only"} detail={`${value.accessScopes.length} approved resource scopes`} tone="warn" /></CardContent></Card>
+          <Card><CardHeader><CardTitle>Control boundary</CardTitle><CardDescription>Virtual Employee defines business identity and model scope. Runtime Policy remains an independent OpenShell control.</CardDescription></CardHeader><CardContent className="grid gap-3 md:grid-cols-2"><Boundary title="Model scope" body="LiteLLM enforced per Instance" detail={access?.allowedModels.join(", ") || "No models"} tone="good" /><Boundary title="System scope" body={value.accessScopes.some((item) => item.enforcementProvider !== "metadata_only") ? "Mixed enforcement" : "Metadata only"} detail={`${value.accessScopes.length} approved resource scopes`} tone="warn" /></CardContent></Card>
         </TabsContent>
 
         <TabsContent value="model" className="mt-5">
-          {access ? <Card><CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><CardTitle>LiteLLM model access</CardTitle><CardDescription>Service Account Key details and synchronization state. Full credentials are never displayed.</CardDescription></div><div className="flex gap-2"><Button variant="outline" size="sm" onClick={() => setModelEditOpen(true)}><Edit3 /> Edit limits</Button><Button variant="outline" size="sm" disabled={action.isPending || !access.litellmKeyId} onClick={() => action.mutate("sync")}><RefreshCw /> Sync now</Button></div></div></CardHeader><CardContent className="space-y-6">
-            <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2 lg:grid-cols-3"><Definition label="LiteLLM team" value={access.litellmTeamId || "Pending"} mono /><Definition label="Key alias" value={access.keyAlias} mono /><Definition label="Key ID" value={access.litellmKeyId || "Pending"} mono /><Definition label="Credential" value={access.keyLastFour ? `•••• ${access.keyLastFour}` : "Not issued"} mono /><Definition label="Monthly budget" value={access.maxBudget !== undefined ? `$${access.maxBudget.toFixed(2)}` : "No limit"} /><Definition label="Rate limits" value={`${access.rpmLimit ?? "—"} RPM · ${access.tpmLimit ?? "—"} TPM`} /><Definition label="Expires" value={access.expiresAt ? new Date(access.expiresAt).toLocaleDateString() : "Not set"} /><Definition label="Last synchronized" value={access.lastSyncedAt ? new Date(access.lastSyncedAt).toLocaleString() : "Never"} /><Definition label="Sync status" value={access.syncStatus} /></dl>
+          {access ? <Card><CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><CardTitle>LiteLLM model access</CardTitle><CardDescription>This business identity maps to the Project Team. Every bound Instance receives an independently revocable Service Account Key.</CardDescription></div><div className="flex gap-2"><Button variant="outline" size="sm" onClick={() => setModelEditOpen(true)}><Edit3 /> Edit model scope</Button><Button variant="outline" size="sm" disabled={action.isPending || !access.litellmTeamId} onClick={() => action.mutate("sync")}><RefreshCw /> Sync now</Button></div></div></CardHeader><CardContent className="space-y-6">
+            <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2 lg:grid-cols-3"><Definition label="LiteLLM team" value={access.litellmTeamId || "Pending"} mono /><Definition label="Credential strategy" value="Per-Instance Service Account" /><Definition label="Bound Instance keys" value={`${value.boundInstanceIds.length}`} /><Definition label="Quota source" value="Project settings" /><Definition label="Last synchronized" value={access.lastSyncedAt ? new Date(access.lastSyncedAt).toLocaleString() : "Never"} /><Definition label="Sync status" value={access.syncStatus} /></dl>
             <div><h3 className="text-xs font-medium text-muted-foreground">Allowed models and access groups</h3><div className="mt-2 flex flex-wrap gap-2">{[...access.allowedModels, ...access.accessGroups].map((model) => <Badge key={model} variant="outline">{model}</Badge>)}</div></div>
           </CardContent></Card> : <div className="space-y-4"><Empty title="No model access" body="Configure Model Access before this Virtual Employee can be activated." /><Button onClick={() => setModelEditOpen(true)}><Plus /> Configure Model Access</Button></div>}
         </TabsContent>
@@ -197,12 +194,6 @@ function EditModelAccessDialog({ employee, onSaved, onOpenChange, open }: { empl
   const [models, setModels] = useState(current?.allowedModels.join(", ") ?? "");
   const [groups, setGroups] = useState(current?.accessGroups.join(", ") ?? "");
   const [fallbacks, setFallbacks] = useState(current?.fallbackModels.join(", ") ?? "");
-  const [maxBudget, setMaxBudget] = useState(current?.maxBudget?.toString() ?? "");
-  const [rpmLimit, setRpmLimit] = useState(current?.rpmLimit?.toString() ?? "");
-  const [tpmLimit, setTpmLimit] = useState(current?.tpmLimit?.toString() ?? "");
-  const [parallel, setParallel] = useState(current?.maxParallelRequests?.toString() ?? "");
-  const [budgetDuration, setBudgetDuration] = useState(current?.budgetDuration ?? "30d");
-  const [keyDuration, setKeyDuration] = useState(current?.keyDuration ?? "90d");
   const list = (value: string) => value.split(",").map((item) => item.trim()).filter(Boolean);
   const mutation = useMutation({
     mutationFn: () => api.updateVirtualEmployee(employee.id, {
@@ -211,17 +202,17 @@ function EditModelAccessDialog({ employee, onSaved, onOpenChange, open }: { empl
         allowedModels: list(models),
         accessGroups: list(groups),
         fallbackModels: list(fallbacks),
-        ...(optionalNumber(maxBudget) !== undefined ? { maxBudget: optionalNumber(maxBudget) } : {}),
-        ...(optionalNumber(rpmLimit) !== undefined ? { rpmLimit: optionalNumber(rpmLimit) } : {}),
-        ...(optionalNumber(tpmLimit) !== undefined ? { tpmLimit: optionalNumber(tpmLimit) } : {}),
-        ...(optionalNumber(parallel) !== undefined ? { maxParallelRequests: optionalNumber(parallel) } : {}),
-        budgetDuration,
-        keyDuration,
+        ...(current?.maxBudget !== undefined ? { maxBudget: current.maxBudget } : {}),
+        ...(current?.rpmLimit !== undefined ? { rpmLimit: current.rpmLimit } : {}),
+        ...(current?.tpmLimit !== undefined ? { tpmLimit: current.tpmLimit } : {}),
+        ...(current?.maxParallelRequests !== undefined ? { maxParallelRequests: current.maxParallelRequests } : {}),
+        budgetDuration: current?.budgetDuration ?? "30d",
+        keyDuration: current?.keyDuration ?? "90d",
       },
     }),
     onSuccess: () => { onSaved(); onOpenChange(false); },
   });
-  return <Dialog open={open} onOpenChange={(next) => !mutation.isPending && onOpenChange(next)}><DialogContent><DialogHeader><DialogTitle>Configure Model Access</DialogTitle><DialogDescription>These limits are owned by TALI and synchronized to the LiteLLM Service Account Key. Existing credentials remain hidden.</DialogDescription></DialogHeader><div className="grid max-h-[65vh] gap-4 overflow-y-auto px-6 py-5 sm:grid-cols-2"><div className="sm:col-span-2"><Field label="Allowed models"><Input value={models} onChange={(event) => setModels(event.target.value)} placeholder="production-chat, coding-model" /></Field></div><Field label="Access groups"><Input value={groups} onChange={(event) => setGroups(event.target.value)} placeholder="engineering" /></Field><Field label="Fallback models"><Input value={fallbacks} onChange={(event) => setFallbacks(event.target.value)} /></Field><Field label="Maximum budget"><Input inputMode="decimal" value={maxBudget} onChange={(event) => setMaxBudget(event.target.value)} placeholder="No limit" /></Field><Field label="Budget duration"><Input value={budgetDuration} onChange={(event) => setBudgetDuration(event.target.value)} placeholder="30d" /></Field><Field label="RPM limit"><Input inputMode="numeric" value={rpmLimit} onChange={(event) => setRpmLimit(event.target.value)} /></Field><Field label="TPM limit"><Input inputMode="numeric" value={tpmLimit} onChange={(event) => setTpmLimit(event.target.value)} /></Field><Field label="Parallel requests"><Input inputMode="numeric" value={parallel} onChange={(event) => setParallel(event.target.value)} /></Field><Field label="Credential duration"><Input value={keyDuration} onChange={(event) => setKeyDuration(event.target.value)} placeholder="90d" /></Field>{mutation.error ? <p role="alert" className="sm:col-span-2 text-sm text-destructive">{mutation.error.message}</p> : null}</div><DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button disabled={mutation.isPending || list(models).length === 0 || !/^\d+(s|m|h|d|w)$/.test(keyDuration)} onClick={() => mutation.mutate()}>{mutation.isPending ? "Saving…" : "Save and synchronize"}</Button></DialogFooter></DialogContent></Dialog>;
+  return <Dialog open={open} onOpenChange={(next) => !mutation.isPending && onOpenChange(next)}><DialogContent><DialogHeader><DialogTitle>Configure Model Access</DialogTitle><DialogDescription>Choose the model aliases this business identity may use. Spend and TPM are managed once at Project quota level.</DialogDescription></DialogHeader><div className="grid max-h-[65vh] gap-4 overflow-y-auto px-6 py-5 sm:grid-cols-2"><div className="sm:col-span-2"><Field label="Allowed models"><Input value={models} onChange={(event) => setModels(event.target.value)} placeholder="production-chat, coding-model" /></Field></div><Field label="Access groups"><Input value={groups} onChange={(event) => setGroups(event.target.value)} placeholder="engineering" /></Field><Field label="Fallback models"><Input value={fallbacks} onChange={(event) => setFallbacks(event.target.value)} /></Field>{mutation.error ? <p role="alert" className="sm:col-span-2 text-sm text-destructive">{mutation.error.message}</p> : null}</div><DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button disabled={mutation.isPending || list(models).length === 0} onClick={() => mutation.mutate()}>{mutation.isPending ? "Saving…" : "Save and synchronize"}</Button></DialogFooter></DialogContent></Dialog>;
 }
 
 function AttachIdentityDialog({ id, onSaved, onOpenChange, open }: { id: string; onSaved: () => void; onOpenChange: (open: boolean) => void; open: boolean }) {
@@ -244,10 +235,4 @@ function AttachScopeDialog({ id, onSaved, onOpenChange, open }: { id: string; on
 
 function Field({ children, label }: { children: React.ReactNode; label: string }) {
   return <label className="block space-y-2"><Label>{label}</Label>{children}</label>;
-}
-
-function optionalNumber(value: string): number | undefined {
-  if (!value.trim()) return undefined;
-  const number = Number(value);
-  return Number.isFinite(number) ? number : undefined;
 }

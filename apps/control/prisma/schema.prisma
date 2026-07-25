@@ -72,8 +72,32 @@ model Project {
   virtualEmployeeAccessScopes     AccessScopeBindingRecord[]
   virtualEmployeeInstanceBindings AgentInstanceVirtualEmployeeBindingRecord[]
   virtualEmployeeAudit            VirtualEmployeeAuditRecord[]
+  quota                           ProjectQuotaRecord?
 
   @@map("projects")
+  @@schema("tasklattice")
+}
+
+model ProjectQuotaRecord {
+  projectId                    String    @id @map("project_id")
+  hardBudgetUsd                Decimal?  @map("hard_budget_usd") @db.Decimal(18, 6)
+  budgetDuration               String?   @map("budget_duration")
+  tpmLimit                     BigInt?   @map("tpm_limit")
+  maxInstances                 Int?      @map("max_instances")
+  maxMcpIntegrations           Int?      @map("max_mcp_integrations")
+  maxKnowledgeBaseIntegrations Int?      @map("max_knowledge_base_integrations")
+  litellmTeamId                String?   @map("litellm_team_id")
+  syncStatus                   String    @default("pending") @map("sync_status")
+  lastSyncedAt                 DateTime? @map("last_synced_at") @db.Timestamptz(6)
+  lastSyncError                String?   @map("last_sync_error")
+  updatedBy                    String?   @map("updated_by")
+  revision                     Int       @default(1)
+  createdAt                    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                    DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("project_quotas")
   @@schema("tasklattice")
 }
 

@@ -13,6 +13,7 @@ import type {
   UpdateSkillDefinitionInput,
 } from "@tasklattice/contracts";
 import { ProjectStore } from "../projects/project-store";
+import { ProjectQuotaService } from "../quotas/project-quota-service";
 
 function resourceId(name: string): string {
   const slug = name
@@ -36,7 +37,10 @@ function assertJsonObject(input: string): void {
 }
 
 export class ExtensionCatalogService {
-  constructor(readonly store = new ProjectStore()) {}
+  constructor(
+    readonly store = new ProjectStore(),
+    readonly quotas = new ProjectQuotaService(store),
+  ) {}
 
   async catalog(): Promise<ExtensionCatalog> {
     return {
@@ -59,6 +63,7 @@ export class ExtensionCatalogService {
 
   async createMcpServer(input: CreateMcpServerDefinitionInput): Promise<McpServerDefinition> {
     assertJsonObject(input.parameters);
+    await this.quotas.assertCanCreate("mcp");
     return this.store.saveMcpServerDefinition({ id: resourceId(input.name), ...input });
   }
 
@@ -70,6 +75,7 @@ export class ExtensionCatalogService {
   }
 
   async createKnowledgeSource(input: CreateKnowledgeSourceDefinitionInput): Promise<KnowledgeSourceDefinition> {
+    await this.quotas.assertCanCreate("knowledge-base");
     return this.store.saveKnowledgeSourceDefinition({ id: resourceId(input.name), ...input });
   }
 

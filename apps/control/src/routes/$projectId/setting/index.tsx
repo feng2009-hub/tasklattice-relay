@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { ShieldCheck, SlidersHorizontal, Trash2, Users } from "lucide-react";
+import { Gauge, ShieldCheck, SlidersHorizontal, Trash2, Users } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { ProjectModelProfilesSettings } from "@/components/project/project-model-profiles-settings";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProjectAvatar } from "@/components/project/project-item";
 import { ProjectMembers } from "@/components/project/project-members";
+import { ProjectQuotaSettings } from "@/components/project/project-quota-settings";
 import { useProject } from "@/hooks/use-project";
 import { useProjectPermissions } from "@/hooks/use-project-permissions";
 import { deleteProject, renameProject } from "@/services/project";
@@ -21,6 +22,7 @@ export const Route = createFileRoute("/$projectId/setting/")({
     const section =
       search.section === "members" ||
       search.section === "model-profiles" ||
+      search.section === "quota" ||
       search.section === "settings"
         ? search.section
         : undefined;
@@ -29,7 +31,7 @@ export const Route = createFileRoute("/$projectId/setting/")({
   component: ProjectSettingsPage,
 });
 
-type ProjectSettingsSection = "settings" | "members" | "model-profiles";
+type ProjectSettingsSection = "settings" | "members" | "model-profiles" | "quota";
 
 function ProjectSettingsPage() {
   const navigate = Route.useNavigate();
@@ -92,6 +94,10 @@ function ProjectSettingsPage() {
               <SlidersHorizontal />
               Model Profiles
             </TabsTrigger>
+            <TabsTrigger value="quota">
+              <Gauge />
+              Quota
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="settings" className="mt-0">
@@ -114,6 +120,9 @@ function ProjectSettingsPage() {
             <ProjectModelProfilesSettings
               project={project}
             />
+          </TabsContent>
+          <TabsContent value="quota" className="mt-0">
+            <ProjectQuotaSettings project={project} />
           </TabsContent>
         </Tabs>
       </section>

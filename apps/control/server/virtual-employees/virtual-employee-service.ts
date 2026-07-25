@@ -12,11 +12,12 @@ import type {
 import type {
   LiteLLMAdminClient,
   LiteLLMSpendLog,
-  LiteLLMVirtualEmployeeKeyInput,
 } from "../providers/litellm-client";
 import { LiteLLMClient } from "../providers/litellm-client";
 import { createSecretStore, type SecretStore } from "./secret-store";
 import { VirtualEmployeeStore } from "./virtual-employee-store";
+import { ProjectQuotaService } from "../quotas/project-quota-service";
+import { ProjectStore } from "../projects/project-store";
 
 type ModelAccessInput = NonNullable<CreateVirtualEmployeeInput["modelAccess"]>;
 
@@ -79,7 +80,7 @@ export class VirtualEmployeeService {
   async update(id: string, input: UpdateVirtualEmployeeInput, actor: string): Promise<VirtualEmployee> {
     const current = await this.getStored(id);
     const { modelAccess: _modelAccess, ...baseInput } = input;
-    const updated = await this.store.update(id, withoutUndefined({
+    await this.store.update(id, withoutUndefined({
       ...baseInput,
       ...(input.description !== undefined ? { description: input.description } : {}),
       ...(input.businessRole !== undefined ? { businessRole: input.businessRole } : {}),
@@ -87,12 +88,8 @@ export class VirtualEmployeeService {
     }));
     if (input.modelAccess) {
       const desired = this.desiredModelAccess(id, input.name ?? current.name, input.modelAccess, current.modelAccess);
-      if (current.status === "active" && current.modelAccess?.litellmKeyId) {
-        await this.requireAdapter("updateVirtualEmployeeKey")(current.modelAccess.litellmKeyId, this.keyInput(updated, desired));
-        desired.syncStatus = "synced";
-        desired.lastSyncedAt = new Date().toISOString();
-      }
       await this.store.saveModelAccess(desired);
+      if (current.status === "active") await this.sync(id, actor, true);
     }
     await this.audit(id, "virtual_employee.updated", actor, "success", "Virtual Employee configuration updated.");
     return this.get(id);
@@ -103,38 +100,27 @@ export class VirtualEmployeeService {
     if (!employee.modelAccess?.allowedModels.length) {
       throw new Error("Virtual Employee must have Model Access before activation.");
     }
-    if (employee.status === "active" && employee.modelAccess.syncStatus === "synced") return employee;
+    if (
+      employee.status === "active" &&
+      employee.modelAccess.syncStatus === "synced" &&
+      !employee.modelAccess.litellmKeyId &&
+      !employee.modelAccess.secretReference
+    ) return employee;
     await this.store.update(id, { status: "provisioning" });
     const { lastSyncError: _lastSyncError, ...currentAccess } = employee.modelAccess;
     const desired = { ...currentAccess, syncStatus: "pending" as const };
     await this.store.saveModelAccess(desired);
     try {
-      const teamAlias = employee.ownerTeamId
-        ? `tali-${slug(employee.ownerTeamId)}`
-        : `tali-${slug(this.store.projectId)}`;
-      const teamId = desired.litellmTeamId
-        ?? await this.requireAdapter("ensureVirtualEmployeeTeam")(teamAlias, this.metadata(employee));
-      const key = await this.requireAdapter("createVirtualEmployeeKey")(this.keyInput(employee, { ...desired, litellmTeamId: teamId }));
-      let secretReference: string;
-      try {
-        secretReference = await this.secrets.put(this.store.projectId, id, key.secret);
-      } catch (error) {
-        await this.litellm.revokeKey(key.tokenId).catch(() => undefined);
-        throw error;
-      }
-      const nextExpiry = expiresAt(desired.keyDuration);
+      const teamId = await this.projectQuota().ensureProjectTeam();
+      await this.removeLegacyCredential(desired);
       await this.store.saveModelAccess({
-        ...desired,
+        ...withoutCredential(desired),
         litellmTeamId: teamId,
-        litellmKeyId: key.tokenId,
-        keyLastFour: key.secret.slice(-4),
-        secretReference,
-        ...(nextExpiry ? { expiresAt: nextExpiry } : {}),
         syncStatus: "synced",
         lastSyncedAt: new Date().toISOString(),
       });
       await this.store.update(id, { status: "active" });
-      await this.audit(id, "litellm_key.provisioned", actor, "success", "LiteLLM Service Account Key provisioned and stored in the configured Secret Store.");
+      await this.audit(id, "project_team.mapped", actor, "success", "Virtual Employee mapped to the Project LiteLLM Team. Runtime credentials are issued independently per Instance.");
       return this.get(id);
     } catch (error) {
       const message = safeError(error);
@@ -146,10 +132,7 @@ export class VirtualEmployeeService {
   }
 
   async suspend(id: string, actor: string): Promise<VirtualEmployee> {
-    const employee = await this.getStored(id);
-    if (employee.modelAccess?.litellmKeyId) {
-      await this.requireAdapter("disableVirtualEmployeeKey")(employee.modelAccess.litellmKeyId);
-    }
+    await this.getStored(id);
     await this.store.update(id, { status: "suspended" });
     await this.audit(id, "virtual_employee.suspended", actor, "success", "Model access disabled for this Virtual Employee.");
     return this.get(id);
@@ -158,61 +141,29 @@ export class VirtualEmployeeService {
   async activate(id: string, actor: string): Promise<VirtualEmployee> {
     const employee = await this.getStored(id);
     if (!employee.modelAccess) throw new Error("Virtual Employee must have Model Access before activation.");
-    if (!employee.modelAccess.litellmKeyId) return this.provision(id, actor);
-    await this.requireAdapter("enableVirtualEmployeeKey")(employee.modelAccess.litellmKeyId);
-    await this.store.update(id, { status: "active" });
-    await this.audit(id, "virtual_employee.activated", actor, "success", "Model access enabled for this Virtual Employee.");
-    return this.get(id);
+    return this.provision(id, actor);
   }
 
   async rotate(id: string, actor: string): Promise<VirtualEmployee> {
-    const employee = await this.getStored(id);
-    const access = employee.modelAccess;
-    if (!access?.litellmKeyId || !access.secretReference) throw new Error("Provision Model Access before rotating the credential.");
-    const next = await this.requireAdapter("createVirtualEmployeeKey")(this.keyInput(employee, access));
-    try {
-      await this.secrets.put(this.store.projectId, id, next.secret);
-      const nextExpiry = expiresAt(access.keyDuration);
-      await this.store.saveModelAccess({
-        ...access,
-        litellmKeyId: next.tokenId,
-        keyLastFour: next.secret.slice(-4),
-        ...(nextExpiry ? { expiresAt: nextExpiry } : {}),
-        syncStatus: "synced",
-        lastSyncedAt: new Date().toISOString(),
-      });
-      await this.litellm.revokeKey(access.litellmKeyId);
-    } catch (error) {
-      await this.litellm.revokeKey(next.tokenId).catch(() => undefined);
-      throw error;
-    }
-    await this.audit(id, "credential.rotated", actor, "success", "Model credential rotated and Secret Store reference updated.");
+    await this.get(id);
+    await this.audit(id, "credential.rotation_skipped", actor, "success", "Virtual Employee has no shared credential. Instance Service Account Keys rotate independently.");
     return this.get(id);
   }
 
-  async sync(id: string, actor: string, apply = false): Promise<VirtualEmployee> {
+  async sync(id: string, actor: string, _apply = false): Promise<VirtualEmployee> {
     const employee = await this.getStored(id);
     const access = employee.modelAccess;
-    if (!access?.litellmKeyId) throw new Error("Provision Model Access before synchronizing.");
-    const actual = await this.requireAdapter("getVirtualEmployeeKey")(access.litellmKeyId);
-    const expectedModels = new Set([...access.allowedModels, ...access.accessGroups]);
-    const actualModels = new Set(actual.models);
-    const drifted = !setEqual(expectedModels, actualModels)
-      || actual.teamId !== access.litellmTeamId
-      || actual.maxBudget !== access.maxBudget
-      || actual.rpmLimit !== access.rpmLimit
-      || actual.tpmLimit !== access.tpmLimit
-      || (employee.status === "active" && actual.blocked);
-    if (drifted && apply) {
-      await this.requireAdapter("updateVirtualEmployeeKey")(access.litellmKeyId, this.keyInput(employee, access));
-    }
+    if (!access) throw new Error("Configure Model Access before synchronizing.");
+    const teamId = await this.projectQuota().ensureProjectTeam();
+    await this.removeLegacyCredential(access);
     const { lastSyncError: _lastSyncError, ...accessWithoutError } = access;
     await this.store.saveModelAccess({
-      ...accessWithoutError,
-      syncStatus: drifted && !apply ? "drifted" : "synced",
+      ...withoutCredential(accessWithoutError),
+      litellmTeamId: teamId,
+      syncStatus: "synced",
       lastSyncedAt: new Date().toISOString(),
     });
-    await this.audit(id, drifted ? "configuration.drift_detected" : "configuration.synchronized", actor, "success", drifted && !apply ? "LiteLLM differs from TALI desired configuration." : "LiteLLM matches TALI desired configuration.");
+    await this.audit(id, "configuration.synchronized", actor, "success", "Virtual Employee is mapped to the Project Team; Instance keys inherit the Project quota.");
     return this.get(id);
   }
 
@@ -220,7 +171,7 @@ export class VirtualEmployeeService {
     const employees = await this.store.list();
     await Promise.allSettled(
       employees
-        .filter((employee) => employee.modelAccess?.litellmKeyId)
+        .filter((employee) => employee.modelAccess)
         .map(async (employee) => {
           try {
             await this.sync(employee.id, actor);
@@ -285,27 +236,21 @@ export class VirtualEmployeeService {
     if (employee) await this.audit(employee.id, "instance.unbound", actor, "success", `Instance ${instanceId} unbound.`);
   }
 
-  async runtimeCredential(id: string): Promise<{ endpoint: string; key: string; model: string }> {
+  async runtimeConfiguration(id: string): Promise<{ endpoint: string; model: string }> {
     const employee = await this.getStored(id);
     if (employee.status !== "active") throw new Error("Virtual Employee is not Active.");
-    const access = employee.modelAccess;
-    if (!access?.secretReference || !access.allowedModels[0]) throw new Error("Virtual Employee Model Access is incomplete.");
-    return {
-      endpoint: `${this.litellm.baseUrl}/v1`,
-      key: await this.secrets.get(access.secretReference),
-      model: access.allowedModels[0],
-    };
+    const model = employee.modelAccess?.allowedModels[0];
+    if (!model) throw new Error("Virtual Employee Model Access is incomplete.");
+    return { endpoint: `${this.litellm.baseUrl}/v1`, model };
   }
 
   async spend(id: string): Promise<VirtualEmployeeSpend> {
     const employee = await this.getStored(id);
-    const keyId = employee.modelAccess?.litellmKeyId;
-    if (!keyId) return { totalSpend: 0, requests: 0, tokens: 0, byModel: [], daily: [] };
     const end = new Date();
     const start = new Date(end);
     start.setUTCDate(start.getUTCDate() - 30);
     const logs = (await this.litellm.listSpendLogs(start.toISOString().slice(0, 10), end.toISOString().slice(0, 10)))
-      .filter((log) => [log.api_key_id, log.hashed_token, log.api_key].includes(keyId));
+      .filter((log) => log.metadata?.tali_virtual_employee_id === employee.id);
     return summarizeSpend(logs, employee.modelAccess?.maxBudget);
   }
 
@@ -316,8 +261,7 @@ export class VirtualEmployeeService {
   async delete(id: string, actor: string): Promise<void> {
     const employee = await this.getStored(id);
     if (employee.boundInstanceIds.length) throw new Error("Virtual Employee is in use by an Agent Instance.");
-    if (employee.modelAccess?.litellmKeyId) await this.litellm.revokeKey(employee.modelAccess.litellmKeyId);
-    if (employee.modelAccess?.secretReference) await this.secrets.delete(employee.modelAccess.secretReference);
+    if (employee.modelAccess) await this.removeLegacyCredential(employee.modelAccess);
     await this.audit(id, "virtual_employee.deleted", actor, "success", "Virtual Employee deleted.");
     await this.store.delete(id);
   }
@@ -348,38 +292,16 @@ export class VirtualEmployeeService {
     };
   }
 
-  private keyInput(employee: VirtualEmployee, access: VirtualEmployeeModelAccess): LiteLLMVirtualEmployeeKeyInput {
-    if (!access.litellmTeamId) throw new Error("LiteLLM Team is required for a Service Account Key.");
-    return {
-      alias: access.keyAlias,
-      teamId: access.litellmTeamId,
-      models: access.allowedModels,
-      accessGroups: access.accessGroups,
-      ...(access.maxBudget !== undefined ? { maxBudget: access.maxBudget } : {}),
-      ...(access.budgetDuration ? { budgetDuration: access.budgetDuration } : {}),
-      ...(access.rpmLimit !== undefined ? { rpmLimit: access.rpmLimit } : {}),
-      ...(access.tpmLimit !== undefined ? { tpmLimit: access.tpmLimit } : {}),
-      ...(access.maxParallelRequests !== undefined ? { maxParallelRequests: access.maxParallelRequests } : {}),
-      keyDuration: access.keyDuration,
-      metadata: this.metadata(employee),
-    };
+  private projectQuota(): ProjectQuotaService {
+    return new ProjectQuotaService(
+      new ProjectStore(this.store.projectId, this.store.database()),
+      this.litellm,
+    );
   }
 
-  private metadata(employee: VirtualEmployee): Record<string, string> {
-    return {
-      managed_by: "tali",
-      tali_project_id: this.store.projectId,
-      tali_virtual_employee_id: employee.id,
-      environment: employee.environment,
-      ...(employee.ownerTeamId ? { owner_team_id: employee.ownerTeamId } : {}),
-      service_account_id: `tali-${employee.id}`,
-    };
-  }
-
-  private requireAdapter<K extends keyof LiteLLMAdminClient>(name: K): NonNullable<LiteLLMAdminClient[K]> {
-    const method = this.litellm[name];
-    if (typeof method !== "function") throw new Error(`LiteLLM adapter does not support ${String(name)}.`);
-    return method.bind(this.litellm) as NonNullable<LiteLLMAdminClient[K]>;
+  private async removeLegacyCredential(access: VirtualEmployeeModelAccess): Promise<void> {
+    if (access.litellmKeyId) await this.litellm.revokeKey(access.litellmKeyId).catch(() => undefined);
+    if (access.secretReference) await this.secrets.delete(access.secretReference).catch(() => undefined);
   }
 
   private audit(id: string, type: string, actor: string, result: VirtualEmployeeAuditEvent["result"], message: string): Promise<void> {
@@ -396,15 +318,15 @@ function safeError(error: unknown): string {
     .replace(/\bsk-[A-Za-z0-9._-]{8,}\b/g, "[REDACTED]");
 }
 
-function expiresAt(duration: string): string | undefined {
-  const match = duration.match(/^(\d+)(s|m|h|d|w)$/);
-  if (!match) return undefined;
-  const units = { s: 1_000, m: 60_000, h: 3_600_000, d: 86_400_000, w: 604_800_000 };
-  return new Date(Date.now() + Number(match[1]) * units[match[2] as keyof typeof units]).toISOString();
-}
-
-function setEqual(left: Set<string>, right: Set<string>): boolean {
-  return left.size === right.size && [...left].every((value) => right.has(value));
+function withoutCredential(access: VirtualEmployeeModelAccess): VirtualEmployeeModelAccess {
+  const {
+    litellmKeyId: _litellmKeyId,
+    keyLastFour: _keyLastFour,
+    secretReference: _secretReference,
+    expiresAt: _expiresAt,
+    ...safe
+  } = access;
+  return safe;
 }
 
 function redactSecretReference(employee: VirtualEmployee): VirtualEmployee {

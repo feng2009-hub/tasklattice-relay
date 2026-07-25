@@ -338,6 +338,25 @@ export const openApiDocument = {
         responses: { "200": { description: "Inference Gateway collection", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/InferenceGateway" } } } }) } },
       },
     },
+    "/projects/{projectId}/quota": {
+      parameters: [projectIdParameter],
+      get: {
+        operationId: "getProjectQuota",
+        summary: "Read Project quota configuration, synchronization state, and usage",
+        responses: {
+          "200": { description: "Project quota", ...json({ $ref: "#/components/schemas/ProjectQuota" }) },
+        },
+      },
+      put: {
+        operationId: "updateProjectQuota",
+        summary: "Update TALI capacity and synchronize spend plus TPM limits to the LiteLLM Team",
+        requestBody: { required: true, ...json({ $ref: "#/components/schemas/UpdateProjectQuotaInput" }) },
+        responses: {
+          "200": { description: "Updated Project quota", ...json({ $ref: "#/components/schemas/ProjectQuota" }) },
+          "400": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
     "/projects/{projectId}/model-profiles": {
       parameters: [projectIdParameter],
       get: {
@@ -1108,6 +1127,47 @@ export const openApiDocument = {
         additionalProperties: false,
         required: ["name", "gatewayId", "publicModelAlias", "complianceDomain"],
         properties: { name: { type: "string", minLength: 2, maxLength: 64 }, description: { type: "string" }, gatewayId: { type: "string" }, publicModelAlias: { type: "string" }, complianceDomain: { type: "string", enum: ["CN_MAINLAND", "GLOBAL"] }, isDefault: { type: "boolean" }, keyPolicy: { type: "object" }, auditPolicy: { type: "object" } },
+      },
+      UpdateProjectQuotaInput: {
+        type: "object",
+        additionalProperties: false,
+        required: ["hardBudgetUsd", "budgetDuration", "tpmLimit", "maxInstances", "maxMcpIntegrations", "maxKnowledgeBaseIntegrations"],
+        properties: {
+          hardBudgetUsd: { type: ["number", "null"], minimum: 0 },
+          budgetDuration: { type: ["string", "null"], enum: ["1d", "7d", "30d", null] },
+          tpmLimit: { type: ["integer", "null"], minimum: 0 },
+          maxInstances: { type: ["integer", "null"], minimum: 0 },
+          maxMcpIntegrations: { type: ["integer", "null"], minimum: 0 },
+          maxKnowledgeBaseIntegrations: { type: ["integer", "null"], minimum: 0 },
+        },
+      },
+      ProjectQuota: {
+        allOf: [
+          { $ref: "#/components/schemas/UpdateProjectQuotaInput" },
+          {
+            type: "object",
+            required: ["projectId", "litellmTeamId", "syncStatus", "lastSyncedAt", "lastSyncError", "revision", "usage"],
+            properties: {
+              projectId: { type: "string" },
+              litellmTeamId: { type: ["string", "null"] },
+              syncStatus: { type: "string", enum: ["pending", "synced", "failed"] },
+              lastSyncedAt: { type: ["string", "null"], format: "date-time" },
+              lastSyncError: { type: ["string", "null"] },
+              revision: { type: "integer", minimum: 1 },
+              usage: {
+                type: "object",
+                required: ["spendUsd", "totalTokens", "instances", "mcpIntegrations", "knowledgeBaseIntegrations"],
+                properties: {
+                  spendUsd: { type: "number", minimum: 0 },
+                  totalTokens: { type: "integer", minimum: 0 },
+                  instances: { type: "integer", minimum: 0 },
+                  mcpIntegrations: { type: "integer", minimum: 0 },
+                  knowledgeBaseIntegrations: { type: "integer", minimum: 0 },
+                },
+              },
+            },
+          },
+        ],
       },
       ModelProfile: {
         allOf: [{ $ref: "#/components/schemas/CreateModelProfileInput" }, { type: "object", required: ["id", "managementMode", "status", "capabilities", "conditions", "configurationHash", "observedGeneration", "validationMessage", "consumers", "createdAt", "updatedAt"], properties: { id: { type: "string", format: "uuid" }, managementMode: { type: "string", const: "LITELLM_MANAGED" }, status: { type: "string", enum: ["DRAFT", "VALIDATING", "READY", "DEGRADED", "NON_COMPLIANT", "SUSPENDED", "UNSUPPORTED"] }, capabilities: { type: "object", required: ["automaticRouting", "routerType", "sessionAffinity", "adaptiveRouting", "failover", "generalFallback", "contextWindowFallback", "contentPolicyFallback", "retries", "requestAudit"], properties: { automaticRouting: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, routerType: { type: "string", enum: ["COMPLEXITY_ROUTER", "OTHER", "UNKNOWN"] }, complexityTierCount: { type: "integer", minimum: 0 }, sessionAffinity: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, adaptiveRouting: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, failover: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, generalFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, contextWindowFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, contentPolicyFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, retries: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, requestAudit: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] } } }, conditions: { type: "array", items: { type: "object" } }, configurationHash: { type: "string" }, observedGeneration: { type: "integer", minimum: 1 }, validationMessage: { type: "string" }, consumers: { type: "integer" }, lastSynchronizedAt: { type: "string", format: "date-time" }, createdAt: { type: "string", format: "date-time" }, updatedAt: { type: "string", format: "date-time" } } }],

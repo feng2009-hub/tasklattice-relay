@@ -171,7 +171,7 @@ describe("Agent selection", () => {
 });
 
 describe("Instance Virtual Employee binding lifecycle", () => {
-  it("reuses the Virtual Employee Service Account Key and preserves it when one Instance is destroyed", async () => {
+  it("creates and revokes an Instance Service Account Key under the Project Team", async () => {
     const store = createTestStore();
     const now = new Date().toISOString();
     await store.saveInferenceGateway({
@@ -238,6 +238,9 @@ describe("Instance Virtual Employee binding lifecycle", () => {
       createModelProfileTeam: vi.fn(async () => "team-a"),
       createModelProfileKey: vi.fn(async () => ({ secret: "sk-instance", tokenId: "hashed-token" })),
       ensureVirtualEmployeeTeam: vi.fn(async () => "team-a"),
+      ensureProjectTeam: vi.fn(async () => "team-a"),
+      addProjectTeamMember: vi.fn(async () => undefined),
+      createInstanceServiceAccountKey: vi.fn(async () => ({ secret: "sk-instance-service-account", tokenId: "instance-hashed-token" })),
       createVirtualEmployeeKey: vi.fn(async () => ({ secret: "sk-virtual-employee-key", tokenId: "ve-hashed-token" })),
       revokeKey: vi.fn(async () => undefined),
       listSpendLogs: vi.fn(),
@@ -276,10 +279,19 @@ describe("Instance Virtual Employee binding lifecycle", () => {
       systemPrompt: "Research the request and report the resulting evidence.",
     });
 
-    expect(litellm.createVirtualEmployeeKey).toHaveBeenCalledWith(expect.objectContaining({ models: ["production-chat"], teamId: "team-a" }));
-    expect(runner.createSandbox).toHaveBeenCalledWith(expect.objectContaining({ apiKey: "sk-virtual-employee-key", inferenceEndpoint: "http://litellm:4000/v1", virtualEmployeeId: virtualEmployee.id }));
+    expect(litellm.createVirtualEmployeeKey).not.toHaveBeenCalled();
+    expect(litellm.createInstanceServiceAccountKey).toHaveBeenCalledWith(expect.objectContaining({
+      teamId: "team-a",
+      models: ["production-chat"],
+      metadata: expect.objectContaining({
+        tali_project_id: "individual",
+        tali_virtual_employee_id: virtualEmployee.id,
+        tali_instance_id: agent.id,
+      }),
+    }));
+    expect(runner.createSandbox).toHaveBeenCalledWith(expect.objectContaining({ apiKey: "sk-instance-service-account", inferenceEndpoint: "http://litellm:4000/v1", virtualEmployeeId: virtualEmployee.id }));
     expect(runner.createSandbox).toHaveBeenCalledWith(expect.objectContaining({ policyYaml: expect.stringContaining("/dev/null") }));
     await service.destroy(agent.id);
-    expect(litellm.revokeKey).not.toHaveBeenCalled();
+    expect(litellm.revokeKey).toHaveBeenCalledWith("instance-hashed-token");
   });
 });
