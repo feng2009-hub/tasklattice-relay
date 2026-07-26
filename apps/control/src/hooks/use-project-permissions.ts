@@ -13,6 +13,7 @@ export function permissionsForRole(role: ProjectRole): ProjectPermissions {
     canInviteMembers: isManager,
     canManageResources: isManager,
     canManageProject: isManager,
+    canViewAuditLogs: isManager,
     canViewResources: true,
   };
 }

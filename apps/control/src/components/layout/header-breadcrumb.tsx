@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 
 const routeLabels: Record<string, string> = {
   "access-policies": "Access Policies",
+  "audit-logs": "Audit Logs",
   agent: "Agent",
   agents: "Instances",
   cost: "Cost",

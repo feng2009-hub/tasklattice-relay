@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { useProject } from "@/hooks/use-project";
+import { useProjectPermissions } from "@/hooks/use-project-permissions";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { applyPlatformPreferences, getPlatformTheme } from "@/lib/platform-preferences";
@@ -65,6 +66,7 @@ type ProjectRoute =
   | "/$projectId/instances"
   | "/$projectId/requests/new"
   | "/$projectId/access-policies"
+  | "/$projectId/audit-logs"
   | "/$projectId/runtime-policies"
   | "/$projectId/knowledge-base"
   | "/$projectId/mcp-servers"
@@ -96,6 +98,7 @@ const navGroups: Array<{ items: NavItemDefinition[]; label: string }> = [
         to: "/$projectId/access-policies",
       },
       { icon: FileLock2, label: "Runtime Policies", to: "/$projectId/runtime-policies" },
+      { icon: FileClock, label: "Audit Logs", to: "/$projectId/audit-logs" },
     ],
   },
   {
@@ -170,6 +173,7 @@ function ProjectSidebar({ logout, pathname, user }: {
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
   const [toastProject, setToastProject] = useState("");
   const projectId = currentProject?.id ?? "individual";
+  const permissions = useProjectPermissions(currentProject?.role);
   return (
     <ToastProvider duration={3_000} swipeDirection="right">
       <Sidebar collapsible="icon">
@@ -196,14 +200,18 @@ function ProjectSidebar({ logout, pathname, user }: {
                 <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
                 <SidebarGroupContent>
                   <SidebarMenu>
-                    {group.items.map((item, index) => (
+                    {group.items
+                      .filter((item) =>
+                        item.to !== "/$projectId/audit-logs" ||
+                        permissions.canViewAuditLogs,
+                      )
+                      .map((item, index) => (
                       <Fragment key={item.to}>
                         {group.label === "Agentic" && index === 1 ? <DisabledNav icon={Bot} label="Agent Garden" /> : null}
                         {group.label === "Observer" && index === 0 ? <DisabledNav icon={Waypoints} label="Traces" /> : null}
                         <NavigationItem item={item} pathname={pathname} projectId={projectId} />
                       </Fragment>
                     ))}
-                    {group.label === "Security" ? <DisabledNav icon={FileClock} label="Audit Logs" /> : null}
                   </SidebarMenu>
                 </SidebarGroupContent>
               </SidebarGroup>

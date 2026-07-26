@@ -24,6 +24,7 @@ import { Route as ProjectIdCostRouteImport } from './routes/$projectId/cost'
 import { Route as ProjectIdSettingIndexRouteImport } from './routes/$projectId/setting/index'
 import { Route as ProjectIdRequestsIndexRouteImport } from './routes/$projectId/requests/index'
 import { Route as ProjectIdInstancesIndexRouteImport } from './routes/$projectId/instances/index'
+import { Route as ProjectIdAuditLogsIndexRouteImport } from './routes/$projectId/audit-logs/index'
 import { Route as ProjectIdAccessPoliciesIndexRouteImport } from './routes/$projectId/access-policies/index'
 import { Route as ProjectIdRequestsNewRouteImport } from './routes/$projectId/requests/new'
 import { Route as ProjectIdInstancesInstanceIdRouteImport } from './routes/$projectId/instances/$instanceId'
@@ -107,6 +108,11 @@ const ProjectIdInstancesIndexRoute = ProjectIdInstancesIndexRouteImport.update({
   path: '/$projectId/instances/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProjectIdAuditLogsIndexRoute = ProjectIdAuditLogsIndexRouteImport.update({
+  id: '/$projectId/audit-logs/',
+  path: '/$projectId/audit-logs/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProjectIdAccessPoliciesIndexRoute =
   ProjectIdAccessPoliciesIndexRouteImport.update({
     id: '/$projectId/access-policies/',
@@ -160,6 +166,7 @@ export interface FileRoutesByFullPath {
   '/$projectId/instances/$instanceId': typeof ProjectIdInstancesInstanceIdRoute
   '/$projectId/requests/new': typeof ProjectIdRequestsNewRoute
   '/$projectId/access-policies/': typeof ProjectIdAccessPoliciesIndexRoute
+  '/$projectId/audit-logs/': typeof ProjectIdAuditLogsIndexRoute
   '/$projectId/instances/': typeof ProjectIdInstancesIndexRoute
   '/$projectId/requests/': typeof ProjectIdRequestsIndexRoute
   '/$projectId/setting/': typeof ProjectIdSettingIndexRoute
@@ -183,6 +190,7 @@ export interface FileRoutesByTo {
   '/$projectId/instances/$instanceId': typeof ProjectIdInstancesInstanceIdRoute
   '/$projectId/requests/new': typeof ProjectIdRequestsNewRoute
   '/$projectId/access-policies': typeof ProjectIdAccessPoliciesIndexRoute
+  '/$projectId/audit-logs': typeof ProjectIdAuditLogsIndexRoute
   '/$projectId/instances': typeof ProjectIdInstancesIndexRoute
   '/$projectId/requests': typeof ProjectIdRequestsIndexRoute
   '/$projectId/setting': typeof ProjectIdSettingIndexRoute
@@ -207,6 +215,7 @@ export interface FileRoutesById {
   '/$projectId/instances/$instanceId': typeof ProjectIdInstancesInstanceIdRoute
   '/$projectId/requests/new': typeof ProjectIdRequestsNewRoute
   '/$projectId/access-policies/': typeof ProjectIdAccessPoliciesIndexRoute
+  '/$projectId/audit-logs/': typeof ProjectIdAuditLogsIndexRoute
   '/$projectId/instances/': typeof ProjectIdInstancesIndexRoute
   '/$projectId/requests/': typeof ProjectIdRequestsIndexRoute
   '/$projectId/setting/': typeof ProjectIdSettingIndexRoute
@@ -232,6 +241,7 @@ export interface FileRouteTypes {
     | '/$projectId/instances/$instanceId'
     | '/$projectId/requests/new'
     | '/$projectId/access-policies/'
+    | '/$projectId/audit-logs/'
     | '/$projectId/instances/'
     | '/$projectId/requests/'
     | '/$projectId/setting/'
@@ -255,6 +265,7 @@ export interface FileRouteTypes {
     | '/$projectId/instances/$instanceId'
     | '/$projectId/requests/new'
     | '/$projectId/access-policies'
+    | '/$projectId/audit-logs'
     | '/$projectId/instances'
     | '/$projectId/requests'
     | '/$projectId/setting'
@@ -278,6 +289,7 @@ export interface FileRouteTypes {
     | '/$projectId/instances/$instanceId'
     | '/$projectId/requests/new'
     | '/$projectId/access-policies/'
+    | '/$projectId/audit-logs/'
     | '/$projectId/instances/'
     | '/$projectId/requests/'
     | '/$projectId/setting/'
@@ -302,6 +314,7 @@ export interface RootRouteChildren {
   ProjectIdInstancesInstanceIdRoute: typeof ProjectIdInstancesInstanceIdRoute
   ProjectIdRequestsNewRoute: typeof ProjectIdRequestsNewRoute
   ProjectIdAccessPoliciesIndexRoute: typeof ProjectIdAccessPoliciesIndexRoute
+  ProjectIdAuditLogsIndexRoute: typeof ProjectIdAuditLogsIndexRoute
   ProjectIdInstancesIndexRoute: typeof ProjectIdInstancesIndexRoute
   ProjectIdRequestsIndexRoute: typeof ProjectIdRequestsIndexRoute
   ProjectIdSettingIndexRoute: typeof ProjectIdSettingIndexRoute
@@ -416,6 +429,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectIdInstancesIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/$projectId/audit-logs/': {
+      id: '/$projectId/audit-logs/'
+      path: '/$projectId/audit-logs'
+      fullPath: '/$projectId/audit-logs/'
+      preLoaderRoute: typeof ProjectIdAuditLogsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/$projectId/access-policies/': {
       id: '/$projectId/access-policies/'
       path: '/$projectId/access-policies'
@@ -478,6 +498,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProjectIdInstancesInstanceIdRoute: ProjectIdInstancesInstanceIdRoute,
   ProjectIdRequestsNewRoute: ProjectIdRequestsNewRoute,
   ProjectIdAccessPoliciesIndexRoute: ProjectIdAccessPoliciesIndexRoute,
+  ProjectIdAuditLogsIndexRoute: ProjectIdAuditLogsIndexRoute,
   ProjectIdInstancesIndexRoute: ProjectIdInstancesIndexRoute,
   ProjectIdRequestsIndexRoute: ProjectIdRequestsIndexRoute,
   ProjectIdSettingIndexRoute: ProjectIdSettingIndexRoute,

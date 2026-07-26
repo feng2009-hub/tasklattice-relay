@@ -31,4 +31,10 @@ describe("getHeaderBreadcrumbItems", () => {
       { href: "/individual/setting", label: "Project Settings" },
     ]);
   });
+
+  it("uses the canonical label for Project audit logs", () => {
+    expect(getHeaderBreadcrumbItems("/individual/audit-logs")).toEqual([
+      { href: "/individual/audit-logs", label: "Audit Logs" },
+    ]);
+  });
 });

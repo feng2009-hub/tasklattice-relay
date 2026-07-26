@@ -10,6 +10,7 @@ describe("permissionsForRole", () => {
       canInviteMembers: true,
       canManageResources: true,
       canManageProject: true,
+      canViewAuditLogs: true,
       canViewResources: true,
     });
   });
@@ -22,6 +23,7 @@ describe("permissionsForRole", () => {
       canInviteMembers: false,
       canManageResources: false,
       canManageProject: false,
+      canViewAuditLogs: false,
       canViewResources: true,
     });
   });

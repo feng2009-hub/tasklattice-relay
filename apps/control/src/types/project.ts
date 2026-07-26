@@ -39,6 +39,7 @@ export interface ProjectPermissions {
   canInviteMembers: boolean;
   canManageResources: boolean;
   canManageProject: boolean;
+  canViewAuditLogs: boolean;
   canViewResources: boolean;
 }
 import type { VirtualEmployeeStatus } from "@tasklattice/contracts";

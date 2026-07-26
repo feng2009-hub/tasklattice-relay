@@ -36,6 +36,7 @@ import type {
   ProviderConnectionCreationResult,
   ProviderConnectionDraft,
   ProviderDiscoveryResult,
+  PlatformAuditLogEvent,
   RuntimeStatus,
   SandboxPolicy,
   SandboxPolicyCatalog,
@@ -114,6 +115,8 @@ function costSearch(params: CostQueryParams, extra: Record<string, string> = {})
 }
 
 export const api = {
+  listAuditLogs: async () =>
+    (await request<{ data: PlatformAuditLogEvent[] }>("/api/v1/audit-logs")).data,
   listAccessPolicies: async () =>
     (await request<{ data: AccessPolicy[] }>("/api/v1/access-policies")).data,
   getAccessPolicy: (id: string) =>

@@ -12,6 +12,7 @@ import { ProjectService, type ProjectRole } from "./projects/project-service";
 import { VirtualEmployeeService } from "./virtual-employees/virtual-employee-service";
 import { VirtualEmployeeStore } from "./virtual-employees/virtual-employee-store";
 import { ProjectQuotaService } from "./quotas/project-quota-service";
+import { AuditLogService } from "./audit-logs/audit-log-service";
 
 interface ProjectServices {
   agent: AgentService;
@@ -23,6 +24,7 @@ interface ProjectServices {
   provider: ProviderService;
   virtualEmployees: VirtualEmployeeService;
   quotas: ProjectQuotaService;
+  auditLogs: AuditLogService;
 }
 
 const litellm = new LiteLLMClient();
@@ -44,6 +46,7 @@ function createServices(projectId: string): ProjectServices {
   );
   scheduleVirtualEmployeeReconciliation(projectId, virtualEmployees);
   return {
+    auditLogs: new AuditLogService(projectId, store.database()),
     agent: new AgentService(store, undefined, litellm, policies, catalog, modelProfiles, virtualEmployees, quotas, accessPolicies),
     accessPolicies,
     provider: new ProviderService(store, litellm),
@@ -127,4 +130,8 @@ export async function getProjectQuotaService(request?: Request): Promise<Project
 
 export async function getAccessPolicyService(request?: Request): Promise<AccessPolicyService> {
   return (await forRequest(request)).accessPolicies;
+}
+
+export async function getAuditLogService(request?: Request): Promise<AuditLogService> {
+  return (await forRequest(request)).auditLogs;
 }

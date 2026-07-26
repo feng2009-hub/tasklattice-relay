@@ -144,6 +144,7 @@ model Project {
   virtualEmployeeAccessScopes     AccessScopeBindingRecord[]
   virtualEmployeeInstanceBindings AgentInstanceVirtualEmployeeBindingRecord[]
   virtualEmployeeAudit            VirtualEmployeeAuditRecord[]
+  auditLogs                       AuditLogRecord[]
   quota                           ProjectQuotaRecord?
 
   @@map("projects")
@@ -319,6 +320,42 @@ model VirtualEmployeeAuditRecord {
   @@id([projectId, id])
   @@index([projectId, virtualEmployeeId, createdAt(sort: Desc)])
   @@map("virtual_employee_audit")
+  @@schema("tasklattice")
+}
+
+model AuditLogRecord {
+  projectId             String   @map("project_id")
+  id                    String
+  occurredAt            DateTime @map("occurred_at") @db.Timestamptz(6)
+  actorType              String   @map("actor_type")
+  actorId                String   @map("actor_id")
+  actorName              String   @map("actor_name")
+  actorEmail             String?  @map("actor_email")
+  authorizationRole     String   @map("authorization_role")
+  authorizationDecision String   @map("authorization_decision")
+  action                 String
+  verb                   String
+  objectType             String   @map("object_type")
+  objectId               String   @map("object_id")
+  objectName             String   @map("object_name")
+  outcome                String
+  summary                String
+  requestId              String   @map("request_id")
+  httpMethod             String   @map("http_method")
+  route                  String
+  ipAddress              String   @map("ip_address")
+  userAgent              String   @map("user_agent")
+  parameters             Json?
+  requestBody            Json?    @map("request_body")
+  metadata               Json?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, id])
+  @@index([projectId, occurredAt(sort: Desc)])
+  @@index([projectId, actorId, occurredAt(sort: Desc)])
+  @@index([projectId, action, occurredAt(sort: Desc)])
+  @@map("audit_logs")
   @@schema("tasklattice")
 }
 

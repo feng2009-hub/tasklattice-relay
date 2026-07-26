@@ -1388,6 +1388,45 @@ export interface VirtualEmployeeAuditEvent {
   createdAt: string;
 }
 
+export type PlatformAuditActorType = "user" | "service_account" | "system";
+export type PlatformAuditOutcome = "success" | "failed" | "denied";
+
+export interface PlatformAuditLogEvent {
+  id: string;
+  projectId: string;
+  occurredAt: string;
+  actor: {
+    type: PlatformAuditActorType;
+    id: string;
+    name: string;
+    email?: string;
+  };
+  authorization: {
+    scope: "project";
+    role: string;
+    decision: "allowed" | "denied";
+  };
+  action: string;
+  verb: string;
+  object: {
+    type: string;
+    id: string;
+    name: string;
+  };
+  outcome: PlatformAuditOutcome;
+  summary: string;
+  request: {
+    id: string;
+    method: string;
+    route: string;
+    ipAddress: string;
+    userAgent: string;
+    parameters?: Record<string, unknown>;
+    body?: unknown;
+  };
+  metadata?: Record<string, unknown>;
+}
+
 export interface VirtualEmployee {
   id: string;
   projectId: string;
