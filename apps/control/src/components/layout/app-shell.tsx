@@ -63,6 +63,7 @@ import {
 type ProjectRoute =
   | "/$projectId/agent-garden"
   | "/$projectId/cost"
+  | "/$projectId/traces"
   | "/$projectId/instances"
   | "/$projectId/requests/new"
   | "/$projectId/access-policies"
@@ -104,7 +105,10 @@ const navGroups: Array<{ items: NavItemDefinition[]; label: string }> = [
   },
   {
     label: "Observer",
-    items: [{ icon: CircleDollarSign, label: "Cost", to: "/$projectId/cost" }],
+    items: [
+      { icon: Waypoints, label: "Traces", to: "/$projectId/traces" },
+      { icon: CircleDollarSign, label: "Cost", to: "/$projectId/cost" },
+    ],
   },
 ];
 
@@ -206,12 +210,11 @@ function ProjectSidebar({ logout, pathname, user }: {
                         item.to !== "/$projectId/audit-logs" ||
                         permissions.canViewAuditLogs,
                       )
-                      .map((item, index) => (
-                      <Fragment key={item.to}>
-                        {group.label === "Observer" && index === 0 ? <DisabledNav icon={Waypoints} label="Traces" /> : null}
-                        <NavigationItem item={item} pathname={pathname} projectId={projectId} />
-                      </Fragment>
-                    ))}
+                      .map((item) => (
+                        <Fragment key={item.to}>
+                          <NavigationItem item={item} pathname={pathname} projectId={projectId} />
+                        </Fragment>
+                      ))}
                   </SidebarMenu>
                 </SidebarGroupContent>
               </SidebarGroup>

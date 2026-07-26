@@ -27,6 +27,12 @@
     --color-sidebar-foreground: var(--sidebar-foreground);
     --color-sidebar: var(--sidebar);
     --color-chart-5: var(--chart-5);
+    --color-trace-agent: var(--trace-agent);
+    --color-trace-generation: var(--trace-generation);
+    --color-trace-tool: var(--trace-tool);
+    --color-trace-retriever: var(--trace-retriever);
+    --color-trace-guardrail: var(--trace-guardrail);
+    --color-trace-external: var(--trace-external);
     --color-chart-4: var(--chart-4);
     --color-chart-3: var(--chart-3);
     --color-chart-2: var(--chart-2);
@@ -109,6 +115,12 @@
     --cost-series-4: #f08a3c;
     --cost-series-5: #24a6b8;
     --cost-series-6: #9b8cff;
+    --trace-agent: #4339ff;
+    --trace-generation: #8b5cf6;
+    --trace-tool: #d97706;
+    --trace-retriever: #2563eb;
+    --trace-guardrail: #16835a;
+    --trace-external: #64748b;
 }
 
 .dark {
@@ -157,6 +169,12 @@
     --cost-series-4: #f5a15f;
     --cost-series-5: #49c1d2;
     --cost-series-6: #b5a8ff;
+    --trace-agent: #8b7cff;
+    --trace-generation: #b196ff;
+    --trace-tool: #f0a64b;
+    --trace-retriever: #69a7ff;
+    --trace-guardrail: #54c790;
+    --trace-external: #a8b2c1;
 }
 
 @layer base {

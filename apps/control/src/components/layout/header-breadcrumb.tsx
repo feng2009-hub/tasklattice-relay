@@ -27,6 +27,7 @@ const routeLabels: Record<string, string> = {
   skill: "Skills",
   skills: "Skills",
   tickets: "Ticket List",
+  traces: "Traces",
   "virtual-employees": "Virtual Employees",
   projects: "Projects",
 };

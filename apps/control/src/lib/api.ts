@@ -48,6 +48,8 @@ import type {
   SandboxAuditEvent,
   TerminalSessionResponse,
   TerminalTarget,
+  TraceDetail,
+  TraceListResponse,
   SkillDefinition,
   UpdateKnowledgeSourceDefinitionInput,
   UpdateAccessPolicyInput,
@@ -120,6 +122,9 @@ function costSearch(params: CostQueryParams, extra: Record<string, string> = {})
 }
 
 export const api = {
+  listTraces: () => request<TraceListResponse>("/api/v1/traces"),
+  getTrace: (traceId: string) =>
+    request<TraceDetail>(`/api/v1/traces/${encodeURIComponent(traceId)}`),
   listAuditLogs: async () =>
     (await request<{ data: PlatformAuditLogEvent[] }>("/api/v1/audit-logs")).data,
   listAccessPolicies: async () =>

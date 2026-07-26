@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export * from "./traces.js";
+
 export const agentStatuses = [
   "PROVISIONING",
   "READY",
