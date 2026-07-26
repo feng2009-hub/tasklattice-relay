@@ -7,6 +7,7 @@ import type {
   ProviderKind,
   ProviderModelSelection,
 } from "@tasklattice/contracts";
+import { complianceDomains } from "@tasklattice/contracts";
 import { getControlConfig } from "../config/control-config";
 
 interface LiteLLMVirtualKeyResponse {
@@ -109,21 +110,37 @@ export interface LiteLLMModelProfileInspection {
   unsupportedReason?: string;
 }
 
-export interface LiteLLMModelProfileRouteInput {
+interface LiteLLMModelProfileRouteBase {
   alias: string;
   modelProfileId: string;
   complianceDomain: ComplianceDomain;
-  tiers: {
-    SIMPLE: string;
-    MEDIUM: string;
-    COMPLEX: string;
-    REASONING: string;
-  };
   defaultModel: string;
   fallbackModels: string[];
   retries: number;
   requestAudit: boolean;
 }
+
+export type LiteLLMModelProfileRouteInput =
+  | LiteLLMModelProfileRouteBase & {
+      strategy: "COMPLEXITY";
+      tiers: {
+        SIMPLE: string;
+        MEDIUM: string;
+        COMPLEX: string;
+        REASONING: string;
+      };
+    }
+  | LiteLLMModelProfileRouteBase & {
+      strategy: "SEMANTIC";
+      embeddingModel: string;
+      routes: Array<{
+        intent: string;
+        description: string;
+        model: string;
+        utterances: string[];
+        scoreThreshold: number;
+      }>;
+    };
 
 export interface LiteLLMModelProfileIdentity {
   alias: string;
@@ -277,6 +294,10 @@ export class LiteLLMClient implements LiteLLMAdminClient {
           compliance_domain: input.complianceDomain,
           endpoint_region: input.endpointRegion,
           cross_border_transfer: false,
+          model_type: input.model.modelType,
+          capabilities: input.model.capabilities ?? [],
+          input_modalities: input.model.inputModalities ?? [],
+          output_modalities: input.model.outputModalities ?? [],
         },
       }),
     });
@@ -312,22 +333,42 @@ export class LiteLLMClient implements LiteLLMAdminClient {
       throw new Error(`LiteLLM exposes multiple deployments for managed router alias ${input.alias}.`);
     const existing = matches[0];
     if (existing) assertManagedModelProfileRoute(existing.model_info, input.modelProfileId, input.alias);
+    const litellmParams = input.strategy === "COMPLEXITY"
+      ? {
+          model: "auto_router/complexity_router",
+          complexity_router_config: {
+            tiers: input.tiers,
+            default_model: input.defaultModel,
+          },
+          complexity_router_default_model: input.defaultModel,
+          num_retries: input.retries,
+        }
+      : {
+          model: `auto_router/${input.alias}`,
+          auto_router_config: JSON.stringify({
+            routes: input.routes.map((route) => ({
+              // LiteLLM's semantic router uses the route name as the target
+              // model group. The human intent remains in metadata.
+              name: route.model,
+              description: route.description,
+              utterances: route.utterances,
+              score_threshold: route.scoreThreshold,
+              metadata: { tasklattice_intent: route.intent },
+            })),
+          }),
+          auto_router_default_model: input.defaultModel,
+          auto_router_embedding_model: input.embeddingModel,
+          num_retries: input.retries,
+        };
     const body = {
       model_name: input.alias,
-      litellm_params: {
-        model: "auto_router/complexity_router",
-        complexity_router_config: {
-          tiers: input.tiers,
-          default_model: input.defaultModel,
-        },
-        complexity_router_default_model: input.defaultModel,
-        num_retries: input.retries,
-      },
+      litellm_params: litellmParams,
       model_info: {
         ...(existing?.model_info ?? {}),
         managed_by: "tasklattice",
         tasklattice_resource: "model_profile_route",
         model_profile_id: input.modelProfileId,
+        routing_strategy: input.strategy,
         compliance_domain: input.complianceDomain,
         request_audit: input.requestAudit,
       },
@@ -375,28 +416,21 @@ export class LiteLLMClient implements LiteLLMAdminClient {
 
   async probeModel(modelName: string, modelType: ModelType): Promise<void> {
     this.assertConfigured();
-    if (modelType === "llm") {
-      await this.request("/chat/completions", {
-        method: "POST",
-        body: JSON.stringify({
-          model: modelName,
-          messages: [{ role: "user", content: "Reply with OK." }],
-          max_tokens: 1,
-        }),
-      });
-      return;
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        await this.sendModelProbe(modelName, modelType);
+        return;
+      } catch (error) {
+        const retryDelay = MODEL_PROPAGATION_RETRY_DELAYS_MS[attempt];
+        if (
+          retryDelay === undefined
+          || !isPendingModelPropagation(error, modelName)
+        ) {
+          throw error;
+        }
+        await delay(retryDelay);
+      }
     }
-    if (modelType === "text-embedding") {
-      await this.request("/embeddings", {
-        method: "POST",
-        body: JSON.stringify({ model: modelName, input: "TaskLattice validation" }),
-      });
-      return;
-    }
-    const form = new FormData();
-    form.set("model", modelName);
-    form.set("file", new Blob([silentWav()], { type: "audio/wav" }), "validation.wav");
-    await this.request("/audio/transcriptions", { method: "POST", body: form });
   }
 
   async createInstanceKey(input: {
@@ -722,6 +756,7 @@ export class LiteLLMClient implements LiteLLMAdminClient {
     let automaticRouting = false;
     let routerType: ModelProfileCapabilities["routerType"] = "UNKNOWN";
     let complexityTierCount: number | undefined;
+    let semanticRouteCount: number | undefined;
     let sessionAffinity: ModelProfileCapabilities["sessionAffinity"] = "UNKNOWN";
     let adaptiveRouting: ModelProfileCapabilities["adaptiveRouting"] = "UNKNOWN";
     let generalFallback: ModelProfileCapabilities["generalFallback"] = "UNKNOWN";
@@ -736,7 +771,11 @@ export class LiteLLMClient implements LiteLLMAdminClient {
       const isAutoRouter = typeof backingModel === "string" && backingModel.startsWith("auto_router/");
       automaticRouting ||= isAutoRouter;
       if (isAutoRouter)
-        routerType = backingModel === "auto_router/complexity_router" ? "COMPLEXITY_ROUTER" : "OTHER";
+        routerType = backingModel === "auto_router/complexity_router"
+          ? "COMPLEXITY_ROUTER"
+          : params.auto_router_config
+            ? "SEMANTIC_ROUTER"
+            : "OTHER";
       const complexityConfig = record(params.complexity_router_config);
       const tiers = record(complexityConfig?.tiers);
       if (tiers) {
@@ -745,6 +784,22 @@ export class LiteLLMClient implements LiteLLMAdminClient {
       }
       if (typeof params.complexity_router_default_model === "string")
         targetModelNames.add(params.complexity_router_default_model);
+      const semanticConfig = parseJsonRecord(params.auto_router_config);
+      const semanticRoutes = Array.isArray(semanticConfig?.routes)
+        ? semanticConfig.routes
+        : [];
+      if (semanticRoutes.length) {
+        semanticRouteCount = semanticRoutes.length;
+        for (const route of semanticRoutes) {
+          const routeRecord = record(route);
+          if (typeof routeRecord?.name === "string")
+            targetModelNames.add(routeRecord.name);
+        }
+      }
+      if (typeof params.auto_router_default_model === "string")
+        targetModelNames.add(params.auto_router_default_model);
+      if (typeof params.auto_router_embedding_model === "string")
+        targetModelNames.add(params.auto_router_embedding_model);
       const fallbacks = info.fallbacks ?? params.fallbacks ?? info.fallback_group;
       const contextFallbacks = info.context_window_fallbacks ?? params.context_window_fallbacks;
       const policyFallbacks = info.content_policy_fallbacks ?? params.content_policy_fallbacks;
@@ -778,7 +833,12 @@ export class LiteLLMClient implements LiteLLMAdminClient {
     for (const item of effectiveModels) {
       const info = item.model_info ?? {};
       const domain = info.compliance_domain ?? info.complianceDomain;
-      if (domain === "CN_MAINLAND" || domain === "GLOBAL") domains.add(domain);
+      if (
+        typeof domain === "string"
+        && (complianceDomains as readonly string[]).includes(domain)
+      ) {
+        domains.add(domain as ComplianceDomain);
+      }
       else complianceUnknown = true;
     }
     const autoRouterUnsupported = routerType === "COMPLEXITY_ROUTER"
@@ -800,6 +860,7 @@ export class LiteLLMClient implements LiteLLMAdminClient {
         automaticRouting: matching.length ? (automaticRouting ? "ENABLED" : "DISABLED") : "UNKNOWN",
         routerType,
         ...(complexityTierCount !== undefined ? { complexityTierCount } : {}),
+        ...(semanticRouteCount !== undefined ? { semanticRouteCount } : {}),
         sessionAffinity,
         adaptiveRouting,
         failover,
@@ -896,12 +957,43 @@ export class LiteLLMClient implements LiteLLMAdminClient {
       signal: AbortSignal.timeout(this.requestTimeoutMs),
     });
     const body = await response.text();
-    if (!response.ok)
+    if (!response.ok) {
+      const detail = formatLiteLLMErrorDetail(body, this.masterKey);
       throw new LiteLLMRequestError(
         response.status,
-        `LiteLLM returned ${response.status}${body ? `: ${redactSecrets(body.slice(0, 320), this.masterKey)}` : "."}`,
+        `LiteLLM returned ${response.status}${detail ? `: ${detail}` : "."}`,
+        detail,
       );
+    }
     return (body ? JSON.parse(body) : undefined) as T;
+  }
+
+  private async sendModelProbe(
+    modelName: string,
+    modelType: ModelType,
+  ): Promise<void> {
+    if (modelType === "llm") {
+      await this.request("/chat/completions", {
+        method: "POST",
+        body: JSON.stringify({
+          model: modelName,
+          messages: [{ role: "user", content: "Reply with OK." }],
+          max_tokens: 1,
+        }),
+      });
+      return;
+    }
+    if (modelType === "text-embedding") {
+      await this.request("/embeddings", {
+        method: "POST",
+        body: JSON.stringify({ model: modelName, input: "TaskLattice validation" }),
+      });
+      return;
+    }
+    const form = new FormData();
+    form.set("model", modelName);
+    form.set("file", new Blob([silentWav()], { type: "audio/wav" }), "validation.wav");
+    await this.request("/audio/transcriptions", { method: "POST", body: form });
   }
 }
 
@@ -977,10 +1069,54 @@ function redactSecrets(value: string, masterKey: string): string {
 }
 
 class LiteLLMRequestError extends Error {
-  constructor(readonly status: number, message: string) {
+  constructor(
+    readonly status: number,
+    message: string,
+    readonly detail: string,
+  ) {
     super(message);
     this.name = "LiteLLMRequestError";
   }
+}
+
+const MODEL_PROPAGATION_RETRY_DELAYS_MS = [
+  250,
+  500,
+  1_000,
+  2_000,
+  4_000,
+  8_000,
+  8_000,
+  8_000,
+  8_000,
+] as const;
+
+function isPendingModelPropagation(error: unknown, modelName: string): boolean {
+  return error instanceof LiteLLMRequestError
+    && error.status === 400
+    && error.detail.includes(`Invalid model name passed in model=${modelName}`)
+    && error.detail.includes("/v1/models");
+}
+
+function formatLiteLLMErrorDetail(body: string, masterKey: string): string {
+  if (!body) return "";
+  const redacted = redactSecrets(body, masterKey);
+  try {
+    const parsed = JSON.parse(redacted) as {
+      error?: { message?: unknown };
+      message?: unknown;
+      detail?: unknown;
+    };
+    const detail = parsed.error?.message ?? parsed.message ?? parsed.detail;
+    if (typeof detail === "string" && detail.trim()) return detail.slice(0, 2_000);
+  } catch {
+    // Non-JSON LiteLLM responses are still useful after credential redaction.
+  }
+  return redacted.slice(0, 2_000);
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 function assertManagedModelProfileRoute(
@@ -1029,6 +1165,15 @@ function record(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
     : undefined;
+}
+
+function parseJsonRecord(value: unknown): Record<string, unknown> | undefined {
+  if (typeof value !== "string") return record(value);
+  try {
+    return record(JSON.parse(value));
+  } catch {
+    return undefined;
+  }
 }
 
 function collectStrings(value: unknown, target: Set<string>): void {

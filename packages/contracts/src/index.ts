@@ -42,7 +42,78 @@ export const providerKinds = [
 
 export const modelTypes = ["llm", "text-embedding", "speech-to-text"] as const;
 
-export const complianceDomains = ["CN_MAINLAND", "GLOBAL"] as const;
+export const modelCapabilities = [
+  "reasoning",
+  "vision",
+  "ocr",
+  "document-understanding",
+  "tool-calling",
+  "structured-output",
+  "code",
+  "multilingual",
+] as const;
+export const modelInputModalities = [
+  "text",
+  "image",
+  "audio",
+  "document",
+] as const;
+export const modelOutputModalities = [
+  "text",
+  "embedding",
+] as const;
+
+export const complianceDomains = [
+  "GLOBAL",
+  "CN_MAINLAND",
+  "EU_EEA",
+  "US",
+  "UK",
+  "APAC_EX_CN",
+] as const;
+export const complianceDomainCatalog = [
+  {
+    id: "GLOBAL",
+    label: "Global",
+    description: "No project-level residency restriction. Provider terms still apply.",
+    endpointRegion: "global",
+  },
+  {
+    id: "CN_MAINLAND",
+    label: "Mainland China",
+    description: "Keep registered endpoints and Profile fallbacks in Mainland China.",
+    endpointRegion: "cn-mainland",
+  },
+  {
+    id: "EU_EEA",
+    label: "EU / EEA",
+    description: "Keep registered endpoints and Profile fallbacks in the EU or EEA.",
+    endpointRegion: "eu-eea",
+  },
+  {
+    id: "US",
+    label: "United States",
+    description: "Keep registered endpoints and Profile fallbacks in the United States.",
+    endpointRegion: "us",
+  },
+  {
+    id: "UK",
+    label: "United Kingdom",
+    description: "Keep registered endpoints and Profile fallbacks in the United Kingdom.",
+    endpointRegion: "uk",
+  },
+  {
+    id: "APAC_EX_CN",
+    label: "APAC (excluding Mainland China)",
+    description: "Keep registered endpoints and Profile fallbacks in APAC outside Mainland China.",
+    endpointRegion: "apac-ex-cn",
+  },
+] as const satisfies ReadonlyArray<{
+  id: (typeof complianceDomains)[number];
+  label: string;
+  description: string;
+  endpointRegion: string;
+}>;
 export const modelProfileStatuses = [
   "DRAFT",
   "VALIDATING",
@@ -53,15 +124,18 @@ export const modelProfileStatuses = [
   "UNSUPPORTED",
 ] as const;
 export const modelProfileCapabilityStates = ["ENABLED", "DISABLED", "UNKNOWN"] as const;
-export const modelProfileRoutingModes = ["SINGLE", "COMPLEXITY", "EXTERNAL"] as const;
+export const modelProfileRoutingModes = ["SINGLE", "COMPLEXITY", "SEMANTIC"] as const;
 
 export interface ProviderPresetModel {
   modelId: string;
   displayName: string;
   modelType: (typeof modelTypes)[number];
-  inputFeePerMillionTokens?: number;
-  outputFeePerMillionTokens?: number;
-  feePerAudioMinute?: number;
+  capabilities?: Array<(typeof modelCapabilities)[number]> | undefined;
+  inputModalities?: Array<(typeof modelInputModalities)[number]> | undefined;
+  outputModalities?: Array<(typeof modelOutputModalities)[number]> | undefined;
+  inputFeePerMillionTokens?: number | undefined;
+  outputFeePerMillionTokens?: number | undefined;
+  feePerAudioMinute?: number | undefined;
 }
 
 export const providerPresets = [
@@ -368,6 +442,9 @@ export const providerModelSelectionSchema = z.object({
   modelId: z.string().trim().min(1).max(256),
   displayName: z.string().trim().min(1).max(160),
   modelType: z.enum(modelTypes),
+  capabilities: z.array(z.enum(modelCapabilities)).max(modelCapabilities.length).optional(),
+  inputModalities: z.array(z.enum(modelInputModalities)).min(1).max(modelInputModalities.length).optional(),
+  outputModalities: z.array(z.enum(modelOutputModalities)).min(1).max(modelOutputModalities.length).optional(),
   inputFeePerMillionTokens: z.number().min(0).max(1_000_000).optional(),
   outputFeePerMillionTokens: z.number().min(0).max(1_000_000).optional(),
   feePerAudioMinute: z.number().min(0).max(1_000_000).optional(),
@@ -707,6 +784,9 @@ export const createModelDeploymentSchema = z.object({
   modelId: z.string().trim().min(1).max(160),
   displayName: z.string().trim().min(1).max(160),
   modelType: z.enum(modelTypes),
+  capabilities: z.array(z.enum(modelCapabilities)).max(modelCapabilities.length).optional(),
+  inputModalities: z.array(z.enum(modelInputModalities)).min(1).max(modelInputModalities.length).optional(),
+  outputModalities: z.array(z.enum(modelOutputModalities)).min(1).max(modelOutputModalities.length).optional(),
   inputFeePerMillionTokens: z.number().min(0).max(1_000_000).optional(),
   outputFeePerMillionTokens: z.number().min(0).max(1_000_000).optional(),
   feePerAudioMinute: z.number().min(0).max(1_000_000).optional(),
@@ -828,27 +908,58 @@ export const createInferenceGatewaySchema = z.object({
 });
 
 const modelDeploymentIdSchema = z.string().uuid();
+const fallbackModelDeploymentIdsSchema = z
+  .array(modelDeploymentIdSchema)
+  .max(8)
+  .default([]);
+const retryCountSchema = z.number().int().min(0).max(10).default(2);
+const semanticRouteSchema = z.object({
+  intent: z.string().trim().min(2).max(64).regex(
+    /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+    "Use lowercase letters, numbers, and hyphens.",
+  ),
+  description: z.string().trim().min(3).max(240),
+  modelDeploymentId: modelDeploymentIdSchema,
+  utterances: z.array(z.string().trim().min(2).max(500)).min(2).max(50),
+  scoreThreshold: z.number().min(0).max(1).default(0.5),
+}).strict();
 
 export const modelProfileRoutingPolicySchema = z.discriminatedUnion("mode", [
   z.object({
     version: z.literal(1).default(1),
     mode: z.literal("SINGLE"),
     modelDeploymentId: modelDeploymentIdSchema,
+    fallbackModelDeploymentIds: fallbackModelDeploymentIdsSchema,
+    retries: retryCountSchema,
   }).strict(),
   z.object({
     version: z.literal(1).default(1),
     mode: z.literal("COMPLEXITY"),
     simpleModelDeploymentId: modelDeploymentIdSchema,
     complexModelDeploymentId: modelDeploymentIdSchema,
-    fallbackModelDeploymentId: modelDeploymentIdSchema.optional(),
-    retries: z.number().int().min(0).max(10).default(2),
+    fallbackModelDeploymentIds: fallbackModelDeploymentIdsSchema,
+    retries: retryCountSchema,
   }).strict(),
   z.object({
     version: z.literal(1).default(1),
-    mode: z.literal("EXTERNAL"),
-    alias: z.string().trim().min(1).max(160),
+    mode: z.literal("SEMANTIC"),
+    defaultModelDeploymentId: modelDeploymentIdSchema,
+    embeddingModelDeploymentId: modelDeploymentIdSchema,
+    routes: z.array(semanticRouteSchema).min(1).max(16),
+    fallbackModelDeploymentIds: fallbackModelDeploymentIdsSchema,
+    retries: retryCountSchema,
   }).strict(),
 ]).superRefine((policy, context) => {
+  if (
+    policy.mode === "SINGLE"
+    && policy.fallbackModelDeploymentIds.includes(policy.modelDeploymentId)
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["fallbackModelDeploymentIds"],
+      message: "Fallbacks must be different from the primary model.",
+    });
+  }
   if (policy.mode === "COMPLEXITY") {
     if (policy.simpleModelDeploymentId === policy.complexModelDeploymentId) {
       context.addIssue({
@@ -858,13 +969,49 @@ export const modelProfileRoutingPolicySchema = z.discriminatedUnion("mode", [
       });
     }
     if (
-      policy.fallbackModelDeploymentId === policy.simpleModelDeploymentId
-      || policy.fallbackModelDeploymentId === policy.complexModelDeploymentId
+      policy.fallbackModelDeploymentIds.includes(policy.simpleModelDeploymentId)
+      || policy.fallbackModelDeploymentIds.includes(policy.complexModelDeploymentId)
     ) {
       context.addIssue({
         code: "custom",
-        path: ["fallbackModelDeploymentId"],
-        message: "The fallback must be different from both routing tiers.",
+        path: ["fallbackModelDeploymentIds"],
+        message: "Fallbacks must be different from both routing tiers.",
+      });
+    }
+  }
+  if (policy.mode === "SEMANTIC") {
+    const routeIntents = policy.routes.map((route) => route.intent);
+    if (new Set(routeIntents).size !== routeIntents.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["routes"],
+        message: "Semantic route intents must be unique.",
+      });
+    }
+    const routeTargets = policy.routes.map((route) => route.modelDeploymentId);
+    if (new Set(routeTargets).size !== routeTargets.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["routes"],
+        message: "Each semantic route must target a different model deployment.",
+      });
+    }
+    if (routeTargets.includes(policy.defaultModelDeploymentId)) {
+      context.addIssue({
+        code: "custom",
+        path: ["routes"],
+        message: "Semantic route targets must be different from the default model.",
+      });
+    }
+    const routedModels = new Set([
+      policy.defaultModelDeploymentId,
+      ...routeTargets,
+    ]);
+    if (policy.fallbackModelDeploymentIds.some((id) => routedModels.has(id))) {
+      context.addIssue({
+        code: "custom",
+        path: ["fallbackModelDeploymentIds"],
+        message: "Fallbacks must be different from the default and routed models.",
       });
     }
   }
@@ -885,33 +1032,14 @@ const createModelProfileBaseSchema = z.object({
   name: z.string().trim().min(2).max(64),
   description: z.string().trim().max(300).default(""),
   gatewayId: z.string().trim().min(1),
-  routingPolicy: modelProfileRoutingPolicySchema.optional(),
-  /** @deprecated Send routingPolicy.mode=EXTERNAL instead. */
-  publicModelAlias: z.string().trim().min(1).max(160).optional(),
+  routingPolicy: modelProfileRoutingPolicySchema,
   complianceDomain: z.enum(complianceDomains),
   isDefault: z.boolean().default(false),
   keyPolicy: modelProfileKeyPolicySchema,
   auditPolicy: modelProfileAuditPolicySchema,
 }).strict();
 
-export const createModelProfileSchema = createModelProfileBaseSchema
-  .superRefine((input, context) => {
-    if (!input.routingPolicy && !input.publicModelAlias) {
-      context.addIssue({
-        code: "custom",
-        path: ["routingPolicy"],
-        message: "Choose a routing policy.",
-      });
-    }
-  })
-  .transform((input) => ({
-    ...input,
-    routingPolicy: input.routingPolicy ?? {
-      version: 1 as const,
-      mode: "EXTERNAL" as const,
-      alias: input.publicModelAlias!,
-    },
-  }));
+export const createModelProfileSchema = createModelProfileBaseSchema;
 
 export const updateModelProfileSchema = z.object({
   name: z.string().trim().min(2).max(64).optional(),
@@ -927,6 +1055,9 @@ export type AgentStatus = (typeof agentStatuses)[number];
 export type ProvisioningStage = (typeof provisioningStages)[number];
 export type ProviderKind = (typeof providerKinds)[number];
 export type ModelType = (typeof modelTypes)[number];
+export type ModelCapability = (typeof modelCapabilities)[number];
+export type ModelInputModality = (typeof modelInputModalities)[number];
+export type ModelOutputModality = (typeof modelOutputModalities)[number];
 export type AgentPlatformId = (typeof agentPlatformIds)[number];
 export type AgentPlatform = (typeof agentPlatforms)[number];
 export type SandboxPolicyId = z.infer<typeof sandboxPolicyIdSchema>;
@@ -995,8 +1126,9 @@ export interface ModelProfileCondition {
 
 export interface ModelProfileCapabilities {
   automaticRouting: ModelProfileCapabilityState;
-  routerType: "COMPLEXITY_ROUTER" | "OTHER" | "UNKNOWN";
+  routerType: "COMPLEXITY_ROUTER" | "SEMANTIC_ROUTER" | "OTHER" | "UNKNOWN";
   complexityTierCount?: number;
+  semanticRouteCount?: number;
   sessionAffinity: ModelProfileCapabilityState;
   adaptiveRouting: ModelProfileCapabilityState;
   failover: ModelProfileCapabilityState;
@@ -1151,8 +1283,10 @@ export interface ProviderConnectionCreationResult {
 }
 
 export interface ModelDeployment extends CreateModelDeploymentInput {
+  capabilities: ModelCapability[];
+  inputModalities: ModelInputModality[];
+  outputModalities: ModelOutputModality[];
   id: string;
-  isDefault: boolean;
   providerPresetId: ProviderKind;
   providerName: string;
   endpoint: string;

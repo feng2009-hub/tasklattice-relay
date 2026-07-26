@@ -179,7 +179,11 @@ function ModelCostPage() {
       void navigate({ to: "/$projectId/instances/$instanceId", params: { projectId, instanceId: item.boundInstanceId } });
       return;
     }
-    void navigate({ to: "/$projectId/models", params: { projectId } });
+    void navigate({
+      to: "/$projectId/setting",
+      params: { projectId },
+      search: { section: "model-profiles" },
+    });
   };
   const retry = () => { queries.forEach((query) => void query.refetch()); };
   const priorDays = Math.max(1, Math.round((new Date(`${dates.to}T00:00:00Z`).getTime() - new Date(`${dates.from}T00:00:00Z`).getTime()) / 86_400_000) + 1);

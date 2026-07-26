@@ -1,16 +1,19 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type {
-  ComplianceDomain,
-  ModelDeployment,
-  ModelProfileRoutingPolicy,
+import {
+  complianceDomainCatalog,
+  type ModelDeployment,
+  type ModelProfileRoutingPolicy,
 } from "@tasklattice/contracts";
 import {
   Activity,
   Check,
   CircleAlert,
+  Info,
   KeyRound,
+  Plus,
   ShieldCheck,
+  Trash2,
 } from "lucide-react";
 import { EntitySheet } from "@/components/shared/entity-sheet";
 import { Button } from "@/components/ui/button";
@@ -24,25 +27,60 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+
+type RoutingMode = "single" | "complexity" | "semantic";
+
+const routingModeDescriptions: Record<RoutingMode, string> = {
+  single: "Send every request to one primary model.",
+  complexity:
+    "Use an efficient model for ordinary requests and a stronger model for difficult requests.",
+  semantic:
+    "Match requests to representative examples and route them to intent-specific models.",
+};
+
+interface SemanticRouteDraft {
+  id: string;
+  intent: string;
+  description: string;
+  modelDeploymentId: string;
+  utterances: string;
+}
+
+const newSemanticRoute = (index: number): SemanticRouteDraft => ({
+  id: crypto.randomUUID(),
+  intent: index === 0 ? "coding" : "",
+  description:
+    index === 0 ? "Programming, debugging, and software design requests." : "",
+  modelDeploymentId: "",
+  utterances:
+    index === 0
+      ? "Help me debug this TypeScript function\nDesign an API for this service"
+      : "",
+});
 
 export function CreateModelProfileSheet({
   availableModels,
   defaultIsDefault,
   modelsError,
   modelsLoading,
-  onAddUpstream,
   onOpenChange,
+  onRegisterModels,
   open,
 }: {
   availableModels: ModelDeployment[];
   defaultIsDefault: boolean;
   modelsError?: string;
   modelsLoading: boolean;
-  onAddUpstream: () => void;
   onOpenChange: (open: boolean) => void;
+  onRegisterModels: () => void;
   open: boolean;
 }) {
   const queryClient = useQueryClient();
@@ -54,115 +92,178 @@ export function CreateModelProfileSheet({
   });
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [routingMode, setRoutingMode] = useState<
-    "single" | "complexity" | "external"
-  >("single");
-  const [selectedModelId, setSelectedModelId] = useState("");
+  const [routingMode, setRoutingMode] = useState<RoutingMode>("single");
+  const [primaryModelId, setPrimaryModelId] = useState("");
   const [complexModelId, setComplexModelId] = useState("");
+  const [embeddingModelId, setEmbeddingModelId] = useState("");
   const [fallbackModelId, setFallbackModelId] = useState("none");
   const [retries, setRetries] = useState("2");
-  const [alias, setAlias] = useState("");
-  const [externalDomain, setExternalDomain] =
-    useState<ComplianceDomain>("GLOBAL");
+  const [semanticRoutes, setSemanticRoutes] = useState<SemanticRouteDraft[]>([
+    newSemanticRoute(0),
+  ]);
   const [makeDefault, setMakeDefault] = useState(defaultIsDefault);
   const [attempted, setAttempted] = useState(false);
   const gateway = gateways.data?.[0];
-  const compatibleModels = useMemo(
+  const chatModels = useMemo(
     () =>
       availableModels.filter(
-        (model) =>
-          model.status === "VALIDATED" && model.modelType === "llm",
+        (model) => model.status === "VALIDATED" && model.modelType === "llm",
       ),
     [availableModels],
   );
-  const selectedModel = compatibleModels.find(
-    (model) => model.id === selectedModelId,
+  const embeddingModels = useMemo(
+    () =>
+      availableModels.filter(
+        (model) =>
+          model.status === "VALIDATED"
+          && model.modelType === "text-embedding",
+      ),
+    [availableModels],
   );
-  const sameDomainModels = compatibleModels.filter(
-    (model) => model.complianceDomain === selectedModel?.complianceDomain,
+  const primaryModel = chatModels.find(
+    (model) => model.id === primaryModelId,
   );
-  const complexModel = sameDomainModels.find(
+  const sameBoundaryChatModels = chatModels.filter(
+    (model) => model.complianceDomain === primaryModel?.complianceDomain,
+  );
+  const sameBoundaryEmbeddingModels = embeddingModels.filter(
+    (model) => model.complianceDomain === primaryModel?.complianceDomain,
+  );
+  const complexModel = sameBoundaryChatModels.find(
     (model) => model.id === complexModelId,
   );
-  const fallbackModel = sameDomainModels.find(
+  const embeddingModel = sameBoundaryEmbeddingModels.find(
+    (model) => model.id === embeddingModelId,
+  );
+  const fallbackModel = sameBoundaryChatModels.find(
     (model) => model.id === fallbackModelId,
   );
+  const parsedSemanticRoutes = semanticRoutes.map((route) => ({
+    intent: route.intent.trim(),
+    description: route.description.trim(),
+    modelDeploymentId: route.modelDeploymentId,
+    utterances: route.utterances
+      .split("\n")
+      .map((utterance) => utterance.trim())
+      .filter(Boolean),
+    scoreThreshold: 0.5,
+  }));
+  const semanticRoutesValid =
+    parsedSemanticRoutes.length > 0
+    && parsedSemanticRoutes.every(
+      (route) =>
+        /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(route.intent)
+        && route.description.length >= 3
+        && route.modelDeploymentId !== primaryModel?.id
+        && sameBoundaryChatModels.some(
+          (model) => model.id === route.modelDeploymentId,
+        )
+        && route.utterances.length >= 2,
+    )
+    && new Set(parsedSemanticRoutes.map((route) => route.intent)).size
+      === parsedSemanticRoutes.length
+    && new Set(parsedSemanticRoutes.map((route) => route.modelDeploymentId)).size
+      === parsedSemanticRoutes.length;
+  const fallbackIds = fallbackModel ? [fallbackModel.id] : [];
   const routingPolicy: ModelProfileRoutingPolicy | undefined =
-    routingMode === "single" && selectedModel
+    routingMode === "single" && primaryModel
       ? {
           version: 1,
           mode: "SINGLE",
-          modelDeploymentId: selectedModel.id,
+          modelDeploymentId: primaryModel.id,
+          fallbackModelDeploymentIds: fallbackIds,
+          retries: Number(retries),
         }
-      : routingMode === "complexity" && selectedModel && complexModel
+      : routingMode === "complexity" && primaryModel && complexModel
         ? {
             version: 1,
             mode: "COMPLEXITY",
-            simpleModelDeploymentId: selectedModel.id,
+            simpleModelDeploymentId: primaryModel.id,
             complexModelDeploymentId: complexModel.id,
-            ...(fallbackModel
-              ? { fallbackModelDeploymentId: fallbackModel.id }
-              : {}),
+            fallbackModelDeploymentIds: fallbackIds,
             retries: Number(retries),
           }
-        : routingMode === "external" && alias.trim()
+        : routingMode === "semantic"
+          && primaryModel
+          && embeddingModel
+          && semanticRoutesValid
           ? {
               version: 1,
-              mode: "EXTERNAL",
-              alias: alias.trim(),
+              mode: "SEMANTIC",
+              defaultModelDeploymentId: primaryModel.id,
+              embeddingModelDeploymentId: embeddingModel.id,
+              routes: parsedSemanticRoutes,
+              fallbackModelDeploymentIds: fallbackIds,
+              retries: Number(retries),
             }
           : undefined;
 
   useEffect(() => {
     if (!open) return;
+    setName("");
+    setDescription("");
     setRoutingMode("single");
-    setSelectedModelId("");
+    setPrimaryModelId("");
     setComplexModelId("");
+    setEmbeddingModelId("");
     setFallbackModelId("none");
     setRetries("2");
-    setAlias("");
-    setExternalDomain("GLOBAL");
+    setSemanticRoutes([newSemanticRoute(0)]);
     setMakeDefault(defaultIsDefault);
     setAttempted(false);
   }, [defaultIsDefault, open]);
 
   useEffect(() => {
-    if (
-      !open ||
-      routingMode === "external" ||
-      selectedModelId ||
-      !compatibleModels.length
-    )
-      return;
-    setSelectedModelId(
-      (compatibleModels.find((model) => model.isDefault) ??
-        compatibleModels[0])!.id,
-    );
-  }, [compatibleModels, open, routingMode, selectedModelId]);
+    if (!open || primaryModelId || !chatModels.length) return;
+    setPrimaryModelId(chatModels[0]!.id);
+  }, [chatModels, open, primaryModelId]);
 
   useEffect(() => {
-    if (routingMode !== "complexity" || !selectedModel) return;
-    if (!sameDomainModels.some((model) => model.id === complexModelId)) {
+    if (!primaryModel) return;
+    if (
+      routingMode === "complexity"
+      && !sameBoundaryChatModels.some(
+        (model) => model.id === complexModelId,
+      )
+    ) {
       setComplexModelId(
-        sameDomainModels.find((model) => model.id !== selectedModel.id)?.id ?? "",
+        sameBoundaryChatModels.find(
+          (model) => model.id !== primaryModel.id,
+        )?.id ?? "",
       );
+    }
+    if (
+      routingMode === "semantic"
+      && !sameBoundaryEmbeddingModels.some(
+        (model) => model.id === embeddingModelId,
+      )
+    ) {
+      setEmbeddingModelId(sameBoundaryEmbeddingModels[0]?.id ?? "");
     }
     if (
       fallbackModelId !== "none"
       && (
-        !sameDomainModels.some((model) => model.id === fallbackModelId)
-        || fallbackModelId === selectedModel.id
+        !sameBoundaryChatModels.some(
+          (model) => model.id === fallbackModelId,
+        )
+        || fallbackModelId === primaryModel.id
         || fallbackModelId === complexModelId
+        || semanticRoutes.some(
+          (route) => route.modelDeploymentId === fallbackModelId,
+        )
       )
     ) {
       setFallbackModelId("none");
     }
   }, [
     complexModelId,
+    embeddingModelId,
     fallbackModelId,
+    primaryModel,
     routingMode,
-    sameDomainModels,
-    selectedModel,
+    sameBoundaryChatModels,
+    sameBoundaryEmbeddingModels,
+    semanticRoutes,
   ]);
 
   const mutation = useMutation({
@@ -172,10 +273,7 @@ export function CreateModelProfileSheet({
         description,
         gatewayId: gateway?.id ?? "",
         routingPolicy: routingPolicy!,
-        complianceDomain:
-          routingMode === "external"
-            ? externalDomain
-            : selectedModel?.complianceDomain ?? "GLOBAL",
+        complianceDomain: primaryModel?.complianceDomain ?? "GLOBAL",
         isDefault: makeDefault,
         keyPolicy: { perInstance: true, rotationDays: 90 },
         auditPolicy: {
@@ -188,22 +286,14 @@ export function CreateModelProfileSheet({
       await queryClient.invalidateQueries({
         queryKey: scope.key("model-profiles"),
       });
-      setName("");
-      setDescription("");
-      setSelectedModelId("");
-      setComplexModelId("");
-      setFallbackModelId("none");
-      setAlias("");
-      setAttempted(false);
       onOpenChange(false);
     },
   });
   const nameValid = name.trim().length >= 2;
-  const modelValid = Boolean(routingPolicy);
   const gatewayAvailable = Boolean(gateways.data?.length);
   const submit = () => {
     setAttempted(true);
-    if (!nameValid || !modelValid || !gatewayAvailable) return;
+    if (!nameValid || !routingPolicy || !gatewayAvailable) return;
     mutation.mutate();
   };
 
@@ -212,8 +302,8 @@ export function CreateModelProfileSheet({
       open={open}
       onOpenChange={(next) => !mutation.isPending && onOpenChange(next)}
       eyebrow="Model Profile"
-      title="Create Model Profile"
-      description="Choose the model Instances will use, then apply a stable access and policy boundary around it."
+      title="Create Profile"
+      description="Create one stable model identity with routing, resilience, and data residency controls."
       width="lg"
       footer={
         <>
@@ -225,18 +315,16 @@ export function CreateModelProfileSheet({
             Cancel
           </Button>
           <Button
-            className="min-w-48"
+            className="min-w-44"
             disabled={
-              mutation.isPending ||
-              gateways.isPending ||
-              !gatewayAvailable ||
-              (routingMode !== "external" && modelsLoading)
+              mutation.isPending
+              || gateways.isPending
+              || !gatewayAvailable
+              || modelsLoading
             }
             onClick={submit}
           >
-            {mutation.isPending
-              ? "Validating profile…"
-              : "Create and validate profile"}
+            {mutation.isPending ? "Synchronizing…" : "Create Profile"}
           </Button>
         </>
       }
@@ -246,7 +334,7 @@ export function CreateModelProfileSheet({
           <SectionTitle
             number="01"
             title="Profile identity"
-            description="What operators see when choosing a model."
+            description="Name the workload policy, not the underlying Provider model."
           />
           <div className="grid items-start gap-4 sm:grid-cols-2">
             <Field
@@ -255,7 +343,7 @@ export function CreateModelProfileSheet({
               help={
                 attempted && !nameValid
                   ? "Enter at least 2 characters."
-                  : "Use a workload or policy-oriented name."
+                  : "Examples: General assistant, Production reasoning."
               }
               invalid={attempted && !nameValid}
             >
@@ -264,20 +352,20 @@ export function CreateModelProfileSheet({
                 value={name}
                 aria-invalid={attempted && !nameValid}
                 onChange={(event) => setName(event.target.value)}
-                placeholder="Production reasoning"
+                placeholder="General assistant"
               />
             </Field>
             <Field
               label="Description"
               htmlFor="profile-description"
-              help="Optional context for profile consumers."
+              help="Optional context for operators choosing this Profile."
             >
               <Textarea
                 id="profile-description"
                 className="min-h-20"
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
-                placeholder="Balanced reasoning for production Agents"
+                placeholder="Cost-aware routing for everyday Agent work"
               />
             </Field>
           </div>
@@ -286,309 +374,101 @@ export function CreateModelProfileSheet({
         <section className="space-y-4 border-t pt-5">
           <SectionTitle
             number="02"
-            title="Routing policy"
-            description="Choose a direct model or let LiteLLM route by request complexity."
+            title="Routing"
+            description="Choose how requests are routed to registered models."
           />
-          <div
-            role="radiogroup"
-            aria-label="Routing mode"
-            className="grid gap-2 sm:grid-cols-3"
-          >
-            {([
-              ["single", "Single model", "Every request uses one model."],
-              [
-                "complexity",
-                "Complexity routing",
-                "Simple and complex requests use different models.",
-              ],
-              [
-                "external",
-                "Existing LiteLLM alias",
-                "Attach a router managed outside TaskLattice.",
-              ],
-            ] as const).map(([value, label, help]) => (
-              <button
-                key={value}
-                type="button"
-                role="radio"
-                aria-checked={routingMode === value}
-                className={cn(
-                  "min-h-20 border p-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-primary",
-                  routingMode === value
-                    ? "border-primary bg-primary/5"
-                    : "hover:bg-muted/40",
-                )}
-                onClick={() => {
-                  setRoutingMode(value);
-                  setAttempted(false);
-                }}
+          <div className="max-w-sm">
+            <Field
+              label="Routing method"
+              htmlFor="profile-routing-method"
+              help={routingModeDescriptions[routingMode]}
+            >
+              <Select
+                value={routingMode}
+                onValueChange={(value) =>
+                  setRoutingMode(value as RoutingMode)
+                }
               >
-                <strong className="block text-sm font-medium">{label}</strong>
-                <span className="mt-1 block text-xs leading-5 text-muted-foreground">
-                  {help}
-                </span>
-              </button>
-            ))}
+                <SelectTrigger id="profile-routing-method">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="single">Fixed model</SelectItem>
+                  <SelectItem value="complexity">By complexity</SelectItem>
+                  <SelectItem value="semantic">By intent</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
           </div>
 
-          {routingMode === "single" ? (
-            <div className="grid items-start gap-4 sm:grid-cols-2">
-              <Field
-                label="Model"
-                htmlFor="profile-model"
-                help={
-                  attempted && !modelValid
-                    ? "Choose a model before creating this profile."
-                    : selectedModel
-                      ? `${selectedModel.providerName} · ${modelTypeLabel(selectedModel.modelType)} · ${selectedModel.complianceDomain === "CN_MAINLAND" ? "CN Mainland" : "Global"}`
-                      : modelsLoading
-                        ? "Loading validated models…"
-                        : "Only validated, compliance-compatible models are shown."
-                }
-                invalid={attempted && !modelValid}
-              >
-                <Select
-                  value={selectedModelId}
-                  disabled={modelsLoading || !compatibleModels.length}
-                  onValueChange={setSelectedModelId}
-                >
-                  <SelectTrigger
-                    id="profile-model"
-                    aria-label="Available model"
-                    aria-invalid={attempted && !modelValid}
-                  >
-                    <SelectValue
-                      placeholder={
-                        modelsLoading
-                          ? "Loading models…"
-                          : compatibleModels.length
-                            ? "Choose a model"
-                            : "No compatible models"
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {compatibleModels.map((model) => (
-                      <SelectItem key={model.id} value={model.id}>
-                        {model.displayName} · {model.providerName}
-                        {model.isDefault ? " · Default" : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <GatewayField
-                loading={gateways.isPending}
-                name={gateway?.name}
-                available={gatewayAvailable}
-              />
-            </div>
-          ) : routingMode === "complexity" ? (
-            <>
-              <div className="grid items-start gap-4 sm:grid-cols-2">
-                <Field
-                  label="Simple requests"
-                  htmlFor="profile-simple-model"
-                  help={
-                    selectedModel
-                      ? `${selectedModel.providerName} · ${selectedModel.complianceDomain === "CN_MAINLAND" ? "CN Mainland" : "Global"}`
-                      : "Used for SIMPLE and MEDIUM requests."
-                  }
-                  invalid={attempted && !selectedModel}
-                >
-                  <Select
-                    value={selectedModelId}
-                    disabled={modelsLoading || !compatibleModels.length}
-                    onValueChange={setSelectedModelId}
-                  >
-                    <SelectTrigger
-                      id="profile-simple-model"
-                      aria-label="Simple request model"
-                      aria-invalid={attempted && !selectedModel}
-                    >
-                      <SelectValue placeholder="Choose a cost-efficient model" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {compatibleModels.map((model) => (
-                        <SelectItem key={model.id} value={model.id}>
-                          {model.displayName} · {model.providerName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-                <Field
-                  label="Complex requests"
-                  htmlFor="profile-complex-model"
-                  help={
-                    attempted && !complexModel
-                      ? "Choose a different model in the same compliance domain."
-                      : "Used for COMPLEX and REASONING requests."
-                  }
-                  invalid={attempted && !complexModel}
-                >
-                  <Select
-                    value={complexModelId}
-                    disabled={!selectedModel || sameDomainModels.length < 2}
-                    onValueChange={setComplexModelId}
-                  >
-                    <SelectTrigger
-                      id="profile-complex-model"
-                      aria-label="Complex request model"
-                      aria-invalid={attempted && !complexModel}
-                    >
-                      <SelectValue placeholder="Choose a stronger model" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {sameDomainModels
-                        .filter((model) => model.id !== selectedModel?.id)
-                        .map((model) => (
-                          <SelectItem key={model.id} value={model.id}>
-                            {model.displayName} · {model.providerName}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-                <Field
-                  label="Fallback"
-                  htmlFor="profile-fallback-model"
-                  help="Optional. Used only after the routed request exhausts retries."
-                >
-                  <Select
-                    value={fallbackModelId}
-                    disabled={!complexModel}
-                    onValueChange={setFallbackModelId}
-                  >
-                    <SelectTrigger
-                      id="profile-fallback-model"
-                      aria-label="Fallback model"
-                    >
-                      <SelectValue placeholder="No fallback" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">No fallback</SelectItem>
-                      {sameDomainModels
-                        .filter(
-                          (model) =>
-                            model.id !== selectedModel?.id
-                            && model.id !== complexModel?.id,
-                        )
-                        .map((model) => (
-                          <SelectItem key={model.id} value={model.id}>
-                            {model.displayName} · {model.providerName}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-                <Field
-                  label="Retries"
-                  htmlFor="profile-retries"
-                  help="Per-request retries before LiteLLM invokes the fallback."
-                >
-                  <Select value={retries} onValueChange={setRetries}>
-                    <SelectTrigger id="profile-retries" aria-label="Retries">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {[0, 1, 2, 3, 4, 5].map((value) => (
-                        <SelectItem key={value} value={String(value)}>
-                          {value}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-              </div>
-              <div className="grid gap-px border bg-border text-xs sm:grid-cols-3">
-                <ModelFact
-                  label="Tier mapping"
-                  value="SIMPLE / MEDIUM → simple"
-                />
-                <ModelFact
-                  label="Tier mapping"
-                  value="COMPLEX / REASONING → complex"
-                />
-                <ModelFact
-                  label="Public identity"
-                  value="Generated stable alias"
-                />
-              </div>
-              <GatewayField
-                loading={gateways.isPending}
-                name={gateway?.name}
-                available={gatewayAvailable}
-              />
-            </>
-          ) : (
-            <div className="grid items-start gap-4 sm:grid-cols-2">
-              <Field
-                label="Existing router alias"
-                htmlFor="profile-alias"
-                help={
-                  attempted && !modelValid
-                    ? "Enter an existing LiteLLM router alias."
-                    : "Use this only when routing is already configured outside TaskLattice."
-                }
-                invalid={attempted && !modelValid}
-              >
-                <Input
-                  id="profile-alias"
-                  value={alias}
-                  aria-invalid={attempted && !modelValid}
-                  onChange={(event) => setAlias(event.target.value)}
-                  placeholder="production-reasoning"
-                />
-              </Field>
-              <Field
-                label="Compliance boundary"
-                htmlFor="profile-external-domain"
-                help="Every effective candidate must declare this domain in LiteLLM."
-              >
-                <Select
-                  value={externalDomain}
-                  onValueChange={(value) =>
-                    setExternalDomain(value as ComplianceDomain)
-                  }
-                >
-                  <SelectTrigger
-                    id="profile-external-domain"
-                    aria-label="External alias compliance boundary"
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="GLOBAL">Global</SelectItem>
-                    <SelectItem value="CN_MAINLAND">CN Mainland</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <GatewayField
-                loading={gateways.isPending}
-                name={gateway?.name}
-                available={gatewayAvailable}
-              />
-            </div>
-          )}
+          <div className="grid items-start gap-4 sm:grid-cols-2">
+            <ModelField
+              id="profile-primary-model"
+              label={
+                routingMode === "complexity"
+                  ? "Simple requests"
+                  : routingMode === "semantic"
+                    ? "Default model"
+                    : "Primary model"
+              }
+              models={chatModels}
+              value={primaryModelId}
+              onChange={setPrimaryModelId}
+              placeholder="Choose a text generation model"
+              help={
+                primaryModel
+                  ? `${primaryModel.providerName} · ${boundaryLabel(primaryModel)}`
+                  : "Only validated text generation models are shown."
+              }
+              invalid={attempted && !primaryModel}
+            />
 
-          {selectedModel && routingMode === "single" ? (
-            <div className="grid gap-px border bg-border text-xs sm:grid-cols-3">
-              <ModelFact
-                label="Provider model"
-                value={selectedModel.modelId}
-                mono
+            {routingMode === "complexity" ? (
+              <ModelField
+                id="profile-complex-model"
+                label="Complex requests"
+                models={sameBoundaryChatModels.filter(
+                  (model) => model.id !== primaryModel?.id,
+                )}
+                value={complexModelId}
+                onChange={setComplexModelId}
+                placeholder="Choose a stronger model"
+                help="COMPLEX and REASONING requests use this model."
+                invalid={attempted && !complexModel}
               />
-              <ModelFact
-                label="Gateway model name"
-                value={selectedModel.litellmModelName}
-                mono
+            ) : routingMode === "semantic" ? (
+              <ModelField
+                id="profile-embedding-model"
+                label="Routing embedding model"
+                models={sameBoundaryEmbeddingModels}
+                value={embeddingModelId}
+                onChange={setEmbeddingModelId}
+                placeholder="Choose an embedding model"
+                help="The last user message is embedded before matching an intent."
+                invalid={attempted && !embeddingModel}
               />
-              <ModelFact label="Validation" value="Ready" />
+            ) : null}
+          </div>
+
+          {routingMode === "complexity" ? (
+            <div className="border-l-2 border-primary/40 bg-primary/[0.035] px-4 py-3 text-xs leading-5 text-muted-foreground">
+              SIMPLE and MEDIUM requests use the efficient model; COMPLEX and
+              REASONING requests use the stronger model.
             </div>
           ) : null}
 
-          {modelsError && routingMode !== "external" ? (
+          {routingMode === "semantic" ? (
+            <SemanticRoutesEditor
+              attempted={attempted}
+              models={sameBoundaryChatModels.filter(
+                (model) => model.id !== primaryModel?.id,
+              )}
+              routes={semanticRoutes}
+              onChange={setSemanticRoutes}
+            />
+          ) : null}
+
+          {modelsError ? (
             <p
               role="alert"
               className="border-l-2 border-destructive bg-destructive/5 p-3 text-xs text-destructive"
@@ -596,51 +476,85 @@ export function CreateModelProfileSheet({
               {modelsError}
             </p>
           ) : null}
-
-          {!modelsLoading &&
-          !compatibleModels.length &&
-          routingMode !== "external" ? (
+          {!modelsLoading && !chatModels.length ? (
             <div className="flex flex-col gap-3 border-l-2 border-amber-500 bg-amber-500/5 p-3 text-xs leading-5 sm:flex-row sm:items-center sm:justify-between">
               <span className="flex gap-2">
                 <CircleAlert className="mt-0.5 size-4 shrink-0 text-amber-700" />
-                {availableModels.some(
-                  (model) => model.status === "VALIDATED",
-                )
-                  ? "No validated model is available for this profile."
-                  : "No validated upstream model is available yet."}
+                Register and validate a text generation model before creating
+                a Profile.
               </span>
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
-                onClick={onAddUpstream}
+                onClick={onRegisterModels}
               >
-                Add upstream
+                Register models
               </Button>
             </div>
+          ) : null}
+          {!gateways.isPending && !gatewayAvailable ? (
+            <p
+              role="alert"
+              className="flex gap-2 border-l-2 border-destructive bg-destructive/5 p-3 text-xs text-destructive"
+            >
+              <CircleAlert className="size-4 shrink-0" />
+              No model gateway is available for this Project.
+            </p>
           ) : null}
         </section>
 
         <section className="space-y-4 border-t pt-5">
           <SectionTitle
             number="03"
-            title="Access & guardrails"
-            description="Policies applied whenever an Instance consumes this profile."
+            title="Resilience & boundary"
+            description="Keep retries and failover inside the same declared data boundary."
           />
+          <div className="grid items-start gap-4 sm:grid-cols-2">
+            <ModelField
+              id="profile-fallback-model"
+              label="Fallback model"
+              models={sameBoundaryChatModels.filter(
+                (model) =>
+                  model.id !== primaryModel?.id
+                  && model.id !== complexModel?.id
+                  && !semanticRoutes.some(
+                    (route) => route.modelDeploymentId === model.id,
+                  ),
+              )}
+              value={fallbackModelId}
+              onChange={setFallbackModelId}
+              placeholder="No fallback"
+              allowNone
+              help="Used after the selected model exhausts retries."
+            />
+            <Field
+              label="Retries"
+              htmlFor="profile-retries"
+              help="Attempts on the selected model before fallback is used."
+            >
+              <Select value={retries} onValueChange={setRetries}>
+                <SelectTrigger id="profile-retries">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[0, 1, 2, 3, 4, 5].map((value) => (
+                    <SelectItem key={value} value={String(value)}>
+                      {value}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          </div>
           <div className="grid gap-3 sm:grid-cols-3">
             <PolicyFact
               icon={ShieldCheck}
-              label="Compliance"
+              label="Data boundary"
               value={
-                routingMode === "external"
-                  ? externalDomain === "CN_MAINLAND"
-                    ? "CN Mainland"
-                    : "Global"
-                  : selectedModel?.complianceDomain === "CN_MAINLAND"
-                  ? "CN Mainland"
-                  : selectedModel?.complianceDomain === "GLOBAL"
-                    ? "Global"
-                    : "Choose a model"
+                primaryModel
+                  ? boundaryLabel(primaryModel)
+                  : "Choose a model"
               }
             />
             <PolicyFact
@@ -658,7 +572,7 @@ export function CreateModelProfileSheet({
             type="button"
             aria-pressed={makeDefault}
             className={cn(
-              "flex min-h-11 w-full items-center gap-3 border px-3 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-primary",
+              "flex min-h-11 w-full items-center gap-3 border px-3 text-left text-sm transition-colors",
               makeDefault && "border-primary bg-primary/5",
             )}
             onClick={() => setMakeDefault((value) => !value)}
@@ -666,16 +580,14 @@ export function CreateModelProfileSheet({
             <span
               className={cn(
                 "grid size-5 shrink-0 place-items-center border",
-                makeDefault &&
-                  "border-primary bg-primary text-primary-foreground",
+                makeDefault
+                  && "border-primary bg-primary text-primary-foreground",
               )}
             >
-              <Check className="size-3.5" />
+              {makeDefault ? <Check className="size-3.5" /> : null}
             </span>
             <span>
-              <strong className="block font-medium">
-                Default Model Profile
-              </strong>
+              <strong className="block font-medium">Project default</strong>
               <span className="text-xs text-muted-foreground">
                 Automatically selected for new Instances in this Project.
               </span>
@@ -683,9 +595,16 @@ export function CreateModelProfileSheet({
           </button>
         </section>
 
+        {attempted && !routingPolicy ? (
+          <p role="alert" className="flex gap-2 text-xs text-destructive">
+            <CircleAlert className="size-4 shrink-0" />
+            Complete the selected routing strategy before creating this
+            Profile.
+          </p>
+        ) : null}
         {mutation.error ? (
           <p role="alert" className="flex gap-2 text-xs text-destructive">
-            <CircleAlert className="size-4" />
+            <CircleAlert className="size-4 shrink-0" />
             {mutation.error.message}
           </p>
         ) : null}
@@ -694,14 +613,212 @@ export function CreateModelProfileSheet({
   );
 }
 
+function SemanticRoutesEditor({
+  attempted,
+  models,
+  onChange,
+  routes,
+}: {
+  attempted: boolean;
+  models: ModelDeployment[];
+  onChange: (routes: SemanticRouteDraft[]) => void;
+  routes: SemanticRouteDraft[];
+}) {
+  const update = (id: string, values: Partial<SemanticRouteDraft>) =>
+    onChange(
+      routes.map((route) => route.id === id ? { ...route, ...values } : route),
+    );
+  return (
+    <div className="space-y-3 border bg-muted/[0.08] p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h4 className="text-sm font-semibold">Intent routes</h4>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            Add at least two representative user messages per intent. Requests
+            route to the closest semantic match and otherwise use the default
+            model. Each intent targets one distinct non-default model.
+          </p>
+        </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+          </TooltipTrigger>
+          <TooltipContent>
+            Examples are routing references, not prompt templates. Avoid
+            secrets and personal data.
+          </TooltipContent>
+        </Tooltip>
+      </div>
+      {routes.map((route, index) => {
+        const utteranceCount = route.utterances
+          .split("\n")
+          .map((value) => value.trim())
+          .filter(Boolean).length;
+        const valid =
+          /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(route.intent)
+          && route.description.trim().length >= 3
+          && Boolean(route.modelDeploymentId)
+          && routes.filter(
+            (candidate) =>
+              candidate.modelDeploymentId === route.modelDeploymentId,
+          ).length === 1
+          && utteranceCount >= 2;
+        return (
+          <div key={route.id} className="space-y-3 border bg-background p-3">
+            <div className="flex items-center justify-between">
+              <strong className="text-xs">Intent {index + 1}</strong>
+              {routes.length > 1 ? (
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  aria-label={`Remove intent ${index + 1}`}
+                  onClick={() =>
+                    onChange(routes.filter((item) => item.id !== route.id))
+                  }
+                >
+                  <Trash2 />
+                </Button>
+              ) : null}
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor={`semantic-intent-${route.id}`}>Intent key</Label>
+                <Input
+                  id={`semantic-intent-${route.id}`}
+                  value={route.intent}
+                  aria-invalid={attempted && !valid}
+                  placeholder="coding"
+                  onChange={(event) =>
+                    update(route.id, { intent: event.target.value })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor={`semantic-model-${route.id}`}>
+                  Target model
+                </Label>
+                <Select
+                  value={route.modelDeploymentId}
+                  onValueChange={(value) =>
+                    update(route.id, { modelDeploymentId: value })
+                  }
+                >
+                  <SelectTrigger id={`semantic-model-${route.id}`}>
+                    <SelectValue placeholder="Choose a model" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {models.map((model) => (
+                      <SelectItem key={model.id} value={model.id}>
+                        {model.displayName} · {model.providerName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`semantic-description-${route.id}`}>
+                Description
+              </Label>
+              <Input
+                id={`semantic-description-${route.id}`}
+                value={route.description}
+                placeholder="Programming and debugging requests"
+                onChange={(event) =>
+                  update(route.id, { description: event.target.value })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`semantic-examples-${route.id}`}>
+                Example user messages
+              </Label>
+              <Textarea
+                id={`semantic-examples-${route.id}`}
+                className="min-h-24 font-mono text-xs"
+                value={route.utterances}
+                placeholder={"Help me debug this function\nDesign a REST API"}
+                onChange={(event) =>
+                  update(route.id, { utterances: event.target.value })
+                }
+              />
+              <p
+                className={cn(
+                  "text-xs",
+                  attempted && utteranceCount < 2
+                    ? "text-destructive"
+                    : "text-muted-foreground",
+                )}
+              >
+                One example per line · {utteranceCount} added
+              </p>
+            </div>
+          </div>
+        );
+      })}
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() =>
+          onChange([...routes, newSemanticRoute(routes.length)])
+        }
+      >
+        <Plus />
+        Add intent
+      </Button>
+    </div>
+  );
+}
+
+function ModelField({
+  allowNone = false,
+  help,
+  id,
+  invalid = false,
+  label,
+  models,
+  onChange,
+  placeholder,
+  value,
+}: {
+  allowNone?: boolean;
+  help: string;
+  id: string;
+  invalid?: boolean;
+  label: string;
+  models: ModelDeployment[];
+  onChange: (value: string) => void;
+  placeholder: string;
+  value: string;
+}) {
+  return (
+    <Field label={label} htmlFor={id} help={help} invalid={invalid}>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger id={id} aria-invalid={invalid}>
+          <SelectValue placeholder={placeholder} />
+        </SelectTrigger>
+        <SelectContent>
+          {allowNone ? <SelectItem value="none">No fallback</SelectItem> : null}
+          {models.map((model) => (
+            <SelectItem key={model.id} value={model.id}>
+              {model.displayName} · {model.providerName}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </Field>
+  );
+}
+
 function SectionTitle({
+  description,
   number,
   title,
-  description,
 }: {
+  description: string;
   number: string;
   title: string;
-  description: string;
 }) {
   return (
     <div className="flex gap-3">
@@ -763,61 +880,8 @@ function PolicyFact({
   );
 }
 
-function GatewayField({
-  available,
-  loading,
-  name,
-}: {
-  available: boolean;
-  loading: boolean;
-  name: string | undefined;
-}) {
-  return (
-    <Field
-      label="Gateway"
-      help={
-        available
-          ? "LiteLLM management and inference boundary."
-          : "A Gateway is required before this profile can be created."
-      }
-      invalid={!loading && !available}
-    >
-      <div className="flex h-11 items-center border bg-muted/30 px-3 text-sm">
-        {loading ? "Loading…" : (name ?? "Unavailable")}
-      </div>
-    </Field>
-  );
-}
-
-function ModelFact({
-  label,
-  mono = false,
-  value,
-}: {
-  label: string;
-  mono?: boolean;
-  value: string;
-}) {
-  return (
-    <div className="min-w-0 bg-background p-3">
-      <span className="block text-muted-foreground">{label}</span>
-      <strong
-        className={cn(
-          "mt-1 block truncate font-medium",
-          mono && "font-mono",
-        )}
-        title={value}
-      >
-        {value}
-      </strong>
-    </div>
-  );
-}
-
-function modelTypeLabel(type: ModelDeployment["modelType"]) {
-  return type === "llm"
-    ? "Language model"
-    : type === "text-embedding"
-      ? "Embedding"
-      : "Speech to text";
+function boundaryLabel(model: ModelDeployment): string {
+  return complianceDomainCatalog.find(
+    (domain) => domain.id === model.complianceDomain,
+  )?.label ?? model.complianceDomain;
 }

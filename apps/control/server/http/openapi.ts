@@ -364,6 +364,17 @@ export const openApiDocument = {
         },
       },
     },
+    "/projects/{projectId}/providers/{providerId}/discover": {
+      parameters: [projectIdParameter, providerId],
+      post: {
+        operationId: "discoverProviderAccountModels",
+        summary: "Discover models through a stored Provider connection",
+        responses: {
+          "200": { description: "Provider discovery result", ...json({ $ref: "#/components/schemas/ProviderDiscoveryResult" }) },
+          "404": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
     "/projects/{projectId}/providers/{providerId}": {
       parameters: [projectIdParameter, providerId],
       delete: {
@@ -389,14 +400,15 @@ export const openApiDocument = {
         responses: { "201": { description: "Model validation result", ...json({ $ref: "#/components/schemas/ModelDeployment" }) } },
       },
     },
-    "/projects/{projectId}/models/{modelId}/default": {
-      parameters: [projectIdParameter, { name: "modelId", in: "path", required: true, schema: { type: "string" } }],
-      post: {
-        operationId: "markModelDeploymentAsDefault",
-        summary: "Mark one validated LLM deployment as the global default",
+    "/projects/{projectId}/models/{modelId}": {
+      parameters: [projectIdParameter, { name: "modelId", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+      delete: {
+        operationId: "deleteModelDeployment",
+        summary: "Remove an unused model deployment from LiteLLM and this Project",
         responses: {
-          "200": { description: "Default model deployment", ...json({ $ref: "#/components/schemas/ModelDeployment" }) },
+          "200": { description: "Model deployment removed", ...json({ type: "object", required: ["message"], properties: { message: { type: "string" } } }) },
           "404": { $ref: "#/components/responses/Error" },
+          "409": { $ref: "#/components/responses/Error" },
         },
       },
     },
@@ -1270,7 +1282,7 @@ export const openApiDocument = {
               modelProfileId: { type: "string", format: "uuid" },
               modelProfileBindingId: { type: "string", format: "uuid" },
               modelProfileStatus: { type: "string", enum: ["DRAFT", "VALIDATING", "READY", "DEGRADED", "NON_COMPLIANT", "SUSPENDED", "UNSUPPORTED"] },
-              modelProfileComplianceDomain: { type: "string", enum: ["CN_MAINLAND", "GLOBAL"] },
+              modelProfileComplianceDomain: { type: "string", enum: ["GLOBAL", "CN_MAINLAND", "EU_EEA", "US", "UK", "APAC_EX_CN"] },
               modelProfileKeyFingerprint: { type: "string" },
             },
           },
@@ -1307,7 +1319,7 @@ export const openApiDocument = {
         properties: {
           connection: { $ref: "#/components/schemas/ProviderConnectionDraft" },
           models: { type: "array", minItems: 1, maxItems: 100, items: { $ref: "#/components/schemas/ProviderModelSelection" } },
-          complianceDomain: { type: "string", enum: ["CN_MAINLAND", "GLOBAL"] },
+          complianceDomain: { type: "string", enum: ["GLOBAL", "CN_MAINLAND", "EU_EEA", "US", "UK", "APAC_EX_CN"] },
         },
       },
       InferenceGateway: {
@@ -1319,41 +1331,63 @@ export const openApiDocument = {
         type: "object",
         additionalProperties: false,
         required: ["name", "gatewayId", "routingPolicy", "complianceDomain"],
-        properties: { name: { type: "string", minLength: 2, maxLength: 64 }, description: { type: "string" }, gatewayId: { type: "string" }, routingPolicy: { $ref: "#/components/schemas/ModelProfileRoutingPolicy" }, publicModelAlias: { type: "string", deprecated: true, description: "Legacy input for attaching an externally managed LiteLLM alias." }, complianceDomain: { type: "string", enum: ["CN_MAINLAND", "GLOBAL"] }, isDefault: { type: "boolean" }, keyPolicy: { type: "object" }, auditPolicy: { type: "object" } },
+        properties: { name: { type: "string", minLength: 2, maxLength: 64 }, description: { type: "string" }, gatewayId: { type: "string" }, routingPolicy: { $ref: "#/components/schemas/ModelProfileRoutingPolicy" }, complianceDomain: { type: "string", enum: ["GLOBAL", "CN_MAINLAND", "EU_EEA", "US", "UK", "APAC_EX_CN"] }, isDefault: { type: "boolean" }, keyPolicy: { type: "object" }, auditPolicy: { type: "object" } },
       },
       ModelProfileRoutingPolicy: {
         oneOf: [
           {
             type: "object",
             additionalProperties: false,
-            required: ["version", "mode", "modelDeploymentId"],
+            required: ["version", "mode", "modelDeploymentId", "fallbackModelDeploymentIds", "retries"],
             properties: {
               version: { type: "integer", const: 1 },
               mode: { type: "string", const: "SINGLE" },
               modelDeploymentId: { type: "string", format: "uuid" },
-            },
-          },
-          {
-            type: "object",
-            additionalProperties: false,
-            required: ["version", "mode", "simpleModelDeploymentId", "complexModelDeploymentId", "retries"],
-            properties: {
-              version: { type: "integer", const: 1 },
-              mode: { type: "string", const: "COMPLEXITY" },
-              simpleModelDeploymentId: { type: "string", format: "uuid" },
-              complexModelDeploymentId: { type: "string", format: "uuid" },
-              fallbackModelDeploymentId: { type: "string", format: "uuid" },
+              fallbackModelDeploymentIds: { type: "array", maxItems: 8, items: { type: "string", format: "uuid" } },
               retries: { type: "integer", minimum: 0, maximum: 10, default: 2 },
             },
           },
           {
             type: "object",
             additionalProperties: false,
-            required: ["version", "mode", "alias"],
+            required: ["version", "mode", "simpleModelDeploymentId", "complexModelDeploymentId", "fallbackModelDeploymentIds", "retries"],
             properties: {
               version: { type: "integer", const: 1 },
-              mode: { type: "string", const: "EXTERNAL" },
-              alias: { type: "string", minLength: 1, maxLength: 160 },
+              mode: { type: "string", const: "COMPLEXITY" },
+              simpleModelDeploymentId: { type: "string", format: "uuid" },
+              complexModelDeploymentId: { type: "string", format: "uuid" },
+              fallbackModelDeploymentIds: { type: "array", maxItems: 8, items: { type: "string", format: "uuid" } },
+              retries: { type: "integer", minimum: 0, maximum: 10, default: 2 },
+            },
+          },
+          {
+            type: "object",
+            additionalProperties: false,
+            required: ["version", "mode", "defaultModelDeploymentId", "embeddingModelDeploymentId", "routes", "fallbackModelDeploymentIds", "retries"],
+            properties: {
+              version: { type: "integer", const: 1 },
+              mode: { type: "string", const: "SEMANTIC" },
+              defaultModelDeploymentId: { type: "string", format: "uuid" },
+              embeddingModelDeploymentId: { type: "string", format: "uuid" },
+              routes: {
+                type: "array",
+                minItems: 1,
+                maxItems: 16,
+                items: {
+                  type: "object",
+                  additionalProperties: false,
+                  required: ["intent", "description", "modelDeploymentId", "utterances", "scoreThreshold"],
+                  properties: {
+                    intent: { type: "string", pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+                    description: { type: "string", minLength: 3, maxLength: 240 },
+                    modelDeploymentId: { type: "string", format: "uuid" },
+                    utterances: { type: "array", minItems: 2, maxItems: 50, items: { type: "string" } },
+                    scoreThreshold: { type: "number", minimum: 0, maximum: 1, default: 0.5 },
+                  },
+                },
+              },
+              fallbackModelDeploymentIds: { type: "array", maxItems: 8, items: { type: "string", format: "uuid" } },
+              retries: { type: "integer", minimum: 0, maximum: 10, default: 2 },
             },
           },
         ],
@@ -1401,7 +1435,7 @@ export const openApiDocument = {
         ],
       },
       ModelProfile: {
-        allOf: [{ $ref: "#/components/schemas/CreateModelProfileInput" }, { type: "object", required: ["id", "managementMode", "publicModelAlias", "status", "capabilities", "conditions", "configurationHash", "observedGeneration", "validationMessage", "consumers", "createdAt", "updatedAt"], properties: { id: { type: "string", format: "uuid" }, managementMode: { type: "string", const: "LITELLM_MANAGED" }, publicModelAlias: { type: "string" }, status: { type: "string", enum: ["DRAFT", "VALIDATING", "READY", "DEGRADED", "NON_COMPLIANT", "SUSPENDED", "UNSUPPORTED"] }, capabilities: { type: "object", required: ["automaticRouting", "routerType", "sessionAffinity", "adaptiveRouting", "failover", "generalFallback", "contextWindowFallback", "contentPolicyFallback", "retries", "requestAudit"], properties: { automaticRouting: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, routerType: { type: "string", enum: ["COMPLEXITY_ROUTER", "OTHER", "UNKNOWN"] }, complexityTierCount: { type: "integer", minimum: 0 }, sessionAffinity: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, adaptiveRouting: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, failover: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, generalFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, contextWindowFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, contentPolicyFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, retries: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, requestAudit: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] } } }, conditions: { type: "array", items: { type: "object" } }, configurationHash: { type: "string" }, observedGeneration: { type: "integer", minimum: 1 }, validationMessage: { type: "string" }, consumers: { type: "integer" }, lastSynchronizedAt: { type: "string", format: "date-time" }, createdAt: { type: "string", format: "date-time" }, updatedAt: { type: "string", format: "date-time" } } }],
+        allOf: [{ $ref: "#/components/schemas/CreateModelProfileInput" }, { type: "object", required: ["id", "managementMode", "publicModelAlias", "status", "capabilities", "conditions", "configurationHash", "observedGeneration", "validationMessage", "consumers", "createdAt", "updatedAt"], properties: { id: { type: "string", format: "uuid" }, managementMode: { type: "string", const: "LITELLM_MANAGED" }, publicModelAlias: { type: "string" }, status: { type: "string", enum: ["DRAFT", "VALIDATING", "READY", "DEGRADED", "NON_COMPLIANT", "SUSPENDED", "UNSUPPORTED"] }, capabilities: { type: "object", required: ["automaticRouting", "routerType", "sessionAffinity", "adaptiveRouting", "failover", "generalFallback", "contextWindowFallback", "contentPolicyFallback", "retries", "requestAudit"], properties: { automaticRouting: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, routerType: { type: "string", enum: ["COMPLEXITY_ROUTER", "SEMANTIC_ROUTER", "OTHER", "UNKNOWN"] }, complexityTierCount: { type: "integer", minimum: 0 }, semanticRouteCount: { type: "integer", minimum: 0 }, sessionAffinity: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, adaptiveRouting: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, failover: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, generalFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, contextWindowFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, contentPolicyFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, retries: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, requestAudit: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] } } }, conditions: { type: "array", items: { type: "object" } }, configurationHash: { type: "string" }, observedGeneration: { type: "integer", minimum: 1 }, validationMessage: { type: "string" }, consumers: { type: "integer" }, lastSynchronizedAt: { type: "string", format: "date-time" }, createdAt: { type: "string", format: "date-time" }, updatedAt: { type: "string", format: "date-time" } } }],
       },
       ModelProfileConsumer: {
         type: "object",
@@ -1411,13 +1445,21 @@ export const openApiDocument = {
       ModelProfileAuditEvent: {
         type: "object",
         required: ["eventId", "timestamp", "actor", "type", "modelProfileId", "configurationHash", "complianceDomain", "result", "reason"],
-        properties: { eventId: { type: "string" }, timestamp: { type: "string", format: "date-time" }, actor: { type: "string" }, type: { type: "string" }, modelProfileId: { type: "string" }, instanceId: { type: "string" }, configurationHash: { type: "string" }, complianceDomain: { type: "string", enum: ["CN_MAINLAND", "GLOBAL"] }, result: { type: "string", enum: ["SUCCESS", "FAILED"] }, reason: { type: "string" } },
+        properties: { eventId: { type: "string" }, timestamp: { type: "string", format: "date-time" }, actor: { type: "string" }, type: { type: "string" }, modelProfileId: { type: "string" }, instanceId: { type: "string" }, configurationHash: { type: "string" }, complianceDomain: { type: "string", enum: ["GLOBAL", "CN_MAINLAND", "EU_EEA", "US", "UK", "APAC_EX_CN"] }, result: { type: "string", enum: ["SUCCESS", "FAILED"] }, reason: { type: "string" } },
       },
       ProviderModelSelection: {
         type: "object",
         required: ["modelId", "displayName", "modelType"],
         properties: {
-          modelId: { type: "string" }, displayName: { type: "string" }, modelType: { type: "string", enum: ["llm", "text-embedding", "speech-to-text"] }, inputFeePerMillionTokens: { type: "number", minimum: 0 }, outputFeePerMillionTokens: { type: "number", minimum: 0 }, feePerAudioMinute: { type: "number", minimum: 0 },
+          modelId: { type: "string" },
+          displayName: { type: "string" },
+          modelType: { type: "string", enum: ["llm", "text-embedding", "speech-to-text"] },
+          capabilities: { type: "array", items: { type: "string", enum: ["reasoning", "vision", "ocr", "document-understanding", "tool-calling", "structured-output", "code", "multilingual"] } },
+          inputModalities: { type: "array", minItems: 1, items: { type: "string", enum: ["text", "image", "audio", "document"] } },
+          outputModalities: { type: "array", minItems: 1, items: { type: "string", enum: ["text", "embedding"] } },
+          inputFeePerMillionTokens: { type: "number", minimum: 0 },
+          outputFeePerMillionTokens: { type: "number", minimum: 0 },
+          feePerAudioMinute: { type: "number", minimum: 0 },
         },
       },
       SandboxPolicyInput: {
@@ -1466,6 +1508,9 @@ export const openApiDocument = {
           modelId: { type: "string" },
           displayName: { type: "string" },
           modelType: { type: "string", enum: ["llm", "text-embedding", "speech-to-text"] },
+          capabilities: { type: "array", items: { type: "string", enum: ["reasoning", "vision", "ocr", "document-understanding", "tool-calling", "structured-output", "code", "multilingual"] } },
+          inputModalities: { type: "array", minItems: 1, items: { type: "string", enum: ["text", "image", "audio", "document"] } },
+          outputModalities: { type: "array", minItems: 1, items: { type: "string", enum: ["text", "embedding"] } },
           inputFeePerMillionTokens: { type: "number", minimum: 0 },
           outputFeePerMillionTokens: { type: "number", minimum: 0 },
           feePerAudioMinute: { type: "number", minimum: 0 },
@@ -1505,7 +1550,7 @@ export const openApiDocument = {
           presetId: { type: "string" },
           endpoint: { type: "string", format: "uri" },
           config: { type: "object", additionalProperties: true },
-          complianceDomain: { type: "string", enum: ["CN_MAINLAND", "GLOBAL"] },
+          complianceDomain: { type: "string", enum: ["GLOBAL", "CN_MAINLAND", "EU_EEA", "US", "UK", "APAC_EX_CN"] },
           endpointRegion: { type: "string" },
           crossBorderTransfer: { type: "boolean", const: false },
           discoveredModels: { type: "array", items: { type: "string" } },
@@ -1537,8 +1582,8 @@ export const openApiDocument = {
       ModelDeployment: {
         allOf: [
           { $ref: "#/components/schemas/CreateModelDeploymentInput" },
-          { type: "object", required: ["id", "isDefault", "providerPresetId", "providerName", "endpoint", "complianceDomain", "endpointRegion", "crossBorderTransfer", "litellmModelName", "status", "checks", "validationMessage", "createdAt", "updatedAt"], properties: {
-            id: { type: "string" }, isDefault: { type: "boolean" }, providerPresetId: { type: "string" }, providerName: { type: "string" }, endpoint: { type: "string", format: "uri" }, complianceDomain: { type: "string", enum: ["CN_MAINLAND", "GLOBAL"] }, endpointRegion: { type: "string" }, crossBorderTransfer: { type: "boolean", const: false }, litellmModelName: { type: "string" }, status: { type: "string", enum: ["VALIDATED", "DEGRADED", "FAILED"] }, checks: { type: "array", items: { $ref: "#/components/schemas/ProviderValidationCheck" } }, validationMessage: { type: "string" }, validationLatencyMs: { type: "integer" }, validatedAt: { type: "string", format: "date-time" }, createdAt: { type: "string", format: "date-time" }, updatedAt: { type: "string", format: "date-time" },
+          { type: "object", required: ["id", "capabilities", "inputModalities", "outputModalities", "providerPresetId", "providerName", "endpoint", "complianceDomain", "endpointRegion", "crossBorderTransfer", "litellmModelName", "status", "checks", "validationMessage", "createdAt", "updatedAt"], properties: {
+            id: { type: "string" }, providerPresetId: { type: "string" }, providerName: { type: "string" }, endpoint: { type: "string", format: "uri" }, complianceDomain: { type: "string", enum: ["GLOBAL", "CN_MAINLAND", "EU_EEA", "US", "UK", "APAC_EX_CN"] }, endpointRegion: { type: "string" }, crossBorderTransfer: { type: "boolean", const: false }, litellmModelName: { type: "string" }, status: { type: "string", enum: ["VALIDATED", "DEGRADED", "FAILED"] }, checks: { type: "array", items: { $ref: "#/components/schemas/ProviderValidationCheck" } }, validationMessage: { type: "string" }, validationLatencyMs: { type: "integer" }, validatedAt: { type: "string", format: "date-time" }, createdAt: { type: "string", format: "date-time" }, updatedAt: { type: "string", format: "date-time" },
           } },
         ],
       },

@@ -17,6 +17,7 @@ const capabilities = {
   retries: "ENABLED",
   requestAudit: "ENABLED",
 } as const;
+const defaultModelId = "99999999-9999-4999-8999-999999999999";
 
 function adapter(inspection: Omit<LiteLLMModelProfileInspection, "configurationHash"> & { configurationHash?: string }): LiteLLMAdminClient {
   return {
@@ -42,6 +43,7 @@ async function saveRoutingModel(
   displayName: string,
   litellmModelName: string,
   domain: "CN_MAINLAND" | "GLOBAL" = "CN_MAINLAND",
+  modelType: "llm" | "text-embedding" = "llm",
 ) {
   const now = new Date().toISOString();
   const providerAccountId = `provider-${id.slice(0, 4)}`;
@@ -69,8 +71,13 @@ async function saveRoutingModel(
     providerAccountId,
     modelId: displayName.toLowerCase().replaceAll(" ", "-"),
     displayName,
-    modelType: "llm",
-    isDefault: false,
+    modelType,
+    capabilities:
+      modelType === "llm"
+        ? ["reasoning", "tool-calling"]
+        : ["multilingual"],
+    inputModalities: ["text"],
+    outputModalities: modelType === "llm" ? ["text"] : ["embedding"],
     providerPresetId: "custom-openai-compatible",
     providerName: "Test provider",
     endpoint: "http://models.test/v1",
@@ -92,10 +99,29 @@ function input(domain: "CN_MAINLAND" | "GLOBAL" = "CN_MAINLAND") {
     name: "Production inference",
     description: "Managed production inference access.",
     gatewayId: "litellm-default",
-    publicModelAlias: "production-chat",
+    routingPolicy: {
+      version: 1,
+      mode: "SINGLE",
+      modelDeploymentId: defaultModelId,
+      fallbackModelDeploymentIds: [],
+      retries: 2,
+    },
     complianceDomain: domain,
     isDefault: true,
   });
+}
+
+async function saveDefaultRoutingModel(
+  store: ReturnType<typeof createTestStore>,
+  domain: "CN_MAINLAND" | "GLOBAL" = "CN_MAINLAND",
+) {
+  return saveRoutingModel(
+    store,
+    defaultModelId,
+    "Production Chat",
+    "production-chat",
+    domain,
+  );
 }
 
 describe("Model Profile contracts", () => {
@@ -152,6 +178,7 @@ describe("Model Profile contracts", () => {
       mode: "COMPLEXITY",
       simpleModelDeploymentId: simpleId,
       complexModelDeploymentId: complexId,
+      fallbackModelDeploymentIds: [],
       retries: 2,
     });
     expect(() => createModelProfileSchema.parse({
@@ -162,7 +189,7 @@ describe("Model Profile contracts", () => {
         mode: "COMPLEXITY",
         simpleModelDeploymentId: simpleId,
         complexModelDeploymentId: complexId,
-        fallbackModelDeploymentId: simpleId,
+        fallbackModelDeploymentIds: [simpleId],
       },
     })).toThrow("fallback");
   });
@@ -196,7 +223,7 @@ describe("Model Profile validation", () => {
         mode: "COMPLEXITY",
         simpleModelDeploymentId: simpleId,
         complexModelDeploymentId: complexId,
-        fallbackModelDeploymentId: fallbackId,
+        fallbackModelDeploymentIds: [fallbackId],
         retries: 2,
       },
     }));
@@ -207,6 +234,7 @@ describe("Model Profile validation", () => {
       routingPolicy: { version: 1, mode: "COMPLEXITY", retries: 2 },
     });
     expect(client.reconcileModelProfileRoute).toHaveBeenCalledWith({
+      strategy: "COMPLEXITY",
       alias: profile.publicModelAlias,
       modelProfileId: profile.id,
       complianceDomain: "CN_MAINLAND",
@@ -252,8 +280,91 @@ describe("Model Profile validation", () => {
     expect(client.reconcileModelProfileRoute).not.toHaveBeenCalled();
   });
 
+  it("reconciles semantic intents with a registered embedding model", async () => {
+    const store = createTestStore();
+    const defaultId = "11111111-1111-4111-8111-111111111111";
+    const codingId = "22222222-2222-4222-8222-222222222222";
+    const embeddingId = "33333333-3333-4333-8333-333333333333";
+    await saveRoutingModel(store, defaultId, "General", "tali/openai/general");
+    await saveRoutingModel(store, codingId, "Code", "tali/anthropic/code");
+    await saveRoutingModel(
+      store,
+      embeddingId,
+      "Embedding",
+      "tali/openai/embedding",
+      "CN_MAINLAND",
+      "text-embedding",
+    );
+    const semanticCapabilities = {
+      ...capabilities,
+      routerType: "SEMANTIC_ROUTER",
+      semanticRouteCount: 1,
+    } as const;
+    const client = adapter({
+      exists: true,
+      version: "1.86.2",
+      modelCount: 3,
+      complianceDomains: ["CN_MAINLAND"],
+      complianceUnknown: false,
+      capabilities: semanticCapabilities,
+    });
+    const service = new ModelProfileService(store, client);
+
+    const profile = await service.create(createModelProfileSchema.parse({
+      name: "Intent router",
+      gatewayId: "litellm-default",
+      complianceDomain: "CN_MAINLAND",
+      routingPolicy: {
+        version: 1,
+        mode: "SEMANTIC",
+        defaultModelDeploymentId: defaultId,
+        embeddingModelDeploymentId: embeddingId,
+        routes: [{
+          intent: "coding",
+          description: "Programming and debugging requests.",
+          modelDeploymentId: codingId,
+          utterances: [
+            "Help me debug this function",
+            "Design an API for this service",
+          ],
+          scoreThreshold: 0.5,
+        }],
+        fallbackModelDeploymentIds: [],
+        retries: 2,
+      },
+    }));
+
+    expect(profile).toMatchObject({
+      status: "READY",
+      routingPolicy: { mode: "SEMANTIC" },
+    });
+    expect(client.reconcileModelProfileRoute).toHaveBeenCalledWith({
+      strategy: "SEMANTIC",
+      alias: profile.publicModelAlias,
+      modelProfileId: profile.id,
+      complianceDomain: "CN_MAINLAND",
+      defaultModel: "tali/openai/general",
+      embeddingModel: "tali/openai/embedding",
+      routes: [{
+        intent: "coding",
+        description: "Programming and debugging requests.",
+        model: "tali/anthropic/code",
+        utterances: [
+          "Help me debug this function",
+          "Design an API for this service",
+        ],
+        scoreThreshold: 0.5,
+      }],
+      fallbackModels: [],
+      retries: 2,
+      requestAudit: true,
+    });
+  });
+
   it("becomes READY and default only after a matching LiteLLM inspection", async () => {
-    const service = new ModelProfileService(createTestStore(), adapter({
+    const store = createTestStore();
+    await saveDefaultRoutingModel(store);
+    const service = new ModelProfileService(store, adapter({
       exists: true,
       version: "1.94.1",
       modelCount: 2,
@@ -268,6 +379,7 @@ describe("Model Profile validation", () => {
 
   it("atomically replaces the Project default Model Profile", async () => {
     const store = createTestStore();
+    await saveDefaultRoutingModel(store);
     const service = new ModelProfileService(store, adapter({
       exists: true,
       modelCount: 1,
@@ -279,7 +391,6 @@ describe("Model Profile validation", () => {
     const second = await service.create({
       ...input(),
       name: "Interactive inference",
-      publicModelAlias: "interactive-chat",
       isDefault: false,
     });
 
@@ -291,7 +402,9 @@ describe("Model Profile validation", () => {
   });
 
   it("keeps the Project default usable until another Profile replaces it", async () => {
-    const service = new ModelProfileService(createTestStore(), adapter({
+    const store = createTestStore();
+    await saveDefaultRoutingModel(store);
+    const service = new ModelProfileService(store, adapter({
       exists: true,
       modelCount: 1,
       complianceDomains: ["CN_MAINLAND"],
@@ -309,7 +422,9 @@ describe("Model Profile validation", () => {
   });
 
   it("rejects CN/GLOBAL mixing", async () => {
-    const service = new ModelProfileService(createTestStore(), adapter({
+    const store = createTestStore();
+    await saveDefaultRoutingModel(store);
+    const service = new ModelProfileService(store, adapter({
       exists: true,
       version: "1.94.1",
       modelCount: 2,
@@ -331,7 +446,9 @@ describe("Model Profile validation", () => {
       complianceUnknown: false,
       capabilities,
     });
-    const service = new ModelProfileService(createTestStore(), client);
+    const store = createTestStore();
+    await saveDefaultRoutingModel(store);
+    const service = new ModelProfileService(store, client);
 
     const profile = await service.create(input("CN_MAINLAND"));
 
@@ -339,11 +456,13 @@ describe("Model Profile validation", () => {
     expect(profile.conditions).toContainEqual(
       expect.objectContaining({ type: "COMPLIANCE", status: "PASS" }),
     );
-    expect(client.inspectModelProfile).toHaveBeenCalledWith("production-chat");
+    expect(client.inspectModelProfile).toHaveBeenCalledWith(profile.publicModelAlias);
   });
 
   it("fails closed when compliance metadata is UNKNOWN", async () => {
-    const service = new ModelProfileService(createTestStore(), adapter({
+    const store = createTestStore();
+    await saveDefaultRoutingModel(store);
+    const service = new ModelProfileService(store, adapter({
       exists: true,
       modelCount: 1,
       complianceDomains: [],
@@ -356,7 +475,9 @@ describe("Model Profile validation", () => {
   });
 
   it("marks unsupported Auto Router versions explicitly", async () => {
-    const service = new ModelProfileService(createTestStore(), adapter({
+    const store = createTestStore();
+    await saveDefaultRoutingModel(store);
+    const service = new ModelProfileService(store, adapter({
       exists: true,
       version: "1.86.2",
       modelCount: 1,
@@ -372,6 +493,7 @@ describe("Model Profile validation", () => {
 describe("ModelProfileResolver", () => {
   it("requires exactly one READY default", async () => {
     const store = createTestStore();
+    await saveDefaultRoutingModel(store);
     const service = new ModelProfileService(store, adapter({ exists: true, modelCount: 1, complianceDomains: ["CN_MAINLAND"], complianceUnknown: false, capabilities }));
     const ready = await service.create(input());
     expect((await new ModelProfileResolver(store).resolveDefault()).id).toBe(ready.id);
@@ -381,12 +503,12 @@ describe("ModelProfileResolver", () => {
 
   it("does not resolve an explicitly selected suspended profile", async () => {
     const store = createTestStore();
+    await saveDefaultRoutingModel(store);
     const service = new ModelProfileService(store, adapter({ exists: true, modelCount: 1, complianceDomains: ["CN_MAINLAND"], complianceUnknown: false, capabilities }));
     await service.create(input());
     const selected = await service.create({
       ...input(),
       name: "Suspendable inference",
-      publicModelAlias: "suspendable-chat",
       isDefault: false,
     });
     await service.update(selected.id, { suspended: true });
@@ -395,6 +517,7 @@ describe("ModelProfileResolver", () => {
 
   it("binds an explicitly selected READY profile instead of the default", async () => {
     const store = createTestStore();
+    await saveDefaultRoutingModel(store);
     const client = adapter({ exists: true, modelCount: 1, complianceDomains: ["CN_MAINLAND"], complianceUnknown: false, capabilities });
     const service = new ModelProfileService(store, client);
     const defaultProfile = await service.create(input());
@@ -421,13 +544,13 @@ describe("ModelProfileResolver", () => {
 describe("Model Profile deletion", () => {
   it("blocks active consumers and deletes the LiteLLM team after they are removed", async () => {
     const store = createTestStore();
+    await saveDefaultRoutingModel(store);
     const client = adapter({ exists: true, modelCount: 1, complianceDomains: ["CN_MAINLAND"], complianceUnknown: false, capabilities });
     const service = new ModelProfileService(store, client);
     await service.create(input());
     const profile = await service.create({
       ...input(),
       name: "Removable inference",
-      publicModelAlias: "removable-chat",
       isDefault: false,
     });
     await service.bindAgent("agent-consumer", profile.id);

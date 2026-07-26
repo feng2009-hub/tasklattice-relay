@@ -236,6 +236,14 @@ export const api = {
       method: "POST",
       body: JSON.stringify(input),
     }),
+  discoverProviderAccountModels: (id: string) =>
+    request<ProviderDiscoveryResult>(
+      `/api/v1/providers/${encodeURIComponent(id)}/discover`,
+      {
+        method: "POST",
+        body: "{}",
+      },
+    ),
   registerProviderAccount: (input: CreateProviderConnectionInput) =>
     request<ProviderConnectionCreationResult>("/api/v1/providers", {
       method: "POST",
@@ -257,10 +265,9 @@ export const api = {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  markModelDeploymentAsDefault: (id: string) =>
-    request<ModelDeployment>(`/api/v1/models/${encodeURIComponent(id)}/default`, {
-      method: "POST",
-      body: "{}",
+  deleteModelDeployment: (id: string) =>
+    request<{ message: string }>(`/api/v1/models/${encodeURIComponent(id)}`, {
+      method: "DELETE",
     }),
   getCostSummary: (params: CostQueryParams) =>
     request<ModelCostSummaryResponse>(`/api/v1/costs/summary?${costSearch(params)}`),

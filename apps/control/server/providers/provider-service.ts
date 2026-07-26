@@ -1,9 +1,11 @@
 import { randomUUID } from "node:crypto";
 import {
+  complianceDomainCatalog,
   providerPresets,
   type CreateModelDeploymentInput,
   type CreateProviderConnectionInput,
   type ModelDeployment,
+  type ModelProfile,
   type ProviderAccount,
   type ProviderConnectionCreationResult,
   type ProviderConnectionDraft,
@@ -13,7 +15,10 @@ import {
   type ProviderValidationCheck,
 } from "@tasklattice/contracts";
 import { ProjectStore } from "../projects/project-store";
-import { providerAdapter } from "./provider-adapters";
+import {
+  classifyModelMetadata,
+  providerAdapter,
+} from "./provider-adapters";
 import { LiteLLMClient, type LiteLLMAdminClient } from "./litellm-client";
 
 interface StoredProviderCredential {
@@ -76,9 +81,49 @@ function decodeCredential(account: ProviderAccount, rawCredential: string): Prov
   } as ProviderConnectionDraft;
 }
 
-function toModelSelection(input: CreateModelDeploymentInput): ProviderModelSelection {
+type NormalizedModelSelection = ProviderModelSelection & {
+  capabilities: NonNullable<ProviderModelSelection["capabilities"]>;
+  inputModalities: NonNullable<ProviderModelSelection["inputModalities"]>;
+  outputModalities: NonNullable<ProviderModelSelection["outputModalities"]>;
+};
+
+function toModelSelection(input: CreateModelDeploymentInput): NormalizedModelSelection {
   const { providerAccountId: _providerAccountId, ...model } = input;
-  return model;
+  return normalizeModelSelection(model);
+}
+
+function normalizeModelSelection(
+  model: ProviderModelSelection,
+): NormalizedModelSelection {
+  const inferred = classifyModelMetadata(model.modelId, model.modelType);
+  return {
+    ...model,
+    capabilities: model.capabilities ?? inferred.capabilities,
+    inputModalities: model.inputModalities ?? inferred.inputModalities,
+    outputModalities: model.outputModalities ?? inferred.outputModalities,
+  };
+}
+
+function profileUsesAnyModel(
+  profile: ModelProfile,
+  deploymentIds: ReadonlySet<string>,
+): boolean {
+  const policy = profile.routingPolicy;
+  if (policy.mode === "SINGLE") {
+    return deploymentIds.has(policy.modelDeploymentId)
+      || policy.fallbackModelDeploymentIds.some((id) => deploymentIds.has(id));
+  }
+  if (policy.mode === "COMPLEXITY") {
+    return deploymentIds.has(policy.simpleModelDeploymentId)
+      || deploymentIds.has(policy.complexModelDeploymentId)
+      || policy.fallbackModelDeploymentIds.some((id) => deploymentIds.has(id));
+  }
+  return deploymentIds.has(policy.defaultModelDeploymentId)
+    || deploymentIds.has(policy.embeddingModelDeploymentId)
+    || policy.routes.some((route) =>
+      deploymentIds.has(route.modelDeploymentId)
+    )
+    || policy.fallbackModelDeploymentIds.some((id) => deploymentIds.has(id));
 }
 
 export class ProviderService {
@@ -95,16 +140,15 @@ export class ProviderService {
     return this.store.listModelDeployments(providerAccountId);
   }
 
-  async markModelAsDefault(id: string): Promise<ModelDeployment | undefined> {
-    const deployment = await this.store.getModelDeployment(id);
-    if (!deployment) return undefined;
-    if (deployment.modelType !== "llm" || deployment.status !== "VALIDATED")
-      throw new Error("Only a validated LLM deployment can be marked as default.");
-    return this.store.setDefaultModelDeployment(id);
-  }
-
   discover(draft: ProviderConnectionDraft): Promise<ProviderDiscoveryResult> {
     return providerAdapter(draft.provider).discover(draft);
+  }
+
+  async discoverAccount(id: string): Promise<ProviderDiscoveryResult | undefined> {
+    const account = await this.store.getProviderAccount(id);
+    const rawCredential = await this.store.getProviderAccountCredential(id);
+    if (!account || !rawCredential) return undefined;
+    return this.discover(decodeCredential(account, rawCredential));
   }
 
   async createConnection(input: CreateProviderConnectionInput): Promise<ProviderConnectionCreationResult> {
@@ -135,7 +179,6 @@ export class ProviderService {
       } catch (error) {
         await this.store.saveModelDeployment({
           ...model,
-          isDefault: false,
           status: "FAILED",
           checks: modelChecks("FAIL"),
           validationMessage: error instanceof Error ? error.message : "Model validation failed.",
@@ -179,16 +222,9 @@ export class ProviderService {
         `Delete the ${agentIds.length} Instance${agentIds.length === 1 ? "" : "s"} using this Provider before deleting the account.`,
       );
     const deploymentIds = new Set(models.map((model) => model.id));
-    const profiles = (await this.store.listModelProfiles()).filter((profile) => {
-      const policy = profile.routingPolicy;
-      return policy.mode === "SINGLE"
-        ? deploymentIds.has(policy.modelDeploymentId)
-        : policy.mode === "COMPLEXITY"
-          ? deploymentIds.has(policy.simpleModelDeploymentId)
-            || deploymentIds.has(policy.complexModelDeploymentId)
-            || Boolean(policy.fallbackModelDeploymentId && deploymentIds.has(policy.fallbackModelDeploymentId))
-          : false;
-    });
+    const profiles = (await this.store.listModelProfiles()).filter((profile) =>
+      profileUsesAnyModel(profile, deploymentIds)
+    );
     if (profiles.length)
       throw new Error(
         `Reconfigure the ${profiles.length} Model Profile${profiles.length === 1 ? "" : "s"} using this Provider before deleting the account.`,
@@ -196,6 +232,31 @@ export class ProviderService {
     for (const model of models)
       await this.litellm.deleteModel(model.litellmModelName).catch(() => undefined);
     return this.store.deleteProviderAccount(id);
+  }
+
+  async deleteModelDeployment(id: string): Promise<boolean> {
+    const model = await this.store.getModelDeployment(id);
+    if (!model) return false;
+    const agentIds = await this.store.listAgentIdsUsingModelDeployments([id]);
+    if (agentIds.length) {
+      throw new Error(
+        `${model.displayName} is in use by ${agentIds.length} Instance${
+          agentIds.length === 1 ? "" : "s"
+        }. Reassign them before removing the model.`,
+      );
+    }
+    const profiles = (await this.store.listModelProfiles()).filter((profile) =>
+      profileUsesAnyModel(profile, new Set([id]))
+    );
+    if (profiles.length) {
+      throw new Error(
+        `${model.displayName} is in use by ${profiles.length} Model Profile${
+          profiles.length === 1 ? "" : "s"
+        }. Reconfigure them before removing the model.`,
+      );
+    }
+    await this.litellm.deleteModel(model.litellmModelName).catch(() => undefined);
+    return this.store.deleteModelDeployment(id);
   }
 
   async registerModel(input: CreateModelDeploymentInput): Promise<ModelDeployment> {
@@ -214,8 +275,8 @@ export class ProviderService {
       const now = new Date().toISOString();
       return this.store.saveModelDeployment({
         id: randomUUID(),
-        ...input,
-        isDefault: false,
+        providerAccountId: input.providerAccountId,
+        ...model,
         providerPresetId: account.presetId,
         providerName: catalog(draft.provider).name,
         endpoint: providerAdapter(draft.provider).endpoint(draft),
@@ -247,7 +308,10 @@ export class ProviderService {
       endpoint: adapter.endpoint(input.connection),
       config: input.connection.config,
       complianceDomain: input.complianceDomain,
-      endpointRegion: input.complianceDomain === "CN_MAINLAND" ? "cn-mainland" : "global",
+      endpointRegion:
+        complianceDomainCatalog.find(
+          (domain) => domain.id === input.complianceDomain,
+        )?.endpointRegion ?? "global",
       crossBorderTransfer: false,
       discoveredModels: [...new Set([
         ...discovery.models.map((model) => model.modelId),
@@ -263,7 +327,8 @@ export class ProviderService {
     };
     const models: ModelDeployment[] = [];
     const failures: ProviderConnectionCreationResult["failures"] = [];
-    for (const model of input.models) {
+    for (const rawModel of input.models) {
+      const model = normalizeModelSelection(rawModel);
       if (!(item.modelTypes as readonly string[]).includes(model.modelType)) {
         failures.push({ model, message: `${item.name} does not support ${model.modelType} registrations.` });
         continue;
@@ -299,8 +364,9 @@ export class ProviderService {
   private async registerDraftModel(
     account: ProviderAccount,
     draft: ProviderConnectionDraft,
-    model: ProviderModelSelection,
+    rawModel: ProviderModelSelection,
   ): Promise<ModelDeployment> {
+    const model = normalizeModelSelection(rawModel);
     const adapter = providerAdapter(draft.provider);
     let litellmModelName: string | undefined;
     try {
@@ -318,7 +384,6 @@ export class ProviderService {
         id: randomUUID(),
         providerAccountId: account.id,
         ...model,
-        isDefault: false,
         providerPresetId: account.presetId,
         providerName: catalog(draft.provider).name,
         endpoint: adapter.endpoint(draft),

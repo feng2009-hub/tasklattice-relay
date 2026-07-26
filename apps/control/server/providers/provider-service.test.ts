@@ -59,23 +59,6 @@ describe("ProviderService", () => {
     expect(JSON.stringify(await service.listAccounts())).not.toContain("provider-secret-value");
   });
 
-  it("persists exactly one validated LLM as the global default", async () => {
-    mockDeepSeekCatalog();
-    const service = new ProviderService(createTestStore(), liteLLM());
-    const { account } = await service.createConnection(deepSeekConnection);
-    const [first, second] = await service.listModels(account.id);
-
-    expect(await service.markModelAsDefault(first!.id)).toMatchObject({ id: first!.id, isDefault: true });
-    expect((await service.listModels()).filter((model) => model.isDefault)).toEqual([
-      expect.objectContaining({ id: first!.id }),
-    ]);
-
-    expect(await service.markModelAsDefault(second!.id)).toMatchObject({ id: second!.id, isDefault: true });
-    expect((await service.listModels()).filter((model) => model.isDefault)).toEqual([
-      expect.objectContaining({ id: second!.id }),
-    ]);
-  });
-
   it("deletes an unused account and unregisters its LiteLLM models", async () => {
     mockDeepSeekCatalog();
     const store = createTestStore();
@@ -87,6 +70,25 @@ describe("ProviderService", () => {
     expect(litellm.deleteModel).toHaveBeenCalledTimes(2);
     expect(await service.listAccounts()).toEqual([]);
     expect(await service.listModels()).toEqual([]);
+  });
+
+  it("removes one unused model while keeping its Provider connection", async () => {
+    mockDeepSeekCatalog();
+    const store = createTestStore();
+    const litellm = liteLLM();
+    const service = new ProviderService(store, litellm);
+    const { account, models } = await service.createConnection(deepSeekConnection);
+
+    await expect(
+      service.deleteModelDeployment(models[0]!.id),
+    ).resolves.toBe(true);
+    expect(litellm.deleteModel).toHaveBeenCalledWith(
+      models[0]!.litellmModelName,
+    );
+    expect(await service.listAccounts()).toHaveLength(1);
+    expect(await service.listModels(account.id)).toEqual([
+      expect.objectContaining({ id: models[1]!.id }),
+    ]);
   });
 
   it("blocks Provider deletion while a Model Profile references one of its deployments", async () => {
@@ -118,6 +120,8 @@ describe("ProviderService", () => {
         version: 1,
         mode: "SINGLE",
         modelDeploymentId: models[0]!.id,
+        fallbackModelDeploymentIds: [],
+        retries: 2,
       },
       complianceDomain: "GLOBAL",
       status: "READY",
@@ -146,6 +150,9 @@ describe("ProviderService", () => {
     });
 
     await expect(service.deleteAccount(account.id)).rejects.toThrow("Model Profile");
+    await expect(
+      service.deleteModelDeployment(models[0]!.id),
+    ).rejects.toThrow("in use by 1 Model Profile");
     expect(litellm.deleteModel).not.toHaveBeenCalled();
   });
 

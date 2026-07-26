@@ -2,9 +2,8 @@ import { describe, expect, it } from "vitest";
 import { getHeaderBreadcrumbItems } from "./header-breadcrumb";
 
 describe("getHeaderBreadcrumbItems", () => {
-  it("maps provider routes to the product breadcrumb language", () => {
+  it("keeps Cost as a top-level Project destination", () => {
     expect(getHeaderBreadcrumbItems("/individual/cost")).toEqual([
-      { href: "/individual/models", label: "Models" },
       { href: "/individual/cost", label: "Cost" },
     ]);
   });

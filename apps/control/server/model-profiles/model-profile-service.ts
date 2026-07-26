@@ -175,16 +175,7 @@ export class ModelProfileService {
     else await this.store.saveModelProfile(next);
     await this.audit(next, input.suspended === true ? "model_profile.suspended" : "model_profile.updated", actor, "SUCCESS", "Model Profile policy updated.");
     if (input.routingPolicy) {
-      const refreshed = await this.refresh(id, actor);
-      if (
-        refreshed.status === "READY"
-        && current.routingPolicy.mode === "COMPLEXITY"
-        && (input.routingPolicy.mode !== "COMPLEXITY" || current.publicModelAlias !== refreshed.publicModelAlias)
-        && this.litellm.deleteModelProfileRoute
-      ) {
-        await this.litellm.deleteModelProfileRoute(current.publicModelAlias, current.id);
-      }
-      return refreshed;
+      return this.refresh(id, actor);
     }
     return this.withConsumerCount(next);
   }
@@ -228,11 +219,18 @@ export class ModelProfileService {
             : `Backing deployments do not exclusively match ${current.complianceDomain}.`,
       });
       const routingContractPass = current.routingPolicy.mode !== "COMPLEXITY"
-        || (
-          inspection.capabilities.automaticRouting === "ENABLED"
-          && inspection.capabilities.routerType === "COMPLEXITY_ROUTER"
-          && inspection.capabilities.complexityTierCount === 4
-        );
+        ? current.routingPolicy.mode !== "SEMANTIC"
+          || (
+            inspection.capabilities.automaticRouting === "ENABLED"
+            && inspection.capabilities.routerType === "SEMANTIC_ROUTER"
+            && inspection.capabilities.semanticRouteCount
+              === current.routingPolicy.routes.length
+          )
+        : (
+            inspection.capabilities.automaticRouting === "ENABLED"
+            && inspection.capabilities.routerType === "COMPLEXITY_ROUTER"
+            && inspection.capabilities.complexityTierCount === 4
+          );
       conditions.push({
         type: "CAPABILITY",
         status: inspection.unsupportedReason || !routingContractPass ? "FAIL" : "PASS",
@@ -380,11 +378,9 @@ export class ModelProfileService {
     if (profile.isDefault)
       throw new Error("Choose another default Model Profile before deleting this one.");
     if ((await this.consumers(id)).length) throw new Error("Remove all Consumers before deleting this Model Profile.");
-    if (profile.routingPolicy.mode === "COMPLEXITY") {
-      if (!this.litellm.deleteModelProfileRoute)
-        throw new Error("The configured LiteLLM adapter does not support managed Router deletion.");
-      await this.litellm.deleteModelProfileRoute(profile.publicModelAlias, profile.id);
-    }
+    if (!this.litellm.deleteModelProfileRoute)
+      throw new Error("The configured LiteLLM adapter does not support managed Router deletion.");
+    await this.litellm.deleteModelProfileRoute(profile.publicModelAlias, profile.id);
     if (profile.liteLLMTeamId && this.litellm.deleteModelProfileTeam)
       await this.litellm.deleteModelProfileTeam(profile.liteLLMTeamId);
     await this.audit(profile, "model_profile.deleted", actor, "SUCCESS", "Model Profile deleted.");
@@ -419,47 +415,130 @@ export class ModelProfileService {
     complianceDomain: ComplianceDomain,
     requestAudit: boolean,
   ): Promise<{ alias: string; managedRoute?: LiteLLMModelProfileRouteInput }> {
-    if (policy.mode === "EXTERNAL") return { alias: policy.alias };
     if (policy.mode === "SINGLE") {
       const deployment = await this.requireRoutingDeployment(
         policy.modelDeploymentId,
         complianceDomain,
         "selected model",
       );
-      return { alias: deployment.litellmModelName };
-    }
-    const simple = await this.requireRoutingDeployment(
-      policy.simpleModelDeploymentId,
-      complianceDomain,
-      "simple tier",
-    );
-    const complex = await this.requireRoutingDeployment(
-      policy.complexModelDeploymentId,
-      complianceDomain,
-      "complex tier",
-    );
-    const fallback = policy.fallbackModelDeploymentId
-      ? await this.requireRoutingDeployment(
-          policy.fallbackModelDeploymentId,
+      const fallbacks = await Promise.all(
+        policy.fallbackModelDeploymentIds.map((id, index) =>
+          this.requireRoutingDeployment(
+            id,
+            complianceDomain,
+            `fallback ${index + 1}`,
+          ),
+        ),
+      );
+      const alias = `tali-profile-${profileId}`;
+      return {
+        alias,
+        managedRoute: {
+          strategy: "COMPLEXITY",
+          alias,
+          modelProfileId: profileId,
           complianceDomain,
-          "fallback",
-        )
-      : undefined;
+          tiers: {
+            SIMPLE: deployment.litellmModelName,
+            MEDIUM: deployment.litellmModelName,
+            COMPLEX: deployment.litellmModelName,
+            REASONING: deployment.litellmModelName,
+          },
+          defaultModel: deployment.litellmModelName,
+          fallbackModels: fallbacks.map((model) => model.litellmModelName),
+          retries: policy.retries,
+          requestAudit,
+        },
+      };
+    }
     const alias = `tali-profile-${profileId}`;
+    if (policy.mode === "COMPLEXITY") {
+      const simple = await this.requireRoutingDeployment(
+        policy.simpleModelDeploymentId,
+        complianceDomain,
+        "simple tier",
+      );
+      const complex = await this.requireRoutingDeployment(
+        policy.complexModelDeploymentId,
+        complianceDomain,
+        "complex tier",
+      );
+      const fallbacks = await Promise.all(
+        policy.fallbackModelDeploymentIds.map((id, index) =>
+          this.requireRoutingDeployment(
+            id,
+            complianceDomain,
+            `fallback ${index + 1}`,
+          ),
+        ),
+      );
+      return {
+        alias,
+        managedRoute: {
+          strategy: "COMPLEXITY",
+          alias,
+          modelProfileId: profileId,
+          complianceDomain,
+          tiers: {
+            SIMPLE: simple.litellmModelName,
+            MEDIUM: simple.litellmModelName,
+            COMPLEX: complex.litellmModelName,
+            REASONING: complex.litellmModelName,
+          },
+          defaultModel: simple.litellmModelName,
+          fallbackModels: fallbacks.map((model) => model.litellmModelName),
+          retries: policy.retries,
+          requestAudit,
+        },
+      };
+    }
+    const defaultModel = await this.requireRoutingDeployment(
+      policy.defaultModelDeploymentId,
+      complianceDomain,
+      "semantic default",
+    );
+    const embeddingModel = await this.requireDeployment(
+      policy.embeddingModelDeploymentId,
+      complianceDomain,
+      "semantic embedding model",
+      "text-embedding",
+    );
+    const routes = await Promise.all(
+      policy.routes.map(async (route) => {
+        const model = await this.requireRoutingDeployment(
+          route.modelDeploymentId,
+          complianceDomain,
+          `${route.intent} intent`,
+        );
+        return {
+          intent: route.intent,
+          description: route.description,
+          model: model.litellmModelName,
+          utterances: route.utterances,
+          scoreThreshold: route.scoreThreshold,
+        };
+      }),
+    );
+    const fallbacks = await Promise.all(
+      policy.fallbackModelDeploymentIds.map((id, index) =>
+        this.requireRoutingDeployment(
+          id,
+          complianceDomain,
+          `fallback ${index + 1}`,
+        ),
+      ),
+    );
     return {
       alias,
       managedRoute: {
+        strategy: "SEMANTIC",
         alias,
         modelProfileId: profileId,
         complianceDomain,
-        tiers: {
-          SIMPLE: simple.litellmModelName,
-          MEDIUM: simple.litellmModelName,
-          COMPLEX: complex.litellmModelName,
-          REASONING: complex.litellmModelName,
-        },
-        defaultModel: simple.litellmModelName,
-        fallbackModels: fallback ? [fallback.litellmModelName] : [],
+        routes,
+        defaultModel: defaultModel.litellmModelName,
+        embeddingModel: embeddingModel.litellmModelName,
+        fallbackModels: fallbacks.map((model) => model.litellmModelName),
         retries: policy.retries,
         requestAudit,
       },
@@ -471,11 +550,20 @@ export class ModelProfileService {
     complianceDomain: ComplianceDomain,
     role: string,
   ): Promise<ModelDeployment> {
+    return this.requireDeployment(id, complianceDomain, role, "llm");
+  }
+
+  private async requireDeployment(
+    id: string,
+    complianceDomain: ComplianceDomain,
+    role: string,
+    modelType: ModelDeployment["modelType"],
+  ): Promise<ModelDeployment> {
     const deployment = await this.store.getModelDeployment(id);
     if (!deployment)
       throw new Error(`The ${role} deployment is not available in this Project.`);
-    if (deployment.modelType !== "llm")
-      throw new Error(`The ${role} must be an LLM deployment.`);
+    if (deployment.modelType !== modelType)
+      throw new Error(`The ${role} must be a ${modelType} deployment.`);
     if (deployment.status !== "VALIDATED")
       throw new Error(`The ${role} must be validated before it can be routed.`);
     if (deployment.complianceDomain !== complianceDomain)

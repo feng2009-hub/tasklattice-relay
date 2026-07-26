@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { Agent } from "@tasklattice/contracts";
+import { complianceDomainCatalog, type Agent } from "@tasklattice/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ArrowUpRight, Eye, UserRoundCheck } from "lucide-react";
@@ -85,7 +85,7 @@ export function InstanceConfigurationTab({ agent, platform }: { agent: Agent; pl
         <CardContent><DefinitionList columns={2} items={[
           { label: "Inference mode", value: "Platform managed" },
           { label: "Inference status", value: agent.modelProfileStatus?.replaceAll("_", " ") ?? "Unavailable" },
-          { label: "Compliance", value: agent.modelProfileComplianceDomain === "CN_MAINLAND" ? "CN Mainland" : "Global" },
+          { label: "Data boundary", value: complianceDomainCatalog.find((domain) => domain.id === agent.modelProfileComplianceDomain)?.label ?? agent.modelProfileComplianceDomain },
           { label: "Automatic routing", value: agent.modelProfileCapabilities?.automaticRouting === "ENABLED" ? "Enabled" : "Not enabled" },
           { label: "Failover", value: agent.modelProfileCapabilities?.failover === "ENABLED" ? "Enabled" : "Not enabled" },
           { label: "Key fingerprint", value: agent.modelProfileKeyFingerprint ?? "Unavailable" },

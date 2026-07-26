@@ -90,17 +90,7 @@ function parseModelDeployment(payload: Prisma.JsonValue): ModelDeployment {
 }
 
 function parseModelProfile(payload: Prisma.JsonValue): ModelProfile {
-  const profile = decode<ModelProfile>(payload);
-  return profile.routingPolicy
-    ? profile
-    : {
-        ...profile,
-        routingPolicy: {
-          version: 1,
-          mode: "EXTERNAL",
-          alias: profile.publicModelAlias,
-        },
-      };
+  return decode<ModelProfile>(payload);
 }
 
 export class ProjectStore {
@@ -466,25 +456,6 @@ export class ProjectStore {
       updatedAt: deployment.updatedAt,
     });
     return deployment;
-  }
-
-  async setDefaultModelDeployment(id: string): Promise<ModelDeployment | undefined> {
-    const selected = await this.getModelDeployment(id);
-    if (!selected) return undefined;
-    await this.db.$transaction(async (transaction) => {
-      const scoped = new ProjectStore(this.projectId, transaction as unknown as PrismaClient);
-      for (const deployment of await scoped.listModelDeployments()) {
-        const isDefault = deployment.id === id;
-        if (deployment.isDefault !== isDefault) {
-          await scoped.saveModelDeployment({
-            ...deployment,
-            isDefault,
-            updatedAt: new Date().toISOString(),
-          });
-        }
-      }
-    });
-    return this.getModelDeployment(id);
   }
 
   async getModelDeployment(id: string): Promise<ModelDeployment | undefined> {

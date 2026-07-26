@@ -40,7 +40,7 @@ export function DeleteModelProfileDialog({
           <DialogDescription id="delete-model-profile-description">
             {blocked
               ? `${consumers} active ${consumers === 1 ? "Instance is" : "Instances are"} still using this Profile. Reassign or remove them before deleting it.`
-              : "This permanently removes the Profile identity, routing binding, and access policy. Provider connections and upstream model registrations are kept."}
+              : "This permanently removes the Profile identity, routing binding, and access policy. Provider connections and registered models are kept."}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 px-6 py-5">

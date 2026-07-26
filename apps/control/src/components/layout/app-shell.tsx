@@ -61,7 +61,6 @@ import {
 } from "@/components/ui/toast";
 
 type ProjectRoute =
-  | "/$projectId/models"
   | "/$projectId/cost"
   | "/$projectId/instances"
   | "/$projectId/requests/new"

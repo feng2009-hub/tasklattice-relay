@@ -1,4 +1,4 @@
-import type { Agent, SandboxAuditEvent } from "@tasklattice/contracts";
+import { complianceDomainCatalog, type Agent, type SandboxAuditEvent } from "@tasklattice/contracts";
 import { Link } from "@tanstack/react-router";
 import { AlertTriangle, BookOpen, CheckCircle2, ChevronRight, ExternalLink, Globe2, Network, Sparkles, SquareTerminal } from "lucide-react";
 import { resolveProvisioningState } from "@/components/agents/provisioning-state";
@@ -126,7 +126,7 @@ export function InstanceOverviewTab({ access, agent, auditEvents, auditLoading, 
               { label: "Agent runtime", value: platform.name },
               { label: "Inference mode", value: "Platform managed" },
               { label: "Inference status", value: agent.modelProfileStatus?.replaceAll("_", " ") ?? "Unavailable" },
-              { label: "Compliance", value: agent.modelProfileComplianceDomain === "CN_MAINLAND" ? "CN Mainland" : "Global" },
+              { label: "Data boundary", value: complianceDomainCatalog.find((domain) => domain.id === agent.modelProfileComplianceDomain)?.label ?? agent.modelProfileComplianceDomain },
               { label: "Model Profile", value: <Link to="/$projectId/setting/model-profiles/$profileId" params={{ projectId, profileId: agent.modelProfileId }} className="font-medium text-primary underline underline-offset-4">{modelProfileName ?? "Managed model profile"}</Link> },
               { label: "Endpoint status", value: <EndpointBadge agent={agent} /> },
               { label: "Endpoint URL", value: <CopyableValue value={agent.httpEndpoint?.url} externalUrl={agent.httpEndpoint?.url} /> },

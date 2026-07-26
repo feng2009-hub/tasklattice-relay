@@ -16,7 +16,6 @@ const routeLabels: Record<string, string> = {
   new: "Create Instance",
   policy: "Policy",
   profile: "My Account",
-  providers: "Models",
   "model-profiles": "Model Profiles",
   requests: "Requests",
   security: "Security",
@@ -47,12 +46,6 @@ function decodePathPart(part: string) {
 export function getHeaderBreadcrumbItems(pathname: string): HeaderBreadcrumbItem[] {
   const parts = pathname.split("/").filter(Boolean);
   const projectId = parts[0];
-  if (parts[1] === "cost") {
-    return [
-      { href: `/${projectId}/models`, label: "Models" },
-      { href: `/${projectId}/cost`, label: "Cost" },
-    ];
-  }
   return parts.slice(1).flatMap((part, routeIndex) => {
     const index = routeIndex + 1;
     const label =

@@ -107,7 +107,7 @@ function ProjectSettingsPage() {
         >
           <TabsList
             variant="line"
-            className="w-full justify-start overflow-x-auto px-2"
+            className="w-full justify-start overflow-x-auto overflow-y-hidden px-2"
           >
             <TabsTrigger value="settings" className="h-11">
               <ShieldCheck />
@@ -123,7 +123,7 @@ function ProjectSettingsPage() {
             </TabsTrigger>
             <TabsTrigger value="model-profiles" className="h-11">
               <Workflow />
-              Models & Routing
+              Models & Profiles
             </TabsTrigger>
             <TabsTrigger value="quota" className="h-11">
               <Gauge />
