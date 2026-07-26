@@ -179,6 +179,12 @@ export class ProjectService {
     invitations: InitialProjectInvitation[],
   ): Promise<ProjectView> {
     const currentUserId = await this.ensureUser(auth);
+    const projectName = name.trim();
+    const duplicate = await this.db.project.findFirst({
+      where: { name: { equals: projectName, mode: "insensitive" } },
+      select: { id: true },
+    });
+    if (duplicate) throw new Error(`A Project named "${projectName}" already exists.`);
     const creator = await this.db.user.findUniqueOrThrow({
       where: { id: currentUserId },
       select: { email: true },
@@ -204,11 +210,11 @@ export class ProjectService {
     const existingUserByEmail = new Map(
       existingUsers.map((user) => [user.email, user]),
     );
-    const id = `${slug(name)}-${randomUUID().slice(0, 8)}`;
+    const id = `${slug(projectName)}-${randomUUID().slice(0, 8)}`;
     const project = await this.db.project.create({
       data: {
         id,
-        name: name.trim(),
+        name: projectName,
         type: "team",
         createdBy: currentUserId,
         humanMembers: {
@@ -298,33 +304,11 @@ export class ProjectService {
   }
 
   async rename(projectId: string, currentUserId: string, name: string): Promise<ProjectView> {
-    const role = await this.requireRole(projectId, currentUserId, ["admin"]);
-    const existing = await this.db.project.findUnique({
-      where: { id: projectId },
-      select: { type: true },
-    });
+    await this.requireRole(projectId, currentUserId, ["admin"]);
+    const existing = await this.db.project.findUnique({ where: { id: projectId }, select: { id: true } });
     if (!existing) throw new Error("Project not found.");
-    if (existing.type === "personal") {
-      throw new Error("A personal Project name always matches its username.");
-    }
-    const project = await this.db.project.update({
-      where: { id: projectId },
-      data: { name: name.trim() },
-      include: {
-        _count: {
-          select: { humanMembers: true, virtualEmployees: true },
-        },
-      },
-    });
-    return {
-      id: project.id,
-      name: project.name,
-      type: project.type as ProjectType,
-      ...(project.avatar ? { avatar: project.avatar } : {}),
-      memberCount:
-        project._count.humanMembers + project._count.virtualEmployees,
-      role,
-    };
+    void name;
+    throw new Error("Project names are immutable after creation.");
   }
 
   async delete(projectId: string, currentUserId: string): Promise<void> {

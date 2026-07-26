@@ -245,6 +245,28 @@ describe("ProjectService", () => {
     ])).rejects.toThrow(/already included/i);
   });
 
+  it("requires Project names to be unique and immutable", async () => {
+    const db = createTestPrisma();
+    const service = new ProjectService(db);
+    const administrator = auth({
+      displayName: "Administrator",
+      email: "administrator@tasklattice.local",
+      provider: "sso",
+      username: "administrator",
+    });
+    await service.syncAuthUser(administrator.user);
+
+    const project = await service.create(administrator, "Security Research", []);
+    const administratorId = await service.ensureUser(administrator);
+
+    await expect(
+      service.create(administrator, "security research", []),
+    ).rejects.toThrow(/already exists/i);
+    await expect(
+      service.rename(project.id, administratorId, "Renamed Security Research"),
+    ).rejects.toThrow(/immutable/i);
+  });
+
   it("creates one personal project named after each username", async () => {
     const db = createTestPrisma();
     const service = new ProjectService(db);
@@ -270,7 +292,7 @@ describe("ProjectService", () => {
     const [personalProject] = await service.list(alex);
     await expect(
       service.rename(personalProject!.id, alexId, "Renamed"),
-    ).rejects.toThrow(/matches its username/i);
+    ).rejects.toThrow(/immutable/i);
   });
 
   it("enforces project roles and keeps records isolated by project", async () => {

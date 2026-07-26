@@ -108,7 +108,7 @@ model LocalCredential {
 
 model Project {
   id        String   @id
-  name      String
+  name      String   @unique(map: "projects_name_key")
   type      String
   avatar    String?
   createdBy String   @map("created_by")

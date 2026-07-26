@@ -5,6 +5,9 @@ import { errorResponse, jsonResponse } from "../../../../http/responses";
 import { ProjectService } from "../../../../projects/project-service";
 
 const inputSchema = z.object({
+  confirmImmutableName: z.literal(true, {
+    error: "Confirm that the Project name cannot be changed after creation.",
+  }),
   name: z.string().trim().min(2).max(80),
   invitations: z.array(z.object({
     email: z.email().transform((email) => email.trim().toLowerCase()),

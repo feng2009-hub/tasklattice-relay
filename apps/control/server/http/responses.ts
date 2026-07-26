@@ -31,7 +31,7 @@ export function errorResponse(error: unknown): Response {
       ? 403
       : /Invalid |must be|before end_time/i.test(message)
         ? 400
-    : /Consumer|in use|already exists|default Model Profile|compliance|suspended|READY Model Profile|Multiple default|quota exceeded/i.test(message)
+    : /Consumer|in use|already exists|immutable|cannot be changed|default Model Profile|compliance|suspended|READY Model Profile|Multiple default|quota exceeded/i.test(message)
       ? 409
       : /LiteLLM|gateway is unavailable/i.test(message)
         ? 503

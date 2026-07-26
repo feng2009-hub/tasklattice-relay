@@ -1,13 +1,10 @@
-import { useEffect, useState, type FormEvent } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { Bot, Gauge, ShieldCheck, SlidersHorizontal, Trash2, Users } from "lucide-react";
+import { Bot, Gauge, LockKeyhole, ShieldCheck, Trash2, Users, Workflow } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { ProjectModelProfilesSettings } from "@/components/project/project-model-profiles-settings";
 import { ProjectVirtualEmployees } from "@/components/project/project-virtual-employees";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProjectAvatar } from "@/components/project/project-item";
@@ -15,7 +12,7 @@ import { ProjectMembers } from "@/components/project/project-members";
 import { ProjectQuotaSettings } from "@/components/project/project-quota-settings";
 import { useProject } from "@/hooks/use-project";
 import { useProjectPermissions } from "@/hooks/use-project-permissions";
-import { deleteProject, renameProject } from "@/services/project";
+import { deleteProject } from "@/services/project";
 import type { Project } from "@/types/project";
 
 export const Route = createFileRoute("/$projectId/setting/")({
@@ -112,23 +109,23 @@ function ProjectSettingsPage() {
             variant="line"
             className="w-full justify-start overflow-x-auto px-2"
           >
-            <TabsTrigger value="settings">
+            <TabsTrigger value="settings" className="h-11">
               <ShieldCheck />
               General
             </TabsTrigger>
-            <TabsTrigger value="members">
+            <TabsTrigger value="members" className="h-11">
               <Users />
               Members
             </TabsTrigger>
-            <TabsTrigger value="virtual-employees">
+            <TabsTrigger value="virtual-employees" className="h-11">
               <Bot />
               Virtual Employees
             </TabsTrigger>
-            <TabsTrigger value="model-profiles">
-              <SlidersHorizontal />
-              Model Profiles
+            <TabsTrigger value="model-profiles" className="h-11">
+              <Workflow />
+              Models & Routing
             </TabsTrigger>
-            <TabsTrigger value="quota">
+            <TabsTrigger value="quota" className="h-11">
               <Gauge />
               Quota
             </TabsTrigger>
@@ -137,7 +134,6 @@ function ProjectSettingsPage() {
           <TabsContent value="settings" className="mt-0">
             <ProjectGeneralSettings
               project={project}
-              onChanged={refreshProjects}
               onDeleted={async () => {
                 const remaining = await refreshProjects();
                 const fallback = remaining.find(
@@ -168,81 +164,31 @@ function ProjectSettingsPage() {
 }
 
 function ProjectGeneralSettings({
-  onChanged,
   onDeleted,
   project,
 }: {
-  onChanged: () => Promise<Project[]>;
   onDeleted: () => void | Promise<void>;
   project: Project;
 }) {
   const permissions = useProjectPermissions(project.role);
-  const canRename =
-    permissions.canManageProject && project.type !== "personal";
-  const [name, setName] = useState(project.name);
-  useEffect(() => setName(project.name), [project.id, project.name]);
-  const rename = useMutation({
-    mutationFn: () => renameProject(project.id, name.trim()),
-    onSuccess: () => onChanged(),
-  });
   const remove = useMutation({
     mutationFn: () => deleteProject(project.id),
     onSuccess: () => onDeleted(),
   });
 
-  const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (canRename && name.trim() && name.trim() !== project.name) {
-      rename.mutate();
-    }
-  };
-
   return (
     <div className="divide-y">
-      <form
-        className="grid gap-4 p-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end"
-        onSubmit={submit}
-      >
-        <div className="space-y-2">
-          <Label htmlFor="project-name">Project name</Label>
-          <Input
-            id="project-name"
-            className="h-11 max-w-lg"
-            value={name}
-            disabled={!canRename}
-            onChange={(event) => setName(event.target.value)}
-          />
-          {project.type === "personal" ? (
-            <p className="text-xs text-muted-foreground">
-              Your personal Project name always matches your username.
-            </p>
-          ) : !permissions.canManageProject ? (
-            <p className="text-xs text-muted-foreground">
-              Members have view-only access to Project settings.
-            </p>
-          ) : null}
-          {rename.isError ? (
-            <p className="text-sm text-destructive" role="alert">
-              {rename.error.message}
-            </p>
-          ) : null}
+      <div className="space-y-3 p-5">
+        <span className="text-sm font-medium">Project name</span>
+        <div className="flex min-h-12 max-w-lg items-center gap-3 border bg-muted/20 px-4">
+          <LockKeyhole className="size-4 shrink-0 text-muted-foreground" />
+          <strong className="min-w-0 flex-1 truncate text-sm">{project.name}</strong>
+          <span className="shrink-0 text-xs font-medium text-muted-foreground">Immutable</span>
         </div>
-        {canRename ? (
-          <Button
-            className="h-11"
-            type="submit"
-            variant="outline"
-            disabled={
-              rename.isPending ||
-              !name.trim() ||
-              name.trim() === project.name
-            }
-          >
-            {rename.isPending ? <Spinner /> : null}
-            Save name
-          </Button>
-        ) : null}
-      </form>
+        <p className="max-w-2xl text-xs leading-5 text-muted-foreground">
+          Project names are unique across TaskLattice and are permanently fixed at creation. This protects stable URLs, audit records, and resource ownership.
+        </p>
+      </div>
 
       <div className="grid gap-1 p-5 text-sm">
         <span className="font-medium">Project ID</span>

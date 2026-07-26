@@ -47,6 +47,7 @@ export function CreateProjectSheet({
   user: AuthUser | null;
 }) {
   const [name, setName] = useState("");
+  const [nameConfirmed, setNameConfirmed] = useState(false);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<ProjectRole>("member");
   const [invitations, setInvitations] = useState<InitialInvitation[]>([]);
@@ -58,6 +59,7 @@ export function CreateProjectSheet({
 
   const reset = () => {
     setName("");
+    setNameConfirmed(false);
     setEmail("");
     setRole("member");
     setInvitations([]);
@@ -67,6 +69,7 @@ export function CreateProjectSheet({
 
   const create = useMutation({
     mutationFn: () => createProject({
+      confirmImmutableName: true,
       name: name.trim(),
       invitations,
     }),
@@ -127,7 +130,7 @@ export function CreateProjectSheet({
             Cancel
           </Button>
           <Button
-            disabled={name.trim().length < 2 || create.isPending}
+            disabled={name.trim().length < 2 || !nameConfirmed || create.isPending}
             onClick={() => create.mutate()}
           >
             {create.isPending ? <Spinner /> : <Plus />}
@@ -150,13 +153,34 @@ export function CreateProjectSheet({
             value={name}
             onChange={(event) => {
               setName(event.target.value);
+              setNameConfirmed(false);
               create.reset();
             }}
             placeholder="AI Trading Agent"
             required
             autoFocus
           />
+          <p className="flex items-start gap-2 text-xs leading-5 text-muted-foreground">
+            <LockKeyhole className="mt-0.5 size-4 shrink-0" />
+            Project names are unique and cannot be changed after creation.
+          </p>
         </div>
+
+        <label className="flex min-h-11 cursor-pointer items-start gap-3 border bg-muted/20 px-4 py-3 text-sm">
+          <input
+            type="checkbox"
+            className="mt-0.5 size-4 shrink-0 accent-current"
+            checked={nameConfirmed}
+            disabled={name.trim().length < 2}
+            onChange={(event) => setNameConfirmed(event.target.checked)}
+          />
+          <span>
+            <strong className="block font-medium">Confirm the permanent Project name</strong>
+            <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+              I have reviewed “{name.trim() || "Project name"}” and understand it cannot be renamed later.
+            </span>
+          </span>
+        </label>
 
         <section aria-labelledby="project-creator-heading">
           <div className="flex items-start justify-between gap-4">
@@ -205,7 +229,7 @@ export function CreateProjectSheet({
             className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_9rem_auto] sm:items-end"
             onSubmit={addInvitation}
           >
-            <div className="space-y-2">
+            <div className="grid gap-2">
               <Label htmlFor="project-invite-email">Email</Label>
               <Input
                 id="project-invite-email"
@@ -219,13 +243,13 @@ export function CreateProjectSheet({
                 placeholder="name@company.com"
               />
             </div>
-            <div className="space-y-2">
+            <div className="grid gap-2">
               <Label htmlFor="project-invite-role">Role</Label>
               <Select
                 value={role}
                 onValueChange={(value) => setRole(value as ProjectRole)}
               >
-                <SelectTrigger id="project-invite-role" className="h-11 w-full">
+                <SelectTrigger id="project-invite-role" size="lg" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
