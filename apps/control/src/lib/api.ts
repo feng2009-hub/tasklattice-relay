@@ -2,8 +2,13 @@ import type {
   AccessPolicy,
   AccessPolicyVersion,
   Agent,
+  AgentConnection,
+  AgentGardenEntry,
+  AgentGardenSnapshot,
   CreateKnowledgeSourceDefinitionInput,
   CreateAccessPolicyInput,
+  CreateAgentConnectionInput,
+  CreateAgentGardenEntryInput,
   CreateAgentInput,
   CostQueryParams,
   ModelCostActivityResponse,
@@ -190,6 +195,36 @@ export const api = {
   listModelProfileAudit: async (id: string) =>
     (await request<{ data: ModelProfileAuditEvent[] }>(`/api/v1/model-profiles/${encodeURIComponent(id)}/audit`)).data,
   getResourceCatalog: () => request<ResourceCatalog>("/api/v1/catalog"),
+  getAgentGarden: () =>
+    request<AgentGardenSnapshot>("/api/v1/agent-garden"),
+  registerGardenAgent: (input: CreateAgentGardenEntryInput) =>
+    request<AgentGardenEntry>("/api/v1/agent-garden/agents", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  discoverGardenAgent: (id: string) =>
+    request<AgentGardenEntry>(
+      `/api/v1/agent-garden/agents/${encodeURIComponent(id)}/discover`,
+      {
+        method: "POST",
+        body: "{}",
+      },
+    ),
+  removeGardenAgent: (id: string) =>
+    request<{ message: string }>(
+      `/api/v1/agent-garden/agents/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+    ),
+  connectGardenAgent: (input: CreateAgentConnectionInput) =>
+    request<AgentConnection>("/api/v1/agent-garden/connections", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  disconnectGardenAgent: (id: string) =>
+    request<{ message: string }>(
+      `/api/v1/agent-garden/connections/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+    ),
   createSkill: (input: CreateSkillDefinitionInput) =>
     request<SkillDefinition>("/api/v1/catalog/skills", {
       method: "POST",

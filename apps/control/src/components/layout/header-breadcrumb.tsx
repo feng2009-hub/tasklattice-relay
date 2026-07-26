@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 
 const routeLabels: Record<string, string> = {
   "access-policies": "Access Policies",
+  "agent-garden": "Agent Garden",
   "audit-logs": "Audit Logs",
   agent: "Agent",
   agents: "Instances",
@@ -53,6 +54,9 @@ export function getHeaderBreadcrumbItems(pathname: string): HeaderBreadcrumbItem
       parts[1] === "setting" &&
       parts[2] === "virtual-employees"
         ? "Details"
+        :
+      routeIndex === 1 && parts[1] === "agent-garden"
+        ? "Agent details"
         :
       routeIndex === 1 && parts[1] === "access-policies"
         ? "Policy details"

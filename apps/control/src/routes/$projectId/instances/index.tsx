@@ -1,5 +1,9 @@
 import { useMemo, useState, type ReactElement } from "react";
-import type { Agent, AgentStatus } from "@tasklattice/contracts";
+import {
+  agentPlatformIds,
+  type Agent,
+  type AgentStatus,
+} from "@tasklattice/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
@@ -29,6 +33,8 @@ export const Route = createFileRoute("/$projectId/instances/")({
   validateSearch: z.object({
     create: z.literal("instance").optional(),
     created: z.string().optional(),
+    platform: z.enum(agentPlatformIds).optional(),
+    specialization: z.string().trim().min(1).max(64).optional(),
   }),
   component: Instances,
 });
@@ -244,6 +250,8 @@ function Instances() {
       {search.create === "instance" ? (
         <CreateInstanceSheet
           open
+          {...(search.platform ? { initialAgentPlatform: search.platform } : {})}
+          {...(search.specialization ? { initialSpecializationId: search.specialization } : {})}
           onOpenChange={(open) => {
             if (open) return;
             void navigate({

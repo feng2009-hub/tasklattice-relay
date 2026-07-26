@@ -24,9 +24,11 @@ import { Route as ProjectIdSettingIndexRouteImport } from './routes/$projectId/s
 import { Route as ProjectIdRequestsIndexRouteImport } from './routes/$projectId/requests/index'
 import { Route as ProjectIdInstancesIndexRouteImport } from './routes/$projectId/instances/index'
 import { Route as ProjectIdAuditLogsIndexRouteImport } from './routes/$projectId/audit-logs/index'
+import { Route as ProjectIdAgentGardenIndexRouteImport } from './routes/$projectId/agent-garden/index'
 import { Route as ProjectIdAccessPoliciesIndexRouteImport } from './routes/$projectId/access-policies/index'
 import { Route as ProjectIdRequestsNewRouteImport } from './routes/$projectId/requests/new'
 import { Route as ProjectIdInstancesInstanceIdRouteImport } from './routes/$projectId/instances/$instanceId'
+import { Route as ProjectIdAgentGardenAgentIdRouteImport } from './routes/$projectId/agent-garden/$agentId'
 import { Route as ProjectIdAccessPoliciesPolicyIdRouteImport } from './routes/$projectId/access-policies/$policyId'
 import { Route as ProjectIdSettingVirtualEmployeesEmployeeIdRouteImport } from './routes/$projectId/setting/virtual-employees/$employeeId'
 import { Route as ProjectIdSettingModelProfilesProfileIdRouteImport } from './routes/$projectId/setting/model-profiles/$profileId'
@@ -107,6 +109,12 @@ const ProjectIdAuditLogsIndexRoute = ProjectIdAuditLogsIndexRouteImport.update({
   path: '/$projectId/audit-logs/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProjectIdAgentGardenIndexRoute =
+  ProjectIdAgentGardenIndexRouteImport.update({
+    id: '/$projectId/agent-garden/',
+    path: '/$projectId/agent-garden/',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ProjectIdAccessPoliciesIndexRoute =
   ProjectIdAccessPoliciesIndexRouteImport.update({
     id: '/$projectId/access-policies/',
@@ -122,6 +130,12 @@ const ProjectIdInstancesInstanceIdRoute =
   ProjectIdInstancesInstanceIdRouteImport.update({
     id: '/$projectId/instances/$instanceId',
     path: '/$projectId/instances/$instanceId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ProjectIdAgentGardenAgentIdRoute =
+  ProjectIdAgentGardenAgentIdRouteImport.update({
+    id: '/$projectId/agent-garden/$agentId',
+    path: '/$projectId/agent-garden/$agentId',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ProjectIdAccessPoliciesPolicyIdRoute =
@@ -156,9 +170,11 @@ export interface FileRoutesByFullPath {
   '/auth/sso-complete': typeof AuthSsoCompleteRoute
   '/$projectId/': typeof ProjectIdIndexRoute
   '/$projectId/access-policies/$policyId': typeof ProjectIdAccessPoliciesPolicyIdRoute
+  '/$projectId/agent-garden/$agentId': typeof ProjectIdAgentGardenAgentIdRoute
   '/$projectId/instances/$instanceId': typeof ProjectIdInstancesInstanceIdRoute
   '/$projectId/requests/new': typeof ProjectIdRequestsNewRoute
   '/$projectId/access-policies/': typeof ProjectIdAccessPoliciesIndexRoute
+  '/$projectId/agent-garden/': typeof ProjectIdAgentGardenIndexRoute
   '/$projectId/audit-logs/': typeof ProjectIdAuditLogsIndexRoute
   '/$projectId/instances/': typeof ProjectIdInstancesIndexRoute
   '/$projectId/requests/': typeof ProjectIdRequestsIndexRoute
@@ -179,9 +195,11 @@ export interface FileRoutesByTo {
   '/auth/sso-complete': typeof AuthSsoCompleteRoute
   '/$projectId': typeof ProjectIdIndexRoute
   '/$projectId/access-policies/$policyId': typeof ProjectIdAccessPoliciesPolicyIdRoute
+  '/$projectId/agent-garden/$agentId': typeof ProjectIdAgentGardenAgentIdRoute
   '/$projectId/instances/$instanceId': typeof ProjectIdInstancesInstanceIdRoute
   '/$projectId/requests/new': typeof ProjectIdRequestsNewRoute
   '/$projectId/access-policies': typeof ProjectIdAccessPoliciesIndexRoute
+  '/$projectId/agent-garden': typeof ProjectIdAgentGardenIndexRoute
   '/$projectId/audit-logs': typeof ProjectIdAuditLogsIndexRoute
   '/$projectId/instances': typeof ProjectIdInstancesIndexRoute
   '/$projectId/requests': typeof ProjectIdRequestsIndexRoute
@@ -203,9 +221,11 @@ export interface FileRoutesById {
   '/auth/sso-complete': typeof AuthSsoCompleteRoute
   '/$projectId/': typeof ProjectIdIndexRoute
   '/$projectId/access-policies/$policyId': typeof ProjectIdAccessPoliciesPolicyIdRoute
+  '/$projectId/agent-garden/$agentId': typeof ProjectIdAgentGardenAgentIdRoute
   '/$projectId/instances/$instanceId': typeof ProjectIdInstancesInstanceIdRoute
   '/$projectId/requests/new': typeof ProjectIdRequestsNewRoute
   '/$projectId/access-policies/': typeof ProjectIdAccessPoliciesIndexRoute
+  '/$projectId/agent-garden/': typeof ProjectIdAgentGardenIndexRoute
   '/$projectId/audit-logs/': typeof ProjectIdAuditLogsIndexRoute
   '/$projectId/instances/': typeof ProjectIdInstancesIndexRoute
   '/$projectId/requests/': typeof ProjectIdRequestsIndexRoute
@@ -228,9 +248,11 @@ export interface FileRouteTypes {
     | '/auth/sso-complete'
     | '/$projectId/'
     | '/$projectId/access-policies/$policyId'
+    | '/$projectId/agent-garden/$agentId'
     | '/$projectId/instances/$instanceId'
     | '/$projectId/requests/new'
     | '/$projectId/access-policies/'
+    | '/$projectId/agent-garden/'
     | '/$projectId/audit-logs/'
     | '/$projectId/instances/'
     | '/$projectId/requests/'
@@ -251,9 +273,11 @@ export interface FileRouteTypes {
     | '/auth/sso-complete'
     | '/$projectId'
     | '/$projectId/access-policies/$policyId'
+    | '/$projectId/agent-garden/$agentId'
     | '/$projectId/instances/$instanceId'
     | '/$projectId/requests/new'
     | '/$projectId/access-policies'
+    | '/$projectId/agent-garden'
     | '/$projectId/audit-logs'
     | '/$projectId/instances'
     | '/$projectId/requests'
@@ -274,9 +298,11 @@ export interface FileRouteTypes {
     | '/auth/sso-complete'
     | '/$projectId/'
     | '/$projectId/access-policies/$policyId'
+    | '/$projectId/agent-garden/$agentId'
     | '/$projectId/instances/$instanceId'
     | '/$projectId/requests/new'
     | '/$projectId/access-policies/'
+    | '/$projectId/agent-garden/'
     | '/$projectId/audit-logs/'
     | '/$projectId/instances/'
     | '/$projectId/requests/'
@@ -298,9 +324,11 @@ export interface RootRouteChildren {
   AuthSsoCompleteRoute: typeof AuthSsoCompleteRoute
   ProjectIdIndexRoute: typeof ProjectIdIndexRoute
   ProjectIdAccessPoliciesPolicyIdRoute: typeof ProjectIdAccessPoliciesPolicyIdRoute
+  ProjectIdAgentGardenAgentIdRoute: typeof ProjectIdAgentGardenAgentIdRoute
   ProjectIdInstancesInstanceIdRoute: typeof ProjectIdInstancesInstanceIdRoute
   ProjectIdRequestsNewRoute: typeof ProjectIdRequestsNewRoute
   ProjectIdAccessPoliciesIndexRoute: typeof ProjectIdAccessPoliciesIndexRoute
+  ProjectIdAgentGardenIndexRoute: typeof ProjectIdAgentGardenIndexRoute
   ProjectIdAuditLogsIndexRoute: typeof ProjectIdAuditLogsIndexRoute
   ProjectIdInstancesIndexRoute: typeof ProjectIdInstancesIndexRoute
   ProjectIdRequestsIndexRoute: typeof ProjectIdRequestsIndexRoute
@@ -416,6 +444,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectIdAuditLogsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/$projectId/agent-garden/': {
+      id: '/$projectId/agent-garden/'
+      path: '/$projectId/agent-garden'
+      fullPath: '/$projectId/agent-garden/'
+      preLoaderRoute: typeof ProjectIdAgentGardenIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/$projectId/access-policies/': {
       id: '/$projectId/access-policies/'
       path: '/$projectId/access-policies'
@@ -435,6 +470,13 @@ declare module '@tanstack/react-router' {
       path: '/$projectId/instances/$instanceId'
       fullPath: '/$projectId/instances/$instanceId'
       preLoaderRoute: typeof ProjectIdInstancesInstanceIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$projectId/agent-garden/$agentId': {
+      id: '/$projectId/agent-garden/$agentId'
+      path: '/$projectId/agent-garden/$agentId'
+      fullPath: '/$projectId/agent-garden/$agentId'
+      preLoaderRoute: typeof ProjectIdAgentGardenAgentIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$projectId/access-policies/$policyId': {
@@ -474,9 +516,11 @@ const rootRouteChildren: RootRouteChildren = {
   AuthSsoCompleteRoute: AuthSsoCompleteRoute,
   ProjectIdIndexRoute: ProjectIdIndexRoute,
   ProjectIdAccessPoliciesPolicyIdRoute: ProjectIdAccessPoliciesPolicyIdRoute,
+  ProjectIdAgentGardenAgentIdRoute: ProjectIdAgentGardenAgentIdRoute,
   ProjectIdInstancesInstanceIdRoute: ProjectIdInstancesInstanceIdRoute,
   ProjectIdRequestsNewRoute: ProjectIdRequestsNewRoute,
   ProjectIdAccessPoliciesIndexRoute: ProjectIdAccessPoliciesIndexRoute,
+  ProjectIdAgentGardenIndexRoute: ProjectIdAgentGardenIndexRoute,
   ProjectIdAuditLogsIndexRoute: ProjectIdAuditLogsIndexRoute,
   ProjectIdInstancesIndexRoute: ProjectIdInstancesIndexRoute,
   ProjectIdRequestsIndexRoute: ProjectIdRequestsIndexRoute,

@@ -773,6 +773,122 @@ export const agentSpecializationDefinitionSchema = z.object({
   defaultKnowledgeSourceIds: z.array(z.string().trim().min(1).max(160)).max(64),
 });
 
+export const agentGardenBuiltInTypeIds = [
+  "openclaw",
+  "hermes",
+  "claude-code",
+] as const;
+
+export const agentGardenRegisterableTypeIds = [
+  "a2a",
+  "langgraph",
+  "langflow",
+  "bedrock-agentcore",
+  "azure-ai-foundry",
+  "pydantic-ai",
+  "vertex-ai-agent-engine",
+  "watsonx-orchestrate",
+  "custom",
+] as const;
+
+export const agentGardenIntegrationTypeIds = [
+  ...agentGardenBuiltInTypeIds,
+  ...agentGardenRegisterableTypeIds,
+] as const;
+
+export const agentGardenUsageModeIds = [
+  "INTERACTIVE",
+  "CALLABLE",
+  "HYBRID",
+] as const;
+
+export const agentGardenUsageCapabilitiesSchema = z.object({
+  interactive: z.boolean(),
+  canDelegate: z.boolean(),
+  acceptsDelegation: z.boolean(),
+}).strict();
+
+export const agentGardenSkillSchema = z.object({
+  id: z.string().trim().min(1).max(200),
+  name: z.string().trim().min(1).max(200),
+  description: z.string().trim().max(2_000).default(""),
+  tags: z.array(z.string().trim().min(1).max(80)).max(32).default([]),
+}).strict();
+
+export const agentGardenEntrySchema = z.object({
+  id: z.string().trim().min(1).max(160),
+  name: z.string().trim().min(2).max(160),
+  description: z.string().trim().min(10).max(2_000),
+  source: z.enum(["BUILT_IN", "PROJECT_REGISTERED"]),
+  integrationType: z.enum(agentGardenIntegrationTypeIds),
+  platformLabel: z.string().trim().min(1).max(120),
+  category: z.string().trim().min(2).max(80),
+  owner: z.string().trim().min(1).max(120),
+  tags: z.array(z.string().trim().min(1).max(80)).max(32),
+  status: z.enum(["READY", "COMING_SOON", "UNCHECKED", "UNAVAILABLE"]),
+  usageMode: z.enum(agentGardenUsageModeIds),
+  usageCapabilities: agentGardenUsageCapabilitiesSchema,
+  endpoint: z.string().trim().url().nullable(),
+  agentCardUrl: z.string().trim().url().nullable(),
+  authType: z.enum(["none", "bearer_token", "api_key"]),
+  authReference: optionalMcpSecretReferenceSchema,
+  internalNetworkOnly: z.boolean(),
+  configuration: z.record(z.string(), z.string()),
+  skills: z.array(agentGardenSkillSchema).max(1_000),
+  specializationId: z.string().trim().min(1).max(64).nullable(),
+  createdAt: z.string().datetime().nullable(),
+  updatedAt: z.string().datetime().nullable(),
+  lastDiscoveredAt: z.string().datetime().nullable(),
+  lastDiscoveryError: z.string().max(4_000).nullable(),
+}).strict();
+
+export const createAgentGardenEntrySchema = z.object({
+  name: z.string().trim().min(3).max(160),
+  description: z.string().trim().min(10).max(2_000),
+  integrationType: z.enum(agentGardenRegisterableTypeIds),
+  endpoint: z.string().trim().url(),
+  agentCardUrl: z.string().trim().url().optional(),
+  category: z.string().trim().min(2).max(80),
+  owner: z.string().trim().min(1).max(120),
+  tags: z.array(z.string().trim().min(1).max(80)).max(32).default([]),
+  usageMode: z.enum(agentGardenUsageModeIds).default("CALLABLE"),
+  authType: z.enum(["none", "bearer_token", "api_key"]).default("none"),
+  authReference: optionalMcpSecretReferenceSchema.default(""),
+  internalNetworkOnly: z.boolean().default(false),
+  configuration: z.record(z.string(), z.string()).default({}),
+}).strict().superRefine((value, context) => {
+  if (value.authType !== "none" && !value.authReference) {
+    context.addIssue({
+      code: "custom",
+      path: ["authReference"],
+      message: "A Secret reference is required for this authentication type.",
+    });
+  }
+});
+
+export const agentConnectionApprovalModeIds = [
+  "AUTO_READ_ONLY",
+  "ALWAYS_ASK",
+] as const;
+
+export const createAgentConnectionSchema = z.object({
+  coordinatorInstanceId: z.string().trim().min(1).max(160),
+  connectedAgentId: z.string().trim().min(1).max(160),
+  allowedSkillIds: z.array(z.string().trim().min(1).max(200)).max(1_000).default([]),
+  approvalMode: z.enum(agentConnectionApprovalModeIds).default("AUTO_READ_ONLY"),
+}).strict();
+
+export const agentConnectionSchema = createAgentConnectionSchema.extend({
+  id: z.string().uuid(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+}).strict();
+
+export const agentGardenSnapshotSchema = z.object({
+  agents: z.array(agentGardenEntrySchema),
+  connections: z.array(agentConnectionSchema),
+}).strict();
+
 export const resourceKindSchema = z.enum([
   "skills",
   "mcp-servers",
@@ -1078,6 +1194,26 @@ export type AccessPolicyStatus = (typeof accessPolicyStatuses)[number];
 export type AccessPolicyDecision = (typeof accessPolicyDecisions)[number];
 export type AccessPolicyToolRule = z.infer<typeof accessPolicyToolRuleSchema>;
 export type AccessPolicyServerRule = z.infer<typeof accessPolicyServerRuleSchema>;
+export type AgentGardenIntegrationType = (typeof agentGardenIntegrationTypeIds)[number];
+export type AgentGardenRegisterableType = (typeof agentGardenRegisterableTypeIds)[number];
+export type AgentGardenUsageMode = (typeof agentGardenUsageModeIds)[number];
+export type AgentGardenUsageCapabilities = z.infer<typeof agentGardenUsageCapabilitiesSchema>;
+export type AgentGardenSkill = z.infer<typeof agentGardenSkillSchema>;
+export type AgentGardenEntry = z.infer<typeof agentGardenEntrySchema>;
+export type CreateAgentGardenEntryInput = z.infer<typeof createAgentGardenEntrySchema>;
+
+export interface AgentMarketplaceBrief {
+  tagline: string;
+  overview: string;
+  useCases: string[];
+  inputs: string[];
+  outputs: string[];
+  requirements: string[];
+}
+export type AgentConnectionApprovalMode = (typeof agentConnectionApprovalModeIds)[number];
+export type AgentConnection = z.infer<typeof agentConnectionSchema>;
+export type CreateAgentConnectionInput = z.infer<typeof createAgentConnectionSchema>;
+export type AgentGardenSnapshot = z.infer<typeof agentGardenSnapshotSchema>;
 export type CreateAccessPolicyInput = z.infer<typeof createAccessPolicySchema>;
 export type UpdateAccessPolicyInput = z.infer<typeof updateAccessPolicySchema>;
 export type KnowledgeSourceDefinition = z.infer<typeof knowledgeSourceDefinitionSchema>;

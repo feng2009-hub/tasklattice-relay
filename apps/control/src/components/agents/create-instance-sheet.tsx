@@ -44,9 +44,13 @@ function selectedIds(items: readonly SelectedCapability[]): string[] {
 }
 
 export function CreateInstanceSheet({
+  initialAgentPlatform = defaultAgentPlatformId,
+  initialSpecializationId = "general-purpose",
   onOpenChange,
   open,
 }: {
+  initialAgentPlatform?: AgentPlatformId;
+  initialSpecializationId?: string;
   onOpenChange: (open: boolean) => void;
   open: boolean;
 }) {
@@ -54,7 +58,9 @@ export function CreateInstanceSheet({
   const projectId = useCurrentProjectId();
   const scope = useProjectQueryScope();
   const [step, setStep] = useState(0);
-  const [specializationId, setSpecializationId] = useState<SpecializationId>("general-purpose");
+  const [specializationId, setSpecializationId] = useState<SpecializationId>(
+    initialSpecializationId,
+  );
   const [customSystemPrompt, setCustomSystemPrompt] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [systemPromptInitialized, setSystemPromptInitialized] = useState(false);
@@ -89,7 +95,7 @@ export function CreateInstanceSheet({
     defaultValues: {
       name: "",
       description: "",
-      agentPlatform: defaultAgentPlatformId as AgentPlatformId,
+      agentPlatform: initialAgentPlatform,
       policyId: "",
       virtualEmployeeId: "",
     },

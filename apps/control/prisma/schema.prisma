@@ -119,6 +119,8 @@ model Project {
   humanMembers                    ProjectMember[]
   invitations                     ProjectInvitation[]
   agents                          AgentRecord[]
+  agentCatalogEntries             AgentCatalogRecord[]
+  agentConnections                AgentConnectionRecord[]
   providerAccounts                ProviderAccountRecord[]
   modelDeployments                ModelDeploymentRecord[]
   inferenceGateways               InferenceGatewayRecord[]
@@ -397,9 +399,46 @@ model AgentRecord {
   payload   Json
   createdAt DateTime @map("created_at") @db.Timestamptz(6)
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  outboundAgentConnections AgentConnectionRecord[] @relation("CoordinatorAgentConnections")
 
   @@id([projectId, id])
   @@map("agents")
+  @@schema("tasklattice")
+}
+
+model AgentCatalogRecord {
+  projectId String   @map("project_id")
+  id        String
+  payload   Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  project     Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  connections AgentConnectionRecord[]
+
+  @@id([projectId, id])
+  @@index([projectId, updatedAt(sort: Desc)], map: "agent_catalog_updated_idx")
+  @@map("agent_catalog")
+  @@schema("tasklattice")
+}
+
+model AgentConnectionRecord {
+  projectId             String   @map("project_id")
+  id                    String
+  coordinatorInstanceId String   @map("coordinator_instance_id")
+  connectedAgentId      String   @map("connected_agent_id")
+  payload               Json
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  project          Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  coordinator      AgentRecord        @relation("CoordinatorAgentConnections", fields: [projectId, coordinatorInstanceId], references: [projectId, id], onDelete: Cascade)
+  connectedAgent   AgentCatalogRecord @relation(fields: [projectId, connectedAgentId], references: [projectId, id], onDelete: Restrict)
+
+  @@id([projectId, id])
+  @@unique([projectId, coordinatorInstanceId, connectedAgentId], map: "agent_connections_unique_binding")
+  @@index([projectId, connectedAgentId], map: "agent_connections_connected_idx")
+  @@map("agent_connections")
   @@schema("tasklattice")
 }
 

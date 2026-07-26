@@ -1,4 +1,6 @@
 import { AgentService } from "./agents/agent-service";
+import { AgentGardenService } from "./agent-garden/agent-garden-service";
+import { AgentGardenStore } from "./agent-garden/agent-garden-store";
 import { AccessPolicyService } from "./access-policies/access-policy-service";
 import { AccessPolicyStore } from "./access-policies/access-policy-store";
 import { ResourceCatalogService } from "./catalog/resource-catalog-service";
@@ -16,6 +18,7 @@ import { AuditLogService } from "./audit-logs/audit-log-service";
 
 interface ProjectServices {
   agent: AgentService;
+  agentGarden: AgentGardenService;
   accessPolicies: AccessPolicyService;
   cost: CostService;
   catalog: ResourceCatalogService;
@@ -48,6 +51,10 @@ function createServices(projectId: string): ProjectServices {
   return {
     auditLogs: new AuditLogService(projectId, store.database()),
     agent: new AgentService(store, undefined, litellm, policies, catalog, modelProfiles, virtualEmployees, quotas, accessPolicies),
+    agentGarden: new AgentGardenService(
+      new AgentGardenStore(projectId, store.database()),
+      store,
+    ),
     accessPolicies,
     provider: new ProviderService(store, litellm),
     cost: new CostService(store, litellm),
@@ -98,6 +105,12 @@ export async function requireProjectRole(
 
 export async function getAgentService(request?: Request): Promise<AgentService> {
   return (await forRequest(request)).agent;
+}
+
+export async function getAgentGardenService(
+  request?: Request,
+): Promise<AgentGardenService> {
+  return (await forRequest(request)).agentGarden;
 }
 
 export async function getProviderService(request?: Request): Promise<ProviderService> {

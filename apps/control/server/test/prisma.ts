@@ -13,6 +13,7 @@ import mcpToolDiscoveryMigration from "../../prisma/migrations/20260725160000_mc
 import liteLLMResourceControlPlaneMigration from "../../prisma/migrations/20260725190000_litellm_resource_control_plane/migration.sql?raw";
 import accessPoliciesMigration from "../../prisma/migrations/20260725200000_access_policies/migration.sql?raw";
 import auditLogsMigration from "../../prisma/migrations/20260726120000_platform_audit_logs/migration.sql?raw";
+import agentGardenMigration from "../../prisma/migrations/20260726150000_agent_garden/migration.sql?raw";
 import { PrismaClient } from "../generated/prisma/client";
 
 export function createTestPrisma(): PrismaClient {
@@ -49,6 +50,7 @@ export function createTestPrisma(): PrismaClient {
   memory.public.none(liteLLMResourceControlPlaneMigration);
   memory.public.none(accessPoliciesMigration);
   memory.public.none(auditLogsMigration);
+  memory.public.none(agentGardenMigration);
   const pg = memory.adapters.createPg();
   const query = pg.Client.prototype.query;
   pg.Client.prototype.query = function (

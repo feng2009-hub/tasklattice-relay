@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { useCurrentProjectId } from "@/hooks/use-project";
 import { endpointStatus, formatUptime, getCapabilityCounts, type InstanceAccessState } from "./instance-detail-model";
 import { CopyableValue, DefinitionList, DetailCardHeader, InstanceStatusBadge, RelativeTime } from "./instance-detail-shared";
+import { InstanceConnectedAgentsCard } from "./instance-connected-agents-card";
 
 function AccessCard({ description, enabled, href, icon: Icon, label, reason, external = false }: {
   description: string;
@@ -134,6 +135,8 @@ export function InstanceOverviewTab({ access, agent, auditEvents, auditLoading, 
           </CardContent>
         </Card>
       </div>
+
+      <InstanceConnectedAgentsCard agent={agent} />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <Card>

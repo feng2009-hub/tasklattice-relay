@@ -11,16 +11,18 @@ export function CreateInstanceLayout({
   children,
   currentStep,
   onStepChange,
+  progressLabel = "Create Instance progress",
   steps,
 }: {
   children: ReactNode;
   currentStep: number;
   onStepChange: (step: number) => void;
+  progressLabel?: string;
   steps: readonly CreateInstanceStep[];
 }) {
   return (
     <div className="space-y-6">
-      <section aria-label="Create Instance progress">
+      <section aria-label={progressLabel}>
         <ol className="grid grid-cols-3 border-b">
           {steps.map((step, index) => {
             const active = index === currentStep;
@@ -33,7 +35,7 @@ export function CreateInstanceLayout({
                   onClick={() => onStepChange(index)}
                   aria-current={active ? "step" : undefined}
                   className={cn(
-                    "flex min-h-20 w-full items-center gap-3 border-b-2 border-transparent px-2 py-3 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px] sm:px-4",
+                    "flex min-h-20 w-full items-center gap-3 border-b-2 border-transparent px-2 py-3 text-left text-sm transition-colors focus-visible:border-primary focus-visible:bg-muted/40 focus-visible:outline-none sm:px-4",
                     active && "border-primary",
                     complete && "hover:bg-muted",
                     index > currentStep && "cursor-not-allowed text-muted-foreground/55",

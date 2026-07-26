@@ -61,6 +61,7 @@ import {
 } from "@/components/ui/toast";
 
 type ProjectRoute =
+  | "/$projectId/agent-garden"
   | "/$projectId/cost"
   | "/$projectId/instances"
   | "/$projectId/requests/new"
@@ -83,6 +84,7 @@ const navGroups: Array<{ items: NavItemDefinition[]; label: string }> = [
     label: "Agentic",
     items: [
       { icon: Boxes, label: "Instances", to: "/$projectId/instances" },
+      { icon: Bot, label: "Agent Garden", to: "/$projectId/agent-garden" },
       { icon: Sparkles, label: "Skills", to: "/$projectId/skills" },
       { icon: ServerCog, label: "MCP Servers", to: "/$projectId/mcp-servers" },
       { icon: Network, label: "Knowledge Base", to: "/$projectId/knowledge-base" },
@@ -206,7 +208,6 @@ function ProjectSidebar({ logout, pathname, user }: {
                       )
                       .map((item, index) => (
                       <Fragment key={item.to}>
-                        {group.label === "Agentic" && index === 1 ? <DisabledNav icon={Bot} label="Agent Garden" /> : null}
                         {group.label === "Observer" && index === 0 ? <DisabledNav icon={Waypoints} label="Traces" /> : null}
                         <NavigationItem item={item} pathname={pathname} projectId={projectId} />
                       </Fragment>

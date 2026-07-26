@@ -91,7 +91,6 @@ export function CreateModelProfileSheet({
     enabled: open,
   });
   const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
   const [routingMode, setRoutingMode] = useState<RoutingMode>("single");
   const [primaryModelId, setPrimaryModelId] = useState("");
   const [complexModelId, setComplexModelId] = useState("");
@@ -201,7 +200,6 @@ export function CreateModelProfileSheet({
   useEffect(() => {
     if (!open) return;
     setName("");
-    setDescription("");
     setRoutingMode("single");
     setPrimaryModelId("");
     setComplexModelId("");
@@ -270,7 +268,7 @@ export function CreateModelProfileSheet({
     mutationFn: () =>
       api.createModelProfile({
         name,
-        description,
+        description: "",
         gatewayId: gateway?.id ?? "",
         routingPolicy: routingPolicy!,
         complianceDomain: primaryModel?.complianceDomain ?? "GLOBAL",
@@ -336,7 +334,7 @@ export function CreateModelProfileSheet({
             title="Profile identity"
             description="Name the workload policy, not the underlying Provider model."
           />
-          <div className="grid items-start gap-4 sm:grid-cols-2">
+          <div className="max-w-2xl">
             <Field
               label="Profile name"
               htmlFor="profile-name"
@@ -353,19 +351,6 @@ export function CreateModelProfileSheet({
                 aria-invalid={attempted && !nameValid}
                 onChange={(event) => setName(event.target.value)}
                 placeholder="General assistant"
-              />
-            </Field>
-            <Field
-              label="Description"
-              htmlFor="profile-description"
-              help="Optional context for operators choosing this Profile."
-            >
-              <Textarea
-                id="profile-description"
-                className="min-h-20"
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                placeholder="Cost-aware routing for everyday Agent work"
               />
             </Field>
           </div>

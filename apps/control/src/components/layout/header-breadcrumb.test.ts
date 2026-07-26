@@ -36,4 +36,21 @@ describe("getHeaderBreadcrumbItems", () => {
       { href: "/individual/audit-logs", label: "Audit Logs" },
     ]);
   });
+
+  it("uses a stable label for Agent marketplace details", () => {
+    expect(
+      getHeaderBreadcrumbItems(
+        "/individual/agent-garden/adk-customer-service",
+      ),
+    ).toEqual([
+      {
+        href: "/individual/agent-garden",
+        label: "Agent Garden",
+      },
+      {
+        href: "/individual/agent-garden/adk-customer-service",
+        label: "Agent details",
+      },
+    ]);
+  });
 });

@@ -72,6 +72,20 @@ const resourceId = {
   schema: { type: "string" },
 } as const;
 
+const gardenAgentId = {
+  name: "agentId",
+  in: "path",
+  required: true,
+  schema: { type: "string" },
+} as const;
+
+const agentConnectionId = {
+  name: "connectionId",
+  in: "path",
+  required: true,
+  schema: { type: "string", format: "uuid" },
+} as const;
+
 const costCommonParameters = [
   { name: "start_time", in: "query", required: true, schema: { type: "string" } },
   { name: "end_time", in: "query", required: true, schema: { type: "string" } },
@@ -319,6 +333,129 @@ export const openApiDocument = {
             ...json({ $ref: "#/components/schemas/McpServerDefinition" }),
           },
           "400": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
+    "/projects/{projectId}/agent-garden": {
+      parameters: [projectIdParameter],
+      get: {
+        operationId: "getAgentGarden",
+        summary: "Read built-in Agents, Project registrations, and connections",
+        responses: {
+          "200": {
+            description: "Agent Garden snapshot",
+            ...json({ $ref: "#/components/schemas/AgentGardenSnapshot" }),
+          },
+        },
+      },
+    },
+    "/projects/{projectId}/agent-garden/agents": {
+      parameters: [projectIdParameter],
+      post: {
+        operationId: "registerGardenAgent",
+        summary: "Register and discover a remote Agent",
+        requestBody: {
+          required: true,
+          ...json({ $ref: "#/components/schemas/CreateAgentGardenEntryInput" }),
+        },
+        responses: {
+          "201": {
+            description: "Registered Agent with its discovery result",
+            ...json({ $ref: "#/components/schemas/AgentGardenEntry" }),
+          },
+          "400": { $ref: "#/components/responses/Error" },
+          "403": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
+    "/projects/{projectId}/agent-garden/agents/{agentId}": {
+      parameters: [projectIdParameter, gardenAgentId],
+      delete: {
+        operationId: "removeGardenAgent",
+        summary: "Remove a Project-registered Agent that has no connections",
+        responses: {
+          "200": { description: "Registration removed" },
+          "404": { $ref: "#/components/responses/Error" },
+          "409": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
+    "/projects/{projectId}/agent-garden/agents/{agentId}/discover": {
+      parameters: [projectIdParameter, gardenAgentId],
+      post: {
+        operationId: "discoverGardenAgent",
+        summary: "Refresh a registered Agent discovery snapshot",
+        responses: {
+          "200": {
+            description: "Updated Agent discovery state",
+            ...json({ $ref: "#/components/schemas/AgentGardenEntry" }),
+          },
+          "404": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
+    "/projects/{projectId}/agent-garden/connections": {
+      parameters: [projectIdParameter],
+      post: {
+        operationId: "connectGardenAgent",
+        summary: "Authorize a Coordinator Instance to delegate to an Agent",
+        requestBody: {
+          required: true,
+          ...json({ $ref: "#/components/schemas/CreateAgentConnectionInput" }),
+        },
+        responses: {
+          "201": {
+            description: "Agent connection",
+            ...json({ $ref: "#/components/schemas/AgentConnection" }),
+          },
+          "400": { $ref: "#/components/responses/Error" },
+          "409": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
+    "/projects/{projectId}/agent-garden/connections/{connectionId}": {
+      parameters: [projectIdParameter, agentConnectionId],
+      delete: {
+        operationId: "disconnectGardenAgent",
+        summary: "Revoke a Coordinator Agent connection",
+        responses: {
+          "200": { description: "Connection revoked" },
+          "404": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
+    "/demo-agents/{agentId}/agent-card": {
+      parameters: [gardenAgentId],
+      get: {
+        operationId: "getDemoAgentCard",
+        summary: "Read the side-effect-free Agent Card for an interaction demo",
+        security: [],
+        responses: {
+          "200": {
+            description: "A2A-compatible demo Agent Card",
+            ...json({ type: "object" }),
+          },
+          "404": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
+    "/demo-agents/{agentId}": {
+      parameters: [gardenAgentId],
+      post: {
+        operationId: "sendDemoAgentMessage",
+        summary: "Send one deterministic A2A message/send interaction preview",
+        security: [],
+        requestBody: {
+          required: true,
+          ...json({ type: "object" }),
+        },
+        responses: {
+          "200": {
+            description: "A2A JSON-RPC message response with a demo trace",
+            ...json({ type: "object" }),
+          },
+          "400": { $ref: "#/components/responses/Error" },
+          "404": { $ref: "#/components/responses/Error" },
         },
       },
     },
@@ -1086,6 +1223,228 @@ export const openApiDocument = {
           },
           knowledgeSources: { type: "array", items: { $ref: "#/components/schemas/KnowledgeSourceDefinition" } },
           specializations: { type: "array", items: { $ref: "#/components/schemas/AgentSpecializationDefinition" } },
+        },
+      },
+      AgentGardenUsageCapabilities: {
+        type: "object",
+        additionalProperties: false,
+        required: ["interactive", "canDelegate", "acceptsDelegation"],
+        properties: {
+          interactive: { type: "boolean" },
+          canDelegate: { type: "boolean" },
+          acceptsDelegation: { type: "boolean" },
+        },
+      },
+      AgentGardenSkill: {
+        type: "object",
+        additionalProperties: false,
+        required: ["id", "name", "description", "tags"],
+        properties: {
+          id: { type: "string" },
+          name: { type: "string" },
+          description: { type: "string" },
+          tags: { type: "array", items: { type: "string" } },
+        },
+      },
+      CreateAgentGardenEntryInput: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "name",
+          "description",
+          "integrationType",
+          "endpoint",
+          "category",
+          "owner",
+          "tags",
+          "usageMode",
+          "authType",
+          "authReference",
+          "internalNetworkOnly",
+          "configuration",
+        ],
+        properties: {
+          name: { type: "string", minLength: 3, maxLength: 160 },
+          description: { type: "string", minLength: 10, maxLength: 2000 },
+          integrationType: {
+            type: "string",
+            enum: [
+              "a2a",
+              "langgraph",
+              "langflow",
+              "bedrock-agentcore",
+              "azure-ai-foundry",
+              "pydantic-ai",
+              "vertex-ai-agent-engine",
+              "watsonx-orchestrate",
+              "custom",
+            ],
+          },
+          endpoint: { type: "string", format: "uri" },
+          agentCardUrl: { type: "string", format: "uri" },
+          category: { type: "string" },
+          owner: { type: "string" },
+          tags: { type: "array", items: { type: "string" } },
+          usageMode: {
+            type: "string",
+            enum: ["INTERACTIVE", "CALLABLE", "HYBRID"],
+          },
+          authType: {
+            type: "string",
+            enum: ["none", "bearer_token", "api_key"],
+          },
+          authReference: {
+            type: "string",
+            description: "Secret reference; never a plaintext credential.",
+          },
+          internalNetworkOnly: { type: "boolean" },
+          configuration: {
+            type: "object",
+            additionalProperties: { type: "string" },
+          },
+        },
+      },
+      AgentGardenEntry: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "id",
+          "name",
+          "description",
+          "source",
+          "integrationType",
+          "platformLabel",
+          "category",
+          "owner",
+          "tags",
+          "status",
+          "usageMode",
+          "usageCapabilities",
+          "endpoint",
+          "agentCardUrl",
+          "authType",
+          "authReference",
+          "internalNetworkOnly",
+          "configuration",
+          "skills",
+          "specializationId",
+          "createdAt",
+          "updatedAt",
+          "lastDiscoveredAt",
+          "lastDiscoveryError",
+        ],
+        properties: {
+          id: { type: "string" },
+          name: { type: "string" },
+          description: { type: "string" },
+          source: {
+            type: "string",
+            enum: ["BUILT_IN", "PROJECT_REGISTERED"],
+          },
+          integrationType: {
+            type: "string",
+            enum: [
+              "openclaw",
+              "hermes",
+              "claude-code",
+              "a2a",
+              "langgraph",
+              "langflow",
+              "bedrock-agentcore",
+              "azure-ai-foundry",
+              "pydantic-ai",
+              "vertex-ai-agent-engine",
+              "watsonx-orchestrate",
+              "custom",
+            ],
+          },
+          platformLabel: { type: "string" },
+          category: { type: "string" },
+          owner: { type: "string" },
+          tags: { type: "array", items: { type: "string" } },
+          status: {
+            type: "string",
+            enum: ["READY", "COMING_SOON", "UNCHECKED", "UNAVAILABLE"],
+          },
+          usageMode: {
+            type: "string",
+            enum: ["INTERACTIVE", "CALLABLE", "HYBRID"],
+          },
+          usageCapabilities: {
+            $ref: "#/components/schemas/AgentGardenUsageCapabilities",
+          },
+          endpoint: { type: ["string", "null"], format: "uri" },
+          agentCardUrl: { type: ["string", "null"], format: "uri" },
+          authType: {
+            type: "string",
+            enum: ["none", "bearer_token", "api_key"],
+          },
+          authReference: { type: "string" },
+          internalNetworkOnly: { type: "boolean" },
+          configuration: {
+            type: "object",
+            additionalProperties: { type: "string" },
+          },
+          skills: {
+            type: "array",
+            items: { $ref: "#/components/schemas/AgentGardenSkill" },
+          },
+          specializationId: { type: ["string", "null"] },
+          createdAt: { type: ["string", "null"], format: "date-time" },
+          updatedAt: { type: ["string", "null"], format: "date-time" },
+          lastDiscoveredAt: {
+            type: ["string", "null"],
+            format: "date-time",
+          },
+          lastDiscoveryError: { type: ["string", "null"] },
+        },
+      },
+      CreateAgentConnectionInput: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "coordinatorInstanceId",
+          "connectedAgentId",
+          "allowedSkillIds",
+          "approvalMode",
+        ],
+        properties: {
+          coordinatorInstanceId: { type: "string" },
+          connectedAgentId: { type: "string" },
+          allowedSkillIds: { type: "array", items: { type: "string" } },
+          approvalMode: {
+            type: "string",
+            enum: ["AUTO_READ_ONLY", "ALWAYS_ASK"],
+          },
+        },
+      },
+      AgentConnection: {
+        allOf: [
+          { $ref: "#/components/schemas/CreateAgentConnectionInput" },
+          {
+            type: "object",
+            required: ["id", "createdAt", "updatedAt"],
+            properties: {
+              id: { type: "string", format: "uuid" },
+              createdAt: { type: "string", format: "date-time" },
+              updatedAt: { type: "string", format: "date-time" },
+            },
+          },
+        ],
+      },
+      AgentGardenSnapshot: {
+        type: "object",
+        additionalProperties: false,
+        required: ["agents", "connections"],
+        properties: {
+          agents: {
+            type: "array",
+            items: { $ref: "#/components/schemas/AgentGardenEntry" },
+          },
+          connections: {
+            type: "array",
+            items: { $ref: "#/components/schemas/AgentConnection" },
+          },
         },
       },
       VirtualEmployeeModelAccessInput: {
