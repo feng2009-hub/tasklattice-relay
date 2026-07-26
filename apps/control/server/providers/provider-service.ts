@@ -178,6 +178,21 @@ export class ProviderService {
       throw new Error(
         `Delete the ${agentIds.length} Instance${agentIds.length === 1 ? "" : "s"} using this Provider before deleting the account.`,
       );
+    const deploymentIds = new Set(models.map((model) => model.id));
+    const profiles = (await this.store.listModelProfiles()).filter((profile) => {
+      const policy = profile.routingPolicy;
+      return policy.mode === "SINGLE"
+        ? deploymentIds.has(policy.modelDeploymentId)
+        : policy.mode === "COMPLEXITY"
+          ? deploymentIds.has(policy.simpleModelDeploymentId)
+            || deploymentIds.has(policy.complexModelDeploymentId)
+            || Boolean(policy.fallbackModelDeploymentId && deploymentIds.has(policy.fallbackModelDeploymentId))
+          : false;
+    });
+    if (profiles.length)
+      throw new Error(
+        `Reconfigure the ${profiles.length} Model Profile${profiles.length === 1 ? "" : "s"} using this Provider before deleting the account.`,
+      );
     for (const model of models)
       await this.litellm.deleteModel(model.litellmModelName).catch(() => undefined);
     return this.store.deleteProviderAccount(id);

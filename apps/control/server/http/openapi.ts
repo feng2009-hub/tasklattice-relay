@@ -444,7 +444,7 @@ export const openApiDocument = {
     "/projects/{projectId}/model-profiles/{profileId}": {
       parameters: [projectIdParameter, profileId],
       get: { operationId: "getModelProfile", summary: "Read a Model Profile", responses: { "200": { description: "Model Profile", ...json({ $ref: "#/components/schemas/ModelProfile" }) }, "404": { $ref: "#/components/responses/Error" } } },
-      put: { operationId: "updateModelProfile", summary: "Update TaskLattice-owned Model Profile policy", requestBody: { required: true, ...json({ type: "object", additionalProperties: false, properties: { name: { type: "string" }, description: { type: "string" }, isDefault: { type: "boolean" }, keyPolicy: { type: "object" }, auditPolicy: { type: "object" }, suspended: { type: "boolean" } } }) }, responses: { "200": { description: "Model Profile", ...json({ $ref: "#/components/schemas/ModelProfile" }) } } },
+      put: { operationId: "updateModelProfile", summary: "Update TaskLattice-owned Model Profile policy", requestBody: { required: true, ...json({ type: "object", additionalProperties: false, properties: { name: { type: "string" }, description: { type: "string" }, isDefault: { type: "boolean" }, keyPolicy: { type: "object" }, auditPolicy: { type: "object" }, routingPolicy: { $ref: "#/components/schemas/ModelProfileRoutingPolicy" }, suspended: { type: "boolean" } } }) }, responses: { "200": { description: "Model Profile", ...json({ $ref: "#/components/schemas/ModelProfile" }) } } },
       delete: { operationId: "deleteModelProfile", summary: "Delete a Model Profile without active Consumers", responses: { "200": { description: "Model Profile deleted", ...json({ type: "object" }) }, "409": { $ref: "#/components/responses/Error" } } },
     },
     "/projects/{projectId}/model-profiles/{profileId}/refresh": {
@@ -1318,8 +1318,46 @@ export const openApiDocument = {
       CreateModelProfileInput: {
         type: "object",
         additionalProperties: false,
-        required: ["name", "gatewayId", "publicModelAlias", "complianceDomain"],
-        properties: { name: { type: "string", minLength: 2, maxLength: 64 }, description: { type: "string" }, gatewayId: { type: "string" }, publicModelAlias: { type: "string" }, complianceDomain: { type: "string", enum: ["CN_MAINLAND", "GLOBAL"] }, isDefault: { type: "boolean" }, keyPolicy: { type: "object" }, auditPolicy: { type: "object" } },
+        required: ["name", "gatewayId", "routingPolicy", "complianceDomain"],
+        properties: { name: { type: "string", minLength: 2, maxLength: 64 }, description: { type: "string" }, gatewayId: { type: "string" }, routingPolicy: { $ref: "#/components/schemas/ModelProfileRoutingPolicy" }, publicModelAlias: { type: "string", deprecated: true, description: "Legacy input for attaching an externally managed LiteLLM alias." }, complianceDomain: { type: "string", enum: ["CN_MAINLAND", "GLOBAL"] }, isDefault: { type: "boolean" }, keyPolicy: { type: "object" }, auditPolicy: { type: "object" } },
+      },
+      ModelProfileRoutingPolicy: {
+        oneOf: [
+          {
+            type: "object",
+            additionalProperties: false,
+            required: ["version", "mode", "modelDeploymentId"],
+            properties: {
+              version: { type: "integer", const: 1 },
+              mode: { type: "string", const: "SINGLE" },
+              modelDeploymentId: { type: "string", format: "uuid" },
+            },
+          },
+          {
+            type: "object",
+            additionalProperties: false,
+            required: ["version", "mode", "simpleModelDeploymentId", "complexModelDeploymentId", "retries"],
+            properties: {
+              version: { type: "integer", const: 1 },
+              mode: { type: "string", const: "COMPLEXITY" },
+              simpleModelDeploymentId: { type: "string", format: "uuid" },
+              complexModelDeploymentId: { type: "string", format: "uuid" },
+              fallbackModelDeploymentId: { type: "string", format: "uuid" },
+              retries: { type: "integer", minimum: 0, maximum: 10, default: 2 },
+            },
+          },
+          {
+            type: "object",
+            additionalProperties: false,
+            required: ["version", "mode", "alias"],
+            properties: {
+              version: { type: "integer", const: 1 },
+              mode: { type: "string", const: "EXTERNAL" },
+              alias: { type: "string", minLength: 1, maxLength: 160 },
+            },
+          },
+        ],
+        discriminator: { propertyName: "mode" },
       },
       UpdateProjectQuotaInput: {
         type: "object",
@@ -1363,7 +1401,7 @@ export const openApiDocument = {
         ],
       },
       ModelProfile: {
-        allOf: [{ $ref: "#/components/schemas/CreateModelProfileInput" }, { type: "object", required: ["id", "managementMode", "status", "capabilities", "conditions", "configurationHash", "observedGeneration", "validationMessage", "consumers", "createdAt", "updatedAt"], properties: { id: { type: "string", format: "uuid" }, managementMode: { type: "string", const: "LITELLM_MANAGED" }, status: { type: "string", enum: ["DRAFT", "VALIDATING", "READY", "DEGRADED", "NON_COMPLIANT", "SUSPENDED", "UNSUPPORTED"] }, capabilities: { type: "object", required: ["automaticRouting", "routerType", "sessionAffinity", "adaptiveRouting", "failover", "generalFallback", "contextWindowFallback", "contentPolicyFallback", "retries", "requestAudit"], properties: { automaticRouting: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, routerType: { type: "string", enum: ["COMPLEXITY_ROUTER", "OTHER", "UNKNOWN"] }, complexityTierCount: { type: "integer", minimum: 0 }, sessionAffinity: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, adaptiveRouting: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, failover: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, generalFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, contextWindowFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, contentPolicyFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, retries: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, requestAudit: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] } } }, conditions: { type: "array", items: { type: "object" } }, configurationHash: { type: "string" }, observedGeneration: { type: "integer", minimum: 1 }, validationMessage: { type: "string" }, consumers: { type: "integer" }, lastSynchronizedAt: { type: "string", format: "date-time" }, createdAt: { type: "string", format: "date-time" }, updatedAt: { type: "string", format: "date-time" } } }],
+        allOf: [{ $ref: "#/components/schemas/CreateModelProfileInput" }, { type: "object", required: ["id", "managementMode", "publicModelAlias", "status", "capabilities", "conditions", "configurationHash", "observedGeneration", "validationMessage", "consumers", "createdAt", "updatedAt"], properties: { id: { type: "string", format: "uuid" }, managementMode: { type: "string", const: "LITELLM_MANAGED" }, publicModelAlias: { type: "string" }, status: { type: "string", enum: ["DRAFT", "VALIDATING", "READY", "DEGRADED", "NON_COMPLIANT", "SUSPENDED", "UNSUPPORTED"] }, capabilities: { type: "object", required: ["automaticRouting", "routerType", "sessionAffinity", "adaptiveRouting", "failover", "generalFallback", "contextWindowFallback", "contentPolicyFallback", "retries", "requestAudit"], properties: { automaticRouting: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, routerType: { type: "string", enum: ["COMPLEXITY_ROUTER", "OTHER", "UNKNOWN"] }, complexityTierCount: { type: "integer", minimum: 0 }, sessionAffinity: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, adaptiveRouting: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, failover: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, generalFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, contextWindowFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, contentPolicyFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, retries: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, requestAudit: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] } } }, conditions: { type: "array", items: { type: "object" } }, configurationHash: { type: "string" }, observedGeneration: { type: "integer", minimum: 1 }, validationMessage: { type: "string" }, consumers: { type: "integer" }, lastSynchronizedAt: { type: "string", format: "date-time" }, createdAt: { type: "string", format: "date-time" }, updatedAt: { type: "string", format: "date-time" } } }],
       },
       ModelProfileConsumer: {
         type: "object",

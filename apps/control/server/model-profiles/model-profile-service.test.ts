@@ -28,10 +28,63 @@ function adapter(inspection: Omit<LiteLLMModelProfileInspection, "configurationH
     revokeKey: vi.fn(),
     listSpendLogs: vi.fn(),
     inspectModelProfile: vi.fn(async () => ({ configurationHash: "sha256:litellm", ...inspection })),
+    reconcileModelProfileRoute: vi.fn(),
+    deleteModelProfileRoute: vi.fn(),
     createModelProfileTeam: vi.fn(async () => "team-a"),
     createModelProfileKey: vi.fn(async () => ({ secret: "sk-instance-secret", tokenId: "token-hash" })),
     deleteModelProfileTeam: vi.fn(),
   };
+}
+
+async function saveRoutingModel(
+  store: ReturnType<typeof createTestStore>,
+  id: string,
+  displayName: string,
+  litellmModelName: string,
+  domain: "CN_MAINLAND" | "GLOBAL" = "CN_MAINLAND",
+) {
+  const now = new Date().toISOString();
+  const providerAccountId = `provider-${id.slice(0, 4)}`;
+  await store.saveProviderAccount({
+    id: providerAccountId,
+    name: `Provider ${id.slice(0, 4)}`,
+    providerKind: "custom-openai-compatible",
+    presetId: "custom-openai-compatible",
+    endpoint: "http://models.test/v1",
+    config: {},
+    complianceDomain: domain,
+    endpointRegion: domain === "CN_MAINLAND" ? "cn-test-1" : "global-test-1",
+    crossBorderTransfer: false,
+    discoveredModels: [],
+    status: "VALIDATED",
+    checks: [],
+    credentialState: "STORED",
+    validationMessage: "Ready",
+    validatedAt: now,
+    createdAt: now,
+    updatedAt: now,
+  }, "test-credential");
+  return store.saveModelDeployment({
+    id,
+    providerAccountId,
+    modelId: displayName.toLowerCase().replaceAll(" ", "-"),
+    displayName,
+    modelType: "llm",
+    isDefault: false,
+    providerPresetId: "custom-openai-compatible",
+    providerName: "Test provider",
+    endpoint: "http://models.test/v1",
+    complianceDomain: domain,
+    endpointRegion: domain === "CN_MAINLAND" ? "cn-test-1" : "global-test-1",
+    crossBorderTransfer: false,
+    litellmModelName,
+    status: "VALIDATED",
+    checks: [],
+    validationMessage: "Ready",
+    validatedAt: now,
+    createdAt: now,
+    updatedAt: now,
+  });
 }
 
 function input(domain: "CN_MAINLAND" | "GLOBAL" = "CN_MAINLAND") {
@@ -81,9 +134,124 @@ describe("Model Profile contracts", () => {
       name: "CN",
     }).name).toBe("CN");
   });
+
+  it("versions complexity routing and rejects overlapping tiers or fallback", () => {
+    const simpleId = "11111111-1111-4111-8111-111111111111";
+    const complexId = "22222222-2222-4222-8222-222222222222";
+    expect(createModelProfileSchema.parse({
+      name: "Smart route",
+      gatewayId: "litellm-default",
+      complianceDomain: "GLOBAL",
+      routingPolicy: {
+        mode: "COMPLEXITY",
+        simpleModelDeploymentId: simpleId,
+        complexModelDeploymentId: complexId,
+      },
+    }).routingPolicy).toEqual({
+      version: 1,
+      mode: "COMPLEXITY",
+      simpleModelDeploymentId: simpleId,
+      complexModelDeploymentId: complexId,
+      retries: 2,
+    });
+    expect(() => createModelProfileSchema.parse({
+      name: "Invalid route",
+      gatewayId: "litellm-default",
+      complianceDomain: "GLOBAL",
+      routingPolicy: {
+        mode: "COMPLEXITY",
+        simpleModelDeploymentId: simpleId,
+        complexModelDeploymentId: complexId,
+        fallbackModelDeploymentId: simpleId,
+      },
+    })).toThrow("fallback");
+  });
 });
 
 describe("Model Profile validation", () => {
+  it("reconciles a versioned complexity policy into a stable LiteLLM alias", async () => {
+    const store = createTestStore();
+    const simpleId = "11111111-1111-4111-8111-111111111111";
+    const complexId = "22222222-2222-4222-8222-222222222222";
+    const fallbackId = "33333333-3333-4333-8333-333333333333";
+    await saveRoutingModel(store, simpleId, "Gemini Flash", "tali/google/gemini-flash");
+    await saveRoutingModel(store, complexId, "Claude Sonnet", "tali/anthropic/sonnet");
+    await saveRoutingModel(store, fallbackId, "Qwen Max", "tali/qwen/max");
+    const client = adapter({
+      exists: true,
+      version: "1.86.2",
+      modelCount: 3,
+      complianceDomains: ["CN_MAINLAND"],
+      complianceUnknown: false,
+      capabilities,
+    });
+    const service = new ModelProfileService(store, client);
+
+    const profile = await service.create(createModelProfileSchema.parse({
+      name: "Cost-aware production",
+      gatewayId: "litellm-default",
+      complianceDomain: "CN_MAINLAND",
+      routingPolicy: {
+        version: 1,
+        mode: "COMPLEXITY",
+        simpleModelDeploymentId: simpleId,
+        complexModelDeploymentId: complexId,
+        fallbackModelDeploymentId: fallbackId,
+        retries: 2,
+      },
+    }));
+
+    expect(profile).toMatchObject({
+      status: "READY",
+      publicModelAlias: `tali-profile-${profile.id}`,
+      routingPolicy: { version: 1, mode: "COMPLEXITY", retries: 2 },
+    });
+    expect(client.reconcileModelProfileRoute).toHaveBeenCalledWith({
+      alias: profile.publicModelAlias,
+      modelProfileId: profile.id,
+      complianceDomain: "CN_MAINLAND",
+      tiers: {
+        SIMPLE: "tali/google/gemini-flash",
+        MEDIUM: "tali/google/gemini-flash",
+        COMPLEX: "tali/anthropic/sonnet",
+        REASONING: "tali/anthropic/sonnet",
+      },
+      defaultModel: "tali/google/gemini-flash",
+      fallbackModels: ["tali/qwen/max"],
+      retries: 2,
+      requestAudit: true,
+    });
+  });
+
+  it("rejects a routing candidate outside the Profile compliance boundary before writing LiteLLM", async () => {
+    const store = createTestStore();
+    const simpleId = "11111111-1111-4111-8111-111111111111";
+    const complexId = "22222222-2222-4222-8222-222222222222";
+    await saveRoutingModel(store, simpleId, "Gemini Flash", "tali/google/gemini-flash");
+    await saveRoutingModel(store, complexId, "Claude Sonnet", "tali/anthropic/sonnet", "GLOBAL");
+    const client = adapter({
+      exists: true,
+      modelCount: 2,
+      complianceDomains: ["CN_MAINLAND"],
+      complianceUnknown: false,
+      capabilities,
+    });
+    const service = new ModelProfileService(store, client);
+
+    await expect(service.create(createModelProfileSchema.parse({
+      name: "Invalid mixed region",
+      gatewayId: "litellm-default",
+      complianceDomain: "CN_MAINLAND",
+      routingPolicy: {
+        version: 1,
+        mode: "COMPLEXITY",
+        simpleModelDeploymentId: simpleId,
+        complexModelDeploymentId: complexId,
+      },
+    }))).rejects.toThrow("complex tier does not match");
+    expect(client.reconcileModelProfileRoute).not.toHaveBeenCalled();
+  });
+
   it("becomes READY and default only after a matching LiteLLM inspection", async () => {
     const service = new ModelProfileService(createTestStore(), adapter({
       exists: true,

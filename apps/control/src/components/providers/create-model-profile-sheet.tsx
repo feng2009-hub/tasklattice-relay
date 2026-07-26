@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ModelDeployment } from "@tasklattice/contracts";
+import type {
+  ComplianceDomain,
+  ModelDeployment,
+  ModelProfileRoutingPolicy,
+} from "@tasklattice/contracts";
 import {
   Activity,
   Check,
@@ -50,11 +54,16 @@ export function CreateModelProfileSheet({
   });
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [modelSource, setModelSource] = useState<"catalog" | "custom">(
-    "catalog",
-  );
+  const [routingMode, setRoutingMode] = useState<
+    "single" | "complexity" | "external"
+  >("single");
   const [selectedModelId, setSelectedModelId] = useState("");
+  const [complexModelId, setComplexModelId] = useState("");
+  const [fallbackModelId, setFallbackModelId] = useState("none");
+  const [retries, setRetries] = useState("2");
   const [alias, setAlias] = useState("");
+  const [externalDomain, setExternalDomain] =
+    useState<ComplianceDomain>("GLOBAL");
   const [makeDefault, setMakeDefault] = useState(defaultIsDefault);
   const [attempted, setAttempted] = useState(false);
   const gateway = gateways.data?.[0];
@@ -62,23 +71,57 @@ export function CreateModelProfileSheet({
     () =>
       availableModels.filter(
         (model) =>
-          model.status === "VALIDATED",
+          model.status === "VALIDATED" && model.modelType === "llm",
       ),
-    [availableModels, gateway],
+    [availableModels],
   );
   const selectedModel = compatibleModels.find(
     (model) => model.id === selectedModelId,
   );
-  const publicModelAlias =
-    modelSource === "catalog"
-      ? (selectedModel?.litellmModelName ?? "")
-      : alias.trim();
+  const sameDomainModels = compatibleModels.filter(
+    (model) => model.complianceDomain === selectedModel?.complianceDomain,
+  );
+  const complexModel = sameDomainModels.find(
+    (model) => model.id === complexModelId,
+  );
+  const fallbackModel = sameDomainModels.find(
+    (model) => model.id === fallbackModelId,
+  );
+  const routingPolicy: ModelProfileRoutingPolicy | undefined =
+    routingMode === "single" && selectedModel
+      ? {
+          version: 1,
+          mode: "SINGLE",
+          modelDeploymentId: selectedModel.id,
+        }
+      : routingMode === "complexity" && selectedModel && complexModel
+        ? {
+            version: 1,
+            mode: "COMPLEXITY",
+            simpleModelDeploymentId: selectedModel.id,
+            complexModelDeploymentId: complexModel.id,
+            ...(fallbackModel
+              ? { fallbackModelDeploymentId: fallbackModel.id }
+              : {}),
+            retries: Number(retries),
+          }
+        : routingMode === "external" && alias.trim()
+          ? {
+              version: 1,
+              mode: "EXTERNAL",
+              alias: alias.trim(),
+            }
+          : undefined;
 
   useEffect(() => {
     if (!open) return;
-    setModelSource("catalog");
+    setRoutingMode("single");
     setSelectedModelId("");
+    setComplexModelId("");
+    setFallbackModelId("none");
+    setRetries("2");
     setAlias("");
+    setExternalDomain("GLOBAL");
     setMakeDefault(defaultIsDefault);
     setAttempted(false);
   }, [defaultIsDefault, open]);
@@ -86,7 +129,7 @@ export function CreateModelProfileSheet({
   useEffect(() => {
     if (
       !open ||
-      modelSource !== "catalog" ||
+      routingMode === "external" ||
       selectedModelId ||
       !compatibleModels.length
     )
@@ -95,7 +138,32 @@ export function CreateModelProfileSheet({
       (compatibleModels.find((model) => model.isDefault) ??
         compatibleModels[0])!.id,
     );
-  }, [compatibleModels, modelSource, open, selectedModelId]);
+  }, [compatibleModels, open, routingMode, selectedModelId]);
+
+  useEffect(() => {
+    if (routingMode !== "complexity" || !selectedModel) return;
+    if (!sameDomainModels.some((model) => model.id === complexModelId)) {
+      setComplexModelId(
+        sameDomainModels.find((model) => model.id !== selectedModel.id)?.id ?? "",
+      );
+    }
+    if (
+      fallbackModelId !== "none"
+      && (
+        !sameDomainModels.some((model) => model.id === fallbackModelId)
+        || fallbackModelId === selectedModel.id
+        || fallbackModelId === complexModelId
+      )
+    ) {
+      setFallbackModelId("none");
+    }
+  }, [
+    complexModelId,
+    fallbackModelId,
+    routingMode,
+    sameDomainModels,
+    selectedModel,
+  ]);
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -103,8 +171,11 @@ export function CreateModelProfileSheet({
         name,
         description,
         gatewayId: gateway?.id ?? "",
-        publicModelAlias,
-        complianceDomain: selectedModel?.complianceDomain ?? "GLOBAL",
+        routingPolicy: routingPolicy!,
+        complianceDomain:
+          routingMode === "external"
+            ? externalDomain
+            : selectedModel?.complianceDomain ?? "GLOBAL",
         isDefault: makeDefault,
         keyPolicy: { perInstance: true, rotationDays: 90 },
         auditPolicy: {
@@ -120,13 +191,15 @@ export function CreateModelProfileSheet({
       setName("");
       setDescription("");
       setSelectedModelId("");
+      setComplexModelId("");
+      setFallbackModelId("none");
       setAlias("");
       setAttempted(false);
       onOpenChange(false);
     },
   });
   const nameValid = name.trim().length >= 2;
-  const modelValid = publicModelAlias.length > 0;
+  const modelValid = Boolean(routingPolicy);
   const gatewayAvailable = Boolean(gateways.data?.length);
   const submit = () => {
     setAttempted(true);
@@ -157,7 +230,7 @@ export function CreateModelProfileSheet({
               mutation.isPending ||
               gateways.isPending ||
               !gatewayAvailable ||
-              (modelSource === "catalog" && modelsLoading)
+              (routingMode !== "external" && modelsLoading)
             }
             onClick={submit}
           >
@@ -213,13 +286,55 @@ export function CreateModelProfileSheet({
         <section className="space-y-4 border-t pt-5">
           <SectionTitle
             number="02"
-            title="Model selection"
-            description="Choose a validated model from the current upstream pool."
+            title="Routing policy"
+            description="Choose a direct model or let LiteLLM route by request complexity."
           />
-          <div className="grid items-start gap-4 sm:grid-cols-2">
-            {modelSource === "catalog" ? (
+          <div
+            role="radiogroup"
+            aria-label="Routing mode"
+            className="grid gap-2 sm:grid-cols-3"
+          >
+            {([
+              ["single", "Single model", "Every request uses one model."],
+              [
+                "complexity",
+                "Complexity routing",
+                "Simple and complex requests use different models.",
+              ],
+              [
+                "external",
+                "Existing LiteLLM alias",
+                "Attach a router managed outside TaskLattice.",
+              ],
+            ] as const).map(([value, label, help]) => (
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={routingMode === value}
+                className={cn(
+                  "min-h-20 border p-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-primary",
+                  routingMode === value
+                    ? "border-primary bg-primary/5"
+                    : "hover:bg-muted/40",
+                )}
+                onClick={() => {
+                  setRoutingMode(value);
+                  setAttempted(false);
+                }}
+              >
+                <strong className="block text-sm font-medium">{label}</strong>
+                <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+                  {help}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {routingMode === "single" ? (
+            <div className="grid items-start gap-4 sm:grid-cols-2">
               <Field
-                label="Available model"
+                label="Model"
                 htmlFor="profile-model"
                 help={
                   attempted && !modelValid
@@ -262,7 +377,152 @@ export function CreateModelProfileSheet({
                   </SelectContent>
                 </Select>
               </Field>
-            ) : (
+              <GatewayField
+                loading={gateways.isPending}
+                name={gateway?.name}
+                available={gatewayAvailable}
+              />
+            </div>
+          ) : routingMode === "complexity" ? (
+            <>
+              <div className="grid items-start gap-4 sm:grid-cols-2">
+                <Field
+                  label="Simple requests"
+                  htmlFor="profile-simple-model"
+                  help={
+                    selectedModel
+                      ? `${selectedModel.providerName} · ${selectedModel.complianceDomain === "CN_MAINLAND" ? "CN Mainland" : "Global"}`
+                      : "Used for SIMPLE and MEDIUM requests."
+                  }
+                  invalid={attempted && !selectedModel}
+                >
+                  <Select
+                    value={selectedModelId}
+                    disabled={modelsLoading || !compatibleModels.length}
+                    onValueChange={setSelectedModelId}
+                  >
+                    <SelectTrigger
+                      id="profile-simple-model"
+                      aria-label="Simple request model"
+                      aria-invalid={attempted && !selectedModel}
+                    >
+                      <SelectValue placeholder="Choose a cost-efficient model" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {compatibleModels.map((model) => (
+                        <SelectItem key={model.id} value={model.id}>
+                          {model.displayName} · {model.providerName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field
+                  label="Complex requests"
+                  htmlFor="profile-complex-model"
+                  help={
+                    attempted && !complexModel
+                      ? "Choose a different model in the same compliance domain."
+                      : "Used for COMPLEX and REASONING requests."
+                  }
+                  invalid={attempted && !complexModel}
+                >
+                  <Select
+                    value={complexModelId}
+                    disabled={!selectedModel || sameDomainModels.length < 2}
+                    onValueChange={setComplexModelId}
+                  >
+                    <SelectTrigger
+                      id="profile-complex-model"
+                      aria-label="Complex request model"
+                      aria-invalid={attempted && !complexModel}
+                    >
+                      <SelectValue placeholder="Choose a stronger model" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sameDomainModels
+                        .filter((model) => model.id !== selectedModel?.id)
+                        .map((model) => (
+                          <SelectItem key={model.id} value={model.id}>
+                            {model.displayName} · {model.providerName}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field
+                  label="Fallback"
+                  htmlFor="profile-fallback-model"
+                  help="Optional. Used only after the routed request exhausts retries."
+                >
+                  <Select
+                    value={fallbackModelId}
+                    disabled={!complexModel}
+                    onValueChange={setFallbackModelId}
+                  >
+                    <SelectTrigger
+                      id="profile-fallback-model"
+                      aria-label="Fallback model"
+                    >
+                      <SelectValue placeholder="No fallback" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No fallback</SelectItem>
+                      {sameDomainModels
+                        .filter(
+                          (model) =>
+                            model.id !== selectedModel?.id
+                            && model.id !== complexModel?.id,
+                        )
+                        .map((model) => (
+                          <SelectItem key={model.id} value={model.id}>
+                            {model.displayName} · {model.providerName}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field
+                  label="Retries"
+                  htmlFor="profile-retries"
+                  help="Per-request retries before LiteLLM invokes the fallback."
+                >
+                  <Select value={retries} onValueChange={setRetries}>
+                    <SelectTrigger id="profile-retries" aria-label="Retries">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[0, 1, 2, 3, 4, 5].map((value) => (
+                        <SelectItem key={value} value={String(value)}>
+                          {value}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              </div>
+              <div className="grid gap-px border bg-border text-xs sm:grid-cols-3">
+                <ModelFact
+                  label="Tier mapping"
+                  value="SIMPLE / MEDIUM → simple"
+                />
+                <ModelFact
+                  label="Tier mapping"
+                  value="COMPLEX / REASONING → complex"
+                />
+                <ModelFact
+                  label="Public identity"
+                  value="Generated stable alias"
+                />
+              </div>
+              <GatewayField
+                loading={gateways.isPending}
+                name={gateway?.name}
+                available={gatewayAvailable}
+              />
+            </>
+          ) : (
+            <div className="grid items-start gap-4 sm:grid-cols-2">
               <Field
                 label="Existing router alias"
                 htmlFor="profile-alias"
@@ -281,23 +541,38 @@ export function CreateModelProfileSheet({
                   placeholder="production-reasoning"
                 />
               </Field>
-            )}
-            <Field
-              label="Gateway"
-              help={
-                gatewayAvailable
-                  ? "Platform-managed routing boundary."
-                  : "A Gateway is required before this profile can be created."
-              }
-              invalid={!gateways.isPending && !gatewayAvailable}
-            >
-              <div className="flex h-11 items-center border bg-muted/30 px-3 text-sm">
-                {gateways.isPending ? "Loading…" : (gateway?.name ?? "Unavailable")}
-              </div>
-            </Field>
-          </div>
+              <Field
+                label="Compliance boundary"
+                htmlFor="profile-external-domain"
+                help="Every effective candidate must declare this domain in LiteLLM."
+              >
+                <Select
+                  value={externalDomain}
+                  onValueChange={(value) =>
+                    setExternalDomain(value as ComplianceDomain)
+                  }
+                >
+                  <SelectTrigger
+                    id="profile-external-domain"
+                    aria-label="External alias compliance boundary"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="GLOBAL">Global</SelectItem>
+                    <SelectItem value="CN_MAINLAND">CN Mainland</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <GatewayField
+                loading={gateways.isPending}
+                name={gateway?.name}
+                available={gatewayAvailable}
+              />
+            </div>
+          )}
 
-          {selectedModel && modelSource === "catalog" ? (
+          {selectedModel && routingMode === "single" ? (
             <div className="grid gap-px border bg-border text-xs sm:grid-cols-3">
               <ModelFact
                 label="Provider model"
@@ -313,7 +588,7 @@ export function CreateModelProfileSheet({
             </div>
           ) : null}
 
-          {modelsError && modelSource === "catalog" ? (
+          {modelsError && routingMode !== "external" ? (
             <p
               role="alert"
               className="border-l-2 border-destructive bg-destructive/5 p-3 text-xs text-destructive"
@@ -324,7 +599,7 @@ export function CreateModelProfileSheet({
 
           {!modelsLoading &&
           !compatibleModels.length &&
-          modelSource === "catalog" ? (
+          routingMode !== "external" ? (
             <div className="flex flex-col gap-3 border-l-2 border-amber-500 bg-amber-500/5 p-3 text-xs leading-5 sm:flex-row sm:items-center sm:justify-between">
               <span className="flex gap-2">
                 <CircleAlert className="mt-0.5 size-4 shrink-0 text-amber-700" />
@@ -344,21 +619,6 @@ export function CreateModelProfileSheet({
               </Button>
             </div>
           ) : null}
-
-          <button
-            type="button"
-            className="min-h-11 text-left text-xs font-medium text-primary underline underline-offset-4 focus-visible:outline-2"
-            onClick={() => {
-              setModelSource((current) =>
-                current === "catalog" ? "custom" : "catalog",
-              );
-              setAttempted(false);
-            }}
-          >
-            {modelSource === "catalog"
-              ? "Use an existing LiteLLM router alias instead"
-              : "Choose from registered models"}
-          </button>
         </section>
 
         <section className="space-y-4 border-t pt-5">
@@ -372,11 +632,15 @@ export function CreateModelProfileSheet({
               icon={ShieldCheck}
               label="Compliance"
               value={
-                selectedModel?.complianceDomain === "CN_MAINLAND"
+                routingMode === "external"
+                  ? externalDomain === "CN_MAINLAND"
+                    ? "CN Mainland"
+                    : "Global"
+                  : selectedModel?.complianceDomain === "CN_MAINLAND"
                   ? "CN Mainland"
                   : selectedModel?.complianceDomain === "GLOBAL"
                     ? "Global"
-                    : "From LiteLLM metadata"
+                    : "Choose a model"
               }
             />
             <PolicyFact
@@ -496,6 +760,32 @@ function PolicyFact({
         <strong className="mt-1 block text-xs font-medium">{value}</strong>
       </span>
     </div>
+  );
+}
+
+function GatewayField({
+  available,
+  loading,
+  name,
+}: {
+  available: boolean;
+  loading: boolean;
+  name: string | undefined;
+}) {
+  return (
+    <Field
+      label="Gateway"
+      help={
+        available
+          ? "LiteLLM management and inference boundary."
+          : "A Gateway is required before this profile can be created."
+      }
+      invalid={!loading && !available}
+    >
+      <div className="flex h-11 items-center border bg-muted/30 px-3 text-sm">
+        {loading ? "Loading…" : (name ?? "Unavailable")}
+      </div>
+    </Field>
   );
 }
 

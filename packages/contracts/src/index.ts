@@ -53,6 +53,7 @@ export const modelProfileStatuses = [
   "UNSUPPORTED",
 ] as const;
 export const modelProfileCapabilityStates = ["ENABLED", "DISABLED", "UNKNOWN"] as const;
+export const modelProfileRoutingModes = ["SINGLE", "COMPLEXITY", "EXTERNAL"] as const;
 
 export interface ProviderPresetModel {
   modelId: string;
@@ -826,33 +827,101 @@ export const createInferenceGatewaySchema = z.object({
   adminCredentialRef: z.string().trim().min(1).max(160),
 });
 
-export const createModelProfileSchema = z.object({
+const modelDeploymentIdSchema = z.string().uuid();
+
+export const modelProfileRoutingPolicySchema = z.discriminatedUnion("mode", [
+  z.object({
+    version: z.literal(1).default(1),
+    mode: z.literal("SINGLE"),
+    modelDeploymentId: modelDeploymentIdSchema,
+  }).strict(),
+  z.object({
+    version: z.literal(1).default(1),
+    mode: z.literal("COMPLEXITY"),
+    simpleModelDeploymentId: modelDeploymentIdSchema,
+    complexModelDeploymentId: modelDeploymentIdSchema,
+    fallbackModelDeploymentId: modelDeploymentIdSchema.optional(),
+    retries: z.number().int().min(0).max(10).default(2),
+  }).strict(),
+  z.object({
+    version: z.literal(1).default(1),
+    mode: z.literal("EXTERNAL"),
+    alias: z.string().trim().min(1).max(160),
+  }).strict(),
+]).superRefine((policy, context) => {
+  if (policy.mode === "COMPLEXITY") {
+    if (policy.simpleModelDeploymentId === policy.complexModelDeploymentId) {
+      context.addIssue({
+        code: "custom",
+        path: ["complexModelDeploymentId"],
+        message: "Simple and complex tiers must use different model deployments.",
+      });
+    }
+    if (
+      policy.fallbackModelDeploymentId === policy.simpleModelDeploymentId
+      || policy.fallbackModelDeploymentId === policy.complexModelDeploymentId
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["fallbackModelDeploymentId"],
+        message: "The fallback must be different from both routing tiers.",
+      });
+    }
+  }
+});
+
+const modelProfileKeyPolicySchema = z.object({
+  perInstance: z.literal(true).default(true),
+  rotationDays: z.number().int().min(1).max(365).default(90),
+}).default({ perInstance: true, rotationDays: 90 });
+
+const modelProfileAuditPolicySchema = z.object({
+  controlPlane: z.literal(true).default(true),
+  requestLogs: z.boolean().default(true),
+  capturePrompts: z.literal(false).default(false),
+}).default({ controlPlane: true, requestLogs: true, capturePrompts: false });
+
+const createModelProfileBaseSchema = z.object({
   name: z.string().trim().min(2).max(64),
   description: z.string().trim().max(300).default(""),
   gatewayId: z.string().trim().min(1),
-  publicModelAlias: z.string().trim().min(1).max(160),
+  routingPolicy: modelProfileRoutingPolicySchema.optional(),
+  /** @deprecated Send routingPolicy.mode=EXTERNAL instead. */
+  publicModelAlias: z.string().trim().min(1).max(160).optional(),
   complianceDomain: z.enum(complianceDomains),
   isDefault: z.boolean().default(false),
-  keyPolicy: z.object({
-    perInstance: z.literal(true).default(true),
-    rotationDays: z.number().int().min(1).max(365).default(90),
-  }).default({ perInstance: true, rotationDays: 90 }),
-  auditPolicy: z.object({
-    controlPlane: z.literal(true).default(true),
-    requestLogs: z.boolean().default(true),
-    capturePrompts: z.literal(false).default(false),
-  }).default({ controlPlane: true, requestLogs: true, capturePrompts: false }),
-});
+  keyPolicy: modelProfileKeyPolicySchema,
+  auditPolicy: modelProfileAuditPolicySchema,
+}).strict();
 
-export const updateModelProfileSchema = createModelProfileSchema.pick({
-  name: true,
-  description: true,
-  isDefault: true,
-  keyPolicy: true,
-  auditPolicy: true,
-}).partial().extend({
+export const createModelProfileSchema = createModelProfileBaseSchema
+  .superRefine((input, context) => {
+    if (!input.routingPolicy && !input.publicModelAlias) {
+      context.addIssue({
+        code: "custom",
+        path: ["routingPolicy"],
+        message: "Choose a routing policy.",
+      });
+    }
+  })
+  .transform((input) => ({
+    ...input,
+    routingPolicy: input.routingPolicy ?? {
+      version: 1 as const,
+      mode: "EXTERNAL" as const,
+      alias: input.publicModelAlias!,
+    },
+  }));
+
+export const updateModelProfileSchema = z.object({
+  name: z.string().trim().min(2).max(64).optional(),
+  description: z.string().trim().max(300).optional(),
+  isDefault: z.boolean().optional(),
+  keyPolicy: modelProfileKeyPolicySchema.optional(),
+  auditPolicy: modelProfileAuditPolicySchema.optional(),
+  routingPolicy: modelProfileRoutingPolicySchema.optional(),
   suspended: z.boolean().optional(),
-});
+}).strict();
 
 export type AgentStatus = (typeof agentStatuses)[number];
 export type ProvisioningStage = (typeof provisioningStages)[number];
@@ -899,6 +968,8 @@ export type AccessScopeBindingInput = z.infer<typeof accessScopeBindingInputSche
 export type ComplianceDomain = (typeof complianceDomains)[number];
 export type ModelProfileStatus = (typeof modelProfileStatuses)[number];
 export type ModelProfileCapabilityState = (typeof modelProfileCapabilityStates)[number];
+export type ModelProfileRoutingMode = (typeof modelProfileRoutingModes)[number];
+export type ModelProfileRoutingPolicy = z.infer<typeof modelProfileRoutingPolicySchema>;
 export type CreateInferenceGatewayInput = z.infer<typeof createInferenceGatewaySchema>;
 export type CreateModelProfileInput = z.infer<typeof createModelProfileSchema>;
 export type UpdateModelProfileInput = z.infer<typeof updateModelProfileSchema>;
@@ -943,6 +1014,7 @@ export interface ModelProfile {
   gatewayId: string;
   managementMode: "LITELLM_MANAGED";
   publicModelAlias: string;
+  routingPolicy: ModelProfileRoutingPolicy;
   complianceDomain: ComplianceDomain;
   status: ModelProfileStatus;
   isDefault: boolean;

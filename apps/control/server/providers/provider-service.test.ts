@@ -89,6 +89,66 @@ describe("ProviderService", () => {
     expect(await service.listModels()).toEqual([]);
   });
 
+  it("blocks Provider deletion while a Model Profile references one of its deployments", async () => {
+    mockDeepSeekCatalog();
+    const store = createTestStore();
+    const litellm = liteLLM();
+    const service = new ProviderService(store, litellm);
+    const { account, models } = await service.createConnection(deepSeekConnection);
+    const now = new Date().toISOString();
+    await store.saveInferenceGateway({
+      id: "litellm-default",
+      name: "LiteLLM",
+      baseUrl: "http://litellm:4000",
+      adminUiUrl: "http://litellm:4000/ui",
+      credentialSource: "ENVIRONMENT",
+      status: "READY",
+      validationMessage: "Ready",
+      createdAt: now,
+      updatedAt: now,
+    });
+    await store.saveModelProfile({
+      id: "11111111-1111-4111-8111-111111111111",
+      name: "Production",
+      description: "",
+      gatewayId: "litellm-default",
+      managementMode: "LITELLM_MANAGED",
+      publicModelAlias: models[0]!.litellmModelName,
+      routingPolicy: {
+        version: 1,
+        mode: "SINGLE",
+        modelDeploymentId: models[0]!.id,
+      },
+      complianceDomain: "GLOBAL",
+      status: "READY",
+      isDefault: false,
+      keyPolicy: { perInstance: true, rotationDays: 90 },
+      auditPolicy: { controlPlane: true, requestLogs: true, capturePrompts: false },
+      capabilities: {
+        automaticRouting: "DISABLED",
+        routerType: "UNKNOWN",
+        sessionAffinity: "UNKNOWN",
+        adaptiveRouting: "UNKNOWN",
+        failover: "UNKNOWN",
+        generalFallback: "UNKNOWN",
+        contextWindowFallback: "UNKNOWN",
+        contentPolicyFallback: "UNKNOWN",
+        retries: "UNKNOWN",
+        requestAudit: "UNKNOWN",
+      },
+      conditions: [],
+      configurationHash: "sha256:test",
+      observedGeneration: 1,
+      validationMessage: "Ready",
+      consumers: 0,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await expect(service.deleteAccount(account.id)).rejects.toThrow("Model Profile");
+    expect(litellm.deleteModel).not.toHaveBeenCalled();
+  });
+
   it("does not persist a rejected Endpoint + key", async () => {
     mockDeepSeekCatalog();
     const litellm = liteLLM();

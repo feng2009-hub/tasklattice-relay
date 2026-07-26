@@ -109,6 +109,22 @@ export interface LiteLLMModelProfileInspection {
   unsupportedReason?: string;
 }
 
+export interface LiteLLMModelProfileRouteInput {
+  alias: string;
+  modelProfileId: string;
+  complianceDomain: ComplianceDomain;
+  tiers: {
+    SIMPLE: string;
+    MEDIUM: string;
+    COMPLEX: string;
+    REASONING: string;
+  };
+  defaultModel: string;
+  fallbackModels: string[];
+  retries: number;
+  requestAudit: boolean;
+}
+
 export interface LiteLLMModelProfileIdentity {
   alias: string;
   modelAlias: string;
@@ -192,6 +208,8 @@ export interface LiteLLMAdminClient {
   revokeKey(tokenId: string): Promise<void>;
   listSpendLogs(from: string, to: string): Promise<LiteLLMSpendLog[]>;
   inspectModelProfile?(modelAlias: string): Promise<LiteLLMModelProfileInspection>;
+  reconcileModelProfileRoute?(input: LiteLLMModelProfileRouteInput): Promise<void>;
+  deleteModelProfileRoute?(alias: string, modelProfileId: string): Promise<void>;
   createModelProfileTeam?(input: LiteLLMModelProfileIdentity): Promise<string>;
   deleteModelProfileTeam?(teamId: string): Promise<void>;
   createModelProfileKey?(input: LiteLLMModelProfileKeyInput): Promise<LiteLLMVirtualKey>;
@@ -274,6 +292,81 @@ export class LiteLLMClient implements LiteLLMAdminClient {
       (model) => model.model_name === modelName,
     )?.model_info?.id;
     if (!modelId) return;
+    await this.request("/model/delete", {
+      method: "POST",
+      body: JSON.stringify({ id: modelId }),
+    });
+  }
+
+  async reconcileModelProfileRoute(input: LiteLLMModelProfileRouteInput): Promise<void> {
+    this.assertConfigured();
+    const response = await this.request<{
+      data?: Array<{
+        model_name?: string;
+        litellm_params?: Record<string, unknown>;
+        model_info?: Record<string, unknown>;
+      }>;
+    }>("/model/info");
+    const matches = (response.data ?? []).filter((model) => model.model_name === input.alias);
+    if (matches.length > 1)
+      throw new Error(`LiteLLM exposes multiple deployments for managed router alias ${input.alias}.`);
+    const existing = matches[0];
+    if (existing) assertManagedModelProfileRoute(existing.model_info, input.modelProfileId, input.alias);
+    const body = {
+      model_name: input.alias,
+      litellm_params: {
+        model: "auto_router/complexity_router",
+        complexity_router_config: {
+          tiers: input.tiers,
+          default_model: input.defaultModel,
+        },
+        complexity_router_default_model: input.defaultModel,
+        num_retries: input.retries,
+      },
+      model_info: {
+        ...(existing?.model_info ?? {}),
+        managed_by: "tasklattice",
+        tasklattice_resource: "model_profile_route",
+        model_profile_id: input.modelProfileId,
+        compliance_domain: input.complianceDomain,
+        request_audit: input.requestAudit,
+      },
+    };
+    if (existing) {
+      const modelId = existing.model_info?.id;
+      if (typeof modelId !== "string" || !modelId)
+        throw new Error(`LiteLLM did not report an identifier for managed router alias ${input.alias}.`);
+      await this.request(`/model/${encodeURIComponent(modelId)}/update`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
+    } else {
+      await this.request("/model/new", {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+    }
+    await this.reconcileFallback(input.alias, input.fallbackModels);
+  }
+
+  async deleteModelProfileRoute(alias: string, modelProfileId: string): Promise<void> {
+    this.assertConfigured();
+    const response = await this.request<{
+      data?: Array<{ model_name?: string; model_info?: Record<string, unknown> }>;
+    }>("/model/info");
+    const matches = (response.data ?? []).filter((model) => model.model_name === alias);
+    if (!matches.length) {
+      await this.deleteFallback(alias);
+      return;
+    }
+    if (matches.length > 1)
+      throw new Error(`LiteLLM exposes multiple deployments for managed router alias ${alias}.`);
+    const existing = matches[0]!;
+    assertManagedModelProfileRoute(existing.model_info, modelProfileId, alias);
+    const modelId = existing.model_info?.id;
+    if (typeof modelId !== "string" || !modelId)
+      throw new Error(`LiteLLM did not report an identifier for managed router alias ${alias}.`);
+    await this.deleteFallback(alias);
     await this.request("/model/delete", {
       method: "POST",
       body: JSON.stringify({ id: modelId }),
@@ -612,13 +705,14 @@ export class LiteLLMClient implements LiteLLMAdminClient {
 
   async inspectModelProfile(modelAlias: string): Promise<LiteLLMModelProfileInspection> {
     this.assertConfigured();
-    const [models, health] = await Promise.all([
+    const [models, health, configuredFallbacks] = await Promise.all([
       this.request<{ data?: Array<{
         model_name?: string;
         litellm_params?: Record<string, unknown>;
         model_info?: Record<string, unknown>;
       }> }>("/model/info"),
       this.request<Record<string, unknown>>("/health/liveliness").catch((): Record<string, unknown> => ({})),
+      this.readFallback(modelAlias),
     ]);
     const allModels = models.data ?? [];
     const matching = allModels.filter((item) => item.model_name === modelAlias);
@@ -651,10 +745,6 @@ export class LiteLLMClient implements LiteLLMAdminClient {
       }
       if (typeof params.complexity_router_default_model === "string")
         targetModelNames.add(params.complexity_router_default_model);
-      if (isAutoRouter) {
-        sessionAffinity = complexityConfig?.session_affinity === false ? "DISABLED" : "ENABLED";
-        adaptiveRouting = complexityConfig?.adaptive === true ? "ENABLED" : "DISABLED";
-      }
       const fallbacks = info.fallbacks ?? params.fallbacks ?? info.fallback_group;
       const contextFallbacks = info.context_window_fallbacks ?? params.context_window_fallbacks;
       const policyFallbacks = info.content_policy_fallbacks ?? params.content_policy_fallbacks;
@@ -674,6 +764,10 @@ export class LiteLLMClient implements LiteLLMAdminClient {
       if (typeof retryValue === "number") retries = retryValue > 0 ? "ENABLED" : "DISABLED";
       if (info.request_audit ?? info.logging_callback ?? params.success_callback) requestAudit = "ENABLED";
     }
+    if (configuredFallbacks) {
+      generalFallback = configuredFallbacks.length ? "ENABLED" : "DISABLED";
+      collectStrings(configuredFallbacks, targetModelNames);
+    }
     const effectiveModels = targetModelNames.size
       ? allModels.filter((item) => item.model_name && targetModelNames.has(item.model_name))
       : matching;
@@ -687,8 +781,15 @@ export class LiteLLMClient implements LiteLLMAdminClient {
       if (domain === "CN_MAINLAND" || domain === "GLOBAL") domains.add(domain);
       else complianceUnknown = true;
     }
-    const autoRouterUnsupported = automaticRouting && (!version || !versionAtLeast(version, 1, 94));
-    const failover = generalFallback === "ENABLED" || effectiveModels.length > 1 ? "ENABLED" : "UNKNOWN";
+    const autoRouterUnsupported = routerType === "COMPLEXITY_ROUTER"
+      && Boolean(version)
+      && !versionAtLeast(version!, 1, 86, 2);
+    const failover = generalFallback === "ENABLED"
+      || contextWindowFallback === "ENABLED"
+      || contentPolicyFallback === "ENABLED"
+      || matching.length > 1
+      ? "ENABLED"
+      : "UNKNOWN";
     return {
       exists: matching.length > 0,
       ...(version ? { version } : {}),
@@ -709,7 +810,7 @@ export class LiteLLMClient implements LiteLLMAdminClient {
         requestAudit,
       },
       configurationHash: stableConfigurationHash({ matching, effectiveModels }),
-      ...(autoRouterUnsupported ? { unsupportedReason: `LiteLLM ${version ?? "version unknown"} cannot safely support Auto Router v2; version 1.94 or newer is required.` } : {}),
+      ...(autoRouterUnsupported ? { unsupportedReason: `LiteLLM ${version} does not support the managed Complexity Router; version 1.86.2 or newer is required.` } : {}),
     };
   }
 
@@ -742,6 +843,47 @@ export class LiteLLMClient implements LiteLLMAdminClient {
       throw new Error("LiteLLM is not configured. Set LITELLM_MASTER_KEY before registering models or creating Instances.");
   }
 
+  private async reconcileFallback(modelAlias: string, fallbackModels: string[]): Promise<void> {
+    if (!fallbackModels.length) {
+      await this.deleteFallback(modelAlias);
+      return;
+    }
+    await this.request("/fallback", {
+      method: "POST",
+      body: JSON.stringify({
+        model: modelAlias,
+        fallback_models: [...new Set(fallbackModels)],
+        fallback_type: "general",
+      }),
+    });
+  }
+
+  private async readFallback(modelAlias: string): Promise<string[] | undefined> {
+    try {
+      const response = await this.request<{ fallback_models?: unknown[] }>(
+        `/fallback/${encodeURIComponent(modelAlias)}?fallback_type=general`,
+      );
+      return Array.isArray(response.fallback_models)
+        ? response.fallback_models.filter((value): value is string => typeof value === "string")
+        : undefined;
+    } catch (error) {
+      if (error instanceof LiteLLMRequestError && error.status === 404) return undefined;
+      throw error;
+    }
+  }
+
+  private async deleteFallback(modelAlias: string): Promise<void> {
+    try {
+      await this.request(
+        `/fallback/${encodeURIComponent(modelAlias)}?fallback_type=general`,
+        { method: "DELETE" },
+      );
+    } catch (error) {
+      if (error instanceof LiteLLMRequestError && error.status === 404) return;
+      throw error;
+    }
+  }
+
   private async request<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
     const formData = typeof FormData !== "undefined" && init.body instanceof FormData;
     const response = await fetch(`${this.baseUrl}${path}`, {
@@ -755,7 +897,10 @@ export class LiteLLMClient implements LiteLLMAdminClient {
     });
     const body = await response.text();
     if (!response.ok)
-      throw new Error(`LiteLLM returned ${response.status}${body ? `: ${redactSecrets(body.slice(0, 320), this.masterKey)}` : "."}`);
+      throw new LiteLLMRequestError(
+        response.status,
+        `LiteLLM returned ${response.status}${body ? `: ${redactSecrets(body.slice(0, 320), this.masterKey)}` : "."}`,
+      );
     return (body ? JSON.parse(body) : undefined) as T;
   }
 }
@@ -831,12 +976,43 @@ function redactSecrets(value: string, masterKey: string): string {
     .replace(/\bsk-[A-Za-z0-9._-]{8,}\b/g, "[REDACTED]");
 }
 
-function versionAtLeast(version: string, major: number, minor: number): boolean {
-  const match = version.match(/(\d+)\.(\d+)/);
+class LiteLLMRequestError extends Error {
+  constructor(readonly status: number, message: string) {
+    super(message);
+    this.name = "LiteLLMRequestError";
+  }
+}
+
+function assertManagedModelProfileRoute(
+  modelInfo: Record<string, unknown> | undefined,
+  modelProfileId: string,
+  alias: string,
+): void {
+  if (
+    modelInfo?.managed_by !== "tasklattice"
+    || modelInfo.tasklattice_resource !== "model_profile_route"
+    || modelInfo.model_profile_id !== modelProfileId
+  ) {
+    throw new Error(
+      `LiteLLM alias ${alias} already exists and is not owned by this TaskLattice Model Profile.`,
+    );
+  }
+}
+
+function versionAtLeast(version: string, major: number, minor: number, patch = 0): boolean {
+  const match = version.match(/(\d+)\.(\d+)(?:\.(\d+))?/);
   if (!match) return false;
   const currentMajor = Number(match[1]);
   const currentMinor = Number(match[2]);
-  return currentMajor > major || (currentMajor === major && currentMinor >= minor);
+  const currentPatch = Number(match[3] ?? 0);
+  return currentMajor > major
+    || (
+      currentMajor === major
+      && (
+        currentMinor > minor
+        || (currentMinor === minor && currentPatch >= patch)
+      )
+    );
 }
 
 function nextUtcDate(value: string): string {

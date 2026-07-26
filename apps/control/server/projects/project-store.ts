@@ -89,6 +89,20 @@ function parseModelDeployment(payload: Prisma.JsonValue): ModelDeployment {
   return decode<ModelDeployment>(payload);
 }
 
+function parseModelProfile(payload: Prisma.JsonValue): ModelProfile {
+  const profile = decode<ModelProfile>(payload);
+  return profile.routingPolicy
+    ? profile
+    : {
+        ...profile,
+        routingPolicy: {
+          version: 1,
+          mode: "EXTERNAL",
+          alias: profile.publicModelAlias,
+        },
+      };
+}
+
 export class ProjectStore {
   private readonly costs: CostAnalyticsStore;
   readonly projectId: string;
@@ -614,7 +628,7 @@ export class ProjectStore {
       where: { projectId_id: { projectId: this.projectId, id } },
       select: { payload: true },
     });
-    return row ? decode<ModelProfile>(row.payload) : undefined;
+    return row ? parseModelProfile(row.payload) : undefined;
   }
   async listModelProfiles(): Promise<ModelProfile[]> {
     const rows = await this.db.modelProfileRecord.findMany({
@@ -622,7 +636,7 @@ export class ProjectStore {
       orderBy: { createdAt: "desc" },
       select: { payload: true },
     });
-    return rows.map((row) => decode<ModelProfile>(row.payload));
+    return rows.map((row) => parseModelProfile(row.payload));
   }
   async deleteModelProfile(id: string): Promise<boolean> {
     const result = await this.db.modelProfileRecord.deleteMany({

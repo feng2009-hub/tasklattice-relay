@@ -193,6 +193,7 @@ describe("Instance Virtual Employee binding lifecycle", () => {
       gatewayId: "litellm-default",
       managementMode: "LITELLM_MANAGED",
       publicModelAlias: "production-chat",
+      routingPolicy: { version: 1, mode: "EXTERNAL", alias: "production-chat" },
       complianceDomain: "GLOBAL",
       status: "READY",
       isDefault: true,
