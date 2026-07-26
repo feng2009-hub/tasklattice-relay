@@ -595,14 +595,14 @@ export const createAccessPolicySchema = z.object({
   name: z.string().trim().min(3).max(120),
   status: z.enum(accessPolicyStatuses).default("DRAFT"),
   virtualEmployeeIds: z.array(z.string().uuid()).max(1_000).default([]),
-  serverRules: z.array(accessPolicyServerRuleSchema).min(1).max(1_000),
+  serverRules: z.array(accessPolicyServerRuleSchema).max(1_000),
 }).strict();
 
 export const updateAccessPolicySchema = z.object({
   name: z.string().trim().min(3).max(120).optional(),
   status: z.enum(accessPolicyStatuses).optional(),
   virtualEmployeeIds: z.array(z.string().uuid()).max(1_000).optional(),
-  serverRules: z.array(accessPolicyServerRuleSchema).min(1).max(1_000).optional(),
+  serverRules: z.array(accessPolicyServerRuleSchema).max(1_000).optional(),
 }).strict();
 
 export const mcpServerTemplateSchema = z.object({

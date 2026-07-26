@@ -126,7 +126,6 @@ export function AccessPolicyEditorSheet({
 
   const canSave =
     draft.name.trim().length >= 3 &&
-    selectedServers.length > 0 &&
     selectedServers.every((server) => server.tools.length > 0);
 
   function toggleServer(id: string) {
@@ -232,7 +231,7 @@ export function AccessPolicyEditorSheet({
                 ))}
                 {!catalog.data?.mcpServers.length ? (
                   <p className="border border-dashed p-6 text-sm text-muted-foreground sm:col-span-2">
-                    Register and discover an MCP Server before creating an Access Policy.
+                    No MCP Servers are registered. You can still save this policy as a deny-all permission baseline and add tool rules later.
                   </p>
                 ) : null}
               </div>
@@ -254,7 +253,7 @@ export function AccessPolicyEditorSheet({
               />
             ))}
             <p className="border-l-2 border-primary bg-primary/5 px-4 py-3 text-xs leading-5 text-muted-foreground">
-              Deny takes precedence when multiple active policies apply. Approval workflows are managed separately.
+              A policy with no MCP Server rules grants no MCP tool access. Deny takes precedence when multiple active policies apply.
             </p>
           </section>
 

@@ -94,6 +94,20 @@ describe("Access Policy enforcement", () => {
     });
   });
 
+  it("accepts an empty deny-all permission baseline", () => {
+    expect(createAccessPolicySchema.parse({
+      name: "No MCP access",
+      status: "ACTIVE",
+      virtualEmployeeIds: [employeeId],
+      serverRules: [],
+    })).toEqual({
+      name: "No MCP access",
+      status: "ACTIVE",
+      virtualEmployeeIds: [employeeId],
+      serverRules: [],
+    });
+  });
+
   it("does not inject create defaults into a partial status update", () => {
     expect(updateAccessPolicySchema.parse({ status: "DRAFT" })).toEqual({
       status: "DRAFT",
