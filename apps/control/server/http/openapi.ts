@@ -2,8 +2,15 @@ const json = (schema: object) => ({
   content: { "application/json": { schema } },
 });
 
-const agentId = {
-  name: "agentId",
+const projectIdParameter = {
+  name: "projectId",
+  in: "path",
+  required: true,
+  schema: { type: "string" },
+} as const;
+
+const instanceId = {
+  name: "instanceId",
   in: "path",
   required: true,
   schema: { type: "string", format: "uuid" },
@@ -30,25 +37,59 @@ const profileId = {
   schema: { type: "string", format: "uuid" },
 } as const;
 
-const extensionKind = {
+const virtualEmployeeId = {
+  name: "virtualEmployeeId",
+  in: "path",
+  required: true,
+  schema: { type: "string", format: "uuid" },
+} as const;
+
+const bindingId = {
+  name: "bindingId",
+  in: "path",
+  required: true,
+  schema: { type: "string", format: "uuid" },
+} as const;
+
+const scopeId = {
+  name: "scopeId",
+  in: "path",
+  required: true,
+  schema: { type: "string", format: "uuid" },
+} as const;
+
+const resourceKind = {
   name: "kind",
   in: "path",
   required: true,
   schema: { type: "string", enum: ["skills", "mcp-servers", "knowledge-sources"] },
 } as const;
 
-const extensionId = {
-  name: "extensionId",
+const resourceId = {
+  name: "resourceId",
   in: "path",
   required: true,
   schema: { type: "string" },
+} as const;
+
+const gardenAgentId = {
+  name: "agentId",
+  in: "path",
+  required: true,
+  schema: { type: "string" },
+} as const;
+
+const agentConnectionId = {
+  name: "connectionId",
+  in: "path",
+  required: true,
+  schema: { type: "string", format: "uuid" },
 } as const;
 
 const costCommonParameters = [
   { name: "start_time", in: "query", required: true, schema: { type: "string" } },
   { name: "end_time", in: "query", required: true, schema: { type: "string" } },
   { name: "timezone", in: "query", schema: { type: "string", default: "UTC" } },
-  { name: "workspace_id", in: "query", schema: { type: "string" } },
   { name: "environment_id", in: "query", schema: { type: "string" } },
   { name: "filters", in: "query", description: "JSON object whose values are arrays of business IDs.", schema: { type: "string", default: "{}" } },
 ] as const;
@@ -114,6 +155,62 @@ export const openApiDocument = {
         },
       },
     },
+    "/profile": {
+      get: {
+        operationId: "getPersonalProfile",
+        summary: "Read the current user's personal profile",
+        responses: {
+          "200": { description: "Personal profile", ...json({ $ref: "#/components/schemas/PersonalProfile" }) },
+          "401": { $ref: "#/components/responses/Error" },
+        },
+      },
+      patch: {
+        operationId: "updatePersonalProfile",
+        summary: "Update personal details that are independent of a Project",
+        requestBody: {
+          required: true,
+          ...json({
+            type: "object",
+            additionalProperties: false,
+            required: ["city", "theme", "timezone"],
+            properties: {
+              city: { type: "string", maxLength: 120 },
+              theme: { type: "string", enum: ["system", "light", "dark"] },
+              timezone: { type: "string", maxLength: 120 },
+            },
+          }),
+        },
+        responses: {
+          "200": { description: "Updated personal profile", ...json({ $ref: "#/components/schemas/PersonalProfile" }) },
+          "400": { $ref: "#/components/responses/Error" },
+          "401": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
+    "/profile/password": {
+      post: {
+        operationId: "resetLocalPassword",
+        summary: "Reset the current local account password",
+        requestBody: {
+          required: true,
+          ...json({
+            type: "object",
+            additionalProperties: false,
+            required: ["currentPassword", "newPassword"],
+            properties: {
+              currentPassword: { type: "string", maxLength: 128 },
+              newPassword: { type: "string", minLength: 12, maxLength: 128 },
+            },
+          }),
+        },
+        responses: {
+          "204": { description: "Password reset" },
+          "400": { $ref: "#/components/responses/Error" },
+          "401": { $ref: "#/components/responses/Error" },
+          "403": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
     "/auth/sso/start": {
       get: {
         operationId: "startSso",
@@ -125,19 +222,74 @@ export const openApiDocument = {
         },
       },
     },
-    "/extensions": {
+    "/projects": {
       get: {
-        operationId: "getExtensionCatalog",
-        summary: "Read the PostgreSQL-backed extension and Agent Role catalog",
+        operationId: "listProjects",
+        summary: "List projects available to the current user",
+        responses: { "200": { description: "Project list" } },
+      },
+      post: {
+        operationId: "createProject",
+        summary: "Create a project",
+        responses: { "201": { description: "Project created" } },
+      },
+    },
+    "/projects/{projectId}": {
+      parameters: [projectIdParameter],
+      patch: {
+        operationId: "updateProject",
+        summary: "Update project settings",
+        responses: { "200": { description: "Project updated" } },
+      },
+      delete: {
+        operationId: "deleteProject",
+        summary: "Delete a project",
+        responses: { "204": { description: "Project deleted" } },
+      },
+    },
+    "/projects/{projectId}/members": {
+      parameters: [projectIdParameter],
+      get: {
+        operationId: "listProjectMembers",
+        summary: "List the human and virtual members of a Project team",
         responses: {
-          "200": { description: "Extension catalog", ...json({ $ref: "#/components/schemas/ExtensionCatalog" }) },
+          "200": {
+            description: "Unified Project team member list",
+            ...json({
+              type: "array",
+              items: { $ref: "#/components/schemas/ProjectTeamMember" },
+            }),
+          },
         },
       },
     },
-    "/extensions/{kind}": {
-      parameters: [extensionKind],
+    "/projects/{projectId}/members/invitations": {
+      parameters: [projectIdParameter],
       post: {
-        operationId: "createExtension",
+        operationId: "inviteProjectMember",
+        summary: "Invite a human Project member",
+        responses: {
+          "201": {
+            description: "Invitation created",
+            ...json({ $ref: "#/components/schemas/HumanProjectMember" }),
+          },
+        },
+      },
+    },
+    "/projects/{projectId}/catalog": {
+      parameters: [projectIdParameter],
+      get: {
+        operationId: "getResourceCatalog",
+        summary: "Read the PostgreSQL-backed resource and Agent Role catalog",
+        responses: {
+          "200": { description: "Resource catalog", ...json({ $ref: "#/components/schemas/ResourceCatalog" }) },
+        },
+      },
+    },
+    "/projects/{projectId}/catalog/{kind}": {
+      parameters: [projectIdParameter, resourceKind],
+      post: {
+        operationId: "createResource",
         summary: "Create a Skill, MCP server, or Knowledge source",
         requestBody: { required: true, ...json({ oneOf: [
           { $ref: "#/components/schemas/SkillDefinitionInput" },
@@ -145,32 +297,170 @@ export const openApiDocument = {
           { $ref: "#/components/schemas/KnowledgeSourceDefinitionInput" },
         ] }) },
         responses: {
-          "201": { description: "Created extension", ...json({ type: "object" }) },
+          "201": { description: "Created resource", ...json({ type: "object" }) },
           "400": { $ref: "#/components/responses/Error" },
         },
       },
     },
-    "/extensions/{kind}/{extensionId}": {
-      parameters: [extensionKind, extensionId],
+    "/projects/{projectId}/catalog/{kind}/{resourceId}": {
+      parameters: [projectIdParameter, resourceKind, resourceId],
       put: {
-        operationId: "updateExtension",
-        summary: "Update a persisted extension definition",
+        operationId: "updateResource",
+        summary: "Update a persisted resource definition",
         requestBody: { required: true, ...json({ type: "object" }) },
         responses: {
-          "200": { description: "Updated extension", ...json({ type: "object" }) },
+          "200": { description: "Updated resource", ...json({ type: "object" }) },
           "400": { $ref: "#/components/responses/Error" },
         },
       },
       delete: {
-        operationId: "deleteExtension",
-        summary: "Delete an extension that is not assigned to a Role or Instance",
+        operationId: "deleteResource",
+        summary: "Delete a resource that is not assigned to a Role or Instance",
         responses: {
-          "200": { description: "Extension deleted", ...json({ type: "object", required: ["message"], properties: { message: { type: "string" } } }) },
+          "200": { description: "Resource deleted", ...json({ type: "object", required: ["message"], properties: { message: { type: "string" } } }) },
           "404": { $ref: "#/components/responses/Error" },
         },
       },
     },
-    "/providers": {
+    "/projects/{projectId}/catalog/mcp-servers/{resourceId}/discover": {
+      parameters: [projectIdParameter, resourceId],
+      post: {
+        operationId: "discoverMcpServerTools",
+        summary: "Connect to an MCP server, run tools/list, and persist the discovered tools",
+        responses: {
+          "200": {
+            description: "Updated MCP server discovery snapshot",
+            ...json({ $ref: "#/components/schemas/McpServerDefinition" }),
+          },
+          "400": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
+    "/projects/{projectId}/agent-garden": {
+      parameters: [projectIdParameter],
+      get: {
+        operationId: "getAgentGarden",
+        summary: "Read built-in Agents, Project registrations, and connections",
+        responses: {
+          "200": {
+            description: "Agent Garden snapshot",
+            ...json({ $ref: "#/components/schemas/AgentGardenSnapshot" }),
+          },
+        },
+      },
+    },
+    "/projects/{projectId}/agent-garden/agents": {
+      parameters: [projectIdParameter],
+      post: {
+        operationId: "registerGardenAgent",
+        summary: "Register and discover a remote Agent",
+        requestBody: {
+          required: true,
+          ...json({ $ref: "#/components/schemas/CreateAgentGardenEntryInput" }),
+        },
+        responses: {
+          "201": {
+            description: "Registered Agent with its discovery result",
+            ...json({ $ref: "#/components/schemas/AgentGardenEntry" }),
+          },
+          "400": { $ref: "#/components/responses/Error" },
+          "403": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
+    "/projects/{projectId}/agent-garden/agents/{agentId}": {
+      parameters: [projectIdParameter, gardenAgentId],
+      delete: {
+        operationId: "removeGardenAgent",
+        summary: "Remove a Project-registered Agent that has no connections",
+        responses: {
+          "200": { description: "Registration removed" },
+          "404": { $ref: "#/components/responses/Error" },
+          "409": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
+    "/projects/{projectId}/agent-garden/agents/{agentId}/discover": {
+      parameters: [projectIdParameter, gardenAgentId],
+      post: {
+        operationId: "discoverGardenAgent",
+        summary: "Refresh a registered Agent discovery snapshot",
+        responses: {
+          "200": {
+            description: "Updated Agent discovery state",
+            ...json({ $ref: "#/components/schemas/AgentGardenEntry" }),
+          },
+          "404": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
+    "/projects/{projectId}/agent-garden/connections": {
+      parameters: [projectIdParameter],
+      post: {
+        operationId: "connectGardenAgent",
+        summary: "Authorize a Coordinator Instance to delegate to an Agent",
+        requestBody: {
+          required: true,
+          ...json({ $ref: "#/components/schemas/CreateAgentConnectionInput" }),
+        },
+        responses: {
+          "201": {
+            description: "Agent connection",
+            ...json({ $ref: "#/components/schemas/AgentConnection" }),
+          },
+          "400": { $ref: "#/components/responses/Error" },
+          "409": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
+    "/projects/{projectId}/agent-garden/connections/{connectionId}": {
+      parameters: [projectIdParameter, agentConnectionId],
+      delete: {
+        operationId: "disconnectGardenAgent",
+        summary: "Revoke a Coordinator Agent connection",
+        responses: {
+          "200": { description: "Connection revoked" },
+          "404": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
+    "/demo-agents/{agentId}/agent-card": {
+      parameters: [gardenAgentId],
+      get: {
+        operationId: "getDemoAgentCard",
+        summary: "Read the side-effect-free Agent Card for an interaction demo",
+        security: [],
+        responses: {
+          "200": {
+            description: "A2A-compatible demo Agent Card",
+            ...json({ type: "object" }),
+          },
+          "404": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
+    "/demo-agents/{agentId}": {
+      parameters: [gardenAgentId],
+      post: {
+        operationId: "sendDemoAgentMessage",
+        summary: "Send one deterministic A2A message/send interaction preview",
+        security: [],
+        requestBody: {
+          required: true,
+          ...json({ type: "object" }),
+        },
+        responses: {
+          "200": {
+            description: "A2A JSON-RPC message response with a demo trace",
+            ...json({ type: "object" }),
+          },
+          "400": { $ref: "#/components/responses/Error" },
+          "404": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
+    "/projects/{projectId}/providers": {
+      parameters: [projectIdParameter],
       get: {
         operationId: "listProviderAccounts",
         summary: "List validated Endpoint and credential accounts",
@@ -188,7 +478,8 @@ export const openApiDocument = {
         },
       },
     },
-    "/providers/discover": {
+    "/projects/{projectId}/providers/discover": {
+      parameters: [projectIdParameter],
       post: {
         operationId: "discoverProviderModels",
         summary: "Validate a Provider draft and discover models without persisting credentials",
@@ -199,8 +490,8 @@ export const openApiDocument = {
         },
       },
     },
-    "/providers/{providerId}/validate": {
-      parameters: [providerId],
+    "/projects/{projectId}/providers/{providerId}/validate": {
+      parameters: [projectIdParameter, providerId],
       post: {
         operationId: "revalidateProviderAccount",
         summary: "Re-run Endpoint, credential, and catalog validation",
@@ -210,8 +501,19 @@ export const openApiDocument = {
         },
       },
     },
-    "/providers/{providerId}": {
-      parameters: [providerId],
+    "/projects/{projectId}/providers/{providerId}/discover": {
+      parameters: [projectIdParameter, providerId],
+      post: {
+        operationId: "discoverProviderAccountModels",
+        summary: "Discover models through a stored Provider connection",
+        responses: {
+          "200": { description: "Provider discovery result", ...json({ $ref: "#/components/schemas/ProviderDiscoveryResult" }) },
+          "404": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
+    "/projects/{projectId}/providers/{providerId}": {
+      parameters: [projectIdParameter, providerId],
       delete: {
         operationId: "deleteProviderAccount",
         summary: "Delete an unused Provider Account and its LiteLLM models",
@@ -221,7 +523,8 @@ export const openApiDocument = {
         },
       },
     },
-    "/providers/models": {
+    "/projects/{projectId}/models": {
+      parameters: [projectIdParameter],
       get: {
         operationId: "listModelDeployments",
         summary: "List categorized model deployments",
@@ -234,25 +537,47 @@ export const openApiDocument = {
         responses: { "201": { description: "Model validation result", ...json({ $ref: "#/components/schemas/ModelDeployment" }) } },
       },
     },
-    "/providers/models/{modelId}/default": {
-      parameters: [{ name: "modelId", in: "path", required: true, schema: { type: "string" } }],
-      post: {
-        operationId: "markModelDeploymentAsDefault",
-        summary: "Mark one validated LLM deployment as the global default",
+    "/projects/{projectId}/models/{modelId}": {
+      parameters: [projectIdParameter, { name: "modelId", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+      delete: {
+        operationId: "deleteModelDeployment",
+        summary: "Remove an unused model deployment from LiteLLM and this Project",
         responses: {
-          "200": { description: "Default model deployment", ...json({ $ref: "#/components/schemas/ModelDeployment" }) },
+          "200": { description: "Model deployment removed", ...json({ type: "object", required: ["message"], properties: { message: { type: "string" } } }) },
           "404": { $ref: "#/components/responses/Error" },
+          "409": { $ref: "#/components/responses/Error" },
         },
       },
     },
-    "/inference-gateways": {
+    "/projects/{projectId}/inference-gateways": {
+      parameters: [projectIdParameter],
       get: {
         operationId: "listInferenceGateways",
         summary: "List configured LiteLLM Gateways without credentials",
         responses: { "200": { description: "Inference Gateway collection", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/InferenceGateway" } } } }) } },
       },
     },
-    "/model-profiles": {
+    "/projects/{projectId}/quota": {
+      parameters: [projectIdParameter],
+      get: {
+        operationId: "getProjectQuota",
+        summary: "Read Project quota configuration, synchronization state, and usage",
+        responses: {
+          "200": { description: "Project quota", ...json({ $ref: "#/components/schemas/ProjectQuota" }) },
+        },
+      },
+      put: {
+        operationId: "updateProjectQuota",
+        summary: "Update TALI capacity and synchronize spend plus TPM limits to the LiteLLM Team",
+        requestBody: { required: true, ...json({ $ref: "#/components/schemas/UpdateProjectQuotaInput" }) },
+        responses: {
+          "200": { description: "Updated Project quota", ...json({ $ref: "#/components/schemas/ProjectQuota" }) },
+          "400": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
+    "/projects/{projectId}/model-profiles": {
+      parameters: [projectIdParameter],
       get: {
         operationId: "listModelProfiles",
         summary: "List LiteLLM-managed inference access contracts",
@@ -265,25 +590,26 @@ export const openApiDocument = {
         responses: { "201": { description: "Model Profile", ...json({ $ref: "#/components/schemas/ModelProfile" }) }, "400": { $ref: "#/components/responses/Error" } },
       },
     },
-    "/model-profiles/{profileId}": {
-      parameters: [profileId],
+    "/projects/{projectId}/model-profiles/{profileId}": {
+      parameters: [projectIdParameter, profileId],
       get: { operationId: "getModelProfile", summary: "Read a Model Profile", responses: { "200": { description: "Model Profile", ...json({ $ref: "#/components/schemas/ModelProfile" }) }, "404": { $ref: "#/components/responses/Error" } } },
-      put: { operationId: "updateModelProfile", summary: "Update TaskLattice-owned Model Profile policy", requestBody: { required: true, ...json({ type: "object", additionalProperties: false, properties: { name: { type: "string" }, description: { type: "string" }, isDefault: { type: "boolean" }, keyPolicy: { type: "object" }, auditPolicy: { type: "object" }, suspended: { type: "boolean" } } }) }, responses: { "200": { description: "Model Profile", ...json({ $ref: "#/components/schemas/ModelProfile" }) } } },
+      put: { operationId: "updateModelProfile", summary: "Update TaskLattice-owned Model Profile policy", requestBody: { required: true, ...json({ type: "object", additionalProperties: false, properties: { name: { type: "string" }, description: { type: "string" }, isDefault: { type: "boolean" }, keyPolicy: { type: "object" }, auditPolicy: { type: "object" }, routingPolicy: { $ref: "#/components/schemas/ModelProfileRoutingPolicy" }, suspended: { type: "boolean" } } }) }, responses: { "200": { description: "Model Profile", ...json({ $ref: "#/components/schemas/ModelProfile" }) } } },
       delete: { operationId: "deleteModelProfile", summary: "Delete a Model Profile without active Consumers", responses: { "200": { description: "Model Profile deleted", ...json({ type: "object" }) }, "409": { $ref: "#/components/responses/Error" } } },
     },
-    "/model-profiles/{profileId}/refresh": {
-      parameters: [profileId],
+    "/projects/{projectId}/model-profiles/{profileId}/refresh": {
+      parameters: [projectIdParameter, profileId],
       post: { operationId: "refreshModelProfile", summary: "Synchronize effective LiteLLM capability and compliance status", responses: { "200": { description: "Synchronized Model Profile", ...json({ $ref: "#/components/schemas/ModelProfile" }) } } },
     },
-    "/model-profiles/{profileId}/consumers": {
-      parameters: [profileId],
+    "/projects/{projectId}/model-profiles/{profileId}/consumers": {
+      parameters: [projectIdParameter, profileId],
       get: { operationId: "listModelProfileConsumers", summary: "List redacted active Instance bindings", responses: { "200": { description: "Redacted Consumers", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/ModelProfileConsumer" } } } }) } } },
     },
-    "/model-profiles/{profileId}/audit": {
-      parameters: [profileId],
+    "/projects/{projectId}/model-profiles/{profileId}/audit": {
+      parameters: [projectIdParameter, profileId],
       get: { operationId: "listModelProfileAudit", summary: "List secret-safe control-plane audit events", responses: { "200": { description: "Audit events", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/ModelProfileAuditEvent" } } } }) } } },
     },
-    "/costs/summary": {
+    "/projects/{projectId}/costs/summary": {
+      parameters: [projectIdParameter],
       get: {
         operationId: "getCostSummary",
         summary: "Read USD spend, token, request, and prior-period summary",
@@ -291,7 +617,8 @@ export const openApiDocument = {
         responses: { "200": { description: "Cost summary", ...json({ $ref: "#/components/schemas/ModelCostSummary" }) } },
       },
     },
-    "/costs/activity": {
+    "/projects/{projectId}/costs/activity": {
+      parameters: [projectIdParameter],
       get: {
         operationId: "getCostActivity",
         summary: "Read zero-filled spend activity in the requested timezone",
@@ -303,7 +630,8 @@ export const openApiDocument = {
         responses: { "200": { description: "Cost activity", ...json({ $ref: "#/components/schemas/ModelCostActivity" }) } },
       },
     },
-    "/costs/insights": {
+    "/projects/{projectId}/costs/insights": {
+      parameters: [projectIdParameter],
       get: {
         operationId: "getCostInsights",
         summary: "Read derived cost insights",
@@ -311,7 +639,8 @@ export const openApiDocument = {
         responses: { "200": { description: "Cost insights", ...json({ type: "object" }) } },
       },
     },
-    "/costs/ranking": {
+    "/projects/{projectId}/costs/ranking": {
+      parameters: [projectIdParameter],
       get: {
         operationId: "getCostRanking",
         summary: "Rank business objects by total USD spend",
@@ -323,7 +652,8 @@ export const openApiDocument = {
         responses: { "200": { description: "Cost ranking", ...json({ $ref: "#/components/schemas/ModelCostRanking" }) } },
       },
     },
-    "/costs/trend": {
+    "/projects/{projectId}/costs/trend": {
+      parameters: [projectIdParameter],
       get: {
         operationId: "getCostTrend",
         summary: "Read stable Top N cost series plus Others",
@@ -336,7 +666,8 @@ export const openApiDocument = {
         responses: { "200": { description: "Cost trend", ...json({ $ref: "#/components/schemas/ModelCostTrend" }) } },
       },
     },
-    "/costs/breakdown": {
+    "/projects/{projectId}/costs/breakdown": {
+      parameters: [projectIdParameter],
       get: {
         operationId: "getCostBreakdown",
         summary: "Search, sort, and paginate a dimensional cost breakdown",
@@ -352,7 +683,8 @@ export const openApiDocument = {
         responses: { "200": { description: "Cost breakdown", ...json({ $ref: "#/components/schemas/ModelCostBreakdown" }) } },
       },
     },
-    "/costs/data-quality": {
+    "/projects/{projectId}/costs/data-quality": {
+      parameters: [projectIdParameter],
       get: {
         operationId: "getCostDataQuality",
         summary: "Read internal ingestion and attribution quality diagnostics",
@@ -360,7 +692,8 @@ export const openApiDocument = {
         responses: { "200": { description: "Cost data quality", ...json({ type: "object" }) } },
       },
     },
-    "/policies": {
+    "/projects/{projectId}/policies": {
+      parameters: [projectIdParameter],
       get: {
         operationId: "listSandboxPolicies",
         summary: "List ConfigMap-managed and custom OpenShell Policies",
@@ -376,8 +709,8 @@ export const openApiDocument = {
         },
       },
     },
-    "/policies/{policyId}": {
-      parameters: [policyId],
+    "/projects/{projectId}/policies/{policyId}": {
+      parameters: [projectIdParameter, policyId],
       put: {
         operationId: "updateSandboxPolicy",
         summary: "Update a custom OpenShell Policy",
@@ -396,7 +729,8 @@ export const openApiDocument = {
         },
       },
     },
-    "/runtime": {
+    "/projects/{projectId}/runtime": {
+      parameters: [projectIdParameter],
       get: {
         operationId: "getRuntimeStatus",
         summary: "Read NemoClaw TUI runtime capability",
@@ -406,7 +740,99 @@ export const openApiDocument = {
         },
       },
     },
-    "/agents": {
+    "/projects/{projectId}/virtual-employees": {
+      parameters: [projectIdParameter],
+      get: {
+        operationId: "listVirtualEmployees",
+        summary: "List project-scoped Virtual Employees",
+        responses: {
+          "200": { description: "Virtual Employee collection", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/VirtualEmployee" } } } }) },
+        },
+      },
+      post: {
+        operationId: "createVirtualEmployee",
+        summary: "Create a Virtual Employee and optionally provision its LiteLLM Service Account Key",
+        requestBody: { required: true, ...json({ $ref: "#/components/schemas/CreateVirtualEmployeeInput" }) },
+        responses: {
+          "201": { description: "Virtual Employee", ...json({ $ref: "#/components/schemas/VirtualEmployee" }) },
+          "400": { $ref: "#/components/responses/Error" },
+          "409": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
+    "/projects/{projectId}/virtual-employees/{virtualEmployeeId}": {
+      parameters: [projectIdParameter, virtualEmployeeId],
+      get: {
+        operationId: "getVirtualEmployee",
+        summary: "Read a Virtual Employee with model, identity, scope, and Instance bindings",
+        responses: { "200": { description: "Virtual Employee", ...json({ $ref: "#/components/schemas/VirtualEmployee" }) }, "404": { $ref: "#/components/responses/Error" } },
+      },
+      patch: {
+        operationId: "updateVirtualEmployee",
+        summary: "Update Virtual Employee desired configuration",
+        requestBody: { required: true, ...json({ $ref: "#/components/schemas/UpdateVirtualEmployeeInput" }) },
+        responses: { "200": { description: "Updated Virtual Employee", ...json({ $ref: "#/components/schemas/VirtualEmployee" }) } },
+      },
+      delete: {
+        operationId: "deleteVirtualEmployee",
+        summary: "Delete an unbound Virtual Employee and revoke its model credential",
+        responses: { "204": { description: "Deleted" }, "409": { $ref: "#/components/responses/Error" } },
+      },
+    },
+    "/projects/{projectId}/virtual-employees/{virtualEmployeeId}/provision": {
+      parameters: [projectIdParameter, virtualEmployeeId],
+      post: { operationId: "provisionVirtualEmployee", summary: "Provision LiteLLM model access and store the credential in the Secret Store", responses: { "200": { description: "Active Virtual Employee", ...json({ $ref: "#/components/schemas/VirtualEmployee" }) } } },
+    },
+    "/projects/{projectId}/virtual-employees/{virtualEmployeeId}/suspend": {
+      parameters: [projectIdParameter, virtualEmployeeId],
+      post: { operationId: "suspendVirtualEmployee", summary: "Suspend the Virtual Employee and block its LiteLLM key", responses: { "200": { description: "Suspended Virtual Employee", ...json({ $ref: "#/components/schemas/VirtualEmployee" }) } } },
+    },
+    "/projects/{projectId}/virtual-employees/{virtualEmployeeId}/activate": {
+      parameters: [projectIdParameter, virtualEmployeeId],
+      post: { operationId: "activateVirtualEmployee", summary: "Activate the Virtual Employee and enable its LiteLLM key", responses: { "200": { description: "Active Virtual Employee", ...json({ $ref: "#/components/schemas/VirtualEmployee" }) } } },
+    },
+    "/projects/{projectId}/virtual-employees/{virtualEmployeeId}/rotate-model-credential": {
+      parameters: [projectIdParameter, virtualEmployeeId],
+      post: { operationId: "rotateVirtualEmployeeCredential", summary: "Rotate the LiteLLM credential without exposing its value", responses: { "200": { description: "Virtual Employee with rotated credential metadata", ...json({ $ref: "#/components/schemas/VirtualEmployee" }) } } },
+    },
+    "/projects/{projectId}/virtual-employees/{virtualEmployeeId}/sync": {
+      parameters: [projectIdParameter, virtualEmployeeId],
+      post: {
+        operationId: "syncVirtualEmployee",
+        summary: "Detect LiteLLM drift or explicitly apply TALI desired configuration",
+        requestBody: { ...json({ type: "object", additionalProperties: false, properties: { apply: { type: "boolean", default: false } } }) },
+        responses: { "200": { description: "Synchronized Virtual Employee", ...json({ $ref: "#/components/schemas/VirtualEmployee" }) } },
+      },
+    },
+    "/projects/{projectId}/virtual-employees/{virtualEmployeeId}/identities": {
+      parameters: [projectIdParameter, virtualEmployeeId],
+      get: { operationId: "listVirtualEmployeeIdentities", summary: "List backing system identity references", responses: { "200": { description: "Identity bindings", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/IdentityBinding" } } } }) } } },
+      post: { operationId: "attachVirtualEmployeeIdentity", summary: "Attach a non-secret external identity reference", requestBody: { required: true, ...json({ $ref: "#/components/schemas/IdentityBindingInput" }) }, responses: { "200": { description: "Updated Virtual Employee", ...json({ $ref: "#/components/schemas/VirtualEmployee" }) } } },
+    },
+    "/projects/{projectId}/virtual-employees/{virtualEmployeeId}/identities/{bindingId}": {
+      parameters: [projectIdParameter, virtualEmployeeId, bindingId],
+      delete: { operationId: "detachVirtualEmployeeIdentity", summary: "Detach a system identity reference", responses: { "204": { description: "Detached" } } },
+    },
+    "/projects/{projectId}/virtual-employees/{virtualEmployeeId}/access-scopes": {
+      parameters: [projectIdParameter, virtualEmployeeId],
+      get: { operationId: "listVirtualEmployeeAccessScopes", summary: "List declared external-system access scopes and enforcement status", responses: { "200": { description: "Access scope bindings", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/AccessScopeBinding" } } } }) } } },
+      post: { operationId: "attachVirtualEmployeeAccessScope", summary: "Attach a declared access scope", requestBody: { required: true, ...json({ $ref: "#/components/schemas/AccessScopeBindingInput" }) }, responses: { "200": { description: "Updated Virtual Employee", ...json({ $ref: "#/components/schemas/VirtualEmployee" }) } } },
+    },
+    "/projects/{projectId}/virtual-employees/{virtualEmployeeId}/access-scopes/{scopeId}": {
+      parameters: [projectIdParameter, virtualEmployeeId, scopeId],
+      patch: { operationId: "updateVirtualEmployeeAccessScope", summary: "Update an access scope and enforcement status", requestBody: { required: true, ...json({ $ref: "#/components/schemas/AccessScopeBindingInput" }) }, responses: { "200": { description: "Updated Virtual Employee", ...json({ $ref: "#/components/schemas/VirtualEmployee" }) } } },
+      delete: { operationId: "detachVirtualEmployeeAccessScope", summary: "Detach an access scope", responses: { "204": { description: "Detached" } } },
+    },
+    "/projects/{projectId}/virtual-employees/{virtualEmployeeId}/spend": {
+      parameters: [projectIdParameter, virtualEmployeeId],
+      get: { operationId: "getVirtualEmployeeSpend", summary: "Read 30-day LiteLLM spend attributed to the Virtual Employee key", responses: { "200": { description: "Spend summary", ...json({ $ref: "#/components/schemas/VirtualEmployeeSpend" }) } } },
+    },
+    "/projects/{projectId}/virtual-employees/{virtualEmployeeId}/audit-events": {
+      parameters: [projectIdParameter, virtualEmployeeId],
+      get: { operationId: "listVirtualEmployeeAuditEvents", summary: "List Virtual Employee lifecycle and binding events", responses: { "200": { description: "Audit events", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/VirtualEmployeeAuditEvent" } } } }) } } },
+    },
+    "/projects/{projectId}/instances": {
+      parameters: [projectIdParameter],
       get: {
         operationId: "listAgents",
         summary: "List Agents",
@@ -424,8 +850,8 @@ export const openApiDocument = {
         },
       },
     },
-    "/agents/{agentId}": {
-      parameters: [agentId],
+    "/projects/{projectId}/instances/{instanceId}": {
+      parameters: [projectIdParameter, instanceId],
       get: {
         operationId: "getAgent",
         summary: "Read an Agent and reconcile its runtime state",
@@ -443,8 +869,22 @@ export const openApiDocument = {
         },
       },
     },
-    "/agents/{agentId}/terminal-sessions": {
-      parameters: [agentId],
+    "/projects/{projectId}/instances/{instanceId}/virtual-employee": {
+      parameters: [projectIdParameter, instanceId],
+      put: {
+        operationId: "bindAgentVirtualEmployee",
+        summary: "Switch an Instance to an Active Virtual Employee and recreate its runtime",
+        requestBody: { required: true, ...json({ type: "object", additionalProperties: false, required: ["virtualEmployeeId"], properties: { virtualEmployeeId: { type: "string", format: "uuid" } } }) },
+        responses: { "200": { description: "Updated Agent", ...json({ $ref: "#/components/schemas/Agent" }) }, "409": { $ref: "#/components/responses/Error" } },
+      },
+      delete: {
+        operationId: "unbindAgentVirtualEmployee",
+        summary: "Stop an Instance runtime and remove its Virtual Employee binding",
+        responses: { "200": { description: "Stopped Agent", ...json({ $ref: "#/components/schemas/Agent" }) } },
+      },
+    },
+    "/projects/{projectId}/instances/{instanceId}/terminal-sessions": {
+      parameters: [projectIdParameter, instanceId],
       post: {
         operationId: "createTerminalSession",
         summary: "Create a short-lived, single-use terminal session",
@@ -456,8 +896,8 @@ export const openApiDocument = {
         },
       },
     },
-    "/agents/{agentId}/terminal-targets": {
-      parameters: [agentId],
+    "/projects/{projectId}/instances/{instanceId}/terminal-targets": {
+      parameters: [projectIdParameter, instanceId],
       get: {
         operationId: "getTerminalTargets",
         summary: "List interactive terminal targets for a running Agent",
@@ -467,8 +907,8 @@ export const openApiDocument = {
         },
       },
     },
-    "/agents/{agentId}/audit": {
-      parameters: [agentId],
+    "/projects/{projectId}/instances/{instanceId}/audit": {
+      parameters: [projectIdParameter, instanceId],
       get: {
         operationId: "getAgentAudit",
         summary: "Read recent OpenShell OCSF audit events for an Agent sandbox",
@@ -490,7 +930,7 @@ export const openApiDocument = {
         properties: {
           authRequired: { type: "boolean", const: true },
           developmentDefaults: { type: "boolean" },
-          localEnabled: { type: "boolean", const: true },
+          localEnabled: { type: "boolean" },
           mode: { type: "string", enum: ["local", "local-sso"] },
           providerName: { type: "string" },
           ssoEnabled: { type: "boolean" },
@@ -498,11 +938,13 @@ export const openApiDocument = {
       },
       AuthUser: {
         type: "object",
-        required: ["displayName", "email", "provider", "username"],
+        required: ["displayName", "email", "id", "provider", "systemRole", "username"],
         properties: {
           displayName: { type: "string" },
           email: { type: "string" },
+          id: { type: "string" },
           provider: { type: "string", enum: ["local", "sso"] },
+          systemRole: { type: "string", enum: ["user", "super_administrator"] },
           username: { type: "string" },
         },
       },
@@ -529,8 +971,84 @@ export const openApiDocument = {
         type: "object",
         required: ["identity", "user"],
         properties: {
-          identity: { type: "object", required: ["type", "username"], properties: { type: { type: "string", const: "authenticated" }, username: { type: "string" } } },
+          identity: { type: "object", required: ["type", "userId", "username"], properties: { type: { type: "string", const: "authenticated" }, userId: { type: "string" }, username: { type: "string" } } },
           user: { $ref: "#/components/schemas/AuthUser" },
+        },
+      },
+      PersonalProfile: {
+        type: "object",
+        additionalProperties: false,
+        required: ["city", "displayName", "email", "provider", "systemRole", "theme", "timezone", "username"],
+        properties: {
+          city: { type: "string" },
+          displayName: { type: "string" },
+          email: { type: "string" },
+          provider: { type: "string", enum: ["local", "sso"] },
+          systemRole: { type: "string", enum: ["user", "super_administrator"] },
+          theme: { type: "string", enum: ["system", "light", "dark"] },
+          timezone: { type: "string" },
+          username: { type: "string" },
+        },
+      },
+      HumanProjectMember: {
+        type: "object",
+        additionalProperties: false,
+        required: ["email", "id", "kind", "name", "role", "status"],
+        properties: {
+          email: { type: "string", format: "email" },
+          id: { type: "string" },
+          kind: { type: "string", const: "human" },
+          name: { type: "string" },
+          role: { type: "string", enum: ["admin", "member"] },
+          status: { type: "string", enum: ["active", "invited"] },
+        },
+      },
+      VirtualProjectMember: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "environment",
+          "id",
+          "kind",
+          "name",
+          "role",
+          "status",
+        ],
+        properties: {
+          businessRole: { type: "string" },
+          environment: {
+            type: "string",
+            enum: ["development", "uat", "production"],
+          },
+          id: { type: "string" },
+          kind: { type: "string", const: "virtual" },
+          name: { type: "string" },
+          role: { type: "string", const: "virtual_employee" },
+          status: {
+            type: "string",
+            enum: [
+              "active",
+              "draft",
+              "pending_approval",
+              "provisioning",
+              "suspended",
+              "expired",
+              "error",
+            ],
+          },
+        },
+      },
+      ProjectTeamMember: {
+        oneOf: [
+          { $ref: "#/components/schemas/HumanProjectMember" },
+          { $ref: "#/components/schemas/VirtualProjectMember" },
+        ],
+        discriminator: {
+          propertyName: "kind",
+          mapping: {
+            human: "#/components/schemas/HumanProjectMember",
+            virtual: "#/components/schemas/VirtualProjectMember",
+          },
         },
       },
       SkillDefinitionInput: {
@@ -553,33 +1071,124 @@ export const openApiDocument = {
       McpServerDefinitionInput: {
         type: "object",
         additionalProperties: false,
-        required: ["name", "endpoint", "transport", "authReference", "parameters", "status", "tools"],
+        required: ["name", "alias", "description", "category", "transport", "args", "environment", "authType", "authReference", "accessGroups", "allowedTools", "extraHeaders", "staticHeaders", "internalNetworkOnly"],
         properties: {
-          name: { type: "string" }, endpoint: { type: "string", format: "uri" }, transport: { type: "string", enum: ["Streamable HTTP", "SSE"] },
-          authReference: { type: "string" }, parameters: { type: "string", description: "Serialized JSON object." },
-          status: { type: "string", enum: ["HEALTHY", "PERMISSION_REQUIRED", "UNCHECKED", "UNAVAILABLE"] }, tools: { type: "integer", minimum: 0 },
+          templateId: { type: "string" },
+          name: { type: "string" },
+          alias: { type: "string" },
+          description: { type: "string" },
+          category: { type: "string" },
+          logoUrl: { type: "string", format: "uri" },
+          sourceUrl: { type: "string", format: "uri" },
+          endpoint: { type: "string", format: "uri" },
+          specPath: { type: "string" },
+          transport: { type: "string", enum: ["http", "sse", "stdio", "openapi"] },
+          command: { type: "string" },
+          args: { type: "array", items: { type: "string" } },
+          environment: {
+            type: "array",
+            items: {
+              type: "object",
+              required: ["name", "valueReference"],
+              properties: { name: { type: "string" }, valueReference: { type: "string" } },
+            },
+          },
+          authType: { type: "string", enum: ["none", "bearer_token", "api_key", "basic", "authorization", "oauth2", "aws_sigv4"] },
+          authReference: { type: "string", description: "Secret reference; never a plaintext credential." },
+          oauth: {
+            type: "object",
+            properties: {
+              flow: { type: "string", enum: ["client_credentials", "authorization_code"] },
+              authorizationUrl: { type: "string", format: "uri" },
+              tokenUrl: { type: "string", format: "uri" },
+              registrationUrl: { type: "string", format: "uri" },
+            },
+          },
+          accessGroups: { type: "array", items: { type: "string" } },
+          allowedTools: { type: "array", items: { type: "string" } },
+          extraHeaders: { type: "array", items: { type: "string" } },
+          staticHeaders: {
+            type: "array",
+            items: {
+              type: "object",
+              required: ["name", "valueReference"],
+              properties: { name: { type: "string" }, valueReference: { type: "string" } },
+            },
+          },
+          internalNetworkOnly: { type: "boolean" },
+        },
+      },
+      McpToolDefinition: {
+        type: "object",
+        additionalProperties: false,
+        required: ["name", "inputSchema", "discoveredAt"],
+        properties: {
+          name: { type: "string" },
+          title: { type: "string" },
+          description: { type: "string" },
+          inputSchema: { type: "object", additionalProperties: true },
+          outputSchema: { type: "object", additionalProperties: true },
+          annotations: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              title: { type: "string" },
+              readOnlyHint: { type: "boolean" },
+              destructiveHint: { type: "boolean" },
+              idempotentHint: { type: "boolean" },
+              openWorldHint: { type: "boolean" },
+            },
+          },
+          discoveredAt: { type: "string", format: "date-time" },
         },
       },
       McpServerDefinition: {
         allOf: [
           { $ref: "#/components/schemas/McpServerDefinitionInput" },
-          { type: "object", required: ["id"], properties: { id: { type: "string" } } },
+          {
+            type: "object",
+            required: ["id", "litellmServerId", "status", "tools", "lastDiscoveryAttemptAt", "lastDiscoveredAt", "lastDiscoveryError"],
+            properties: {
+              id: { type: "string" },
+              litellmServerId: { type: "string" },
+              status: { type: "string", enum: ["HEALTHY", "PERMISSION_REQUIRED", "UNCHECKED", "UNAVAILABLE"] },
+              tools: { type: "array", items: { $ref: "#/components/schemas/McpToolDefinition" } },
+              lastDiscoveryAttemptAt: { type: ["string", "null"], format: "date-time" },
+              lastDiscoveredAt: { type: ["string", "null"], format: "date-time" },
+              lastDiscoveryError: { type: ["string", "null"] },
+            },
+          },
         ],
       },
       KnowledgeSourceDefinitionInput: {
         type: "object",
         additionalProperties: false,
-        required: ["name", "description", "endpoint", "mode", "authReference", "status", "topK"],
+        required: ["name", "description", "vectorStoreId", "provider", "credentialReference", "topK"],
         properties: {
-          name: { type: "string" }, description: { type: "string" }, endpoint: { type: "string", format: "uri" },
-          mode: { type: "string", enum: ["Hybrid", "Vector", "Keyword"] }, authReference: { type: "string" },
-          status: { type: "string", enum: ["READY", "UNCHECKED"] }, topK: { type: "integer", minimum: 1, maximum: 50 },
+          name: { type: "string" },
+          description: { type: "string" },
+          vectorStoreId: { type: "string" },
+          provider: { type: "string", enum: ["openai", "azure", "bedrock", "vertex_ai", "pg_vector", "elasticsearch"] },
+          apiBase: { type: "string", format: "uri" },
+          embeddingModel: { type: "string" },
+          semanticField: { type: "string", description: "Elasticsearch semantic_text field used for vector search." },
+          contentField: { type: "string", description: "Elasticsearch source field returned as result content." },
+          credentialReference: { type: "string", description: "Secret reference; never a plaintext credential." },
+          topK: { type: "integer", minimum: 1, maximum: 50 },
         },
       },
       KnowledgeSourceDefinition: {
         allOf: [
           { $ref: "#/components/schemas/KnowledgeSourceDefinitionInput" },
-          { type: "object", required: ["id"], properties: { id: { type: "string" } } },
+          {
+            type: "object",
+            required: ["id", "status", "lastReconciliationError"],
+            properties: {
+              id: { type: "string" },
+              status: { type: "string", enum: ["REGISTERED", "UNAVAILABLE"] },
+              lastReconciliationError: { type: ["string", "null"] },
+            },
+          },
         ],
       },
       AgentSpecializationDefinition: {
@@ -591,20 +1200,398 @@ export const openApiDocument = {
           defaultSkillIds: { type: "array", items: { type: "string" } }, defaultMcpServerIds: { type: "array", items: { type: "string" } }, defaultKnowledgeSourceIds: { type: "array", items: { type: "string" } },
         },
       },
-      ExtensionCatalog: {
+      ResourceCatalog: {
         type: "object",
-        required: ["skills", "mcpServers", "knowledgeSources", "specializations"],
+        required: ["skills", "mcpServers", "mcpServerTemplates", "knowledgeSources", "specializations"],
         properties: {
           skills: { type: "array", items: { $ref: "#/components/schemas/SkillDefinition" } },
           mcpServers: { type: "array", items: { $ref: "#/components/schemas/McpServerDefinition" } },
+          mcpServerTemplates: {
+            type: "array",
+            items: {
+              type: "object",
+              required: ["id", "name", "description", "category", "logo", "sourceUrl", "transport", "args", "defaultAuthType"],
+              properties: {
+                id: { type: "string" }, name: { type: "string" }, description: { type: "string" },
+                category: { type: "string" }, logo: { type: "string" }, sourceUrl: { type: "string", format: "uri" },
+                transport: { type: "string", enum: ["http", "sse", "stdio", "openapi"] },
+                endpointPlaceholder: { type: "string" }, command: { type: "string" },
+                args: { type: "array", items: { type: "string" } },
+                defaultAuthType: { type: "string" },
+              },
+            },
+          },
           knowledgeSources: { type: "array", items: { $ref: "#/components/schemas/KnowledgeSourceDefinition" } },
           specializations: { type: "array", items: { $ref: "#/components/schemas/AgentSpecializationDefinition" } },
+        },
+      },
+      AgentGardenUsageCapabilities: {
+        type: "object",
+        additionalProperties: false,
+        required: ["interactive", "canDelegate", "acceptsDelegation"],
+        properties: {
+          interactive: { type: "boolean" },
+          canDelegate: { type: "boolean" },
+          acceptsDelegation: { type: "boolean" },
+        },
+      },
+      AgentGardenSkill: {
+        type: "object",
+        additionalProperties: false,
+        required: ["id", "name", "description", "tags"],
+        properties: {
+          id: { type: "string" },
+          name: { type: "string" },
+          description: { type: "string" },
+          tags: { type: "array", items: { type: "string" } },
+        },
+      },
+      CreateAgentGardenEntryInput: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "name",
+          "description",
+          "integrationType",
+          "endpoint",
+          "category",
+          "owner",
+          "tags",
+          "usageMode",
+          "authType",
+          "authReference",
+          "internalNetworkOnly",
+          "configuration",
+        ],
+        properties: {
+          name: { type: "string", minLength: 3, maxLength: 160 },
+          description: { type: "string", minLength: 10, maxLength: 2000 },
+          integrationType: {
+            type: "string",
+            enum: [
+              "a2a",
+              "langgraph",
+              "langflow",
+              "bedrock-agentcore",
+              "azure-ai-foundry",
+              "pydantic-ai",
+              "vertex-ai-agent-engine",
+              "watsonx-orchestrate",
+              "custom",
+            ],
+          },
+          endpoint: { type: "string", format: "uri" },
+          agentCardUrl: { type: "string", format: "uri" },
+          category: { type: "string" },
+          owner: { type: "string" },
+          tags: { type: "array", items: { type: "string" } },
+          usageMode: {
+            type: "string",
+            enum: ["INTERACTIVE", "CALLABLE", "HYBRID"],
+          },
+          authType: {
+            type: "string",
+            enum: ["none", "bearer_token", "api_key"],
+          },
+          authReference: {
+            type: "string",
+            description: "Secret reference; never a plaintext credential.",
+          },
+          internalNetworkOnly: { type: "boolean" },
+          configuration: {
+            type: "object",
+            additionalProperties: { type: "string" },
+          },
+        },
+      },
+      AgentGardenEntry: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "id",
+          "name",
+          "description",
+          "source",
+          "integrationType",
+          "platformLabel",
+          "category",
+          "owner",
+          "tags",
+          "status",
+          "usageMode",
+          "usageCapabilities",
+          "endpoint",
+          "agentCardUrl",
+          "authType",
+          "authReference",
+          "internalNetworkOnly",
+          "configuration",
+          "skills",
+          "specializationId",
+          "createdAt",
+          "updatedAt",
+          "lastDiscoveredAt",
+          "lastDiscoveryError",
+        ],
+        properties: {
+          id: { type: "string" },
+          name: { type: "string" },
+          description: { type: "string" },
+          source: {
+            type: "string",
+            enum: ["BUILT_IN", "PROJECT_REGISTERED"],
+          },
+          integrationType: {
+            type: "string",
+            enum: [
+              "openclaw",
+              "hermes",
+              "claude-code",
+              "a2a",
+              "langgraph",
+              "langflow",
+              "bedrock-agentcore",
+              "azure-ai-foundry",
+              "pydantic-ai",
+              "vertex-ai-agent-engine",
+              "watsonx-orchestrate",
+              "custom",
+            ],
+          },
+          platformLabel: { type: "string" },
+          category: { type: "string" },
+          owner: { type: "string" },
+          tags: { type: "array", items: { type: "string" } },
+          status: {
+            type: "string",
+            enum: ["READY", "COMING_SOON", "UNCHECKED", "UNAVAILABLE"],
+          },
+          usageMode: {
+            type: "string",
+            enum: ["INTERACTIVE", "CALLABLE", "HYBRID"],
+          },
+          usageCapabilities: {
+            $ref: "#/components/schemas/AgentGardenUsageCapabilities",
+          },
+          endpoint: { type: ["string", "null"], format: "uri" },
+          agentCardUrl: { type: ["string", "null"], format: "uri" },
+          authType: {
+            type: "string",
+            enum: ["none", "bearer_token", "api_key"],
+          },
+          authReference: { type: "string" },
+          internalNetworkOnly: { type: "boolean" },
+          configuration: {
+            type: "object",
+            additionalProperties: { type: "string" },
+          },
+          skills: {
+            type: "array",
+            items: { $ref: "#/components/schemas/AgentGardenSkill" },
+          },
+          specializationId: { type: ["string", "null"] },
+          createdAt: { type: ["string", "null"], format: "date-time" },
+          updatedAt: { type: ["string", "null"], format: "date-time" },
+          lastDiscoveredAt: {
+            type: ["string", "null"],
+            format: "date-time",
+          },
+          lastDiscoveryError: { type: ["string", "null"] },
+        },
+      },
+      CreateAgentConnectionInput: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "coordinatorInstanceId",
+          "connectedAgentId",
+          "allowedSkillIds",
+          "approvalMode",
+        ],
+        properties: {
+          coordinatorInstanceId: { type: "string" },
+          connectedAgentId: { type: "string" },
+          allowedSkillIds: { type: "array", items: { type: "string" } },
+          approvalMode: {
+            type: "string",
+            enum: ["AUTO_READ_ONLY", "ALWAYS_ASK"],
+          },
+        },
+      },
+      AgentConnection: {
+        allOf: [
+          { $ref: "#/components/schemas/CreateAgentConnectionInput" },
+          {
+            type: "object",
+            required: ["id", "createdAt", "updatedAt"],
+            properties: {
+              id: { type: "string", format: "uuid" },
+              createdAt: { type: "string", format: "date-time" },
+              updatedAt: { type: "string", format: "date-time" },
+            },
+          },
+        ],
+      },
+      AgentGardenSnapshot: {
+        type: "object",
+        additionalProperties: false,
+        required: ["agents", "connections"],
+        properties: {
+          agents: {
+            type: "array",
+            items: { $ref: "#/components/schemas/AgentGardenEntry" },
+          },
+          connections: {
+            type: "array",
+            items: { $ref: "#/components/schemas/AgentConnection" },
+          },
+        },
+      },
+      VirtualEmployeeModelAccessInput: {
+        type: "object",
+        additionalProperties: false,
+        required: ["allowedModels"],
+        properties: {
+          litellmTeamId: { type: "string" },
+          allowedModels: { type: "array", minItems: 1, items: { type: "string" } },
+          accessGroups: { type: "array", default: [], items: { type: "string" } },
+          maxBudget: { type: "number", minimum: 0 },
+          budgetDuration: { type: "string", default: "30d" },
+          rpmLimit: { type: "integer", minimum: 1 },
+          tpmLimit: { type: "integer", minimum: 1 },
+          maxParallelRequests: { type: "integer", minimum: 1 },
+          keyDuration: { type: "string", pattern: "^\\d+(?:s|m|h|d|w)$", default: "90d" },
+          fallbackModels: { type: "array", default: [], items: { type: "string" } },
+        },
+      },
+      IdentityBindingInput: {
+        type: "object",
+        additionalProperties: false,
+        required: ["identityType", "provider", "externalReference", "displayName"],
+        properties: {
+          identityType: { type: "string", enum: ["kubernetes_service_account", "functional_id", "oauth_client", "api_credential", "cloud_role", "custom"] },
+          provider: { type: "string" },
+          externalReference: { type: "string", description: "A non-secret reference. Credential values are not accepted." },
+          displayName: { type: "string" },
+          system: { type: "string" },
+          metadata: { type: "object", additionalProperties: true, default: {} },
+        },
+      },
+      IdentityBinding: {
+        allOf: [
+          { $ref: "#/components/schemas/IdentityBindingInput" },
+          { type: "object", required: ["id", "virtualEmployeeId", "status", "createdAt", "updatedAt"], properties: {
+            id: { type: "string", format: "uuid" },
+            virtualEmployeeId: { type: "string", format: "uuid" },
+            status: { type: "string", enum: ["active", "inactive", "error"] },
+            createdAt: { type: "string", format: "date-time" },
+            updatedAt: { type: "string", format: "date-time" },
+          } },
+        ],
+      },
+      AccessScopeBindingInput: {
+        type: "object",
+        additionalProperties: false,
+        required: ["resourceType", "resourceId", "actions", "enforcementProvider"],
+        properties: {
+          resourceType: { type: "string" },
+          resourceId: { type: "string" },
+          actions: { type: "array", minItems: 1, items: { type: "string" } },
+          conditions: { type: "object", additionalProperties: true, default: {} },
+          enforcementProvider: { type: "string", enum: ["litellm", "kubernetes_rbac", "target_system", "adapter", "metadata_only"] },
+          approvalStatus: { type: "string", enum: ["not_required", "pending", "approved", "rejected"], default: "not_required" },
+        },
+      },
+      AccessScopeBinding: {
+        allOf: [
+          { $ref: "#/components/schemas/AccessScopeBindingInput" },
+          { type: "object", required: ["id", "virtualEmployeeId", "createdAt", "updatedAt"], properties: {
+            id: { type: "string", format: "uuid" },
+            virtualEmployeeId: { type: "string", format: "uuid" },
+            createdAt: { type: "string", format: "date-time" },
+            updatedAt: { type: "string", format: "date-time" },
+          } },
+        ],
+      },
+      CreateVirtualEmployeeInput: {
+        type: "object",
+        additionalProperties: false,
+        required: ["name", "displayName", "environment"],
+        properties: {
+          name: { type: "string", pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+          displayName: { type: "string", minLength: 2, maxLength: 160 },
+          description: { type: "string", maxLength: 500, default: "" },
+          businessRole: { type: "string" },
+          ownerTeamId: { type: "string" },
+          environment: { type: "string", enum: ["development", "uat", "production"] },
+          tags: { type: "array", default: [], items: { type: "string" } },
+          modelAccess: { $ref: "#/components/schemas/VirtualEmployeeModelAccessInput" },
+          identities: { type: "array", default: [], items: { $ref: "#/components/schemas/IdentityBindingInput" } },
+          accessScopes: { type: "array", default: [], items: { $ref: "#/components/schemas/AccessScopeBindingInput" } },
+          activate: { type: "boolean", default: false },
+        },
+      },
+      UpdateVirtualEmployeeInput: {
+        type: "object",
+        additionalProperties: false,
+        description: "All properties are optional; identity and access-scope bindings use dedicated endpoints.",
+        properties: {
+          name: { type: "string", pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+          displayName: { type: "string", minLength: 2, maxLength: 160 },
+          description: { type: "string", maxLength: 500 },
+          businessRole: { type: "string" },
+          ownerTeamId: { type: "string" },
+          environment: { type: "string", enum: ["development", "uat", "production"] },
+          tags: { type: "array", items: { type: "string" } },
+          modelAccess: { $ref: "#/components/schemas/VirtualEmployeeModelAccessInput" },
+        },
+      },
+      VirtualEmployee: {
+        allOf: [
+          { $ref: "#/components/schemas/CreateVirtualEmployeeInput" },
+          { type: "object", required: ["id", "projectId", "status", "createdBy", "createdAt", "updatedAt", "identities", "accessScopes", "boundInstanceIds"], properties: {
+            id: { type: "string", format: "uuid" },
+            projectId: { type: "string" },
+            status: { type: "string", enum: ["draft", "pending_approval", "provisioning", "active", "suspended", "expired", "error"] },
+            createdBy: { type: "string" },
+            createdAt: { type: "string", format: "date-time" },
+            updatedAt: { type: "string", format: "date-time" },
+            modelAccess: { type: "object", description: "Safe LiteLLM identifiers, limits, synchronization state, and last-four fingerprint. Never contains a credential or Secret Store reference." },
+            identities: { type: "array", items: { $ref: "#/components/schemas/IdentityBinding" } },
+            accessScopes: { type: "array", items: { $ref: "#/components/schemas/AccessScopeBinding" } },
+            boundInstanceIds: { type: "array", items: { type: "string", format: "uuid" } },
+          } },
+        ],
+      },
+      VirtualEmployeeSpend: {
+        type: "object",
+        required: ["totalSpend", "requests", "tokens", "byModel", "daily"],
+        properties: {
+          totalSpend: { type: "number" },
+          requests: { type: "integer" },
+          tokens: { type: "integer" },
+          budgetUtilization: { type: "number" },
+          byModel: { type: "array", items: { type: "object", required: ["model", "spend", "requests", "tokens"], properties: { model: { type: "string" }, spend: { type: "number" }, requests: { type: "integer" }, tokens: { type: "integer" } } } },
+          daily: { type: "array", items: { type: "object", required: ["date", "spend"], properties: { date: { type: "string", format: "date" }, spend: { type: "number" } } } },
+        },
+      },
+      VirtualEmployeeAuditEvent: {
+        type: "object",
+        required: ["id", "virtualEmployeeId", "type", "actor", "result", "message", "createdAt"],
+        properties: {
+          id: { type: "string", format: "uuid" },
+          virtualEmployeeId: { type: "string", format: "uuid" },
+          type: { type: "string" },
+          actor: { type: "string" },
+          result: { type: "string", enum: ["success", "failed"] },
+          message: { type: "string" },
+          createdAt: { type: "string", format: "date-time" },
         },
       },
       CreateAgentInput: {
         type: "object",
         additionalProperties: false,
-        required: ["name", "runtime", "agentPlatform", "systemPrompt"],
+        required: ["name", "runtime", "agentPlatform", "virtualEmployeeId", "systemPrompt"],
         properties: {
           name: { type: "string", minLength: 3, maxLength: 64 },
           description: { type: "string", maxLength: 300, default: "" },
@@ -616,7 +1603,7 @@ export const openApiDocument = {
             description:
               "Agent implementation configured by NemoClaw inside the OpenShell runtime.",
           },
-          modelProfileId: { type: "string", format: "uuid", description: "READY Model Profile to bind. Omit to use the platform default." },
+          virtualEmployeeId: { type: "string", format: "uuid", description: "Active business identity that owns model and system access for this Instance." },
           policyId: { type: "string", pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$", description: "Catalog Policy ID. Omit to use the deployment ConfigMap default." },
           systemPrompt: { type: "string", minLength: 10, maxLength: 8000 },
           specializationId: { type: "string", minLength: 1, maxLength: 64 },
@@ -654,7 +1641,7 @@ export const openApiDocument = {
               modelProfileId: { type: "string", format: "uuid" },
               modelProfileBindingId: { type: "string", format: "uuid" },
               modelProfileStatus: { type: "string", enum: ["DRAFT", "VALIDATING", "READY", "DEGRADED", "NON_COMPLIANT", "SUSPENDED", "UNSUPPORTED"] },
-              modelProfileComplianceDomain: { type: "string", enum: ["CN_MAINLAND", "GLOBAL"] },
+              modelProfileComplianceDomain: { type: "string", enum: ["GLOBAL", "CN_MAINLAND", "EU_EEA", "US", "UK", "APAC_EX_CN"] },
               modelProfileKeyFingerprint: { type: "string" },
             },
           },
@@ -691,38 +1678,147 @@ export const openApiDocument = {
         properties: {
           connection: { $ref: "#/components/schemas/ProviderConnectionDraft" },
           models: { type: "array", minItems: 1, maxItems: 100, items: { $ref: "#/components/schemas/ProviderModelSelection" } },
-          complianceDomain: { type: "string", enum: ["CN_MAINLAND", "GLOBAL"] },
+          complianceDomain: { type: "string", enum: ["GLOBAL", "CN_MAINLAND", "EU_EEA", "US", "UK", "APAC_EX_CN"] },
         },
       },
       InferenceGateway: {
         type: "object",
-        required: ["id", "name", "baseUrl", "adminUiUrl", "complianceDomain", "credentialSource", "status", "validationMessage", "createdAt", "updatedAt"],
-        properties: { id: { type: "string" }, name: { type: "string" }, baseUrl: { type: "string", format: "uri" }, adminUiUrl: { type: "string", format: "uri" }, complianceDomain: { type: "string", enum: ["CN_MAINLAND", "GLOBAL"] }, credentialSource: { type: "string", enum: ["ENVIRONMENT", "SECRET_REFERENCE"] }, status: { type: "string", enum: ["UNKNOWN", "READY", "DEGRADED"] }, validationMessage: { type: "string" }, validatedAt: { type: "string", format: "date-time" }, createdAt: { type: "string", format: "date-time" }, updatedAt: { type: "string", format: "date-time" } },
+        required: ["id", "name", "baseUrl", "adminUiUrl", "credentialSource", "status", "validationMessage", "createdAt", "updatedAt"],
+        properties: { id: { type: "string" }, name: { type: "string" }, baseUrl: { type: "string", format: "uri" }, adminUiUrl: { type: "string", format: "uri" }, credentialSource: { type: "string", enum: ["ENVIRONMENT", "SECRET_REFERENCE"] }, status: { type: "string", enum: ["UNKNOWN", "READY", "DEGRADED"] }, validationMessage: { type: "string" }, validatedAt: { type: "string", format: "date-time" }, createdAt: { type: "string", format: "date-time" }, updatedAt: { type: "string", format: "date-time" } },
       },
       CreateModelProfileInput: {
         type: "object",
         additionalProperties: false,
-        required: ["name", "gatewayId", "publicModelAlias", "complianceDomain"],
-        properties: { name: { type: "string", minLength: 2, maxLength: 64 }, description: { type: "string" }, gatewayId: { type: "string" }, publicModelAlias: { type: "string" }, complianceDomain: { type: "string", enum: ["CN_MAINLAND", "GLOBAL"] }, isDefault: { type: "boolean" }, keyPolicy: { type: "object" }, auditPolicy: { type: "object" } },
+        required: ["name", "gatewayId", "routingPolicy", "complianceDomain"],
+        properties: { name: { type: "string", minLength: 2, maxLength: 64 }, description: { type: "string" }, gatewayId: { type: "string" }, routingPolicy: { $ref: "#/components/schemas/ModelProfileRoutingPolicy" }, complianceDomain: { type: "string", enum: ["GLOBAL", "CN_MAINLAND", "EU_EEA", "US", "UK", "APAC_EX_CN"] }, isDefault: { type: "boolean" }, keyPolicy: { type: "object" }, auditPolicy: { type: "object" } },
+      },
+      ModelProfileRoutingPolicy: {
+        oneOf: [
+          {
+            type: "object",
+            additionalProperties: false,
+            required: ["version", "mode", "modelDeploymentId", "fallbackModelDeploymentIds", "retries"],
+            properties: {
+              version: { type: "integer", const: 1 },
+              mode: { type: "string", const: "SINGLE" },
+              modelDeploymentId: { type: "string", format: "uuid" },
+              fallbackModelDeploymentIds: { type: "array", maxItems: 8, items: { type: "string", format: "uuid" } },
+              retries: { type: "integer", minimum: 0, maximum: 10, default: 2 },
+            },
+          },
+          {
+            type: "object",
+            additionalProperties: false,
+            required: ["version", "mode", "simpleModelDeploymentId", "complexModelDeploymentId", "fallbackModelDeploymentIds", "retries"],
+            properties: {
+              version: { type: "integer", const: 1 },
+              mode: { type: "string", const: "COMPLEXITY" },
+              simpleModelDeploymentId: { type: "string", format: "uuid" },
+              complexModelDeploymentId: { type: "string", format: "uuid" },
+              fallbackModelDeploymentIds: { type: "array", maxItems: 8, items: { type: "string", format: "uuid" } },
+              retries: { type: "integer", minimum: 0, maximum: 10, default: 2 },
+            },
+          },
+          {
+            type: "object",
+            additionalProperties: false,
+            required: ["version", "mode", "defaultModelDeploymentId", "embeddingModelDeploymentId", "routes", "fallbackModelDeploymentIds", "retries"],
+            properties: {
+              version: { type: "integer", const: 1 },
+              mode: { type: "string", const: "SEMANTIC" },
+              defaultModelDeploymentId: { type: "string", format: "uuid" },
+              embeddingModelDeploymentId: { type: "string", format: "uuid" },
+              routes: {
+                type: "array",
+                minItems: 1,
+                maxItems: 16,
+                items: {
+                  type: "object",
+                  additionalProperties: false,
+                  required: ["intent", "description", "modelDeploymentId", "utterances", "scoreThreshold"],
+                  properties: {
+                    intent: { type: "string", pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+                    description: { type: "string", minLength: 3, maxLength: 240 },
+                    modelDeploymentId: { type: "string", format: "uuid" },
+                    utterances: { type: "array", minItems: 2, maxItems: 50, items: { type: "string" } },
+                    scoreThreshold: { type: "number", minimum: 0, maximum: 1, default: 0.5 },
+                  },
+                },
+              },
+              fallbackModelDeploymentIds: { type: "array", maxItems: 8, items: { type: "string", format: "uuid" } },
+              retries: { type: "integer", minimum: 0, maximum: 10, default: 2 },
+            },
+          },
+        ],
+        discriminator: { propertyName: "mode" },
+      },
+      UpdateProjectQuotaInput: {
+        type: "object",
+        additionalProperties: false,
+        required: ["hardBudgetUsd", "budgetDuration", "tpmLimit", "maxInstances", "maxMcpIntegrations", "maxKnowledgeBaseIntegrations"],
+        properties: {
+          hardBudgetUsd: { type: ["number", "null"], minimum: 0 },
+          budgetDuration: { type: ["string", "null"], enum: ["1d", "7d", "30d", null] },
+          tpmLimit: { type: ["integer", "null"], minimum: 0 },
+          maxInstances: { type: ["integer", "null"], minimum: 0 },
+          maxMcpIntegrations: { type: ["integer", "null"], minimum: 0 },
+          maxKnowledgeBaseIntegrations: { type: ["integer", "null"], minimum: 0 },
+        },
+      },
+      ProjectQuota: {
+        allOf: [
+          { $ref: "#/components/schemas/UpdateProjectQuotaInput" },
+          {
+            type: "object",
+            required: ["projectId", "litellmTeamId", "syncStatus", "lastSyncedAt", "lastSyncError", "revision", "usage"],
+            properties: {
+              projectId: { type: "string" },
+              litellmTeamId: { type: ["string", "null"] },
+              syncStatus: { type: "string", enum: ["pending", "synced", "failed"] },
+              lastSyncedAt: { type: ["string", "null"], format: "date-time" },
+              lastSyncError: { type: ["string", "null"] },
+              revision: { type: "integer", minimum: 1 },
+              usage: {
+                type: "object",
+                required: ["spendUsd", "totalTokens", "instances", "mcpIntegrations", "knowledgeBaseIntegrations"],
+                properties: {
+                  spendUsd: { type: "number", minimum: 0 },
+                  totalTokens: { type: "integer", minimum: 0 },
+                  instances: { type: "integer", minimum: 0 },
+                  mcpIntegrations: { type: "integer", minimum: 0 },
+                  knowledgeBaseIntegrations: { type: "integer", minimum: 0 },
+                },
+              },
+            },
+          },
+        ],
       },
       ModelProfile: {
-        allOf: [{ $ref: "#/components/schemas/CreateModelProfileInput" }, { type: "object", required: ["id", "managementMode", "status", "capabilities", "conditions", "configurationHash", "observedGeneration", "validationMessage", "consumers", "createdAt", "updatedAt"], properties: { id: { type: "string", format: "uuid" }, managementMode: { type: "string", const: "LITELLM_MANAGED" }, status: { type: "string", enum: ["DRAFT", "VALIDATING", "READY", "DEGRADED", "NON_COMPLIANT", "SUSPENDED", "UNSUPPORTED"] }, capabilities: { type: "object", required: ["automaticRouting", "routerType", "sessionAffinity", "adaptiveRouting", "failover", "generalFallback", "contextWindowFallback", "contentPolicyFallback", "retries", "requestAudit"], properties: { automaticRouting: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, routerType: { type: "string", enum: ["COMPLEXITY_ROUTER", "OTHER", "UNKNOWN"] }, complexityTierCount: { type: "integer", minimum: 0 }, sessionAffinity: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, adaptiveRouting: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, failover: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, generalFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, contextWindowFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, contentPolicyFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, retries: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, requestAudit: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] } } }, conditions: { type: "array", items: { type: "object" } }, configurationHash: { type: "string" }, observedGeneration: { type: "integer", minimum: 1 }, validationMessage: { type: "string" }, consumers: { type: "integer" }, lastSynchronizedAt: { type: "string", format: "date-time" }, createdAt: { type: "string", format: "date-time" }, updatedAt: { type: "string", format: "date-time" } } }],
+        allOf: [{ $ref: "#/components/schemas/CreateModelProfileInput" }, { type: "object", required: ["id", "managementMode", "publicModelAlias", "status", "capabilities", "conditions", "configurationHash", "observedGeneration", "validationMessage", "consumers", "createdAt", "updatedAt"], properties: { id: { type: "string", format: "uuid" }, managementMode: { type: "string", const: "LITELLM_MANAGED" }, publicModelAlias: { type: "string" }, status: { type: "string", enum: ["DRAFT", "VALIDATING", "READY", "DEGRADED", "NON_COMPLIANT", "SUSPENDED", "UNSUPPORTED"] }, capabilities: { type: "object", required: ["automaticRouting", "routerType", "sessionAffinity", "adaptiveRouting", "failover", "generalFallback", "contextWindowFallback", "contentPolicyFallback", "retries", "requestAudit"], properties: { automaticRouting: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, routerType: { type: "string", enum: ["COMPLEXITY_ROUTER", "SEMANTIC_ROUTER", "OTHER", "UNKNOWN"] }, complexityTierCount: { type: "integer", minimum: 0 }, semanticRouteCount: { type: "integer", minimum: 0 }, sessionAffinity: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, adaptiveRouting: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, failover: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, generalFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, contextWindowFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, contentPolicyFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, retries: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, requestAudit: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] } } }, conditions: { type: "array", items: { type: "object" } }, configurationHash: { type: "string" }, observedGeneration: { type: "integer", minimum: 1 }, validationMessage: { type: "string" }, consumers: { type: "integer" }, lastSynchronizedAt: { type: "string", format: "date-time" }, createdAt: { type: "string", format: "date-time" }, updatedAt: { type: "string", format: "date-time" } } }],
       },
       ModelProfileConsumer: {
         type: "object",
-        required: ["id", "modelProfileId", "agentId", "liteLLMTeamId", "keyAlias", "keyFingerprint", "status", "createdAt"],
-        properties: { id: { type: "string" }, modelProfileId: { type: "string" }, agentId: { type: "string" }, liteLLMTeamId: { type: "string" }, keyAlias: { type: "string" }, keyFingerprint: { type: "string" }, status: { type: "string", enum: ["ACTIVE", "REVOKED"] }, createdAt: { type: "string", format: "date-time" }, revokedAt: { type: "string", format: "date-time" } },
+        required: ["id", "modelProfileId", "instanceId", "liteLLMTeamId", "keyAlias", "keyFingerprint", "status", "createdAt"],
+        properties: { id: { type: "string" }, modelProfileId: { type: "string" }, instanceId: { type: "string" }, liteLLMTeamId: { type: "string" }, keyAlias: { type: "string" }, keyFingerprint: { type: "string" }, status: { type: "string", enum: ["ACTIVE", "REVOKED"] }, createdAt: { type: "string", format: "date-time" }, revokedAt: { type: "string", format: "date-time" } },
       },
       ModelProfileAuditEvent: {
         type: "object",
         required: ["eventId", "timestamp", "actor", "type", "modelProfileId", "configurationHash", "complianceDomain", "result", "reason"],
-        properties: { eventId: { type: "string" }, timestamp: { type: "string", format: "date-time" }, actor: { type: "string" }, type: { type: "string" }, modelProfileId: { type: "string" }, agentId: { type: "string" }, configurationHash: { type: "string" }, complianceDomain: { type: "string", enum: ["CN_MAINLAND", "GLOBAL"] }, result: { type: "string", enum: ["SUCCESS", "FAILED"] }, reason: { type: "string" } },
+        properties: { eventId: { type: "string" }, timestamp: { type: "string", format: "date-time" }, actor: { type: "string" }, type: { type: "string" }, modelProfileId: { type: "string" }, instanceId: { type: "string" }, configurationHash: { type: "string" }, complianceDomain: { type: "string", enum: ["GLOBAL", "CN_MAINLAND", "EU_EEA", "US", "UK", "APAC_EX_CN"] }, result: { type: "string", enum: ["SUCCESS", "FAILED"] }, reason: { type: "string" } },
       },
       ProviderModelSelection: {
         type: "object",
         required: ["modelId", "displayName", "modelType"],
         properties: {
-          modelId: { type: "string" }, displayName: { type: "string" }, modelType: { type: "string", enum: ["llm", "text-embedding", "speech-to-text"] }, inputFeePerMillionTokens: { type: "number", minimum: 0 }, outputFeePerMillionTokens: { type: "number", minimum: 0 }, feePerAudioMinute: { type: "number", minimum: 0 },
+          modelId: { type: "string" },
+          displayName: { type: "string" },
+          modelType: { type: "string", enum: ["llm", "text-embedding", "speech-to-text"] },
+          capabilities: { type: "array", items: { type: "string", enum: ["reasoning", "vision", "ocr", "document-understanding", "tool-calling", "structured-output", "code", "multilingual"] } },
+          inputModalities: { type: "array", minItems: 1, items: { type: "string", enum: ["text", "image", "audio", "document"] } },
+          outputModalities: { type: "array", minItems: 1, items: { type: "string", enum: ["text", "embedding"] } },
+          inputFeePerMillionTokens: { type: "number", minimum: 0 },
+          outputFeePerMillionTokens: { type: "number", minimum: 0 },
+          feePerAudioMinute: { type: "number", minimum: 0 },
         },
       },
       SandboxPolicyInput: {
@@ -771,6 +1867,9 @@ export const openApiDocument = {
           modelId: { type: "string" },
           displayName: { type: "string" },
           modelType: { type: "string", enum: ["llm", "text-embedding", "speech-to-text"] },
+          capabilities: { type: "array", items: { type: "string", enum: ["reasoning", "vision", "ocr", "document-understanding", "tool-calling", "structured-output", "code", "multilingual"] } },
+          inputModalities: { type: "array", minItems: 1, items: { type: "string", enum: ["text", "image", "audio", "document"] } },
+          outputModalities: { type: "array", minItems: 1, items: { type: "string", enum: ["text", "embedding"] } },
           inputFeePerMillionTokens: { type: "number", minimum: 0 },
           outputFeePerMillionTokens: { type: "number", minimum: 0 },
           feePerAudioMinute: { type: "number", minimum: 0 },
@@ -810,7 +1909,7 @@ export const openApiDocument = {
           presetId: { type: "string" },
           endpoint: { type: "string", format: "uri" },
           config: { type: "object", additionalProperties: true },
-          complianceDomain: { type: "string", enum: ["CN_MAINLAND", "GLOBAL"] },
+          complianceDomain: { type: "string", enum: ["GLOBAL", "CN_MAINLAND", "EU_EEA", "US", "UK", "APAC_EX_CN"] },
           endpointRegion: { type: "string" },
           crossBorderTransfer: { type: "boolean", const: false },
           discoveredModels: { type: "array", items: { type: "string" } },
@@ -842,8 +1941,8 @@ export const openApiDocument = {
       ModelDeployment: {
         allOf: [
           { $ref: "#/components/schemas/CreateModelDeploymentInput" },
-          { type: "object", required: ["id", "isDefault", "providerPresetId", "providerName", "endpoint", "complianceDomain", "endpointRegion", "crossBorderTransfer", "litellmModelName", "status", "checks", "validationMessage", "createdAt", "updatedAt"], properties: {
-            id: { type: "string" }, isDefault: { type: "boolean" }, providerPresetId: { type: "string" }, providerName: { type: "string" }, endpoint: { type: "string", format: "uri" }, complianceDomain: { type: "string", enum: ["CN_MAINLAND", "GLOBAL"] }, endpointRegion: { type: "string" }, crossBorderTransfer: { type: "boolean", const: false }, litellmModelName: { type: "string" }, status: { type: "string", enum: ["VALIDATED", "DEGRADED", "FAILED"] }, checks: { type: "array", items: { $ref: "#/components/schemas/ProviderValidationCheck" } }, validationMessage: { type: "string" }, validationLatencyMs: { type: "integer" }, validatedAt: { type: "string", format: "date-time" }, createdAt: { type: "string", format: "date-time" }, updatedAt: { type: "string", format: "date-time" },
+          { type: "object", required: ["id", "capabilities", "inputModalities", "outputModalities", "providerPresetId", "providerName", "endpoint", "complianceDomain", "endpointRegion", "crossBorderTransfer", "litellmModelName", "status", "checks", "validationMessage", "createdAt", "updatedAt"], properties: {
+            id: { type: "string" }, providerPresetId: { type: "string" }, providerName: { type: "string" }, endpoint: { type: "string", format: "uri" }, complianceDomain: { type: "string", enum: ["GLOBAL", "CN_MAINLAND", "EU_EEA", "US", "UK", "APAC_EX_CN"] }, endpointRegion: { type: "string" }, crossBorderTransfer: { type: "boolean", const: false }, litellmModelName: { type: "string" }, status: { type: "string", enum: ["VALIDATED", "DEGRADED", "FAILED"] }, checks: { type: "array", items: { $ref: "#/components/schemas/ProviderValidationCheck" } }, validationMessage: { type: "string" }, validationLatencyMs: { type: "integer" }, validatedAt: { type: "string", format: "date-time" }, createdAt: { type: "string", format: "date-time" }, updatedAt: { type: "string", format: "date-time" },
           } },
         ],
       },

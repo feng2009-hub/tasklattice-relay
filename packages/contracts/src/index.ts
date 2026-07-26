@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export * from "./traces.js";
+
 export const agentStatuses = [
   "PROVISIONING",
   "READY",
@@ -40,12 +42,80 @@ export const providerKinds = [
   "custom-anthropic-compatible",
 ] as const;
 
-export const legacyProviderPresetIds = ["kimi-cn", "kimi-global"] as const;
-export const providerPresetIds = [...providerKinds, ...legacyProviderPresetIds] as const;
-
 export const modelTypes = ["llm", "text-embedding", "speech-to-text"] as const;
 
-export const complianceDomains = ["CN_MAINLAND", "GLOBAL"] as const;
+export const modelCapabilities = [
+  "reasoning",
+  "vision",
+  "ocr",
+  "document-understanding",
+  "tool-calling",
+  "structured-output",
+  "code",
+  "multilingual",
+] as const;
+export const modelInputModalities = [
+  "text",
+  "image",
+  "audio",
+  "document",
+] as const;
+export const modelOutputModalities = [
+  "text",
+  "embedding",
+] as const;
+
+export const complianceDomains = [
+  "GLOBAL",
+  "CN_MAINLAND",
+  "EU_EEA",
+  "US",
+  "UK",
+  "APAC_EX_CN",
+] as const;
+export const complianceDomainCatalog = [
+  {
+    id: "GLOBAL",
+    label: "Global",
+    description: "No project-level residency restriction. Provider terms still apply.",
+    endpointRegion: "global",
+  },
+  {
+    id: "CN_MAINLAND",
+    label: "Mainland China",
+    description: "Keep registered endpoints and Profile fallbacks in Mainland China.",
+    endpointRegion: "cn-mainland",
+  },
+  {
+    id: "EU_EEA",
+    label: "EU / EEA",
+    description: "Keep registered endpoints and Profile fallbacks in the EU or EEA.",
+    endpointRegion: "eu-eea",
+  },
+  {
+    id: "US",
+    label: "United States",
+    description: "Keep registered endpoints and Profile fallbacks in the United States.",
+    endpointRegion: "us",
+  },
+  {
+    id: "UK",
+    label: "United Kingdom",
+    description: "Keep registered endpoints and Profile fallbacks in the United Kingdom.",
+    endpointRegion: "uk",
+  },
+  {
+    id: "APAC_EX_CN",
+    label: "APAC (excluding Mainland China)",
+    description: "Keep registered endpoints and Profile fallbacks in APAC outside Mainland China.",
+    endpointRegion: "apac-ex-cn",
+  },
+] as const satisfies ReadonlyArray<{
+  id: (typeof complianceDomains)[number];
+  label: string;
+  description: string;
+  endpointRegion: string;
+}>;
 export const modelProfileStatuses = [
   "DRAFT",
   "VALIDATING",
@@ -56,14 +126,18 @@ export const modelProfileStatuses = [
   "UNSUPPORTED",
 ] as const;
 export const modelProfileCapabilityStates = ["ENABLED", "DISABLED", "UNKNOWN"] as const;
+export const modelProfileRoutingModes = ["SINGLE", "COMPLEXITY", "SEMANTIC"] as const;
 
 export interface ProviderPresetModel {
   modelId: string;
   displayName: string;
   modelType: (typeof modelTypes)[number];
-  inputFeePerMillionTokens?: number;
-  outputFeePerMillionTokens?: number;
-  feePerAudioMinute?: number;
+  capabilities?: Array<(typeof modelCapabilities)[number]> | undefined;
+  inputModalities?: Array<(typeof modelInputModalities)[number]> | undefined;
+  outputModalities?: Array<(typeof modelOutputModalities)[number]> | undefined;
+  inputFeePerMillionTokens?: number | undefined;
+  outputFeePerMillionTokens?: number | undefined;
+  feePerAudioMinute?: number | undefined;
 }
 
 export const providerPresets = [
@@ -370,6 +444,9 @@ export const providerModelSelectionSchema = z.object({
   modelId: z.string().trim().min(1).max(256),
   displayName: z.string().trim().min(1).max(160),
   modelType: z.enum(modelTypes),
+  capabilities: z.array(z.enum(modelCapabilities)).max(modelCapabilities.length).optional(),
+  inputModalities: z.array(z.enum(modelInputModalities)).min(1).max(modelInputModalities.length).optional(),
+  outputModalities: z.array(z.enum(modelOutputModalities)).min(1).max(modelOutputModalities.length).optional(),
   inputFeePerMillionTokens: z.number().min(0).max(1_000_000).optional(),
   outputFeePerMillionTokens: z.number().min(0).max(1_000_000).optional(),
   feePerAudioMinute: z.number().min(0).max(1_000_000).optional(),
@@ -463,32 +540,227 @@ export const createSkillDefinitionSchema = skillDefinitionSchema.omit({
 });
 export const updateSkillDefinitionSchema = createSkillDefinitionSchema;
 
-export const mcpServerDefinitionSchema = z.object({
-  id: z.string().trim().min(1).max(160),
-  name: z.string().trim().min(3).max(120),
-  endpoint: z.string().trim().url(),
-  transport: z.enum(["Streamable HTTP", "SSE"]),
-  authReference: z.string().trim().max(500),
-  parameters: z.string().trim().min(2).max(64_000),
-  status: z.enum(["HEALTHY", "PERMISSION_REQUIRED", "UNCHECKED", "UNAVAILABLE"]),
-  tools: z.number().int().min(0).max(100_000),
+export const mcpToolAnnotationsSchema = z.object({
+  title: z.string().trim().min(1).max(200).optional(),
+  readOnlyHint: z.boolean().optional(),
+  destructiveHint: z.boolean().optional(),
+  idempotentHint: z.boolean().optional(),
+  openWorldHint: z.boolean().optional(),
+}).strict();
+
+export const mcpToolDefinitionSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  title: z.string().trim().min(1).max(200).optional(),
+  description: z.string().max(4_000).optional(),
+  inputSchema: z.record(z.string(), z.unknown()),
+  outputSchema: z.record(z.string(), z.unknown()).optional(),
+  annotations: mcpToolAnnotationsSchema.optional(),
+  discoveredAt: z.string().datetime(),
 });
 
-export const createMcpServerDefinitionSchema = mcpServerDefinitionSchema.omit({ id: true });
+export const mcpTransportSchema = z.enum(["http", "sse", "stdio", "openapi"]);
+export const mcpAuthTypeSchema = z.enum([
+  "none",
+  "bearer_token",
+  "api_key",
+  "basic",
+  "authorization",
+  "oauth2",
+  "aws_sigv4",
+]);
+
+export const mcpSecretReferenceSchema = z.string().trim().min(1).max(500).refine(
+  (value) => /^(?:k8s|memory):\/\//.test(value),
+  "Credentials must use a supported Secret reference.",
+);
+
+const optionalMcpSecretReferenceSchema = z.string().trim().max(500).refine(
+  (value) => !value || /^(?:k8s|memory):\/\//.test(value),
+  "Credentials must use a supported Secret reference.",
+);
+
+export const mcpStaticHeaderSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  valueReference: mcpSecretReferenceSchema,
+}).strict();
+
+export const mcpEnvironmentVariableSchema = z.object({
+  name: z.string().trim().regex(/^[A-Z_][A-Z0-9_]*$/).max(120),
+  valueReference: mcpSecretReferenceSchema,
+}).strict();
+
+export const mcpOauthConfigurationSchema = z.object({
+  flow: z.enum(["client_credentials", "authorization_code"]),
+  authorizationUrl: z.string().trim().url().optional(),
+  tokenUrl: z.string().trim().url().optional(),
+  registrationUrl: z.string().trim().url().optional(),
+}).strict();
+
+const mcpServerConnectionFields = {
+  templateId: z.string().trim().min(1).max(120).optional(),
+  name: z.string().trim().min(3).max(120),
+  alias: z.string().trim().regex(/^[a-zA-Z0-9_]+$/, "Alias may contain letters, numbers, and underscores only.").max(120),
+  description: z.string().trim().min(10).max(1_000),
+  category: z.string().trim().min(2).max(80),
+  logoUrl: z.string().trim().url().optional(),
+  sourceUrl: z.string().trim().url().optional(),
+  transport: mcpTransportSchema,
+  endpoint: z.string().trim().url().optional(),
+  specPath: z.string().trim().min(1).max(1_000).optional(),
+  command: z.string().trim().min(1).max(240).optional(),
+  args: z.array(z.string().max(1_000)).max(64).default([]),
+  environment: z.array(mcpEnvironmentVariableSchema).max(64).default([]),
+  authType: mcpAuthTypeSchema.default("none"),
+  authReference: optionalMcpSecretReferenceSchema.default(""),
+  oauth: mcpOauthConfigurationSchema.optional(),
+  accessGroups: z.array(z.string().trim().min(1).max(120)).max(64).default([]),
+  allowedTools: z.array(z.string().trim().min(1).max(200)).max(10_000).default([]),
+  extraHeaders: z.array(z.string().trim().min(1).max(120)).max(64).default([]),
+  staticHeaders: z.array(mcpStaticHeaderSchema).max(64).default([]),
+  internalNetworkOnly: z.boolean().default(false),
+};
+
+function validateMcpServerConnection(
+  value: Record<string, unknown>,
+  context: z.RefinementCtx,
+): void {
+  if (["http", "sse"].includes(String(value.transport)) && !value.endpoint) {
+    context.addIssue({ code: "custom", path: ["endpoint"], message: "Endpoint is required for HTTP and SSE transports." });
+  }
+  if (value.transport === "openapi" && !value.specPath) {
+    context.addIssue({ code: "custom", path: ["specPath"], message: "OpenAPI spec path is required." });
+  }
+  if (value.transport === "stdio" && (!value.command || !Array.isArray(value.args) || value.args.length === 0)) {
+    context.addIssue({ code: "custom", path: ["command"], message: "Command and arguments are required for stdio transport." });
+  }
+  if (value.authType !== "none" && value.authType !== "oauth2" && !value.authReference) {
+    context.addIssue({ code: "custom", path: ["authReference"], message: "A Secret reference is required for this authentication type." });
+  }
+  if (value.authType === "oauth2" && !value.oauth) {
+    context.addIssue({ code: "custom", path: ["oauth"], message: "OAuth configuration is required." });
+  }
+}
+
+export const mcpServerConnectionSchema = z.object(mcpServerConnectionFields).strict().superRefine(validateMcpServerConnection);
+
+export const mcpServerDefinitionSchema = z.object({
+  ...mcpServerConnectionFields,
+  id: z.string().trim().min(1).max(160),
+  litellmServerId: z.string().trim().min(1).max(240),
+  status: z.enum(["HEALTHY", "PERMISSION_REQUIRED", "UNCHECKED", "UNAVAILABLE"]),
+  tools: z.array(mcpToolDefinitionSchema).max(10_000),
+  lastDiscoveryAttemptAt: z.string().datetime().nullable(),
+  lastDiscoveredAt: z.string().datetime().nullable(),
+  lastDiscoveryError: z.string().max(4_000).nullable(),
+}).strict().superRefine(validateMcpServerConnection);
+
+export const createMcpServerDefinitionSchema = mcpServerConnectionSchema;
 export const updateMcpServerDefinitionSchema = createMcpServerDefinitionSchema;
 
-export const knowledgeSourceDefinitionSchema = z.object({
+export const accessPolicyStatuses = ["DRAFT", "ACTIVE"] as const;
+export const accessPolicyDecisions = ["INHERIT", "ALLOW", "DENY"] as const;
+
+export const accessPolicyToolRuleSchema = z.object({
+  toolName: z.string().trim().min(1).max(200),
+  decision: z.enum(accessPolicyDecisions),
+}).strict();
+
+export const accessPolicyServerRuleSchema = z.object({
+  mcpServerId: z.string().trim().min(1).max(160),
+  defaultDecision: z.enum(["ALLOW", "DENY"]),
+  tools: z.array(accessPolicyToolRuleSchema).max(10_000).default([]),
+}).strict();
+
+export const createAccessPolicySchema = z.object({
+  name: z.string().trim().min(3).max(120),
+  status: z.enum(accessPolicyStatuses).default("DRAFT"),
+  virtualEmployeeIds: z.array(z.string().uuid()).max(1_000).default([]),
+  serverRules: z.array(accessPolicyServerRuleSchema).max(1_000),
+}).strict();
+
+export const updateAccessPolicySchema = z.object({
+  name: z.string().trim().min(3).max(120).optional(),
+  status: z.enum(accessPolicyStatuses).optional(),
+  virtualEmployeeIds: z.array(z.string().uuid()).max(1_000).optional(),
+  serverRules: z.array(accessPolicyServerRuleSchema).max(1_000).optional(),
+}).strict();
+
+export const mcpServerTemplateSchema = z.object({
+  id: z.string().trim().min(1).max(120),
+  name: z.string().trim().min(2).max(120),
+  description: z.string().trim().min(10).max(1_000),
+  category: z.string().trim().min(2).max(80),
+  logo: z.string().trim().min(1).max(120),
+  sourceUrl: z.string().trim().url(),
+  transport: mcpTransportSchema,
+  endpointPlaceholder: z.string().trim().max(500).optional(),
+  command: z.string().trim().max(240).optional(),
+  args: z.array(z.string().max(1_000)).max(64).default([]),
+  defaultAuthType: mcpAuthTypeSchema,
+}).strict();
+
+const knowledgeSourceDefinitionBaseSchema = z.object({
   id: z.string().trim().min(1).max(160),
   name: z.string().trim().min(3).max(120),
   description: z.string().trim().min(10).max(500),
-  endpoint: z.string().trim().url(),
-  mode: z.enum(["Hybrid", "Vector", "Keyword"]),
-  authReference: z.string().trim().max(500),
-  status: z.enum(["READY", "UNCHECKED"]),
+  vectorStoreId: z.string().trim().min(1).max(240),
+  provider: z.enum(["openai", "azure", "bedrock", "vertex_ai", "pg_vector", "elasticsearch"]),
+  apiBase: z.string().trim().url().optional(),
+  embeddingModel: z.string().trim().min(1).max(240).optional(),
+  semanticField: z.string().trim().min(1).max(240).optional(),
+  contentField: z.string().trim().min(1).max(240).optional(),
+  credentialReference: optionalMcpSecretReferenceSchema.default(""),
+  status: z.enum(["REGISTERED", "UNAVAILABLE"]),
+  lastReconciliationError: z.string().max(4_000).nullable(),
   topK: z.number().int().min(1).max(50),
-});
+}).strict();
 
-export const createKnowledgeSourceDefinitionSchema = knowledgeSourceDefinitionSchema.omit({ id: true });
+function validateKnowledgeSourceProvider(
+  source: {
+    provider: "openai" | "azure" | "bedrock" | "vertex_ai" | "pg_vector" | "elasticsearch";
+    apiBase?: string | undefined;
+    semanticField?: string | undefined;
+    contentField?: string | undefined;
+    credentialReference: string;
+  },
+  context: z.RefinementCtx,
+): void {
+  if (source.provider === "pg_vector") {
+    if (!source.apiBase) {
+      context.addIssue({
+        code: "custom",
+        path: ["apiBase"],
+        message: "PGVector connector API base is required.",
+      });
+    }
+    if (!source.credentialReference) {
+      context.addIssue({
+        code: "custom",
+        path: ["credentialReference"],
+        message: "PGVector connector credential is required.",
+      });
+    }
+  }
+  if (source.provider === "elasticsearch") {
+    for (const [path, value, message] of [
+      ["apiBase", source.apiBase, "Elasticsearch URL is required."],
+      ["semanticField", source.semanticField, "Elasticsearch semantic_text field is required."],
+      ["contentField", source.contentField, "Elasticsearch content field is required."],
+      ["credentialReference", source.credentialReference, "Elasticsearch credential is required."],
+    ] as const) {
+      if (!value) context.addIssue({ code: "custom", path: [path], message });
+    }
+  }
+}
+
+export const knowledgeSourceDefinitionSchema = knowledgeSourceDefinitionBaseSchema
+  .superRefine(validateKnowledgeSourceProvider);
+
+export const createKnowledgeSourceDefinitionSchema = knowledgeSourceDefinitionBaseSchema.omit({
+  id: true,
+  status: true,
+  lastReconciliationError: true,
+}).superRefine(validateKnowledgeSourceProvider);
 export const updateKnowledgeSourceDefinitionSchema = createKnowledgeSourceDefinitionSchema;
 
 export const agentSpecializationDefinitionSchema = z.object({
@@ -503,33 +775,136 @@ export const agentSpecializationDefinitionSchema = z.object({
   defaultKnowledgeSourceIds: z.array(z.string().trim().min(1).max(160)).max(64),
 });
 
-export const extensionResourceKindSchema = z.enum([
+export const agentGardenBuiltInTypeIds = [
+  "openclaw",
+  "hermes",
+  "claude-code",
+] as const;
+
+export const agentGardenRegisterableTypeIds = [
+  "a2a",
+  "langgraph",
+  "langflow",
+  "bedrock-agentcore",
+  "azure-ai-foundry",
+  "pydantic-ai",
+  "vertex-ai-agent-engine",
+  "watsonx-orchestrate",
+  "custom",
+] as const;
+
+export const agentGardenIntegrationTypeIds = [
+  ...agentGardenBuiltInTypeIds,
+  ...agentGardenRegisterableTypeIds,
+] as const;
+
+export const agentGardenUsageModeIds = [
+  "INTERACTIVE",
+  "CALLABLE",
+  "HYBRID",
+] as const;
+
+export const agentGardenUsageCapabilitiesSchema = z.object({
+  interactive: z.boolean(),
+  canDelegate: z.boolean(),
+  acceptsDelegation: z.boolean(),
+}).strict();
+
+export const agentGardenSkillSchema = z.object({
+  id: z.string().trim().min(1).max(200),
+  name: z.string().trim().min(1).max(200),
+  description: z.string().trim().max(2_000).default(""),
+  tags: z.array(z.string().trim().min(1).max(80)).max(32).default([]),
+}).strict();
+
+export const agentGardenEntrySchema = z.object({
+  id: z.string().trim().min(1).max(160),
+  name: z.string().trim().min(2).max(160),
+  description: z.string().trim().min(10).max(2_000),
+  source: z.enum(["BUILT_IN", "PROJECT_REGISTERED"]),
+  integrationType: z.enum(agentGardenIntegrationTypeIds),
+  platformLabel: z.string().trim().min(1).max(120),
+  category: z.string().trim().min(2).max(80),
+  owner: z.string().trim().min(1).max(120),
+  tags: z.array(z.string().trim().min(1).max(80)).max(32),
+  status: z.enum(["READY", "COMING_SOON", "UNCHECKED", "UNAVAILABLE"]),
+  usageMode: z.enum(agentGardenUsageModeIds),
+  usageCapabilities: agentGardenUsageCapabilitiesSchema,
+  endpoint: z.string().trim().url().nullable(),
+  agentCardUrl: z.string().trim().url().nullable(),
+  authType: z.enum(["none", "bearer_token", "api_key"]),
+  authReference: optionalMcpSecretReferenceSchema,
+  internalNetworkOnly: z.boolean(),
+  configuration: z.record(z.string(), z.string()),
+  skills: z.array(agentGardenSkillSchema).max(1_000),
+  specializationId: z.string().trim().min(1).max(64).nullable(),
+  createdAt: z.string().datetime().nullable(),
+  updatedAt: z.string().datetime().nullable(),
+  lastDiscoveredAt: z.string().datetime().nullable(),
+  lastDiscoveryError: z.string().max(4_000).nullable(),
+}).strict();
+
+export const createAgentGardenEntrySchema = z.object({
+  name: z.string().trim().min(3).max(160),
+  description: z.string().trim().min(10).max(2_000),
+  integrationType: z.enum(agentGardenRegisterableTypeIds),
+  endpoint: z.string().trim().url(),
+  agentCardUrl: z.string().trim().url().optional(),
+  category: z.string().trim().min(2).max(80),
+  owner: z.string().trim().min(1).max(120),
+  tags: z.array(z.string().trim().min(1).max(80)).max(32).default([]),
+  usageMode: z.enum(agentGardenUsageModeIds).default("CALLABLE"),
+  authType: z.enum(["none", "bearer_token", "api_key"]).default("none"),
+  authReference: optionalMcpSecretReferenceSchema.default(""),
+  internalNetworkOnly: z.boolean().default(false),
+  configuration: z.record(z.string(), z.string()).default({}),
+}).strict().superRefine((value, context) => {
+  if (value.authType !== "none" && !value.authReference) {
+    context.addIssue({
+      code: "custom",
+      path: ["authReference"],
+      message: "A Secret reference is required for this authentication type.",
+    });
+  }
+});
+
+export const agentConnectionApprovalModeIds = [
+  "AUTO_READ_ONLY",
+  "ALWAYS_ASK",
+] as const;
+
+export const createAgentConnectionSchema = z.object({
+  coordinatorInstanceId: z.string().trim().min(1).max(160),
+  connectedAgentId: z.string().trim().min(1).max(160),
+  allowedSkillIds: z.array(z.string().trim().min(1).max(200)).max(1_000).default([]),
+  approvalMode: z.enum(agentConnectionApprovalModeIds).default("AUTO_READ_ONLY"),
+}).strict();
+
+export const agentConnectionSchema = createAgentConnectionSchema.extend({
+  id: z.string().uuid(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+}).strict();
+
+export const agentGardenSnapshotSchema = z.object({
+  agents: z.array(agentGardenEntrySchema),
+  connections: z.array(agentConnectionSchema),
+}).strict();
+
+export const resourceKindSchema = z.enum([
   "skills",
   "mcp-servers",
   "knowledge-sources",
 ]);
-
-export const createProviderAccountSchema = z.object({
-  name: z.string().trim().min(3).max(48),
-  presetId: z.enum(providerPresetIds),
-  endpoint: z.string().trim().url(),
-  apiKey: z.string().trim().min(8).max(512),
-  complianceDomain: z.enum(complianceDomains),
-}).superRefine((input, context) => {
-  const preset = providerPresets.find((item) => item.id === input.presetId);
-  if (preset?.endpoint && input.endpoint.replace(/\/+$/, "") !== preset.endpoint)
-    context.addIssue({
-      code: "custom",
-      path: ["endpoint"],
-      message: `The ${preset.name} endpoint is managed by the platform catalog.`,
-    });
-});
 
 export const createModelDeploymentSchema = z.object({
   providerAccountId: z.string().trim().min(1),
   modelId: z.string().trim().min(1).max(160),
   displayName: z.string().trim().min(1).max(160),
   modelType: z.enum(modelTypes),
+  capabilities: z.array(z.enum(modelCapabilities)).max(modelCapabilities.length).optional(),
+  inputModalities: z.array(z.enum(modelInputModalities)).min(1).max(modelInputModalities.length).optional(),
+  outputModalities: z.array(z.enum(modelOutputModalities)).min(1).max(modelOutputModalities.length).optional(),
   inputFeePerMillionTokens: z.number().min(0).max(1_000_000).optional(),
   outputFeePerMillionTokens: z.number().min(0).max(1_000_000).optional(),
   feePerAudioMinute: z.number().min(0).max(1_000_000).optional(),
@@ -540,7 +915,7 @@ export const createAgentSchema = z.object({
   description: z.string().trim().max(300).default(""),
   runtime: z.literal("openshell"),
   agentPlatform: z.enum(agentPlatformIds).default(defaultAgentPlatformId),
-  modelProfileId: z.string().uuid().optional(),
+  virtualEmployeeId: z.string().uuid(),
   policyId: sandboxPolicyIdSchema.optional(),
   systemPrompt: z.string().trim().min(10).max(8000),
   specializationId: z.string().trim().min(1).max(64).optional(),
@@ -549,47 +924,258 @@ export const createAgentSchema = z.object({
   knowledgeSourceIds: z.array(z.string().trim().min(1).max(160)).max(64).optional(),
 }).strict();
 
+const nullableQuotaInteger = z.number().int().min(0).max(1_000_000_000).nullable();
+
+export const updateProjectQuotaSchema = z.object({
+  hardBudgetUsd: z.number().min(0).max(10_000_000).nullable(),
+  budgetDuration: z.enum(["1d", "7d", "30d"]).nullable(),
+  tpmLimit: nullableQuotaInteger,
+  maxInstances: nullableQuotaInteger,
+  maxMcpIntegrations: nullableQuotaInteger,
+  maxKnowledgeBaseIntegrations: nullableQuotaInteger,
+}).strict().superRefine((value, context) => {
+  if (value.hardBudgetUsd !== null && value.budgetDuration === null) {
+    context.addIssue({
+      code: "custom",
+      path: ["budgetDuration"],
+      message: "Select a reset period when a spend budget is configured.",
+    });
+  }
+});
+
+export const virtualEmployeeStatuses = [
+  "draft",
+  "pending_approval",
+  "provisioning",
+  "active",
+  "suspended",
+  "expired",
+  "error",
+] as const;
+export const virtualEmployeeEnvironments = ["development", "uat", "production"] as const;
+export const identityTypes = [
+  "kubernetes_service_account",
+  "functional_id",
+  "oauth_client",
+  "api_credential",
+  "cloud_role",
+  "custom",
+] as const;
+export const enforcementProviders = [
+  "litellm",
+  "kubernetes_rbac",
+  "target_system",
+  "adapter",
+  "metadata_only",
+] as const;
+
+const modelAccessInputSchema = z.object({
+  litellmTeamId: z.string().trim().max(160).optional(),
+  allowedModels: z.array(z.string().trim().min(1).max(160)).min(1).max(64),
+  accessGroups: z.array(z.string().trim().min(1).max(160)).max(64).default([]),
+  maxBudget: z.number().min(0).max(10_000_000).optional(),
+  budgetDuration: z.string().trim().max(64).default("30d"),
+  rpmLimit: z.number().int().min(1).max(10_000_000).optional(),
+  tpmLimit: z.number().int().min(1).max(1_000_000_000).optional(),
+  maxParallelRequests: z.number().int().min(1).max(100_000).optional(),
+  keyDuration: z.string().trim().regex(/^\d+(?:s|m|h|d|w)$/, "Use a duration such as 90d.").default("90d"),
+  fallbackModels: z.array(z.string().trim().min(1).max(160)).max(32).default([]),
+});
+
+export const identityBindingInputSchema = z.object({
+  identityType: z.enum(identityTypes),
+  provider: z.string().trim().min(1).max(160),
+  externalReference: z.string().trim().min(1).max(512),
+  displayName: z.string().trim().min(1).max(160),
+  system: z.string().trim().max(160).optional(),
+  metadata: z.record(z.string(), z.unknown()).default({}),
+});
+
+export const accessScopeBindingInputSchema = z.object({
+  resourceType: z.string().trim().min(1).max(160),
+  resourceId: z.string().trim().min(1).max(512),
+  actions: z.array(z.string().trim().min(1).max(160)).min(1).max(64),
+  conditions: z.record(z.string(), z.unknown()).default({}),
+  enforcementProvider: z.enum(enforcementProviders),
+  approvalStatus: z.enum(["not_required", "pending", "approved", "rejected"]).default("not_required"),
+});
+
+export const createVirtualEmployeeSchema = z.object({
+  name: z.string().trim().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use lowercase letters, numbers, and hyphens."),
+  displayName: z.string().trim().min(2).max(160),
+  description: z.string().trim().max(500).default(""),
+  businessRole: z.string().trim().max(160).optional(),
+  ownerTeamId: z.string().trim().max(160).optional(),
+  environment: z.enum(virtualEmployeeEnvironments),
+  tags: z.array(z.string().trim().min(1).max(64)).max(32).default([]),
+  modelAccess: modelAccessInputSchema.optional(),
+  identities: z.array(identityBindingInputSchema).max(64).default([]),
+  accessScopes: z.array(accessScopeBindingInputSchema).max(128).default([]),
+  activate: z.boolean().default(false),
+}).strict();
+
+export const updateVirtualEmployeeSchema = createVirtualEmployeeSchema
+  .omit({ identities: true, accessScopes: true, activate: true })
+  .partial();
+
 export const createInferenceGatewaySchema = z.object({
   name: z.string().trim().min(3).max(64),
   baseUrl: z.string().trim().url(),
   adminUiUrl: z.string().trim().url(),
-  complianceDomain: z.enum(complianceDomains),
   adminCredentialRef: z.string().trim().min(1).max(160),
 });
 
-export const createModelProfileSchema = z.object({
+const modelDeploymentIdSchema = z.string().uuid();
+const fallbackModelDeploymentIdsSchema = z
+  .array(modelDeploymentIdSchema)
+  .max(8)
+  .default([]);
+const retryCountSchema = z.number().int().min(0).max(10).default(2);
+const semanticRouteSchema = z.object({
+  intent: z.string().trim().min(2).max(64).regex(
+    /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+    "Use lowercase letters, numbers, and hyphens.",
+  ),
+  description: z.string().trim().min(3).max(240),
+  modelDeploymentId: modelDeploymentIdSchema,
+  utterances: z.array(z.string().trim().min(2).max(500)).min(2).max(50),
+  scoreThreshold: z.number().min(0).max(1).default(0.5),
+}).strict();
+
+export const modelProfileRoutingPolicySchema = z.discriminatedUnion("mode", [
+  z.object({
+    version: z.literal(1).default(1),
+    mode: z.literal("SINGLE"),
+    modelDeploymentId: modelDeploymentIdSchema,
+    fallbackModelDeploymentIds: fallbackModelDeploymentIdsSchema,
+    retries: retryCountSchema,
+  }).strict(),
+  z.object({
+    version: z.literal(1).default(1),
+    mode: z.literal("COMPLEXITY"),
+    simpleModelDeploymentId: modelDeploymentIdSchema,
+    complexModelDeploymentId: modelDeploymentIdSchema,
+    fallbackModelDeploymentIds: fallbackModelDeploymentIdsSchema,
+    retries: retryCountSchema,
+  }).strict(),
+  z.object({
+    version: z.literal(1).default(1),
+    mode: z.literal("SEMANTIC"),
+    defaultModelDeploymentId: modelDeploymentIdSchema,
+    embeddingModelDeploymentId: modelDeploymentIdSchema,
+    routes: z.array(semanticRouteSchema).min(1).max(16),
+    fallbackModelDeploymentIds: fallbackModelDeploymentIdsSchema,
+    retries: retryCountSchema,
+  }).strict(),
+]).superRefine((policy, context) => {
+  if (
+    policy.mode === "SINGLE"
+    && policy.fallbackModelDeploymentIds.includes(policy.modelDeploymentId)
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["fallbackModelDeploymentIds"],
+      message: "Fallbacks must be different from the primary model.",
+    });
+  }
+  if (policy.mode === "COMPLEXITY") {
+    if (policy.simpleModelDeploymentId === policy.complexModelDeploymentId) {
+      context.addIssue({
+        code: "custom",
+        path: ["complexModelDeploymentId"],
+        message: "Simple and complex tiers must use different model deployments.",
+      });
+    }
+    if (
+      policy.fallbackModelDeploymentIds.includes(policy.simpleModelDeploymentId)
+      || policy.fallbackModelDeploymentIds.includes(policy.complexModelDeploymentId)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["fallbackModelDeploymentIds"],
+        message: "Fallbacks must be different from both routing tiers.",
+      });
+    }
+  }
+  if (policy.mode === "SEMANTIC") {
+    const routeIntents = policy.routes.map((route) => route.intent);
+    if (new Set(routeIntents).size !== routeIntents.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["routes"],
+        message: "Semantic route intents must be unique.",
+      });
+    }
+    const routeTargets = policy.routes.map((route) => route.modelDeploymentId);
+    if (new Set(routeTargets).size !== routeTargets.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["routes"],
+        message: "Each semantic route must target a different model deployment.",
+      });
+    }
+    if (routeTargets.includes(policy.defaultModelDeploymentId)) {
+      context.addIssue({
+        code: "custom",
+        path: ["routes"],
+        message: "Semantic route targets must be different from the default model.",
+      });
+    }
+    const routedModels = new Set([
+      policy.defaultModelDeploymentId,
+      ...routeTargets,
+    ]);
+    if (policy.fallbackModelDeploymentIds.some((id) => routedModels.has(id))) {
+      context.addIssue({
+        code: "custom",
+        path: ["fallbackModelDeploymentIds"],
+        message: "Fallbacks must be different from the default and routed models.",
+      });
+    }
+  }
+});
+
+const modelProfileKeyPolicySchema = z.object({
+  perInstance: z.literal(true).default(true),
+  rotationDays: z.number().int().min(1).max(365).default(90),
+}).default({ perInstance: true, rotationDays: 90 });
+
+const modelProfileAuditPolicySchema = z.object({
+  controlPlane: z.literal(true).default(true),
+  requestLogs: z.boolean().default(true),
+  capturePrompts: z.literal(false).default(false),
+}).default({ controlPlane: true, requestLogs: true, capturePrompts: false });
+
+const createModelProfileBaseSchema = z.object({
   name: z.string().trim().min(2).max(64),
   description: z.string().trim().max(300).default(""),
   gatewayId: z.string().trim().min(1),
-  publicModelAlias: z.string().trim().min(1).max(160),
+  routingPolicy: modelProfileRoutingPolicySchema,
   complianceDomain: z.enum(complianceDomains),
   isDefault: z.boolean().default(false),
-  keyPolicy: z.object({
-    perInstance: z.literal(true).default(true),
-    rotationDays: z.number().int().min(1).max(365).default(90),
-  }).default({ perInstance: true, rotationDays: 90 }),
-  auditPolicy: z.object({
-    controlPlane: z.literal(true).default(true),
-    requestLogs: z.boolean().default(true),
-    capturePrompts: z.literal(false).default(false),
-  }).default({ controlPlane: true, requestLogs: true, capturePrompts: false }),
-});
+  keyPolicy: modelProfileKeyPolicySchema,
+  auditPolicy: modelProfileAuditPolicySchema,
+}).strict();
 
-export const updateModelProfileSchema = createModelProfileSchema.pick({
-  name: true,
-  description: true,
-  isDefault: true,
-  keyPolicy: true,
-  auditPolicy: true,
-}).partial().extend({
+export const createModelProfileSchema = createModelProfileBaseSchema;
+
+export const updateModelProfileSchema = z.object({
+  name: z.string().trim().min(2).max(64).optional(),
+  description: z.string().trim().max(300).optional(),
+  isDefault: z.boolean().optional(),
+  keyPolicy: modelProfileKeyPolicySchema.optional(),
+  auditPolicy: modelProfileAuditPolicySchema.optional(),
+  routingPolicy: modelProfileRoutingPolicySchema.optional(),
   suspended: z.boolean().optional(),
-});
+}).strict();
 
 export type AgentStatus = (typeof agentStatuses)[number];
 export type ProvisioningStage = (typeof provisioningStages)[number];
-export type ProviderPresetId = (typeof providerPresetIds)[number];
 export type ProviderKind = (typeof providerKinds)[number];
 export type ModelType = (typeof modelTypes)[number];
+export type ModelCapability = (typeof modelCapabilities)[number];
+export type ModelInputModality = (typeof modelInputModalities)[number];
+export type ModelOutputModality = (typeof modelOutputModalities)[number];
 export type AgentPlatformId = (typeof agentPlatformIds)[number];
 export type AgentPlatform = (typeof agentPlatforms)[number];
 export type SandboxPolicyId = z.infer<typeof sandboxPolicyIdSchema>;
@@ -601,23 +1187,58 @@ export type SkillDefinition = z.infer<typeof skillDefinitionSchema>;
 export type CreateSkillDefinitionInput = z.infer<typeof createSkillDefinitionSchema>;
 export type UpdateSkillDefinitionInput = z.infer<typeof updateSkillDefinitionSchema>;
 export type McpServerDefinition = z.infer<typeof mcpServerDefinitionSchema>;
+export type McpServerConnection = z.infer<typeof mcpServerConnectionSchema>;
+export type McpToolDefinition = z.infer<typeof mcpToolDefinitionSchema>;
+export type McpServerTemplate = z.infer<typeof mcpServerTemplateSchema>;
 export type CreateMcpServerDefinitionInput = z.infer<typeof createMcpServerDefinitionSchema>;
 export type UpdateMcpServerDefinitionInput = z.infer<typeof updateMcpServerDefinitionSchema>;
+export type AccessPolicyStatus = (typeof accessPolicyStatuses)[number];
+export type AccessPolicyDecision = (typeof accessPolicyDecisions)[number];
+export type AccessPolicyToolRule = z.infer<typeof accessPolicyToolRuleSchema>;
+export type AccessPolicyServerRule = z.infer<typeof accessPolicyServerRuleSchema>;
+export type AgentGardenIntegrationType = (typeof agentGardenIntegrationTypeIds)[number];
+export type AgentGardenRegisterableType = (typeof agentGardenRegisterableTypeIds)[number];
+export type AgentGardenUsageMode = (typeof agentGardenUsageModeIds)[number];
+export type AgentGardenUsageCapabilities = z.infer<typeof agentGardenUsageCapabilitiesSchema>;
+export type AgentGardenSkill = z.infer<typeof agentGardenSkillSchema>;
+export type AgentGardenEntry = z.infer<typeof agentGardenEntrySchema>;
+export type CreateAgentGardenEntryInput = z.infer<typeof createAgentGardenEntrySchema>;
+
+export interface AgentMarketplaceBrief {
+  tagline: string;
+  overview: string;
+  useCases: string[];
+  inputs: string[];
+  outputs: string[];
+  requirements: string[];
+}
+export type AgentConnectionApprovalMode = (typeof agentConnectionApprovalModeIds)[number];
+export type AgentConnection = z.infer<typeof agentConnectionSchema>;
+export type CreateAgentConnectionInput = z.infer<typeof createAgentConnectionSchema>;
+export type AgentGardenSnapshot = z.infer<typeof agentGardenSnapshotSchema>;
+export type CreateAccessPolicyInput = z.infer<typeof createAccessPolicySchema>;
+export type UpdateAccessPolicyInput = z.infer<typeof updateAccessPolicySchema>;
 export type KnowledgeSourceDefinition = z.infer<typeof knowledgeSourceDefinitionSchema>;
 export type CreateKnowledgeSourceDefinitionInput = z.infer<typeof createKnowledgeSourceDefinitionSchema>;
 export type UpdateKnowledgeSourceDefinitionInput = z.infer<typeof updateKnowledgeSourceDefinitionSchema>;
 export type AgentSpecializationDefinition = z.infer<typeof agentSpecializationDefinitionSchema>;
-export type ExtensionResourceKind = z.infer<typeof extensionResourceKindSchema>;
-export type CreateProviderAccountInput = z.infer<typeof createProviderAccountSchema>;
+export type ResourceKind = z.infer<typeof resourceKindSchema>;
 export type ProviderConnectionDraft = z.infer<typeof providerConnectionDraftSchema>;
 export type DiscoverProviderModelsInput = z.infer<typeof discoverProviderModelsSchema>;
 export type ProviderModelSelection = z.infer<typeof providerModelSelectionSchema>;
 export type CreateProviderConnectionInput = z.infer<typeof createProviderConnectionSchema>;
 export type CreateModelDeploymentInput = z.infer<typeof createModelDeploymentSchema>;
 export type CreateAgentInput = z.infer<typeof createAgentSchema>;
+export type UpdateProjectQuotaInput = z.infer<typeof updateProjectQuotaSchema>;
+export type CreateVirtualEmployeeInput = z.infer<typeof createVirtualEmployeeSchema>;
+export type UpdateVirtualEmployeeInput = z.infer<typeof updateVirtualEmployeeSchema>;
+export type IdentityBindingInput = z.infer<typeof identityBindingInputSchema>;
+export type AccessScopeBindingInput = z.infer<typeof accessScopeBindingInputSchema>;
 export type ComplianceDomain = (typeof complianceDomains)[number];
 export type ModelProfileStatus = (typeof modelProfileStatuses)[number];
 export type ModelProfileCapabilityState = (typeof modelProfileCapabilityStates)[number];
+export type ModelProfileRoutingMode = (typeof modelProfileRoutingModes)[number];
+export type ModelProfileRoutingPolicy = z.infer<typeof modelProfileRoutingPolicySchema>;
 export type CreateInferenceGatewayInput = z.infer<typeof createInferenceGatewaySchema>;
 export type CreateModelProfileInput = z.infer<typeof createModelProfileSchema>;
 export type UpdateModelProfileInput = z.infer<typeof updateModelProfileSchema>;
@@ -627,7 +1248,6 @@ export interface InferenceGateway {
   name: string;
   baseUrl: string;
   adminUiUrl: string;
-  complianceDomain: ComplianceDomain;
   credentialSource: "ENVIRONMENT" | "SECRET_REFERENCE";
   status: "UNKNOWN" | "READY" | "DEGRADED";
   validationMessage: string;
@@ -644,8 +1264,9 @@ export interface ModelProfileCondition {
 
 export interface ModelProfileCapabilities {
   automaticRouting: ModelProfileCapabilityState;
-  routerType: "COMPLEXITY_ROUTER" | "OTHER" | "UNKNOWN";
+  routerType: "COMPLEXITY_ROUTER" | "SEMANTIC_ROUTER" | "OTHER" | "UNKNOWN";
   complexityTierCount?: number;
+  semanticRouteCount?: number;
   sessionAffinity: ModelProfileCapabilityState;
   adaptiveRouting: ModelProfileCapabilityState;
   failover: ModelProfileCapabilityState;
@@ -663,6 +1284,7 @@ export interface ModelProfile {
   gatewayId: string;
   managementMode: "LITELLM_MANAGED";
   publicModelAlias: string;
+  routingPolicy: ModelProfileRoutingPolicy;
   complianceDomain: ComplianceDomain;
   status: ModelProfileStatus;
   isDefault: boolean;
@@ -709,11 +1331,31 @@ export interface ModelProfileAuditEvent {
   reason: string;
 }
 
-export interface ExtensionCatalog {
+export interface ResourceCatalog {
   skills: SkillDefinition[];
   mcpServers: McpServerDefinition[];
+  mcpServerTemplates: McpServerTemplate[];
   knowledgeSources: KnowledgeSourceDefinition[];
   specializations: AgentSpecializationDefinition[];
+}
+
+export interface AccessPolicy extends CreateAccessPolicyInput {
+  id: string;
+  revision: number;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  lastReconciledAt?: string;
+  lastReconciliationError?: string;
+}
+
+export interface AccessPolicyVersion {
+  policyId: string;
+  revision: number;
+  actor: string;
+  summary: string;
+  snapshot: AccessPolicy;
+  createdAt: string;
 }
 
 export interface SandboxPolicy extends SandboxPolicyInput {
@@ -741,7 +1383,7 @@ export interface ProviderAccount {
   id: string;
   name: string;
   providerKind: ProviderKind;
-  presetId: ProviderPresetId;
+  presetId: ProviderKind;
   endpoint: string;
   config: Record<string, unknown>;
   complianceDomain: ComplianceDomain;
@@ -779,9 +1421,11 @@ export interface ProviderConnectionCreationResult {
 }
 
 export interface ModelDeployment extends CreateModelDeploymentInput {
+  capabilities: ModelCapability[];
+  inputModalities: ModelInputModality[];
+  outputModalities: ModelOutputModality[];
   id: string;
-  isDefault: boolean;
-  providerPresetId: ProviderPresetId;
+  providerPresetId: ProviderKind;
   providerName: string;
   endpoint: string;
   complianceDomain: ComplianceDomain;
@@ -810,7 +1454,7 @@ export type CostFilterKey =
   | "provider_account"
   | "virtual_key"
   | "environment"
-  | "workspace";
+  | "project";
 
 export type CostFilters = Partial<Record<CostFilterKey, string[]>>;
 
@@ -1035,6 +1679,127 @@ export interface ModelCostDataQualityResponse {
   spendDifference: number;
 }
 
+export type VirtualEmployeeStatus = (typeof virtualEmployeeStatuses)[number];
+export type VirtualEmployeeEnvironment = (typeof virtualEmployeeEnvironments)[number];
+export type IdentityType = (typeof identityTypes)[number];
+export type EnforcementProvider = (typeof enforcementProviders)[number];
+
+export interface VirtualEmployeeModelAccess {
+  id: string;
+  virtualEmployeeId: string;
+  provider: "litellm";
+  litellmTeamId?: string;
+  litellmKeyId?: string;
+  keyAlias: string;
+  keyLastFour?: string;
+  allowedModels: string[];
+  accessGroups: string[];
+  maxBudget?: number;
+  budgetDuration?: string;
+  rpmLimit?: number;
+  tpmLimit?: number;
+  maxParallelRequests?: number;
+  keyDuration: string;
+  expiresAt?: string;
+  fallbackModels: string[];
+  secretReference?: string;
+  syncStatus: "pending" | "synced" | "failed" | "drifted";
+  lastSyncedAt?: string;
+  lastSyncError?: string;
+  currentSpend?: number;
+}
+
+export interface IdentityBinding extends IdentityBindingInput {
+  id: string;
+  virtualEmployeeId: string;
+  status: "active" | "inactive" | "error";
+  updatedAt: string;
+}
+
+export interface AccessScopeBinding extends AccessScopeBindingInput {
+  id: string;
+  virtualEmployeeId: string;
+  updatedAt: string;
+}
+
+export interface VirtualEmployeeAuditEvent {
+  id: string;
+  virtualEmployeeId: string;
+  type: string;
+  actor: string;
+  result: "success" | "failed";
+  message: string;
+  createdAt: string;
+}
+
+export type PlatformAuditActorType = "user" | "service_account" | "system";
+export type PlatformAuditOutcome = "success" | "failed" | "denied";
+
+export interface PlatformAuditLogEvent {
+  id: string;
+  projectId: string;
+  occurredAt: string;
+  actor: {
+    type: PlatformAuditActorType;
+    id: string;
+    name: string;
+    email?: string;
+  };
+  authorization: {
+    scope: "project";
+    role: string;
+    decision: "allowed" | "denied";
+  };
+  action: string;
+  verb: string;
+  object: {
+    type: string;
+    id: string;
+    name: string;
+  };
+  outcome: PlatformAuditOutcome;
+  summary: string;
+  request: {
+    id: string;
+    method: string;
+    route: string;
+    ipAddress: string;
+    userAgent: string;
+    parameters?: Record<string, unknown>;
+    body?: unknown;
+  };
+  metadata?: Record<string, unknown>;
+}
+
+export interface VirtualEmployee {
+  id: string;
+  projectId: string;
+  name: string;
+  displayName: string;
+  description?: string;
+  businessRole?: string;
+  ownerTeamId?: string;
+  environment: VirtualEmployeeEnvironment;
+  status: VirtualEmployeeStatus;
+  tags: string[];
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  modelAccess?: VirtualEmployeeModelAccess;
+  identities: IdentityBinding[];
+  accessScopes: AccessScopeBinding[];
+  boundInstanceIds: string[];
+}
+
+export interface VirtualEmployeeSpend {
+  totalSpend: number;
+  requests: number;
+  tokens: number;
+  budgetUtilization?: number;
+  byModel: Array<{ model: string; spend: number; requests: number; tokens: number }>;
+  daily: Array<{ date: string; spend: number }>;
+}
+
 export interface Agent extends Omit<CreateAgentInput, "policyId"> {
   schemaVersion: 1;
   id: string;
@@ -1053,6 +1818,9 @@ export interface Agent extends Omit<CreateAgentInput, "policyId"> {
   modelProfileKeyFingerprint: string;
   modelProfileLastSynchronizedAt?: string;
   costKeyAlias: string;
+  liteLLMTokenId?: string;
+  liteLLMTeamId?: string;
+  serviceAccountId?: string;
   sandboxName: string;
   status: AgentStatus;
   createdAt: string;
@@ -1063,6 +1831,30 @@ export interface Agent extends Omit<CreateAgentInput, "policyId"> {
   logs: string[];
   httpEndpoint?: HttpEndpoint;
   error?: string;
+}
+
+export interface ProjectQuotaUsage {
+  spendUsd: number;
+  totalTokens: number;
+  instances: number;
+  mcpIntegrations: number;
+  knowledgeBaseIntegrations: number;
+}
+
+export interface ProjectQuota {
+  projectId: string;
+  hardBudgetUsd: number | null;
+  budgetDuration: "1d" | "7d" | "30d" | null;
+  tpmLimit: number | null;
+  maxInstances: number | null;
+  maxMcpIntegrations: number | null;
+  maxKnowledgeBaseIntegrations: number | null;
+  litellmTeamId: string | null;
+  syncStatus: "pending" | "synced" | "failed";
+  lastSyncedAt: string | null;
+  lastSyncError: string | null;
+  revision: number;
+  usage: ProjectQuotaUsage;
 }
 
 export interface HttpEndpoint {

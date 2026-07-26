@@ -1,11 +1,12 @@
 import type { Agent } from "@tasklattice/contracts";
 import { useQuery } from "@tanstack/react-query";
 import { BookOpen, Network, Sparkles } from "lucide-react";
+import { InstanceEffectiveAccessPreview } from "@/components/access/instance-effective-access-preview";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { useWorkspaceQueryScope } from "@/hooks/use-workspace-query-scope";
+import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
 import { DetailCardHeader } from "./instance-detail-shared";
 
 function EmptyCapability({ label }: { label: string }) {
@@ -13,51 +14,54 @@ function EmptyCapability({ label }: { label: string }) {
 }
 
 export function InstanceCapabilitiesTab({ agent }: { agent: Agent }) {
-  const workspace = useWorkspaceQueryScope();
-  const catalog = useQuery({ queryKey: workspace.key("extension-catalog"), queryFn: api.getExtensionCatalog });
+  const scope = useProjectQueryScope();
+  const catalog = useQuery({ queryKey: scope.key("resource-catalog"), queryFn: api.getResourceCatalog });
   const skills = (agent.skillIds ?? []).map((id) => catalog.data?.skills.find((item) => item.id === id) ?? { id, name: id, description: "Catalog details unavailable.", version: undefined });
   const mcpServers = (agent.mcpServerIds ?? []).map((id) => catalog.data?.mcpServers.find((item) => item.id === id) ?? { id, name: id, status: "UNCHECKED" as const, tools: undefined, transport: undefined });
-  const knowledgeBases = (agent.knowledgeSourceIds ?? []).map((id) => catalog.data?.knowledgeSources.find((item) => item.id === id) ?? { id, name: id, description: "Catalog details unavailable.", mode: undefined });
+  const knowledgeBases = (agent.knowledgeSourceIds ?? []).map((id) => catalog.data?.knowledgeSources.find((item) => item.id === id) ?? { id, name: id, description: "Catalog details unavailable.", provider: undefined });
   return (
-    <div role="tabpanel" aria-label="Capabilities" className="grid gap-4 pt-5 xl:grid-cols-3">
-      <Card id="skills" className="scroll-mt-24">
-        <DetailCardHeader title="Skills" description="Reusable capability packages configured for this Agent." action={<Sparkles className="size-5 text-primary" />} />
-        <CardContent className="divide-y">
-          {skills.length ? skills.map((skill) => (
-            <article key={skill.id} className="py-4 first:pt-0 last:pb-0">
-              <div className="flex items-start justify-between gap-3"><h3 className="text-sm font-medium">{skill.name}</h3>{skill.version ? <Badge variant="secondary">v{skill.version}</Badge> : null}</div>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">{skill.description}</p>
-            </article>
-          )) : <EmptyCapability label="Skills" />}
-        </CardContent>
-      </Card>
-
-      <Card id="mcp-servers" className="scroll-mt-24">
-        <DetailCardHeader title="MCP Servers" description="Connected tools and external systems." action={<Network className="size-5 text-primary" />} />
-        <CardContent className="divide-y">
-          {mcpServers.length ? mcpServers.map((server) => {
-            const connected = server.status === "HEALTHY";
-            return (
-              <article key={server.id} className="py-4 first:pt-0 last:pb-0">
-                <div className="flex items-start justify-between gap-3"><h3 className="text-sm font-medium">{server.name}</h3><Badge variant="outline" className={cn("border-transparent", connected ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "bg-muted text-muted-foreground")}><span className={cn("size-1.5 rounded-full", connected ? "bg-emerald-500" : "bg-muted-foreground")} />{connected ? "Connected" : server.status === "UNAVAILABLE" ? "Unavailable" : "Disconnected"}</Badge></div>
-                <p className="mt-2 text-xs text-muted-foreground">{server.transport ?? "Transport unavailable"}{typeof server.tools === "number" ? ` · ${server.tools} tools` : ""}</p>
+    <div role="tabpanel" aria-label="Access" className="space-y-4 pt-5">
+      <InstanceEffectiveAccessPreview agent={agent} />
+      <div className="grid gap-4 xl:grid-cols-3">
+        <Card id="skills" className="scroll-mt-24">
+          <DetailCardHeader title="Skills" description="Reusable capability packages configured for this Agent." action={<Sparkles className="size-5 text-primary" />} />
+          <CardContent className="divide-y">
+            {skills.length ? skills.map((skill) => (
+              <article key={skill.id} className="py-4 first:pt-0 last:pb-0">
+                <div className="flex items-start justify-between gap-3"><h3 className="text-sm font-medium">{skill.name}</h3>{skill.version ? <Badge variant="secondary">v{skill.version}</Badge> : null}</div>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">{skill.description}</p>
               </article>
-            );
-          }) : <EmptyCapability label="MCP Servers" />}
-        </CardContent>
-      </Card>
+            )) : <EmptyCapability label="Skills" />}
+          </CardContent>
+        </Card>
 
-      <Card id="knowledge-bases" className="scroll-mt-24">
-        <DetailCardHeader title="Knowledge Bases" description="Approved sources used for grounded answers." action={<BookOpen className="size-5 text-primary" />} />
-        <CardContent className="divide-y">
-          {knowledgeBases.length ? knowledgeBases.map((source) => (
-            <article key={source.id} className="py-4 first:pt-0 last:pb-0">
-              <div className="flex items-start justify-between gap-3"><h3 className="text-sm font-medium">{source.name}</h3>{source.mode ? <Badge variant="secondary">{source.mode}</Badge> : null}</div>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">{source.description}</p>
-            </article>
-          )) : <EmptyCapability label="Knowledge Bases" />}
-        </CardContent>
-      </Card>
+        <Card id="mcp-servers" className="scroll-mt-24">
+          <DetailCardHeader title="MCP Servers" description="Connected tools and external systems." action={<Network className="size-5 text-primary" />} />
+          <CardContent className="divide-y">
+            {mcpServers.length ? mcpServers.map((server) => {
+              const connected = server.status === "HEALTHY";
+              return (
+                <article key={server.id} className="py-4 first:pt-0 last:pb-0">
+                  <div className="flex items-start justify-between gap-3"><h3 className="text-sm font-medium">{server.name}</h3><Badge variant="outline" className={cn("border-transparent", connected ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "bg-muted text-muted-foreground")}><span className={cn("size-1.5 rounded-full", connected ? "bg-emerald-500" : "bg-muted-foreground")} />{connected ? "Connected" : server.status === "UNAVAILABLE" ? "Unavailable" : "Disconnected"}</Badge></div>
+                  <p className="mt-2 text-xs text-muted-foreground">{server.transport ?? "Transport unavailable"}{Array.isArray(server.tools) ? ` · ${server.tools.length} tools` : ""}</p>
+                </article>
+              );
+            }) : <EmptyCapability label="MCP Servers" />}
+          </CardContent>
+        </Card>
+
+        <Card id="knowledge-bases" className="scroll-mt-24">
+          <DetailCardHeader title="Knowledge Bases" description="Approved sources used for grounded answers." action={<BookOpen className="size-5 text-primary" />} />
+          <CardContent className="divide-y">
+            {knowledgeBases.length ? knowledgeBases.map((source) => (
+              <article key={source.id} className="py-4 first:pt-0 last:pb-0">
+                <div className="flex items-start justify-between gap-3"><h3 className="text-sm font-medium">{source.name}</h3>{source.provider ? <Badge variant="secondary">{source.provider.toUpperCase()}</Badge> : null}</div>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">{source.description}</p>
+              </article>
+            )) : <EmptyCapability label="Knowledge Bases" />}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

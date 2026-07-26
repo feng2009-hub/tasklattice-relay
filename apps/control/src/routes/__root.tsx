@@ -4,22 +4,18 @@ import {
   Outlet,
   Scripts,
   createRootRouteWithContext,
-  retainSearchParams,
   useRouterState,
 } from "@tanstack/react-router";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { AuthProvider } from "@/components/auth/auth-provider";
 import { AppShell } from "@/components/layout/app-shell";
-import { WorkspaceProvider } from "@/components/workspace/workspace-provider";
+import { ProjectProvider } from "@/components/project/project-provider";
 import appCss from "../styles.css?url";
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient;
 }>()({
   component: RootApplication,
-  search: {
-    middlewares: [retainSearchParams(["workspace"])],
-  },
   head: () => ({
     meta: [
       { charSet: "utf-8" },
@@ -51,9 +47,9 @@ function RootApplication() {
         <Outlet />
       ) : (
         <AuthGuard>
-          <WorkspaceProvider>
+          <ProjectProvider>
             <AppShell />
-          </WorkspaceProvider>
+          </ProjectProvider>
         </AuthGuard>
       )}
     </AuthProvider>
@@ -62,9 +58,15 @@ function RootApplication() {
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <HeadContent />
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{const t=localStorage.getItem('tasklattice.account.theme')||'system';const d=t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);document.documentElement.style.colorScheme=d?'dark':'light'}catch{}",
+          }}
+        />
       </head>
       <body>
         {children}

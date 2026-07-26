@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
-import { AgentStore } from "../data/agent-store";
+import { ProjectStore } from "../projects/project-store";
 import { createTestStore } from "../test/store";
 import type { LiteLLMAdminClient, LiteLLMSpendLog } from "./litellm-client";
 import { CostService, type CostAnalyticsQuery } from "./cost-service";
@@ -9,7 +9,7 @@ const query: CostAnalyticsQuery = {
   startTime: "2026-06-01",
   endTime: "2026-06-03",
   timezone: "UTC",
-  workspaceId: "default",
+  projectId: "default",
   environmentId: "production",
   filters: {},
 };
@@ -31,7 +31,7 @@ function client(logs: LiteLLMSpendLog[]): LiteLLMAdminClient {
 }
 
 function addAttribution(
-  store: AgentStore,
+  store: ProjectStore,
   input: {
     id: string;
     instanceId: string;
@@ -43,7 +43,7 @@ function addAttribution(
 ) {
   store.costAnalytics().saveAttribution({
     id: input.id,
-    workspaceId: "default",
+    projectId: "default",
     environmentId: "production",
     instanceId: input.instanceId,
     instanceName: input.instanceName,
@@ -56,7 +56,7 @@ function addAttribution(
   });
 }
 
-function addEndpoint(store: AgentStore) {
+function addEndpoint(store: ProjectStore) {
   store.costAnalytics().saveModelEndpointMapping({
     id: "mapping:model-a",
     modelEndpointId: "model-a",
@@ -246,7 +246,7 @@ describe("CostService", () => {
     const [fact] = await store.costAnalytics().listFacts({
       startTime: "2026-06-01T00:00:00.000Z",
       endTime: "2026-06-01T23:59:59.999Z",
-      workspaceId: "default",
+      projectId: "default",
       environmentId: "production",
     });
     expect(JSON.stringify(fact?.metadata)).not.toContain("plaintext");

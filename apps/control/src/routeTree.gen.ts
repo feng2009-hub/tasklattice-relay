@@ -9,80 +9,34 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as TicketsRouteImport } from './routes/tickets'
-import { Route as SkillsRouteImport } from './routes/skills'
-import { Route as SandboxesRouteImport } from './routes/sandboxes'
-import { Route as ProvidersRouteImport } from './routes/providers'
-import { Route as PolicyRouteImport } from './routes/policy'
-import { Route as McpRouteImport } from './routes/mcp'
 import { Route as LoginRouteImport } from './routes/login'
-import { Route as KnowledgeRouteImport } from './routes/knowledge'
-import { Route as InstancesRouteImport } from './routes/instances'
-import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ProvidersIndexRouteImport } from './routes/providers/index'
-import { Route as AgentsIndexRouteImport } from './routes/agents/index'
-import { Route as SettingsWorkspacesRouteImport } from './routes/settings/workspaces'
-import { Route as RequestsNewRouteImport } from './routes/requests/new'
-import { Route as ProvidersCostRouteImport } from './routes/providers/cost'
+import { Route as ProjectIdIndexRouteImport } from './routes/$projectId/index'
 import { Route as AuthSsoCompleteRouteImport } from './routes/auth/sso-complete'
-import { Route as AgentsNewRouteImport } from './routes/agents/new'
-import { Route as AgentsAgentIdRouteImport } from './routes/agents/$agentId'
-import { Route as ExtensionsSkillRouteImport } from './routes/Extensions/skill'
-import { Route as ProvidersModelProfilesIndexRouteImport } from './routes/providers/model-profiles/index'
-import { Route as ProvidersModelProfilesProfileIdRouteImport } from './routes/providers/model-profiles/$profileId'
-import { Route as AgentsInstaceNewRouteImport } from './routes/agents/instace/new'
-import { Route as AgentSandboxesRuntimeRouteImport } from './routes/agent/sandboxes/runtime'
-import { Route as AgentSandboxesPolicyRouteImport } from './routes/agent/sandboxes/policy'
+import { Route as ProjectIdTracesRouteImport } from './routes/$projectId/traces'
+import { Route as ProjectIdSkillsRouteImport } from './routes/$projectId/skills'
+import { Route as ProjectIdRuntimePoliciesRouteImport } from './routes/$projectId/runtime-policies'
+import { Route as ProjectIdRuntimeRouteImport } from './routes/$projectId/runtime'
+import { Route as ProjectIdProfileRouteImport } from './routes/$projectId/profile'
+import { Route as ProjectIdMcpServersRouteImport } from './routes/$projectId/mcp-servers'
+import { Route as ProjectIdKnowledgeBaseRouteImport } from './routes/$projectId/knowledge-base'
+import { Route as ProjectIdCostRouteImport } from './routes/$projectId/cost'
+import { Route as ProjectIdSettingIndexRouteImport } from './routes/$projectId/setting/index'
+import { Route as ProjectIdRequestsIndexRouteImport } from './routes/$projectId/requests/index'
+import { Route as ProjectIdInstancesIndexRouteImport } from './routes/$projectId/instances/index'
+import { Route as ProjectIdAuditLogsIndexRouteImport } from './routes/$projectId/audit-logs/index'
+import { Route as ProjectIdAgentGardenIndexRouteImport } from './routes/$projectId/agent-garden/index'
+import { Route as ProjectIdAccessPoliciesIndexRouteImport } from './routes/$projectId/access-policies/index'
+import { Route as ProjectIdRequestsNewRouteImport } from './routes/$projectId/requests/new'
+import { Route as ProjectIdInstancesInstanceIdRouteImport } from './routes/$projectId/instances/$instanceId'
+import { Route as ProjectIdAgentGardenAgentIdRouteImport } from './routes/$projectId/agent-garden/$agentId'
+import { Route as ProjectIdAccessPoliciesPolicyIdRouteImport } from './routes/$projectId/access-policies/$policyId'
+import { Route as ProjectIdSettingVirtualEmployeesEmployeeIdRouteImport } from './routes/$projectId/setting/virtual-employees/$employeeId'
+import { Route as ProjectIdSettingModelProfilesProfileIdRouteImport } from './routes/$projectId/setting/model-profiles/$profileId'
 
-const TicketsRoute = TicketsRouteImport.update({
-  id: '/tickets',
-  path: '/tickets',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SkillsRoute = SkillsRouteImport.update({
-  id: '/skills',
-  path: '/skills',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SandboxesRoute = SandboxesRouteImport.update({
-  id: '/sandboxes',
-  path: '/sandboxes',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProvidersRoute = ProvidersRouteImport.update({
-  id: '/providers',
-  path: '/providers',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PolicyRoute = PolicyRouteImport.update({
-  id: '/policy',
-  path: '/policy',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const McpRoute = McpRouteImport.update({
-  id: '/mcp',
-  path: '/mcp',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const KnowledgeRoute = KnowledgeRouteImport.update({
-  id: '/knowledge',
-  path: '/knowledge',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const InstancesRoute = InstancesRouteImport.update({
-  id: '/instances',
-  path: '/instances',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DashboardRoute = DashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -90,337 +44,319 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ProvidersIndexRoute = ProvidersIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => ProvidersRoute,
-} as any)
-const AgentsIndexRoute = AgentsIndexRouteImport.update({
-  id: '/agents/',
-  path: '/agents/',
+const ProjectIdIndexRoute = ProjectIdIndexRouteImport.update({
+  id: '/$projectId/',
+  path: '/$projectId/',
   getParentRoute: () => rootRouteImport,
-} as any)
-const SettingsWorkspacesRoute = SettingsWorkspacesRouteImport.update({
-  id: '/settings/workspaces',
-  path: '/settings/workspaces',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RequestsNewRoute = RequestsNewRouteImport.update({
-  id: '/requests/new',
-  path: '/requests/new',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProvidersCostRoute = ProvidersCostRouteImport.update({
-  id: '/cost',
-  path: '/cost',
-  getParentRoute: () => ProvidersRoute,
 } as any)
 const AuthSsoCompleteRoute = AuthSsoCompleteRouteImport.update({
   id: '/auth/sso-complete',
   path: '/auth/sso-complete',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AgentsNewRoute = AgentsNewRouteImport.update({
-  id: '/agents/new',
-  path: '/agents/new',
+const ProjectIdTracesRoute = ProjectIdTracesRouteImport.update({
+  id: '/$projectId/traces',
+  path: '/$projectId/traces',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AgentsAgentIdRoute = AgentsAgentIdRouteImport.update({
-  id: '/agents/$agentId',
-  path: '/agents/$agentId',
+const ProjectIdSkillsRoute = ProjectIdSkillsRouteImport.update({
+  id: '/$projectId/skills',
+  path: '/$projectId/skills',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ExtensionsSkillRoute = ExtensionsSkillRouteImport.update({
-  id: '/Extensions/skill',
-  path: '/Extensions/skill',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProvidersModelProfilesIndexRoute =
-  ProvidersModelProfilesIndexRouteImport.update({
-    id: '/model-profiles/',
-    path: '/model-profiles/',
-    getParentRoute: () => ProvidersRoute,
+const ProjectIdRuntimePoliciesRoute =
+  ProjectIdRuntimePoliciesRouteImport.update({
+    id: '/$projectId/runtime-policies',
+    path: '/$projectId/runtime-policies',
+    getParentRoute: () => rootRouteImport,
   } as any)
-const ProvidersModelProfilesProfileIdRoute =
-  ProvidersModelProfilesProfileIdRouteImport.update({
-    id: '/model-profiles/$profileId',
-    path: '/model-profiles/$profileId',
-    getParentRoute: () => ProvidersRoute,
+const ProjectIdRuntimeRoute = ProjectIdRuntimeRouteImport.update({
+  id: '/$projectId/runtime',
+  path: '/$projectId/runtime',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProjectIdProfileRoute = ProjectIdProfileRouteImport.update({
+  id: '/$projectId/profile',
+  path: '/$projectId/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProjectIdMcpServersRoute = ProjectIdMcpServersRouteImport.update({
+  id: '/$projectId/mcp-servers',
+  path: '/$projectId/mcp-servers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProjectIdKnowledgeBaseRoute = ProjectIdKnowledgeBaseRouteImport.update({
+  id: '/$projectId/knowledge-base',
+  path: '/$projectId/knowledge-base',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProjectIdCostRoute = ProjectIdCostRouteImport.update({
+  id: '/$projectId/cost',
+  path: '/$projectId/cost',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProjectIdSettingIndexRoute = ProjectIdSettingIndexRouteImport.update({
+  id: '/$projectId/setting/',
+  path: '/$projectId/setting/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProjectIdRequestsIndexRoute = ProjectIdRequestsIndexRouteImport.update({
+  id: '/$projectId/requests/',
+  path: '/$projectId/requests/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProjectIdInstancesIndexRoute = ProjectIdInstancesIndexRouteImport.update({
+  id: '/$projectId/instances/',
+  path: '/$projectId/instances/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProjectIdAuditLogsIndexRoute = ProjectIdAuditLogsIndexRouteImport.update({
+  id: '/$projectId/audit-logs/',
+  path: '/$projectId/audit-logs/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProjectIdAgentGardenIndexRoute =
+  ProjectIdAgentGardenIndexRouteImport.update({
+    id: '/$projectId/agent-garden/',
+    path: '/$projectId/agent-garden/',
+    getParentRoute: () => rootRouteImport,
   } as any)
-const AgentsInstaceNewRoute = AgentsInstaceNewRouteImport.update({
-  id: '/agents/instace/new',
-  path: '/agents/instace/new',
+const ProjectIdAccessPoliciesIndexRoute =
+  ProjectIdAccessPoliciesIndexRouteImport.update({
+    id: '/$projectId/access-policies/',
+    path: '/$projectId/access-policies/',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ProjectIdRequestsNewRoute = ProjectIdRequestsNewRouteImport.update({
+  id: '/$projectId/requests/new',
+  path: '/$projectId/requests/new',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AgentSandboxesRuntimeRoute = AgentSandboxesRuntimeRouteImport.update({
-  id: '/agent/sandboxes/runtime',
-  path: '/agent/sandboxes/runtime',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AgentSandboxesPolicyRoute = AgentSandboxesPolicyRouteImport.update({
-  id: '/agent/sandboxes/policy',
-  path: '/agent/sandboxes/policy',
-  getParentRoute: () => rootRouteImport,
-} as any)
+const ProjectIdInstancesInstanceIdRoute =
+  ProjectIdInstancesInstanceIdRouteImport.update({
+    id: '/$projectId/instances/$instanceId',
+    path: '/$projectId/instances/$instanceId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ProjectIdAgentGardenAgentIdRoute =
+  ProjectIdAgentGardenAgentIdRouteImport.update({
+    id: '/$projectId/agent-garden/$agentId',
+    path: '/$projectId/agent-garden/$agentId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ProjectIdAccessPoliciesPolicyIdRoute =
+  ProjectIdAccessPoliciesPolicyIdRouteImport.update({
+    id: '/$projectId/access-policies/$policyId',
+    path: '/$projectId/access-policies/$policyId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ProjectIdSettingVirtualEmployeesEmployeeIdRoute =
+  ProjectIdSettingVirtualEmployeesEmployeeIdRouteImport.update({
+    id: '/$projectId/setting/virtual-employees/$employeeId',
+    path: '/$projectId/setting/virtual-employees/$employeeId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ProjectIdSettingModelProfilesProfileIdRoute =
+  ProjectIdSettingModelProfilesProfileIdRouteImport.update({
+    id: '/$projectId/setting/model-profiles/$profileId',
+    path: '/$projectId/setting/model-profiles/$profileId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/dashboard': typeof DashboardRoute
-  '/instances': typeof InstancesRoute
-  '/knowledge': typeof KnowledgeRoute
   '/login': typeof LoginRoute
-  '/mcp': typeof McpRoute
-  '/policy': typeof PolicyRoute
-  '/providers': typeof ProvidersRouteWithChildren
-  '/sandboxes': typeof SandboxesRoute
-  '/skills': typeof SkillsRoute
-  '/tickets': typeof TicketsRoute
-  '/Extensions/skill': typeof ExtensionsSkillRoute
-  '/agents/$agentId': typeof AgentsAgentIdRoute
-  '/agents/new': typeof AgentsNewRoute
+  '/$projectId/cost': typeof ProjectIdCostRoute
+  '/$projectId/knowledge-base': typeof ProjectIdKnowledgeBaseRoute
+  '/$projectId/mcp-servers': typeof ProjectIdMcpServersRoute
+  '/$projectId/profile': typeof ProjectIdProfileRoute
+  '/$projectId/runtime': typeof ProjectIdRuntimeRoute
+  '/$projectId/runtime-policies': typeof ProjectIdRuntimePoliciesRoute
+  '/$projectId/skills': typeof ProjectIdSkillsRoute
+  '/$projectId/traces': typeof ProjectIdTracesRoute
   '/auth/sso-complete': typeof AuthSsoCompleteRoute
-  '/providers/cost': typeof ProvidersCostRoute
-  '/requests/new': typeof RequestsNewRoute
-  '/settings/workspaces': typeof SettingsWorkspacesRoute
-  '/agents/': typeof AgentsIndexRoute
-  '/providers/': typeof ProvidersIndexRoute
-  '/agent/sandboxes/policy': typeof AgentSandboxesPolicyRoute
-  '/agent/sandboxes/runtime': typeof AgentSandboxesRuntimeRoute
-  '/agents/instace/new': typeof AgentsInstaceNewRoute
-  '/providers/model-profiles/$profileId': typeof ProvidersModelProfilesProfileIdRoute
-  '/providers/model-profiles/': typeof ProvidersModelProfilesIndexRoute
+  '/$projectId/': typeof ProjectIdIndexRoute
+  '/$projectId/access-policies/$policyId': typeof ProjectIdAccessPoliciesPolicyIdRoute
+  '/$projectId/agent-garden/$agentId': typeof ProjectIdAgentGardenAgentIdRoute
+  '/$projectId/instances/$instanceId': typeof ProjectIdInstancesInstanceIdRoute
+  '/$projectId/requests/new': typeof ProjectIdRequestsNewRoute
+  '/$projectId/access-policies/': typeof ProjectIdAccessPoliciesIndexRoute
+  '/$projectId/agent-garden/': typeof ProjectIdAgentGardenIndexRoute
+  '/$projectId/audit-logs/': typeof ProjectIdAuditLogsIndexRoute
+  '/$projectId/instances/': typeof ProjectIdInstancesIndexRoute
+  '/$projectId/requests/': typeof ProjectIdRequestsIndexRoute
+  '/$projectId/setting/': typeof ProjectIdSettingIndexRoute
+  '/$projectId/setting/model-profiles/$profileId': typeof ProjectIdSettingModelProfilesProfileIdRoute
+  '/$projectId/setting/virtual-employees/$employeeId': typeof ProjectIdSettingVirtualEmployeesEmployeeIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/dashboard': typeof DashboardRoute
-  '/instances': typeof InstancesRoute
-  '/knowledge': typeof KnowledgeRoute
   '/login': typeof LoginRoute
-  '/mcp': typeof McpRoute
-  '/policy': typeof PolicyRoute
-  '/sandboxes': typeof SandboxesRoute
-  '/skills': typeof SkillsRoute
-  '/tickets': typeof TicketsRoute
-  '/Extensions/skill': typeof ExtensionsSkillRoute
-  '/agents/$agentId': typeof AgentsAgentIdRoute
-  '/agents/new': typeof AgentsNewRoute
+  '/$projectId/cost': typeof ProjectIdCostRoute
+  '/$projectId/knowledge-base': typeof ProjectIdKnowledgeBaseRoute
+  '/$projectId/mcp-servers': typeof ProjectIdMcpServersRoute
+  '/$projectId/profile': typeof ProjectIdProfileRoute
+  '/$projectId/runtime': typeof ProjectIdRuntimeRoute
+  '/$projectId/runtime-policies': typeof ProjectIdRuntimePoliciesRoute
+  '/$projectId/skills': typeof ProjectIdSkillsRoute
+  '/$projectId/traces': typeof ProjectIdTracesRoute
   '/auth/sso-complete': typeof AuthSsoCompleteRoute
-  '/providers/cost': typeof ProvidersCostRoute
-  '/requests/new': typeof RequestsNewRoute
-  '/settings/workspaces': typeof SettingsWorkspacesRoute
-  '/agents': typeof AgentsIndexRoute
-  '/providers': typeof ProvidersIndexRoute
-  '/agent/sandboxes/policy': typeof AgentSandboxesPolicyRoute
-  '/agent/sandboxes/runtime': typeof AgentSandboxesRuntimeRoute
-  '/agents/instace/new': typeof AgentsInstaceNewRoute
-  '/providers/model-profiles/$profileId': typeof ProvidersModelProfilesProfileIdRoute
-  '/providers/model-profiles': typeof ProvidersModelProfilesIndexRoute
+  '/$projectId': typeof ProjectIdIndexRoute
+  '/$projectId/access-policies/$policyId': typeof ProjectIdAccessPoliciesPolicyIdRoute
+  '/$projectId/agent-garden/$agentId': typeof ProjectIdAgentGardenAgentIdRoute
+  '/$projectId/instances/$instanceId': typeof ProjectIdInstancesInstanceIdRoute
+  '/$projectId/requests/new': typeof ProjectIdRequestsNewRoute
+  '/$projectId/access-policies': typeof ProjectIdAccessPoliciesIndexRoute
+  '/$projectId/agent-garden': typeof ProjectIdAgentGardenIndexRoute
+  '/$projectId/audit-logs': typeof ProjectIdAuditLogsIndexRoute
+  '/$projectId/instances': typeof ProjectIdInstancesIndexRoute
+  '/$projectId/requests': typeof ProjectIdRequestsIndexRoute
+  '/$projectId/setting': typeof ProjectIdSettingIndexRoute
+  '/$projectId/setting/model-profiles/$profileId': typeof ProjectIdSettingModelProfilesProfileIdRoute
+  '/$projectId/setting/virtual-employees/$employeeId': typeof ProjectIdSettingVirtualEmployeesEmployeeIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/dashboard': typeof DashboardRoute
-  '/instances': typeof InstancesRoute
-  '/knowledge': typeof KnowledgeRoute
   '/login': typeof LoginRoute
-  '/mcp': typeof McpRoute
-  '/policy': typeof PolicyRoute
-  '/providers': typeof ProvidersRouteWithChildren
-  '/sandboxes': typeof SandboxesRoute
-  '/skills': typeof SkillsRoute
-  '/tickets': typeof TicketsRoute
-  '/Extensions/skill': typeof ExtensionsSkillRoute
-  '/agents/$agentId': typeof AgentsAgentIdRoute
-  '/agents/new': typeof AgentsNewRoute
+  '/$projectId/cost': typeof ProjectIdCostRoute
+  '/$projectId/knowledge-base': typeof ProjectIdKnowledgeBaseRoute
+  '/$projectId/mcp-servers': typeof ProjectIdMcpServersRoute
+  '/$projectId/profile': typeof ProjectIdProfileRoute
+  '/$projectId/runtime': typeof ProjectIdRuntimeRoute
+  '/$projectId/runtime-policies': typeof ProjectIdRuntimePoliciesRoute
+  '/$projectId/skills': typeof ProjectIdSkillsRoute
+  '/$projectId/traces': typeof ProjectIdTracesRoute
   '/auth/sso-complete': typeof AuthSsoCompleteRoute
-  '/providers/cost': typeof ProvidersCostRoute
-  '/requests/new': typeof RequestsNewRoute
-  '/settings/workspaces': typeof SettingsWorkspacesRoute
-  '/agents/': typeof AgentsIndexRoute
-  '/providers/': typeof ProvidersIndexRoute
-  '/agent/sandboxes/policy': typeof AgentSandboxesPolicyRoute
-  '/agent/sandboxes/runtime': typeof AgentSandboxesRuntimeRoute
-  '/agents/instace/new': typeof AgentsInstaceNewRoute
-  '/providers/model-profiles/$profileId': typeof ProvidersModelProfilesProfileIdRoute
-  '/providers/model-profiles/': typeof ProvidersModelProfilesIndexRoute
+  '/$projectId/': typeof ProjectIdIndexRoute
+  '/$projectId/access-policies/$policyId': typeof ProjectIdAccessPoliciesPolicyIdRoute
+  '/$projectId/agent-garden/$agentId': typeof ProjectIdAgentGardenAgentIdRoute
+  '/$projectId/instances/$instanceId': typeof ProjectIdInstancesInstanceIdRoute
+  '/$projectId/requests/new': typeof ProjectIdRequestsNewRoute
+  '/$projectId/access-policies/': typeof ProjectIdAccessPoliciesIndexRoute
+  '/$projectId/agent-garden/': typeof ProjectIdAgentGardenIndexRoute
+  '/$projectId/audit-logs/': typeof ProjectIdAuditLogsIndexRoute
+  '/$projectId/instances/': typeof ProjectIdInstancesIndexRoute
+  '/$projectId/requests/': typeof ProjectIdRequestsIndexRoute
+  '/$projectId/setting/': typeof ProjectIdSettingIndexRoute
+  '/$projectId/setting/model-profiles/$profileId': typeof ProjectIdSettingModelProfilesProfileIdRoute
+  '/$projectId/setting/virtual-employees/$employeeId': typeof ProjectIdSettingVirtualEmployeesEmployeeIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/dashboard'
-    | '/instances'
-    | '/knowledge'
     | '/login'
-    | '/mcp'
-    | '/policy'
-    | '/providers'
-    | '/sandboxes'
-    | '/skills'
-    | '/tickets'
-    | '/Extensions/skill'
-    | '/agents/$agentId'
-    | '/agents/new'
+    | '/$projectId/cost'
+    | '/$projectId/knowledge-base'
+    | '/$projectId/mcp-servers'
+    | '/$projectId/profile'
+    | '/$projectId/runtime'
+    | '/$projectId/runtime-policies'
+    | '/$projectId/skills'
+    | '/$projectId/traces'
     | '/auth/sso-complete'
-    | '/providers/cost'
-    | '/requests/new'
-    | '/settings/workspaces'
-    | '/agents/'
-    | '/providers/'
-    | '/agent/sandboxes/policy'
-    | '/agent/sandboxes/runtime'
-    | '/agents/instace/new'
-    | '/providers/model-profiles/$profileId'
-    | '/providers/model-profiles/'
+    | '/$projectId/'
+    | '/$projectId/access-policies/$policyId'
+    | '/$projectId/agent-garden/$agentId'
+    | '/$projectId/instances/$instanceId'
+    | '/$projectId/requests/new'
+    | '/$projectId/access-policies/'
+    | '/$projectId/agent-garden/'
+    | '/$projectId/audit-logs/'
+    | '/$projectId/instances/'
+    | '/$projectId/requests/'
+    | '/$projectId/setting/'
+    | '/$projectId/setting/model-profiles/$profileId'
+    | '/$projectId/setting/virtual-employees/$employeeId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/dashboard'
-    | '/instances'
-    | '/knowledge'
     | '/login'
-    | '/mcp'
-    | '/policy'
-    | '/sandboxes'
-    | '/skills'
-    | '/tickets'
-    | '/Extensions/skill'
-    | '/agents/$agentId'
-    | '/agents/new'
+    | '/$projectId/cost'
+    | '/$projectId/knowledge-base'
+    | '/$projectId/mcp-servers'
+    | '/$projectId/profile'
+    | '/$projectId/runtime'
+    | '/$projectId/runtime-policies'
+    | '/$projectId/skills'
+    | '/$projectId/traces'
     | '/auth/sso-complete'
-    | '/providers/cost'
-    | '/requests/new'
-    | '/settings/workspaces'
-    | '/agents'
-    | '/providers'
-    | '/agent/sandboxes/policy'
-    | '/agent/sandboxes/runtime'
-    | '/agents/instace/new'
-    | '/providers/model-profiles/$profileId'
-    | '/providers/model-profiles'
+    | '/$projectId'
+    | '/$projectId/access-policies/$policyId'
+    | '/$projectId/agent-garden/$agentId'
+    | '/$projectId/instances/$instanceId'
+    | '/$projectId/requests/new'
+    | '/$projectId/access-policies'
+    | '/$projectId/agent-garden'
+    | '/$projectId/audit-logs'
+    | '/$projectId/instances'
+    | '/$projectId/requests'
+    | '/$projectId/setting'
+    | '/$projectId/setting/model-profiles/$profileId'
+    | '/$projectId/setting/virtual-employees/$employeeId'
   id:
     | '__root__'
     | '/'
-    | '/dashboard'
-    | '/instances'
-    | '/knowledge'
     | '/login'
-    | '/mcp'
-    | '/policy'
-    | '/providers'
-    | '/sandboxes'
-    | '/skills'
-    | '/tickets'
-    | '/Extensions/skill'
-    | '/agents/$agentId'
-    | '/agents/new'
+    | '/$projectId/cost'
+    | '/$projectId/knowledge-base'
+    | '/$projectId/mcp-servers'
+    | '/$projectId/profile'
+    | '/$projectId/runtime'
+    | '/$projectId/runtime-policies'
+    | '/$projectId/skills'
+    | '/$projectId/traces'
     | '/auth/sso-complete'
-    | '/providers/cost'
-    | '/requests/new'
-    | '/settings/workspaces'
-    | '/agents/'
-    | '/providers/'
-    | '/agent/sandboxes/policy'
-    | '/agent/sandboxes/runtime'
-    | '/agents/instace/new'
-    | '/providers/model-profiles/$profileId'
-    | '/providers/model-profiles/'
+    | '/$projectId/'
+    | '/$projectId/access-policies/$policyId'
+    | '/$projectId/agent-garden/$agentId'
+    | '/$projectId/instances/$instanceId'
+    | '/$projectId/requests/new'
+    | '/$projectId/access-policies/'
+    | '/$projectId/agent-garden/'
+    | '/$projectId/audit-logs/'
+    | '/$projectId/instances/'
+    | '/$projectId/requests/'
+    | '/$projectId/setting/'
+    | '/$projectId/setting/model-profiles/$profileId'
+    | '/$projectId/setting/virtual-employees/$employeeId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  DashboardRoute: typeof DashboardRoute
-  InstancesRoute: typeof InstancesRoute
-  KnowledgeRoute: typeof KnowledgeRoute
   LoginRoute: typeof LoginRoute
-  McpRoute: typeof McpRoute
-  PolicyRoute: typeof PolicyRoute
-  ProvidersRoute: typeof ProvidersRouteWithChildren
-  SandboxesRoute: typeof SandboxesRoute
-  SkillsRoute: typeof SkillsRoute
-  TicketsRoute: typeof TicketsRoute
-  ExtensionsSkillRoute: typeof ExtensionsSkillRoute
-  AgentsAgentIdRoute: typeof AgentsAgentIdRoute
-  AgentsNewRoute: typeof AgentsNewRoute
+  ProjectIdCostRoute: typeof ProjectIdCostRoute
+  ProjectIdKnowledgeBaseRoute: typeof ProjectIdKnowledgeBaseRoute
+  ProjectIdMcpServersRoute: typeof ProjectIdMcpServersRoute
+  ProjectIdProfileRoute: typeof ProjectIdProfileRoute
+  ProjectIdRuntimeRoute: typeof ProjectIdRuntimeRoute
+  ProjectIdRuntimePoliciesRoute: typeof ProjectIdRuntimePoliciesRoute
+  ProjectIdSkillsRoute: typeof ProjectIdSkillsRoute
+  ProjectIdTracesRoute: typeof ProjectIdTracesRoute
   AuthSsoCompleteRoute: typeof AuthSsoCompleteRoute
-  RequestsNewRoute: typeof RequestsNewRoute
-  SettingsWorkspacesRoute: typeof SettingsWorkspacesRoute
-  AgentsIndexRoute: typeof AgentsIndexRoute
-  AgentSandboxesPolicyRoute: typeof AgentSandboxesPolicyRoute
-  AgentSandboxesRuntimeRoute: typeof AgentSandboxesRuntimeRoute
-  AgentsInstaceNewRoute: typeof AgentsInstaceNewRoute
+  ProjectIdIndexRoute: typeof ProjectIdIndexRoute
+  ProjectIdAccessPoliciesPolicyIdRoute: typeof ProjectIdAccessPoliciesPolicyIdRoute
+  ProjectIdAgentGardenAgentIdRoute: typeof ProjectIdAgentGardenAgentIdRoute
+  ProjectIdInstancesInstanceIdRoute: typeof ProjectIdInstancesInstanceIdRoute
+  ProjectIdRequestsNewRoute: typeof ProjectIdRequestsNewRoute
+  ProjectIdAccessPoliciesIndexRoute: typeof ProjectIdAccessPoliciesIndexRoute
+  ProjectIdAgentGardenIndexRoute: typeof ProjectIdAgentGardenIndexRoute
+  ProjectIdAuditLogsIndexRoute: typeof ProjectIdAuditLogsIndexRoute
+  ProjectIdInstancesIndexRoute: typeof ProjectIdInstancesIndexRoute
+  ProjectIdRequestsIndexRoute: typeof ProjectIdRequestsIndexRoute
+  ProjectIdSettingIndexRoute: typeof ProjectIdSettingIndexRoute
+  ProjectIdSettingModelProfilesProfileIdRoute: typeof ProjectIdSettingModelProfilesProfileIdRoute
+  ProjectIdSettingVirtualEmployeesEmployeeIdRoute: typeof ProjectIdSettingVirtualEmployeesEmployeeIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/tickets': {
-      id: '/tickets'
-      path: '/tickets'
-      fullPath: '/tickets'
-      preLoaderRoute: typeof TicketsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/skills': {
-      id: '/skills'
-      path: '/skills'
-      fullPath: '/skills'
-      preLoaderRoute: typeof SkillsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/sandboxes': {
-      id: '/sandboxes'
-      path: '/sandboxes'
-      fullPath: '/sandboxes'
-      preLoaderRoute: typeof SandboxesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/providers': {
-      id: '/providers'
-      path: '/providers'
-      fullPath: '/providers'
-      preLoaderRoute: typeof ProvidersRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/policy': {
-      id: '/policy'
-      path: '/policy'
-      fullPath: '/policy'
-      preLoaderRoute: typeof PolicyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/mcp': {
-      id: '/mcp'
-      path: '/mcp'
-      fullPath: '/mcp'
-      preLoaderRoute: typeof McpRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/login': {
       id: '/login'
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/knowledge': {
-      id: '/knowledge'
-      path: '/knowledge'
-      fullPath: '/knowledge'
-      preLoaderRoute: typeof KnowledgeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/instances': {
-      id: '/instances'
-      path: '/instances'
-      fullPath: '/instances'
-      preLoaderRoute: typeof InstancesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/dashboard': {
-      id: '/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -430,40 +366,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/providers/': {
-      id: '/providers/'
-      path: '/'
-      fullPath: '/providers/'
-      preLoaderRoute: typeof ProvidersIndexRouteImport
-      parentRoute: typeof ProvidersRoute
-    }
-    '/agents/': {
-      id: '/agents/'
-      path: '/agents'
-      fullPath: '/agents/'
-      preLoaderRoute: typeof AgentsIndexRouteImport
+    '/$projectId/': {
+      id: '/$projectId/'
+      path: '/$projectId'
+      fullPath: '/$projectId/'
+      preLoaderRoute: typeof ProjectIdIndexRouteImport
       parentRoute: typeof rootRouteImport
-    }
-    '/settings/workspaces': {
-      id: '/settings/workspaces'
-      path: '/settings/workspaces'
-      fullPath: '/settings/workspaces'
-      preLoaderRoute: typeof SettingsWorkspacesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/requests/new': {
-      id: '/requests/new'
-      path: '/requests/new'
-      fullPath: '/requests/new'
-      preLoaderRoute: typeof RequestsNewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/providers/cost': {
-      id: '/providers/cost'
-      path: '/cost'
-      fullPath: '/providers/cost'
-      preLoaderRoute: typeof ProvidersCostRouteImport
-      parentRoute: typeof ProvidersRoute
     }
     '/auth/sso-complete': {
       id: '/auth/sso-complete'
@@ -472,105 +380,176 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthSsoCompleteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/agents/new': {
-      id: '/agents/new'
-      path: '/agents/new'
-      fullPath: '/agents/new'
-      preLoaderRoute: typeof AgentsNewRouteImport
+    '/$projectId/traces': {
+      id: '/$projectId/traces'
+      path: '/$projectId/traces'
+      fullPath: '/$projectId/traces'
+      preLoaderRoute: typeof ProjectIdTracesRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/agents/$agentId': {
-      id: '/agents/$agentId'
-      path: '/agents/$agentId'
-      fullPath: '/agents/$agentId'
-      preLoaderRoute: typeof AgentsAgentIdRouteImport
+    '/$projectId/skills': {
+      id: '/$projectId/skills'
+      path: '/$projectId/skills'
+      fullPath: '/$projectId/skills'
+      preLoaderRoute: typeof ProjectIdSkillsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/Extensions/skill': {
-      id: '/Extensions/skill'
-      path: '/Extensions/skill'
-      fullPath: '/Extensions/skill'
-      preLoaderRoute: typeof ExtensionsSkillRouteImport
+    '/$projectId/runtime-policies': {
+      id: '/$projectId/runtime-policies'
+      path: '/$projectId/runtime-policies'
+      fullPath: '/$projectId/runtime-policies'
+      preLoaderRoute: typeof ProjectIdRuntimePoliciesRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/providers/model-profiles/': {
-      id: '/providers/model-profiles/'
-      path: '/model-profiles'
-      fullPath: '/providers/model-profiles/'
-      preLoaderRoute: typeof ProvidersModelProfilesIndexRouteImport
-      parentRoute: typeof ProvidersRoute
-    }
-    '/providers/model-profiles/$profileId': {
-      id: '/providers/model-profiles/$profileId'
-      path: '/model-profiles/$profileId'
-      fullPath: '/providers/model-profiles/$profileId'
-      preLoaderRoute: typeof ProvidersModelProfilesProfileIdRouteImport
-      parentRoute: typeof ProvidersRoute
-    }
-    '/agents/instace/new': {
-      id: '/agents/instace/new'
-      path: '/agents/instace/new'
-      fullPath: '/agents/instace/new'
-      preLoaderRoute: typeof AgentsInstaceNewRouteImport
+    '/$projectId/runtime': {
+      id: '/$projectId/runtime'
+      path: '/$projectId/runtime'
+      fullPath: '/$projectId/runtime'
+      preLoaderRoute: typeof ProjectIdRuntimeRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/agent/sandboxes/runtime': {
-      id: '/agent/sandboxes/runtime'
-      path: '/agent/sandboxes/runtime'
-      fullPath: '/agent/sandboxes/runtime'
-      preLoaderRoute: typeof AgentSandboxesRuntimeRouteImport
+    '/$projectId/profile': {
+      id: '/$projectId/profile'
+      path: '/$projectId/profile'
+      fullPath: '/$projectId/profile'
+      preLoaderRoute: typeof ProjectIdProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/agent/sandboxes/policy': {
-      id: '/agent/sandboxes/policy'
-      path: '/agent/sandboxes/policy'
-      fullPath: '/agent/sandboxes/policy'
-      preLoaderRoute: typeof AgentSandboxesPolicyRouteImport
+    '/$projectId/mcp-servers': {
+      id: '/$projectId/mcp-servers'
+      path: '/$projectId/mcp-servers'
+      fullPath: '/$projectId/mcp-servers'
+      preLoaderRoute: typeof ProjectIdMcpServersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$projectId/knowledge-base': {
+      id: '/$projectId/knowledge-base'
+      path: '/$projectId/knowledge-base'
+      fullPath: '/$projectId/knowledge-base'
+      preLoaderRoute: typeof ProjectIdKnowledgeBaseRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$projectId/cost': {
+      id: '/$projectId/cost'
+      path: '/$projectId/cost'
+      fullPath: '/$projectId/cost'
+      preLoaderRoute: typeof ProjectIdCostRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$projectId/setting/': {
+      id: '/$projectId/setting/'
+      path: '/$projectId/setting'
+      fullPath: '/$projectId/setting/'
+      preLoaderRoute: typeof ProjectIdSettingIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$projectId/requests/': {
+      id: '/$projectId/requests/'
+      path: '/$projectId/requests'
+      fullPath: '/$projectId/requests/'
+      preLoaderRoute: typeof ProjectIdRequestsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$projectId/instances/': {
+      id: '/$projectId/instances/'
+      path: '/$projectId/instances'
+      fullPath: '/$projectId/instances/'
+      preLoaderRoute: typeof ProjectIdInstancesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$projectId/audit-logs/': {
+      id: '/$projectId/audit-logs/'
+      path: '/$projectId/audit-logs'
+      fullPath: '/$projectId/audit-logs/'
+      preLoaderRoute: typeof ProjectIdAuditLogsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$projectId/agent-garden/': {
+      id: '/$projectId/agent-garden/'
+      path: '/$projectId/agent-garden'
+      fullPath: '/$projectId/agent-garden/'
+      preLoaderRoute: typeof ProjectIdAgentGardenIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$projectId/access-policies/': {
+      id: '/$projectId/access-policies/'
+      path: '/$projectId/access-policies'
+      fullPath: '/$projectId/access-policies/'
+      preLoaderRoute: typeof ProjectIdAccessPoliciesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$projectId/requests/new': {
+      id: '/$projectId/requests/new'
+      path: '/$projectId/requests/new'
+      fullPath: '/$projectId/requests/new'
+      preLoaderRoute: typeof ProjectIdRequestsNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$projectId/instances/$instanceId': {
+      id: '/$projectId/instances/$instanceId'
+      path: '/$projectId/instances/$instanceId'
+      fullPath: '/$projectId/instances/$instanceId'
+      preLoaderRoute: typeof ProjectIdInstancesInstanceIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$projectId/agent-garden/$agentId': {
+      id: '/$projectId/agent-garden/$agentId'
+      path: '/$projectId/agent-garden/$agentId'
+      fullPath: '/$projectId/agent-garden/$agentId'
+      preLoaderRoute: typeof ProjectIdAgentGardenAgentIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$projectId/access-policies/$policyId': {
+      id: '/$projectId/access-policies/$policyId'
+      path: '/$projectId/access-policies/$policyId'
+      fullPath: '/$projectId/access-policies/$policyId'
+      preLoaderRoute: typeof ProjectIdAccessPoliciesPolicyIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$projectId/setting/virtual-employees/$employeeId': {
+      id: '/$projectId/setting/virtual-employees/$employeeId'
+      path: '/$projectId/setting/virtual-employees/$employeeId'
+      fullPath: '/$projectId/setting/virtual-employees/$employeeId'
+      preLoaderRoute: typeof ProjectIdSettingVirtualEmployeesEmployeeIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$projectId/setting/model-profiles/$profileId': {
+      id: '/$projectId/setting/model-profiles/$profileId'
+      path: '/$projectId/setting/model-profiles/$profileId'
+      fullPath: '/$projectId/setting/model-profiles/$profileId'
+      preLoaderRoute: typeof ProjectIdSettingModelProfilesProfileIdRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
 }
 
-interface ProvidersRouteChildren {
-  ProvidersCostRoute: typeof ProvidersCostRoute
-  ProvidersIndexRoute: typeof ProvidersIndexRoute
-  ProvidersModelProfilesProfileIdRoute: typeof ProvidersModelProfilesProfileIdRoute
-  ProvidersModelProfilesIndexRoute: typeof ProvidersModelProfilesIndexRoute
-}
-
-const ProvidersRouteChildren: ProvidersRouteChildren = {
-  ProvidersCostRoute: ProvidersCostRoute,
-  ProvidersIndexRoute: ProvidersIndexRoute,
-  ProvidersModelProfilesProfileIdRoute: ProvidersModelProfilesProfileIdRoute,
-  ProvidersModelProfilesIndexRoute: ProvidersModelProfilesIndexRoute,
-}
-
-const ProvidersRouteWithChildren = ProvidersRoute._addFileChildren(
-  ProvidersRouteChildren,
-)
-
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  DashboardRoute: DashboardRoute,
-  InstancesRoute: InstancesRoute,
-  KnowledgeRoute: KnowledgeRoute,
   LoginRoute: LoginRoute,
-  McpRoute: McpRoute,
-  PolicyRoute: PolicyRoute,
-  ProvidersRoute: ProvidersRouteWithChildren,
-  SandboxesRoute: SandboxesRoute,
-  SkillsRoute: SkillsRoute,
-  TicketsRoute: TicketsRoute,
-  ExtensionsSkillRoute: ExtensionsSkillRoute,
-  AgentsAgentIdRoute: AgentsAgentIdRoute,
-  AgentsNewRoute: AgentsNewRoute,
+  ProjectIdCostRoute: ProjectIdCostRoute,
+  ProjectIdKnowledgeBaseRoute: ProjectIdKnowledgeBaseRoute,
+  ProjectIdMcpServersRoute: ProjectIdMcpServersRoute,
+  ProjectIdProfileRoute: ProjectIdProfileRoute,
+  ProjectIdRuntimeRoute: ProjectIdRuntimeRoute,
+  ProjectIdRuntimePoliciesRoute: ProjectIdRuntimePoliciesRoute,
+  ProjectIdSkillsRoute: ProjectIdSkillsRoute,
+  ProjectIdTracesRoute: ProjectIdTracesRoute,
   AuthSsoCompleteRoute: AuthSsoCompleteRoute,
-  RequestsNewRoute: RequestsNewRoute,
-  SettingsWorkspacesRoute: SettingsWorkspacesRoute,
-  AgentsIndexRoute: AgentsIndexRoute,
-  AgentSandboxesPolicyRoute: AgentSandboxesPolicyRoute,
-  AgentSandboxesRuntimeRoute: AgentSandboxesRuntimeRoute,
-  AgentsInstaceNewRoute: AgentsInstaceNewRoute,
+  ProjectIdIndexRoute: ProjectIdIndexRoute,
+  ProjectIdAccessPoliciesPolicyIdRoute: ProjectIdAccessPoliciesPolicyIdRoute,
+  ProjectIdAgentGardenAgentIdRoute: ProjectIdAgentGardenAgentIdRoute,
+  ProjectIdInstancesInstanceIdRoute: ProjectIdInstancesInstanceIdRoute,
+  ProjectIdRequestsNewRoute: ProjectIdRequestsNewRoute,
+  ProjectIdAccessPoliciesIndexRoute: ProjectIdAccessPoliciesIndexRoute,
+  ProjectIdAgentGardenIndexRoute: ProjectIdAgentGardenIndexRoute,
+  ProjectIdAuditLogsIndexRoute: ProjectIdAuditLogsIndexRoute,
+  ProjectIdInstancesIndexRoute: ProjectIdInstancesIndexRoute,
+  ProjectIdRequestsIndexRoute: ProjectIdRequestsIndexRoute,
+  ProjectIdSettingIndexRoute: ProjectIdSettingIndexRoute,
+  ProjectIdSettingModelProfilesProfileIdRoute:
+    ProjectIdSettingModelProfilesProfileIdRoute,
+  ProjectIdSettingVirtualEmployeesEmployeeIdRoute:
+    ProjectIdSettingVirtualEmployeesEmployeeIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

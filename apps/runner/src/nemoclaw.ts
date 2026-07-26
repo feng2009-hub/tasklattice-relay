@@ -14,6 +14,8 @@ export interface ProvisionInput {
   policyYaml?: string;
   systemPrompt: string;
   apiKey?: string;
+  virtualEmployeeId: string;
+  instanceId: string;
 }
 
 export interface CommandResult {

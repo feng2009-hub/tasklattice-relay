@@ -37,6 +37,15 @@ jobs:
           version: v3.18.4
       - run: helm lint charts/tasklattice
       - run: helm template tasklattice charts/tasklattice --namespace tasklattice-sandboxes --kube-version 1.29.0 > /dev/null
+      - name: Render embedded Keycloak test mode
+        run: >-
+          helm template tasklattice charts/tasklattice
+          --namespace tasklattice-sandboxes
+          --kube-version 1.29.0
+          --set control.publicUrl=http://192.0.2.10
+          --set keycloak.enabled=true
+          --set keycloak.publicUrl=http://192.0.2.11:8080
+          > /dev/null
 
   publish-core-platforms:
     needs: validate

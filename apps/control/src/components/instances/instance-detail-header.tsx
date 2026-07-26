@@ -8,6 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import type { AgentPlatformPresentation } from "@/lib/agent-platforms";
 import type { InstanceAccessState } from "./instance-detail-model";
 import { InstanceStatusBadge, RelativeTime } from "./instance-detail-shared";
+import { useCurrentProjectId } from "@/hooks/use-project";
 
 function DisabledAction({ children, reason }: { children: React.ReactElement; reason: string }) {
   return <Tooltip><TooltipTrigger asChild><span className="inline-flex">{children}</span></TooltipTrigger><TooltipContent>{reason}</TooltipContent></Tooltip>;
@@ -19,11 +20,12 @@ export function InstanceHeader({ access, agent, onDelete, platform }: {
   onDelete: () => void;
   platform: AgentPlatformPresentation;
 }) {
+  const projectId = useCurrentProjectId();
   return (
     <header className="border-b">
       <div className="flex flex-col gap-5 pb-5 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-          <Button asChild variant="ghost" size="icon" className="shrink-0"><Link to="/instances" aria-label="Back to Instances"><ArrowLeft /></Link></Button>
+          <Button asChild variant="ghost" size="icon" className="shrink-0"><Link to="/$projectId/instances" params={{ projectId }} aria-label="Back to Instances"><ArrowLeft /></Link></Button>
           <AgentPlatformIcon platform={platform} className="size-14 bg-[#171717]" imageClassName="size-10" />
           <div className="min-w-0">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -47,7 +49,7 @@ export function InstanceHeader({ access, agent, onDelete, platform }: {
             <DropdownMenuContent align="end" className="w-64">
               <DropdownMenuItem disabled className="items-start"><Pencil className="mt-0.5" /><span><span className="block">Edit configuration</span><span className="block text-[10px] font-normal text-muted-foreground">Runtime reconciliation is not available.</span></span></DropdownMenuItem>
               <DropdownMenuItem disabled className="items-start"><RefreshCw className="mt-0.5" /><span><span className="block">Restart Instance</span><span className="block text-[10px] font-normal text-muted-foreground">No restart API is configured.</span></span></DropdownMenuItem>
-              <DropdownMenuItem asChild><Link to="/agents/$agentId" params={{ agentId: agent.id }} search={{ tab: "auditor-log" }} hash="provisioning-logs"><FileText />View provisioning logs</Link></DropdownMenuItem>
+              <DropdownMenuItem asChild><Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: agent.id }} search={{ tab: "auditor-log" }} hash="provisioning-logs"><FileText />View provisioning logs</Link></DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={onDelete}><Trash2 />Delete Instance</DropdownMenuItem>
             </DropdownMenuContent>

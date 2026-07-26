@@ -3,13 +3,9 @@ import WebSocket from "ws";
 const baseUrl = process.env.TALI_BASE_URL ?? "http://127.0.0.1:18080";
 const expectNemoClawRuntime = process.env.TALI_EXPECT_NEMOCLAW_RUNTIME === "1";
 const validationUsername =
-  process.env.TALI_VALIDATION_USERNAME ??
-  process.env.TALI_AUTH_LOCAL_USERNAME ??
-  "admin";
+  process.env.TALI_VALIDATION_USERNAME ?? "admin";
 const validationPassword =
-  process.env.TALI_VALIDATION_PASSWORD ??
-  process.env.TALI_AUTH_LOCAL_PASSWORD ??
-  "admin";
+  process.env.TALI_VALIDATION_PASSWORD ?? "admin";
 let authToken = "";
 
 async function request(path, init) {

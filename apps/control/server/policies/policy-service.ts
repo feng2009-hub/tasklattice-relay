@@ -10,7 +10,7 @@ import {
 } from "@tasklattice/contracts";
 import { parse, stringify } from "yaml";
 import { z } from "zod";
-import { AgentStore } from "../data/agent-store";
+import { ProjectStore } from "../projects/project-store";
 
 const recordSchema = z.record(z.string(), z.unknown());
 const catalogFileSchema = z.object({
@@ -35,10 +35,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function mergeRecords(
   base: Record<string, unknown>,
-  extension: Record<string, unknown>,
+  overlay: Record<string, unknown>,
 ): Record<string, unknown> {
   const result = { ...base };
-  for (const [key, value] of Object.entries(extension)) {
+  for (const [key, value] of Object.entries(overlay)) {
     const current = result[key];
     result[key] =
       isRecord(current) && isRecord(value)
@@ -115,13 +115,12 @@ export interface PolicyCatalogSource {
 
 export class FilePolicyCatalogSource implements PolicyCatalogSource {
   constructor(
-    readonly path = process.env.TALI_BUILTIN_POLICIES_PATH ??
-      fileURLToPath(
-        new URL(
-          "../../../../charts/tasklattice/files/policy-catalog.yaml",
-          import.meta.url,
-        ),
+    readonly path = fileURLToPath(
+      new URL(
+        "../../../../charts/tasklattice/files/policy-catalog.yaml",
+        import.meta.url,
       ),
+    ),
   ) {}
 
   load(): SandboxPolicyCatalog {
@@ -162,7 +161,7 @@ export class FilePolicyCatalogSource implements PolicyCatalogSource {
 
 export class PolicyService {
   constructor(
-    readonly store = new AgentStore(),
+    readonly store = new ProjectStore(),
     readonly source?: PolicyCatalogSource,
   ) {}
 
@@ -174,9 +173,9 @@ export class PolicyService {
       policies = catalog.policies;
     }
     if (!policies.length) {
-      throw new Error("No Sandbox Policies are configured in the workspace database.");
+      throw new Error("No Sandbox Policies are configured for this project.");
     }
-    const defaultPolicyId = process.env.TALI_DEFAULT_POLICY_ID ?? "unrestricted";
+    const defaultPolicyId = "unrestricted";
     const defaultPolicy = policies.find((policy) => policy.id === defaultPolicyId) ?? policies[0]!;
     return {
       defaultPolicyId: defaultPolicy.id,

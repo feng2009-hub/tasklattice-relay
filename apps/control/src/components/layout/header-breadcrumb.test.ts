@@ -2,24 +2,55 @@ import { describe, expect, it } from "vitest";
 import { getHeaderBreadcrumbItems } from "./header-breadcrumb";
 
 describe("getHeaderBreadcrumbItems", () => {
-  it("maps provider routes to the product breadcrumb language", () => {
-    expect(getHeaderBreadcrumbItems("/providers/cost")).toEqual([
-      { href: "/providers", label: "Models" },
-      { href: "/providers/cost", label: "Cost" },
+  it("keeps Cost as a top-level Project destination", () => {
+    expect(getHeaderBreadcrumbItems("/individual/cost")).toEqual([
+      { href: "/individual/cost", label: "Cost" },
     ]);
   });
 
   it("keeps the current resource identity for dynamic routes", () => {
-    expect(getHeaderBreadcrumbItems("/agents/devops")).toEqual([
-      { href: "/agents", label: "Instances" },
-      { href: "/agents/devops", label: "devops" },
+    expect(getHeaderBreadcrumbItems("/web3/instances/devops")).toEqual([
+      { href: "/web3/instances", label: "Instances" },
+      { href: "/web3/instances/devops", label: "devops" },
     ]);
   });
 
-  it("removes the legacy misspelled route segment from create-instance paths", () => {
-    expect(getHeaderBreadcrumbItems("/agents/instace/new")).toEqual([
-      { href: "/agents", label: "Instances" },
-      { href: "/agents/instace/new", label: "Create Instance" },
+  it("uses canonical request language", () => {
+    expect(getHeaderBreadcrumbItems("/individual/requests/new")).toEqual([
+      { href: "/individual/requests", label: "Requests" },
+      { href: "/individual/requests/new", label: "Raise Request" },
+    ]);
+  });
+
+  it("distinguishes My Account from Project settings", () => {
+    expect(getHeaderBreadcrumbItems("/individual/profile")).toEqual([
+      { href: "/individual/profile", label: "My Account" },
+    ]);
+    expect(getHeaderBreadcrumbItems("/individual/setting")).toEqual([
+      { href: "/individual/setting", label: "Project Settings" },
+    ]);
+  });
+
+  it("uses the canonical label for Project audit logs", () => {
+    expect(getHeaderBreadcrumbItems("/individual/audit-logs")).toEqual([
+      { href: "/individual/audit-logs", label: "Audit Logs" },
+    ]);
+  });
+
+  it("uses a stable label for Agent marketplace details", () => {
+    expect(
+      getHeaderBreadcrumbItems(
+        "/individual/agent-garden/adk-customer-service",
+      ),
+    ).toEqual([
+      {
+        href: "/individual/agent-garden",
+        label: "Agent Garden",
+      },
+      {
+        href: "/individual/agent-garden/adk-customer-service",
+        label: "Agent details",
+      },
     ]);
   });
 });

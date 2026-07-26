@@ -20,7 +20,7 @@ The Agent is a first-class TaskLattice resource. It is not the sandbox itself: T
 flowchart TD
     USER["User"] --> UI["TanStack Agent UI"]
     UI --> RESOURCE["TaskLattice Agent Resource<br/>identity, prompt, model, desired state"]
-    DB[("PostgreSQL · tasklattice schema<br/>workspace-scoped control metadata")] --> RESOURCE
+    DB[("PostgreSQL · tasklattice schema<br/>Project-scoped control metadata")] --> RESOURCE
     RESOURCE --> ADAPTER["NemoClaw Runtime Adapter"]
     ADAPTER --> CONTROL["NemoClaw Control"]
     CONTROL --> GATEWAY["OpenShell Gateway"]
@@ -51,13 +51,13 @@ sequenceDiagram
     OS->>SB: Upload platform instructions and launch nemoclaw-start
     SB->>SB: Start selected Agent platform services
     loop Observe until terminal state
-        UI->>API: GET /api/v1/agents/{id}
+        UI->>API: GET /api/v1/projects/{projectId}/instances/{id}
         API->>Runner: GET observed sandbox
         Runner->>OS: Observe Sandbox and run platform health probe
         API-->>UI: desired and observed state
     end
     User->>UI: Open terminal
-    UI->>API: POST terminal-sessions
+    UI->>API: POST /api/v1/projects/{projectId}/instances/{id}/terminal-sessions
     API-->>UI: Short-lived WebSocket URL
     UI->>API: WebSocket input/output
     API->>Runner: Authenticated WebSocket proxy

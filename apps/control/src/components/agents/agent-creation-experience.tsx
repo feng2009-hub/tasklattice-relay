@@ -11,6 +11,7 @@ import { Progress } from "@/components/ui/progress";
 import { Spinner } from "@/components/ui/spinner";
 import { getAgentPlatformPresentation } from "@/lib/agent-platforms";
 import { cn } from "@/lib/utils";
+import { useCurrentProjectId } from "@/hooks/use-project";
 
 const creationSteps = [
   { label: "Initializing", threshold: 8 },
@@ -20,6 +21,7 @@ const creationSteps = [
 ] as const;
 
 export function AgentCreationExperience({ agent }: { agent: Agent }) {
+  const projectId = useCurrentProjectId();
   const state = resolveProvisioningState({
     status: agent.status,
     ...(agent.provisioningStage ? { stage: agent.provisioningStage } : {}),
@@ -35,7 +37,7 @@ export function AgentCreationExperience({ agent }: { agent: Agent }) {
         <span className="absolute grid size-9 place-items-center rounded-full bg-background text-xs font-semibold tabular-nums shadow-sm">{state.progress}%</span>
       </div>
       <h1 className="mt-6 text-3xl font-semibold tracking-tight">Creating your Agent…</h1>
-      <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">We received the request for <strong className="font-medium text-foreground">{agent.name}</strong>. This page updates automatically while OpenShell prepares the runtime.</p>
+      <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">We received the request for <strong className="font-medium text-foreground">{agent.name}</strong>. This page updates automatically while its Agent and permissions are prepared.</p>
 
       <div className="mt-10 w-full rounded-lg border bg-card px-5 py-6 text-left shadow-sm sm:px-8">
         <div className="flex items-center justify-between gap-4 text-sm">
@@ -61,12 +63,13 @@ export function AgentCreationExperience({ agent }: { agent: Agent }) {
       </div>
 
       <CreationDetails logs={agent.logs} state="live" />
-      <Button asChild variant="ghost" className="mt-3"><Link to="/instances">Continue in background</Link></Button>
+      <Button asChild variant="ghost" className="mt-3"><Link to="/$projectId/instances" params={{ projectId }}>Continue in background</Link></Button>
     </main>
   );
 }
 
 function ReadyState({ agent }: { agent: Agent }) {
+  const projectId = useCurrentProjectId();
   const platform = getAgentPlatformPresentation(agent.agentPlatform);
   const endpointReady = agent.httpEndpoint?.status === "READY" && Boolean(agent.httpEndpoint.url);
 
@@ -99,11 +102,11 @@ function ReadyState({ agent }: { agent: Agent }) {
       <h1 className="mt-7 text-3xl font-semibold tracking-tight">Your Agent is ready!</h1>
       <p className="mt-2 text-sm text-muted-foreground"><strong className="font-medium text-foreground">{agent.name}</strong> is now up and running.</p>
       <div className="mt-8 flex w-full max-w-xl flex-col justify-center gap-3 sm:flex-row">
-        <Button asChild size="lg" className="min-w-48"><Link to="/agents/$agentId" params={{ agentId: agent.id }}>Go to Agent <ArrowRight /></Link></Button>
+        <Button asChild size="lg" className="min-w-48"><Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: agent.id }}>Go to Agent <ArrowRight /></Link></Button>
         {endpointReady && agent.httpEndpoint?.url ? (
           <Button asChild size="lg" variant="outline" className="min-w-48"><a href={agent.httpEndpoint.url} target="_blank" rel="noreferrer">Open Web <ExternalLink /></a></Button>
         ) : (
-          <Button asChild size="lg" variant="outline" className="min-w-48"><Link to="/agents/$agentId" params={{ agentId: agent.id }}><TerminalSquare /> Open {platform.name}</Link></Button>
+          <Button asChild size="lg" variant="outline" className="min-w-48"><Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: agent.id }}><TerminalSquare /> Open {platform.name}</Link></Button>
         )}
       </div>
       <CreationDetails logs={agent.logs} state="complete" />
@@ -112,14 +115,15 @@ function ReadyState({ agent }: { agent: Agent }) {
 }
 
 function FailedState({ agent }: { agent: Agent }) {
+  const projectId = useCurrentProjectId();
   return (
     <main aria-live="assertive" className="mx-auto flex min-h-[calc(100vh-12rem)] w-full max-w-3xl flex-col items-center justify-center px-4 py-12 text-center">
       <span className="grid size-24 place-items-center rounded-full bg-destructive/10 text-destructive"><AlertTriangle className="size-12" /></span>
       <h1 className="mt-7 text-3xl font-semibold tracking-tight">We couldn’t create this Agent</h1>
       <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">{agent.error ?? "Provisioning stopped before the runtime became available."}</p>
       <div className="mt-7 flex flex-wrap justify-center gap-3">
-        <Button asChild><Link to="/instances" search={{ create: "instance" }}><RotateCw /> Try again</Link></Button>
-        <Button asChild variant="outline"><Link to="/agents/$agentId" params={{ agentId: agent.id }}>Open Agent details</Link></Button>
+        <Button asChild><Link to="/$projectId/instances" params={{ projectId }} search={{ create: "instance" }}><RotateCw /> Try again</Link></Button>
+        <Button asChild variant="outline"><Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: agent.id }}>Open Agent details</Link></Button>
       </div>
       <CreationDetails logs={agent.logs} state="failed" defaultOpen />
     </main>

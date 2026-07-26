@@ -1,9 +1,9 @@
 import { z } from "zod";
 
 const corsHeaders = {
-  "access-control-allow-headers": "authorization, content-type, x-workspace-id",
+  "access-control-allow-headers": "authorization, content-type",
   "access-control-allow-methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-  "access-control-allow-origin": process.env.TALI_CORS_ORIGIN ?? "*",
+  "access-control-allow-origin": "*",
 };
 
 export function jsonResponse(
@@ -31,7 +31,7 @@ export function errorResponse(error: unknown): Response {
       ? 403
       : /Invalid |must be|before end_time/i.test(message)
         ? 400
-    : /Consumer|default Model Profile|compliance|suspended|READY Model Profile|Multiple default/i.test(message)
+    : /Consumer|in use|already exists|already connected|connected to a Coordinator|cannot delegate|does not accept delegated|Only a READY Agent|managed by TaskLattice|immutable|cannot be changed|default Model Profile|compliance|suspended|READY Model Profile|Multiple default|quota exceeded/i.test(message)
       ? 409
       : /LiteLLM|gateway is unavailable/i.test(message)
         ? 503

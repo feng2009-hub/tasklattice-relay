@@ -1,4 +1,5 @@
 import type { Agent, SandboxAuditEvent } from "@tasklattice/contracts";
+import { getPlatformTimezone } from "@/lib/platform-preferences";
 
 export const auditorLogLevels = ["info", "warning", "error", "debug"] as const;
 export type AuditorLogLevel = (typeof auditorLogLevels)[number];
@@ -125,6 +126,7 @@ export function formatAuditorLogTime(value: string, includeMilliseconds = true):
     minute: "2-digit",
     second: "2-digit",
     hour12: false,
+    timeZone: getPlatformTimezone(),
   }).format(date);
   return includeMilliseconds ? `${formatted}.${String(date.getMilliseconds()).padStart(3, "0")}` : formatted;
 }

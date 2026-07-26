@@ -1,5 +1,5 @@
 import type { Agent, TerminalTarget } from "@tasklattice/contracts";
-import { AgentTerminalWorkspace } from "@/components/agents/agent-terminal-workspace";
+import { AgentTerminalPanel } from "@/components/agents/agent-terminal-panel";
 
 export function InstanceTerminalTab({
   agent,
@@ -10,7 +10,7 @@ export function InstanceTerminalTab({
 }) {
   return (
     <div role="tabpanel" aria-label="Terminal" className="pt-5">
-      <AgentTerminalWorkspace
+      <AgentTerminalPanel
         agentId={agent.id}
         agentPlatform={agent.agentPlatform}
         targets={targets}

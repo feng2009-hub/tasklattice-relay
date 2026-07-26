@@ -2,10 +2,12 @@ import type { Agent } from "@tasklattice/contracts";
 import { Link } from "@tanstack/react-router";
 import { AgentStatusBadge } from "./agent-status-badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { useCurrentProjectId } from "@/hooks/use-project";
 
 export function AgentCard({ agent }: { agent: Agent }) {
+  const projectId = useCurrentProjectId();
   return (
-    <Link to="/agents/$agentId" params={{ agentId: agent.id }}>
+    <Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: agent.id }}>
       <Card className="transition-colors hover:bg-muted/30">
         <CardContent className="flex items-center justify-between gap-4 py-5">
           <div className="min-w-0">

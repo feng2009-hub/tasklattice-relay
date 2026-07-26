@@ -7,7 +7,7 @@ Version: 0.1
 UI language: English
 
 > Implementation note: the current 0.2 product slice implements the public
-> landing page, local/OIDC login, and the authenticated Agent workspace. Its
+> landing page, local/OIDC login, and the authenticated Project console. Its
 > concrete visual, responsive, navigation, authentication, accessibility, and
 > evidence-gate rules are defined in [ui-design-system.md](ui-design-system.md).
 > The broader marketplace information architecture below remains the product
@@ -88,7 +88,7 @@ The navigation hides sections the current user cannot access. Deep links still r
 ## 4. Global information architecture
 
 ~~~text
-WORKSPACE
+PROJECT
 └── Overview
 
 AI SERVICES
@@ -202,11 +202,12 @@ Primary action labels are specific:
 
 Avoid generic labels such as Submit or Confirm.
 
-## 6. Workspace
+## 6. Project
 
 ### 6.1 Purpose
 
-Workspace is a role-aware starting point, not an infrastructure dashboard.
+The current Project is a role-aware resource boundary, not an infrastructure
+dashboard.
 
 ### 6.2 Summary cards
 
@@ -362,7 +363,7 @@ Administrative integration details are hidden from normal users. Upstream URL an
 
 - Service list row action.
 - Service detail primary action.
-- Workspace quick action.
+- Project quick action.
 - My Quotas Request New Quota.
 
 When entered without a selected Service, Step 1 asks the user to choose an Offering.

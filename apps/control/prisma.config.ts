@@ -1,10 +1,7 @@
-import "dotenv/config";
 import { defineConfig } from "prisma/config";
+import { getControlConfig } from "./server/config/control-config";
 
-const url = new URL(
-  process.env.TALI_DATABASE_URL ??
-    "postgresql://tasklattice:development@127.0.0.1:5432/tasklattice",
-);
+const url = new URL(getControlConfig().database.url);
 url.searchParams.set("schema", "tasklattice");
 
 export default defineConfig({

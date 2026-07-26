@@ -1,23 +1,25 @@
 import { randomUUID } from "node:crypto";
 import {
+  complianceDomainCatalog,
   providerPresets,
   type CreateModelDeploymentInput,
-  type CreateProviderAccountInput,
   type CreateProviderConnectionInput,
   type ModelDeployment,
+  type ModelProfile,
   type ProviderAccount,
   type ProviderConnectionCreationResult,
   type ProviderConnectionDraft,
   type ProviderDiscoveryResult,
   type ProviderKind,
   type ProviderModelSelection,
-  type ProviderPresetId,
   type ProviderValidationCheck,
 } from "@tasklattice/contracts";
-import { AgentStore } from "../data/agent-store";
-import { providerAdapter } from "./provider-adapters";
+import { ProjectStore } from "../projects/project-store";
+import {
+  classifyModelMetadata,
+  providerAdapter,
+} from "./provider-adapters";
 import { LiteLLMClient, type LiteLLMAdminClient } from "./litellm-client";
-import type { ProviderValidator } from "./provider-validator";
 
 interface StoredProviderCredential {
   version: 1;
@@ -62,61 +64,71 @@ function encodeCredential(draft: ProviderConnectionDraft): string {
   } satisfies StoredProviderCredential);
 }
 
-function legacyKind(presetId: ProviderPresetId): ProviderKind {
-  if (presetId === "kimi-cn" || presetId === "kimi-global") return "moonshot";
-  return presetId;
-}
-
-function legacyDraft(account: ProviderAccount, rawCredential: string): ProviderConnectionDraft {
-  const kind = legacyKind(account.presetId);
-  if (kind === "moonshot")
-    return {
-      provider: "moonshot",
-      name: account.name,
-      config: {
-        region: account.presetId === "kimi-global" ? "global" : "cn",
-        endpoint: account.endpoint,
-      },
-      credentials: { apiKey: rawCredential },
-    };
+function decodeCredential(account: ProviderAccount, rawCredential: string): ProviderConnectionDraft {
+  const stored = JSON.parse(rawCredential) as Partial<StoredProviderCredential>;
+  if (
+    stored.version !== 1 ||
+    !stored.provider ||
+    !stored.config ||
+    !stored.credentials
+  )
+    throw new Error("Stored Provider credential data is invalid.");
   return {
-    provider: kind,
+    provider: stored.provider,
     name: account.name,
-    config: { endpoint: account.endpoint },
-    credentials: { apiKey: rawCredential },
+    config: stored.config,
+    credentials: stored.credentials,
   } as ProviderConnectionDraft;
 }
 
-function decodeCredential(account: ProviderAccount, rawCredential: string): ProviderConnectionDraft {
-  try {
-    const stored = JSON.parse(rawCredential) as Partial<StoredProviderCredential>;
-    if (
-      stored.version === 1 &&
-      stored.provider &&
-      stored.config &&
-      stored.credentials
-    )
-      return {
-        provider: stored.provider,
-        name: account.name,
-        config: stored.config,
-        credentials: stored.credentials,
-      } as ProviderConnectionDraft;
-  } catch {
-    // Existing installations store a single API key in this column.
-  }
-  return legacyDraft(account, rawCredential);
+type NormalizedModelSelection = ProviderModelSelection & {
+  capabilities: NonNullable<ProviderModelSelection["capabilities"]>;
+  inputModalities: NonNullable<ProviderModelSelection["inputModalities"]>;
+  outputModalities: NonNullable<ProviderModelSelection["outputModalities"]>;
+};
+
+function toModelSelection(input: CreateModelDeploymentInput): NormalizedModelSelection {
+  const { providerAccountId: _providerAccountId, ...model } = input;
+  return normalizeModelSelection(model);
 }
 
-function toModelSelection(input: CreateModelDeploymentInput): ProviderModelSelection {
-  const { providerAccountId: _providerAccountId, ...model } = input;
-  return model;
+function normalizeModelSelection(
+  model: ProviderModelSelection,
+): NormalizedModelSelection {
+  const inferred = classifyModelMetadata(model.modelId, model.modelType);
+  return {
+    ...model,
+    capabilities: model.capabilities ?? inferred.capabilities,
+    inputModalities: model.inputModalities ?? inferred.inputModalities,
+    outputModalities: model.outputModalities ?? inferred.outputModalities,
+  };
+}
+
+function profileUsesAnyModel(
+  profile: ModelProfile,
+  deploymentIds: ReadonlySet<string>,
+): boolean {
+  const policy = profile.routingPolicy;
+  if (policy.mode === "SINGLE") {
+    return deploymentIds.has(policy.modelDeploymentId)
+      || policy.fallbackModelDeploymentIds.some((id) => deploymentIds.has(id));
+  }
+  if (policy.mode === "COMPLEXITY") {
+    return deploymentIds.has(policy.simpleModelDeploymentId)
+      || deploymentIds.has(policy.complexModelDeploymentId)
+      || policy.fallbackModelDeploymentIds.some((id) => deploymentIds.has(id));
+  }
+  return deploymentIds.has(policy.defaultModelDeploymentId)
+    || deploymentIds.has(policy.embeddingModelDeploymentId)
+    || policy.routes.some((route) =>
+      deploymentIds.has(route.modelDeploymentId)
+    )
+    || policy.fallbackModelDeploymentIds.some((id) => deploymentIds.has(id));
 }
 
 export class ProviderService {
   constructor(
-    readonly store = new AgentStore(),
-    readonly legacyValidator?: ProviderValidator,
+    readonly store = new ProjectStore(),
     readonly litellm: LiteLLMAdminClient = new LiteLLMClient(),
   ) {}
 
@@ -128,67 +140,20 @@ export class ProviderService {
     return this.store.listModelDeployments(providerAccountId);
   }
 
-  async markModelAsDefault(id: string): Promise<ModelDeployment | undefined> {
-    const deployment = await this.store.getModelDeployment(id);
-    if (!deployment) return undefined;
-    if (deployment.modelType !== "llm" || deployment.status !== "VALIDATED")
-      throw new Error("Only a validated LLM deployment can be marked as default.");
-    return this.store.setDefaultModelDeployment(id);
-  }
-
   discover(draft: ProviderConnectionDraft): Promise<ProviderDiscoveryResult> {
     return providerAdapter(draft.provider).discover(draft);
+  }
+
+  async discoverAccount(id: string): Promise<ProviderDiscoveryResult | undefined> {
+    const account = await this.store.getProviderAccount(id);
+    const rawCredential = await this.store.getProviderAccountCredential(id);
+    if (!account || !rawCredential) return undefined;
+    return this.discover(decodeCredential(account, rawCredential));
   }
 
   async createConnection(input: CreateProviderConnectionInput): Promise<ProviderConnectionCreationResult> {
     const discovery = await this.discover(input.connection);
     return this.createConnectionWithDiscovery(input, discovery);
-  }
-
-  /** Compatibility path for existing API callers while the UI moves to the wizard contract. */
-  async registerAccount(input: CreateProviderAccountInput): Promise<ProviderAccount> {
-    const provider = legacyKind(input.presetId);
-    const draft = legacyDraft({
-      id: "legacy-draft",
-      name: input.name,
-      providerKind: provider,
-      presetId: input.presetId,
-      endpoint: input.endpoint,
-      config: { endpoint: input.endpoint },
-      discoveredModels: [],
-      status: "FAILED",
-      checks: [],
-      credentialState: "STORED",
-      validationMessage: "",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      complianceDomain: input.complianceDomain,
-      endpointRegion: input.complianceDomain === "CN_MAINLAND" ? "cn-mainland" : "global",
-      crossBorderTransfer: false,
-    }, input.apiKey);
-    const item = catalog(provider);
-    const discovery = this.legacyValidator
-      ? await this.legacyValidator.validateConnection(input.endpoint, input.apiKey).then((result) => ({
-          providerKind: provider,
-          mode: "remote" as const,
-          models: result.models.map((modelId) =>
-            item.defaultModels.find((model) => model.modelId === modelId) ?? {
-              modelId,
-              displayName: modelId,
-              modelType: "llm" as const,
-            },
-          ),
-          checks: result.checks,
-          message: result.message,
-          latencyMs: result.latencyMs,
-        }))
-      : await this.discover(draft);
-    const available = new Set(discovery.models.map((model) => model.modelId));
-    const models = item.defaultModels.filter((model) =>
-      discovery.mode !== "remote" || available.has(model.modelId),
-    );
-    if (!models.length) throw new Error("Select at least one model before creating a Provider connection.");
-    return (await this.createConnectionWithDiscovery({ connection: draft, models: [...models], complianceDomain: input.complianceDomain }, discovery)).account;
   }
 
   async revalidateAccount(id: string): Promise<ProviderAccount | undefined> {
@@ -214,7 +179,6 @@ export class ProviderService {
       } catch (error) {
         await this.store.saveModelDeployment({
           ...model,
-          isDefault: false,
           status: "FAILED",
           checks: modelChecks("FAIL"),
           validationMessage: error instanceof Error ? error.message : "Model validation failed.",
@@ -257,9 +221,42 @@ export class ProviderService {
       throw new Error(
         `Delete the ${agentIds.length} Instance${agentIds.length === 1 ? "" : "s"} using this Provider before deleting the account.`,
       );
+    const deploymentIds = new Set(models.map((model) => model.id));
+    const profiles = (await this.store.listModelProfiles()).filter((profile) =>
+      profileUsesAnyModel(profile, deploymentIds)
+    );
+    if (profiles.length)
+      throw new Error(
+        `Reconfigure the ${profiles.length} Model Profile${profiles.length === 1 ? "" : "s"} using this Provider before deleting the account.`,
+      );
     for (const model of models)
       await this.litellm.deleteModel(model.litellmModelName).catch(() => undefined);
     return this.store.deleteProviderAccount(id);
+  }
+
+  async deleteModelDeployment(id: string): Promise<boolean> {
+    const model = await this.store.getModelDeployment(id);
+    if (!model) return false;
+    const agentIds = await this.store.listAgentIdsUsingModelDeployments([id]);
+    if (agentIds.length) {
+      throw new Error(
+        `${model.displayName} is in use by ${agentIds.length} Instance${
+          agentIds.length === 1 ? "" : "s"
+        }. Reassign them before removing the model.`,
+      );
+    }
+    const profiles = (await this.store.listModelProfiles()).filter((profile) =>
+      profileUsesAnyModel(profile, new Set([id]))
+    );
+    if (profiles.length) {
+      throw new Error(
+        `${model.displayName} is in use by ${profiles.length} Model Profile${
+          profiles.length === 1 ? "" : "s"
+        }. Reconfigure them before removing the model.`,
+      );
+    }
+    await this.litellm.deleteModel(model.litellmModelName).catch(() => undefined);
+    return this.store.deleteModelDeployment(id);
   }
 
   async registerModel(input: CreateModelDeploymentInput): Promise<ModelDeployment> {
@@ -278,8 +275,8 @@ export class ProviderService {
       const now = new Date().toISOString();
       return this.store.saveModelDeployment({
         id: randomUUID(),
-        ...input,
-        isDefault: false,
+        providerAccountId: input.providerAccountId,
+        ...model,
         providerPresetId: account.presetId,
         providerName: catalog(draft.provider).name,
         endpoint: providerAdapter(draft.provider).endpoint(draft),
@@ -311,7 +308,10 @@ export class ProviderService {
       endpoint: adapter.endpoint(input.connection),
       config: input.connection.config,
       complianceDomain: input.complianceDomain,
-      endpointRegion: input.complianceDomain === "CN_MAINLAND" ? "cn-mainland" : "global",
+      endpointRegion:
+        complianceDomainCatalog.find(
+          (domain) => domain.id === input.complianceDomain,
+        )?.endpointRegion ?? "global",
       crossBorderTransfer: false,
       discoveredModels: [...new Set([
         ...discovery.models.map((model) => model.modelId),
@@ -327,7 +327,8 @@ export class ProviderService {
     };
     const models: ModelDeployment[] = [];
     const failures: ProviderConnectionCreationResult["failures"] = [];
-    for (const model of input.models) {
+    for (const rawModel of input.models) {
+      const model = normalizeModelSelection(rawModel);
       if (!(item.modelTypes as readonly string[]).includes(model.modelType)) {
         failures.push({ model, message: `${item.name} does not support ${model.modelType} registrations.` });
         continue;
@@ -363,8 +364,9 @@ export class ProviderService {
   private async registerDraftModel(
     account: ProviderAccount,
     draft: ProviderConnectionDraft,
-    model: ProviderModelSelection,
+    rawModel: ProviderModelSelection,
   ): Promise<ModelDeployment> {
+    const model = normalizeModelSelection(rawModel);
     const adapter = providerAdapter(draft.provider);
     let litellmModelName: string | undefined;
     try {
@@ -382,7 +384,6 @@ export class ProviderService {
         id: randomUUID(),
         providerAccountId: account.id,
         ...model,
-        isDefault: false,
         providerPresetId: account.presetId,
         providerName: catalog(draft.provider).name,
         endpoint: adapter.endpoint(draft),

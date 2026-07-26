@@ -2,14 +2,14 @@ import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { SandboxPolicy, SandboxPolicyInput } from "@tasklattice/contracts";
 import { FilePlus2, Save, ShieldCheck } from "lucide-react";
-import { EntityFormSheet } from "@/components/shared/entity-form-sheet";
+import { EntitySheet } from "@/components/shared/entity-sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
-import { useWorkspaceQueryScope } from "@/hooks/use-workspace-query-scope";
+import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
 
 export function PolicyEditorDrawer({
   open,
@@ -25,7 +25,7 @@ export function PolicyEditorDrawer({
   onSaved?: (policy: SandboxPolicy) => void;
 }) {
   const queryClient = useQueryClient();
-  const workspace = useWorkspaceQueryScope();
+  const scope = useProjectQueryScope();
   const [value, setValue] = useState<SandboxPolicyInput>({
     name: "",
     description: "",
@@ -36,7 +36,7 @@ export function PolicyEditorDrawer({
     mutationFn: (input: SandboxPolicyInput) =>
       policy ? api.updatePolicy(policy.id, input) : api.createPolicy(input),
     onSuccess: async (saved) => {
-      await queryClient.invalidateQueries({ queryKey: workspace.key("sandbox-policies") });
+      await queryClient.invalidateQueries({ queryKey: scope.key("sandbox-policies") });
       onSaved?.(saved);
       onOpenChange(false);
     },
@@ -62,7 +62,7 @@ export function PolicyEditorDrawer({
     setValue((current) => ({ ...current, [key]: next }));
 
   return (
-    <EntityFormSheet
+    <EntitySheet
       open={open}
       onOpenChange={(next) => !mutation.isPending && onOpenChange(next)}
       eyebrow="OpenShell Policy"
@@ -112,6 +112,6 @@ export function PolicyEditorDrawer({
           </div>
           {mutation.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 px-3 py-2 text-sm text-destructive">{mutation.error.message}</p> : null}
         </form>
-    </EntityFormSheet>
+    </EntitySheet>
   );
 }

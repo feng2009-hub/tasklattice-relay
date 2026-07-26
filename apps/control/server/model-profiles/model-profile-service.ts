@@ -3,13 +3,19 @@ import type {
   ComplianceDomain,
   CreateModelProfileInput,
   InferenceGateway,
+  ModelDeployment,
   ModelProfile,
   ModelProfileAuditEvent,
   ModelProfileBinding,
+  ModelProfileRoutingPolicy,
   UpdateModelProfileInput,
 } from "@tasklattice/contracts";
-import { AgentStore } from "../data/agent-store";
-import { LiteLLMClient, type LiteLLMAdminClient } from "../providers/litellm-client";
+import { ProjectStore } from "../projects/project-store";
+import {
+  LiteLLMClient,
+  type LiteLLMAdminClient,
+  type LiteLLMModelProfileRouteInput,
+} from "../providers/litellm-client";
 
 const defaultCapabilities = {
   automaticRouting: "UNKNOWN",
@@ -25,7 +31,7 @@ const defaultCapabilities = {
 } as const;
 
 export class ModelProfileResolver {
-  constructor(private readonly store: AgentStore) {}
+  constructor(private readonly store: ProjectStore) {}
 
   async resolve(id?: string): Promise<ModelProfile> {
     let profile: ModelProfile;
@@ -53,7 +59,7 @@ export class ModelProfileService {
   readonly resolver: ModelProfileResolver;
 
   constructor(
-    readonly store = new AgentStore(),
+    readonly store = new ProjectStore(),
     readonly litellm: LiteLLMAdminClient = new LiteLLMClient(),
   ) {
     this.resolver = new ModelProfileResolver(store);
@@ -77,17 +83,22 @@ export class ModelProfileService {
   async create(input: CreateModelProfileInput, actor = "control-api"): Promise<ModelProfile> {
     await this.ensureDefaultGateway();
     if (!await this.store.getInferenceGateway(input.gatewayId)) throw new Error("Select an available LiteLLM Gateway.");
-    if (input.isDefault && (await this.store.listModelProfiles()).some((profile) => profile.isDefault))
-      throw new Error("A default Model Profile already exists. Change the existing default first.");
     const now = new Date().toISOString();
     const id = randomUUID();
+    const resolvedRouting = await this.resolveRoutingPolicy(
+      id,
+      input.routingPolicy,
+      input.complianceDomain,
+      input.auditPolicy.requestLogs,
+    );
     const profile: ModelProfile = {
       id,
       name: input.name,
       description: input.description,
       gatewayId: input.gatewayId,
       managementMode: "LITELLM_MANAGED",
-      publicModelAlias: input.publicModelAlias,
+      publicModelAlias: resolvedRouting.alias,
+      routingPolicy: input.routingPolicy,
       complianceDomain: input.complianceDomain,
       status: "DRAFT",
       isDefault: false,
@@ -105,24 +116,52 @@ export class ModelProfileService {
     await this.store.saveModelProfile(profile);
     await this.audit(profile, "model_profile.created", actor, "SUCCESS", "Model Profile definition stored.");
     const refreshed = await this.refresh(id, actor);
-    if (input.isDefault && refreshed.status === "READY") return this.update(id, { isDefault: true }, actor);
+    const hasDefault = (await this.store.listModelProfiles()).some(
+      (candidate) => candidate.isDefault,
+    );
+    if (refreshed.status === "READY" && (input.isDefault || !hasDefault))
+      return this.update(id, { isDefault: true }, actor);
     return refreshed;
   }
 
   async update(id: string, input: UpdateModelProfileInput, actor = "control-api"): Promise<ModelProfile> {
     const current = await this.require(id);
-    if (input.isDefault && !current.isDefault && (await this.store.listModelProfiles()).some((profile) => profile.isDefault && profile.id !== id))
-      throw new Error("A default Model Profile already exists. Clear it before assigning another.");
+    if (input.routingPolicy && input.suspended !== undefined)
+      throw new Error("Update routing and lifecycle state in separate operations.");
+    if (input.isDefault === false && current.isDefault)
+      throw new Error("Choose another default Model Profile before changing this one.");
+    if (input.suspended === true && current.isDefault)
+      throw new Error("Choose another default Model Profile before suspending this one.");
     if (input.isDefault && current.status !== "READY") throw new Error("Only a READY Model Profile can be the default.");
     const values = withoutUndefined(input);
+    const nextRoutingPolicy = values.routingPolicy ?? current.routingPolicy;
+    const resolvedRouting = input.routingPolicy
+      ? await this.resolveRoutingPolicy(
+          current.id,
+          input.routingPolicy,
+          current.complianceDomain,
+          (values.auditPolicy ?? current.auditPolicy).requestLogs,
+        )
+      : undefined;
+    if (
+      resolvedRouting
+      && resolvedRouting.alias !== current.publicModelAlias
+      && (await this.consumers(id)).length
+    ) {
+      throw new Error("Remove all Consumers before changing the public model alias.");
+    }
     const next: ModelProfile = {
       ...current,
       name: values.name ?? current.name,
       description: values.description ?? current.description,
+      publicModelAlias: resolvedRouting?.alias ?? current.publicModelAlias,
+      routingPolicy: nextRoutingPolicy,
       isDefault: values.isDefault ?? current.isDefault,
       keyPolicy: values.keyPolicy ?? current.keyPolicy,
       auditPolicy: values.auditPolicy ?? current.auditPolicy,
-      status: input.suspended === true
+      status: input.routingPolicy
+        ? "DRAFT"
+        : input.suspended === true
         ? "SUSPENDED"
         : input.suspended === false && current.status === "SUSPENDED"
           ? "DRAFT"
@@ -132,8 +171,12 @@ export class ModelProfileService {
       observedGeneration: current.observedGeneration + 1,
       validationMessage: current.validationMessage,
     };
-    await this.store.saveModelProfile(next);
+    if (input.isDefault) await this.store.saveDefaultModelProfile(next);
+    else await this.store.saveModelProfile(next);
     await this.audit(next, input.suspended === true ? "model_profile.suspended" : "model_profile.updated", actor, "SUCCESS", "Model Profile policy updated.");
+    if (input.routingPolicy) {
+      return this.refresh(id, actor);
+    }
     return this.withConsumerCount(next);
   }
 
@@ -143,25 +186,18 @@ export class ModelProfileService {
     if (!gateway) throw new Error("The Model Profile gateway is unavailable.");
     if (current.status === "SUSPENDED") throw new Error("Resume the Model Profile before validating it.");
     await this.store.saveModelProfile({ ...current, status: "VALIDATING", updatedAt: new Date().toISOString() });
-    if (gateway.complianceDomain !== current.complianceDomain) {
-      const reason = `Gateway compliance domain ${gateway.complianceDomain} does not match Model Profile domain ${current.complianceDomain}.`;
-      const next = await this.store.saveModelProfile({
-        ...current,
-        status: "NON_COMPLIANT",
-        isDefault: false,
-        capabilities: defaultCapabilities,
-        conditions: [
-          { type: "GATEWAY", status: "PASS", reason: `Bound to ${gateway.name}.` },
-          { type: "COMPLIANCE", status: "FAIL", reason },
-        ],
-        validationMessage: reason,
-        lastSynchronizedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
-      await this.audit(next, "model_profile.compliance_failed", actor, "FAILED", reason);
-      return this.withConsumerCount(next);
-    }
     try {
+      const resolvedRouting = await this.resolveRoutingPolicy(
+        current.id,
+        current.routingPolicy,
+        current.complianceDomain,
+        current.auditPolicy.requestLogs,
+      );
+      if (resolvedRouting.managedRoute) {
+        if (!this.litellm.reconcileModelProfileRoute)
+          throw new Error("The configured LiteLLM adapter does not support managed Router reconciliation.");
+        await this.litellm.reconcileModelProfileRoute(resolvedRouting.managedRoute);
+      }
       if (!this.litellm.inspectModelProfile) throw new Error("The configured LiteLLM adapter does not support Router inspection.");
       const inspection = await this.litellm.inspectModelProfile(current.publicModelAlias);
       const conditions: ModelProfile["conditions"] = [];
@@ -182,10 +218,26 @@ export class ModelProfileService {
             ? `All backing deployments are declared ${current.complianceDomain}.`
             : `Backing deployments do not exclusively match ${current.complianceDomain}.`,
       });
+      const routingContractPass = current.routingPolicy.mode !== "COMPLEXITY"
+        ? current.routingPolicy.mode !== "SEMANTIC"
+          || (
+            inspection.capabilities.automaticRouting === "ENABLED"
+            && inspection.capabilities.routerType === "SEMANTIC_ROUTER"
+            && inspection.capabilities.semanticRouteCount
+              === current.routingPolicy.routes.length
+          )
+        : (
+            inspection.capabilities.automaticRouting === "ENABLED"
+            && inspection.capabilities.routerType === "COMPLEXITY_ROUTER"
+            && inspection.capabilities.complexityTierCount === 4
+          );
       conditions.push({
         type: "CAPABILITY",
-        status: inspection.unsupportedReason ? "FAIL" : "PASS",
-        reason: inspection.unsupportedReason ?? "Routing capabilities were read from LiteLLM.",
+        status: inspection.unsupportedReason || !routingContractPass ? "FAIL" : "PASS",
+        reason: inspection.unsupportedReason
+          ?? (routingContractPass
+            ? "Routing capabilities match the stored Profile policy."
+            : "The effective LiteLLM Router does not match the stored complexity policy."),
       });
       const status: ModelProfile["status"] = inspection.unsupportedReason
         ? "UNSUPPORTED"
@@ -193,10 +245,13 @@ export class ModelProfileService {
           ? "DEGRADED"
           : !compliancePass
             ? "NON_COMPLIANT"
+            : !routingContractPass
+              ? "DEGRADED"
             : "READY";
       const nextConfigurationHash = configurationHash({
         gatewayId: current.gatewayId,
         publicModelAlias: current.publicModelAlias,
+        routingPolicy: current.routingPolicy,
         complianceDomain: current.complianceDomain,
         keyPolicy: current.keyPolicy,
         auditPolicy: current.auditPolicy,
@@ -257,8 +312,6 @@ export class ModelProfileService {
     let profile = await this.resolver.resolve(modelProfileId);
     const gateway = await this.store.getInferenceGateway(profile.gatewayId);
     if (!gateway) throw new Error("The Model Profile gateway is unavailable.");
-    if (gateway.complianceDomain !== profile.complianceDomain)
-      throw new Error("The Model Profile and LiteLLM Gateway compliance domains do not match.");
     if (!profile.conditions.some((condition) => condition.type === "COMPLIANCE" && condition.status === "PASS"))
       throw new Error("The Model Profile compliance validation is not current.");
     if (!this.litellm.createModelProfileKey || !this.litellm.createModelProfileTeam)
@@ -322,7 +375,12 @@ export class ModelProfileService {
 
   async delete(id: string, actor = "control-api"): Promise<void> {
     const profile = await this.require(id);
+    if (profile.isDefault)
+      throw new Error("Choose another default Model Profile before deleting this one.");
     if ((await this.consumers(id)).length) throw new Error("Remove all Consumers before deleting this Model Profile.");
+    if (!this.litellm.deleteModelProfileRoute)
+      throw new Error("The configured LiteLLM adapter does not support managed Router deletion.");
+    await this.litellm.deleteModelProfileRoute(profile.publicModelAlias, profile.id);
     if (profile.liteLLMTeamId && this.litellm.deleteModelProfileTeam)
       await this.litellm.deleteModelProfileTeam(profile.liteLLMTeamId);
     await this.audit(profile, "model_profile.deleted", actor, "SUCCESS", "Model Profile deleted.");
@@ -334,10 +392,9 @@ export class ModelProfileService {
     const now = new Date().toISOString();
     await this.store.saveInferenceGateway({
       id: "litellm-default",
-      name: process.env.LITELLM_GATEWAY_NAME ?? "Primary LiteLLM Gateway",
+      name: "Primary LiteLLM Gateway",
       baseUrl: this.litellm.baseUrl,
-      adminUiUrl: trustedAdminUiUrl(process.env.LITELLM_ADMIN_UI_URL, this.litellm.baseUrl),
-      complianceDomain: configuredGatewayComplianceDomain(),
+      adminUiUrl: trustedAdminUiUrl(undefined, this.litellm.baseUrl),
       credentialSource: "ENVIRONMENT",
       status: "UNKNOWN",
       validationMessage: "The gateway has not been validated yet.",
@@ -350,6 +407,168 @@ export class ModelProfileService {
     const profile = await this.store.getModelProfile(id);
     if (!profile) throw new Error("Model Profile not found.");
     return profile;
+  }
+
+  private async resolveRoutingPolicy(
+    profileId: string,
+    policy: ModelProfileRoutingPolicy,
+    complianceDomain: ComplianceDomain,
+    requestAudit: boolean,
+  ): Promise<{ alias: string; managedRoute?: LiteLLMModelProfileRouteInput }> {
+    if (policy.mode === "SINGLE") {
+      const deployment = await this.requireRoutingDeployment(
+        policy.modelDeploymentId,
+        complianceDomain,
+        "selected model",
+      );
+      const fallbacks = await Promise.all(
+        policy.fallbackModelDeploymentIds.map((id, index) =>
+          this.requireRoutingDeployment(
+            id,
+            complianceDomain,
+            `fallback ${index + 1}`,
+          ),
+        ),
+      );
+      const alias = `tali-profile-${profileId}`;
+      return {
+        alias,
+        managedRoute: {
+          strategy: "COMPLEXITY",
+          alias,
+          modelProfileId: profileId,
+          complianceDomain,
+          tiers: {
+            SIMPLE: deployment.litellmModelName,
+            MEDIUM: deployment.litellmModelName,
+            COMPLEX: deployment.litellmModelName,
+            REASONING: deployment.litellmModelName,
+          },
+          defaultModel: deployment.litellmModelName,
+          fallbackModels: fallbacks.map((model) => model.litellmModelName),
+          retries: policy.retries,
+          requestAudit,
+        },
+      };
+    }
+    const alias = `tali-profile-${profileId}`;
+    if (policy.mode === "COMPLEXITY") {
+      const simple = await this.requireRoutingDeployment(
+        policy.simpleModelDeploymentId,
+        complianceDomain,
+        "simple tier",
+      );
+      const complex = await this.requireRoutingDeployment(
+        policy.complexModelDeploymentId,
+        complianceDomain,
+        "complex tier",
+      );
+      const fallbacks = await Promise.all(
+        policy.fallbackModelDeploymentIds.map((id, index) =>
+          this.requireRoutingDeployment(
+            id,
+            complianceDomain,
+            `fallback ${index + 1}`,
+          ),
+        ),
+      );
+      return {
+        alias,
+        managedRoute: {
+          strategy: "COMPLEXITY",
+          alias,
+          modelProfileId: profileId,
+          complianceDomain,
+          tiers: {
+            SIMPLE: simple.litellmModelName,
+            MEDIUM: simple.litellmModelName,
+            COMPLEX: complex.litellmModelName,
+            REASONING: complex.litellmModelName,
+          },
+          defaultModel: simple.litellmModelName,
+          fallbackModels: fallbacks.map((model) => model.litellmModelName),
+          retries: policy.retries,
+          requestAudit,
+        },
+      };
+    }
+    const defaultModel = await this.requireRoutingDeployment(
+      policy.defaultModelDeploymentId,
+      complianceDomain,
+      "semantic default",
+    );
+    const embeddingModel = await this.requireDeployment(
+      policy.embeddingModelDeploymentId,
+      complianceDomain,
+      "semantic embedding model",
+      "text-embedding",
+    );
+    const routes = await Promise.all(
+      policy.routes.map(async (route) => {
+        const model = await this.requireRoutingDeployment(
+          route.modelDeploymentId,
+          complianceDomain,
+          `${route.intent} intent`,
+        );
+        return {
+          intent: route.intent,
+          description: route.description,
+          model: model.litellmModelName,
+          utterances: route.utterances,
+          scoreThreshold: route.scoreThreshold,
+        };
+      }),
+    );
+    const fallbacks = await Promise.all(
+      policy.fallbackModelDeploymentIds.map((id, index) =>
+        this.requireRoutingDeployment(
+          id,
+          complianceDomain,
+          `fallback ${index + 1}`,
+        ),
+      ),
+    );
+    return {
+      alias,
+      managedRoute: {
+        strategy: "SEMANTIC",
+        alias,
+        modelProfileId: profileId,
+        complianceDomain,
+        routes,
+        defaultModel: defaultModel.litellmModelName,
+        embeddingModel: embeddingModel.litellmModelName,
+        fallbackModels: fallbacks.map((model) => model.litellmModelName),
+        retries: policy.retries,
+        requestAudit,
+      },
+    };
+  }
+
+  private async requireRoutingDeployment(
+    id: string,
+    complianceDomain: ComplianceDomain,
+    role: string,
+  ): Promise<ModelDeployment> {
+    return this.requireDeployment(id, complianceDomain, role, "llm");
+  }
+
+  private async requireDeployment(
+    id: string,
+    complianceDomain: ComplianceDomain,
+    role: string,
+    modelType: ModelDeployment["modelType"],
+  ): Promise<ModelDeployment> {
+    const deployment = await this.store.getModelDeployment(id);
+    if (!deployment)
+      throw new Error(`The ${role} deployment is not available in this Project.`);
+    if (deployment.modelType !== modelType)
+      throw new Error(`The ${role} must be a ${modelType} deployment.`);
+    if (deployment.status !== "VALIDATED")
+      throw new Error(`The ${role} must be validated before it can be routed.`);
+    if (deployment.complianceDomain !== complianceDomain)
+      throw new Error(`The ${role} does not match the ${complianceDomain} compliance boundary.`);
+    return deployment;
   }
 
   private async withConsumerCount(profile: ModelProfile): Promise<ModelProfile> {
@@ -392,16 +611,11 @@ function withoutUndefined<T extends object>(input: T): Partial<T> {
 }
 
 function trustedAdminUiUrl(configured: string | undefined, baseUrl: string): string {
-  const url = new URL(configured ?? baseUrl);
+  const url = configured
+    ? new URL(configured)
+    : new URL(`${baseUrl.replace(/\/$/, "")}/ui`);
   if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("LITELLM_ADMIN_UI_URL must use HTTP or HTTPS.");
   return url.toString().replace(/\/$/, "");
-}
-
-function configuredGatewayComplianceDomain(): ComplianceDomain {
-  const value = process.env.LITELLM_COMPLIANCE_DOMAIN ?? "GLOBAL";
-  if (value !== "CN_MAINLAND" && value !== "GLOBAL")
-    throw new Error("LITELLM_COMPLIANCE_DOMAIN must be CN_MAINLAND or GLOBAL.");
-  return value;
 }
 
 export function complianceDomainsMatch(expected: ComplianceDomain, actual: readonly ComplianceDomain[], hasUnknown: boolean): boolean {

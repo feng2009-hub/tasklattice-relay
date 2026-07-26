@@ -61,6 +61,8 @@ const createSchema = z.object({
   systemPrompt: z.string().min(10).max(8000),
   policyYaml: z.string().min(10).max(64_000),
   apiKey: z.string().min(16).max(512).optional(),
+  virtualEmployeeId: z.string().uuid(),
+  instanceId: z.string().uuid(),
 });
 
 function authorized(header: string | undefined): boolean {
@@ -244,6 +246,8 @@ app.post("/v1/sandboxes", (request, response, next) => {
       systemPrompt: parsedInput.systemPrompt,
       policyYaml: parsedInput.policyYaml,
       ...(parsedInput.apiKey ? { apiKey: parsedInput.apiKey } : {}),
+      virtualEmployeeId: parsedInput.virtualEmployeeId,
+      instanceId: parsedInput.instanceId,
     };
     if (states.has(input.name))
       return void response

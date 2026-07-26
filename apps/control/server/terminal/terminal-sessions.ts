@@ -5,6 +5,7 @@ import type {
 } from "@tasklattice/contracts";
 
 export interface TerminalSessionRecord {
+  projectId: string;
   agentId: string;
   agentPlatform: AgentPlatformId;
   sandboxName: string;
@@ -15,6 +16,7 @@ export interface TerminalSessionRecord {
 const sessions = new Map<string, TerminalSessionRecord>();
 
 export function createTerminalSession(
+  projectId: string,
   agentId: string,
   sandboxName: string,
   agentPlatform: AgentPlatformId,
@@ -24,6 +26,7 @@ export function createTerminalSession(
   const token = randomUUID();
   const expiresAt = Date.now() + 5 * 60_000;
   sessions.set(`${id}:${token}`, {
+    projectId,
     agentId,
     agentPlatform,
     sandboxName,
@@ -33,7 +36,7 @@ export function createTerminalSession(
   return {
     id,
     expiresAt: new Date(expiresAt).toISOString(),
-    websocketUrl: `/api/v1/terminal-sessions/${id}/ws?token=${token}`,
+    websocketUrl: `/api/v1/projects/${encodeURIComponent(projectId)}/terminal-sessions/${id}/ws?token=${token}`,
   };
 }
 

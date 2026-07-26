@@ -1,6 +1,14 @@
 import type {
+  AccessPolicy,
+  AccessPolicyVersion,
   Agent,
+  AgentConnection,
+  AgentGardenEntry,
+  AgentGardenSnapshot,
   CreateKnowledgeSourceDefinitionInput,
+  CreateAccessPolicyInput,
+  CreateAgentConnectionInput,
+  CreateAgentGardenEntryInput,
   CreateAgentInput,
   CostQueryParams,
   ModelCostActivityResponse,
@@ -18,8 +26,8 @@ import type {
   CreateProviderConnectionInput,
   CreateSandboxPolicyInput,
   CreateSkillDefinitionInput,
-  ExtensionCatalog,
-  ExtensionResourceKind,
+  ResourceCatalog,
+  ResourceKind,
   KnowledgeSourceDefinition,
   InferenceGateway,
   ModelProfile,
@@ -33,19 +41,30 @@ import type {
   ProviderConnectionCreationResult,
   ProviderConnectionDraft,
   ProviderDiscoveryResult,
+  PlatformAuditLogEvent,
   RuntimeStatus,
   SandboxPolicy,
   SandboxPolicyCatalog,
   SandboxAuditEvent,
   TerminalSessionResponse,
   TerminalTarget,
+  TraceDetail,
+  TraceListResponse,
   SkillDefinition,
   UpdateKnowledgeSourceDefinitionInput,
+  UpdateAccessPolicyInput,
   UpdateMcpServerDefinitionInput,
   UpdateSkillDefinitionInput,
+  VirtualEmployee,
+  CreateVirtualEmployeeInput,
+  UpdateVirtualEmployeeInput,
+  IdentityBindingInput,
+  AccessScopeBindingInput,
+  VirtualEmployeeSpend,
+  VirtualEmployeeAuditEvent,
 } from "@tasklattice/contracts";
 import { clearAuthToken, getAuthToken } from "./auth-token";
-import { getStoredWorkspaceId } from "./workspace-storage";
+import { projectIdFromPathname } from "./project-storage";
 
 export class ApiError extends Error {
   constructor(message: string, readonly status: number) {
@@ -54,15 +73,26 @@ export class ApiError extends Error {
   }
 }
 
+export function projectScopedPath(path: string, projectId: string | null): string {
+  if (!projectId) return path;
+  const url = new URL(path, "http://tasklattice.local");
+  const suffix = url.pathname
+    .replace(/^\/api\/v1\/projects\/[^/]+\/?/, "")
+    .replace(/^\/api\/v1\/?/, "");
+  return `/api/v1/projects/${encodeURIComponent(projectId)}/${suffix}${url.search}${url.hash}`;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = getAuthToken();
-  const workspaceId = getStoredWorkspaceId();
-  const response = await fetch(path, {
+  const projectId =
+    typeof window === "undefined"
+      ? null
+      : projectIdFromPathname(window.location.pathname);
+  const response = await fetch(projectScopedPath(path, projectId), {
     ...init,
     headers: {
       "content-type": "application/json",
       ...(token ? { authorization: `Bearer ${token}` } : {}),
-      ...(workspaceId ? { "X-Workspace-ID": workspaceId } : {}),
       ...init?.headers,
     },
   });
@@ -73,7 +103,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
   if (!response.ok)
     throw new ApiError(
-      "error" in (payload as object)
+      "error" in (payload as object) && typeof (payload as { error?: unknown }).error === "string"
         ? (payload as { error: string }).error
         : `Request failed (${response.status})`,
       response.status,
@@ -92,6 +122,65 @@ function costSearch(params: CostQueryParams, extra: Record<string, string> = {})
 }
 
 export const api = {
+  listTraces: () => request<TraceListResponse>("/api/v1/traces"),
+  getTrace: (traceId: string) =>
+    request<TraceDetail>(`/api/v1/traces/${encodeURIComponent(traceId)}`),
+  listAuditLogs: async () =>
+    (await request<{ data: PlatformAuditLogEvent[] }>("/api/v1/audit-logs")).data,
+  listAccessPolicies: async () =>
+    (await request<{ data: AccessPolicy[] }>("/api/v1/access-policies")).data,
+  getAccessPolicy: (id: string) =>
+    request<AccessPolicy>(`/api/v1/access-policies/${encodeURIComponent(id)}`),
+  createAccessPolicy: (input: CreateAccessPolicyInput) =>
+    request<AccessPolicy>("/api/v1/access-policies", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateAccessPolicy: (id: string, input: UpdateAccessPolicyInput) =>
+    request<AccessPolicy>(`/api/v1/access-policies/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
+  deleteAccessPolicy: (id: string) =>
+    request<void>(`/api/v1/access-policies/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    }),
+  listAccessPolicyVersions: async (id: string) =>
+    (await request<{ data: AccessPolicyVersion[] }>(
+      `/api/v1/access-policies/${encodeURIComponent(id)}/versions`,
+    )).data,
+  listVirtualEmployees: async () =>
+    (await request<{ data: VirtualEmployee[] }>("/api/v1/virtual-employees")).data,
+  getVirtualEmployee: (id: string) =>
+    request<VirtualEmployee>(`/api/v1/virtual-employees/${encodeURIComponent(id)}`),
+  createVirtualEmployee: (input: CreateVirtualEmployeeInput) =>
+    request<VirtualEmployee>("/api/v1/virtual-employees", { method: "POST", body: JSON.stringify(input) }),
+  updateVirtualEmployee: (id: string, input: UpdateVirtualEmployeeInput) =>
+    request<VirtualEmployee>(`/api/v1/virtual-employees/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(input) }),
+  deleteVirtualEmployee: (id: string) =>
+    request<void>(`/api/v1/virtual-employees/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  provisionVirtualEmployee: (id: string) =>
+    request<VirtualEmployee>(`/api/v1/virtual-employees/${encodeURIComponent(id)}/provision`, { method: "POST", body: "{}" }),
+  suspendVirtualEmployee: (id: string) =>
+    request<VirtualEmployee>(`/api/v1/virtual-employees/${encodeURIComponent(id)}/suspend`, { method: "POST", body: "{}" }),
+  activateVirtualEmployee: (id: string) =>
+    request<VirtualEmployee>(`/api/v1/virtual-employees/${encodeURIComponent(id)}/activate`, { method: "POST", body: "{}" }),
+  rotateVirtualEmployeeCredential: (id: string) =>
+    request<VirtualEmployee>(`/api/v1/virtual-employees/${encodeURIComponent(id)}/rotate-model-credential`, { method: "POST", body: "{}" }),
+  syncVirtualEmployee: (id: string, apply = false) =>
+    request<VirtualEmployee>(`/api/v1/virtual-employees/${encodeURIComponent(id)}/sync`, { method: "POST", body: JSON.stringify({ apply }) }),
+  attachVirtualEmployeeIdentity: (id: string, input: IdentityBindingInput) =>
+    request<VirtualEmployee>(`/api/v1/virtual-employees/${encodeURIComponent(id)}/identities`, { method: "POST", body: JSON.stringify(input) }),
+  detachVirtualEmployeeIdentity: (id: string, bindingId: string) =>
+    request<void>(`/api/v1/virtual-employees/${encodeURIComponent(id)}/identities/${encodeURIComponent(bindingId)}`, { method: "DELETE" }),
+  attachVirtualEmployeeScope: (id: string, input: AccessScopeBindingInput) =>
+    request<VirtualEmployee>(`/api/v1/virtual-employees/${encodeURIComponent(id)}/access-scopes`, { method: "POST", body: JSON.stringify(input) }),
+  detachVirtualEmployeeScope: (id: string, scopeId: string) =>
+    request<void>(`/api/v1/virtual-employees/${encodeURIComponent(id)}/access-scopes/${encodeURIComponent(scopeId)}`, { method: "DELETE" }),
+  getVirtualEmployeeSpend: (id: string) =>
+    request<VirtualEmployeeSpend>(`/api/v1/virtual-employees/${encodeURIComponent(id)}/spend`),
+  getVirtualEmployeeAudit: async (id: string) =>
+    (await request<{ data: VirtualEmployeeAuditEvent[] }>(`/api/v1/virtual-employees/${encodeURIComponent(id)}/audit-events`)).data,
   listInferenceGateways: async () =>
     (await request<{ data: InferenceGateway[] }>("/api/v1/inference-gateways")).data,
   listModelProfiles: async () =>
@@ -110,39 +199,74 @@ export const api = {
     (await request<{ data: ModelProfileConsumer[] }>(`/api/v1/model-profiles/${encodeURIComponent(id)}/consumers`)).data,
   listModelProfileAudit: async (id: string) =>
     (await request<{ data: ModelProfileAuditEvent[] }>(`/api/v1/model-profiles/${encodeURIComponent(id)}/audit`)).data,
-  getExtensionCatalog: () => request<ExtensionCatalog>("/api/v1/extensions"),
+  getResourceCatalog: () => request<ResourceCatalog>("/api/v1/catalog"),
+  getAgentGarden: () =>
+    request<AgentGardenSnapshot>("/api/v1/agent-garden"),
+  registerGardenAgent: (input: CreateAgentGardenEntryInput) =>
+    request<AgentGardenEntry>("/api/v1/agent-garden/agents", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  discoverGardenAgent: (id: string) =>
+    request<AgentGardenEntry>(
+      `/api/v1/agent-garden/agents/${encodeURIComponent(id)}/discover`,
+      {
+        method: "POST",
+        body: "{}",
+      },
+    ),
+  removeGardenAgent: (id: string) =>
+    request<{ message: string }>(
+      `/api/v1/agent-garden/agents/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+    ),
+  connectGardenAgent: (input: CreateAgentConnectionInput) =>
+    request<AgentConnection>("/api/v1/agent-garden/connections", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  disconnectGardenAgent: (id: string) =>
+    request<{ message: string }>(
+      `/api/v1/agent-garden/connections/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+    ),
   createSkill: (input: CreateSkillDefinitionInput) =>
-    request<SkillDefinition>("/api/v1/extensions/skills", {
+    request<SkillDefinition>("/api/v1/catalog/skills", {
       method: "POST",
       body: JSON.stringify(input),
     }),
   updateSkill: (id: string, input: UpdateSkillDefinitionInput) =>
-    request<SkillDefinition>(`/api/v1/extensions/skills/${encodeURIComponent(id)}`, {
+    request<SkillDefinition>(`/api/v1/catalog/skills/${encodeURIComponent(id)}`, {
       method: "PUT",
       body: JSON.stringify(input),
     }),
   createMcpServer: (input: CreateMcpServerDefinitionInput) =>
-    request<McpServerDefinition>("/api/v1/extensions/mcp-servers", {
+    request<McpServerDefinition>("/api/v1/catalog/mcp-servers", {
       method: "POST",
       body: JSON.stringify(input),
     }),
   updateMcpServer: (id: string, input: UpdateMcpServerDefinitionInput) =>
-    request<McpServerDefinition>(`/api/v1/extensions/mcp-servers/${encodeURIComponent(id)}`, {
+    request<McpServerDefinition>(`/api/v1/catalog/mcp-servers/${encodeURIComponent(id)}`, {
       method: "PUT",
       body: JSON.stringify(input),
     }),
+  discoverMcpServer: (id: string) =>
+    request<McpServerDefinition>(`/api/v1/catalog/mcp-servers/${encodeURIComponent(id)}/discover`, {
+      method: "POST",
+      body: "{}",
+    }),
   createKnowledgeSource: (input: CreateKnowledgeSourceDefinitionInput) =>
-    request<KnowledgeSourceDefinition>("/api/v1/extensions/knowledge-sources", {
+    request<KnowledgeSourceDefinition>("/api/v1/catalog/knowledge-sources", {
       method: "POST",
       body: JSON.stringify(input),
     }),
   updateKnowledgeSource: (id: string, input: UpdateKnowledgeSourceDefinitionInput) =>
-    request<KnowledgeSourceDefinition>(`/api/v1/extensions/knowledge-sources/${encodeURIComponent(id)}`, {
+    request<KnowledgeSourceDefinition>(`/api/v1/catalog/knowledge-sources/${encodeURIComponent(id)}`, {
       method: "PUT",
       body: JSON.stringify(input),
     }),
-  deleteExtension: (kind: ExtensionResourceKind, id: string) =>
-    request<{ message: string }>(`/api/v1/extensions/${kind}/${encodeURIComponent(id)}`, {
+  deleteResource: (kind: ResourceKind, id: string) =>
+    request<{ message: string }>(`/api/v1/catalog/${kind}/${encodeURIComponent(id)}`, {
       method: "DELETE",
     }),
   listProviderAccounts: async () =>
@@ -152,6 +276,14 @@ export const api = {
       method: "POST",
       body: JSON.stringify(input),
     }),
+  discoverProviderAccountModels: (id: string) =>
+    request<ProviderDiscoveryResult>(
+      `/api/v1/providers/${encodeURIComponent(id)}/discover`,
+      {
+        method: "POST",
+        body: "{}",
+      },
+    ),
   registerProviderAccount: (input: CreateProviderConnectionInput) =>
     request<ProviderConnectionCreationResult>("/api/v1/providers", {
       method: "POST",
@@ -167,16 +299,15 @@ export const api = {
       method: "DELETE",
     }),
   listModelDeployments: async () =>
-    (await request<{ data: ModelDeployment[] }>("/api/v1/providers/models")).data,
+    (await request<{ data: ModelDeployment[] }>("/api/v1/models")).data,
   registerModelDeployment: (input: CreateModelDeploymentInput) =>
-    request<ModelDeployment>("/api/v1/providers/models", {
+    request<ModelDeployment>("/api/v1/models", {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  markModelDeploymentAsDefault: (id: string) =>
-    request<ModelDeployment>(`/api/v1/providers/models/${encodeURIComponent(id)}/default`, {
-      method: "POST",
-      body: "{}",
+  deleteModelDeployment: (id: string) =>
+    request<{ message: string }>(`/api/v1/models/${encodeURIComponent(id)}`, {
+      method: "DELETE",
     }),
   getCostSummary: (params: CostQueryParams) =>
     request<ModelCostSummaryResponse>(`/api/v1/costs/summary?${costSearch(params)}`),
@@ -245,31 +376,38 @@ export const api = {
       method: "DELETE",
     }),
   listAgents: async () =>
-    (await request<{ data: Agent[] }>("/api/v1/agents")).data,
-  getAgent: (id: string) => request<Agent>(`/api/v1/agents/${id}`),
+    (await request<{ data: Agent[] }>("/api/v1/instances")).data,
+  getAgent: (id: string) => request<Agent>(`/api/v1/instances/${id}`),
   getAgentAudit: async (id: string) =>
     (
       await request<{ data: SandboxAuditEvent[] }>(
-        `/api/v1/agents/${id}/audit`,
+        `/api/v1/instances/${id}/audit`,
       )
     ).data,
   getRuntimeStatus: () => request<RuntimeStatus>("/api/v1/runtime"),
   getTerminalTargets: async (id: string) =>
     (
       await request<{ data: TerminalTarget[] }>(
-        `/api/v1/agents/${id}/terminal-targets`,
+        `/api/v1/instances/${id}/terminal-targets`,
       )
     ).data,
   createAgent: (input: CreateAgentInput) =>
-    request<Agent>("/api/v1/agents", {
+    request<Agent>("/api/v1/instances", {
       method: "POST",
       body: JSON.stringify(input),
     }),
   deleteAgent: (id: string) =>
-    request<void>(`/api/v1/agents/${id}`, { method: "DELETE" }),
+    request<void>(`/api/v1/instances/${id}`, { method: "DELETE" }),
+  bindAgentVirtualEmployee: (id: string, virtualEmployeeId: string) =>
+    request<Agent>(`/api/v1/instances/${encodeURIComponent(id)}/virtual-employee`, {
+      method: "PUT",
+      body: JSON.stringify({ virtualEmployeeId }),
+    }),
+  unbindAgentVirtualEmployee: (id: string) =>
+    request<Agent>(`/api/v1/instances/${encodeURIComponent(id)}/virtual-employee`, { method: "DELETE" }),
   createTerminalSession: (id: string, targetId: string) =>
     request<TerminalSessionResponse>(
-      `/api/v1/agents/${id}/terminal-sessions`,
+      `/api/v1/instances/${id}/terminal-sessions`,
       { method: "POST", body: JSON.stringify({ targetId }) },
     ),
 };

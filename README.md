@@ -5,6 +5,9 @@ running OpenClaw or Hermes Agents in OpenShell sandboxes. OpenShell is the fixed
 runtime; OpenClaw is the default Agent implementation and Hermes is the second
 supported implementation.
 
+Control Plane runtime settings use a single TOML file; see
+[Control Plane configuration](docs/control-configuration.md).
+
 ```text
 Browser (TanStack Start + shadcn/ui)
                   |
@@ -122,6 +125,8 @@ The checked-in Chart defaults are suitable only for a trusted cluster: local
 login is `admin / admin`, and OpenShell permits unauthenticated plaintext
 gateway clients. Before shared or internet-facing use, override every
 `secrets.*` value and configure authenticated ingress plus OpenShell TLS/OIDC.
+For an end-to-end SSO test environment, enable the Chart's ephemeral,
+preconfigured Keycloak with `keycloak.enabled=true`.
 See the [Chart documentation](charts/tasklattice/README.md) for existing
 Secrets, image pull Secrets, and external runtime settings.
 

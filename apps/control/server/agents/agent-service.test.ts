@@ -41,6 +41,7 @@ describe("Instance lifecycle reconciliation", () => {
     model: "deepseek-chat",
     modelType: "llm" as const,
     inferenceMode: "PLATFORM_MANAGED" as const,
+    virtualEmployeeId: "11111111-1111-4111-8111-111111111111",
     modelProfileId: "profile-a",
     modelProfileBindingId: "binding-a",
     modelProfileStatus: "READY" as const,
@@ -109,6 +110,7 @@ describe("OpenShell policy assignment", () => {
         name: "GitHub Operator",
         description: "",
         runtime: "openshell",
+        virtualEmployeeId: "11111111-1111-4111-8111-111111111111",
         policyId: "github-full-access",
         systemPrompt: "Operate on GitHub and report the resulting evidence.",
       }).policyId,
@@ -121,6 +123,7 @@ describe("Agent selection", () => {
     name: "Research Assistant",
     description: "",
     runtime: "openshell" as const,
+    virtualEmployeeId: "11111111-1111-4111-8111-111111111111",
     policyId: "restricted" as const,
     systemPrompt: "Research the request and report the resulting evidence.",
   };
@@ -167,10 +170,22 @@ describe("Agent selection", () => {
   });
 });
 
-describe("Instance Model Profile binding lifecycle", () => {
-  it("creates one Team-scoped key and revokes it when the Instance is destroyed", async () => {
+describe("Instance Virtual Employee binding lifecycle", () => {
+  it("creates and revokes an Instance Service Account Key under the Project Team", async () => {
     const store = createTestStore();
     const now = new Date().toISOString();
+    await store.saveInferenceGateway({
+      id: "litellm-default",
+      name: "LiteLLM",
+      baseUrl: "http://litellm:4000",
+      adminUiUrl: "http://litellm:4000",
+      credentialSource: "ENVIRONMENT",
+      status: "READY",
+      validationMessage: "Ready",
+      validatedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    });
     await store.saveModelProfile({
       id: "profile-a",
       name: "Production inference",
@@ -178,6 +193,13 @@ describe("Instance Model Profile binding lifecycle", () => {
       gatewayId: "litellm-default",
       managementMode: "LITELLM_MANAGED",
       publicModelAlias: "production-chat",
+      routingPolicy: {
+        version: 1,
+        mode: "SINGLE",
+        modelDeploymentId: "model-a",
+        fallbackModelDeploymentIds: [],
+        retries: 2,
+      },
       complianceDomain: "GLOBAL",
       status: "READY",
       isDefault: true,
@@ -221,23 +243,76 @@ describe("Instance Model Profile binding lifecycle", () => {
       createInstanceKey: vi.fn(async () => ({ secret: "sk-instance", tokenId: "hashed-token" })),
       createModelProfileTeam: vi.fn(async () => "team-a"),
       createModelProfileKey: vi.fn(async () => ({ secret: "sk-instance", tokenId: "hashed-token" })),
+      ensureVirtualEmployeeTeam: vi.fn(async () => "team-a"),
+      ensureProjectTeam: vi.fn(async () => "team-a"),
+      addProjectTeamMember: vi.fn(async () => undefined),
+      createInstanceServiceAccountKey: vi.fn(async () => ({ secret: "sk-instance-service-account", tokenId: "instance-hashed-token" })),
+      createVirtualEmployeeKey: vi.fn(async () => ({ secret: "sk-virtual-employee-key", tokenId: "ve-hashed-token" })),
       revokeKey: vi.fn(async () => undefined),
       listSpendLogs: vi.fn(),
     };
     const service = new AgentService(store, runner, litellm);
+    await store.saveKnowledgeSourceDefinition({
+      id: "engineering-handbook",
+      name: "Engineering Handbook",
+      description: "Approved engineering standards and operational runbooks.",
+      vectorStoreId: "vs_engineering_handbook",
+      provider: "openai",
+      credentialReference: "",
+      status: "REGISTERED",
+      lastReconciliationError: null,
+      topK: 8,
+    });
+    const virtualEmployee = await service.virtualEmployees.create({
+      name: "research-worker",
+      displayName: "Research Worker",
+      description: "Research business identity.",
+      businessRole: "Research",
+      ownerTeamId: "research",
+      environment: "production",
+      tags: [],
+      modelAccess: {
+        allowedModels: ["production-chat"],
+        accessGroups: [],
+        maxBudget: 100,
+        budgetDuration: "30d",
+        rpmLimit: 60,
+        tpmLimit: 500000,
+        maxParallelRequests: 10,
+        keyDuration: "90d",
+        fallbackModels: [],
+      },
+      identities: [],
+      accessScopes: [],
+      activate: true,
+    }, "test");
     const agent = await service.create({
       name: "Research Assistant",
       description: "",
       runtime: "openshell",
+      virtualEmployeeId: virtualEmployee.id,
       agentPlatform: "openclaw",
       policyId: "restricted",
       systemPrompt: "Research the request and report the resulting evidence.",
+      knowledgeSourceIds: ["engineering-handbook"],
     });
 
-    expect(litellm.createModelProfileKey).toHaveBeenCalledWith(expect.objectContaining({ agentId: agent.id, modelAlias: "production-chat", teamId: "team-a" }));
-    expect(runner.createSandbox).toHaveBeenCalledWith(expect.objectContaining({ apiKey: "sk-instance", inferenceEndpoint: "http://litellm:4000/v1" }));
+    expect(litellm.createVirtualEmployeeKey).not.toHaveBeenCalled();
+    expect(litellm.createInstanceServiceAccountKey).toHaveBeenCalledWith(expect.objectContaining({
+      teamId: "team-a",
+      models: ["production-chat"],
+      metadata: expect.objectContaining({
+        tali_project_id: "individual",
+        tali_virtual_employee_id: virtualEmployee.id,
+        tali_instance_id: agent.id,
+      }),
+      objectPermissions: expect.objectContaining({
+        vectorStores: ["vs_engineering_handbook"],
+      }),
+    }));
+    expect(runner.createSandbox).toHaveBeenCalledWith(expect.objectContaining({ apiKey: "sk-instance-service-account", inferenceEndpoint: "http://litellm:4000/v1", virtualEmployeeId: virtualEmployee.id }));
     expect(runner.createSandbox).toHaveBeenCalledWith(expect.objectContaining({ policyYaml: expect.stringContaining("/dev/null") }));
     await service.destroy(agent.id);
-    expect(litellm.revokeKey).toHaveBeenCalledWith("hashed-token");
+    expect(litellm.revokeKey).toHaveBeenCalledWith("instance-hashed-token");
   });
 });

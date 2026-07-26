@@ -3,6 +3,17 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool, type Client as PgClient } from "pg";
 import migration from "../../prisma/migrations/20260723000000_initial_control_plane/migration.sql?raw";
 import seedMigration from "../../prisma/migrations/20260723001000_seed_control_plane/migration.sql?raw";
+import virtualEmployeeMigration from "../../prisma/migrations/20260724000000_virtual_employees/migration.sql?raw";
+import projectQuotaMigration from "../../prisma/migrations/20260725000000_project_quotas/migration.sql?raw";
+import personalProfileMigration from "../../prisma/migrations/20260725120000_personal_profile/migration.sql?raw";
+import accountPreferencesMigration from "../../prisma/migrations/20260725130000_account_preferences/migration.sql?raw";
+import userIdentitiesMigration from "../../prisma/migrations/20260725140000_user_identities/migration.sql?raw";
+import resourceCatalogNamesMigration from "../../prisma/migrations/20260725150000_resource_catalog_names/migration.sql?raw";
+import mcpToolDiscoveryMigration from "../../prisma/migrations/20260725160000_mcp_tool_discovery/migration.sql?raw";
+import liteLLMResourceControlPlaneMigration from "../../prisma/migrations/20260725190000_litellm_resource_control_plane/migration.sql?raw";
+import accessPoliciesMigration from "../../prisma/migrations/20260725200000_access_policies/migration.sql?raw";
+import auditLogsMigration from "../../prisma/migrations/20260726120000_platform_audit_logs/migration.sql?raw";
+import agentGardenMigration from "../../prisma/migrations/20260726150000_agent_garden/migration.sql?raw";
 import { PrismaClient } from "../generated/prisma/client";
 
 export function createTestPrisma(): PrismaClient {
@@ -19,6 +30,27 @@ export function createTestPrisma(): PrismaClient {
   // metadata. Production migrations retain Prisma's DECIMAL(65,30).
   memory.public.none(migration.replaceAll("DECIMAL(65,30)", "NUMERIC"));
   memory.public.none(seedMigration);
+  memory.public.none(virtualEmployeeMigration.replaceAll("DECIMAL(18,6)", "NUMERIC"));
+  memory.public.none(projectQuotaMigration.replaceAll("DECIMAL(18,6)", "NUMERIC"));
+  memory.public.none(personalProfileMigration);
+  memory.public.none(accountPreferencesMigration);
+  memory.public.none(
+    userIdentitiesMigration.replace(
+      /CREATE INDEX user_identities_user_id_idx[\s\S]*?;/,
+      "",
+    ),
+  );
+  memory.public.none(
+    resourceCatalogNamesMigration.replace(
+      /ALTER TABLE tasklattice\.(?:skills|mcp_servers|knowledge_sources)\s+RENAME CONSTRAINT[\s\S]*?;/g,
+      "",
+    ),
+  );
+  memory.public.none(mcpToolDiscoveryMigration);
+  memory.public.none(liteLLMResourceControlPlaneMigration);
+  memory.public.none(accessPoliciesMigration);
+  memory.public.none(auditLogsMigration);
+  memory.public.none(agentGardenMigration);
   const pg = memory.adapters.createPg();
   const query = pg.Client.prototype.query;
   pg.Client.prototype.query = function (

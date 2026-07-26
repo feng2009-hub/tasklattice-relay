@@ -1,23 +1,102 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { LiteLLMClient } from "./litellm-client";
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
+
+describe("LiteLLM model validation", () => {
+  it("waits for a newly registered model to propagate across LiteLLM workers", async () => {
+    vi.useFakeTimers();
+    const modelName = "tali/account/deepseek-v4-flash";
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        error: {
+          message: `/chat/completions: Invalid model name passed in model=${modelName}. Call /v1/models to view available models for your key.`,
+        },
+      }), { status: 400 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        error: {
+          message: `/chat/completions: Invalid model name passed in model=${modelName}. Call /v1/models to view available models for your key.`,
+        },
+      }), { status: 400 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: "chatcmpl-validation" }), {
+        status: 200,
+      }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const probe = new LiteLLMClient("http://litellm:4000", "master-secret")
+      .probeModel(modelName, "llm");
+    await vi.runAllTimersAsync();
+    await expect(probe).resolves.toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not retry a real upstream validation failure", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      error: { message: "Incorrect API key provided." },
+    }), { status: 401 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const probe = new LiteLLMClient("http://litellm:4000", "master-secret")
+      .probeModel("tali/account/deepseek-v4-flash", "llm");
+    await expect(probe).rejects.toThrow("Incorrect API key provided.");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns a readable error instead of truncated nested JSON", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      error: {
+        message: "The upstream model rejected this request.",
+        provider_specific_fields: { ignored: "x".repeat(500) },
+      },
+    }), { status: 400 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      new LiteLLMClient("http://litellm:4000", "master-secret")
+        .probeModel("tali/account/model", "llm"),
+    ).rejects.toThrow(
+      "LiteLLM returned 400: The upstream model rejected this request.",
+    );
+  });
+});
 
 describe("LiteLLM Router capability inspection", () => {
-  it("detects Auto Router and blocks versions before 1.94", async () => {
+  it("accepts the Complexity Router shipped by the deployed LiteLLM 1.86 line", async () => {
     vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
       return new Response(JSON.stringify(url.endsWith("/model/info") ? {
         data: [{
           model_name: "production-chat",
-          litellm_params: { model: "auto_router/auto-router-v2" },
+          litellm_params: {
+            model: "auto_router/complexity_router",
+            complexity_router_config: {
+              tiers: {
+                SIMPLE: "fast",
+                MEDIUM: "fast",
+                COMPLEX: "strong",
+                REASONING: "strong",
+              },
+            },
+          },
           model_info: { compliance_domain: "CN_MAINLAND", fallbacks: ["backup"], request_audit: true },
-        }],
+        },
+        { model_name: "fast", model_info: { compliance_domain: "CN_MAINLAND" } },
+        { model_name: "strong", model_info: { compliance_domain: "CN_MAINLAND" } },
+        { model_name: "backup", model_info: { compliance_domain: "CN_MAINLAND" } }],
       } : { version: "1.86.2" }), { status: 200 });
     }));
     const result = await new LiteLLMClient("http://litellm:4000", "master-secret").inspectModelProfile("production-chat");
-    expect(result.capabilities).toMatchObject({ automaticRouting: "ENABLED", failover: "ENABLED", requestAudit: "ENABLED" });
-    expect(result.unsupportedReason).toContain("1.94");
+    expect(result.capabilities).toMatchObject({
+      automaticRouting: "ENABLED",
+      routerType: "COMPLEXITY_ROUTER",
+      failover: "ENABLED",
+      requestAudit: "ENABLED",
+    });
+    expect(result.unsupportedReason).toBeUndefined();
   });
 
   it("redacts virtual keys echoed by LiteLLM errors", async () => {
@@ -62,13 +141,199 @@ describe("LiteLLM Router capability inspection", () => {
         automaticRouting: "ENABLED",
         routerType: "COMPLEXITY_ROUTER",
         complexityTierCount: 4,
-        sessionAffinity: "ENABLED",
-        adaptiveRouting: "ENABLED",
+        sessionAffinity: "UNKNOWN",
+        adaptiveRouting: "UNKNOWN",
         contextWindowFallback: "ENABLED",
         requestAudit: "ENABLED",
       },
     });
     expect(result.configurationHash).toMatch(/^sha256:/);
+  });
+
+  it("creates a managed complexity route and configures the runtime fallback API", async () => {
+    const calls: Array<{ url: string; method: string; body?: unknown }> = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      calls.push({
+        url,
+        method: init?.method ?? "GET",
+        ...(init?.body ? { body: JSON.parse(String(init.body)) } : {}),
+      });
+      if (url.endsWith("/model/info"))
+        return new Response(JSON.stringify({ data: [] }), { status: 200 });
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    }));
+    const client = new LiteLLMClient("http://litellm:4000", "master-secret");
+
+    await client.reconcileModelProfileRoute({
+      strategy: "COMPLEXITY",
+      alias: "tali-profile-profile-a",
+      modelProfileId: "profile-a",
+      complianceDomain: "GLOBAL",
+      tiers: {
+        SIMPLE: "tali/gemini/flash",
+        MEDIUM: "tali/gemini/flash",
+        COMPLEX: "tali/anthropic/sonnet",
+        REASONING: "tali/anthropic/sonnet",
+      },
+      defaultModel: "tali/gemini/flash",
+      fallbackModels: ["tali/qwen/max"],
+      retries: 2,
+      requestAudit: true,
+    });
+
+    expect(calls).toEqual([
+      expect.objectContaining({ url: "http://litellm:4000/model/info", method: "GET" }),
+      expect.objectContaining({
+        url: "http://litellm:4000/model/new",
+        method: "POST",
+        body: {
+          model_name: "tali-profile-profile-a",
+          litellm_params: {
+            model: "auto_router/complexity_router",
+            complexity_router_config: {
+              tiers: {
+                SIMPLE: "tali/gemini/flash",
+                MEDIUM: "tali/gemini/flash",
+                COMPLEX: "tali/anthropic/sonnet",
+                REASONING: "tali/anthropic/sonnet",
+              },
+              default_model: "tali/gemini/flash",
+            },
+            complexity_router_default_model: "tali/gemini/flash",
+            num_retries: 2,
+          },
+          model_info: {
+            managed_by: "tasklattice",
+            tasklattice_resource: "model_profile_route",
+            model_profile_id: "profile-a",
+            routing_strategy: "COMPLEXITY",
+            compliance_domain: "GLOBAL",
+            request_audit: true,
+          },
+        },
+      }),
+      expect.objectContaining({
+        url: "http://litellm:4000/fallback",
+        method: "POST",
+        body: {
+          model: "tali-profile-profile-a",
+          fallback_models: ["tali/qwen/max"],
+          fallback_type: "general",
+        },
+      }),
+    ]);
+  });
+
+  it("creates a managed semantic route using LiteLLM's v1.86 contract", async () => {
+    const calls: Array<{ url: string; method: string; body?: unknown }> = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      calls.push({
+        url,
+        method: init?.method ?? "GET",
+        ...(init?.body ? { body: JSON.parse(String(init.body)) } : {}),
+      });
+      if (url.endsWith("/model/info"))
+        return new Response(JSON.stringify({ data: [] }), { status: 200 });
+      if (init?.method === "DELETE")
+        return new Response(JSON.stringify({ detail: "not found" }), { status: 404 });
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    }));
+    const client = new LiteLLMClient("http://litellm:4000", "master-secret");
+
+    await client.reconcileModelProfileRoute({
+      strategy: "SEMANTIC",
+      alias: "tali-profile-profile-semantic",
+      modelProfileId: "profile-semantic",
+      complianceDomain: "EU_EEA",
+      defaultModel: "tali/openai/general",
+      embeddingModel: "tali/openai/embedding",
+      routes: [{
+        intent: "coding",
+        description: "Programming and debugging requests.",
+        model: "tali/anthropic/code",
+        utterances: ["Debug this function", "Design an API"],
+        scoreThreshold: 0.5,
+      }],
+      fallbackModels: [],
+      retries: 2,
+      requestAudit: true,
+    });
+
+    const createCall = calls.find((call) =>
+      call.url.endsWith("/model/new")
+    );
+    expect(createCall?.body).toMatchObject({
+      model_name: "tali-profile-profile-semantic",
+      litellm_params: {
+        model: "auto_router/tali-profile-profile-semantic",
+        auto_router_default_model: "tali/openai/general",
+        auto_router_embedding_model: "tali/openai/embedding",
+        num_retries: 2,
+      },
+      model_info: {
+        managed_by: "tasklattice",
+        routing_strategy: "SEMANTIC",
+        compliance_domain: "EU_EEA",
+      },
+    });
+    const config = JSON.parse(
+      String(
+        (
+          createCall?.body as {
+            litellm_params?: { auto_router_config?: string };
+          }
+        )?.litellm_params?.auto_router_config,
+      ),
+    );
+    expect(config).toEqual({
+      routes: [{
+        name: "tali/anthropic/code",
+        description: "Programming and debugging requests.",
+        utterances: ["Debug this function", "Design an API"],
+        score_threshold: 0.5,
+        metadata: { tasklattice_intent: "coding" },
+      }],
+    });
+  });
+
+  it("patches only a route owned by the same Model Profile", async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith("/model/info")) {
+        return new Response(JSON.stringify({
+          data: [{
+            model_name: "tali-profile-profile-a",
+            model_info: {
+              id: "router-model-id",
+              managed_by: "somebody-else",
+            },
+          }],
+        }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new LiteLLMClient("http://litellm:4000", "master-secret");
+
+    await expect(client.reconcileModelProfileRoute({
+      strategy: "COMPLEXITY",
+      alias: "tali-profile-profile-a",
+      modelProfileId: "profile-a",
+      complianceDomain: "GLOBAL",
+      tiers: {
+        SIMPLE: "fast",
+        MEDIUM: "fast",
+        COMPLEX: "strong",
+        REASONING: "strong",
+      },
+      defaultModel: "fast",
+      fallbackModels: [],
+      retries: 1,
+      requestAudit: true,
+    })).rejects.toThrow("not owned");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("creates a model-restricted Team key with compliance metadata", async () => {

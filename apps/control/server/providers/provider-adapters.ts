@@ -1,5 +1,8 @@
 import {
   providerPresets,
+  type ModelCapability,
+  type ModelInputModality,
+  type ModelOutputModality,
   type ModelType,
   type ProviderConnectionDraft,
   type ProviderDiscoveryResult,
@@ -54,17 +57,70 @@ function modelType(modelId: string): ModelType {
   return "llm";
 }
 
+export function classifyModelMetadata(
+  modelId: string,
+  type: ModelType,
+): {
+  capabilities: ModelCapability[];
+  inputModalities: ModelInputModality[];
+  outputModalities: ModelOutputModality[];
+} {
+  if (type === "text-embedding") {
+    return {
+      capabilities: ["multilingual"],
+      inputModalities: ["text"],
+      outputModalities: ["embedding"],
+    };
+  }
+  if (type === "speech-to-text") {
+    return {
+      capabilities: ["multilingual"],
+      inputModalities: ["audio"],
+      outputModalities: ["text"],
+    };
+  }
+  const value = modelId.toLowerCase();
+  const vision = /(?:vision|ocr|(?:^|[-_.])vl(?:[-_.]|$)|multimodal|gpt-4o|gpt-5|gemini)/i.test(value);
+  const reasoning = /(?:reason|thinking|(?:^|[-_.])o[134](?:[-_.]|$)|gpt-5|sonnet|opus|deepseek-v|deepseek-r|gemini.*pro)/i.test(value);
+  const capabilities: ModelCapability[] = [
+    "tool-calling",
+    "structured-output",
+    "multilingual",
+  ];
+  if (reasoning) capabilities.unshift("reasoning");
+  if (vision) capabilities.push("vision", "ocr", "document-understanding");
+  return {
+    capabilities,
+    inputModalities: vision
+      ? ["text", "image", "document"]
+      : ["text"],
+    outputModalities: ["text"],
+  };
+}
+
+function enrichModel(model: ProviderPresetModel): ProviderPresetModel {
+  const inferred = classifyModelMetadata(model.modelId, model.modelType);
+  return {
+    ...model,
+    capabilities: model.capabilities ?? inferred.capabilities,
+    inputModalities: model.inputModalities ?? inferred.inputModalities,
+    outputModalities: model.outputModalities ?? inferred.outputModalities,
+  };
+}
+
 function toCatalogModels(kind: ProviderKind, modelIds: readonly string[]): ProviderPresetModel[] {
   const defaults = new Map<string, ProviderPresetModel>(preset(kind).defaultModels.map((model) => [model.modelId, model]));
-  return [...new Set(modelIds)].map((modelId) => defaults.get(modelId) ?? {
-    modelId,
-    displayName: modelId,
-    modelType: modelType(modelId),
-  });
+  return [...new Set(modelIds)].map((modelId) =>
+    enrichModel(defaults.get(modelId) ?? {
+      modelId,
+      displayName: modelId,
+      modelType: modelType(modelId),
+    }),
+  );
 }
 
 function suggestions(kind: ProviderKind): ProviderDiscoveryResult {
-  const models = [...preset(kind).defaultModels];
+  const models = preset(kind).defaultModels.map(enrichModel);
   return {
     providerKind: kind,
     mode: models.length ? "suggested" : "manual",

@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { formatPlatformDateTime } from "@/lib/platform-preferences";
 import {
   auditorLogLevels,
   formatAuditorLogTime,
@@ -130,7 +131,7 @@ function LogLine({ entry, gridTemplateColumns, wrapLines }: {
       <span className={cn("font-medium", levelStyles[entry.level])}>{entry.level.toUpperCase()}</span>
       <span className="truncate text-cyan-400" title={entry.source}>{entry.source}</span>
       <span className={cn("min-w-0 text-zinc-300", wrapLines ? "whitespace-pre-wrap break-words" : "whitespace-pre", entry.level === "error" && "text-red-300")}>{entry.message}</span>
-      <time dateTime={entry.timestamp} className="text-right text-zinc-500" title={new Date(entry.timestamp).toLocaleString()}>{formatAuditorLogTime(entry.timestamp, false)}</time>
+      <time dateTime={entry.timestamp} className="text-right text-zinc-500" title={formatPlatformDateTime(entry.timestamp)}>{formatAuditorLogTime(entry.timestamp, false)}</time>
     </div>
   );
 }

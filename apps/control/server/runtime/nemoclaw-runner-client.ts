@@ -4,6 +4,7 @@ import type {
   RunnerSandbox,
   SandboxAuditEvent,
 } from "@tasklattice/contracts";
+import { getControlConfig } from "../config/control-config";
 
 export interface CreateSandboxInput {
   name: string;
@@ -14,6 +15,8 @@ export interface CreateSandboxInput {
   policyYaml: string;
   systemPrompt: string;
   apiKey?: string;
+  virtualEmployeeId: string;
+  instanceId: string;
 }
 
 export interface RunnerClient {
@@ -30,9 +33,8 @@ export class NemoClawRunnerClient implements RunnerClient {
   readonly baseUrl: string;
 
   constructor(
-    baseUrl = process.env.NEMOCLAW_RUNNER_URL ?? "http://127.0.0.1:9090",
-    private readonly token = process.env.NEMOCLAW_RUNNER_TOKEN ??
-      "local-dev-token",
+    baseUrl = getControlConfig().runner.url,
+    private readonly token = getControlConfig().runner.token,
   ) {
     this.baseUrl = baseUrl.replace(/\/$/, "");
   }

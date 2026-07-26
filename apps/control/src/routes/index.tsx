@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { BrandLogo } from "@/components/brand/brand-logo";
+import { getStoredProjectId } from "@/lib/project-storage";
 
 export const Route = createFileRoute("/")({ component: LandingPage });
 
@@ -30,6 +31,10 @@ const systemFeatures: Array<[LucideIcon, string, string]> = [
 
 function LandingPage() {
   const { user } = useAuth();
+  const projectId = getStoredProjectId() ?? "individual";
+  const projectLink = user
+    ? { to: "/$projectId" as const, params: { projectId } }
+    : { to: "/login" as const };
   return (
     <div className="landing-page min-h-svh overflow-hidden bg-background text-foreground">
       <header className="relative z-20 mx-auto flex h-20 max-w-[1480px] items-center justify-between px-5 sm:px-8 lg:px-12">
@@ -42,10 +47,10 @@ function LandingPage() {
           <a href="#trust" className="hover:text-foreground">Trust</a>
         </nav>
         <Link
-          to={user ? "/dashboard" : "/login"}
+          {...projectLink}
           className="inline-flex min-h-11 items-center gap-2 border border-foreground px-5 text-sm font-medium transition-colors hover:bg-foreground hover:text-background focus-visible:outline-2 focus-visible:outline-offset-2"
         >
-          {user ? "Open workspace" : "Sign in"}
+          {user ? "Open Project" : "Sign in"}
           <ArrowRight className="size-4" />
         </Link>
       </header>
@@ -68,10 +73,10 @@ function LandingPage() {
             </p>
             <div className="mt-10 flex flex-wrap items-center gap-4">
               <Link
-                to={user ? "/dashboard" : "/login"}
+                {...projectLink}
                 className="inline-flex min-h-12 items-center gap-3 bg-primary px-6 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2"
               >
-                {user ? "Enter the workspace" : "Start operating"}
+                {user ? "Enter the Project" : "Start operating"}
                 <ArrowRight className="size-4" />
               </Link>
               <a
@@ -180,9 +185,9 @@ function LandingPage() {
               <h2 className="mt-8 text-4xl leading-tight tracking-[-0.025em] sm:text-6xl">Control starts with a boundary you can explain.</h2>
             </div>
             <div className="max-w-md">
-              <p className="text-base leading-7 text-muted-foreground">Local identity and OIDC SSO lead into the same authenticated workspace. Agent APIs remain behind that boundary, while runtime session tokens stay short-lived and task-specific.</p>
-              <Link to={user ? "/dashboard" : "/login"} className="mt-8 inline-flex min-h-11 items-center gap-2 border-b border-foreground text-sm font-medium">
-                {user ? "Open your workspace" : "Authenticate to continue"}
+              <p className="text-base leading-7 text-muted-foreground">Local identity and OIDC SSO lead into the same authenticated Project context. Agent APIs remain behind that boundary, while runtime session tokens stay short-lived and task-specific.</p>
+              <Link {...projectLink} className="mt-8 inline-flex min-h-11 items-center gap-2 border-b border-foreground text-sm font-medium">
+                {user ? "Open your Project" : "Authenticate to continue"}
                 <ArrowRight className="size-4" />
               </Link>
             </div>

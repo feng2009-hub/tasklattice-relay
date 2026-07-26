@@ -73,6 +73,7 @@ helm upgrade --install "${release_name}" charts/tasklattice \
   --set-string "images.runner.tag=${image_tag}" \
   --set-string "images.litellm.tag=${image_tag}" \
   --set "control.service.type=ClusterIP" \
+  --set "litellm.service.type=ClusterIP" \
   --set "openshell.service.type=ClusterIP" \
   --wait \
   --wait-for-jobs \

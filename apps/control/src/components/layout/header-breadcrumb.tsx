@@ -1,10 +1,11 @@
 import { Fragment } from "react";
-import { Link } from "@tanstack/react-router";
-import { WorkspaceSwitcher } from "@/components/workspace/workspace-switcher";
+import { useProject } from "@/hooks/use-project";
 import { cn } from "@/lib/utils";
 
 const routeLabels: Record<string, string> = {
-  Extensions: "Extensions",
+  "access-policies": "Access Policies",
+  "agent-garden": "Agent Garden",
+  "audit-logs": "Audit Logs",
   agent: "Agent",
   agents: "Instances",
   cost: "Cost",
@@ -15,16 +16,20 @@ const routeLabels: Record<string, string> = {
   mcp: "MCP Servers",
   new: "Create Instance",
   policy: "Policy",
-  providers: "Models",
+  profile: "My Account",
   "model-profiles": "Model Profiles",
   requests: "Requests",
+  security: "Security",
   runtime: "Runtime",
   sandboxes: "Sandboxes",
+  setting: "Project Settings",
   settings: "Settings",
   skill: "Skills",
   skills: "Skills",
   tickets: "Ticket List",
-  workspaces: "Workspaces",
+  traces: "Traces",
+  "virtual-employees": "Virtual Employees",
+  projects: "Projects",
 };
 
 export interface HeaderBreadcrumbItem {
@@ -42,72 +47,75 @@ function decodePathPart(part: string) {
 
 export function getHeaderBreadcrumbItems(pathname: string): HeaderBreadcrumbItem[] {
   const parts = pathname.split("/").filter(Boolean);
-  return parts.flatMap((part, index) => {
-    if (index === 1 && parts[0] === "agents" && part === "instace") return [];
+  const projectId = parts[0];
+  return parts.slice(1).flatMap((part, routeIndex) => {
+    const index = routeIndex + 1;
     const label =
-      index === 1 && parts[0] === "requests" && part === "new"
+      routeIndex === 2 &&
+      parts[1] === "setting" &&
+      parts[2] === "virtual-employees"
+        ? "Details"
+        :
+      routeIndex === 1 && parts[1] === "agent-garden"
+        ? "Agent details"
+        :
+      routeIndex === 1 && parts[1] === "access-policies"
+        ? "Policy details"
+        :
+      routeIndex === 1 && parts[1] === "requests" && part === "new"
         ? "Raise Request"
         : routeLabels[part] ?? decodePathPart(part);
     return [{
-      href: `/${parts.slice(0, index + 1).join("/")}`,
+      href: `/${[projectId, ...parts.slice(1, index + 1)].join("/")}`,
       label,
     }];
   });
 }
 
 export function HeaderBreadcrumb({ pathname }: { pathname: string }) {
+  const { currentProject: currentProject } = useProject();
   const items = getHeaderBreadcrumbItems(pathname);
   const lastIndex = items.length - 1;
 
   return (
-    <div className="flex min-w-0 items-center gap-1 text-xs">
-      <WorkspaceSwitcher />
-      {items.length ? (
-        <>
-          <span aria-hidden="true" className="shrink-0 text-muted-foreground/70">
-            /
-          </span>
-          <nav
-            aria-label="Breadcrumb"
-            className="flex min-w-0 items-center gap-1 text-muted-foreground"
-          >
-            {items.map((item, index) => {
-              const current = index === lastIndex;
-              return (
-                <Fragment key={item.href}>
-                  {index > 0 ? (
-                    <span
-                      aria-hidden="true"
-                      className={cn(
-                        "shrink-0 text-muted-foreground/70",
-                        index <= lastIndex && "hidden md:inline",
-                      )}
-                    >
-                      /
-                    </span>
-                  ) : null}
-                  {current ? (
-                    <span
-                      aria-current="page"
-                      className="min-w-0 truncate font-medium text-foreground"
-                      title={item.label}
-                    >
-                      {item.label}
-                    </span>
-                  ) : (
-                    <Link
-                      to={item.href as never}
-                      className="hidden shrink-0 rounded-sm px-1 py-1 outline-none transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/35 md:inline"
-                    >
-                      {item.label}
-                    </Link>
-                  )}
-                </Fragment>
-              );
-            })}
-          </nav>
-        </>
-      ) : null}
-    </div>
+    <nav
+      aria-label="Breadcrumb"
+      className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground"
+    >
+      <span
+        className="max-w-36 shrink-0 truncate font-medium text-foreground sm:max-w-48"
+        title={currentProject?.name}
+      >
+        {currentProject?.name ?? "Project"}
+      </span>
+      {items.map((item, index) => {
+        const current = index === lastIndex;
+        return (
+          <Fragment key={item.href}>
+            <span
+              aria-hidden="true"
+              className={cn(
+                "shrink-0 text-muted-foreground/70",
+                !current && "hidden md:inline",
+              )}
+            >
+              /
+            </span>
+            <span
+              aria-current={current ? "page" : undefined}
+              className={cn(
+                "shrink-0",
+                current
+                  ? "min-w-0 truncate font-medium text-foreground"
+                  : "hidden md:inline",
+              )}
+              title={item.label}
+            >
+              {item.label}
+            </span>
+          </Fragment>
+        );
+      })}
+    </nav>
   );
 }

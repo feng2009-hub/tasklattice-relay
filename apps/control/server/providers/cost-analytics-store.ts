@@ -4,7 +4,7 @@ import type { Prisma } from "../generated/prisma/client";
 
 export interface CostAttributionMapping {
   id: string;
-  workspaceId: string;
+  projectId: string;
   environmentId: string;
   instanceId: string;
   instanceName: string;
@@ -46,7 +46,7 @@ export interface ModelUsageFact {
   responseEndTime?: string;
   usageDate: string;
   usageHour: number;
-  workspaceId: string;
+  projectId: string;
   environmentId: string;
   instanceId?: string;
   instanceName?: string;
@@ -100,7 +100,7 @@ export interface ModelUsageFact {
 export interface ModelUsageDailyRow {
   usageDate: string;
   timezone: string;
-  workspaceId: string;
+  projectId: string;
   environmentId: string;
   groupType: CostGroupBy;
   groupId: string;
@@ -133,7 +133,7 @@ export interface CostSyncCheckpoint {
 type FactQuery = {
   startTime: string;
   endTime: string;
-  workspaceId: string;
+  projectId: string;
   environmentId?: string;
 };
 
@@ -150,14 +150,14 @@ function defined<T extends Record<string, unknown>>(value: T): Record<string, un
 export class CostAnalyticsStore {
   constructor(
     private readonly db: PrismaClient,
-    readonly workspaceId: string,
+    readonly projectId: string,
   ) {}
 
   async saveAttribution(mapping: CostAttributionMapping): Promise<void> {
     await this.db.costAttributionMappingRecord.upsert({
-      where: { workspaceId_id: { workspaceId: this.workspaceId, id: mapping.id } },
+      where: { projectId_id: { projectId: this.projectId, id: mapping.id } },
       create: defined({
-        workspaceId: this.workspaceId,
+        projectId: this.projectId,
         id: mapping.id,
         environmentId: mapping.environmentId,
         instanceId: mapping.instanceId,
@@ -183,9 +183,9 @@ export class CostAnalyticsStore {
 
   async saveModelEndpointMapping(mapping: ModelEndpointCostMapping): Promise<void> {
     await this.db.modelEndpointMappingRecord.upsert({
-      where: { workspaceId_id: { workspaceId: this.workspaceId, id: mapping.id } },
+      where: { projectId_id: { projectId: this.projectId, id: mapping.id } },
       create: defined({
-        workspaceId: this.workspaceId,
+        projectId: this.projectId,
         id: mapping.id,
         modelEndpointId: mapping.modelEndpointId,
         modelEndpointName: mapping.modelEndpointName,
@@ -226,7 +226,7 @@ export class CostAnalyticsStore {
     if (!candidates.length) return undefined;
     const row = await this.db.costAttributionMappingRecord.findFirst({
       where: {
-        workspaceId: this.workspaceId,
+        projectId: this.projectId,
         validFrom: { lte: at },
         OR: [{ validTo: null }, { validTo: { gt: at } }],
         AND: [{ OR: candidates }],
@@ -236,7 +236,7 @@ export class CostAnalyticsStore {
     if (!row) return undefined;
     return {
       id: row.id,
-      workspaceId: row.workspaceId,
+      projectId: row.projectId,
       environmentId: row.environmentId,
       instanceId: row.instanceId,
       instanceName: row.instanceName,
@@ -268,7 +268,7 @@ export class CostAnalyticsStore {
     const at = new Date(input.at);
     const row = await this.db.modelEndpointMappingRecord.findFirst({
       where: {
-        workspaceId: this.workspaceId,
+        projectId: this.projectId,
         validFrom: { lte: at },
         OR: candidates,
         AND: [{ OR: [{ validTo: null }, { validTo: { gt: at } }] }],
@@ -297,7 +297,7 @@ export class CostAnalyticsStore {
     try {
       await this.db.modelUsageFactRecord.create({
         data: defined({
-          workspaceId: this.workspaceId,
+          projectId: this.projectId,
           eventId: fact.eventId,
           requestId: fact.requestId,
           requestStartTime: fact.requestStartTime,
@@ -375,13 +375,13 @@ export class CostAnalyticsStore {
   }): Promise<void> {
     await this.db.modelUsageFactObservation.upsert({
       where: {
-        workspaceId_eventId: {
-          workspaceId: this.workspaceId,
+        projectId_eventId: {
+          projectId: this.projectId,
           eventId: input.observationId,
         },
       },
       create: {
-        workspaceId: this.workspaceId,
+        projectId: this.projectId,
         eventId: input.observationId,
         requestId: input.requestId,
         observedAt: input.observedAt,
@@ -396,7 +396,7 @@ export class CostAnalyticsStore {
   async listFacts(query: FactQuery): Promise<ModelUsageFact[]> {
     const rows = await this.db.modelUsageFactRecord.findMany({
       where: {
-        workspaceId: this.workspaceId,
+        projectId: this.projectId,
         ...(query.environmentId ? { environmentId: query.environmentId } : {}),
         requestStartTime: { gte: new Date(query.startTime), lte: new Date(query.endTime) },
       },
@@ -410,7 +410,7 @@ export class CostAnalyticsStore {
       ...(row.responseEndTime ? { responseEndTime: iso(row.responseEndTime) } : {}),
       usageDate: iso(row.usageDate).slice(0, 10),
       usageHour: row.usageHour,
-      workspaceId: row.workspaceId,
+      projectId: row.projectId,
       environmentId: row.environmentId,
       ...(row.instanceId ? { instanceId: row.instanceId } : {}),
       ...(row.instanceName ? { instanceName: row.instanceName } : {}),
@@ -463,7 +463,7 @@ export class CostAnalyticsStore {
   }
 
   async replaceDailyRows(input: {
-    workspaceId: string;
+    projectId: string;
     environmentId: string;
     timezone: string;
     from: string;
@@ -473,7 +473,7 @@ export class CostAnalyticsStore {
     await this.db.$transaction(async (transaction) => {
       await transaction.modelUsageDailyRecord.deleteMany({
         where: {
-          workspaceId: this.workspaceId,
+          projectId: this.projectId,
           environmentId: input.environmentId,
           timezone: input.timezone,
           usageDate: {
@@ -485,7 +485,7 @@ export class CostAnalyticsStore {
       if (input.rows.length) {
         await transaction.modelUsageDailyRecord.createMany({
           data: input.rows.map((row) => ({
-            workspaceId: this.workspaceId,
+            projectId: this.projectId,
             usageDate: new Date(`${row.usageDate}T00:00:00.000Z`),
             timezone: row.timezone,
             environmentId: row.environmentId,
@@ -509,7 +509,7 @@ export class CostAnalyticsStore {
   }
 
   async listDailyRows(input: {
-    workspaceId: string;
+    projectId: string;
     environmentId: string;
     timezone: string;
     from: string;
@@ -518,7 +518,7 @@ export class CostAnalyticsStore {
   }): Promise<ModelUsageDailyRow[]> {
     const rows = await this.db.modelUsageDailyRecord.findMany({
       where: {
-        workspaceId: this.workspaceId,
+        projectId: this.projectId,
         environmentId: input.environmentId,
         timezone: input.timezone,
         groupType: input.groupType,
@@ -532,7 +532,7 @@ export class CostAnalyticsStore {
     return rows.map((row) => ({
       usageDate: iso(row.usageDate).slice(0, 10),
       timezone: row.timezone,
-      workspaceId: row.workspaceId,
+      projectId: row.projectId,
       environmentId: row.environmentId,
       groupType: row.groupType as CostGroupBy,
       groupId: row.groupId,
@@ -552,7 +552,7 @@ export class CostAnalyticsStore {
 
   async checkpoint(source = "litellm"): Promise<CostSyncCheckpoint> {
     const row = await this.db.costSyncCheckpointRecord.findUnique({
-      where: { workspaceId_source: { workspaceId: this.workspaceId, source } },
+      where: { projectId_source: { projectId: this.projectId, source } },
     });
     return {
       source,
@@ -581,15 +581,15 @@ export class CostAnalyticsStore {
       sourceSpendUsd: checkpoint.sourceSpendUsd,
     }) as Prisma.CostSyncCheckpointRecordUncheckedUpdateInput;
     await this.db.costSyncCheckpointRecord.upsert({
-      where: { workspaceId_source: { workspaceId: this.workspaceId, source: checkpoint.source } },
-      create: { workspaceId: this.workspaceId, source: checkpoint.source, ...data } as Prisma.CostSyncCheckpointRecordUncheckedCreateInput,
+      where: { projectId_source: { projectId: this.projectId, source: checkpoint.source } },
+      create: { projectId: this.projectId, source: checkpoint.source, ...data } as Prisma.CostSyncCheckpointRecordUncheckedCreateInput,
       update: data,
     });
   }
 
   async countDuplicateRequests(): Promise<number> {
     const rows = await this.db.modelUsageFactObservation.findMany({
-      where: { workspaceId: this.workspaceId, reason: "duplicate_request_id" },
+      where: { projectId: this.projectId, reason: "duplicate_request_id" },
       distinct: ["requestId"],
       select: { requestId: true },
     });

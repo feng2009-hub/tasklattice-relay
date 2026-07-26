@@ -4,6 +4,7 @@ import { Eye, EyeOff, KeyRound, LoaderCircle, LockKeyhole, UserRound } from "luc
 import { z } from "zod";
 import { useAuth } from "@/components/auth/auth-provider";
 import { BrandLogo } from "@/components/brand/brand-logo";
+import { getStoredProjectId, projectPath } from "@/lib/project-storage";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
@@ -25,7 +26,7 @@ function LoginPage() {
   const redirect =
     search.redirect?.startsWith("/") && !search.redirect.startsWith("//")
       ? search.redirect
-      : "/dashboard";
+      : projectPath(getStoredProjectId() ?? "individual");
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -56,7 +57,7 @@ function LoginPage() {
         <div className="relative z-10 max-w-xl pb-8">
           <p className="font-mono text-xs uppercase tracking-[0.08em] text-primary">Authenticated operations</p>
           <h1 className="mt-7 text-6xl leading-[0.98] tracking-[-0.035em]">A clear boundary<br />before the work.</h1>
-          <p className="mt-7 max-w-md text-base leading-7 text-muted-foreground">Local operators and your OIDC identity provider enter the same inspectable workspace.</p>
+          <p className="mt-7 max-w-md text-base leading-7 text-muted-foreground">Local operators and your OIDC identity provider enter the same inspectable Project context.</p>
         </div>
         <div className="relative z-10 flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground"><LockKeyhole className="size-4" />Session-protected control plane</div>
       </section>
@@ -66,7 +67,7 @@ function LoginPage() {
           <Link to="/" className="mb-14 flex min-h-11 items-center gap-3 text-sm font-semibold lg:hidden">
             <BrandLogo />
           </Link>
-          <p className="font-mono text-xs uppercase tracking-[0.08em] text-primary">Workspace access</p>
+          <p className="font-mono text-xs uppercase tracking-[0.08em] text-primary">Project access</p>
           <h2 className="mt-4 text-4xl tracking-[-0.025em]">Welcome back</h2>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">Sign in to create and operate isolated agents.</p>
 
@@ -78,7 +79,9 @@ function LoginPage() {
           ) : null}
           {config?.developmentDefaults ? (
             <div className="mt-7 border-l-2 border-primary bg-primary/5 px-4 py-3 text-sm text-foreground">
-              Local development defaults are active: <strong>admin / admin</strong>. Configure credentials before deployment.
+              The initial local account is <strong>admin / admin</strong>. Its
+              password is written to the database on first sign-in and can be
+              reset from My Account.
             </div>
           ) : null}
 
@@ -110,14 +113,36 @@ function LoginPage() {
             </button>
           </form>
 
-          {config?.ssoEnabled ? (
-            <div className="mt-8">
-              <div className="flex items-center gap-4 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground"><span className="h-px flex-1 bg-border" />or<span className="h-px flex-1 bg-border" /></div>
-              <button type="button" onClick={() => window.location.assign(`/api/v1/auth/sso/start?redirect=${encodeURIComponent(redirect)}`)} className="mt-6 flex min-h-12 w-full items-center justify-center gap-2 border border-input bg-background px-6 text-sm font-medium hover:border-foreground focus-visible:outline-2 focus-visible:outline-offset-2">
-                <LockKeyhole className="size-4" />Continue with {config.providerName}
-              </button>
+          <div className="mt-8">
+            <div className="flex items-center gap-4 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+              <span className="h-px flex-1 bg-border" />
+              or
+              <span className="h-px flex-1 bg-border" />
             </div>
-          ) : null}
+            <button
+              type="button"
+              aria-describedby="sso-login-description"
+              disabled={loading || !config?.ssoEnabled}
+              onClick={() => {
+                if (!config?.ssoEnabled) return;
+                window.location.assign(
+                  `/api/v1/auth/sso/start?redirect=${encodeURIComponent(redirect)}`,
+                );
+              }}
+              className="mt-6 flex min-h-12 w-full items-center justify-center gap-2 border border-input bg-background px-6 text-sm font-medium transition-colors hover:border-foreground focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:bg-muted/50 disabled:text-muted-foreground"
+            >
+              <LockKeyhole className="size-4" />
+              SSO login
+            </button>
+            <p
+              id="sso-login-description"
+              className="mt-3 text-center text-xs leading-5 text-muted-foreground"
+            >
+              {config?.ssoEnabled
+                ? `Continue with ${config.providerName}.`
+                : "SSO is not configured for this deployment."}
+            </p>
+          </div>
           <p className="mt-10 text-center text-xs leading-5 text-muted-foreground">Access is limited to configured operators. Authentication events may be audited.</p>
         </div>
       </section>

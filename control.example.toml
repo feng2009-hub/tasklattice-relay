@@ -1,0 +1,30 @@
+schema_version = 1
+
+[server]
+public_url = "http://192.168.139.2"
+
+[database]
+url = "postgresql://tasklattice:CHANGE_ME@postgresql:5432/tasklattice"
+
+[auth]
+session_signing_key = "CHANGE_TO_A_LONG_RANDOM_VALUE"
+
+[auth.local]
+enabled = true
+initial_super_admin_username = "admin"
+initial_super_admin_password_hash = "$2b$12$REPLACE_WITH_A_REAL_BCRYPT_HASH"
+
+[auth.oidc]
+enabled = false
+display_name = "Keycloak SSO"
+issuer = "http://keycloak:8080/realms/tasklattice"
+client_id = "tasklattice-control-plane"
+client_secret = "CHANGE_ME"
+
+[runner]
+url = "http://tasklattice-runner:9090"
+token = "CHANGE_ME"
+
+[litellm]
+url = "http://tasklattice-litellm:4000"
+master_key = "CHANGE_ME"

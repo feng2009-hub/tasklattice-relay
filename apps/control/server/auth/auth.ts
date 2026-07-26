@@ -4,26 +4,33 @@ import {
   createPublicKey,
   createVerify,
   randomBytes,
+  randomUUID,
   timingSafeEqual,
 } from "node:crypto";
 import bcrypt from "bcryptjs";
+import { getControlConfig } from "../config/control-config";
+import { prisma } from "../db/prisma";
 import { jsonResponse } from "../http/responses";
 
 export type AuthMode = "local" | "local-sso";
+export type SystemRole = "user" | "super_administrator";
 
 export interface AuthUser {
   displayName: string;
   email: string;
+  id: string;
   provider: "local" | "sso";
+  systemRole: SystemRole;
   username: string;
 }
 
 interface AuthConfig {
   developmentDefaults: boolean;
   jwtSecret: string;
-  localUser: AuthUser & {
-    password: string;
-    passwordHash: string;
+  local: {
+    enabled: boolean;
+    initialSuperAdminPasswordHash?: string;
+    initialSuperAdminUsername?: string;
   };
   mode: AuthMode;
   oidc?: {
@@ -64,66 +71,41 @@ type OidcJwk = import("node:crypto").JsonWebKey & { kid?: string };
 
 const issuer = "tasklattice";
 const oidcCookie = "tasklattice_oidc";
-const defaultDevSecret = "tasklattice-local-development-secret";
-
-function requiredProductionValue(value: string | undefined, name: string): string {
-  if (value) return value;
-  if (process.env.NODE_ENV === "production") {
-    throw new Error(`${name} is required in production.`);
-  }
-  return "";
-}
 
 export function getAuthConfig(): AuthConfig {
-  const mode = (process.env.TALI_AUTH_MODE ?? "local") as AuthMode;
-  if (mode !== "local" && mode !== "local-sso") {
-    throw new Error('TALI_AUTH_MODE must be "local" or "local-sso".');
-  }
-
-  const configuredPassword = process.env.TALI_AUTH_LOCAL_PASSWORD ?? "";
-  const configuredHash = process.env.TALI_AUTH_LOCAL_PASSWORD_HASH ?? "";
-  const productionPassword =
-    configuredPassword || configuredHash
-      ? ""
-      : requiredProductionValue(undefined, "TALI_AUTH_LOCAL_PASSWORD_HASH");
-  void productionPassword;
-  const developmentDefaults = !configuredPassword && !configuredHash;
-  const jwtSecret =
-    process.env.TALI_AUTH_JWT_SECRET ||
-    requiredProductionValue(undefined, "TALI_AUTH_JWT_SECRET") ||
-    defaultDevSecret;
+  const source = getControlConfig();
+  const mode: AuthMode = source.auth.oidc.enabled ? "local-sso" : "local";
 
   const config: AuthConfig = {
-    developmentDefaults,
-    jwtSecret,
-    localUser: {
-      displayName: process.env.TALI_AUTH_LOCAL_DISPLAY_NAME ?? "Local Administrator",
-      email: process.env.TALI_AUTH_LOCAL_EMAIL ?? "",
-      password: configuredPassword || (developmentDefaults ? "admin" : ""),
-      passwordHash: configuredHash,
-      provider: "local",
-      username: process.env.TALI_AUTH_LOCAL_USERNAME ?? "admin",
+    developmentDefaults:
+      !process.env.TASKLATTICE_CONFIG && process.env.NODE_ENV !== "production",
+    jwtSecret: source.auth.session_signing_key,
+    local: {
+      enabled: source.auth.local.enabled,
+      ...(source.auth.local.initial_super_admin_username
+        ? {
+            initialSuperAdminUsername:
+              source.auth.local.initial_super_admin_username,
+          }
+        : {}),
+      ...(source.auth.local.initial_super_admin_password_hash
+        ? {
+            initialSuperAdminPasswordHash:
+              source.auth.local.initial_super_admin_password_hash,
+          }
+        : {}),
     },
     mode,
   };
 
-  if (mode === "local-sso") {
-    const oidcIssuer = process.env.TALI_AUTH_OIDC_ISSUER;
-    const clientId = process.env.TALI_AUTH_OIDC_CLIENT_ID;
-    if (!oidcIssuer || !clientId) {
-      throw new Error(
-        "local-sso mode requires TALI_AUTH_OIDC_ISSUER and TALI_AUTH_OIDC_CLIENT_ID.",
-      );
-    }
+  if (source.auth.oidc.enabled) {
     config.oidc = {
-      clientId,
-      clientSecret: process.env.TALI_AUTH_OIDC_CLIENT_SECRET ?? "",
-      issuer: oidcIssuer.replace(/\/$/, ""),
-      providerName: process.env.TALI_AUTH_OIDC_PROVIDER_NAME ?? "Company SSO",
-      redirectUri: process.env.TALI_AUTH_OIDC_REDIRECT_URI ?? "",
-      scopes: (process.env.TALI_AUTH_OIDC_SCOPES ?? "openid profile email")
-        .split(/\s+/)
-        .filter(Boolean),
+      clientId: source.auth.oidc.client_id,
+      clientSecret: source.auth.oidc.client_secret,
+      issuer: source.auth.oidc.issuer.replace(/\/$/, ""),
+      providerName: source.auth.oidc.display_name,
+      redirectUri: `${source.server.public_url.replace(/\/$/, "")}/auth/sso/callback`,
+      scopes: ["openid", "profile", "email"],
     };
   }
 
@@ -161,7 +143,9 @@ export function signAuthToken(
   const user: AuthUser = {
     displayName: authUser.displayName,
     email: authUser.email,
+    id: authUser.id,
     provider: authUser.provider,
+    systemRole: authUser.systemRole,
     username: authUser.username,
   };
   const payload: AuthPayload = {
@@ -169,7 +153,7 @@ export function signAuthToken(
     iat: now,
     iss: issuer,
     ...(idToken ? { sso: { idToken } } : {}),
-    sub: user.username,
+    sub: user.id,
     user,
   };
   const header = base64Url(JSON.stringify({ alg: "HS256", typ: "JWT" }));
@@ -224,40 +208,199 @@ export function publicAuthConfig() {
   return {
     authRequired: true,
     developmentDefaults: config.developmentDefaults,
-    localEnabled: true,
+    localEnabled: config.local.enabled,
     mode: config.mode,
     providerName: config.oidc?.providerName ?? "Company SSO",
     ssoEnabled: config.mode === "local-sso",
   };
 }
 
-async function validLocalPassword(password: string, config: AuthConfig): Promise<boolean> {
-  if (config.localUser.passwordHash) {
-    return bcrypt.compare(password, config.localUser.passwordHash);
+export async function verifyLocalPassword(
+  password: string,
+  storedPasswordHash: string,
+): Promise<boolean> {
+  return bcrypt.compare(password, storedPasswordHash);
+}
+
+async function bootstrapLocalPasswordHash(
+  identity: {
+    credential: { passwordHash: string } | null;
+    id: string;
+    username: string | null;
+  },
+): Promise<string | null> {
+  if (identity.credential) return identity.credential.passwordHash;
+  const config = getAuthConfig();
+  if (
+    identity.username !== config.local.initialSuperAdminUsername ||
+    !config.local.initialSuperAdminPasswordHash
+  ) {
+    return null;
   }
-  return safeEqual(password, config.localUser.password);
+  const passwordHash = config.local.initialSuperAdminPasswordHash;
+  if (!passwordHash) {
+    throw new Error("The initial local account password is not configured.");
+  }
+  await prisma().localCredential.create({
+    data: { identityId: identity.id, passwordHash },
+  });
+  return passwordHash;
+}
+
+export async function ensureInitialSuperAdministrator(): Promise<void> {
+  const config = getAuthConfig();
+  if (!config.local.enabled) return;
+  const username = config.local.initialSuperAdminUsername;
+  const passwordHash = config.local.initialSuperAdminPasswordHash;
+  const existingAdministrator = await prisma().user.findFirst({
+    where: { systemRole: "super_administrator" },
+    include: {
+      identities: {
+        where: { type: "local" },
+        include: { credential: true },
+      },
+    },
+  });
+  if (existingAdministrator) {
+    const localIdentity = existingAdministrator.identities[0];
+    if (localIdentity?.credential) return;
+    if (!username || !passwordHash) {
+      throw new Error(
+        "The database Super Administrator has no Local credential and no initial credential is configured.",
+      );
+    }
+    if (localIdentity) {
+      await prisma().$transaction([
+        prisma().user.update({
+          where: { id: existingAdministrator.id },
+          data: { username },
+        }),
+        prisma().userIdentity.update({
+          where: { id: localIdentity.id },
+          data: { subject: username, username },
+        }),
+        prisma().localCredential.create({
+          data: { identityId: localIdentity.id, passwordHash },
+        }),
+      ]);
+      return;
+    }
+    await prisma().userIdentity.create({
+      data: {
+        id: randomUUID(),
+        userId: existingAdministrator.id,
+        type: "local",
+        issuer: "tasklattice:local",
+        subject: username,
+        username,
+        email: existingAdministrator.email,
+        credential: { create: { passwordHash } },
+      },
+    });
+    return;
+  }
+  if (!username || !passwordHash) {
+    throw new Error(
+      "Local authentication requires initial Super Administrator credentials when the database has no Super Administrator.",
+    );
+  }
+  const existingIdentity = await prisma().userIdentity.findUnique({
+    where: { type_username: { type: "local", username } },
+    include: { credential: true, user: true },
+  });
+  if (existingIdentity) {
+    await prisma().$transaction([
+      prisma().user.update({
+        where: { id: existingIdentity.userId },
+        data: { systemRole: "super_administrator", status: "active" },
+      }),
+      ...(existingIdentity.credential
+        ? []
+        : [
+            prisma().localCredential.create({
+              data: { identityId: existingIdentity.id, passwordHash },
+            }),
+          ]),
+    ]);
+    return;
+  }
+  const existingUsername = await prisma().user.findUnique({
+    where: { username },
+  });
+  if (existingUsername) {
+    throw new Error(
+      `Cannot initialize the Super Administrator because username ${username} is already assigned to another identity.`,
+    );
+  }
+  await prisma().user.create({
+    data: {
+      id: "local-admin",
+      username,
+      email: "admin@tasklattice.local",
+      displayName: "Super Administrator",
+      systemRole: "super_administrator",
+      status: "active",
+      identities: {
+        create: {
+          id: "identity-local-admin",
+          type: "local",
+          issuer: "tasklattice:local",
+          subject: username,
+          username,
+          email: "admin@tasklattice.local",
+          credential: { create: { passwordHash } },
+        },
+      },
+    },
+  });
 }
 
 export async function handleLocalLogin(request: Request): Promise<Response> {
   try {
     const config = getAuthConfig();
+    if (!config.local.enabled) {
+      return jsonResponse({ error: "Local login disabled" }, { status: 404 });
+    }
+    await ensureInitialSuperAdministrator();
     const body = (await request.json()) as {
       password?: string;
       remember?: boolean;
       username?: string;
     };
-    const usernameMatches = safeEqual(
-      body.username ?? "",
-      config.localUser.username,
-    );
-    const passwordMatches = await validLocalPassword(body.password ?? "", config);
-    if (!usernameMatches || !passwordMatches) {
+    const username = body.username ?? "";
+    const identity = await prisma().userIdentity.findUnique({
+      where: { type_username: { type: "local", username } },
+      include: { credential: true, user: true },
+    });
+    if (!identity || identity.user.status !== "active") {
       return jsonResponse(
         { error: "Login failed", message: "Invalid username or password." },
         { status: 401 },
       );
     }
-    return jsonResponse(signAuthToken(config.localUser, Boolean(body.remember)));
+    const passwordHash = await bootstrapLocalPasswordHash(identity);
+    const passwordMatches =
+      passwordHash &&
+      (await verifyLocalPassword(body.password ?? "", passwordHash));
+    if (!passwordMatches) {
+      return jsonResponse(
+        { error: "Login failed", message: "Invalid username or password." },
+        { status: 401 },
+      );
+    }
+    return jsonResponse(
+      signAuthToken(
+        {
+          displayName: identity.user.displayName,
+          email: identity.user.email,
+          id: identity.user.id,
+          provider: "local",
+          systemRole: identity.user.systemRole,
+          username: identity.user.username,
+        },
+        Boolean(body.remember),
+      ),
+    );
   } catch (error) {
     return jsonResponse(
       {
@@ -325,7 +468,7 @@ function oidcCookieHeader(value: string, request: Request, maxAge = 600): string
 }
 
 function safeRedirect(value: string | null): string {
-  return value?.startsWith("/") && !value.startsWith("//") ? value : "/dashboard";
+  return value?.startsWith("/") && !value.startsWith("//") ? value : "/";
 }
 
 export async function handleSsoStart(request: Request): Promise<Response> {
@@ -417,6 +560,137 @@ async function verifyOidcToken(
   return payload;
 }
 
+function claimString(
+  claims: Record<string, unknown>,
+  name: string,
+): string {
+  const value = claims[name];
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function oidcUsernameBase(claims: Record<string, unknown>): string {
+  const preferred =
+    claimString(claims, "preferred_username") ||
+    claimString(claims, "email").split("@")[0] ||
+    "sso-user";
+  return (
+    preferred
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 48) || "sso-user"
+  );
+}
+
+async function availableUsername(
+  base: string,
+  issuerValue: string,
+  subject: string,
+): Promise<string> {
+  const existing = await prisma().user.findUnique({ where: { username: base } });
+  if (!existing) return base;
+  const suffix = createHash("sha256")
+    .update(`${issuerValue}\0${subject}`)
+    .digest("hex")
+    .slice(0, 8);
+  return `${base.slice(0, 39)}-${suffix}`;
+}
+
+export async function provisionOidcUser(
+  claims: Record<string, unknown>,
+): Promise<AuthUser> {
+  const config = getAuthConfig();
+  if (!config.oidc) throw new Error("SSO is not configured.");
+  const subject = claimString(claims, "sub");
+  if (!subject) throw new Error("OIDC token does not contain a subject.");
+  const existing = await prisma().userIdentity.findUnique({
+    where: {
+      issuer_subject: {
+        issuer: config.oidc.issuer,
+        subject,
+      },
+    },
+    include: { user: true },
+  });
+  const claimUsername =
+    claimString(claims, "preferred_username") ||
+    claimString(claims, "email") ||
+    subject;
+  const claimEmail = claimString(claims, "email").toLowerCase();
+  const displayName =
+    claimString(claims, "name") || claimUsername;
+  if (existing) {
+    if (existing.type !== "oidc" || existing.user.status !== "active") {
+      throw new Error("The mapped TaskLattice account is disabled.");
+    }
+    await prisma().userIdentity.update({
+      where: { id: existing.id },
+      data: {
+        username: claimUsername,
+        email: claimEmail || null,
+      },
+    });
+    return {
+      displayName: existing.user.displayName,
+      email: existing.user.email,
+      id: existing.user.id,
+      provider: "sso",
+      systemRole: existing.user.systemRole,
+      username: existing.user.username,
+    };
+  }
+  if (claimEmail) {
+    const emailOwner = await prisma().user.findUnique({
+      where: { email: claimEmail },
+    });
+    if (emailOwner) {
+      throw new Error(
+        "An existing TaskLattice account uses this email. Sign in to that account and link SSO before continuing.",
+      );
+    }
+  }
+  const username = await availableUsername(
+    oidcUsernameBase(claims),
+    config.oidc.issuer,
+    subject,
+  );
+  const id = randomUUID();
+  const email =
+    claimEmail ||
+    `sso-${createHash("sha256")
+      .update(`${config.oidc.issuer}\0${subject}`)
+      .digest("hex")
+      .slice(0, 16)}@tasklattice.invalid`;
+  const user = await prisma().user.create({
+    data: {
+      id,
+      username,
+      email,
+      displayName,
+      systemRole: "user",
+      status: "active",
+      identities: {
+        create: {
+          id: randomUUID(),
+          type: "oidc",
+          issuer: config.oidc.issuer,
+          subject,
+          username: claimUsername,
+          email: claimEmail || null,
+        },
+      },
+    },
+  });
+  return {
+    displayName: user.displayName,
+    email: user.email,
+    id: user.id,
+    provider: "sso",
+    systemRole: user.systemRole,
+    username: user.username,
+  };
+}
+
 export async function handleSsoCallback(request: Request): Promise<Response> {
   const url = new URL(request.url);
   try {
@@ -453,16 +727,9 @@ export async function handleSsoCallback(request: Request): Promise<Response> {
       config,
       discovery,
     );
-    const username = String(
-      claims.preferred_username ?? claims.email ?? claims.sub ?? "sso-user",
-    );
+    const user = await provisionOidcUser(claims);
     const signed = signAuthToken(
-      {
-        displayName: String(claims.name ?? username),
-        email: String(claims.email ?? ""),
-        provider: "sso",
-        username,
-      },
+      user,
       false,
       tokenSet.id_token,
     );
@@ -494,12 +761,30 @@ export async function handleSsoCallback(request: Request): Promise<Response> {
   }
 }
 
-export function handleAuthMe(request: Request): Response {
+export async function handleAuthMe(request: Request): Promise<Response> {
   try {
     const payload = requireAuth(request);
+    const user = await prisma().user.findUnique({
+      where: { id: payload.sub },
+    });
+    if (!user || user.status !== "active") {
+      throw new Error("The TaskLattice account is disabled or unavailable.");
+    }
+    const currentUser: AuthUser = {
+      displayName: user.displayName,
+      email: user.email,
+      id: user.id,
+      provider: payload.user.provider,
+      systemRole: user.systemRole,
+      username: user.username,
+    };
     return jsonResponse({
-      identity: { type: "authenticated", username: payload.sub },
-      user: payload.user,
+      identity: {
+        type: "authenticated",
+        userId: payload.sub,
+        username: currentUser.username,
+      },
+      user: currentUser,
     });
   } catch (error) {
     return unauthorizedResponse(error);

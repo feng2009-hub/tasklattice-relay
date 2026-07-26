@@ -14,7 +14,7 @@ const filterKeySchema = z.enum([
   "provider_account",
   "virtual_key",
   "environment",
-  "workspace",
+  "project",
 ]);
 const filtersSchema = z.partialRecord(
   filterKeySchema,
@@ -25,7 +25,7 @@ const commonSchema = z.object({
   startTime: z.string().min(1),
   endTime: z.string().min(1),
   timezone: z.string().min(1).default("UTC"),
-  workspaceId: z.string().min(1).optional(),
+  projectId: z.string().min(1).optional(),
   environmentId: z.string().min(1).optional(),
   filters: z.string().default("{}").transform((value, context) => {
     try {
@@ -44,14 +44,19 @@ function scopedCommon(url: URL): CostAnalyticsQuery {
     startTime: url.searchParams.get("start_time"),
     endTime: url.searchParams.get("end_time"),
     timezone: url.searchParams.get("timezone") ?? undefined,
-    workspaceId: url.searchParams.get("workspace_id") ?? undefined,
+    projectId: url.searchParams.get("project_id") ?? undefined,
     environmentId: url.searchParams.get("environment_id") ?? undefined,
     filters: url.searchParams.get("filters") ?? undefined,
   });
-  const workspaceId = process.env.TALI_WORKSPACE_ID ?? "default";
-  const environmentId = process.env.TALI_ENVIRONMENT_ID ?? "production";
-  if (input.workspaceId && input.workspaceId !== workspaceId) {
-    throw new Error("Workspace access denied.");
+  const projectMatch = url.pathname.match(
+    /^\/api\/v1\/projects\/([^/]+)(?:\/|$)/,
+  );
+  const projectId = projectMatch
+    ? decodeURIComponent(projectMatch[1]!)
+    : "default";
+  const environmentId = "production";
+  if (input.projectId && input.projectId !== projectId) {
+    throw new Error("Project access denied.");
   }
   if (input.environmentId && input.environmentId !== environmentId) {
     throw new Error("Environment access denied.");
@@ -60,7 +65,7 @@ function scopedCommon(url: URL): CostAnalyticsQuery {
     startTime: input.startTime,
     endTime: input.endTime,
     timezone: input.timezone,
-    workspaceId,
+    projectId,
     environmentId,
     filters: input.filters,
   };

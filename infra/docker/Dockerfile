@@ -21,6 +21,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
 COPY apps/control/package.json apps/control/package.json
+COPY apps/example-mcp-server/package.json apps/example-mcp-server/package.json
 COPY apps/runner/package.json apps/runner/package.json
 COPY packages/contracts/package.json packages/contracts/package.json
 RUN npm ci --include=optional
@@ -31,7 +32,8 @@ COPY apps ./apps
 COPY packages ./packages
 RUN npm run build --workspace @tasklattice/contracts \
     && npm run build --workspace @tasklattice/control \
-    && npm run build --workspace @tasklattice/runner
+    && npm run build --workspace @tasklattice/runner \
+    && npm run build --workspace @tasklattice/example-mcp-server
 
 FROM dependencies AS production-dependencies
 RUN npm prune --omit=dev
@@ -49,10 +51,24 @@ COPY package.json package-lock.json ./
 COPY apps/control/package.json apps/control/package.json
 COPY --from=build /app/apps/control/prisma ./apps/control/prisma
 COPY --from=build /app/apps/control/prisma.config.ts ./apps/control/prisma.config.ts
+COPY --from=build /app/apps/control/server/config ./apps/control/server/config
 COPY --from=build /app/apps/control/.output ./apps/control/.output
 USER 10001
 EXPOSE 8080
 CMD ["node", "apps/control/.output/server/index.mjs"]
+
+FROM node:22-bookworm-slim AS example-mcp
+ENV NODE_ENV=production \
+    HOST=0.0.0.0 \
+    PORT=3000
+WORKDIR /app
+COPY --from=production-dependencies /app/node_modules ./node_modules
+COPY package.json package-lock.json ./
+COPY apps/example-mcp-server/package.json apps/example-mcp-server/package.json
+COPY --from=build /app/apps/example-mcp-server/dist ./apps/example-mcp-server/dist
+USER node
+EXPOSE 3000
+CMD ["node", "apps/example-mcp-server/dist/index.js"]
 
 FROM node:22-bookworm-slim AS runner
 ENV NODE_ENV=production \
