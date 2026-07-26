@@ -520,23 +520,47 @@ export const skillCategories = [
   "Research",
 ] as const;
 
+export const skillTrustLevels = [
+  "BUILT_IN",
+  "TRUSTED_SOURCE",
+  "UNSAFE",
+] as const;
+
+export const skillCompatibilityTargets = [
+  "hermes",
+  "openclaw",
+  "claude-code",
+  "openai",
+] as const;
+
 export const skillDefinitionSchema = z.object({
   id: z.string().trim().min(1).max(160),
   name: z.string().trim().min(3).max(120),
   description: z.string().trim().min(10).max(500),
+  problemStatement: z.string().trim().min(10).max(1_000),
+  useCases: z.array(z.string().trim().min(3).max(240)).min(1).max(8),
+  usageGuide: z.string().trim().min(10).max(4_000),
+  author: z.string().trim().min(1).max(120),
   category: z.enum(skillCategories),
+  trustLevel: z.enum(skillTrustLevels),
+  compatibleAgents: z.array(z.enum(skillCompatibilityTargets))
+    .min(1)
+    .max(skillCompatibilityTargets.length)
+    .refine((targets) => new Set(targets).size === targets.length, {
+      message: "Compatible Agent targets must be unique.",
+    }),
   version: z.string().trim().min(1).max(40),
   endpoint: z.string().trim().url(),
   digest: z.string().trim().min(1).max(200),
   owner: z.string().trim().min(1).max(120),
   permissions: z.number().int().min(0).max(1_000),
-  bindings: z.number().int().min(0),
   status: z.enum(["PUBLISHED", "DRAFT"]),
+  updatedAt: z.string().datetime(),
 });
 
 export const createSkillDefinitionSchema = skillDefinitionSchema.omit({
   id: true,
-  bindings: true,
+  updatedAt: true,
 });
 export const updateSkillDefinitionSchema = createSkillDefinitionSchema;
 
@@ -1184,6 +1208,8 @@ export type CreateSandboxPolicyInput = z.infer<typeof createSandboxPolicySchema>
 export type UpdateSandboxPolicyInput = z.infer<typeof updateSandboxPolicySchema>;
 export type ProviderResourceStatus = (typeof providerResourceStatuses)[number];
 export type SkillDefinition = z.infer<typeof skillDefinitionSchema>;
+export type SkillTrustLevel = (typeof skillTrustLevels)[number];
+export type SkillCompatibilityTarget = (typeof skillCompatibilityTargets)[number];
 export type CreateSkillDefinitionInput = z.infer<typeof createSkillDefinitionSchema>;
 export type UpdateSkillDefinitionInput = z.infer<typeof updateSkillDefinitionSchema>;
 export type McpServerDefinition = z.infer<typeof mcpServerDefinitionSchema>;

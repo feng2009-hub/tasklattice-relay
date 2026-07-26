@@ -35,6 +35,14 @@ function decode<T>(payload: Prisma.JsonValue): T {
   return payload as T;
 }
 
+function decodeSkillDefinition(payload: unknown): SkillDefinition {
+  const {
+    bindings: _legacyBindings,
+    ...skill
+  } = payload as unknown as SkillDefinition & { bindings?: number };
+  return skill;
+}
+
 function jsonInput(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
@@ -171,18 +179,20 @@ export class ProjectStore {
     return this.saveResourceRecord("skillRecord", skill);
   }
   getSkillDefinition(id: string): Promise<SkillDefinition | undefined> {
-    return this.getResourceRecord("skillRecord", id);
+    return this.getResourceRecord<SkillDefinition & { bindings?: number }>("skillRecord", id)
+      .then((skill) => skill ? decodeSkillDefinition(skill) : undefined);
   }
   async listSkillDefinitions(): Promise<SkillDefinition[]> {
-    const bindings = new Map<string, number>();
-    for (const agent of await this.list()) {
-      for (const id of new Set(agent.skillIds ?? [])) bindings.set(id, (bindings.get(id) ?? 0) + 1);
-    }
-    return (await this.listResourceRecords<SkillDefinition>("skillRecord"))
-      .map((skill) => ({ ...skill, bindings: bindings.get(skill.id) ?? 0 }));
+    return (await this.listResourceRecords<SkillDefinition & { bindings?: number }>("skillRecord"))
+      .map(decodeSkillDefinition);
   }
   deleteSkillDefinition(id: string): Promise<boolean> {
     return this.deleteResourceRecord("skillRecord", id);
+  }
+  getSkillArtifact(skillId: string, version: string) {
+    return this.db.skillArtifactRecord.findUnique({
+      where: { skillId_version: { skillId, version } },
+    });
   }
   async saveMcpServerDefinition(server: McpServerDefinition): Promise<McpServerDefinition> {
     await this.db.mcpServerRecord.upsert({

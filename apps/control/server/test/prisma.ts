@@ -14,6 +14,8 @@ import liteLLMResourceControlPlaneMigration from "../../prisma/migrations/202607
 import accessPoliciesMigration from "../../prisma/migrations/20260725200000_access_policies/migration.sql?raw";
 import auditLogsMigration from "../../prisma/migrations/20260726120000_platform_audit_logs/migration.sql?raw";
 import agentGardenMigration from "../../prisma/migrations/20260726150000_agent_garden/migration.sql?raw";
+import vendorSkillArtifactsMigration from "../../prisma/migrations/20260726230000_vendor_skill_artifacts/migration.sql?raw";
+import { developmentResourceCatalog } from "../catalog/development-resource-catalog";
 import { PrismaClient } from "../generated/prisma/client";
 
 export function createTestPrisma(): PrismaClient {
@@ -51,6 +53,15 @@ export function createTestPrisma(): PrismaClient {
   memory.public.none(accessPoliciesMigration);
   memory.public.none(auditLogsMigration);
   memory.public.none(agentGardenMigration);
+  memory.public.none(vendorSkillArtifactsMigration);
+  for (const skill of developmentResourceCatalog.skills) {
+    const payload = JSON.stringify(skill).replaceAll("'", "''");
+    memory.public.none(
+      `UPDATE tasklattice.skills
+          SET payload = '${payload}'::jsonb
+        WHERE project_id = 'individual' AND id = '${skill.id}';`,
+    );
+  }
   const pg = memory.adapters.createPg();
   const query = pg.Client.prototype.query;
   pg.Client.prototype.query = function (

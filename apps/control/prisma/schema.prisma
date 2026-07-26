@@ -570,6 +570,27 @@ model AccessPolicyVersionRecord {
   @@schema("tasklattice")
 }
 
+model SkillArtifactRecord {
+  id                    String   @id
+  skillId               String   @map("skill_id")
+  version               String
+  digest                String   @unique
+  archiveFormat         String   @map("archive_format")
+  contentType           String   @map("content_type")
+  archive               Bytes    @db.ByteA
+  compressedSizeBytes   Int      @map("compressed_size_bytes")
+  unpackedSizeBytes     Int      @map("unpacked_size_bytes")
+  fileCount             Int      @map("file_count")
+  manifest              Json
+  sourcePath            String   @map("source_path")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([skillId, version])
+  @@index([skillId])
+  @@map("skill_artifacts")
+  @@schema("tasklattice")
+}
+
 model SkillRecord {
   projectId String   @map("project_id")
   id        String

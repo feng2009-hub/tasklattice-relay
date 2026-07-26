@@ -111,6 +111,38 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return payload as T;
 }
 
+async function requestBinary(
+  path: string,
+  fallbackFileName: string,
+): Promise<{ blob: Blob; fileName: string }> {
+  const token = getAuthToken();
+  const projectId =
+    typeof window === "undefined"
+      ? null
+      : projectIdFromPathname(window.location.pathname);
+  const response = await fetch(projectScopedPath(path, projectId), {
+    headers: token ? { authorization: `Bearer ${token}` } : {},
+  });
+  if (response.status === 401 && typeof window !== "undefined") {
+    clearAuthToken();
+    window.location.assign("/login");
+  }
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null) as { error?: unknown } | null;
+    throw new ApiError(
+      typeof payload?.error === "string"
+        ? payload.error
+        : `Download failed (${response.status})`,
+      response.status,
+    );
+  }
+  const disposition = response.headers.get("content-disposition") ?? "";
+  const fileName =
+    disposition.match(/filename="([^"]+)"/i)?.[1]
+    ?? fallbackFileName;
+  return { blob: await response.blob(), fileName };
+}
+
 function costSearch(params: CostQueryParams, extra: Record<string, string> = {}) {
   return new URLSearchParams({
     start_time: params.startTime,
@@ -240,6 +272,19 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(input),
     }),
+  verifySkillArtifact: (id: string) =>
+    request<SkillDefinition>(
+      `/api/v1/catalog/skills/${encodeURIComponent(id)}/verify`,
+      {
+        method: "POST",
+        body: "{}",
+      },
+    ),
+  downloadSkillArtifact: (id: string) =>
+    requestBinary(
+      `/api/v1/catalog/skills/${encodeURIComponent(id)}/archive`,
+      `${id}.tar.gz`,
+    ),
   createMcpServer: (input: CreateMcpServerDefinitionInput) =>
     request<McpServerDefinition>("/api/v1/catalog/mcp-servers", {
       method: "POST",

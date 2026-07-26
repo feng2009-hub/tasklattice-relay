@@ -336,6 +336,43 @@ export const openApiDocument = {
         },
       },
     },
+    "/projects/{projectId}/catalog/skills/{resourceId}/verify": {
+      parameters: [projectIdParameter, resourceId],
+      post: {
+        operationId: "verifySkillArtifact",
+        summary: "Verify a PostgreSQL-backed Skill archive against its SHA-256 digest",
+        responses: {
+          "200": {
+            description: "Verified Skill",
+            ...json({ $ref: "#/components/schemas/SkillDefinition" }),
+          },
+          "404": { $ref: "#/components/responses/Error" },
+          "409": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
+    "/projects/{projectId}/catalog/skills/{resourceId}/archive": {
+      parameters: [projectIdParameter, resourceId],
+      get: {
+        operationId: "downloadSkillArtifact",
+        summary: "Download a verified Skill archive stored in PostgreSQL",
+        responses: {
+          "200": {
+            description: "Skill tar+gzip archive",
+            headers: {
+              Digest: { schema: { type: "string" } },
+            },
+            content: {
+              "application/gzip": {
+                schema: { type: "string", format: "binary" },
+              },
+            },
+          },
+          "404": { $ref: "#/components/responses/Error" },
+          "409": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
     "/projects/{projectId}/agent-garden": {
       parameters: [projectIdParameter],
       get: {
@@ -1054,10 +1091,27 @@ export const openApiDocument = {
       SkillDefinitionInput: {
         type: "object",
         additionalProperties: false,
-        required: ["name", "description", "category", "version", "endpoint", "digest", "owner", "permissions", "status"],
+        required: ["name", "description", "problemStatement", "useCases", "usageGuide", "author", "category", "trustLevel", "compatibleAgents", "version", "endpoint", "digest", "owner", "permissions", "status"],
         properties: {
           name: { type: "string" }, description: { type: "string" },
+          problemStatement: { type: "string" },
+          useCases: {
+            type: "array",
+            minItems: 1,
+            maxItems: 8,
+            items: { type: "string" },
+          },
+          usageGuide: { type: "string" },
+          author: { type: "string" },
           category: { type: "string", enum: ["Customer Support", "Data", "Developer Tools", "HR", "Knowledge", "Operations", "Research"] },
+          trustLevel: { type: "string", enum: ["BUILT_IN", "TRUSTED_SOURCE", "UNSAFE"] },
+          compatibleAgents: {
+            type: "array",
+            minItems: 1,
+            maxItems: 3,
+            uniqueItems: true,
+              items: { type: "string", enum: ["hermes", "openclaw", "claude-code", "openai"] },
+          },
           version: { type: "string" }, endpoint: { type: "string", format: "uri" }, digest: { type: "string" }, owner: { type: "string" },
           permissions: { type: "integer", minimum: 0 }, status: { type: "string", enum: ["PUBLISHED", "DRAFT"] },
         },
@@ -1065,7 +1119,14 @@ export const openApiDocument = {
       SkillDefinition: {
         allOf: [
           { $ref: "#/components/schemas/SkillDefinitionInput" },
-          { type: "object", required: ["id", "bindings"], properties: { id: { type: "string" }, bindings: { type: "integer", minimum: 0 } } },
+          {
+            type: "object",
+            required: ["id", "updatedAt"],
+            properties: {
+              id: { type: "string" },
+              updatedAt: { type: "string", format: "date-time" },
+            },
+          },
         ],
       },
       McpServerDefinitionInput: {

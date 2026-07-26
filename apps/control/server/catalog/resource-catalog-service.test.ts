@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import type { LiteLLMAdminClient } from "../providers/litellm-client";
 import { ProjectQuotaService } from "../quotas/project-quota-service";
@@ -71,6 +72,9 @@ describe("ResourceCatalogService", () => {
     const catalog = await service.catalog();
 
     expect(catalog.skills).toHaveLength(15);
+    expect(catalog.skills[0]).not.toHaveProperty("bindings");
+    expect(catalog.skills.filter((skill) => skill.compatibleAgents.includes("openai")).length)
+      .toBeGreaterThan(0);
     expect(catalog.skills.map((skill) => skill.name)).toEqual(expect.arrayContaining([
       "Helm Chart Developer",
       "Kubernetes Expert",
@@ -116,6 +120,48 @@ describe("ResourceCatalogService", () => {
     });
   });
 
+  it("verifies and returns an immutable PostgreSQL Skill archive", async () => {
+    const store = createTestStore();
+    const service = new ResourceCatalogService(store);
+    const skill = (await service.catalog()).skills.find(
+      (candidate) => candidate.id === "document-summarization",
+    )!;
+    const archive = Buffer.from("test-vendor-skill-archive");
+    const digest =
+      `sha256:${createHash("sha256").update(archive).digest("hex")}`;
+    vi.spyOn(store, "getSkillArtifact").mockResolvedValue({
+      id: `${skill.id}@${skill.version}`,
+      skillId: skill.id,
+      version: skill.version,
+      digest,
+      archiveFormat: "tar+gzip",
+      contentType: "application/gzip",
+      archive: new Uint8Array(archive),
+      compressedSizeBytes: archive.length,
+      unpackedSizeBytes: archive.length,
+      fileCount: 1,
+      manifest: {},
+      sourcePath: "skills/vendor/dist/test.tar.gz",
+      createdAt: new Date(),
+    });
+    await service.updateSkill(skill.id, {
+      ...skill,
+      digest,
+      endpoint:
+        `tali+postgresql://skill-artifacts/${skill.id}/${skill.version}`,
+    });
+
+    await expect(service.verifySkillArtifact(skill.id)).resolves.toMatchObject({
+      id: skill.id,
+      digest,
+    });
+    await expect(service.skillArtifact(skill.id)).resolves.toMatchObject({
+      contentType: "application/gzip",
+      digest,
+      fileName: `${skill.id}-${skill.version}.tar.gz`,
+    });
+  });
+
   it("persists project changes without overwriting them when defaults are seeded again", async () => {
     const store = createTestStore();
     const service = new ResourceCatalogService(store);
@@ -133,7 +179,13 @@ describe("ResourceCatalogService", () => {
     const created = await service.createSkill({
       name: "Release Notes Writer",
       description: "Draft structured release notes from approved change records.",
+      problemStatement: "Release information is scattered across change records and is difficult to summarize consistently.",
+      useCases: ["Prepare release notes for a deployment", "Summarize approved product changes"],
+      usageGuide: "Attach the Skill to a coding Agent and provide the approved change records as input.",
+      author: "Developer Experience",
       category: "Developer Tools",
+      trustLevel: "UNSAFE",
+      compatibleAgents: ["openclaw", "claude-code"],
       version: "1.0.0",
       endpoint: "https://skills.internal.example/release-notes.tar.zst",
       digest: "Pending source check",
@@ -142,6 +194,12 @@ describe("ResourceCatalogService", () => {
       status: "DRAFT",
     });
 
+    expect(created).toMatchObject({
+      trustLevel: "UNSAFE",
+      compatibleAgents: ["openclaw", "claude-code"],
+      author: "Developer Experience",
+    });
+    expect(created.updatedAt).toEqual(expect.any(String));
     expect(await service.delete("skills", created.id)).toBe(true);
     await expect(service.delete("skills", "kubernetes-expert"))
       .rejects.toThrow("assigned to a Role or Instance");

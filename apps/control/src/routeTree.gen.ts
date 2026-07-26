@@ -9,39 +9,39 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as LoginRouteImport } from './routes/login'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as ProjectIdIndexRouteImport } from './routes/$projectId/index'
-import { Route as AuthSsoCompleteRouteImport } from './routes/auth/sso-complete'
-import { Route as ProjectIdTracesRouteImport } from './routes/$projectId/traces'
-import { Route as ProjectIdSkillsRouteImport } from './routes/$projectId/skills'
-import { Route as ProjectIdRuntimePoliciesRouteImport } from './routes/$projectId/runtime-policies'
-import { Route as ProjectIdRuntimeRouteImport } from './routes/$projectId/runtime'
-import { Route as ProjectIdProfileRouteImport } from './routes/$projectId/profile'
-import { Route as ProjectIdMcpServersRouteImport } from './routes/$projectId/mcp-servers'
-import { Route as ProjectIdKnowledgeBaseRouteImport } from './routes/$projectId/knowledge-base'
 import { Route as ProjectIdCostRouteImport } from './routes/$projectId/cost'
-import { Route as ProjectIdSettingIndexRouteImport } from './routes/$projectId/setting/index'
-import { Route as ProjectIdRequestsIndexRouteImport } from './routes/$projectId/requests/index'
-import { Route as ProjectIdInstancesIndexRouteImport } from './routes/$projectId/instances/index'
-import { Route as ProjectIdAuditLogsIndexRouteImport } from './routes/$projectId/audit-logs/index'
-import { Route as ProjectIdAgentGardenIndexRouteImport } from './routes/$projectId/agent-garden/index'
+import { Route as ProjectIdKnowledgeBaseRouteImport } from './routes/$projectId/knowledge-base'
+import { Route as ProjectIdMcpServersRouteImport } from './routes/$projectId/mcp-servers'
+import { Route as ProjectIdProfileRouteImport } from './routes/$projectId/profile'
+import { Route as ProjectIdRuntimeRouteImport } from './routes/$projectId/runtime'
+import { Route as ProjectIdRuntimePoliciesRouteImport } from './routes/$projectId/runtime-policies'
+import { Route as ProjectIdSkillsRouteImport } from './routes/$projectId/skills'
+import { Route as ProjectIdTracesRouteImport } from './routes/$projectId/traces'
+import { Route as AuthSsoCompleteRouteImport } from './routes/auth/sso-complete'
 import { Route as ProjectIdAccessPoliciesIndexRouteImport } from './routes/$projectId/access-policies/index'
-import { Route as ProjectIdRequestsNewRouteImport } from './routes/$projectId/requests/new'
-import { Route as ProjectIdInstancesInstanceIdRouteImport } from './routes/$projectId/instances/$instanceId'
-import { Route as ProjectIdAgentGardenAgentIdRouteImport } from './routes/$projectId/agent-garden/$agentId'
 import { Route as ProjectIdAccessPoliciesPolicyIdRouteImport } from './routes/$projectId/access-policies/$policyId'
-import { Route as ProjectIdSettingVirtualEmployeesEmployeeIdRouteImport } from './routes/$projectId/setting/virtual-employees/$employeeId'
+import { Route as ProjectIdAgentGardenIndexRouteImport } from './routes/$projectId/agent-garden/index'
+import { Route as ProjectIdAgentGardenAgentIdRouteImport } from './routes/$projectId/agent-garden/$agentId'
+import { Route as ProjectIdAuditLogsIndexRouteImport } from './routes/$projectId/audit-logs/index'
+import { Route as ProjectIdInstancesIndexRouteImport } from './routes/$projectId/instances/index'
+import { Route as ProjectIdInstancesInstanceIdRouteImport } from './routes/$projectId/instances/$instanceId'
+import { Route as ProjectIdRequestsIndexRouteImport } from './routes/$projectId/requests/index'
+import { Route as ProjectIdRequestsNewRouteImport } from './routes/$projectId/requests/new'
+import { Route as ProjectIdSettingIndexRouteImport } from './routes/$projectId/setting/index'
 import { Route as ProjectIdSettingModelProfilesProfileIdRouteImport } from './routes/$projectId/setting/model-profiles/$profileId'
+import { Route as ProjectIdSettingVirtualEmployeesEmployeeIdRouteImport } from './routes/$projectId/setting/virtual-employees/$employeeId'
 
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProjectIdIndexRoute = ProjectIdIndexRouteImport.update({
@@ -49,19 +49,29 @@ const ProjectIdIndexRoute = ProjectIdIndexRouteImport.update({
   path: '/$projectId/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthSsoCompleteRoute = AuthSsoCompleteRouteImport.update({
-  id: '/auth/sso-complete',
-  path: '/auth/sso-complete',
+const ProjectIdCostRoute = ProjectIdCostRouteImport.update({
+  id: '/$projectId/cost',
+  path: '/$projectId/cost',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ProjectIdTracesRoute = ProjectIdTracesRouteImport.update({
-  id: '/$projectId/traces',
-  path: '/$projectId/traces',
+const ProjectIdKnowledgeBaseRoute = ProjectIdKnowledgeBaseRouteImport.update({
+  id: '/$projectId/knowledge-base',
+  path: '/$projectId/knowledge-base',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ProjectIdSkillsRoute = ProjectIdSkillsRouteImport.update({
-  id: '/$projectId/skills',
-  path: '/$projectId/skills',
+const ProjectIdMcpServersRoute = ProjectIdMcpServersRouteImport.update({
+  id: '/$projectId/mcp-servers',
+  path: '/$projectId/mcp-servers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProjectIdProfileRoute = ProjectIdProfileRouteImport.update({
+  id: '/$projectId/profile',
+  path: '/$projectId/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProjectIdRuntimeRoute = ProjectIdRuntimeRouteImport.update({
+  id: '/$projectId/runtime',
+  path: '/$projectId/runtime',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProjectIdRuntimePoliciesRoute =
@@ -70,78 +80,25 @@ const ProjectIdRuntimePoliciesRoute =
     path: '/$projectId/runtime-policies',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ProjectIdRuntimeRoute = ProjectIdRuntimeRouteImport.update({
-  id: '/$projectId/runtime',
-  path: '/$projectId/runtime',
+const ProjectIdSkillsRoute = ProjectIdSkillsRouteImport.update({
+  id: '/$projectId/skills',
+  path: '/$projectId/skills',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ProjectIdProfileRoute = ProjectIdProfileRouteImport.update({
-  id: '/$projectId/profile',
-  path: '/$projectId/profile',
+const ProjectIdTracesRoute = ProjectIdTracesRouteImport.update({
+  id: '/$projectId/traces',
+  path: '/$projectId/traces',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ProjectIdMcpServersRoute = ProjectIdMcpServersRouteImport.update({
-  id: '/$projectId/mcp-servers',
-  path: '/$projectId/mcp-servers',
+const AuthSsoCompleteRoute = AuthSsoCompleteRouteImport.update({
+  id: '/auth/sso-complete',
+  path: '/auth/sso-complete',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ProjectIdKnowledgeBaseRoute = ProjectIdKnowledgeBaseRouteImport.update({
-  id: '/$projectId/knowledge-base',
-  path: '/$projectId/knowledge-base',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProjectIdCostRoute = ProjectIdCostRouteImport.update({
-  id: '/$projectId/cost',
-  path: '/$projectId/cost',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProjectIdSettingIndexRoute = ProjectIdSettingIndexRouteImport.update({
-  id: '/$projectId/setting/',
-  path: '/$projectId/setting/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProjectIdRequestsIndexRoute = ProjectIdRequestsIndexRouteImport.update({
-  id: '/$projectId/requests/',
-  path: '/$projectId/requests/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProjectIdInstancesIndexRoute = ProjectIdInstancesIndexRouteImport.update({
-  id: '/$projectId/instances/',
-  path: '/$projectId/instances/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProjectIdAuditLogsIndexRoute = ProjectIdAuditLogsIndexRouteImport.update({
-  id: '/$projectId/audit-logs/',
-  path: '/$projectId/audit-logs/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProjectIdAgentGardenIndexRoute =
-  ProjectIdAgentGardenIndexRouteImport.update({
-    id: '/$projectId/agent-garden/',
-    path: '/$projectId/agent-garden/',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const ProjectIdAccessPoliciesIndexRoute =
   ProjectIdAccessPoliciesIndexRouteImport.update({
     id: '/$projectId/access-policies/',
     path: '/$projectId/access-policies/',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ProjectIdRequestsNewRoute = ProjectIdRequestsNewRouteImport.update({
-  id: '/$projectId/requests/new',
-  path: '/$projectId/requests/new',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProjectIdInstancesInstanceIdRoute =
-  ProjectIdInstancesInstanceIdRouteImport.update({
-    id: '/$projectId/instances/$instanceId',
-    path: '/$projectId/instances/$instanceId',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ProjectIdAgentGardenAgentIdRoute =
-  ProjectIdAgentGardenAgentIdRouteImport.update({
-    id: '/$projectId/agent-garden/$agentId',
-    path: '/$projectId/agent-garden/$agentId',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ProjectIdAccessPoliciesPolicyIdRoute =
@@ -150,16 +107,59 @@ const ProjectIdAccessPoliciesPolicyIdRoute =
     path: '/$projectId/access-policies/$policyId',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ProjectIdSettingVirtualEmployeesEmployeeIdRoute =
-  ProjectIdSettingVirtualEmployeesEmployeeIdRouteImport.update({
-    id: '/$projectId/setting/virtual-employees/$employeeId',
-    path: '/$projectId/setting/virtual-employees/$employeeId',
+const ProjectIdAgentGardenIndexRoute =
+  ProjectIdAgentGardenIndexRouteImport.update({
+    id: '/$projectId/agent-garden/',
+    path: '/$projectId/agent-garden/',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ProjectIdAgentGardenAgentIdRoute =
+  ProjectIdAgentGardenAgentIdRouteImport.update({
+    id: '/$projectId/agent-garden/$agentId',
+    path: '/$projectId/agent-garden/$agentId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ProjectIdAuditLogsIndexRoute = ProjectIdAuditLogsIndexRouteImport.update({
+  id: '/$projectId/audit-logs/',
+  path: '/$projectId/audit-logs/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProjectIdInstancesIndexRoute = ProjectIdInstancesIndexRouteImport.update({
+  id: '/$projectId/instances/',
+  path: '/$projectId/instances/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProjectIdInstancesInstanceIdRoute =
+  ProjectIdInstancesInstanceIdRouteImport.update({
+    id: '/$projectId/instances/$instanceId',
+    path: '/$projectId/instances/$instanceId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ProjectIdRequestsIndexRoute = ProjectIdRequestsIndexRouteImport.update({
+  id: '/$projectId/requests/',
+  path: '/$projectId/requests/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProjectIdRequestsNewRoute = ProjectIdRequestsNewRouteImport.update({
+  id: '/$projectId/requests/new',
+  path: '/$projectId/requests/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProjectIdSettingIndexRoute = ProjectIdSettingIndexRouteImport.update({
+  id: '/$projectId/setting/',
+  path: '/$projectId/setting/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProjectIdSettingModelProfilesProfileIdRoute =
   ProjectIdSettingModelProfilesProfileIdRouteImport.update({
     id: '/$projectId/setting/model-profiles/$profileId',
     path: '/$projectId/setting/model-profiles/$profileId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ProjectIdSettingVirtualEmployeesEmployeeIdRoute =
+  ProjectIdSettingVirtualEmployeesEmployeeIdRouteImport.update({
+    id: '/$projectId/setting/virtual-employees/$employeeId',
+    path: '/$projectId/setting/virtual-employees/$employeeId',
     getParentRoute: () => rootRouteImport,
   } as any)
 
@@ -352,18 +352,18 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$projectId/': {
@@ -373,53 +373,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectIdIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/auth/sso-complete': {
-      id: '/auth/sso-complete'
-      path: '/auth/sso-complete'
-      fullPath: '/auth/sso-complete'
-      preLoaderRoute: typeof AuthSsoCompleteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/$projectId/traces': {
-      id: '/$projectId/traces'
-      path: '/$projectId/traces'
-      fullPath: '/$projectId/traces'
-      preLoaderRoute: typeof ProjectIdTracesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/$projectId/skills': {
-      id: '/$projectId/skills'
-      path: '/$projectId/skills'
-      fullPath: '/$projectId/skills'
-      preLoaderRoute: typeof ProjectIdSkillsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/$projectId/runtime-policies': {
-      id: '/$projectId/runtime-policies'
-      path: '/$projectId/runtime-policies'
-      fullPath: '/$projectId/runtime-policies'
-      preLoaderRoute: typeof ProjectIdRuntimePoliciesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/$projectId/runtime': {
-      id: '/$projectId/runtime'
-      path: '/$projectId/runtime'
-      fullPath: '/$projectId/runtime'
-      preLoaderRoute: typeof ProjectIdRuntimeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/$projectId/profile': {
-      id: '/$projectId/profile'
-      path: '/$projectId/profile'
-      fullPath: '/$projectId/profile'
-      preLoaderRoute: typeof ProjectIdProfileRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/$projectId/mcp-servers': {
-      id: '/$projectId/mcp-servers'
-      path: '/$projectId/mcp-servers'
-      fullPath: '/$projectId/mcp-servers'
-      preLoaderRoute: typeof ProjectIdMcpServersRouteImport
+    '/$projectId/cost': {
+      id: '/$projectId/cost'
+      path: '/$projectId/cost'
+      fullPath: '/$projectId/cost'
+      preLoaderRoute: typeof ProjectIdCostRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$projectId/knowledge-base': {
@@ -429,46 +387,53 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectIdKnowledgeBaseRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/$projectId/cost': {
-      id: '/$projectId/cost'
-      path: '/$projectId/cost'
-      fullPath: '/$projectId/cost'
-      preLoaderRoute: typeof ProjectIdCostRouteImport
+    '/$projectId/mcp-servers': {
+      id: '/$projectId/mcp-servers'
+      path: '/$projectId/mcp-servers'
+      fullPath: '/$projectId/mcp-servers'
+      preLoaderRoute: typeof ProjectIdMcpServersRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/$projectId/setting/': {
-      id: '/$projectId/setting/'
-      path: '/$projectId/setting'
-      fullPath: '/$projectId/setting/'
-      preLoaderRoute: typeof ProjectIdSettingIndexRouteImport
+    '/$projectId/profile': {
+      id: '/$projectId/profile'
+      path: '/$projectId/profile'
+      fullPath: '/$projectId/profile'
+      preLoaderRoute: typeof ProjectIdProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/$projectId/requests/': {
-      id: '/$projectId/requests/'
-      path: '/$projectId/requests'
-      fullPath: '/$projectId/requests/'
-      preLoaderRoute: typeof ProjectIdRequestsIndexRouteImport
+    '/$projectId/runtime': {
+      id: '/$projectId/runtime'
+      path: '/$projectId/runtime'
+      fullPath: '/$projectId/runtime'
+      preLoaderRoute: typeof ProjectIdRuntimeRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/$projectId/instances/': {
-      id: '/$projectId/instances/'
-      path: '/$projectId/instances'
-      fullPath: '/$projectId/instances/'
-      preLoaderRoute: typeof ProjectIdInstancesIndexRouteImport
+    '/$projectId/runtime-policies': {
+      id: '/$projectId/runtime-policies'
+      path: '/$projectId/runtime-policies'
+      fullPath: '/$projectId/runtime-policies'
+      preLoaderRoute: typeof ProjectIdRuntimePoliciesRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/$projectId/audit-logs/': {
-      id: '/$projectId/audit-logs/'
-      path: '/$projectId/audit-logs'
-      fullPath: '/$projectId/audit-logs/'
-      preLoaderRoute: typeof ProjectIdAuditLogsIndexRouteImport
+    '/$projectId/skills': {
+      id: '/$projectId/skills'
+      path: '/$projectId/skills'
+      fullPath: '/$projectId/skills'
+      preLoaderRoute: typeof ProjectIdSkillsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/$projectId/agent-garden/': {
-      id: '/$projectId/agent-garden/'
-      path: '/$projectId/agent-garden'
-      fullPath: '/$projectId/agent-garden/'
-      preLoaderRoute: typeof ProjectIdAgentGardenIndexRouteImport
+    '/$projectId/traces': {
+      id: '/$projectId/traces'
+      path: '/$projectId/traces'
+      fullPath: '/$projectId/traces'
+      preLoaderRoute: typeof ProjectIdTracesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/sso-complete': {
+      id: '/auth/sso-complete'
+      path: '/auth/sso-complete'
+      fullPath: '/auth/sso-complete'
+      preLoaderRoute: typeof AuthSsoCompleteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$projectId/access-policies/': {
@@ -478,18 +443,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectIdAccessPoliciesIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/$projectId/requests/new': {
-      id: '/$projectId/requests/new'
-      path: '/$projectId/requests/new'
-      fullPath: '/$projectId/requests/new'
-      preLoaderRoute: typeof ProjectIdRequestsNewRouteImport
+    '/$projectId/access-policies/$policyId': {
+      id: '/$projectId/access-policies/$policyId'
+      path: '/$projectId/access-policies/$policyId'
+      fullPath: '/$projectId/access-policies/$policyId'
+      preLoaderRoute: typeof ProjectIdAccessPoliciesPolicyIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/$projectId/instances/$instanceId': {
-      id: '/$projectId/instances/$instanceId'
-      path: '/$projectId/instances/$instanceId'
-      fullPath: '/$projectId/instances/$instanceId'
-      preLoaderRoute: typeof ProjectIdInstancesInstanceIdRouteImport
+    '/$projectId/agent-garden/': {
+      id: '/$projectId/agent-garden/'
+      path: '/$projectId/agent-garden'
+      fullPath: '/$projectId/agent-garden/'
+      preLoaderRoute: typeof ProjectIdAgentGardenIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$projectId/agent-garden/$agentId': {
@@ -499,18 +464,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectIdAgentGardenAgentIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/$projectId/access-policies/$policyId': {
-      id: '/$projectId/access-policies/$policyId'
-      path: '/$projectId/access-policies/$policyId'
-      fullPath: '/$projectId/access-policies/$policyId'
-      preLoaderRoute: typeof ProjectIdAccessPoliciesPolicyIdRouteImport
+    '/$projectId/audit-logs/': {
+      id: '/$projectId/audit-logs/'
+      path: '/$projectId/audit-logs'
+      fullPath: '/$projectId/audit-logs/'
+      preLoaderRoute: typeof ProjectIdAuditLogsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/$projectId/setting/virtual-employees/$employeeId': {
-      id: '/$projectId/setting/virtual-employees/$employeeId'
-      path: '/$projectId/setting/virtual-employees/$employeeId'
-      fullPath: '/$projectId/setting/virtual-employees/$employeeId'
-      preLoaderRoute: typeof ProjectIdSettingVirtualEmployeesEmployeeIdRouteImport
+    '/$projectId/instances/': {
+      id: '/$projectId/instances/'
+      path: '/$projectId/instances'
+      fullPath: '/$projectId/instances/'
+      preLoaderRoute: typeof ProjectIdInstancesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$projectId/instances/$instanceId': {
+      id: '/$projectId/instances/$instanceId'
+      path: '/$projectId/instances/$instanceId'
+      fullPath: '/$projectId/instances/$instanceId'
+      preLoaderRoute: typeof ProjectIdInstancesInstanceIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$projectId/requests/': {
+      id: '/$projectId/requests/'
+      path: '/$projectId/requests'
+      fullPath: '/$projectId/requests/'
+      preLoaderRoute: typeof ProjectIdRequestsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$projectId/requests/new': {
+      id: '/$projectId/requests/new'
+      path: '/$projectId/requests/new'
+      fullPath: '/$projectId/requests/new'
+      preLoaderRoute: typeof ProjectIdRequestsNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$projectId/setting/': {
+      id: '/$projectId/setting/'
+      path: '/$projectId/setting'
+      fullPath: '/$projectId/setting/'
+      preLoaderRoute: typeof ProjectIdSettingIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$projectId/setting/model-profiles/$profileId': {
@@ -518,6 +511,13 @@ declare module '@tanstack/react-router' {
       path: '/$projectId/setting/model-profiles/$profileId'
       fullPath: '/$projectId/setting/model-profiles/$profileId'
       preLoaderRoute: typeof ProjectIdSettingModelProfilesProfileIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$projectId/setting/virtual-employees/$employeeId': {
+      id: '/$projectId/setting/virtual-employees/$employeeId'
+      path: '/$projectId/setting/virtual-employees/$employeeId'
+      fullPath: '/$projectId/setting/virtual-employees/$employeeId'
+      preLoaderRoute: typeof ProjectIdSettingVirtualEmployeesEmployeeIdRouteImport
       parentRoute: typeof rootRouteImport
     }
   }

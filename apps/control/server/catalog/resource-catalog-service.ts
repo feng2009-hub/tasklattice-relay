@@ -61,13 +61,47 @@ export class ResourceCatalogService {
   }
 
   async createSkill(input: CreateSkillDefinitionInput): Promise<SkillDefinition> {
-    return this.store.saveSkillDefinition({ id: resourceId(input.name), bindings: 0, ...input });
+    return this.store.saveSkillDefinition({
+      id: resourceId(input.name),
+      ...input,
+      updatedAt: new Date().toISOString(),
+    });
   }
 
   async updateSkill(id: string, input: UpdateSkillDefinitionInput): Promise<SkillDefinition> {
     const current = await this.store.getSkillDefinition(id);
     if (!current) throw new Error("Skill was not found.");
-    return this.store.saveSkillDefinition({ ...current, ...input, id });
+    return this.store.saveSkillDefinition({
+      ...current,
+      ...input,
+      id,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  async verifySkillArtifact(id: string): Promise<SkillDefinition> {
+    const skill = await this.store.getSkillDefinition(id);
+    if (!skill) throw new Error("Skill was not found.");
+    const artifact = await this.store.getSkillArtifact(skill.id, skill.version);
+    if (!artifact) throw new Error("Skill artifact was not found.");
+    const digest =
+      `sha256:${createHash("sha256").update(artifact.archive).digest("hex")}`;
+    if (digest !== artifact.digest || digest !== skill.digest) {
+      throw new Error("Skill artifact digest does not match the catalog.");
+    }
+    return skill;
+  }
+
+  async skillArtifact(id: string) {
+    const skill = await this.verifySkillArtifact(id);
+    const artifact = await this.store.getSkillArtifact(skill.id, skill.version);
+    if (!artifact) throw new Error("Skill artifact was not found.");
+    return {
+      archive: artifact.archive,
+      contentType: artifact.contentType,
+      digest: artifact.digest,
+      fileName: `${skill.id}-${skill.version}.tar.gz`,
+    };
   }
 
   async createMcpServer(input: CreateMcpServerDefinitionInput): Promise<McpServerDefinition> {

@@ -24,12 +24,16 @@ COPY apps/control/package.json apps/control/package.json
 COPY apps/example-mcp-server/package.json apps/example-mcp-server/package.json
 COPY apps/runner/package.json apps/runner/package.json
 COPY packages/contracts/package.json packages/contracts/package.json
-RUN npm ci --include=optional
+RUN --mount=type=cache,target=/root/.npm \
+    npm_config_fetch_retries=5 \
+    npm_config_fetch_retry_maxtimeout=120000 \
+    npm ci --include=optional
 
 FROM dependencies AS build
 COPY tsconfig.base.json ./
 COPY apps ./apps
 COPY packages ./packages
+COPY skills ./skills
 RUN npm run build --workspace @tasklattice/contracts \
     && npm run build --workspace @tasklattice/control \
     && npm run build --workspace @tasklattice/runner \
@@ -53,6 +57,7 @@ COPY --from=build /app/apps/control/prisma ./apps/control/prisma
 COPY --from=build /app/apps/control/prisma.config.ts ./apps/control/prisma.config.ts
 COPY --from=build /app/apps/control/server/config ./apps/control/server/config
 COPY --from=build /app/apps/control/.output ./apps/control/.output
+COPY --from=build /app/skills/vendor/dist ./skills/vendor/dist
 USER 10001
 EXPOSE 8080
 CMD ["node", "apps/control/.output/server/index.mjs"]

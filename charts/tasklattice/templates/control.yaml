@@ -63,6 +63,29 @@ spec:
             - name: control-config
               mountPath: /etc/tasklattice
               readOnly: true
+        - name: seed-built-in-skills
+          image: {{ include "tasklattice.image" (dict "root" . "image" .Values.images.control) }}
+          imagePullPolicy: {{ .Values.images.control.pullPolicy }}
+          command:
+            - npm
+            - run
+            - db:seed-skills
+            - --workspace
+            - "@tasklattice/control"
+          env:
+            - name: TASKLATTICE_CONFIG
+              value: /etc/tasklattice/control.toml
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: control-config
+              mountPath: /etc/tasklattice
+              readOnly: true
       containers:
         - name: control
           image: {{ include "tasklattice.image" (dict "root" . "image" .Values.images.control) }}
