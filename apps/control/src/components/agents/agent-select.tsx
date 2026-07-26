@@ -15,7 +15,7 @@ export function AgentSelect({
   const selected = getAgentPlatformPresentation(value);
   return (
     <Select value={value} onValueChange={(next) => onValueChange(next as AgentPlatformId)}>
-      <SelectTrigger id={id} className="min-h-14 h-auto">
+      <SelectTrigger id={id} className="min-h-14 h-auto w-full">
         <SelectValue>
           <AgentIdentity platform={selected} />
         </SelectValue>

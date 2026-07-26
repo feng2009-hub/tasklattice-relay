@@ -1,10 +1,10 @@
 import { useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import type { KnowledgeSourceDefinition, McpServerDefinition, SkillDefinition } from "@tasklattice/contracts";
-import { BookOpenText, Boxes, ChevronDown, Eye, Info, Network, Plus, ServerCog, X } from "lucide-react";
+import { BookOpenText, Boxes, ChevronDown, Info, Network, Pencil, Plus, ServerCog, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -41,7 +41,7 @@ function mcpStatusTone(server: McpServerDefinition): "danger" | "neutral" | "suc
   return "neutral";
 }
 
-export function IdentityCapabilitiesStep({ customSystemPrompt, knowledgeSources, mcpServers, name, onCustomSystemPromptChange, onKnowledgeSourceIdsChange, onMcpServerIdsChange, onNameChange, onSkillIdsChange, onSpecializationChange, selectedKnowledgeSourceIds, selectedMcpServerIds, selectedSkillIds, skills, specialization, specializations }: {
+export function IdentityCapabilitiesStep({ customSystemPrompt, knowledgeSources, mcpServers, name, onCustomSystemPromptChange, onKnowledgeSourceIdsChange, onMcpServerIdsChange, onNameChange, onSkillIdsChange, onSpecializationChange, onSystemPromptChange, selectedKnowledgeSourceIds, selectedMcpServerIds, selectedSkillIds, skills, specialization, specializations, systemPrompt }: {
   customSystemPrompt: string;
   knowledgeSources: readonly KnowledgeSourceDefinition[];
   mcpServers: readonly McpServerDefinition[];
@@ -52,12 +52,14 @@ export function IdentityCapabilitiesStep({ customSystemPrompt, knowledgeSources,
   onNameChange: (value: string) => void;
   onSkillIdsChange: (ids: string[]) => void;
   onSpecializationChange: (id: SpecializationId) => void;
+  onSystemPromptChange: (value: string) => void;
   selectedKnowledgeSourceIds: readonly string[];
   selectedMcpServerIds: readonly string[];
   selectedSkillIds: readonly string[];
   skills: readonly SkillDefinition[];
   specialization: Specialization;
   specializations: readonly Specialization[];
+  systemPrompt: string;
 }) {
   const projectId = useCurrentProjectId();
   const [promptOpen, setPromptOpen] = useState(false);
@@ -88,18 +90,23 @@ export function IdentityCapabilitiesStep({ customSystemPrompt, knowledgeSources,
   return (
     <div className="space-y-5">
       <Card>
-        <CardHeader className="border-b"><CardTitle>Identity</CardTitle></CardHeader>
+        <CardHeader className="border-b">
+          <CardTitle>Define Work</CardTitle>
+          <CardDescription>Describe the job, then choose the Role and instructions that shape how this Instance performs it.</CardDescription>
+        </CardHeader>
         <CardContent className="space-y-5">
-          <div className="grid gap-x-4 gap-y-2 md:grid-cols-[minmax(0,1fr)_auto_minmax(20rem,.72fr)] md:grid-rows-[auto_3rem_auto]">
-            <Label htmlFor="agent-name" className="md:col-start-1 md:row-start-1">Agent name</Label>
-            <div className="relative md:col-start-1 md:row-start-2">
-              <Input id="agent-name" required maxLength={64} value={name} onChange={(event) => onNameChange(event.target.value)} placeholder="hr-assistant" className="h-12 pr-16" />
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">{name.length}/64</span>
+          <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(20rem,.8fr)]">
+            <div className="space-y-2">
+              <Label htmlFor="agent-name">Instance name</Label>
+              <div className="relative">
+                <Input id="agent-name" required maxLength={64} value={name} onChange={(event) => onNameChange(event.target.value)} placeholder="mobile-security-research" className="h-12 pr-16" />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">{name.length}/64</span>
+              </div>
+              {name.length > 0 && name.trim().length < 3 ? <p role="alert" className="text-xs text-destructive">Use at least 3 characters.</p> : <p className="text-xs leading-5 text-muted-foreground">Name this running Instance of the job.</p>}
             </div>
-            {name.length > 0 && name.trim().length < 3 ? <p role="alert" className="text-xs text-destructive md:col-start-1 md:row-start-3">Use at least 3 characters.</p> : null}
-            <span className="hidden h-12 items-center text-sm font-medium text-muted-foreground md:col-start-2 md:row-start-2 md:flex">as</span>
-            <Label htmlFor="agent-role" className="md:col-start-3 md:row-start-1">Role</Label>
-            <div className="md:col-start-3 md:row-start-2">
+
+            <div className="space-y-2">
+              <Label htmlFor="agent-role">Role</Label>
               <Select value={specialization.id} onValueChange={(id) => onSpecializationChange(id as SpecializationId)}>
                 <SelectTrigger id="agent-role" className="w-full data-[size=default]:h-12"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -110,6 +117,7 @@ export function IdentityCapabilitiesStep({ customSystemPrompt, knowledgeSources,
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs leading-5 text-muted-foreground">{specialization.description}</p>
             </div>
           </div>
 
@@ -121,8 +129,8 @@ export function IdentityCapabilitiesStep({ customSystemPrompt, knowledgeSources,
             </div>
           ) : (
             <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
-              <p className="flex items-start gap-2 text-xs leading-5 text-muted-foreground"><Info className="mt-0.5 size-4 shrink-0" />Selecting a role applies its instructions and recommended capabilities.</p>
-              <Button type="button" variant="outline" size="sm" onClick={() => setPromptOpen(true)}><Eye /> View instructions</Button>
+              <p className="flex items-start gap-2 text-xs leading-5 text-muted-foreground"><Info className="mt-0.5 size-4 shrink-0" />Selecting a Role applies its default instructions. You can override them for this Instance.</p>
+              <Button type="button" variant="outline" size="sm" onClick={() => setPromptOpen(true)}><Pencil /> Edit instructions</Button>
             </div>
           )}
         </CardContent>
@@ -132,11 +140,11 @@ export function IdentityCapabilitiesStep({ customSystemPrompt, knowledgeSources,
         <CardHeader className="border-b">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <CardTitle>Capabilities</CardTitle>
-              <p className="text-xs text-muted-foreground">{specialization.id === "general-purpose" || specialization.id === "custom" ? "Add the tools and knowledge this Agent can use." : `Preselected by the ${specialization.roleLabel} role. You can add or remove any item.`}</p>
+              <CardTitle>Extensions</CardTitle>
+              <p className="text-xs text-muted-foreground">{specialization.id === "general-purpose" || specialization.id === "custom" ? "Add the tools and knowledge required for this work." : `The ${specialization.roleLabel} role preselects its recommended extensions. You can adjust any item.`}</p>
             </div>
             <DropdownMenu>
-              <DropdownMenuTrigger asChild><Button type="button" variant="outline" size="sm"><Plus /> Edit Capability <ChevronDown /></Button></DropdownMenuTrigger>
+              <DropdownMenuTrigger asChild><Button type="button" variant="outline" size="sm"><Plus /> Edit extensions <ChevronDown /></Button></DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onSelect={() => setSkillsOpen(true)}><Boxes /> Skills</DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => setMcpOpen(true)}><ServerCog /> MCP Servers</DropdownMenuItem>
@@ -180,7 +188,16 @@ export function IdentityCapabilitiesStep({ customSystemPrompt, knowledgeSources,
         </CardContent>
       </Card>
 
-      {specialization.id !== "custom" ? <SystemPromptViewer open={promptOpen} onOpenChange={setPromptOpen} specializationName={specialization.roleLabel} prompt={specialization.systemPrompt} /> : null}
+      {specialization.id !== "custom" ? (
+        <SystemPromptViewer
+          defaultPrompt={specialization.systemPrompt}
+          open={promptOpen}
+          onApply={onSystemPromptChange}
+          onOpenChange={setPromptOpen}
+          specializationName={specialization.roleLabel}
+          prompt={systemPrompt}
+        />
+      ) : null}
     </div>
   );
 }

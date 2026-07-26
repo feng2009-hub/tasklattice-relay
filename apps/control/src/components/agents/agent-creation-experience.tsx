@@ -37,7 +37,7 @@ export function AgentCreationExperience({ agent }: { agent: Agent }) {
         <span className="absolute grid size-9 place-items-center rounded-full bg-background text-xs font-semibold tabular-nums shadow-sm">{state.progress}%</span>
       </div>
       <h1 className="mt-6 text-3xl font-semibold tracking-tight">Creating your Agent…</h1>
-      <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">We received the request for <strong className="font-medium text-foreground">{agent.name}</strong>. This page updates automatically while OpenShell prepares the runtime.</p>
+      <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">We received the request for <strong className="font-medium text-foreground">{agent.name}</strong>. This page updates automatically while its Agent and permissions are prepared.</p>
 
       <div className="mt-10 w-full rounded-lg border bg-card px-5 py-6 text-left shadow-sm sm:px-8">
         <div className="flex items-center justify-between gap-4 text-sm">
