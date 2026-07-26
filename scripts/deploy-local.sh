@@ -161,16 +161,16 @@ fi
 
 helm lint "$repository_root/charts/tasklattice" \
   --values "$repository_root/charts/tasklattice/values-dev.yaml" \
-  "${keycloak_helm_args[@]}" \
-  "${example_mcp_helm_args[@]}"
+  ${keycloak_helm_args[@]+"${keycloak_helm_args[@]}"} \
+  ${example_mcp_helm_args[@]+"${example_mcp_helm_args[@]}"}
 helm upgrade --install "$release_name" "$repository_root/charts/tasklattice" \
   --kube-context "$kube_context" \
   --namespace "$namespace" \
   --create-namespace \
   --values "$repository_root/charts/tasklattice/values-dev.yaml" \
   --set-string "global.rolloutRevision=$rollout_revision" \
-  "${keycloak_helm_args[@]}" \
-  "${example_mcp_helm_args[@]}" \
+  ${keycloak_helm_args[@]+"${keycloak_helm_args[@]}"} \
+  ${example_mcp_helm_args[@]+"${example_mcp_helm_args[@]}"} \
   --wait \
   --wait-for-jobs \
   --timeout "$helm_timeout"
