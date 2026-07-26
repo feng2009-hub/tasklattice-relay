@@ -1,9 +1,15 @@
 # TaskLattice
 
-TaskLattice is a Kubernetes control plane for registering model Providers and
-running OpenClaw or Hermes Agents in OpenShell sandboxes. OpenShell is the fixed
-runtime; OpenClaw is the default Agent implementation and Hermes is the second
-supported implementation.
+TaskLattice is a Project-scoped Kubernetes control plane for operating AI
+Agents. It manages model Providers and routing, Virtual Employee identities,
+runtime and access policies, Agent resources, and observability around
+OpenShell sandboxes. OpenShell is the fixed runtime; OpenClaw is the default
+Agent implementation and Hermes is the second supported implementation.
+
+The `v0.1.x` release line is an early preview. The Provider-to-Sandbox path is
+implemented end to end. The Traces workbench currently demonstrates the
+intended interaction model with fixture data; it is not yet connected to an
+OpenTelemetry collector or persistent trace store.
 
 Control Plane runtime settings use a single TOML file; see
 [Control Plane configuration](docs/control-configuration.md).
@@ -30,6 +36,19 @@ OpenShell Gateway ---- Agent Sandbox CR
                            `---- Sandbox Pod + workspace PVC
                                  (OpenClaw or Hermes)
 ```
+
+## Core capabilities
+
+- Project-scoped membership, quotas, configuration, and resource ownership.
+- Provider registration, model discovery, LiteLLM-backed Model Profiles,
+  per-Instance virtual keys, spend attribution, and cost views.
+- Virtual Employee identities with Access Policy bindings and independently
+  selected OpenShell Runtime Policies.
+- OpenClaw and Hermes Instances with Agent UI and terminal access.
+- Agent Garden registration and Agent-to-Agent connections, plus Skills, MCP
+  Servers, and Knowledge Base catalogs.
+- Project audit logs and a preview Trace workbench for Agent, model, tool, MCP,
+  and external-system interactions.
 
 ## Install the latest Release
 
@@ -65,12 +84,32 @@ helm upgrade --install tasklattice \
   --timeout 10m
 ```
 
+The Chart defaults the Control and OpenShell Services to `LoadBalancer`. On a
+cluster that does not provision external load-balancer addresses, add these
+overrides to either installation command; without them, Helm `--wait` will time
+out:
+
+```sh
+helm upgrade --install tasklattice \
+  oci://ghcr.io/sn0rt/charts/tasklattice \
+  --version "${VERSION}" \
+  --namespace tasklattice-sandboxes \
+  --create-namespace \
+  --set control.service.type=ClusterIP \
+  --set openshell.service.type=ClusterIP \
+  --wait \
+  --timeout 10m
+```
+
 Requirements:
 
 - Kubernetes 1.29 or newer.
 - Helm and `kubectl`.
 - Access to GHCR and the public upstream registries.
 - A default `ReadWriteOnce` StorageClass.
+- Permission to create namespaces, CRDs, ClusterRoles, and ClusterRoleBindings.
+  If the Agent Sandbox controller is managed separately, install it first and
+  set `agentSandbox.enabled=false`.
 - Credentials or an endpoint for at least one supported model Provider.
 - At least 4 CPU and 8 GiB memory for a practical single-Instance deployment.
 
@@ -110,12 +149,15 @@ creates its Sandbox rather than running as permanent control-plane Pods.
 ## Access
 
 On a cluster with `LoadBalancer` support, open the external address of the
-`tasklattice-control` Service on port 80. Otherwise run these forwards in two
-terminals and open `http://127.0.0.1:18080`:
+`tasklattice-control` Service on port 80. When using the `ClusterIP` overrides,
+forward the Control Service and open `http://127.0.0.1:18080`:
 
 ```sh
 kubectl -n tasklattice-sandboxes port-forward service/tasklattice-control 18080:80
 ```
+
+Keep this second forward running when validating a Sandbox Agent UI through
+OpenShell:
 
 ```sh
 kubectl -n tasklattice-sandboxes port-forward service/tasklattice-openshell 8080:8080
@@ -125,21 +167,30 @@ The checked-in Chart defaults are suitable only for a trusted cluster: local
 login is `admin / admin`, and OpenShell permits unauthenticated plaintext
 gateway clients. Before shared or internet-facing use, override every
 `secrets.*` value and configure authenticated ingress plus OpenShell TLS/OIDC.
-For an end-to-end SSO test environment, enable the Chart's ephemeral,
-preconfigured Keycloak with `keycloak.enabled=true`.
+For an end-to-end SSO test environment, the Chart can deploy an ephemeral,
+preconfigured Keycloak. Do not enable `keycloak.enabled` alone:
+`keycloak.publicUrl` must be reachable from both the browser and the Control
+Pod, and `control.publicUrl` must match the browser-visible TaskLattice origin
+used for the OIDC callback.
 See the [Chart documentation](charts/tasklattice/README.md) for existing
-Secrets, image pull Secrets, and external runtime settings.
+Secrets, image pull Secrets, embedded Keycloak examples, and external runtime
+settings.
 
 ## First Instance
 
 After signing in:
 
-1. Register a Provider and validate at least one model.
-2. Create a Model Profile using a registered LiteLLM public model alias.
-3. Mark the first Model Profile as the default for new Instances.
-4. Create an Instance, choose OpenClaw or Hermes, and select a ready Model
-   Profile.
-5. Keep the built-in Unrestricted Policy for the first validation run.
+1. In Project settings, connect a Provider and register at least one validated
+   text-generation model.
+2. Create a Model Profile from the registered models and wait for it to reach
+   `READY`. The first ready Profile becomes the Project default automatically.
+3. Create a Virtual Employee, bind it to an Access Policy, and confirm that it
+   is Active. A Virtual Employee without explicit model access inherits the
+   Project's default Model Profile.
+4. Create an Instance, choose OpenClaw or Hermes, select an Agent Role and the
+   Active Virtual Employee, and keep the built-in Unrestricted Runtime Policy
+   for the first validation run.
+5. Wait for the Instance to reach `READY`, then open its Agent UI and terminal.
 
 A successful Instance reaches `READY`, exposes its Agent UI, and enables its
 terminal. Each Instance receives an isolated LiteLLM virtual key and an
@@ -168,7 +219,10 @@ Additional design documentation:
 
 - [Image release and Helm publishing](docs/image-release-and-helm.md)
 - [OpenShell Kubernetes runtime](docs/openshell-kubernetes-runtime.md)
+- [Agent Garden architecture](docs/agent-garden-architecture.md)
+- [Model Profiles](docs/model-profiles.md)
 - [MVP core flow](docs/mvp-core-flow.md)
+- [Contributing and local development](CONTRIBUTING.md)
 
 ## License
 

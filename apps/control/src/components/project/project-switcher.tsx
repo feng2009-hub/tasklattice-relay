@@ -80,7 +80,9 @@ export function ProjectSwitcher({
             className={cn(
               "group flex min-h-11 items-center rounded-sm border border-sidebar-border bg-sidebar px-2.5 text-left outline-none transition-colors",
               "hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/35 data-[state=open]:border-primary/25 data-[state=open]:bg-primary/[0.06]",
-              collapsed ? "w-11 justify-center px-0" : "w-full gap-2.5",
+              collapsed
+                ? "mx-auto size-11 justify-center px-0"
+                : "w-full gap-2.5",
             )}
             disabled={!currentProject || isSwitching}
           >

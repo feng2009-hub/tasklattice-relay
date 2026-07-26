@@ -189,7 +189,7 @@ function ModelCostPage() {
   const priorDays = Math.max(1, Math.round((new Date(`${dates.to}T00:00:00Z`).getTime() - new Date(`${dates.from}T00:00:00Z`).getTime()) / 86_400_000) + 1);
 
   return (
-    <div className="space-y-3 font-sans 2xl:-mx-10">
+    <div className="space-y-3 font-sans">
       <header className="pb-1">
         <h1 className="font-sans text-[28px] font-semibold leading-8 tracking-tight">Model cost</h1>
         <p className="mt-1 max-w-3xl text-[13px] leading-5 text-muted-foreground">

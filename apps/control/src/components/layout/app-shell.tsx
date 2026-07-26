@@ -183,7 +183,7 @@ function ProjectSidebar({ logout, pathname, user }: {
     <ToastProvider duration={3_000} swipeDirection="right">
       <Sidebar collapsible="icon">
         <SidebarHeader className="gap-1.5 border-b border-sidebar-border p-2">
-          <Link to="/$projectId" params={{ projectId }} onClick={() => setOpenMobile(false)} className="flex min-h-11 min-w-0 items-center gap-3 px-2 focus-visible:outline-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0" aria-label="TaskLattice home">
+          <Link to="/$projectId" params={{ projectId }} onClick={() => setOpenMobile(false)} className="flex min-h-11 min-w-0 items-center gap-3 px-2 focus-visible:outline-2 group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:size-11 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0" aria-label="TaskLattice home">
             <BrandLogo compact={!isMobile && state === "collapsed"} />
           </Link>
           <ProjectSwitcher
@@ -333,7 +333,13 @@ export function AppShell() {
             <HeaderBreadcrumb pathname={pathname} />
             <button disabled className="ml-auto hidden h-9 w-64 cursor-not-allowed items-center gap-2 rounded-md border border-border/70 bg-muted/30 px-3 text-sm text-muted-foreground/45 md:flex"><Search className="size-3.5" />Search project<span className="ml-auto text-[10px] uppercase">Later</span></button>
           </header>
-          <main id="main-content" className="mx-auto w-full max-w-[1320px] p-5 sm:p-6 lg:px-8 lg:py-6">
+          <main
+            id="main-content"
+            className={cn(
+              "mx-auto w-full p-5 sm:p-6 lg:py-6",
+              sidebarOpen ? "max-w-[1600px]" : "max-w-none",
+            )}
+          >
             {projectError ? (
               <div role="status" className="mb-5 border-l-2 border-amber-500 bg-amber-500/5 px-4 py-3 text-sm text-amber-900">
                 {projectError}

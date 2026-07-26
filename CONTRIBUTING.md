@@ -34,7 +34,9 @@ ghcr.io/sn0rt/tasklattice-nemoclaw-hermes-sandbox:dev
 ```
 
 These images are built into the local Docker store. The Release workflow does
-not publish the `dev` tag.
+not publish the `dev` tag. Local integration tests can additionally build
+`ghcr.io/sn0rt/tasklattice-example-mcp:dev`; it is test-only and is not one of
+the five released images.
 
 ## Prerequisites
 
@@ -82,7 +84,8 @@ Never commit `.env`.
 
 ## Build the local images
 
-Build all five first-party images:
+Build the complete local image set: the five released images plus the
+test-only Example MCP image:
 
 ```sh
 npm run images:build
@@ -101,6 +104,7 @@ docker image inspect ghcr.io/sn0rt/tasklattice-openshell-runner:dev
 docker image inspect ghcr.io/sn0rt/tasklattice-litellm:dev
 docker image inspect ghcr.io/sn0rt/tasklattice-nemoclaw-sandbox:dev
 docker image inspect ghcr.io/sn0rt/tasklattice-nemoclaw-hermes-sandbox:dev
+docker image inspect ghcr.io/sn0rt/tasklattice-example-mcp:dev
 ```
 
 Individual build commands are available for shorter loops:
@@ -109,6 +113,7 @@ Individual build commands are available for shorter loops:
 npm run images:build:control
 npm run images:build:runner
 npm run images:build:litellm
+npm run images:build:example-mcp
 npm run images:build:sandbox:openclaw
 npm run images:build:sandbox:hermes
 ```
@@ -149,22 +154,22 @@ clients. Use them only on a trusted local cluster.
 
 ## End-to-end runtime validation
 
-After registering a Provider and a ready default Model Profile, run the core
-validation against the local control endpoint:
+After registering a Provider, creating a ready default Model Profile, and
+creating an Active Virtual Employee, validate the runtime flow through the
+Control console:
 
-```sh
-TALI_BASE_URL=http://localhost TALI_EXPECT_NEMOCLAW_RUNTIME=1 npm run validate:core
-```
-
-The validator proves the following before deleting its temporary Instance:
-
-1. REST creation reaches `READY`.
+1. Create an Instance with the Active Virtual Employee and confirm it reaches
+   `READY`.
 2. OpenShell publishes the Agent UI and its routed endpoint returns HTTP 200.
-3. A terminal WebSocket enters the same-name Sandbox Pod.
+3. The terminal connects to the same-name Sandbox Pod.
 4. `/etc/hostname` matches the Instance `sandboxName`.
 5. The pinned Agent runtime and `/usr/local/bin/nemoclaw-start` are available.
 6. The in-sandbox gateway health endpoint responds.
-7. Instance deletion removes the REST resource, HTTP endpoint, and runtime.
+7. Deleting the Instance removes its API resource, HTTP endpoint, and runtime.
+
+The legacy `npm run validate:core` helper has not yet been migrated to the
+Project-scoped APIs and Virtual Employee creation contract. Do not use it as a
+release gate until that migration is complete.
 
 Useful runtime inspection commands:
 

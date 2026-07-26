@@ -265,7 +265,7 @@ function AgentGarden() {
         </p>
       ) : null}
 
-      <div className="flex flex-col gap-3 border-y py-4 sm:flex-row sm:items-end">
+      <div className="flex flex-col gap-3 border-b py-4 sm:flex-row sm:items-end">
         <label className="relative min-w-0 flex-1 sm:max-w-xl">
           <span className="sr-only">
             Search Agents, capabilities, or platforms

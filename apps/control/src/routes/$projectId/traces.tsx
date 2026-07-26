@@ -92,7 +92,7 @@ function TracesPage() {
   };
 
   return (
-    <div className="space-y-4 2xl:-mx-8">
+    <div className="space-y-4">
       <PageHeader
         title="Traces"
         badge={<PreviewBadge />}

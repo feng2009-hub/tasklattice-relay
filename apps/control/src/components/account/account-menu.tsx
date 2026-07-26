@@ -66,9 +66,10 @@ export function AccountMenu({
           type="button"
           aria-label={`Open account menu for ${displayName}`}
           className={cn(
-            "group flex h-9 items-center rounded-md outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/30 data-[state=open]:bg-accent",
-            "w-full hover:bg-sidebar-accent",
-            collapsed ? "justify-center" : "gap-2.5 px-3",
+            "group flex items-center rounded-md outline-none transition-colors hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/30 data-[state=open]:bg-accent",
+            collapsed
+              ? "mx-auto size-11 justify-center"
+              : "h-9 w-full gap-2.5 px-3",
           )}
         >
           <UserAvatar user={user} />
