@@ -1,79 +1,39 @@
 import { describe, expect, it } from "vitest";
-import type { PlatformAuditLogEvent } from "@tasklattice/contracts";
 import {
+  auditFiltersToQuery,
   defaultAuditLogFilters,
-  filterAuditLogs,
 } from "./audit-log-utils";
 
 const now = Date.parse("2026-07-26T12:00:00.000Z");
-const baseEvent: PlatformAuditLogEvent = {
-  id: "audit-1",
-  projectId: "individual",
-  occurredAt: "2026-07-26T11:00:00.000Z",
-  actor: {
-    type: "user",
-    id: "maya",
-    name: "Maya Chen",
-    email: "maya@example.com",
-  },
-  authorization: {
-    scope: "project",
-    role: "admin",
-    decision: "allowed",
-  },
-  action: "instance.create",
-  verb: "created",
-  object: {
-    type: "Instance",
-    id: "research-assistant",
-    name: "Research Assistant",
-  },
-  outcome: "success",
-  summary: "Created a research assistant.",
-  request: {
-    id: "req-1",
-    method: "POST",
-    route: "/instances",
-    ipAddress: "127.0.0.1",
-    userAgent: "Vitest",
-  },
-};
 
-describe("filterAuditLogs", () => {
-  it("searches actor, action, object, and request identifiers", () => {
-    for (const query of ["maya", "instance.create", "research assistant", "req-1"]) {
-      expect(
-        filterAuditLogs(
-          [baseEvent],
-          { ...defaultAuditLogFilters, query },
-          now,
-        ),
-      ).toHaveLength(1);
-    }
+describe("auditFiltersToQuery", () => {
+  it("converts the selected time range to an absolute server timestamp", () => {
+    expect(
+      auditFiltersToQuery(defaultAuditLogFilters, now),
+    ).toEqual({
+      from: "2026-07-19T12:00:00.000Z",
+    });
   });
 
-  it("combines time, actor, resource, action, and outcome filters", () => {
+  it("omits all-value filters and forwards active server filters", () => {
     expect(
-      filterAuditLogs(
-        [baseEvent],
+      auditFiltersToQuery(
         {
-          query: "",
-          timeRange: "24h",
+          query: "  request-123  ",
+          timeRange: "all",
           actorId: "maya",
           action: "instance.create",
           objectType: "Instance",
-          outcome: "success",
+          outcome: "denied",
         },
         now,
       ),
-    ).toEqual([baseEvent]);
-
-    expect(
-      filterAuditLogs(
-        [baseEvent],
-        { ...defaultAuditLogFilters, actorId: "someone-else" },
-        now,
-      ),
-    ).toEqual([]);
+    ).toEqual({
+      query: "request-123",
+      actorId: "maya",
+      action: "instance.create",
+      objectType: "Instance",
+      outcome: "denied",
+    });
   });
 });

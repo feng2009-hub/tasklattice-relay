@@ -15,6 +15,9 @@ import accessPoliciesMigration from "../../prisma/migrations/20260725200000_acce
 import auditLogsMigration from "../../prisma/migrations/20260726120000_platform_audit_logs/migration.sql?raw";
 import agentGardenMigration from "../../prisma/migrations/20260726150000_agent_garden/migration.sql?raw";
 import vendorSkillArtifactsMigration from "../../prisma/migrations/20260726230000_vendor_skill_artifacts/migration.sql?raw";
+import auditLogQueryAndTraceMigration from "../../prisma/migrations/20260727090000_audit_log_query_and_trace/migration.sql?raw";
+import auditFixtureTraceCorrelationMigration from "../../prisma/migrations/20260727091000_audit_fixture_trace_correlation/migration.sql?raw";
+import realAuditCaptureMigration from "../../prisma/migrations/20260727100000_real_audit_capture_and_project_soft_delete/migration.sql?raw";
 import { developmentResourceCatalog } from "../catalog/development-resource-catalog";
 import { PrismaClient } from "../generated/prisma/client";
 
@@ -54,6 +57,9 @@ export function createTestPrisma(): PrismaClient {
   memory.public.none(auditLogsMigration);
   memory.public.none(agentGardenMigration);
   memory.public.none(vendorSkillArtifactsMigration);
+  memory.public.none(auditLogQueryAndTraceMigration);
+  memory.public.none(auditFixtureTraceCorrelationMigration);
+  memory.public.none(realAuditCaptureMigration);
   for (const skill of developmentResourceCatalog.skills) {
     const payload = JSON.stringify(skill).replaceAll("'", "''");
     memory.public.none(

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { AuditLogService } from "../audit-logs/audit-log-service";
 import type { AuthPayload, AuthUser } from "../auth/auth";
 import { createTestPrisma } from "../test/prisma";
 import { ProjectService } from "./project-service";
@@ -265,6 +266,58 @@ describe("ProjectService", () => {
     await expect(
       service.rename(project.id, administratorId, "Renamed Security Research"),
     ).rejects.toThrow(/immutable/i);
+  });
+
+  it("soft deletes Projects while retaining their unique name and audit history", async () => {
+    const db = createTestPrisma();
+    const service = new ProjectService(db);
+    const administrator = auth({
+      displayName: "Administrator",
+      email: "administrator@tasklattice.local",
+      provider: "sso",
+      username: "administrator",
+    });
+    await service.syncAuthUser(administrator.user);
+    const project = await service.create(administrator, "Retained Project", []);
+    const administratorId = await service.ensureUser(administrator);
+    await new AuditLogService(project.id, db).record({
+      projectId: project.id,
+      actor: {
+        type: "user",
+        id: administratorId,
+        name: administrator.user.displayName,
+      },
+      authorization: { role: "admin", decision: "allowed" },
+      action: "project.test",
+      verb: "tested",
+      object: { type: "Project", id: project.id, name: project.name },
+      outcome: "success",
+      summary: "Project audit retention test.",
+      request: {
+        id: "project-retention-test",
+        method: "POST",
+        route: "/project-retention-test",
+        ipAddress: "127.0.0.1",
+        userAgent: "vitest",
+      },
+    });
+
+    await service.delete(project.id, administratorId);
+
+    expect(await db.project.findUnique({ where: { id: project.id } }))
+      .toMatchObject({
+        deletedAt: expect.any(Date),
+        deletedBy: administratorId,
+        name: "Retained Project",
+      });
+    expect((await service.list(administrator)).map(({ id }) => id))
+      .not.toContain(project.id);
+    expect(await db.auditLogRecord.count({ where: { projectId: project.id } }))
+      .toBe(1);
+    await expect(service.create(administrator, "Retained Project", []))
+      .rejects.toThrow(/already exists/i);
+    await expect(service.requireRole(project.id, administratorId, ["admin"]))
+      .rejects.toThrow(/permission/i);
   });
 
   it("creates one personal project named after each username", async () => {

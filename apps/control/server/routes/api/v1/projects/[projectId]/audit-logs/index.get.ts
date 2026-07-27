@@ -5,6 +5,7 @@ import {
   getAuditLogService,
   requireProjectRole,
 } from "../../../../../../services";
+import { parseAuditLogQuery } from "../../../../../../audit-logs/audit-log-http";
 
 export default defineHandler(async (event) => {
   try {
@@ -15,9 +16,11 @@ export default defineHandler(async (event) => {
 
   try {
     await requireProjectRole(event.req, ["admin"]);
-    return jsonResponse({
-      data: await (await getAuditLogService(event.req)).list(),
-    });
+    return jsonResponse(
+      await (await getAuditLogService(event.req)).list(
+        parseAuditLogQuery(event.req),
+      ),
+    );
   } catch (error) {
     return errorResponse(error);
   }

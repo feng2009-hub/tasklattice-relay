@@ -20,7 +20,7 @@ export class PersonalProfileService {
   constructor(private readonly db: PrismaClient = prisma()) {}
 
   async get(auth: AuthPayload): Promise<PersonalProfile> {
-    await new ProjectService(this.db).ensureUser(auth);
+    await new ProjectService(this.db).requireUser(auth);
     const user = await this.db.user.findUnique({
       where: { id: auth.sub },
     });
@@ -48,7 +48,7 @@ export class PersonalProfileService {
       timezone: string;
     },
   ): Promise<PersonalProfile> {
-    await new ProjectService(this.db).ensureUser(auth);
+    await new ProjectService(this.db).requireUser(auth);
     await this.db.user.update({
       where: { id: auth.sub },
       data: {
@@ -64,7 +64,7 @@ export class PersonalProfileService {
     auth: AuthPayload,
     input: { currentPassword: string; newPassword: string },
   ): Promise<void> {
-    await new ProjectService(this.db).ensureUser(auth);
+    await new ProjectService(this.db).requireUser(auth);
     const user = await this.db.user.findUnique({
       where: { id: auth.sub },
       include: {

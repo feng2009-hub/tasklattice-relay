@@ -41,7 +41,8 @@ import type {
   ProviderConnectionCreationResult,
   ProviderConnectionDraft,
   ProviderDiscoveryResult,
-  PlatformAuditLogEvent,
+  PlatformAuditLogListResponse,
+  PlatformAuditLogQuery,
   RuntimeStatus,
   SandboxPolicy,
   SandboxPolicyCatalog,
@@ -153,12 +154,30 @@ function costSearch(params: CostQueryParams, extra: Record<string, string> = {})
   });
 }
 
+function auditLogSearch(params: PlatformAuditLogQuery): string {
+  const search = new URLSearchParams();
+  for (const [name, value] of Object.entries(params)) {
+    if (value !== undefined && value !== "") search.set(name, String(value));
+  }
+  const query = search.toString();
+  return query ? `?${query}` : "";
+}
+
 export const api = {
   listTraces: () => request<TraceListResponse>("/api/v1/traces"),
   getTrace: (traceId: string) =>
     request<TraceDetail>(`/api/v1/traces/${encodeURIComponent(traceId)}`),
-  listAuditLogs: async () =>
-    (await request<{ data: PlatformAuditLogEvent[] }>("/api/v1/audit-logs")).data,
+  listAuditLogs: (params: PlatformAuditLogQuery = {}) =>
+    request<PlatformAuditLogListResponse>(
+      `/api/v1/audit-logs${auditLogSearch(params)}`,
+    ),
+  exportAuditLogs: (
+    params: Omit<PlatformAuditLogQuery, "cursor" | "limit"> = {},
+  ) =>
+    requestBinary(
+      `/api/v1/audit-logs/export${auditLogSearch(params)}`,
+      "audit-logs.csv",
+    ),
   listAccessPolicies: async () =>
     (await request<{ data: AccessPolicy[] }>("/api/v1/access-policies")).data,
   getAccessPolicy: (id: string) =>

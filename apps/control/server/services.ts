@@ -15,6 +15,7 @@ import { VirtualEmployeeService } from "./virtual-employees/virtual-employee-ser
 import { VirtualEmployeeStore } from "./virtual-employees/virtual-employee-store";
 import { ProjectQuotaService } from "./quotas/project-quota-service";
 import { AuditLogService } from "./audit-logs/audit-log-service";
+import { prisma } from "./db/prisma";
 
 interface ProjectServices {
   agent: AgentService;
@@ -73,7 +74,13 @@ function scheduleVirtualEmployeeReconciliation(
   if (reconciliationTimers.has(projectId)) return;
   const intervalMs = 300_000;
   const timer = setInterval(() => {
-    void virtualEmployees.reconcileAll().catch((error) => {
+    void prisma().project.findUnique({
+      where: { id: projectId },
+      select: { deletedAt: true },
+    }).then((project) => {
+      if (!project || project.deletedAt) return;
+      return virtualEmployees.reconcileAll();
+    }).catch((error) => {
       console.error("Virtual Employee reconciliation failed.", error);
     });
   }, intervalMs);

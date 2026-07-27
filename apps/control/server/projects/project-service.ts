@@ -96,7 +96,11 @@ export class ProjectService {
       skipDuplicates: true,
     });
     const invitations = await this.db.projectInvitation.findMany({
-      where: { email, status: "pending" },
+      where: {
+        email,
+        status: "pending",
+        project: { deletedAt: null },
+      },
     });
     for (const invitation of invitations) {
       await this.db.$transaction([
@@ -128,15 +132,29 @@ export class ProjectService {
     return id;
   }
 
+  async requireUser(auth: AuthPayload): Promise<string> {
+    const user = await this.db.user.findUnique({
+      where: { id: auth.sub },
+      select: { id: true, status: true },
+    });
+    if (!user || user.status !== "active") {
+      throw new Error("The authenticated TaskLattice user is unavailable.");
+    }
+    return user.id;
+  }
+
   async authenticate(request: Request): Promise<{ auth: AuthPayload; userId: string }> {
     const auth = requireAuth(request);
-    return { auth, userId: await this.ensureUser(auth) };
+    return { auth, userId: await this.requireUser(auth) };
   }
 
   async list(auth: AuthPayload): Promise<ProjectView[]> {
     const currentUserId = await this.ensureUser(auth);
     const memberships = await this.db.projectMember.findMany({
-      where: { userId: currentUserId },
+      where: {
+        userId: currentUserId,
+        project: { deletedAt: null },
+      },
       include: {
         project: {
           include: {
@@ -168,8 +186,11 @@ export class ProjectService {
     const projectId = decodeURIComponent(match[1]!);
     const membership = await this.db.projectMember.findUnique({
       where: { projectId_userId: { projectId, userId: currentUserId } },
+      include: { project: { select: { deletedAt: true } } },
     });
-    if (!membership) throw new Error("Project not found or access denied.");
+    if (!membership || membership.project.deletedAt) {
+      throw new Error("Project not found or access denied.");
+    }
     return { auth, userId: currentUserId, projectId, role: membership.role as ProjectRole };
   }
 
@@ -296,8 +317,13 @@ export class ProjectService {
   async requireRole(projectId: string, currentUserId: string, roles: ProjectRole[]): Promise<ProjectRole> {
     const membership = await this.db.projectMember.findUnique({
       where: { projectId_userId: { projectId, userId: currentUserId } },
+      include: { project: { select: { deletedAt: true } } },
     });
-    if (!membership || !roles.includes(membership.role as ProjectRole)) {
+    if (
+      !membership
+      || membership.project.deletedAt
+      || !roles.includes(membership.role as ProjectRole)
+    ) {
       throw new Error("You do not have permission to manage this project.");
     }
     return membership.role as ProjectRole;
@@ -320,7 +346,13 @@ export class ProjectService {
     if (quota?.litellmTeamId && getControlConfig().litellm.master_key) {
       await this.litellm.deleteProjectTeam?.(quota.litellmTeamId).catch(() => undefined);
     }
-    await this.db.project.delete({ where: { id: projectId } });
+    await this.db.project.update({
+      where: { id: projectId },
+      data: {
+        deletedAt: new Date(),
+        deletedBy: currentUserId,
+      },
+    });
   }
 
   async members(projectId: string, currentUserId: string): Promise<ProjectMemberView[]> {

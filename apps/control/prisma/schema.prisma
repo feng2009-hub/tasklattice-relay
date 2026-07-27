@@ -107,13 +107,15 @@ model LocalCredential {
 }
 
 model Project {
-  id        String   @id
-  name      String   @unique(map: "projects_name_key")
+  id        String    @id
+  name      String    @unique(map: "projects_name_key")
   type      String
   avatar    String?
-  createdBy String   @map("created_by")
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String    @map("created_by")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  deletedBy String?   @map("deleted_by")
 
   creator                         User                                        @relation("ProjectCreator", fields: [createdBy], references: [id])
   humanMembers                    ProjectMember[]
@@ -326,7 +328,8 @@ model VirtualEmployeeAuditRecord {
 }
 
 model AuditLogRecord {
-  projectId             String   @map("project_id")
+  recordId              String   @id @default(uuid()) @map("record_id")
+  projectId             String?  @map("project_id")
   id                    String
   occurredAt            DateTime @map("occurred_at") @db.Timestamptz(6)
   actorType              String   @map("actor_type")
@@ -349,14 +352,18 @@ model AuditLogRecord {
   userAgent              String   @map("user_agent")
   parameters             Json?
   requestBody            Json?    @map("request_body")
+  traceId                String?   @map("trace_id")
+  spanId                 String?   @map("span_id")
   metadata               Json?
 
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
-  @@id([projectId, id])
+  @@unique([projectId, id])
+  @@index([occurredAt(sort: Desc)])
   @@index([projectId, occurredAt(sort: Desc)])
   @@index([projectId, actorId, occurredAt(sort: Desc)])
   @@index([projectId, action, occurredAt(sort: Desc)])
+  @@index([projectId, traceId])
   @@map("audit_logs")
   @@schema("tasklattice")
 }

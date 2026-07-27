@@ -1,8 +1,21 @@
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
-import type { PlatformAuditLogEvent } from "@tasklattice/contracts";
 import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import {
+  keepPreviousData,
+  useQuery,
+} from "@tanstack/react-query";
+import { createFileRoute } from "@tanstack/react-router";
+import type {
+  PlatformAuditLogEvent,
+  PlatformAuditLogFacets,
+  PlatformAuditSortDirection,
+} from "@tasklattice/contracts";
+import {
+  ChevronLeft,
   ChevronRight,
   Download,
   Filter,
@@ -13,13 +26,14 @@ import {
   SlidersHorizontal,
   X,
 } from "lucide-react";
-import { AuditLogDetailDrawer } from "@/features/audit-logs/audit-log-detail-drawer";
+import { AuditLogDetailPanel } from "@/features/audit-logs/audit-log-detail-panel";
+import { AuditLogOutcomeMark } from "@/features/audit-logs/audit-log-outcome-mark";
+import { AuditLogTable } from "@/features/audit-logs/audit-log-table";
 import {
   auditActionLabel,
+  auditFiltersToQuery,
   countAdvancedAuditFilters,
   defaultAuditLogFilters,
-  filterAuditLogs,
-  titleCase,
   type AuditLogFilters,
   type AuditTimeRange,
 } from "@/features/audit-logs/audit-log-utils";
@@ -45,19 +59,19 @@ import { useProject } from "@/hooks/use-project";
 import { useProjectPermissions } from "@/hooks/use-project-permissions";
 import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
 import { api } from "@/lib/api";
-import {
-  createCsv,
-  createDownloadFilename,
-  downloadCsv,
-  type CsvColumn,
-} from "@/lib/csv";
-import { cn } from "@/lib/utils";
+import { downloadBlob } from "@/lib/csv";
 import { formatPlatformDateTime } from "@/lib/platform-preferences";
 
 export const Route = createFileRoute("/$projectId/audit-logs/")({
   component: AuditLogsPage,
 });
 
+const pageSize = 50;
+const emptyFacets: PlatformAuditLogFacets = {
+  actors: [],
+  actions: [],
+  objectTypes: [],
+};
 const timeRanges: Array<{ label: string; value: AuditTimeRange }> = [
   { label: "Last 24 hours", value: "24h" },
   { label: "Last 7 days", value: "7d" },
@@ -65,71 +79,15 @@ const timeRanges: Array<{ label: string; value: AuditTimeRange }> = [
   { label: "All time", value: "all" },
 ];
 
-const csvColumns = [
-  { header: "Time", value: (event) => event.occurredAt },
-  { header: "Actor", value: (event) => event.actor.name },
-  { header: "Actor email", value: (event) => event.actor.email },
-  { header: "Actor type", value: (event) => event.actor.type },
-  { header: "Authorization role", value: (event) => event.authorization.role },
-  { header: "Authorization decision", value: (event) => event.authorization.decision },
-  { header: "Action", value: (event) => event.action },
-  { header: "Verb", value: (event) => event.verb },
-  { header: "Object type", value: (event) => event.object.type },
-  { header: "Object ID", value: (event) => event.object.id },
-  { header: "Object name", value: (event) => event.object.name },
-  { header: "Outcome", value: (event) => event.outcome },
-  { header: "Summary", value: (event) => event.summary },
-  { header: "Request ID", value: (event) => event.request.id },
-  { header: "Method", value: (event) => event.request.method },
-  { header: "Route", value: (event) => event.request.route },
-  { header: "IP address", value: (event) => event.request.ipAddress },
-] as const satisfies readonly CsvColumn<PlatformAuditLogEvent>[];
-
-function uniqueBy<T>(values: readonly T[], key: (value: T) => string): T[] {
-  return [...new Map(values.map((value) => [key(value), value])).values()];
-}
-
-function OutcomeMark({ outcome }: { outcome: PlatformAuditLogEvent["outcome"] }) {
-  const tone =
-    outcome === "success"
-      ? "text-emerald-700 dark:text-emerald-300"
-      : outcome === "denied"
-        ? "text-amber-800 dark:text-amber-300"
-        : "text-destructive";
-  const dot =
-    outcome === "success"
-      ? "bg-emerald-500"
-      : outcome === "denied"
-        ? "bg-amber-500"
-        : "bg-destructive";
-
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1.5 font-mono text-[10px] font-medium uppercase tracking-[0.04em]",
-        tone,
-      )}
-    >
-      <span className={cn("size-1.5 shrink-0 rounded-full", dot)} />
-      {outcome}
-    </span>
-  );
-}
-
 function AuditFiltersPopover({
-  events,
+  facets,
   filters,
   onChange,
 }: {
-  events: readonly PlatformAuditLogEvent[];
+  facets: PlatformAuditLogFacets;
   filters: AuditLogFilters;
   onChange: (filters: AuditLogFilters) => void;
 }) {
-  const actors = uniqueBy(events, (event) => event.actor.id)
-    .map((event) => event.actor)
-    .sort((left, right) => left.name.localeCompare(right.name));
-  const actions = [...new Set(events.map((event) => event.action))].sort();
-  const objectTypes = [...new Set(events.map((event) => event.object.type))].sort();
   const activeCount = countAdvancedAuditFilters(filters);
 
   return (
@@ -154,45 +112,68 @@ function AuditFiltersPopover({
         <div className="flex items-center justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold">Filter activity</h2>
-            <p className="mt-1 text-xs text-muted-foreground">Combine filters to narrow the audit trail.</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Combine filters to narrow the complete Project trail.
+            </p>
           </div>
           <SlidersHorizontal className="size-4 text-muted-foreground" />
         </div>
         <div className="mt-4 grid gap-4">
           <label>
             <span className="mb-1.5 block text-xs text-muted-foreground">Actor</span>
-            <Select value={filters.actorId} onValueChange={(actorId) => onChange({ ...filters, actorId })}>
-              <SelectTrigger data-size="lg" className="h-11 w-full"><SelectValue /></SelectTrigger>
+            <Select
+              value={filters.actorId}
+              onValueChange={(actorId) => onChange({ ...filters, actorId })}
+            >
+              <SelectTrigger size="lg" className="w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All actors</SelectItem>
-                {actors.map((actor) => <SelectItem key={actor.id} value={actor.id}>{actor.name}</SelectItem>)}
+                {facets.actors.map((actor) => (
+                  <SelectItem key={actor.id} value={actor.id}>{actor.name}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </label>
           <label>
             <span className="mb-1.5 block text-xs text-muted-foreground">Action</span>
-            <Select value={filters.action} onValueChange={(action) => onChange({ ...filters, action })}>
-              <SelectTrigger data-size="lg" className="h-11 w-full"><SelectValue /></SelectTrigger>
+            <Select
+              value={filters.action}
+              onValueChange={(action) => onChange({ ...filters, action })}
+            >
+              <SelectTrigger size="lg" className="w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All actions</SelectItem>
-                {actions.map((action) => <SelectItem key={action} value={action}>{auditActionLabel(action)}</SelectItem>)}
+                {facets.actions.map((action) => (
+                  <SelectItem key={action} value={action}>{auditActionLabel(action)}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </label>
           <label>
             <span className="mb-1.5 block text-xs text-muted-foreground">Object type</span>
-            <Select value={filters.objectType} onValueChange={(objectType) => onChange({ ...filters, objectType })}>
-              <SelectTrigger data-size="lg" className="h-11 w-full"><SelectValue /></SelectTrigger>
+            <Select
+              value={filters.objectType}
+              onValueChange={(objectType) => onChange({ ...filters, objectType })}
+            >
+              <SelectTrigger size="lg" className="w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All object types</SelectItem>
-                {objectTypes.map((objectType) => <SelectItem key={objectType} value={objectType}>{objectType}</SelectItem>)}
+                {facets.objectTypes.map((objectType) => (
+                  <SelectItem key={objectType} value={objectType}>{objectType}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </label>
           <label>
             <span className="mb-1.5 block text-xs text-muted-foreground">Outcome</span>
-            <Select value={filters.outcome} onValueChange={(outcome) => onChange({ ...filters, outcome })}>
-              <SelectTrigger data-size="lg" className="h-11 w-full"><SelectValue /></SelectTrigger>
+            <Select
+              value={filters.outcome}
+              onValueChange={(outcome) => onChange({
+                ...filters,
+                outcome: outcome as AuditLogFilters["outcome"],
+              })}
+            >
+              <SelectTrigger size="lg" className="w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All outcomes</SelectItem>
                 <SelectItem value="success">Success</SelectItem>
@@ -225,7 +206,10 @@ function AuditFiltersPopover({
 
 function RestrictedAuditLogs() {
   return (
-    <section className="mx-auto max-w-xl rounded-lg border bg-background p-6" aria-labelledby="audit-logs-restricted">
+    <section
+      className="mx-auto max-w-xl rounded-lg border bg-background p-6"
+      aria-labelledby="audit-logs-restricted"
+    >
       <ShieldCheck className="size-8 text-muted-foreground" />
       <h1 id="audit-logs-restricted" className="mt-4 font-heading text-2xl">
         Audit Logs are restricted
@@ -238,40 +222,184 @@ function RestrictedAuditLogs() {
   );
 }
 
+function MobileAuditLogList({
+  events,
+  onClose,
+  onSelect,
+  selectedEventId,
+}: {
+  events: readonly PlatformAuditLogEvent[];
+  onClose: () => void;
+  onSelect: (event: PlatformAuditLogEvent) => void;
+  selectedEventId: string | undefined;
+}) {
+  return (
+    <ol className="divide-y lg:hidden">
+      {events.map((event) => {
+        const selected = event.id === selectedEventId;
+        return (
+          <li key={event.id}>
+            <button
+              type="button"
+              onClick={() => onSelect(event)}
+              className="group grid min-h-16 w-full grid-cols-[minmax(0,1fr)_1.5rem] items-center gap-3 px-4 text-left transition-colors hover:bg-muted/25 focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
+              aria-label={`${selected ? "Close" : "Open"} audit details: ${event.summary}`}
+              aria-controls={`audit-event-details-${event.id}-mobile`}
+              aria-expanded={selected}
+            >
+              <span className="min-w-0 py-2.5">
+                <span className="flex items-center justify-between gap-3">
+                  <time
+                    dateTime={event.occurredAt}
+                    className="font-mono text-[10px] tabular-nums text-muted-foreground"
+                  >
+                    {formatPlatformDateTime(event.occurredAt, {
+                      dateStyle: "short",
+                      timeStyle: "medium",
+                    })}
+                  </time>
+                  <AuditLogOutcomeMark outcome={event.outcome} />
+                </span>
+                <span className="mt-1.5 block truncate text-[11px] leading-4">
+                  <strong className="font-medium">{event.actor.name}</strong>
+                  <span className="mx-1.5 font-mono text-[10px] uppercase text-primary">
+                    {event.verb}
+                  </span>
+                  <span className="text-muted-foreground">{event.object.type} / </span>
+                  {event.object.name}
+                </span>
+              </span>
+              <ChevronRight
+                className={selected
+                  ? "size-3.5 rotate-90 justify-self-end text-foreground transition-transform"
+                  : "size-3.5 justify-self-end text-muted-foreground/70 transition-transform group-hover:translate-x-0.5 group-hover:text-foreground"}
+              />
+            </button>
+            {selected ? (
+              <AuditLogDetailPanel
+                event={event}
+                id={`audit-event-details-${event.id}-mobile`}
+                onClose={onClose}
+              />
+            ) : null}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 function AuditLogsPage() {
   const { currentProject } = useProject();
   const permissions = useProjectPermissions(currentProject?.role);
   const scope = useProjectQueryScope();
   const [filters, setFilters] = useState(defaultAuditLogFilters);
+  const [debouncedQuery, setDebouncedQuery] = useState(filters.query);
+  const [direction, setDirection] = useState<PlatformAuditSortDirection>("desc");
+  const [cursorHistory, setCursorHistory] = useState([""]);
+  const [pageIndex, setPageIndex] = useState(0);
+  const [refreshTick, setRefreshTick] = useState(0);
   const [selectedEvent, setSelectedEvent] = useState<PlatformAuditLogEvent>();
+  const [exporting, setExporting] = useState(false);
+  const cursor = cursorHistory[pageIndex] || undefined;
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedQuery(filters.query), 300);
+    return () => window.clearTimeout(timer);
+  }, [filters.query]);
+
+  const queryFilters = useMemo(
+    () => auditFiltersToQuery(
+      { ...filters, query: debouncedQuery },
+      Date.now(),
+    ),
+    [
+      debouncedQuery,
+      filters.action,
+      filters.actorId,
+      filters.objectType,
+      filters.outcome,
+      filters.timeRange,
+      refreshTick,
+    ],
+  );
+  const request = useMemo(
+    () => ({
+      ...queryFilters,
+      ...(cursor ? { cursor } : {}),
+      direction,
+      limit: pageSize,
+    }),
+    [cursor, direction, queryFilters],
+  );
   const logs = useQuery({
-    queryKey: scope.key("audit-logs"),
-    queryFn: api.listAuditLogs,
+    queryKey: scope.key("audit-logs", request),
+    queryFn: () => api.listAuditLogs(request),
     enabled: permissions.canViewAuditLogs,
+    placeholderData: keepPreviousData,
     staleTime: 30_000,
   });
-  const filtered = useMemo(
-    () => filterAuditLogs(logs.data ?? [], filters),
-    [filters, logs.data],
-  );
+  const events = logs.data?.data ?? [];
+  const totalCount = logs.data?.totalCount ?? 0;
+  const firstVisible = totalCount ? pageIndex * pageSize + 1 : 0;
+  const lastVisible = firstVisible ? firstVisible + events.length - 1 : 0;
+  const selectEvent = useCallback((event: PlatformAuditLogEvent) => {
+    setSelectedEvent((current) => current?.id === event.id ? undefined : event);
+  }, []);
+  const closeSelectedEvent = useCallback(() => setSelectedEvent(undefined), []);
+  const resetPagination = () => {
+    setCursorHistory([""]);
+    setPageIndex(0);
+  };
+  const changeFilters = (next: AuditLogFilters) => {
+    setFilters(next);
+    resetPagination();
+  };
+  const changeDirection = (next: PlatformAuditSortDirection) => {
+    setDirection(next);
+    resetPagination();
+  };
+  const nextPage = () => {
+    const nextCursor = logs.data?.nextCursor;
+    if (!nextCursor) return;
+    setCursorHistory((current) => [
+      ...current.slice(0, pageIndex + 1),
+      nextCursor,
+    ]);
+    setPageIndex((current) => current + 1);
+  };
+  const previousPage = () => setPageIndex((current) => Math.max(0, current - 1));
+  const exportLogs = async () => {
+    if (!currentProject) return;
+    setExporting(true);
+    try {
+      const exported = await api.exportAuditLogs({
+        ...auditFiltersToQuery(filters),
+        direction,
+      });
+      downloadBlob(exported.fileName, exported.blob);
+    } finally {
+      setExporting(false);
+    }
+  };
+  const resetFilters = () => {
+    setFilters(defaultAuditLogFilters);
+    setDebouncedQuery("");
+    resetPagination();
+  };
+  const hasFilters =
+    filters.query.trim() !== ""
+    || filters.timeRange !== defaultAuditLogFilters.timeRange
+    || countAdvancedAuditFilters(filters) > 0;
 
   if (!currentProject) {
-    return <div className="grid min-h-72 place-items-center text-sm text-muted-foreground">Loading Project audit logs…</div>;
+    return (
+      <div className="grid min-h-72 place-items-center text-sm text-muted-foreground">
+        Loading Project audit logs…
+      </div>
+    );
   }
   if (!permissions.canViewAuditLogs) return <RestrictedAuditLogs />;
-
-  const exportLogs = () => {
-    const filename = createDownloadFilename(
-      [currentProject.name, "audit-logs", new Date().toISOString().slice(0, 10)],
-      "csv",
-    );
-    downloadCsv(filename, createCsv(filtered, csvColumns));
-  };
-  const resetFilters = () => setFilters(defaultAuditLogFilters);
-  const hasFilters =
-    filters.query.trim() !== "" ||
-    filters.timeRange !== defaultAuditLogFilters.timeRange ||
-    countAdvancedAuditFilters(filters) > 0;
 
   return (
     <div className="space-y-6">
@@ -280,9 +408,15 @@ function AuditLogsPage() {
         description="Review who performed an action, what changed, and whether authorization allowed it."
         badge={<Badge variant="outline" className="gap-1.5"><LockKeyhole />Admin only</Badge>}
         actions={
-          <Button type="button" variant="outline" className="h-11" disabled={!filtered.length} onClick={exportLogs}>
-            <Download />
-            Export CSV
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11"
+            disabled={!totalCount || exporting}
+            onClick={() => void exportLogs()}
+          >
+            {exporting ? <Spinner /> : <Download />}
+            {exporting ? "Preparing CSV" : "Export CSV"}
           </Button>
         }
       />
@@ -303,7 +437,10 @@ function AuditLogsPage() {
               <Search className="pointer-events-none absolute bottom-3.5 left-3 size-4 text-muted-foreground" />
               <Input
                 value={filters.query}
-                onChange={(event) => setFilters({ ...filters, query: event.target.value })}
+                onChange={(event) => changeFilters({
+                  ...filters,
+                  query: event.target.value,
+                })}
                 placeholder="Search actor, action, object, or request ID"
                 className="h-11 pl-9"
               />
@@ -313,15 +450,24 @@ function AuditLogsPage() {
                 <span className="mb-1 block text-xs text-muted-foreground">Time range</span>
                 <Select
                   value={filters.timeRange}
-                  onValueChange={(timeRange) => setFilters({ ...filters, timeRange: timeRange as AuditTimeRange })}
+                  onValueChange={(timeRange) => changeFilters({
+                    ...filters,
+                    timeRange: timeRange as AuditTimeRange,
+                  })}
                 >
-                  <SelectTrigger data-size="lg" className="h-11 w-full"><SelectValue /></SelectTrigger>
+                  <SelectTrigger size="lg" className="w-full"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {timeRanges.map((range) => <SelectItem key={range.value} value={range.value}>{range.label}</SelectItem>)}
+                    {timeRanges.map((range) => (
+                      <SelectItem key={range.value} value={range.value}>{range.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </label>
-              <AuditFiltersPopover events={logs.data ?? []} filters={filters} onChange={setFilters} />
+              <AuditFiltersPopover
+                facets={logs.data?.facets ?? emptyFacets}
+                filters={filters}
+                onChange={changeFilters}
+              />
               <Button
                 type="button"
                 variant="outline"
@@ -329,7 +475,7 @@ function AuditLogsPage() {
                 className="size-11"
                 disabled={logs.isFetching}
                 aria-label="Refresh audit logs"
-                onClick={() => void logs.refetch()}
+                onClick={() => setRefreshTick((current) => current + 1)}
               >
                 {logs.isFetching ? <Spinner /> : <RefreshCw />}
               </Button>
@@ -337,7 +483,11 @@ function AuditLogsPage() {
           </div>
           <div className="mt-3 flex min-h-6 flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <span aria-live="polite" className="tabular-nums">
-              {logs.isPending ? "Loading events…" : `${filtered.length} of ${(logs.data ?? []).length} events`}
+              {logs.isPending
+                ? "Loading events…"
+                : totalCount
+                  ? `${firstVisible}–${lastVisible} of ${totalCount} events`
+                  : "0 events"}
             </span>
             {hasFilters ? (
               <Button type="button" size="xs" variant="ghost" onClick={resetFilters}>
@@ -363,97 +513,79 @@ function AuditLogsPage() {
             </div>
           ) : logs.error ? (
             <div role="alert" className="m-5 border-l-2 border-destructive bg-destructive/5 p-4">
-              <p className="text-sm font-medium text-destructive">Audit events could not be loaded.</p>
+              <p className="text-sm font-medium text-destructive">
+                Audit events could not be loaded.
+              </p>
               <p className="mt-1 text-xs text-muted-foreground">{logs.error.message}</p>
-              <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => void logs.refetch()}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-3"
+                onClick={() => void logs.refetch()}
+              >
                 <RefreshCw />Try again
               </Button>
             </div>
-          ) : filtered.length ? (
+          ) : events.length ? (
             <>
-              <div className="hidden min-h-8 grid-cols-[10.5rem_minmax(10rem,1fr)_7.25rem_minmax(14rem,1.4fr)_5.5rem_1.5rem] items-center gap-3 border-b bg-muted/20 px-4 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground lg:grid">
-                <span>Time</span>
-                <span>Authorized actor</span>
-                <span>Verb</span>
-                <span>Object</span>
-                <span>Result</span>
-                <span className="sr-only">Details</span>
+              <AuditLogTable
+                direction={direction}
+                events={events}
+                onClose={closeSelectedEvent}
+                onDirectionChange={changeDirection}
+                onSelect={selectEvent}
+                selectedEventId={selectedEvent?.id}
+              />
+              <MobileAuditLogList
+                events={events}
+                onClose={closeSelectedEvent}
+                onSelect={selectEvent}
+                selectedEventId={selectedEvent?.id}
+              />
+              <div className="flex min-h-14 items-center justify-between gap-3 border-t px-4">
+                <p className="text-xs text-muted-foreground">
+                  Page {pageIndex + 1}
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={pageIndex === 0 || logs.isFetching}
+                    onClick={previousPage}
+                  >
+                    <ChevronLeft />
+                    Previous
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={!logs.data?.nextCursor || logs.isFetching}
+                    onClick={nextPage}
+                  >
+                    Next
+                    <ChevronRight />
+                  </Button>
+                </div>
               </div>
-              <ol className="divide-y">
-                {filtered.map((event) => (
-                  <li key={event.id}>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedEvent(event)}
-                      className="group grid min-h-16 w-full grid-cols-[minmax(0,1fr)_1.5rem] items-center gap-3 px-4 text-left transition-colors hover:bg-muted/25 focus-visible:outline-2 focus-visible:outline-offset-[-2px] lg:min-h-11 lg:grid-cols-[10.5rem_minmax(10rem,1fr)_7.25rem_minmax(14rem,1.4fr)_5.5rem_1.5rem]"
-                      aria-label={`Open audit details: ${event.summary}`}
-                    >
-                      <span className="min-w-0 py-2.5 lg:hidden">
-                        <span className="flex items-center justify-between gap-3">
-                          <time
-                            dateTime={event.occurredAt}
-                            className="font-mono text-[10px] tabular-nums text-muted-foreground"
-                          >
-                            {formatPlatformDateTime(event.occurredAt, {
-                              dateStyle: "short",
-                              timeStyle: "medium",
-                            })}
-                          </time>
-                          <OutcomeMark outcome={event.outcome} />
-                        </span>
-                        <span className="mt-1.5 block truncate text-[11px] leading-4">
-                          <strong className="font-medium">{event.actor.name}</strong>
-                          <span className="mx-1.5 font-mono text-[10px] uppercase text-primary">
-                            {event.verb}
-                          </span>
-                          <span className="text-muted-foreground">{event.object.type} / </span>
-                          {event.object.name}
-                        </span>
-                      </span>
-                      <time
-                        dateTime={event.occurredAt}
-                        className="hidden truncate font-mono text-[11px] tabular-nums text-muted-foreground lg:block"
-                      >
-                        {formatPlatformDateTime(event.occurredAt, {
-                          dateStyle: "short",
-                          timeStyle: "medium",
-                        })}
-                      </time>
-                      <span
-                        className="hidden min-w-0 truncate text-[11px] font-medium lg:block"
-                        title={event.actor.email ?? titleCase(event.actor.type)}
-                      >
-                        {event.actor.name}
-                      </span>
-                      <span
-                        className="hidden truncate font-mono text-[10px] font-medium uppercase tracking-[0.04em] text-primary lg:block"
-                        title={event.action}
-                      >
-                        {event.verb}
-                      </span>
-                      <span className="hidden min-w-0 truncate text-[11px] lg:block">
-                        <span className="text-muted-foreground">
-                          {event.object.type}
-                          <span className="mx-1.5 text-border">/</span>
-                        </span>
-                        <span className="font-medium">{event.object.name}</span>
-                      </span>
-                      <span className="hidden lg:block">
-                        <OutcomeMark outcome={event.outcome} />
-                      </span>
-                      <ChevronRight className="size-3.5 justify-self-end text-muted-foreground/70 transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
-                    </button>
-                  </li>
-                ))}
-              </ol>
             </>
           ) : (
             <div className="grid min-h-72 place-items-center px-6 py-12 text-center">
               <div>
                 <Filter className="mx-auto size-7 text-muted-foreground" />
                 <h2 className="mt-4 font-medium">No matching audit events</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Adjust the search, time range, or advanced filters.</p>
-                <Button type="button" variant="outline" size="sm" className="mt-4" onClick={resetFilters}>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Adjust the search, time range, or advanced filters.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-4"
+                  onClick={resetFilters}
+                >
                   Clear filters
                 </Button>
               </div>
@@ -461,14 +593,6 @@ function AuditLogsPage() {
           )}
         </CardContent>
       </Card>
-
-      <AuditLogDetailDrawer
-        event={selectedEvent}
-        open={Boolean(selectedEvent)}
-        onOpenChange={(open) => {
-          if (!open) setSelectedEvent(undefined);
-        }}
-      />
     </div>
   );
 }

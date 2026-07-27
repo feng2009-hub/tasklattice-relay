@@ -1760,6 +1760,30 @@ export interface VirtualEmployeeAuditEvent {
 
 export type PlatformAuditActorType = "user" | "service_account" | "system";
 export type PlatformAuditOutcome = "success" | "failed" | "denied";
+export type PlatformAuditSortDirection = "asc" | "desc";
+
+export interface PlatformAuditLogQuery {
+  query?: string;
+  from?: string;
+  to?: string;
+  actorId?: string;
+  action?: string;
+  objectType?: string;
+  outcome?: PlatformAuditOutcome;
+  cursor?: string;
+  limit?: number;
+  direction?: PlatformAuditSortDirection;
+}
+
+export interface PlatformAuditLogFacets {
+  actors: Array<{
+    id: string;
+    name: string;
+    email?: string;
+  }>;
+  actions: string[];
+  objectTypes: string[];
+}
 
 export interface PlatformAuditLogEvent {
   id: string;
@@ -1794,7 +1818,18 @@ export interface PlatformAuditLogEvent {
     parameters?: Record<string, unknown>;
     body?: unknown;
   };
+  trace?: {
+    traceId: string;
+    spanId?: string;
+  };
   metadata?: Record<string, unknown>;
+}
+
+export interface PlatformAuditLogListResponse {
+  data: PlatformAuditLogEvent[];
+  nextCursor?: string;
+  totalCount: number;
+  facets: PlatformAuditLogFacets;
 }
 
 export interface VirtualEmployee {

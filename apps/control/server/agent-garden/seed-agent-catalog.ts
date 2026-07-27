@@ -11,6 +11,7 @@ export async function seedAgentCatalogForExistingProjects(
   database: PrismaClient,
 ): Promise<AgentCatalogSeedResult> {
   const projects = await database.project.findMany({
+    where: { deletedAt: null },
     select: { id: true },
     orderBy: { id: "asc" },
   });

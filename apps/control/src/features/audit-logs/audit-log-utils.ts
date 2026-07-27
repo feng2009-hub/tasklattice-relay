@@ -1,4 +1,7 @@
-import type { PlatformAuditLogEvent } from "@tasklattice/contracts";
+import type {
+  PlatformAuditLogQuery,
+  PlatformAuditOutcome,
+} from "@tasklattice/contracts";
 
 export type AuditTimeRange = "24h" | "7d" | "30d" | "all";
 
@@ -8,7 +11,7 @@ export interface AuditLogFilters {
   actorId: string;
   action: string;
   objectType: string;
-  outcome: string;
+  outcome: "all" | PlatformAuditOutcome;
 }
 
 export const defaultAuditLogFilters: AuditLogFilters = {
@@ -26,42 +29,27 @@ const timeRangeMilliseconds: Record<Exclude<AuditTimeRange, "all">, number> = {
   "30d": 30 * 24 * 60 * 60 * 1_000,
 };
 
-export function filterAuditLogs(
-  events: readonly PlatformAuditLogEvent[],
+export function auditFiltersToQuery(
   filters: AuditLogFilters,
   now = Date.now(),
-): PlatformAuditLogEvent[] {
-  const normalizedQuery = filters.query.trim().toLowerCase();
-  const cutoff =
-    filters.timeRange === "all"
-      ? Number.NEGATIVE_INFINITY
-      : now - timeRangeMilliseconds[filters.timeRange];
-
-  return events.filter((event) => {
-    if (new Date(event.occurredAt).getTime() < cutoff) return false;
-    if (filters.actorId !== "all" && event.actor.id !== filters.actorId) return false;
-    if (filters.action !== "all" && event.action !== filters.action) return false;
-    if (filters.objectType !== "all" && event.object.type !== filters.objectType) {
-      return false;
-    }
-    if (filters.outcome !== "all" && event.outcome !== filters.outcome) return false;
-    if (!normalizedQuery) return true;
-
-    return [
-      event.actor.name,
-      event.actor.email ?? "",
-      event.action,
-      event.verb,
-      event.object.type,
-      event.object.id,
-      event.object.name,
-      event.summary,
-      event.request.id,
-    ]
-      .join(" ")
-      .toLowerCase()
-      .includes(normalizedQuery);
-  });
+): PlatformAuditLogQuery {
+  const query = filters.query.trim();
+  return {
+    ...(query ? { query } : {}),
+    ...(filters.timeRange === "all"
+      ? {}
+      : {
+          from: new Date(
+            now - timeRangeMilliseconds[filters.timeRange],
+          ).toISOString(),
+        }),
+    ...(filters.actorId === "all" ? {} : { actorId: filters.actorId }),
+    ...(filters.action === "all" ? {} : { action: filters.action }),
+    ...(filters.objectType === "all"
+      ? {}
+      : { objectType: filters.objectType }),
+    ...(filters.outcome === "all" ? {} : { outcome: filters.outcome }),
+  };
 }
 
 export function countAdvancedAuditFilters(filters: AuditLogFilters): number {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
 import {
   AlertTriangle,
   Clock3,
@@ -27,6 +28,9 @@ import { formatPlatformDateTime } from "@/lib/platform-preferences";
 
 export const Route = createFileRoute("/$projectId/traces")({
   component: TracesPage,
+  validateSearch: z.object({
+    traceId: z.string().regex(/^[0-9a-f]{32}$/).optional(),
+  }),
 });
 
 function TracePageSkeleton() {
@@ -64,7 +68,9 @@ function TraceLoadError({ message, onRetry }: { message: string; onRetry: () => 
 
 function TracesPage() {
   const scope = useProjectQueryScope();
-  const [selectedTraceId, setSelectedTraceId] = useState("");
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const [selectedTraceId, setSelectedTraceId] = useState(search.traceId ?? "");
   const traces = useQuery({
     queryKey: scope.key("traces", "sample"),
     queryFn: api.listTraces,
@@ -73,9 +79,22 @@ function TracesPage() {
 
   useEffect(() => {
     if (!selectedTraceId && traces.data?.data[0]) {
-      setSelectedTraceId(traces.data.data[0].traceId);
+      const traceId = traces.data.data[0].traceId;
+      setSelectedTraceId(traceId);
+      void navigate({ replace: true, search: { traceId } });
     }
-  }, [selectedTraceId, traces.data]);
+  }, [navigate, selectedTraceId, traces.data]);
+
+  useEffect(() => {
+    if (search.traceId && search.traceId !== selectedTraceId) {
+      setSelectedTraceId(search.traceId);
+    }
+  }, [search.traceId, selectedTraceId]);
+
+  const selectTrace = (traceId: string) => {
+    setSelectedTraceId(traceId);
+    void navigate({ replace: true, search: { traceId } });
+  };
 
   const detail = useQuery({
     queryKey: scope.key("trace", selectedTraceId),
@@ -127,7 +146,7 @@ function TracesPage() {
                   ) : null}
                 </div>
               ) : null}
-              <Select value={selectedTraceId} onValueChange={setSelectedTraceId}>
+              <Select value={selectedTraceId} onValueChange={selectTrace}>
                 <SelectTrigger size="lg" className="h-11 w-full bg-background sm:w-[21rem]" aria-label="Select sample trace">
                   <SelectValue placeholder="Select sample trace" />
                 </SelectTrigger>
