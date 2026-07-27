@@ -85,6 +85,10 @@ async function forRequest(request?: Request): Promise<ProjectServices> {
   const projectId = request
     ? (await projectService.resolve(request)).projectId
     : "individual";
+  return forProject(projectId);
+}
+
+function forProject(projectId: string): ProjectServices {
   let scoped = services.get(projectId);
   if (!scoped) {
     scoped = createServices(projectId);
@@ -105,6 +109,10 @@ export async function requireProjectRole(
 
 export async function getAgentService(request?: Request): Promise<AgentService> {
   return (await forRequest(request)).agent;
+}
+
+export function getAgentServiceForProject(projectId: string): AgentService {
+  return forProject(projectId).agent;
 }
 
 export async function getAgentGardenService(

@@ -1,7 +1,7 @@
 import { WebSocket } from "ws";
 import { defineWebSocketHandler } from "nitro";
 import type { AgentService } from "../../../../../../../agents/agent-service";
-import { getAgentService } from "../../../../../../../services";
+import { getAgentServiceForProject } from "../../../../../../../services";
 import {
   consumeTerminalSession,
   type TerminalSessionRecord,
@@ -32,7 +32,12 @@ export default defineWebSocketHandler({
     const projectId = decodeURIComponent(url.pathname.split("/")[4] ?? "");
     if (projectId !== session.projectId)
       throw new Response("Invalid project context.", { status: 401 });
-    const service = await getAgentService(request);
+    // Browser WebSocket clients cannot attach the Bearer header used by the
+    // JSON API. The short-lived, single-use terminal token was issued only
+    // after the caller passed Project authorization, so it is the capability
+    // for this upgrade. Scope the service exclusively from that token rather
+    // than trying to authenticate the WebSocket as a second HTTP request.
+    const service = getAgentServiceForProject(session.projectId);
     const agent = await service.get(session.agentId);
     if (!agent || agent.status !== "READY")
       throw new Response(
