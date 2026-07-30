@@ -22,6 +22,12 @@ The source Chart uses the development version `0.0.0-dev` and resolves its
 first-party images to `:dev`. The Release workflow replaces both Chart version
 and `appVersion` with the exact Git Release version before publishing.
 
+`control.publicUrl` is independent of `control.service.type`. Leave it empty
+for Local authentication, including when exposing the Control Service through
+a LoadBalancer, Route, Ingress, or Gateway. Set a stable canonical browser URL
+only when enabling `auth.oidc` or the embedded Keycloak, because it is used to
+construct the OIDC callback URI.
+
 Install a released chart:
 
 ```bash
@@ -64,6 +70,14 @@ init containers receive CPU and memory defaults during admission. If the
 OpenShift project or Kubernetes namespace already has an equivalent
 administrator-managed `LimitRange`, set `resourceDefaults.enabled=false` to
 avoid defining a second default policy.
+
+Workload rollout checksums are component-scoped. Updating Control-only
+settings such as `control.publicUrl` restarts the Control Deployment but does
+not roll Runner, LiteLLM, or PostgreSQL. Changing a Service type by itself does
+not restart application Pods.
+
+LiteLLM defaults to two Uvicorn workers. Resource-constrained environments can
+set `litellm.workers=1` without patching the rendered Deployment.
 
 The dependency preparation step applies the small OpenShell 0.0.82 overlay in
 `patches/openshell-0.0.82-certgen-resources.patch`, which applies the configured

@@ -75,3 +75,92 @@ app.kubernetes.io/component: {{ .component }}
 {{- printf "postgresql://litellm:%s@%s:5432/litellm" .Values.secrets.postgresPassword (include "tasklattice.componentName" (dict "root" . "component" "postgresql")) -}}
 {{- end -}}
 {{- end }}
+
+{{- define "tasklattice.controlConfig" -}}
+{{- if and (or .Values.auth.oidc.enabled .Values.keycloak.enabled) (not .Values.control.publicUrl) -}}
+{{- fail "control.publicUrl is required when OIDC authentication or the embedded Keycloak is enabled" -}}
+{{- end -}}
+schema_version = 1
+
+[server]
+{{- with .Values.control.publicUrl }}
+public_url = {{ . | quote }}
+{{- end }}
+internal_url = {{ printf "http://%s:%v" (include "tasklattice.componentName" (dict "root" . "component" "control")) .Values.control.service.port | quote }}
+
+[database]
+url = {{ include "tasklattice.databaseUrl" . | quote }}
+
+[auth]
+session_signing_key = {{ required "secrets.jwtSecret is required" .Values.secrets.jwtSecret | quote }}
+
+[auth.local]
+enabled = {{ .Values.auth.local.enabled }}
+{{ if .Values.auth.local.enabled }}
+initial_super_admin_username = {{ required "auth.local.username is required when Local authentication is enabled" .Values.auth.local.username | quote }}
+initial_super_admin_password_hash = {{ required "secrets.initialSuperAdminPasswordHash is required when Local authentication is enabled" .Values.secrets.initialSuperAdminPasswordHash | quote }}
+{{ end }}
+
+[auth.oidc]
+enabled = {{ or .Values.auth.oidc.enabled .Values.keycloak.enabled }}
+{{ if .Values.keycloak.enabled }}
+display_name = "TaskLattice Test SSO"
+issuer = {{ printf "%s/realms/tasklattice" (trimSuffix "/" (required "keycloak.publicUrl is required when the embedded Keycloak is enabled" .Values.keycloak.publicUrl)) | quote }}
+client_id = "tasklattice-control-plane"
+client_secret = {{ required "secrets.keycloakClientSecret is required when the embedded Keycloak is enabled" .Values.secrets.keycloakClientSecret | quote }}
+{{ else if .Values.auth.oidc.enabled }}
+display_name = {{ .Values.auth.oidc.displayName | quote }}
+issuer = {{ required "auth.oidc.issuer is required when OIDC is enabled" .Values.auth.oidc.issuer | quote }}
+client_id = {{ required "auth.oidc.clientId is required when OIDC is enabled" .Values.auth.oidc.clientId | quote }}
+client_secret = {{ .Values.auth.oidc.clientSecret | quote }}
+{{ else }}
+display_name = {{ .Values.auth.oidc.displayName | quote }}
+issuer = ""
+client_id = ""
+client_secret = ""
+{{ end }}
+
+[runner]
+url = {{ printf "http://%s:9090" (include "tasklattice.componentName" (dict "root" . "component" "runner")) | quote }}
+token = {{ required "secrets.runnerToken is required" .Values.secrets.runnerToken | quote }}
+
+[litellm]
+url = {{ printf "http://%s:4000" (include "tasklattice.componentName" (dict "root" . "component" "litellm")) | quote }}
+master_key = {{ required "secrets.litellmMasterKey is required" .Values.secrets.litellmMasterKey | quote }}
+{{- end }}
+
+{{- define "tasklattice.controlConfigChecksum" -}}
+{{- if .Values.secrets.existingSecret -}}
+{{- printf "existing:%s" .Values.secrets.existingSecret | sha256sum -}}
+{{- else -}}
+{{- include "tasklattice.controlConfig" . | sha256sum -}}
+{{- end -}}
+{{- end }}
+
+{{- define "tasklattice.runnerSecretChecksum" -}}
+{{- if .Values.secrets.existingSecret -}}
+{{- printf "existing:%s" .Values.secrets.existingSecret | sha256sum -}}
+{{- else -}}
+{{- printf "%s:%s" .Values.secrets.existingSecret .Values.secrets.runnerToken | sha256sum -}}
+{{- end -}}
+{{- end }}
+
+{{- define "tasklattice.postgresqlSecretChecksum" -}}
+{{- if .Values.secrets.existingSecret -}}
+{{- printf "existing:%s" .Values.secrets.existingSecret | sha256sum -}}
+{{- else -}}
+{{- printf "%s:%s" .Values.secrets.existingSecret .Values.secrets.postgresPassword | sha256sum -}}
+{{- end -}}
+{{- end }}
+
+{{- define "tasklattice.litellmSecretChecksum" -}}
+{{- if .Values.secrets.existingSecret -}}
+{{- printf "existing:%s" .Values.secrets.existingSecret | sha256sum -}}
+{{- else -}}
+{{- printf "%s:%s:%s:%s:%s:%s" .Values.secrets.existingSecret .Values.secrets.litellmMasterKey (include "tasklattice.databaseUrl" .) .Values.secrets.litellmUiUsername .Values.secrets.litellmUiPassword .Values.secrets.litellmSaltKey | sha256sum -}}
+{{- end -}}
+{{- end }}
+
+{{- define "tasklattice.keycloakSecretChecksum" -}}
+{{- printf "%s:%s:%s:%s" .Values.secrets.existingSecret .Values.secrets.keycloakAdminPassword .Values.secrets.keycloakClientSecret .Values.secrets.keycloakTestUserPassword | sha256sum -}}
+{{- end }}

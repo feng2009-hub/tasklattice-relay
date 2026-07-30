@@ -1,7 +1,10 @@
 schema_version = 1
 
 [server]
+# Required only when OIDC is enabled. Local authentication and Kubernetes
+# Service exposure do not need a canonical browser URL.
 public_url = "http://192.168.139.2"
+internal_url = "http://tasklattice-control"
 
 [database]
 url = "postgresql://tasklattice:CHANGE_ME@postgresql:5432/tasklattice"

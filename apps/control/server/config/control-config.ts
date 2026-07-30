@@ -22,7 +22,7 @@ const disabledOidcSchema = z.object({
 const controlConfigSchema = z.object({
   schema_version: z.literal(1),
   server: z.object({
-    public_url: z.string().url(),
+    public_url: z.string().url().optional(),
     internal_url: z.string().url().optional(),
   }),
   database: z.object({
@@ -75,6 +75,14 @@ const controlConfigSchema = z.object({
     url: z.string().url(),
     master_key: z.string(),
   }),
+}).superRefine((value, context) => {
+  if (value.auth.oidc.enabled && !value.server.public_url) {
+    context.addIssue({
+      code: "custom",
+      path: ["server", "public_url"],
+      message: "server.public_url is required when OIDC authentication is enabled.",
+    });
+  }
 });
 
 export type ControlConfig = z.infer<typeof controlConfigSchema>;

@@ -9,7 +9,9 @@ as the `control.toml` entry in the TaskLattice Secret and mounts it read-only at
 schema_version = 1
 
 [server]
+# Optional for Local authentication; required when auth.oidc.enabled = true.
 public_url = "https://tasklattice.example.com"
+internal_url = "http://tasklattice-control"
 
 [database]
 url = "postgresql://tasklattice:password@postgresql:5432/tasklattice"
@@ -38,9 +40,12 @@ url = "http://tasklattice-litellm:4000"
 master_key = "replace-me"
 ```
 
-At least one authentication provider must be enabled. OIDC redirect URIs are
+At least one authentication provider must be enabled. `server.public_url` is
+optional for Local authentication and has no relationship to the Kubernetes
+Service type. When OIDC is enabled, it is required and redirect URIs are
 derived as `<server.public_url>/auth/sso/callback`; scopes are fixed to
-`openid profile email`.
+`openid profile email`. Internal callbacks prefer `server.internal_url`, so
+they do not depend on a public LoadBalancer, Route, or Ingress address.
 
 ## Identity ownership
 

@@ -73,7 +73,9 @@ images:
 
 control:
   replicaCount: 1
-  publicUrl: http://localhost:8080
+  # Canonical browser URL used for OIDC callbacks. Local authentication and
+  # Service exposure do not require it. Set it when auth.oidc or Keycloak is enabled.
+  publicUrl: ""
   hostAliases: []
   service:
     type: LoadBalancer
@@ -114,6 +116,7 @@ runner:
 
 litellm:
   replicaCount: 1
+  workers: 2
   service:
     type: ClusterIP
     port: 4000

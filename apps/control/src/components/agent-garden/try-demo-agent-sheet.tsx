@@ -12,6 +12,7 @@ import { EntitySheet } from "@/components/shared/entity-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { createUuid } from "@/lib/uuid";
 
 interface DemoResult {
   output: string;
@@ -58,12 +59,12 @@ export function TryDemoAgentSheet({
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             jsonrpc: "2.0",
-            id: crypto.randomUUID(),
+            id: createUuid(),
             method: "message/send",
             params: {
               message: {
                 kind: "message",
-                messageId: crypto.randomUUID(),
+                messageId: createUuid(),
                 role: "user",
                 parts: [{ kind: "text", text: prompt.trim() }],
               },

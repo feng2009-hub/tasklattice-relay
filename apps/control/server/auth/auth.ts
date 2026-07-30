@@ -99,12 +99,18 @@ export function getAuthConfig(): AuthConfig {
   };
 
   if (source.auth.oidc.enabled) {
+    const publicUrl = source.server.public_url;
+    if (!publicUrl) {
+      throw new Error(
+        "server.public_url must be configured when OIDC authentication is enabled.",
+      );
+    }
     config.oidc = {
       clientId: source.auth.oidc.client_id,
       clientSecret: source.auth.oidc.client_secret,
       issuer: source.auth.oidc.issuer.replace(/\/$/, ""),
       providerName: source.auth.oidc.display_name,
-      redirectUri: `${source.server.public_url.replace(/\/$/, "")}/auth/sso/callback`,
+      redirectUri: `${publicUrl.replace(/\/$/, "")}/auth/sso/callback`,
       scopes: ["openid", "profile", "email"],
     };
   }

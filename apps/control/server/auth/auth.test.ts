@@ -104,6 +104,17 @@ describe("TaskLattice authentication", () => {
     expect(response.status).toBe(401);
   });
 
+  it("does not require a public URL for local authentication", async () => {
+    const config = developmentControlConfig();
+    delete config.server.public_url;
+    config.auth.local.initial_super_admin_password_hash =
+      await bcrypt.hash("bootstrap-password", 4);
+    setControlConfigForTests(config);
+
+    const response = await handleLocalLogin(localRequest("correct-horse"));
+    expect(response.status).toBe(200);
+  });
+
   it("publishes local and SSO capabilities without leaking secrets", () => {
     const config = developmentControlConfig();
     config.auth.oidc = {
@@ -123,6 +134,23 @@ describe("TaskLattice authentication", () => {
       providerName: "Example ID",
       ssoEnabled: true,
     });
+  });
+
+  it("requires a canonical public URL when OIDC is enabled", () => {
+    const config = developmentControlConfig();
+    delete config.server.public_url;
+    config.auth.oidc = {
+      enabled: true,
+      display_name: "Example ID",
+      issuer: "https://identity.example/realms/agents",
+      client_id: "tasklattice",
+      client_secret: "",
+    };
+    setControlConfigForTests(config);
+
+    expect(() => publicAuthConfig()).toThrow(
+      "server.public_url must be configured when OIDC authentication is enabled.",
+    );
   });
 
   it("starts OIDC authorization with PKCE, nonce, and a protected state cookie", async () => {

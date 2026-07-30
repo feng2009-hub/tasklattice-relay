@@ -88,7 +88,7 @@ spec:
         {{- include "tasklattice.selectorLabels" (dict "root" . "component" $component) | nindent 8 }}
       annotations:
         checksum/realm: {{ printf "%s:%s" (toJson .Values.keycloak) .Values.control.publicUrl | sha256sum }}
-        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        checksum/keycloak-secret: {{ include "tasklattice.keycloakSecretChecksum" . }}
     spec:
       serviceAccountName: {{ include "tasklattice.runtimeServiceAccountName" . }}
       automountServiceAccountToken: false

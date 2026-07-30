@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { parseAllDocuments } from "yaml";
 
 const releaseName = "tasklattice";
@@ -13,9 +13,8 @@ const requiredResources = [
   ["limits", "memory"],
 ];
 
-const rendered = execFileSync(
-  "helm",
-  [
+function templateArguments(extraArguments = []) {
+  return [
     "template",
     releaseName,
     chartPath,
@@ -24,26 +23,138 @@ const rendered = execFileSync(
     "--kube-version",
     "1.29.0",
     "--include-crds",
-    "--set-string",
-    "control.publicUrl=http://192.0.2.10",
+    ...extraArguments,
+  ];
+}
+
+function renderChart(extraArguments = []) {
+  return execFileSync("helm", templateArguments(extraArguments), {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+}
+
+function parseObjects(rendered) {
+  return parseAllDocuments(rendered, { uniqueKeys: false })
+    .map((document) => {
+      if (document.errors.length > 0) {
+        throw document.errors[0];
+      }
+      return document.toJS();
+    })
+    .filter((object) => object && typeof object === "object");
+}
+
+const rendered = renderChart([
+  "--set-string",
+  "control.publicUrl=http://192.0.2.10",
+  "--set",
+  "keycloak.enabled=true",
+  "--set-string",
+  "keycloak.publicUrl=http://192.0.2.11:8080",
+  "--set",
+  "exampleMcp.enabled=true",
+]);
+
+const objects = parseObjects(rendered);
+
+const localObjects = parseObjects(
+  renderChart(["--set", "control.service.type=LoadBalancer"]),
+);
+const localSecret = localObjects.find(
+  (object) =>
+    object.kind === "Secret" &&
+    object.metadata?.name === `${releaseName}-secrets`,
+);
+const localControlToml = localSecret?.stringData?.["control.toml"] ?? "";
+if (/^public_url\s*=/m.test(localControlToml)) {
+  throw new Error(
+    "Local authentication must not render server.public_url when control.publicUrl is empty.",
+  );
+}
+
+const localControlService = localObjects.find(
+  (object) =>
+    object.kind === "Service" &&
+    object.metadata?.name === `${releaseName}-control`,
+);
+if (localControlService?.spec?.type !== "LoadBalancer") {
+  throw new Error(
+    "The Control Service must render as LoadBalancer without requiring control.publicUrl.",
+  );
+}
+
+const localWithPublicUrlObjects = parseObjects(
+  renderChart([
     "--set",
-    "keycloak.enabled=true",
+    "control.service.type=LoadBalancer",
     "--set-string",
-    "keycloak.publicUrl=http://192.0.2.11:8080",
-    "--set",
-    "exampleMcp.enabled=true",
-  ],
-  { encoding: "utf8" },
+    "control.publicUrl=http://198.51.100.20",
+  ]),
 );
 
-const objects = parseAllDocuments(rendered, { uniqueKeys: false })
-  .map((document) => {
-    if (document.errors.length > 0) {
-      throw document.errors[0];
-    }
-    return document.toJS();
-  })
-  .filter((object) => object && typeof object === "object");
+function podAnnotations(collection, kind, name) {
+  return (
+    collection.find(
+      (object) =>
+        object.kind === kind && object.metadata?.name === name,
+    )?.spec?.template?.metadata?.annotations ?? {}
+  );
+}
+
+const checksumComparisons = [
+  ["Deployment", `${releaseName}-runner`, "checksum/runner-secret", false],
+  ["Deployment", `${releaseName}-litellm`, "checksum/litellm-secret", false],
+  [
+    "StatefulSet",
+    `${releaseName}-postgresql`,
+    "checksum/postgresql-secret",
+    false,
+  ],
+  [
+    "Deployment",
+    `${releaseName}-control`,
+    "checksum/control-config",
+    true,
+  ],
+];
+for (const [kind, name, annotation, shouldChange] of checksumComparisons) {
+  const before = podAnnotations(localObjects, kind, name)[annotation];
+  const after = podAnnotations(localWithPublicUrlObjects, kind, name)[annotation];
+  if (!before || !after) {
+    throw new Error(`${kind}/${name} is missing ${annotation}.`);
+  }
+  if ((before !== after) !== shouldChange) {
+    throw new Error(
+      `${kind}/${name} ${annotation} ${
+        shouldChange ? "must" : "must not"
+      } change when only control.publicUrl changes.`,
+    );
+  }
+}
+
+const missingOidcPublicUrlResult = spawnSync(
+  "helm",
+  templateArguments([
+    "--set",
+    "auth.oidc.enabled=true",
+    "--set-string",
+    "auth.oidc.issuer=https://identity.example.com",
+    "--set-string",
+    "auth.oidc.clientId=tasklattice",
+  ]),
+  { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+);
+if (
+  missingOidcPublicUrlResult.status === 0 ||
+  !missingOidcPublicUrlResult.stderr.includes(
+    "control.publicUrl is required when OIDC authentication",
+  )
+) {
+  throw new Error(
+    "The Chart must require control.publicUrl when OIDC authentication is enabled.",
+  );
+}
 
 const namespaceDefaults = new Map();
 for (const object of objects) {

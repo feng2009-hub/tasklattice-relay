@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
 import { api } from "@/lib/api";
+import { createUuid } from "@/lib/uuid";
 import { cn } from "@/lib/utils";
 
 type RoutingMode = "single" | "complexity" | "semantic";
@@ -55,7 +56,7 @@ interface SemanticRouteDraft {
 }
 
 const newSemanticRoute = (index: number): SemanticRouteDraft => ({
-  id: crypto.randomUUID(),
+  id: createUuid(),
   intent: index === 0 ? "coding" : "",
   description:
     index === 0 ? "Programming, debugging, and software design requests." : "",

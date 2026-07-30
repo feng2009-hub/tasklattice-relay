@@ -12,6 +12,11 @@ export function vectorStoreBridgeApiKey(): string {
 export function vectorStoreBridgeApiBase(projectId: string): string {
   const config = getControlConfig();
   const controlUrl = config.server.internal_url ?? config.server.public_url;
+  if (!controlUrl) {
+    throw new Error(
+      "The Vector Store bridge requires server.internal_url or server.public_url.",
+    );
+  }
   return `${controlUrl.replace(/\/+$/, "")}/api/internal/vector-stores/${encodeURIComponent(projectId)}`;
 }
 

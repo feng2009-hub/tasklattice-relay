@@ -31,7 +31,7 @@ spec:
       labels:
         {{- include "tasklattice.selectorLabels" (dict "root" . "component" $component) | nindent 8 }}
       annotations:
-        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        checksum/postgresql-secret: {{ include "tasklattice.postgresqlSecretChecksum" . }}
     spec:
       serviceAccountName: {{ include "tasklattice.runtimeServiceAccountName" . }}
       automountServiceAccountToken: false

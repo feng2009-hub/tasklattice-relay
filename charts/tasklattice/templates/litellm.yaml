@@ -18,7 +18,7 @@ spec:
       labels:
         {{- include "tasklattice.selectorLabels" (dict "root" . "component" $component) | nindent 8 }}
       annotations:
-        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        checksum/litellm-secret: {{ include "tasklattice.litellmSecretChecksum" . }}
         {{- with .Values.global.rolloutRevision }}
         tasklattice.ai/rollout-revision: {{ . | quote }}
         {{- end }}
@@ -63,7 +63,7 @@ spec:
         - name: litellm
           image: {{ include "tasklattice.image" (dict "root" . "image" .Values.images.litellm) }}
           imagePullPolicy: {{ .Values.images.litellm.pullPolicy }}
-          args: ["--port", "4000", "--num_workers", "2", "--use_v2_migration_resolver"]
+          args: ["--port", "4000", "--num_workers", {{ .Values.litellm.workers | quote }}, "--use_v2_migration_resolver"]
           ports:
             - name: http
               containerPort: 4000
