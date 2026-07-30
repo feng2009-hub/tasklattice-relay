@@ -186,6 +186,48 @@ describe("Instance Virtual Employee binding lifecycle", () => {
       createdAt: now,
       updatedAt: now,
     });
+    await store.saveProviderAccount({
+      id: "provider-a",
+      name: "DeepSeek",
+      providerKind: "deepseek",
+      presetId: "deepseek",
+      endpoint: "https://api.deepseek.com/v1",
+      config: {},
+      complianceDomain: "GLOBAL",
+      endpointRegion: "global",
+      crossBorderTransfer: false,
+      discoveredModels: [],
+      status: "VALIDATED",
+      checks: [],
+      credentialState: "STORED",
+      validationMessage: "Ready",
+      validatedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    }, "test-credential");
+    await store.saveModelDeployment({
+      id: "model-a",
+      providerAccountId: "provider-a",
+      modelId: "deepseek-chat",
+      displayName: "DeepSeek Chat",
+      modelType: "llm",
+      capabilities: ["tool-calling"],
+      inputModalities: ["text"],
+      outputModalities: ["text"],
+      providerPresetId: "deepseek",
+      providerName: "DeepSeek",
+      endpoint: "https://api.deepseek.com/v1",
+      complianceDomain: "GLOBAL",
+      endpointRegion: "global",
+      crossBorderTransfer: false,
+      litellmModelName: "tali/provider-a/deepseek-chat",
+      status: "VALIDATED",
+      checks: [],
+      validationMessage: "Ready",
+      validatedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    });
     await store.saveModelProfile({
       id: "profile-a",
       name: "Production inference",
@@ -300,7 +342,13 @@ describe("Instance Virtual Employee binding lifecycle", () => {
     expect(litellm.createVirtualEmployeeKey).not.toHaveBeenCalled();
     expect(litellm.createInstanceServiceAccountKey).toHaveBeenCalledWith(expect.objectContaining({
       teamId: "team-a",
-      models: ["production-chat"],
+      models: ["production-chat", "tali/provider-a/deepseek-chat"],
+      aliases: {
+        "production-chat": "tali/provider-a/deepseek-chat",
+      },
+      routerSettings: {
+        num_retries: 2,
+      },
       metadata: expect.objectContaining({
         tali_project_id: "individual",
         tali_virtual_employee_id: virtualEmployee.id,

@@ -9,6 +9,6 @@ export default defineHandler(async (event) => {
   try {
     await requireProjectRole(event.req, ["admin"]);
     const id = decodeURIComponent(event.context.params?.profileId ?? "");
-    return jsonResponse((await getModelProfileService(event.req)).update(id, updateModelProfileSchema.parse(await event.req.json())));
+    return jsonResponse(await (await getModelProfileService(event.req)).update(id, updateModelProfileSchema.parse(await event.req.json())));
   } catch (error) { return errorResponse(error); }
 });

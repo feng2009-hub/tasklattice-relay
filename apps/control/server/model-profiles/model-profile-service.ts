@@ -199,7 +199,11 @@ export class ModelProfileService {
         await this.litellm.reconcileModelProfileRoute(resolvedRouting.managedRoute);
       }
       if (!this.litellm.inspectModelProfile) throw new Error("The configured LiteLLM adapter does not support Router inspection.");
-      const inspection = await this.litellm.inspectModelProfile(current.publicModelAlias);
+      const inspection = await this.litellm.inspectModelProfile(
+        resolvedRouting.managedRoute?.strategy === "SINGLE"
+          ? resolvedRouting.managedRoute.defaultModel
+          : current.publicModelAlias,
+      );
       const conditions: ModelProfile["conditions"] = [];
       conditions.push({ type: "GATEWAY", status: "PASS", reason: `LiteLLM Gateway ${gateway.name} is reachable.` });
       conditions.push({
@@ -434,16 +438,10 @@ export class ModelProfileService {
       return {
         alias,
         managedRoute: {
-          strategy: "COMPLEXITY",
+          strategy: "SINGLE",
           alias,
           modelProfileId: profileId,
           complianceDomain,
-          tiers: {
-            SIMPLE: deployment.litellmModelName,
-            MEDIUM: deployment.litellmModelName,
-            COMPLEX: deployment.litellmModelName,
-            REASONING: deployment.litellmModelName,
-          },
           defaultModel: deployment.litellmModelName,
           fallbackModels: fallbacks.map((model) => model.litellmModelName),
           retries: policy.retries,

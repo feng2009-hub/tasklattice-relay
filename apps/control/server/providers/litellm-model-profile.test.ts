@@ -225,6 +225,56 @@ describe("LiteLLM Router capability inspection", () => {
     ]);
   });
 
+  it("removes a stale managed route for a single model without creating an Auto Router", async () => {
+    const calls: Array<{ url: string; method: string; body?: unknown }> = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      calls.push({
+        url,
+        method: init?.method ?? "GET",
+        ...(init?.body ? { body: JSON.parse(String(init.body)) } : {}),
+      });
+      if (url.endsWith("/model/info"))
+        return new Response(JSON.stringify({ data: [{
+          model_name: "tali-profile-profile-single",
+          litellm_params: { model: "auto_router/complexity_router" },
+          model_info: {
+            id: "stale-route-id",
+            managed_by: "tasklattice",
+            tasklattice_resource: "model_profile_route",
+            model_profile_id: "profile-single",
+          },
+        }] }), { status: 200 });
+      if (init?.method === "DELETE")
+        return new Response(JSON.stringify({ detail: "not found" }), { status: 404 });
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    }));
+    const client = new LiteLLMClient("http://litellm:4000", "master-secret");
+
+    await client.reconcileModelProfileRoute({
+      strategy: "SINGLE",
+      alias: "tali-profile-profile-single",
+      modelProfileId: "profile-single",
+      complianceDomain: "CN_MAINLAND",
+      defaultModel: "tali/deepseek/chat",
+      fallbackModels: [],
+      retries: 2,
+      requestAudit: true,
+    });
+
+    expect(calls).toContainEqual(expect.objectContaining({
+      url: "http://litellm:4000/model/delete",
+      method: "POST",
+      body: {
+        id: "stale-route-id",
+      },
+    }));
+    expect(calls.some((call) => call.url.endsWith("/model/new"))).toBe(false);
+    expect(calls.some((call) =>
+      JSON.stringify(call.body ?? "").includes("auto_router/")
+    )).toBe(false);
+  });
+
   it("creates a managed semantic route using LiteLLM's v1.86 contract", async () => {
     const calls: Array<{ url: string; method: string; body?: unknown }> = [];
     vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request, init?: RequestInit) => {

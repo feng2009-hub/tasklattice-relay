@@ -122,6 +122,9 @@ interface LiteLLMModelProfileRouteBase {
 
 export type LiteLLMModelProfileRouteInput =
   | LiteLLMModelProfileRouteBase & {
+      strategy: "SINGLE";
+    }
+  | LiteLLMModelProfileRouteBase & {
       strategy: "COMPLEXITY";
       tiers: {
         SIMPLE: string;
@@ -171,6 +174,11 @@ export interface LiteLLMInstanceServiceAccountInput {
   alias: string;
   teamId: string;
   models: string[];
+  aliases?: Record<string, string>;
+  routerSettings?: {
+    num_retries?: number;
+    fallbacks?: Array<Record<string, string[]>>;
+  };
   metadata: Record<string, string>;
   objectPermissions: LiteLLMObjectPermissions;
 }
@@ -333,6 +341,19 @@ export class LiteLLMClient implements LiteLLMAdminClient {
       throw new Error(`LiteLLM exposes multiple deployments for managed router alias ${input.alias}.`);
     const existing = matches[0];
     if (existing) assertManagedModelProfileRoute(existing.model_info, input.modelProfileId, input.alias);
+    if (input.strategy === "SINGLE") {
+      if (existing) {
+        const modelId = existing.model_info?.id;
+        if (typeof modelId !== "string" || !modelId)
+          throw new Error(`LiteLLM did not report an identifier for managed router alias ${input.alias}.`);
+        await this.request("/model/delete", {
+          method: "POST",
+          body: JSON.stringify({ id: modelId }),
+        });
+      }
+      await this.deleteFallback(input.alias);
+      return;
+    }
     const litellmParams = input.strategy === "COMPLEXITY"
       ? {
           model: "auto_router/complexity_router",
@@ -581,6 +602,8 @@ export class LiteLLMClient implements LiteLLMAdminClient {
         key_alias: input.alias,
         team_id: input.teamId,
         models: input.models,
+        aliases: input.aliases ?? {},
+        ...(input.routerSettings ? { router_settings: input.routerSettings } : {}),
         metadata: input.metadata,
         object_permission: liteLLMObjectPermission(input.objectPermissions),
       }),

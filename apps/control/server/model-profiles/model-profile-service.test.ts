@@ -196,6 +196,39 @@ describe("Model Profile contracts", () => {
 });
 
 describe("Model Profile validation", () => {
+  it("reconciles a single model without creating a complexity router", async () => {
+    const store = createTestStore();
+    await saveDefaultRoutingModel(store);
+    const client = adapter({
+      exists: true,
+      version: "1.86.2",
+      modelCount: 1,
+      complianceDomains: ["CN_MAINLAND"],
+      complianceUnknown: false,
+      capabilities: {
+        ...capabilities,
+        automaticRouting: "DISABLED",
+        routerType: "UNKNOWN",
+      },
+    });
+    const service = new ModelProfileService(store, client);
+
+    const profile = await service.create(input());
+
+    expect(profile.status).toBe("READY");
+    expect(client.reconcileModelProfileRoute).toHaveBeenCalledWith({
+      strategy: "SINGLE",
+      alias: profile.publicModelAlias,
+      modelProfileId: profile.id,
+      complianceDomain: "CN_MAINLAND",
+      defaultModel: "production-chat",
+      fallbackModels: [],
+      retries: 2,
+      requestAudit: true,
+    });
+    expect(client.inspectModelProfile).toHaveBeenCalledWith("production-chat");
+  });
+
   it("reconciles a versioned complexity policy into a stable LiteLLM alias", async () => {
     const store = createTestStore();
     const simpleId = "11111111-1111-4111-8111-111111111111";
@@ -456,7 +489,7 @@ describe("Model Profile validation", () => {
     expect(profile.conditions).toContainEqual(
       expect.objectContaining({ type: "COMPLIANCE", status: "PASS" }),
     );
-    expect(client.inspectModelProfile).toHaveBeenCalledWith(profile.publicModelAlias);
+    expect(client.inspectModelProfile).toHaveBeenCalledWith("production-chat");
   });
 
   it("fails closed when compliance metadata is UNKNOWN", async () => {

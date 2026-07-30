@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type {
   Agent,
   CreateAgentInput,
+  ModelProfile,
   RunnerSandbox,
   SandboxAuditEvent,
 } from "@tasklattice/contracts";
@@ -13,6 +14,7 @@ import { NemoClawRunnerClient, type RunnerClient } from "../runtime/nemoclaw-run
 import {
   LiteLLMClient,
   type LiteLLMAdminClient,
+  type LiteLLMInstanceServiceAccountInput,
 } from "../providers/litellm-client";
 import { PolicyService } from "../policies/policy-service";
 import { ModelProfileService } from "../model-profiles/model-profile-service";
@@ -136,14 +138,16 @@ export class AgentService {
       mcpServerIds: input.mcpServerIds,
       knowledgeSourceIds: input.knowledgeSourceIds,
     });
+    const modelKeyRouting = await this.modelKeyRouting(profile);
     const { teamId, key: instanceKey } = await this.quotas.createInstanceKey({
       alias: costKeyAlias,
       models: [
         ...new Set([
-          runtimeConfiguration.model,
+          ...modelKeyRouting.models,
           ...(modelAccess?.accessGroups ?? []),
         ]),
       ],
+      ...modelKeyRouting.keyConfiguration,
       metadata: {
         managed_by: "tali",
         tali_project_id: this.store.projectId,
@@ -273,14 +277,16 @@ export class AgentService {
       mcpServerIds: current.mcpServerIds,
       knowledgeSourceIds: current.knowledgeSourceIds,
     });
+    const modelKeyRouting = await this.modelKeyRouting(profile);
     const { teamId, key: instanceKey } = await this.quotas.createInstanceKey({
       alias: keyAlias,
       models: [
         ...new Set([
-          configuration.model,
+          ...modelKeyRouting.models,
           ...(access?.accessGroups ?? []),
         ]),
       ],
+      ...modelKeyRouting.keyConfiguration,
       metadata: {
         managed_by: "tali",
         tali_project_id: this.store.projectId,
@@ -366,6 +372,52 @@ export class AgentService {
       error: "Virtual Employee unbound. Bind an Active Virtual Employee before restarting this Instance.",
       logs: [...current.logs, "Virtual Employee unbound; runtime stopped to prevent credential reuse."],
     });
+  }
+
+  private async modelKeyRouting(profile: ModelProfile): Promise<{
+    models: string[];
+    keyConfiguration: Pick<
+      LiteLLMInstanceServiceAccountInput,
+      "aliases" | "routerSettings"
+    >;
+  }> {
+    if (profile.routingPolicy.mode !== "SINGLE") {
+      return { models: [profile.publicModelAlias], keyConfiguration: {} };
+    }
+    const deployments = await Promise.all([
+      this.store.getModelDeployment(profile.routingPolicy.modelDeploymentId),
+      ...profile.routingPolicy.fallbackModelDeploymentIds.map((id) =>
+        this.store.getModelDeployment(id),
+      ),
+    ]);
+    const missingIndex = deployments.findIndex((deployment) => !deployment);
+    if (missingIndex >= 0) {
+      const role = missingIndex === 0 ? "primary" : `fallback ${missingIndex}`;
+      throw new Error(`The ${role} Model Profile deployment is unavailable.`);
+    }
+    const primary = deployments[0]!;
+    const fallbacks = deployments.slice(1).map((deployment) => deployment!);
+    const fallbackModels = fallbacks.map(
+      (deployment) => deployment.litellmModelName,
+    );
+    return {
+      models: [
+        profile.publicModelAlias,
+        primary.litellmModelName,
+        ...fallbackModels,
+      ],
+      keyConfiguration: {
+        aliases: {
+          [profile.publicModelAlias]: primary.litellmModelName,
+        },
+        routerSettings: {
+          num_retries: profile.routingPolicy.retries,
+          ...(fallbackModels.length
+            ? { fallbacks: [{ [primary.litellmModelName]: fallbackModels }] }
+            : {}),
+        },
+      },
+    };
   }
 
   private async refresh(agent: Agent): Promise<Agent> {
