@@ -8,6 +8,15 @@ Wait for the core workloads:
 Control service:
   kubectl -n {{ .Release.Namespace }} get service {{ include "tasklattice.componentName" (dict "root" . "component" "control") }}
 
+{{- if and .Values.openshift.enabled .Values.openshift.routes.control.enabled }}
+OpenShift Control route:
+  oc -n {{ .Release.Namespace }} get route {{ include "tasklattice.componentName" (dict "root" . "component" "control") }}
+
+Static workloads use their image-defined non-root IDs through the anyuid SCC.
+OpenShell sandbox pods are bound to the privileged SCC by this release.
+Use this profile only in a dedicated, trusted OpenShift project.
+{{- end }}
+
 {{- if .Values.exampleMcp.enabled }}
 Example MCP endpoint for Project registration:
   http://{{ include "tasklattice.componentName" (dict "root" . "component" "example-mcp") }}:{{ .Values.exampleMcp.service.port }}/mcp

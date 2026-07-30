@@ -128,5 +128,5 @@ global:
 openshell:
   server:
     sandboxImagePullSecrets:
-      - ghcr-pull
+      - name: ghcr-pull
 ```

@@ -159,6 +159,7 @@ if [[ "$enable_example_mcp" == "true" ]]; then
   example_mcp_helm_args+=(--set exampleMcp.enabled=true)
 fi
 
+bash "$repository_root/scripts/prepare-helm-dependencies.sh"
 helm lint "$repository_root/charts/tasklattice" \
   --values "$repository_root/charts/tasklattice/values-dev.yaml" \
   ${keycloak_helm_args[@]+"${keycloak_helm_args[@]}"} \

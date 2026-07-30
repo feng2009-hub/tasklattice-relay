@@ -11,7 +11,7 @@ helm_timeout="${HELM_TIMEOUT:-15m}"
 build_images="${BUILD_IMAGES:-1}"
 image_tag="${IMAGE_TAG:-dev}"
 
-required_commands=(docker helm kind kubectl)
+required_commands=(curl docker helm kind kubectl patch shasum)
 for command_name in "${required_commands[@]}"; do
   if ! command -v "${command_name}" >/dev/null 2>&1; then
     echo "Required command is not installed: ${command_name}" >&2
@@ -33,6 +33,8 @@ fi
 control_image="${image_registry}/tasklattice-control:${image_tag}"
 runner_image="${image_registry}/tasklattice-openshell-runner:${image_tag}"
 litellm_image="${image_registry}/tasklattice-litellm:${image_tag}"
+
+bash scripts/package-control-plane-chart.sh 0.0.0-dev
 
 if [[ "${build_images}" == "1" ]]; then
   docker build \
@@ -62,6 +64,7 @@ kind load docker-image --name "${cluster_name}" \
 rollout_revision="smoke-$(date -u +%Y%m%d%H%M%S)"
 
 helm lint charts/tasklattice --values charts/tasklattice/values-dev.yaml
+npm run helm:validate:resources
 helm upgrade --install "${release_name}" charts/tasklattice \
   --kube-context "${kube_context}" \
   --namespace "${namespace}" \

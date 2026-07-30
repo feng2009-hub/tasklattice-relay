@@ -8,6 +8,8 @@ dist/
 .DS_Store
 coverage/
 apps/control/server/generated/
+/charts/tasklattice/charts/*.tgz
+/.helm-dependencies/
 *.log
 .env
 control.toml

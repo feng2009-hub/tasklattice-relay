@@ -7,6 +7,36 @@ global:
   # their image tag is the immutable Chart appVersion.
   rolloutRevision: ""
 
+# OpenShift-specific resources and security behavior are opt-in so regular
+# Kubernetes installations retain their existing UID/GID settings.
+openshift:
+  enabled: false
+  anyuidScc:
+    # Static TaskLattice and OpenShell gateway pods use their image-defined
+    # non-root IDs. Enable this binding only when the cluster permits anyuid.
+    createRoleBinding: false
+  sandboxScc:
+    # This grants the OpenShell sandbox ServiceAccount access to OpenShift's
+    # privileged SCC. Enable only on a dedicated, trusted OpenShift project.
+    createRoleBinding: false
+  routes:
+    control:
+      enabled: false
+      host: ""
+      annotations: {}
+      tls:
+        enabled: true
+        termination: edge
+        insecureEdgeTerminationPolicy: Redirect
+    keycloak:
+      enabled: false
+      host: ""
+      annotations: {}
+      tls:
+        enabled: true
+        termination: edge
+        insecureEdgeTerminationPolicy: Redirect
+
 images:
   control:
     repository: tasklattice-control
@@ -50,6 +80,13 @@ control:
     port: 80
     annotations: {}
   resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  initResources:
     requests:
       cpu: 50m
       memory: 128Mi
@@ -237,15 +274,33 @@ serviceAccount:
   create: true
   name: ""
   annotations: {}
+  runtime:
+    create: true
+    name: ""
+    annotations: {}
 
 nameOverride: ""
 fullnameOverride: ""
 
-# Cluster-scoped runtime dependency. Set enabled=false when it is already
-# installed in the cluster. The vendored upstream chart is pinned to v0.5.1 by
-# the image tag even though its upstream Chart version remains 0.1.0.
+# Default CPU and memory values for containers created by runtime dependencies
+# that do not expose per-container resource settings (for example, OpenShell's
+# dynamically injected sandbox init containers). Disable this only when the
+# target namespace already has an equivalent platform-managed LimitRange.
+resourceDefaults:
+  enabled: true
+  defaultRequest:
+    cpu: 10m
+    memory: 32Mi
+  default:
+    cpu: 500m
+    memory: 512Mi
+
+# Pinned kubernetes-sigs/agent-sandbox v0.5.1 dependency. Its upstream Chart is
+# fetched and packaged by scripts/prepare-helm-dependencies.sh; upstream source
+# is not copied into this repository.
 agentSandbox:
   enabled: true
+  imagePullSecrets: []
   namespace:
     create: true
     name: agent-sandbox-system
@@ -256,6 +311,13 @@ agentSandbox:
   controller:
     leaderElect: true
     extensions: false
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
 
 # Pinned upstream OpenShell OCI chart. Plaintext/unauthenticated mode matches
 # TaskLattice's current trusted-cluster integration. Put the services behind an
@@ -270,6 +332,13 @@ openshell:
     sideloadMethod: init-container
   service:
     type: LoadBalancer
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
   server:
     disableTls: true
     auth:

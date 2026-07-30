@@ -19,8 +19,7 @@ kind: StatefulSet
 metadata:
   name: {{ $name }}
   labels:
-    {{- include "tasklattice.labels" . | nindent 4 }}
-    {{- include "tasklattice.selectorLabels" (dict "root" . "component" $component) | nindent 4 }}
+    {{- include "tasklattice.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
 spec:
   serviceName: {{ $name }}
   replicas: 1
@@ -34,7 +33,12 @@ spec:
       annotations:
         checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
     spec:
+      serviceAccountName: {{ include "tasklattice.runtimeServiceAccountName" . }}
       automountServiceAccountToken: false
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       securityContext:
         runAsNonRoot: true
         runAsUser: 70

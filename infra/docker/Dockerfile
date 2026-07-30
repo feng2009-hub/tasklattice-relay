@@ -45,7 +45,8 @@ RUN npm prune --omit=dev
 FROM node:22-bookworm-slim AS control
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
-    PORT=8080
+    PORT=8080 \
+    TASKLATTICE_HELM_CHART=/opt/tasklattice/helm/tasklattice.tgz
 WORKDIR /app
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates openssl \
@@ -58,6 +59,7 @@ COPY --from=build /app/apps/control/prisma.config.ts ./apps/control/prisma.confi
 COPY --from=build /app/apps/control/server/config ./apps/control/server/config
 COPY --from=build /app/apps/control/.output ./apps/control/.output
 COPY --from=build /app/skills/vendor/dist ./skills/vendor/dist
+COPY dist/control-plane-chart/tasklattice.tgz /opt/tasklattice/helm/tasklattice.tgz
 USER 10001
 EXPOSE 8080
 CMD ["node", "apps/control/.output/server/index.mjs"]

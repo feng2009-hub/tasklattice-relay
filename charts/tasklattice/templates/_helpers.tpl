@@ -32,6 +32,12 @@ app.kubernetes.io/instance: {{ .root.Release.Name }}
 app.kubernetes.io/component: {{ .component }}
 {{- end }}
 
+{{- define "tasklattice.componentLabels" -}}
+{{ include "tasklattice.labels" .root }}
+app.kubernetes.io/name: {{ include "tasklattice.name" .root }}
+app.kubernetes.io/component: {{ .component }}
+{{- end }}
+
 {{- define "tasklattice.image" -}}
 {{- $registry := trimSuffix "/" .root.Values.global.imageRegistry -}}
 {{- $repository := .image.repository -}}
@@ -54,6 +60,14 @@ app.kubernetes.io/component: {{ .component }}
 {{- end -}}
 {{- end }}
 
+{{- define "tasklattice.runtimeServiceAccountName" -}}
+{{- if .Values.serviceAccount.runtime.create -}}
+{{- default (include "tasklattice.componentName" (dict "root" . "component" "runtime")) .Values.serviceAccount.runtime.name -}}
+{{- else -}}
+{{- required "serviceAccount.runtime.name is required when serviceAccount.runtime.create=false" .Values.serviceAccount.runtime.name -}}
+{{- end -}}
+{{- end }}
+
 {{- define "tasklattice.databaseUrl" -}}
 {{- if .Values.secrets.databaseUrl -}}
 {{- .Values.secrets.databaseUrl -}}
@@ -61,4 +75,3 @@ app.kubernetes.io/component: {{ .component }}
 {{- printf "postgresql://litellm:%s@%s:5432/litellm" .Values.secrets.postgresPassword (include "tasklattice.componentName" (dict "root" . "component" "postgresql")) -}}
 {{- end -}}
 {{- end }}
-

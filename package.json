@@ -1,6 +1,6 @@
 {
   "name": "tasklattice",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
@@ -18,7 +18,7 @@
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "images:build": "npm run images:build:control && npm run images:build:runner && npm run images:build:litellm && npm run images:build:example-mcp && npm run images:build:sandbox:openclaw && npm run images:build:sandbox:hermes",
-    "images:build:control": "docker build -f infra/docker/Dockerfile --target control -t ghcr.io/sn0rt/tasklattice-control:dev .",
+    "images:build:control": "npm run helm:package:control && docker build -f infra/docker/Dockerfile --target control -t ghcr.io/sn0rt/tasklattice-control:dev .",
     "images:build:runner": "docker build -f infra/docker/Dockerfile --target runner -t ghcr.io/sn0rt/tasklattice-openshell-runner:dev .",
     "images:build:litellm": "docker build -f infra/docker/Dockerfile.litellm -t ghcr.io/sn0rt/tasklattice-litellm:dev .",
     "images:build:example-mcp": "docker build -f infra/docker/Dockerfile --target example-mcp -t ghcr.io/sn0rt/tasklattice-example-mcp:dev .",
@@ -30,11 +30,19 @@
     "helm:deploy:dev:example-mcp": "bash scripts/deploy-local.sh deploy --example-mcp",
     "helm:deploy:dev:keycloak:example-mcp": "bash scripts/deploy-local.sh deploy --keycloak --example-mcp",
     "helm:delete:dev": "bash scripts/deploy-local.sh delete",
+    "helm:dependencies": "bash scripts/prepare-helm-dependencies.sh",
+    "helm:package:control": "bash scripts/package-control-plane-chart.sh",
+    "helm:validate:resources": "node scripts/validate-helm-resources.mjs",
+    "helm:validate:openshift": "node scripts/validate-helm-openshift.mjs",
+    "helm:validate:airgap": "node scripts/validate-helm-airgap.mjs",
     "k8s:deploy": "npm run helm:deploy:dev",
     "k8s:deploy:openshell": "npm run helm:deploy:dev",
     "k8s:delete": "npm run helm:delete:dev",
     "k8s:delete:openshell": "npm run helm:delete:dev",
     "validate:core": "node --env-file-if-exists=.env scripts/validate-core-flow.mjs"
+  },
+  "devDependencies": {
+    "yaml": "^2.8.1"
   },
   "engines": {
     "node": ">=22"

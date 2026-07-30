@@ -6,8 +6,7 @@ kind: Deployment
 metadata:
   name: {{ $name }}
   labels:
-    {{- include "tasklattice.labels" . | nindent 4 }}
-    {{- include "tasklattice.selectorLabels" (dict "root" . "component" $component) | nindent 4 }}
+    {{- include "tasklattice.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
 spec:
   replicas: {{ .Values.control.replicaCount }}
   selector:
@@ -57,6 +56,8 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
+          resources:
+            {{- toYaml .Values.control.initResources | nindent 12 }}
           volumeMounts:
             - name: tmp
               mountPath: /tmp
@@ -80,6 +81,8 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
+          resources:
+            {{- toYaml .Values.control.initResources | nindent 12 }}
           volumeMounts:
             - name: tmp
               mountPath: /tmp

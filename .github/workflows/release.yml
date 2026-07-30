@@ -35,7 +35,11 @@ jobs:
       - uses: azure/setup-helm@v4
         with:
           version: v3.18.4
+      - run: npm run helm:dependencies
       - run: helm lint charts/tasklattice
+      - run: npm run helm:validate:resources
+      - run: npm run helm:validate:openshift
+      - run: npm run helm:validate:airgap
       - run: helm template tasklattice charts/tasklattice --namespace tasklattice-sandboxes --kube-version 1.29.0 > /dev/null
       - name: Render embedded Keycloak test mode
         run: >-
@@ -87,6 +91,16 @@ jobs:
             target: ""
             architecture: arm64
             runner: ubuntu-24.04-arm
+          - image: tasklattice-example-mcp
+            dockerfile: infra/docker/Dockerfile
+            target: example-mcp
+            architecture: amd64
+            runner: ubuntu-24.04
+          - image: tasklattice-example-mcp
+            dockerfile: infra/docker/Dockerfile
+            target: example-mcp
+            architecture: arm64
+            runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -95,6 +109,17 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: azure/setup-helm@v4
+        if: matrix.image == 'tasklattice-control'
+        with:
+          version: v3.18.4
+      - name: Package Helm chart for Control Plane image
+        if: matrix.image == 'tasklattice-control'
+        shell: bash
+        run: |
+          registry="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}"
+          TASKLATTICE_IMAGE_REGISTRY="${registry}" \
+            bash scripts/package-control-plane-chart.sh "${GITHUB_REF_NAME#v}"
       - id: image
         name: Resolve image tags
         shell: bash
@@ -137,6 +162,7 @@ jobs:
           - tasklattice-control
           - tasklattice-openshell-runner
           - tasklattice-litellm
+          - tasklattice-example-mcp
     steps:
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
@@ -261,15 +287,10 @@ jobs:
           set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
           registry="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}"
-          chart_dir="${RUNNER_TEMP}/tasklattice-chart"
           mkdir -p dist
-          cp -R charts/tasklattice "${chart_dir}"
-          sed -i "s|imageRegistry: ghcr.io/sn0rt|imageRegistry: ${registry}|" "${chart_dir}/values.yaml"
-          helm lint "${chart_dir}"
-          helm package "${chart_dir}" \
-            --version "${version}" \
-            --app-version "${version}" \
-            --destination dist
+          TASKLATTICE_IMAGE_REGISTRY="${registry}" \
+            bash scripts/package-control-plane-chart.sh "${version}"
+          cp dist/control-plane-chart/tasklattice.tgz "dist/tasklattice-${version}.tgz"
           helm push "dist/tasklattice-${version}.tgz" "oci://${registry}/charts"
       - name: Create or update GitHub Release
         shell: bash

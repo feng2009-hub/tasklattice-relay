@@ -1,9 +1,22 @@
 # TaskLattice Helm Chart
 
 This chart installs the complete TaskLattice stack: control/UI, OpenShell
-runner, LiteLLM, PostgreSQL, OpenShell, and the Agent Sandbox controller. The
-OpenShell 0.0.82 and Agent Sandbox v0.5.1 charts are vendored so the packaged
-GitHub Release artifact is self-contained.
+runner, LiteLLM, PostgreSQL, OpenShell, and the Agent Sandbox controller.
+OpenShell 0.0.82 is a version- and checksum-pinned NVIDIA OCI dependency.
+Agent Sandbox v0.5.1 is fetched from its checksum-pinned Kubernetes SIGs
+release tag and packaged as a Helm dependency. Their upstream source is not
+copied into this repository, while the released TaskLattice archive remains
+self-contained.
+
+Prepare the dependency archives before rendering the source Chart:
+
+```bash
+npm run helm:dependencies
+```
+
+Release builds also package the complete Chart at
+`/opt/tasklattice/helm/tasklattice.tgz` inside the Control Plane image. The
+image exposes that location through `TASKLATTICE_HELM_CHART`.
 
 The source Chart uses the development version `0.0.0-dev` and resolves its
 first-party images to `:dev`. The Release workflow replaces both Chart version
@@ -39,8 +52,24 @@ Defaults preserve the repository's trusted local-cluster setup and use
 file that changes every `secrets.*` value and configures OpenShell TLS/OIDC.
 If the Agent Sandbox controller already exists cluster-wide, set
 `agentSandbox.enabled=false`. For private GHCR packages, create a registry
-pull Secret and add it to both `global.imagePullSecrets` and
-`openshell.server.sandboxImagePullSecrets`.
+pull Secret and add its `{name: ...}` reference to `global.imagePullSecrets`,
+`agentSandbox.imagePullSecrets`, `openshell.imagePullSecrets`, and
+`openshell.server.sandboxImagePullSecrets`. The Agent Sandbox controller uses
+its own namespace, so its Secret must also exist there.
+
+Every first-party workload and configurable runtime dependency has explicit
+CPU and memory requests and limits. The Chart also creates a namespace-scoped
+Container `LimitRange` by default so OpenShell's dynamically injected sandbox
+init containers receive CPU and memory defaults during admission. If the
+OpenShift project or Kubernetes namespace already has an equivalent
+administrator-managed `LimitRange`, set `resourceDefaults.enabled=false` to
+avoid defining a second default policy.
+
+The dependency preparation step applies the small OpenShell 0.0.82 overlay in
+`patches/openshell-0.0.82-certgen-resources.patch`, which applies the configured
+`openshell.resources` to its pre-install certificate-generation Job. Keep or
+upstream that patch when refreshing the dependency so the hook can run before
+the namespace `LimitRange` exists on a first installation.
 
 When `secrets.existingSecret` is used it must contain `control.toml`,
 `runner-token`, `litellm-master-key`, `postgres-password`, `database-url`,
@@ -48,6 +77,125 @@ When `secrets.existingSecret` is used it must contain `control.toml`,
 `control.toml` contains the Control Plane database, Local/OIDC authentication,
 Runner, and LiteLLM settings. Set `runner.gatewayEndpoint`
 when `openshell.enabled=false` and the gateway is managed outside this release.
+
+## Disconnected / air-gapped installation
+
+The released Control Plane image contains the complete packaged Chart,
+including OpenShell, Agent Sandbox, their CRDs, and the Agent Sandbox upstream
+license:
+
+```text
+/opt/tasklattice/helm/tasklattice.tgz
+```
+
+The runtime image intentionally does not include the Helm CLI. Extract the
+archive and render it with the Helm binary already approved for the
+disconnected environment without contacting a Helm or OCI repository:
+
+```bash
+CONTROL_IMAGE=registry.internal.example.com/tasklattice-control:<version>
+CONTAINER_ID="$(podman create "${CONTROL_IMAGE}")"
+podman cp \
+  "${CONTAINER_ID}:/opt/tasklattice/helm/tasklattice.tgz" \
+  ./tasklattice.tgz
+podman rm "${CONTAINER_ID}"
+
+tar -xzf tasklattice.tgz
+cp tasklattice/values-airgap.yaml ./my-airgap-values.yaml
+# Replace registry.airgap.example.com and airgap-registry in the copied file.
+
+helm template tasklattice ./tasklattice \
+  --namespace tasklattice-sandboxes \
+  --include-crds \
+  --values tasklattice/values-openshift.yaml \
+  --values ./my-airgap-values.yaml \
+  > tasklattice-openshift.yaml
+```
+
+`values-airgap.yaml` mirrors every image family independently: TaskLattice
+images through `global.imageRegistry`, PostgreSQL and Keycloak through
+`images.*`, Agent Sandbox through `agentSandbox.image`, and the OpenShell
+gateway, supervisor, and default sandbox through their respective `openshell`
+values. Do not put a full image repository under a first-party
+`images.<name>.repository` unless `useGlobalRegistry=false`; normally set
+`global.imageRegistry` once and keep those repository names relative.
+
+Before installing, create both namespaces and the same registry pull Secret in
+each. The example sets `agentSandbox.namespace.create=false` so Helm can use
+the pre-created dependency namespace:
+
+```bash
+oc new-project tasklattice-sandboxes
+oc -n tasklattice-sandboxes create secret docker-registry airgap-registry \
+  --docker-server=registry.internal.example.com \
+  --docker-username='<username>' \
+  --docker-password='<password>'
+
+oc new-project agent-sandbox-system
+oc -n agent-sandbox-system create secret docker-registry airgap-registry \
+  --docker-server=registry.internal.example.com \
+  --docker-username='<username>' \
+  --docker-password='<password>'
+```
+
+Dependency preparation (`npm run helm:dependencies`) needs network access and
+is a build-time operation only. Do not run it in the disconnected environment;
+use the `.tgz` embedded in the released Control Plane image.
+
+## OpenShift
+
+Use `values-openshift.yaml` when the OpenShift administrator permits the
+`anyuid` SCC. The images retain their tested, non-root UID/GID values; no
+arbitrary-UID `HOME=/tmp` image adaptation is required. The profile binds the
+release's dedicated Runtime, Control, and OpenShell gateway ServiceAccounts to
+`anyuid`, changes externally facing Services to `ClusterIP`, creates an
+edge-terminated Control Route, omits OpenShell's structured AppArmor field,
+and applies restrictive security contexts to the Agent Sandbox controller.
+
+OpenShell sandbox pods are the intentional exception. They require root,
+network/process capabilities, and the `privileged` SCC. The OpenShift profile
+therefore creates a namespaced RoleBinding to
+`system:openshift:scc:privileged`. This is suitable only for an isolated,
+trusted evaluation project, and the Helm installer must be allowed to bind
+that ClusterRole. Set `openshift.anyuidScc.createRoleBinding=false` and/or
+`openshift.sandboxScc.createRoleBinding=false` when a cluster administrator
+manages the corresponding SCC grants separately.
+
+The Chart also installs CRDs, ClusterRoles, ClusterRoleBindings, and the Agent
+Sandbox controller namespace. A cluster administrator must perform the first
+installation, or install those cluster-scoped dependencies separately and set
+`agentSandbox.enabled=false`.
+
+Example:
+
+```bash
+NAMESPACE=tasklattice-sandboxes
+APPS_DOMAIN="$(oc get ingresses.config.openshift.io cluster \
+  -o jsonpath='{.spec.domain}')"
+CONTROL_HOST="tasklattice.${APPS_DOMAIN}"
+
+oc new-project "${NAMESPACE}"
+helm upgrade --install tasklattice charts/tasklattice \
+  --namespace "${NAMESPACE}" \
+  --values charts/tasklattice/values-openshift.yaml \
+  --set-string "control.publicUrl=https://${CONTROL_HOST}" \
+  --set-string "openshift.routes.control.host=${CONTROL_HOST}" \
+  --wait \
+  --wait-for-jobs \
+  --timeout 15m
+```
+
+The Control Route is intended for browser and HTTP/WebSocket traffic. The
+OpenShell gateway remains internal because its API uses gRPC; use port
+forwarding for private evaluation or configure OpenShell's `grpcRoute` with a
+supported Gateway API implementation. Do not expose the default plaintext,
+unauthenticated OpenShell configuration publicly.
+
+This Chart deploys the Docker Official `postgres:17-alpine` image and mounts
+`/var/lib/postgresql/data`. A database log referring to
+`/opt/bitnami/postgresql` comes from an image override or a different release;
+do not substitute a Bitnami image without also replacing its environment and
+volume configuration.
 
 ## Embedded Keycloak for end-to-end tests
 

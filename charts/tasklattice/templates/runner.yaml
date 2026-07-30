@@ -5,8 +5,7 @@ kind: Deployment
 metadata:
   name: {{ $name }}
   labels:
-    {{- include "tasklattice.labels" . | nindent 4 }}
-    {{- include "tasklattice.selectorLabels" (dict "root" . "component" $component) | nindent 4 }}
+    {{- include "tasklattice.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
 spec:
   replicas: {{ .Values.runner.replicaCount }}
   strategy:
@@ -28,6 +27,7 @@ spec:
         {{- end }}
     spec:
       terminationGracePeriodSeconds: 600
+      serviceAccountName: {{ include "tasklattice.runtimeServiceAccountName" . }}
       automountServiceAccountToken: false
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets:

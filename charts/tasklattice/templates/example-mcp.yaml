@@ -6,8 +6,7 @@ kind: Secret
 metadata:
   name: {{ $name }}-auth
   labels:
-    {{- include "tasklattice.labels" . | nindent 4 }}
-    {{- include "tasklattice.selectorLabels" (dict "root" . "component" $component) | nindent 4 }}
+    {{- include "tasklattice.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
 type: Opaque
 stringData:
   username: {{ required "exampleMcp.auth.username is required" .Values.exampleMcp.auth.username | quote }}
@@ -19,8 +18,7 @@ kind: Deployment
 metadata:
   name: {{ $name }}
   labels:
-    {{- include "tasklattice.labels" . | nindent 4 }}
-    {{- include "tasklattice.selectorLabels" (dict "root" . "component" $component) | nindent 4 }}
+    {{- include "tasklattice.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
 spec:
   replicas: {{ .Values.exampleMcp.replicaCount }}
   selector:
@@ -36,6 +34,7 @@ spec:
         tasklattice.ai/rollout-revision: {{ . | quote }}
         {{- end }}
     spec:
+      serviceAccountName: {{ include "tasklattice.runtimeServiceAccountName" . }}
       automountServiceAccountToken: false
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets:
@@ -102,8 +101,7 @@ kind: Service
 metadata:
   name: {{ $name }}
   labels:
-    {{- include "tasklattice.labels" . | nindent 4 }}
-    {{- include "tasklattice.selectorLabels" (dict "root" . "component" $component) | nindent 4 }}
+    {{- include "tasklattice.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
 spec:
   type: ClusterIP
   selector:
