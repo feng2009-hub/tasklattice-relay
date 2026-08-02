@@ -3,10 +3,12 @@ import { describe, expect, it, vi } from "vitest";
 import type { LiteLLMAdminClient } from "../providers/litellm-client";
 import { ProjectQuotaService } from "../quotas/project-quota-service";
 import { createTestStore } from "../test/store";
-import type { SecretStore } from "../virtual-employees/secret-store";
+import type { SecretStore } from "../secrets/secret-store";
 import { ResourceCatalogService } from "./resource-catalog-service";
 
-function adapter(overrides: Partial<LiteLLMAdminClient> = {}): LiteLLMAdminClient {
+function adapter(
+  overrides: Partial<LiteLLMAdminClient> = {},
+): LiteLLMAdminClient {
   return {
     baseUrl: "http://litellm.test",
     registerModel: vi.fn(),
@@ -20,13 +22,18 @@ function adapter(overrides: Partial<LiteLLMAdminClient> = {}): LiteLLMAdminClien
     registerMcpServer: vi.fn(async () => undefined),
     updateMcpServer: vi.fn(async () => undefined),
     deleteMcpServer: vi.fn(async () => undefined),
-    discoverMcpTools: vi.fn(async () => [{
-      name: "search_documents",
-      description: "Search approved documents.",
-      inputSchema: { type: "object", properties: { query: { type: "string" } } },
-      annotations: { readOnlyHint: true },
-      discoveredAt: "2026-07-25T00:00:00.000Z",
-    }]),
+    discoverMcpTools: vi.fn(async () => [
+      {
+        name: "search_documents",
+        description: "Search approved documents.",
+        inputSchema: {
+          type: "object",
+          properties: { query: { type: "string" } },
+        },
+        annotations: { readOnlyHint: true },
+        discoveredAt: "2026-07-25T00:00:00.000Z",
+      },
+    ]),
     registerVectorStore: vi.fn(async () => undefined),
     updateVectorStore: vi.fn(async () => undefined),
     deleteVectorStore: vi.fn(async () => undefined),
@@ -73,25 +80,36 @@ describe("ResourceCatalogService", () => {
 
     expect(catalog.skills).toHaveLength(15);
     expect(catalog.skills[0]).not.toHaveProperty("bindings");
-    expect(catalog.skills.filter((skill) => skill.compatibleAgents.includes("openai")).length)
-      .toBeGreaterThan(0);
-    expect(catalog.skills.map((skill) => skill.name)).toEqual(expect.arrayContaining([
-      "Helm Chart Developer",
-      "Kubernetes Expert",
-      "OCP Expert",
-    ]));
+    expect(
+      catalog.skills.filter((skill) =>
+        skill.compatibleAgents.includes("openai"),
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(catalog.skills.map((skill) => skill.name)).toEqual(
+      expect.arrayContaining([
+        "Helm Chart Developer",
+        "Kubernetes Expert",
+        "OCP Expert",
+      ]),
+    );
     expect(catalog.mcpServers).toEqual([]);
-    expect(catalog.mcpServerTemplates.map((template) => template.name)).toEqual(expect.arrayContaining([
-      "Cloudflare Documentation",
-      "Context7 Documentation",
-      "DeepWiki Public Repositories",
-      "GitHub",
-      "Atlassian (Jira & Confluence)",
-      "PostgreSQL",
-      "MySQL",
-      "Redis",
-    ]));
-    expect(catalog.mcpServerTemplates.filter((template) => template.category === "Example")).toEqual(
+    expect(catalog.mcpServerTemplates.map((template) => template.name)).toEqual(
+      expect.arrayContaining([
+        "Cloudflare Documentation",
+        "Context7 Documentation",
+        "DeepWiki Public Repositories",
+        "GitHub",
+        "Atlassian (Jira & Confluence)",
+        "PostgreSQL",
+        "MySQL",
+        "Redis",
+      ]),
+    );
+    expect(
+      catalog.mcpServerTemplates.filter(
+        (template) => template.category === "Example",
+      ),
+    ).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           id: "cloudflare-docs",
@@ -110,9 +128,14 @@ describe("ResourceCatalogService", () => {
         }),
       ]),
     );
-    expect(Object.fromEntries(
-      catalog.mcpServerTemplates.map((template) => [template.id, template.logo]),
-    )).toMatchObject({
+    expect(
+      Object.fromEntries(
+        catalog.mcpServerTemplates.map((template) => [
+          template.id,
+          template.logo,
+        ]),
+      ),
+    ).toMatchObject({
       postgresql: "postgresql",
       mysql: "mysql",
       redis: "redis",
@@ -127,8 +150,7 @@ describe("ResourceCatalogService", () => {
       (candidate) => candidate.id === "document-summarization",
     )!;
     const archive = Buffer.from("test-vendor-skill-archive");
-    const digest =
-      `sha256:${createHash("sha256").update(archive).digest("hex")}`;
+    const digest = `sha256:${createHash("sha256").update(archive).digest("hex")}`;
     vi.spyOn(store, "getSkillArtifact").mockResolvedValue({
       id: `${skill.id}@${skill.version}`,
       skillId: skill.id,
@@ -147,8 +169,7 @@ describe("ResourceCatalogService", () => {
     await service.updateSkill(skill.id, {
       ...skill,
       digest,
-      endpoint:
-        `tali+postgresql://skill-artifacts/${skill.id}/${skill.version}`,
+      endpoint: `tali+postgresql://skill-artifacts/${skill.id}/${skill.version}`,
     });
 
     await expect(service.verifySkillArtifact(skill.id)).resolves.toMatchObject({
@@ -165,23 +186,37 @@ describe("ResourceCatalogService", () => {
   it("persists project changes without overwriting them when defaults are seeded again", async () => {
     const store = createTestStore();
     const service = new ResourceCatalogService(store);
-    const current = (await service.catalog()).skills.find((skill) => skill.id === "helm-chart-developer")!;
+    const current = (await service.catalog()).skills.find(
+      (skill) => skill.id === "helm-chart-developer",
+    )!;
 
-    await service.updateSkill(current.id, { ...current, name: "Helm Platform Developer" });
+    await service.updateSkill(current.id, {
+      ...current,
+      name: "Helm Platform Developer",
+    });
     const restarted = new ResourceCatalogService(store);
 
-    expect((await restarted.catalog()).skills.find((skill) => skill.id === current.id)?.name)
-      .toBe("Helm Platform Developer");
+    expect(
+      (await restarted.catalog()).skills.find(
+        (skill) => skill.id === current.id,
+      )?.name,
+    ).toBe("Helm Platform Developer");
   });
 
   it("creates and removes project resources while protecting Role references", async () => {
     const service = new ResourceCatalogService(createTestStore());
     const created = await service.createSkill({
       name: "Release Notes Writer",
-      description: "Draft structured release notes from approved change records.",
-      problemStatement: "Release information is scattered across change records and is difficult to summarize consistently.",
-      useCases: ["Prepare release notes for a deployment", "Summarize approved product changes"],
-      usageGuide: "Attach the Skill to a coding Agent and provide the approved change records as input.",
+      description:
+        "Draft structured release notes from approved change records.",
+      problemStatement:
+        "Release information is scattered across change records and is difficult to summarize consistently.",
+      useCases: [
+        "Prepare release notes for a deployment",
+        "Summarize approved product changes",
+      ],
+      usageGuide:
+        "Attach the Skill to a coding Agent and provide the approved change records as input.",
       author: "Developer Experience",
       category: "Developer Tools",
       trustLevel: "UNSAFE",
@@ -201,8 +236,9 @@ describe("ResourceCatalogService", () => {
     });
     expect(created.updatedAt).toEqual(expect.any(String));
     expect(await service.delete("skills", created.id)).toBe(true);
-    await expect(service.delete("skills", "kubernetes-expert"))
-      .rejects.toThrow("assigned to a Role or Instance");
+    await expect(service.delete("skills", "kubernetes-expert")).rejects.toThrow(
+      "assigned to a Role or Instance",
+    );
   });
 
   it("registers with LiteLLM, snapshots tools, and binds the Project Team", async () => {
@@ -210,20 +246,26 @@ describe("ResourceCatalogService", () => {
     const created = await service.createMcpServer(connection);
 
     expect(created.status).toBe("HEALTHY");
-    expect(created.tools.map((tool) => tool.name)).toEqual(["search_documents"]);
+    expect(created.tools.map((tool) => tool.name)).toEqual([
+      "search_documents",
+    ]);
     expect(created.litellmServerId).toMatch(/^tali_[a-f0-9]{10}_/);
-    expect(litellm.registerMcpServer).toHaveBeenCalledWith(expect.objectContaining({
-      serverId: created.litellmServerId,
-      alias: "document_search",
-      availableOnPublicInternet: false,
-    }));
+    expect(litellm.registerMcpServer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        serverId: created.litellmServerId,
+        alias: "document_search",
+        availableOnPublicInternet: false,
+      }),
+    );
     expect(litellm.updateProjectObjectPermissions).toHaveBeenCalledWith(
       "team-project",
       { mcpServers: [created.litellmServerId], vectorStores: [] },
     );
-    expect(await store.database().mcpToolRecord.count({
-      where: { projectId: store.projectId, mcpServerId: created.id },
-    })).toBe(1);
+    expect(
+      await store.database().mcpToolRecord.count({
+        where: { projectId: store.projectId, mcpServerId: created.id },
+      }),
+    ).toBe(1);
   });
 
   it("keeps the last successful tool snapshot when LiteLLM refresh fails", async () => {
@@ -232,18 +274,22 @@ describe("ResourceCatalogService", () => {
       discoverMcpTools: vi.fn(async () => {
         attempt += 1;
         if (attempt > 1) throw new Error("LiteLLM MCP endpoint unavailable");
-        return [{
-          name: "read_document",
-          inputSchema: { type: "object", properties: {} },
-          discoveredAt: "2026-07-25T00:00:00.000Z",
-        }];
+        return [
+          {
+            name: "read_document",
+            inputSchema: { type: "object", properties: {} },
+            discoveredAt: "2026-07-25T00:00:00.000Z",
+          },
+        ];
       }),
     });
     const created = await service.createMcpServer(connection);
     const refreshed = await service.discoverMcpServer(created.id);
 
     expect(refreshed.status).toBe("UNAVAILABLE");
-    expect(refreshed.lastDiscoveryError).toContain("LiteLLM MCP endpoint unavailable");
+    expect(refreshed.lastDiscoveryError).toContain(
+      "LiteLLM MCP endpoint unavailable",
+    );
     expect(refreshed.tools.map((tool) => tool.name)).toEqual(["read_document"]);
     expect(refreshed.lastDiscoveredAt).toBe(created.lastDiscoveredAt);
   });
@@ -251,15 +297,17 @@ describe("ResourceCatalogService", () => {
   it("rejects arbitrary stdio commands before they reach the LiteLLM host", async () => {
     const { service, litellm } = serviceWithAdapter();
 
-    await expect(service.createMcpServer({
-      ...connection,
-      name: "Unreviewed local process",
-      alias: "unreviewed_process",
-      transport: "stdio",
-      endpoint: undefined,
-      command: "node",
-      args: ["malicious.js"],
-    })).rejects.toThrow("reviewed built-in MCP Server template");
+    await expect(
+      service.createMcpServer({
+        ...connection,
+        name: "Unreviewed local process",
+        alias: "unreviewed_process",
+        transport: "stdio",
+        endpoint: undefined,
+        command: "node",
+        args: ["malicious.js"],
+      }),
+    ).rejects.toThrow("reviewed built-in MCP Server template");
     expect(litellm.registerMcpServer).not.toHaveBeenCalled();
   });
 
@@ -275,11 +323,16 @@ describe("ResourceCatalogService", () => {
     });
 
     expect(created.status).toBe("REGISTERED");
-    expect(litellm.registerVectorStore).toHaveBeenCalledWith(expect.objectContaining({
-      vectorStoreId: "vs_engineering_handbook",
-      provider: "openai",
-      metadata: expect.objectContaining({ tali_project_id: "individual", top_k: 8 }),
-    }));
+    expect(litellm.registerVectorStore).toHaveBeenCalledWith(
+      expect.objectContaining({
+        vectorStoreId: "vs_engineering_handbook",
+        provider: "openai",
+        metadata: expect.objectContaining({
+          tali_project_id: "individual",
+          top_k: 8,
+        }),
+      }),
+    );
     expect(litellm.updateProjectObjectPermissions).toHaveBeenLastCalledWith(
       "team-project",
       { mcpServers: [], vectorStores: ["vs_engineering_handbook"] },
@@ -312,13 +365,15 @@ describe("ResourceCatalogService", () => {
     });
 
     expect(created.status).toBe("REGISTERED");
-    expect(litellm.registerVectorStore).toHaveBeenCalledWith(expect.objectContaining({
-      provider: "pg_vector",
-      litellmParams: {
-        api_base: "https://pgvector.example.test",
-        api_key: "pgvector-secret",
-      },
-    }));
+    expect(litellm.registerVectorStore).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: "pg_vector",
+        litellmParams: {
+          api_base: "https://pgvector.example.test",
+          api_key: "pgvector-secret",
+        },
+      }),
+    );
   });
 
   it("registers Elasticsearch through the authenticated TaskLattice bridge", async () => {
@@ -338,7 +393,8 @@ describe("ResourceCatalogService", () => {
 
     const created = await service.createKnowledgeSource({
       name: "Search knowledge",
-      description: "Operational knowledge indexed for Elasticsearch semantic search.",
+      description:
+        "Operational knowledge indexed for Elasticsearch semantic search.",
       vectorStoreId: "knowledge-chunks",
       provider: "elasticsearch",
       apiBase: "https://elastic.example.test",
@@ -349,14 +405,19 @@ describe("ResourceCatalogService", () => {
     });
 
     expect(created.status).toBe("REGISTERED");
-    expect(litellm.registerVectorStore).toHaveBeenCalledWith(expect.objectContaining({
-      provider: "pg_vector",
-      metadata: expect.objectContaining({ tasklattice_provider: "elasticsearch" }),
-      litellmParams: expect.objectContaining({
-        api_base: "http://127.0.0.1:8080/api/internal/vector-stores/individual",
-        api_key: expect.any(String),
+    expect(litellm.registerVectorStore).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: "pg_vector",
+        metadata: expect.objectContaining({
+          tasklattice_provider: "elasticsearch",
+        }),
+        litellmParams: expect.objectContaining({
+          api_base:
+            "http://127.0.0.1:8080/api/internal/vector-stores/individual",
+          api_key: expect.any(String),
+        }),
       }),
-    }));
+    );
     expect(secrets.get).not.toHaveBeenCalled();
   });
 });

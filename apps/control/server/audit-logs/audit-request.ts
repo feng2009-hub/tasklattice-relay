@@ -48,14 +48,11 @@ const resources: Array<{
   type: string;
 }> = [
   { segment: "terminal-sessions", prefix: "terminal_session", type: "Terminal Session" },
-  { segment: "access-scopes", prefix: "access_scope", type: "Access Scope" },
   { segment: "access-policies", prefix: "access_policy", type: "Access Policy" },
   { segment: "model-profiles", prefix: "model_profile", type: "Model Profile" },
-  { segment: "virtual-employees", prefix: "virtual_employee", type: "Virtual Employee" },
   { segment: "mcp-servers", prefix: "mcp_server", type: "MCP Server" },
   { segment: "knowledge-sources", prefix: "knowledge_source", type: "Knowledge Source" },
   { segment: "connections", prefix: "agent_connection", type: "Agent Connection" },
-  { segment: "identities", prefix: "identity_binding", type: "Identity Binding" },
   { segment: "invitations", prefix: "project_member", type: "Project Member" },
   { segment: "providers", prefix: "provider", type: "Provider" },
   { segment: "instances", prefix: "instance", type: "Instance" },
@@ -170,14 +167,13 @@ function descriptor(method: string, path: string): AuditDescriptor | undefined {
 
   if (
     tail[0] === "instances"
-    && tail[2] === "virtual-employee"
+    && tail[2] === "access-policies"
   ) {
-    const operation = method === "DELETE" ? "unbind" : "bind";
     return {
-      action: `instance.virtual_employee_${operation}`,
+      action: "instance.access_policies_update",
       ...(tail[1] ? { objectId: tail[1] } : {}),
       objectType: "Instance",
-      operation,
+      operation: "update",
       projectId,
     };
   }

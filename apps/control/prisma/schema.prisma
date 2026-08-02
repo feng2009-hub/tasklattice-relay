@@ -132,6 +132,7 @@ model Project {
   sandboxPolicies                 SandboxPolicyRecord[]
   accessPolicies                  AccessPolicyRecord[]
   accessPolicyVersions            AccessPolicyVersionRecord[]
+  instanceAccessPolicyBindings     AgentInstanceAccessPolicyBindingRecord[]
   skills                          SkillRecord[]
   mcpServers                      McpServerRecord[]
   knowledgeSources                KnowledgeSourceRecord[]
@@ -142,12 +143,6 @@ model Project {
   usageObservations               ModelUsageFactObservation[]
   usageDaily                      ModelUsageDailyRecord[]
   costSyncCheckpoints             CostSyncCheckpointRecord[]
-  virtualEmployees                VirtualEmployeeRecord[]
-  virtualEmployeeModelAccess      VirtualEmployeeModelAccessRecord[]
-  virtualEmployeeIdentities       IdentityBindingRecord[]
-  virtualEmployeeAccessScopes     AccessScopeBindingRecord[]
-  virtualEmployeeInstanceBindings AgentInstanceVirtualEmployeeBindingRecord[]
-  virtualEmployeeAudit            VirtualEmployeeAuditRecord[]
   auditLogs                       AuditLogRecord[]
   quota                           ProjectQuotaRecord?
 
@@ -175,155 +170,6 @@ model ProjectQuotaRecord {
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@map("project_quotas")
-  @@schema("tasklattice")
-}
-
-model VirtualEmployeeRecord {
-  projectId    String   @map("project_id")
-  id           String
-  name         String
-  displayName  String   @map("display_name")
-  description  String?
-  businessRole String?  @map("business_role")
-  ownerTeamId  String?  @map("owner_team_id")
-  environment  String
-  status       String
-  tags         Json
-  createdBy    String   @map("created_by")
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  project      Project                                     @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  modelAccess  VirtualEmployeeModelAccessRecord?
-  identities   IdentityBindingRecord[]
-  accessScopes AccessScopeBindingRecord[]
-  instances    AgentInstanceVirtualEmployeeBindingRecord[]
-  auditEvents  VirtualEmployeeAuditRecord[]
-
-  @@id([projectId, id])
-  @@unique([projectId, name])
-  @@index([projectId, status])
-  @@index([projectId, ownerTeamId])
-  @@map("virtual_employees")
-  @@schema("tasklattice")
-}
-
-model VirtualEmployeeModelAccessRecord {
-  projectId           String    @map("project_id")
-  id                  String
-  virtualEmployeeId   String    @map("virtual_employee_id")
-  provider            String
-  litellmTeamId       String?   @map("litellm_team_id")
-  litellmKeyId        String?   @map("litellm_key_id")
-  keyAlias            String    @map("key_alias")
-  keyLastFour         String?   @map("key_last_four")
-  allowedModels       Json      @map("allowed_models")
-  accessGroups        Json      @map("access_groups")
-  maxBudget           Decimal?  @map("max_budget") @db.Decimal(18, 6)
-  budgetDuration      String?   @map("budget_duration")
-  rpmLimit            Int?      @map("rpm_limit")
-  tpmLimit            Int?      @map("tpm_limit")
-  maxParallelRequests Int?      @map("max_parallel_requests")
-  keyDuration         String    @map("key_duration")
-  expiresAt           DateTime? @map("expires_at") @db.Timestamptz(6)
-  fallbackModels      Json      @map("fallback_models")
-  secretReference     String?   @map("secret_reference")
-  syncStatus          String    @map("sync_status")
-  lastSyncedAt        DateTime? @map("last_synced_at") @db.Timestamptz(6)
-  lastSyncError       String?   @map("last_sync_error")
-  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  project         Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  virtualEmployee VirtualEmployeeRecord @relation(fields: [projectId, virtualEmployeeId], references: [projectId, id], onDelete: Restrict)
-
-  @@id([projectId, id])
-  @@unique([projectId, virtualEmployeeId], map: "virtual_employee_model_access_employee_unique")
-  @@index([projectId, virtualEmployeeId])
-  @@map("virtual_employee_model_access")
-  @@schema("tasklattice")
-}
-
-model IdentityBindingRecord {
-  projectId         String   @map("project_id")
-  id                String
-  virtualEmployeeId String   @map("virtual_employee_id")
-  identityType      String   @map("identity_type")
-  provider          String
-  externalReference String   @map("external_reference")
-  displayName       String   @map("display_name")
-  system            String?
-  metadata          Json
-  status            String
-  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  project         Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  virtualEmployee VirtualEmployeeRecord @relation(fields: [projectId, virtualEmployeeId], references: [projectId, id], onDelete: Restrict)
-
-  @@id([projectId, id])
-  @@index([projectId, virtualEmployeeId])
-  @@map("identity_bindings")
-  @@schema("tasklattice")
-}
-
-model AccessScopeBindingRecord {
-  projectId           String   @map("project_id")
-  id                  String
-  virtualEmployeeId   String   @map("virtual_employee_id")
-  resourceType        String   @map("resource_type")
-  resourceId          String   @map("resource_id")
-  actions             Json
-  conditions          Json
-  enforcementProvider String   @map("enforcement_provider")
-  approvalStatus      String   @map("approval_status")
-  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt           DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  project         Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  virtualEmployee VirtualEmployeeRecord @relation(fields: [projectId, virtualEmployeeId], references: [projectId, id], onDelete: Restrict)
-
-  @@id([projectId, id])
-  @@index([projectId, virtualEmployeeId])
-  @@map("access_scope_bindings")
-  @@schema("tasklattice")
-}
-
-model AgentInstanceVirtualEmployeeBindingRecord {
-  projectId         String   @map("project_id")
-  id                String
-  instanceId        String   @map("instance_id")
-  virtualEmployeeId String   @map("virtual_employee_id")
-  boundAt           DateTime @default(now()) @map("bound_at") @db.Timestamptz(6)
-  boundBy           String   @map("bound_by")
-
-  project         Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  virtualEmployee VirtualEmployeeRecord @relation(fields: [projectId, virtualEmployeeId], references: [projectId, id], onDelete: Restrict)
-
-  @@id([projectId, id])
-  @@unique([projectId, instanceId])
-  @@index([projectId, virtualEmployeeId])
-  @@map("agent_instance_virtual_employee_bindings")
-  @@schema("tasklattice")
-}
-
-model VirtualEmployeeAuditRecord {
-  projectId         String   @map("project_id")
-  id                String
-  virtualEmployeeId String   @map("virtual_employee_id")
-  eventType         String   @map("event_type")
-  actor             String
-  result            String
-  message           String
-  metadata          Json
-  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  project         Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  virtualEmployee VirtualEmployeeRecord @relation(fields: [projectId, virtualEmployeeId], references: [projectId, id], onDelete: Restrict)
-
-  @@id([projectId, id])
-  @@index([projectId, virtualEmployeeId, createdAt(sort: Desc)])
-  @@map("virtual_employee_audit")
   @@schema("tasklattice")
 }
 
@@ -407,6 +253,7 @@ model AgentRecord {
   createdAt DateTime @map("created_at") @db.Timestamptz(6)
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   outboundAgentConnections AgentConnectionRecord[] @relation("CoordinatorAgentConnections")
+  accessPolicyBindings       AgentInstanceAccessPolicyBindingRecord[]
 
   @@id([projectId, id])
   @@map("agents")
@@ -553,11 +400,29 @@ model AccessPolicyRecord {
   updatedAt DateTime @map("updated_at") @db.Timestamptz(6)
 
   project  Project                     @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  versions AccessPolicyVersionRecord[]
+  versions         AccessPolicyVersionRecord[]
+  instanceBindings AgentInstanceAccessPolicyBindingRecord[]
 
   @@id([projectId, id])
   @@index([projectId, updatedAt(sort: Desc)], map: "access_policies_updated_idx")
   @@map("access_policies")
+  @@schema("tasklattice")
+}
+
+model AgentInstanceAccessPolicyBindingRecord {
+  projectId     String   @map("project_id")
+  instanceId    String   @map("instance_id")
+  accessPolicyId String   @map("access_policy_id")
+  boundAt       DateTime @default(now()) @map("bound_at") @db.Timestamptz(6)
+  boundBy       String   @map("bound_by")
+
+  project      Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  instance     AgentRecord        @relation(fields: [projectId, instanceId], references: [projectId, id], onDelete: Cascade)
+  accessPolicy AccessPolicyRecord @relation(fields: [projectId, accessPolicyId], references: [projectId, id], onDelete: Restrict)
+
+  @@id([projectId, instanceId, accessPolicyId])
+  @@index([projectId, accessPolicyId], map: "instance_access_policy_policy_idx")
+  @@map("agent_instance_access_policy_bindings")
   @@schema("tasklattice")
 }
 

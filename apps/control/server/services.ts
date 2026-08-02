@@ -11,11 +11,8 @@ import { CostService } from "./providers/cost-service";
 import { LiteLLMClient } from "./providers/litellm-client";
 import { ProviderService } from "./providers/provider-service";
 import { ProjectService, type ProjectRole } from "./projects/project-service";
-import { VirtualEmployeeService } from "./virtual-employees/virtual-employee-service";
-import { VirtualEmployeeStore } from "./virtual-employees/virtual-employee-store";
 import { ProjectQuotaService } from "./quotas/project-quota-service";
 import { AuditLogService } from "./audit-logs/audit-log-service";
-import { prisma } from "./db/prisma";
 
 interface ProjectServices {
   agent: AgentService;
@@ -26,7 +23,6 @@ interface ProjectServices {
   modelProfiles: ModelProfileService;
   policies: PolicyService;
   provider: ProviderService;
-  virtualEmployees: VirtualEmployeeService;
   quotas: ProjectQuotaService;
   auditLogs: AuditLogService;
 }
@@ -34,7 +30,6 @@ interface ProjectServices {
 const litellm = new LiteLLMClient();
 const projectService = new ProjectService();
 const services = new Map<string, ProjectServices>();
-const reconciliationTimers = new Map<string, NodeJS.Timeout>();
 
 function createServices(projectId: string): ProjectServices {
   const store = new ProjectStore(projectId);
@@ -42,16 +37,14 @@ function createServices(projectId: string): ProjectServices {
   const modelProfiles = new ModelProfileService(store, litellm);
   const quotas = new ProjectQuotaService(store, litellm);
   const catalog = new ResourceCatalogService(store, quotas, litellm);
-  const virtualEmployees = new VirtualEmployeeService(new VirtualEmployeeStore(projectId), litellm);
   const accessPolicies = new AccessPolicyService(
     new AccessPolicyStore(projectId, store.database()),
     store,
     litellm,
   );
-  scheduleVirtualEmployeeReconciliation(projectId, virtualEmployees);
   return {
     auditLogs: new AuditLogService(projectId, store.database()),
-    agent: new AgentService(store, undefined, litellm, policies, catalog, modelProfiles, virtualEmployees, quotas, accessPolicies),
+    agent: new AgentService(store, undefined, litellm, policies, catalog, modelProfiles, quotas, accessPolicies),
     agentGarden: new AgentGardenService(
       new AgentGardenStore(projectId, store.database()),
       store,
@@ -62,30 +55,8 @@ function createServices(projectId: string): ProjectServices {
     policies,
     catalog,
     modelProfiles,
-    virtualEmployees,
     quotas,
   };
-}
-
-function scheduleVirtualEmployeeReconciliation(
-  projectId: string,
-  virtualEmployees: VirtualEmployeeService,
-): void {
-  if (reconciliationTimers.has(projectId)) return;
-  const intervalMs = 300_000;
-  const timer = setInterval(() => {
-    void prisma().project.findUnique({
-      where: { id: projectId },
-      select: { deletedAt: true },
-    }).then((project) => {
-      if (!project || project.deletedAt) return;
-      return virtualEmployees.reconcileAll();
-    }).catch((error) => {
-      console.error("Virtual Employee reconciliation failed.", error);
-    });
-  }, intervalMs);
-  timer.unref();
-  reconciliationTimers.set(projectId, timer);
 }
 
 async function forRequest(request?: Request): Promise<ProjectServices> {
@@ -146,10 +117,6 @@ export async function getResourceCatalogService(request?: Request): Promise<Reso
 
 export async function getModelProfileService(request?: Request): Promise<ModelProfileService> {
   return (await forRequest(request)).modelProfiles;
-}
-
-export async function getVirtualEmployeeService(request?: Request): Promise<VirtualEmployeeService> {
-  return (await forRequest(request)).virtualEmployees;
 }
 
 export async function getProjectQuotaService(request?: Request): Promise<ProjectQuotaService> {

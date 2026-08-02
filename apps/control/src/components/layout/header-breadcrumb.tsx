@@ -28,7 +28,6 @@ const routeLabels: Record<string, string> = {
   skills: "Skills",
   tickets: "Ticket List",
   traces: "Traces",
-  "virtual-employees": "Virtual Employees",
   projects: "Projects",
 };
 
@@ -51,11 +50,6 @@ export function getHeaderBreadcrumbItems(pathname: string): HeaderBreadcrumbItem
   return parts.slice(1).flatMap((part, routeIndex) => {
     const index = routeIndex + 1;
     const label =
-      routeIndex === 2 &&
-      parts[1] === "setting" &&
-      parts[2] === "virtual-employees"
-        ? "Details"
-        :
       routeIndex === 1 && parts[1] === "agent-garden"
         ? "Agent details"
         :

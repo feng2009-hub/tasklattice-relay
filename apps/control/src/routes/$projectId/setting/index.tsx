@@ -1,9 +1,8 @@
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { Bot, Gauge, LockKeyhole, ShieldCheck, Trash2, Users, Workflow } from "lucide-react";
+import { Gauge, LockKeyhole, ShieldCheck, Trash2, Users, Workflow } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { ProjectModelProfilesSettings } from "@/components/project/project-model-profiles-settings";
-import { ProjectVirtualEmployees } from "@/components/project/project-virtual-employees";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -19,7 +18,6 @@ export const Route = createFileRoute("/$projectId/setting/")({
   validateSearch: (search): { section?: ProjectSettingsSection } => {
     const section =
       search.section === "members" ||
-      search.section === "virtual-employees" ||
       search.section === "model-profiles" ||
       search.section === "quota" ||
       search.section === "settings"
@@ -33,7 +31,6 @@ export const Route = createFileRoute("/$projectId/setting/")({
 type ProjectSettingsSection =
   | "settings"
   | "members"
-  | "virtual-employees"
   | "model-profiles"
   | "quota";
 
@@ -81,7 +78,7 @@ function ProjectSettingsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Project settings"
-        description="Manage Project identity, human membership, Virtual Employees, models, and quota."
+        description="Manage Project identity, human membership, models, and quota."
       />
 
       <section className="overflow-hidden rounded-lg border bg-background">
@@ -117,10 +114,6 @@ function ProjectSettingsPage() {
               <Users />
               Members
             </TabsTrigger>
-            <TabsTrigger value="virtual-employees" className="h-11">
-              <Bot />
-              Virtual Employees
-            </TabsTrigger>
             <TabsTrigger value="model-profiles" className="h-11">
               <Workflow />
               Models & Profiles
@@ -145,9 +138,6 @@ function ProjectSettingsPage() {
           </TabsContent>
           <TabsContent value="members" className="mt-0">
             <ProjectMembers project={project} />
-          </TabsContent>
-          <TabsContent value="virtual-employees" className="mt-0">
-            <ProjectVirtualEmployees project={project} />
           </TabsContent>
           <TabsContent value="model-profiles" className="mt-0">
             <ProjectModelProfilesSettings

@@ -47,6 +47,11 @@ function jsonInput(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
 
+function agentPayload(agent: Agent): Prisma.InputJsonValue {
+  const { accessPolicyIds: _accessPolicyIds, ...payload } = agent;
+  return jsonInput(payload);
+}
+
 function mcpConnectionPayload(server: McpServerDefinition): Prisma.InputJsonValue {
   const {
     id: _id,
@@ -61,10 +66,13 @@ function mcpConnectionPayload(server: McpServerDefinition): Prisma.InputJsonValu
   return jsonInput(connection);
 }
 
-export function parseAgent(payload: string | Prisma.JsonValue): Agent {
+export function parseAgent(
+  payload: string | Prisma.JsonValue,
+  accessPolicyIds: string[] = [],
+): Agent {
   const agent = (typeof payload === "string" ? JSON.parse(payload) : payload) as Partial<Agent>;
   if (
-    agent.schemaVersion !== 1 ||
+    agent.schemaVersion !== 2 ||
     typeof agent.id !== "string" ||
     typeof agent.name !== "string" ||
     typeof agent.sandboxName !== "string" ||
@@ -81,12 +89,15 @@ export function parseAgent(payload: string | Prisma.JsonValue): Agent {
     !agent.modelProfileComplianceDomain ||
     !agent.modelProfileStatus
   ) throw new Error("Stored Instance data is incomplete.");
-  return agent as Agent;
+  return { ...agent, accessPolicyIds } as Agent;
 }
 
-function parseCurrentAgent(payload: Prisma.JsonValue): Agent | undefined {
+function parseCurrentAgent(
+  payload: Prisma.JsonValue,
+  accessPolicyIds: string[],
+): Agent | undefined {
   const candidate = payload as Partial<Agent>;
-  return candidate.schemaVersion === 1 ? parseAgent(payload) : undefined;
+  return candidate.schemaVersion === 2 ? parseAgent(payload, accessPolicyIds) : undefined;
 }
 
 function parseProviderAccount(payload: Prisma.JsonValue): ProviderAccount {
@@ -351,10 +362,10 @@ export class ProjectStore {
       create: {
         projectId: this.projectId,
         id: agent.id,
-        payload: jsonInput(agent),
+        payload: agentPayload(agent),
         createdAt: agent.createdAt,
       },
-      update: { payload: jsonInput(agent) },
+      update: { payload: agentPayload(agent) },
     });
     const binding = await this.getModelProfileBindingForAgent(agent.id);
     if (binding) await this.saveBindingAttribution(binding, agent);
@@ -364,20 +375,98 @@ export class ProjectStore {
   async get(id: string): Promise<Agent | undefined> {
     const row = await this.db.agentRecord.findUnique({
       where: { projectId_id: { projectId: this.projectId, id } },
-      select: { payload: true },
+      select: {
+        payload: true,
+        accessPolicyBindings: {
+          orderBy: { accessPolicyId: "asc" },
+          select: { accessPolicyId: true },
+        },
+      },
     });
-    return row ? parseCurrentAgent(row.payload) : undefined;
+    return row
+      ? parseCurrentAgent(
+          row.payload,
+          row.accessPolicyBindings.map((binding) => binding.accessPolicyId),
+        )
+      : undefined;
   }
 
   async list(): Promise<Agent[]> {
     const rows = await this.db.agentRecord.findMany({
       where: { projectId: this.projectId },
       orderBy: { createdAt: "desc" },
-      select: { payload: true },
+      select: {
+        payload: true,
+        accessPolicyBindings: {
+          orderBy: { accessPolicyId: "asc" },
+          select: { accessPolicyId: true },
+        },
+      },
     });
     return rows.flatMap((row) => {
-      const agent = parseCurrentAgent(row.payload);
+      const agent = parseCurrentAgent(
+        row.payload,
+        row.accessPolicyBindings.map((binding) => binding.accessPolicyId),
+      );
       return agent ? [agent] : [];
+    });
+  }
+
+  async replaceAgentAccessPolicies(
+    instanceId: string,
+    accessPolicyIds: readonly string[],
+    boundBy = "agent-service",
+  ): Promise<Agent> {
+    const uniquePolicyIds = [...new Set(accessPolicyIds)];
+    if (
+      uniquePolicyIds.length !== accessPolicyIds.length ||
+      uniquePolicyIds.length < 1 ||
+      uniquePolicyIds.length > 64
+    ) throw new Error("Select between 1 and 64 unique Access Policies.");
+
+    return this.db.$transaction(async (transaction) => {
+      const instance = await transaction.agentRecord.findUnique({
+        where: { projectId_id: { projectId: this.projectId, id: instanceId } },
+        select: { id: true },
+      });
+      if (!instance) throw new Error("Agent Instance not found.");
+
+      const policies = await transaction.accessPolicyRecord.findMany({
+        where: { projectId: this.projectId, id: { in: uniquePolicyIds } },
+        select: { id: true },
+      });
+      const available = new Set(policies.map((policy) => policy.id));
+      const missing = uniquePolicyIds.filter((id) => !available.has(id));
+      if (missing.length) {
+        throw new Error(`Access Policy not found: ${missing.join(", ")}.`);
+      }
+
+      await transaction.agentInstanceAccessPolicyBindingRecord.deleteMany({
+        where: { projectId: this.projectId, instanceId },
+      });
+      await transaction.agentInstanceAccessPolicyBindingRecord.createMany({
+        data: uniquePolicyIds.map((accessPolicyId) => ({
+          projectId: this.projectId,
+          instanceId,
+          accessPolicyId,
+          boundBy,
+        })),
+      });
+
+      const updated = await transaction.agentRecord.findUniqueOrThrow({
+        where: { projectId_id: { projectId: this.projectId, id: instanceId } },
+        select: {
+          payload: true,
+          accessPolicyBindings: {
+            orderBy: { accessPolicyId: "asc" },
+            select: { accessPolicyId: true },
+          },
+        },
+      });
+      return parseAgent(
+        updated.payload,
+        updated.accessPolicyBindings.map((binding) => binding.accessPolicyId),
+      );
     });
   }
 

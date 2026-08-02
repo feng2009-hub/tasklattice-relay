@@ -27,14 +27,17 @@ describe("ProjectQuotaService", () => {
     const litellm = adapter();
     const service = new ProjectQuotaService(createTestStore(), litellm);
 
-    const quota = await service.update({
-      hardBudgetUsd: 250,
-      budgetDuration: "30d",
-      tpmLimit: 500_000,
-      maxInstances: 3,
-      maxMcpIntegrations: 4,
-      maxKnowledgeBaseIntegrations: 2,
-    }, "admin");
+    const quota = await service.update(
+      {
+        hardBudgetUsd: 250,
+        budgetDuration: "30d",
+        tpmLimit: 500_000,
+        maxInstances: 3,
+        maxMcpIntegrations: 4,
+        maxKnowledgeBaseIntegrations: 2,
+      },
+      "admin",
+    );
 
     expect(quota).toMatchObject({
       hardBudgetUsd: 250,
@@ -57,21 +60,28 @@ describe("ProjectQuotaService", () => {
 
   it("treats null as unlimited and zero as blocking new resources", async () => {
     const service = new ProjectQuotaService(createTestStore(), adapter());
-    await service.update({
-      hardBudgetUsd: null,
-      budgetDuration: null,
-      tpmLimit: null,
-      maxInstances: 0,
-      maxMcpIntegrations: null,
-      maxKnowledgeBaseIntegrations: 0,
-    }, "admin");
+    await service.update(
+      {
+        hardBudgetUsd: null,
+        budgetDuration: null,
+        tpmLimit: null,
+        maxInstances: 0,
+        maxMcpIntegrations: null,
+        maxKnowledgeBaseIntegrations: 0,
+      },
+      "admin",
+    );
 
-    await expect(service.assertCanCreate("instances")).rejects.toThrow("Instance quota exceeded");
+    await expect(service.assertCanCreate("instances")).rejects.toThrow(
+      "Instance quota exceeded",
+    );
     await expect(service.assertCanCreate("mcp")).resolves.toBeUndefined();
-    await expect(service.assertCanCreate("knowledge-base")).rejects.toThrow("Knowledge Base integration quota exceeded");
+    await expect(service.assertCanCreate("knowledge-base")).rejects.toThrow(
+      "Knowledge Base integration quota exceeded",
+    );
   });
 
-  it("creates an Instance Service Account with Project, Virtual Employee, and Instance metadata", async () => {
+  it("creates an Instance Service Account with Project and Instance metadata", async () => {
     const litellm = adapter();
     const service = new ProjectQuotaService(createTestStore(), litellm);
 
@@ -80,7 +90,6 @@ describe("ProjectQuotaService", () => {
       models: ["production-chat"],
       metadata: {
         tali_project_id: "individual",
-        tali_virtual_employee_id: "employee-1",
         tali_instance_id: "instance-1",
         service_account_id: "tali-instance-instance-1",
       },
@@ -94,7 +103,7 @@ describe("ProjectQuotaService", () => {
       expect.objectContaining({
         teamId: "team-project",
         metadata: expect.objectContaining({
-          tali_virtual_employee_id: "employee-1",
+          tali_project_id: "individual",
           tali_instance_id: "instance-1",
         }),
       }),

@@ -2,8 +2,20 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { defaultAgentPlatformId, type AgentPlatformId, type CreateAgentInput } from "@tasklattice/contracts";
-import { ArrowLeft, ArrowRight, Bot, Check, CircleAlert, CircleHelp, ExternalLink, ShieldCheck, UserRoundCheck } from "lucide-react";
+import {
+  defaultAgentPlatformId,
+  type AgentPlatformId,
+  type CreateAgentInput,
+} from "@tasklattice/contracts";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Bot,
+  Check,
+  CircleAlert,
+  CircleHelp,
+  ShieldCheck,
+} from "lucide-react";
 import { AgentSelect } from "@/components/agents/agent-select";
 import { ChangeSpecializationDialog } from "@/components/agents/change-specialization-dialog";
 import {
@@ -12,16 +24,42 @@ import {
   updateCapabilitySelection,
   type SelectedCapability,
 } from "@/components/agents/capability-selection";
-import { CreateInstanceLayout, type CreateInstanceStep } from "@/components/agents/create-instance-layout";
+import {
+  CreateInstanceLayout,
+  type CreateInstanceStep,
+} from "@/components/agents/create-instance-layout";
 import { IdentityCapabilitiesStep } from "@/components/agents/identity-capabilities-step";
-import { getSpecialization, type SpecializationId } from "@/components/agents/specializations";
+import {
+  getSpecialization,
+  type SpecializationId,
+} from "@/components/agents/specializations";
 import { EntitySheet } from "@/components/shared/entity-sheet";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  MultiSelectCombobox,
+  type MultiSelectOption,
+} from "@/components/ui/multi-select-combobox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { api } from "@/lib/api";
 import { getAgentPlatformPresentation } from "@/lib/agent-platforms";
 import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
@@ -29,14 +67,20 @@ import { useCurrentProjectId } from "@/hooks/use-project";
 
 const steps: readonly CreateInstanceStep[] = [
   { label: "Define Work", description: "Set the job and extensions" },
-  { label: "Identity & Workbench", description: "Assign identity and runtime" },
+  { label: "Access & Workbench", description: "Bind policies and runtime" },
   { label: "Review & Approve", description: "Evaluate and confirm" },
 ];
 
-function capabilityName(id: string, skills: readonly { id: string; name: string }[], mcpServers: readonly { id: string; name: string }[]): string {
-  return skills.find((item) => item.id === id)?.name
-    ?? mcpServers.find((item) => item.id === id)?.name
-    ?? id;
+function capabilityName(
+  id: string,
+  skills: readonly { id: string; name: string }[],
+  mcpServers: readonly { id: string; name: string }[],
+): string {
+  return (
+    skills.find((item) => item.id === id)?.name ??
+    mcpServers.find((item) => item.id === id)?.name ??
+    id
+  );
 }
 
 function selectedIds(items: readonly SelectedCapability[]): string[] {
@@ -64,23 +108,58 @@ export function CreateInstanceSheet({
   const [customSystemPrompt, setCustomSystemPrompt] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [systemPromptInitialized, setSystemPromptInitialized] = useState(false);
-  const [selectedSkills, setSelectedSkills] = useState<SelectedCapability[]>([]);
+  const [selectedSkills, setSelectedSkills] = useState<SelectedCapability[]>(
+    [],
+  );
   const [selectedMcps, setSelectedMcps] = useState<SelectedCapability[]>([]);
-  const [selectedKnowledgeSources, setSelectedKnowledgeSources] = useState<SelectedCapability[]>([]);
+  const [selectedKnowledgeSources, setSelectedKnowledgeSources] = useState<
+    SelectedCapability[]
+  >([]);
   const [skillsTouched, setSkillsTouched] = useState(false);
   const [mcpsTouched, setMcpsTouched] = useState(false);
-  const [pendingSpecializationId, setPendingSpecializationId] = useState<SpecializationId | null>(null);
-  const resourceCatalog = useQuery({ queryKey: scope.key("resource-catalog"), queryFn: api.getResourceCatalog });
+  const [pendingSpecializationId, setPendingSpecializationId] =
+    useState<SpecializationId | null>(null);
+  const resourceCatalog = useQuery({
+    queryKey: scope.key("resource-catalog"),
+    queryFn: api.getResourceCatalog,
+  });
   const skills = resourceCatalog.data?.skills ?? [];
   const mcpServers = resourceCatalog.data?.mcpServers ?? [];
   const knowledgeSources = resourceCatalog.data?.knowledgeSources ?? [];
   const specializations = resourceCatalog.data?.specializations ?? [];
   const specialization = getSpecialization(specializations, specializationId);
-  const pendingSpecialization = pendingSpecializationId ? getSpecialization(specializations, pendingSpecializationId) : null;
-  const virtualEmployees = useQuery({ queryKey: scope.key("virtual-employees"), queryFn: api.listVirtualEmployees });
-  const activeVirtualEmployees = (virtualEmployees.data ?? []).filter((employee) => employee.status === "active");
-  const accessPolicies = useQuery({ queryKey: scope.key("access-policies"), queryFn: api.listAccessPolicies });
-  const policies = useQuery({ queryKey: scope.key("sandbox-policies"), queryFn: api.listPolicies });
+  const pendingSpecialization = pendingSpecializationId
+    ? getSpecialization(specializations, pendingSpecializationId)
+    : null;
+  const accessPolicies = useQuery({
+    queryKey: scope.key("access-policies"),
+    queryFn: api.listAccessPolicies,
+  });
+  const modelProfiles = useQuery({
+    queryKey: scope.key("model-profiles"),
+    queryFn: api.listModelProfiles,
+  });
+  const policies = useQuery({
+    queryKey: scope.key("sandbox-policies"),
+    queryFn: api.listPolicies,
+  });
+  const defaultModelProfiles = (modelProfiles.data ?? []).filter(
+    (profile) => profile.isDefault,
+  );
+  const defaultModelProfile =
+    defaultModelProfiles.length === 1 ? defaultModelProfiles[0] : undefined;
+  const readyDefaultModelProfile =
+    defaultModelProfile?.status === "READY" ? defaultModelProfile : undefined;
+  const accessPolicyOptions: MultiSelectOption[] = (
+    accessPolicies.data ?? []
+  ).map((policy) => ({
+    value: policy.id,
+    label: policy.name,
+    description: `${policy.serverRules.length} MCP server${policy.serverRules.length === 1 ? "" : "s"}`,
+    meta: policy.status === "ACTIVE" ? "Active" : "Draft · not enforced",
+    metaTone: policy.status === "ACTIVE" ? "success" : "warning",
+    disabled: policy.status !== "ACTIVE",
+  }));
   const currentSystemPrompt = systemPrompt;
   const incompleteMcps = selectedIds(selectedMcps)
     .map((id) => mcpServers.find((item) => item.id === id))
@@ -88,7 +167,11 @@ export function CreateInstanceSheet({
   const mutation = useMutation({
     mutationFn: api.createAgent,
     onSuccess: (agent) => {
-      void navigate({ to: "/$projectId/instances/$instanceId", params: { projectId, instanceId: agent.id }, search: { creating: true } });
+      void navigate({
+        to: "/$projectId/instances/$instanceId",
+        params: { projectId, instanceId: agent.id },
+        search: { creating: true },
+      });
     },
   });
   const form = useForm({
@@ -97,17 +180,18 @@ export function CreateInstanceSheet({
       description: "",
       agentPlatform: initialAgentPlatform,
       policyId: "",
-      virtualEmployeeId: "",
+      accessPolicyIds: [] as string[],
     },
-    onSubmit: ({ value }) => mutation.mutateAsync({
-      ...value,
-      runtime: "openshell",
-      systemPrompt: currentSystemPrompt,
-      specializationId,
-      skillIds: selectedIds(selectedSkills),
-      mcpServerIds: selectedIds(selectedMcps),
-      knowledgeSourceIds: selectedIds(selectedKnowledgeSources),
-    } satisfies CreateAgentInput),
+    onSubmit: ({ value }) =>
+      mutation.mutateAsync({
+        ...value,
+        runtime: "openshell",
+        systemPrompt: currentSystemPrompt,
+        specializationId,
+        skillIds: selectedIds(selectedSkills),
+        mcpServerIds: selectedIds(selectedMcps),
+        knowledgeSourceIds: selectedIds(selectedKnowledgeSources),
+      } satisfies CreateAgentInput),
   });
 
   useEffect(() => {
@@ -117,21 +201,38 @@ export function CreateInstanceSheet({
 
   useEffect(() => {
     if (!specialization || systemPromptInitialized) return;
-    setSystemPrompt(specialization.id === "custom" ? customSystemPrompt : specialization.systemPrompt);
+    setSystemPrompt(
+      specialization.id === "custom"
+        ? customSystemPrompt
+        : specialization.systemPrompt,
+    );
     setSystemPromptInitialized(true);
   }, [customSystemPrompt, specialization, systemPromptInitialized]);
 
-  const policyName = (id: string) => policies.data?.policies.find((policy) => policy.id === id)?.name ?? (id || "Required");
+  const policyName = (id: string) =>
+    policies.data?.policies.find((policy) => policy.id === id)?.name ??
+    (id || "Required");
 
   const applySpecialization = (id: SpecializationId) => {
     const next = getSpecialization(specializations, id);
     if (!next) return;
-    const nextSkills = changeSpecializationSelection(selectedSkills, next.defaultSkillIds);
-    const nextMcps = changeSpecializationSelection(selectedMcps, next.defaultMcpServerIds);
+    const nextSkills = changeSpecializationSelection(
+      selectedSkills,
+      next.defaultSkillIds,
+    );
+    const nextMcps = changeSpecializationSelection(
+      selectedMcps,
+      next.defaultMcpServerIds,
+    );
     setSpecializationId(id);
     setSelectedSkills(nextSkills);
     setSelectedMcps(nextMcps);
-    setSelectedKnowledgeSources(changeSpecializationSelection(selectedKnowledgeSources, next.defaultKnowledgeSourceIds));
+    setSelectedKnowledgeSources(
+      changeSpecializationSelection(
+        selectedKnowledgeSources,
+        next.defaultKnowledgeSourceIds,
+      ),
+    );
     setSkillsTouched(nextSkills.some((item) => item.source === "manual"));
     setMcpsTouched(nextMcps.some((item) => item.source === "manual"));
     setSystemPrompt(id === "custom" ? customSystemPrompt : next.systemPrompt);
@@ -146,12 +247,24 @@ export function CreateInstanceSheet({
 
   const pendingChange = useMemo(() => {
     if (!pendingSpecialization) return { add: [], keep: [], remove: [] };
-    const skillChange = previewSpecializationChange(selectedSkills, pendingSpecialization.defaultSkillIds);
-    const mcpChange = previewSpecializationChange(selectedMcps, pendingSpecialization.defaultMcpServerIds);
+    const skillChange = previewSpecializationChange(
+      selectedSkills,
+      pendingSpecialization.defaultSkillIds,
+    );
+    const mcpChange = previewSpecializationChange(
+      selectedMcps,
+      pendingSpecialization.defaultMcpServerIds,
+    );
     return {
-      add: [...skillChange.add, ...mcpChange.add].map((id) => capabilityName(id, skills, mcpServers)),
-      keep: [...skillChange.keep, ...mcpChange.keep].map((id) => capabilityName(id, skills, mcpServers)),
-      remove: [...skillChange.remove, ...mcpChange.remove].map((id) => capabilityName(id, skills, mcpServers)),
+      add: [...skillChange.add, ...mcpChange.add].map((id) =>
+        capabilityName(id, skills, mcpServers),
+      ),
+      keep: [...skillChange.keep, ...mcpChange.keep].map((id) =>
+        capabilityName(id, skills, mcpServers),
+      ),
+      remove: [...skillChange.remove, ...mcpChange.remove].map((id) =>
+        capabilityName(id, skills, mcpServers),
+      ),
     };
   }, [mcpServers, pendingSpecialization, selectedMcps, selectedSkills, skills]);
 
@@ -165,225 +278,815 @@ export function CreateInstanceSheet({
   };
 
   if (resourceCatalog.isPending)
-    return <EntitySheet {...shellProps} footer={<Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>}><div className="flex min-h-72 items-center justify-center border text-sm text-muted-foreground">Loading Roles and resource catalog from PostgreSQL…</div></EntitySheet>;
+    return (
+      <EntitySheet
+        {...shellProps}
+        footer={
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+        }
+      >
+        <div className="flex min-h-72 items-center justify-center border text-sm text-muted-foreground">
+          Loading Roles and resource catalog from PostgreSQL…
+        </div>
+      </EntitySheet>
+    );
   if (resourceCatalog.error)
-    return <EntitySheet {...shellProps} footer={<Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>}><p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">{resourceCatalog.error.message}</p></EntitySheet>;
+    return (
+      <EntitySheet
+        {...shellProps}
+        footer={
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Close
+          </Button>
+        }
+      >
+        <p
+          role="alert"
+          className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive"
+        >
+          {resourceCatalog.error.message}
+        </p>
+      </EntitySheet>
+    );
   if (!specialization)
-    return <EntitySheet {...shellProps} footer={<Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>}><p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">The PostgreSQL catalog does not contain an Agent Role.</p></EntitySheet>;
+    return (
+      <EntitySheet
+        {...shellProps}
+        footer={
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Close
+          </Button>
+        }
+      >
+        <p
+          role="alert"
+          className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive"
+        >
+          The PostgreSQL catalog does not contain an Agent Role.
+        </p>
+      </EntitySheet>
+    );
 
   return (
     <>
-    <EntitySheet
-      {...shellProps}
-      footer={(
-        <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
-          {step === 0 ? <Button type="button" variant="outline" disabled={mutation.isPending} onClick={() => onOpenChange(false)}>Cancel</Button> : <Button type="button" variant="outline" disabled={mutation.isPending} onClick={() => setStep((current) => Math.max(0, current - 1))}><ArrowLeft /> Back</Button>}
-          {step === 0 ? (
-            <form.Subscribe selector={(state) => state.values.name}>
-              {(name) => <Button type="button" disabled={String(name).trim().length < 3 || currentSystemPrompt.trim().length < 10} onClick={() => setStep(1)}>Next: Identity & Workbench <ArrowRight /></Button>}
-            </form.Subscribe>
-          ) : step === 1 ? (
-            <form.Subscribe selector={(state) => state.values.policyId}>
-              {(policyId) => <form.Subscribe selector={(state) => state.values.virtualEmployeeId}>{(virtualEmployeeId) => <Button key="next-review" type="button" disabled={!String(virtualEmployeeId) || !String(policyId)} onClick={() => setStep(2)}>Next: Review <ArrowRight /></Button>}</form.Subscribe>}
-            </form.Subscribe>
-          ) : (
-            <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting, state.values.policyId, state.values.virtualEmployeeId]}>{([canSubmit, isSubmitting, policyId, virtualEmployeeId]) => <Button key="approve-create" type="button" disabled={!canSubmit || Boolean(isSubmitting) || mutation.isPending || !String(virtualEmployeeId) || !String(policyId)} onClick={() => void form.handleSubmit()}><ShieldCheck /> {mutation.isPending ? "Creating Instance…" : "Approve and Create"}</Button>}</form.Subscribe>
-          )}
-        </div>
-      )}
-    >
-      <CreateInstanceLayout
-        steps={steps}
-        currentStep={step}
-        onStepChange={setStep}
+      <EntitySheet
+        {...shellProps}
+        footer={
+          <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
+            {step === 0 ? (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={mutation.isPending}
+                onClick={() => onOpenChange(false)}
+              >
+                Cancel
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={mutation.isPending}
+                onClick={() => setStep((current) => Math.max(0, current - 1))}
+              >
+                <ArrowLeft /> Back
+              </Button>
+            )}
+            {step === 0 ? (
+              <form.Subscribe selector={(state) => state.values.name}>
+                {(name) => (
+                  <Button
+                    type="button"
+                    disabled={
+                      String(name).trim().length < 3 ||
+                      currentSystemPrompt.trim().length < 10
+                    }
+                    onClick={() => setStep(1)}
+                  >
+                    Next: Access & Workbench <ArrowRight />
+                  </Button>
+                )}
+              </form.Subscribe>
+            ) : step === 1 ? (
+              <form.Subscribe
+                selector={(state) => [
+                  state.values.policyId,
+                  state.values.accessPolicyIds,
+                ]}
+              >
+                {([policyId, accessPolicyIds]) => {
+                  const selectedIds = Array.isArray(accessPolicyIds)
+                    ? accessPolicyIds.map(String)
+                    : [];
+                  const selectedAreActive = selectedIds.every((id) =>
+                    accessPolicies.data?.some(
+                      (policy) =>
+                        policy.id === id && policy.status === "ACTIVE",
+                    ),
+                  );
+                  return (
+                    <Button
+                      key="next-review"
+                      type="button"
+                      disabled={
+                        !String(policyId) ||
+                        !selectedIds.length ||
+                        !selectedAreActive ||
+                        accessPolicies.isPending ||
+                        accessPolicies.isError ||
+                        modelProfiles.isPending ||
+                        modelProfiles.isError ||
+                        !readyDefaultModelProfile
+                      }
+                      onClick={() => setStep(2)}
+                    >
+                      Next: Review <ArrowRight />
+                    </Button>
+                  );
+                }}
+              </form.Subscribe>
+            ) : (
+              <form.Subscribe
+                selector={(state) => [
+                  state.canSubmit,
+                  state.isSubmitting,
+                  state.values.policyId,
+                  state.values.accessPolicyIds,
+                ]}
+              >
+                {([canSubmit, isSubmitting, policyId, accessPolicyIds]) => {
+                  const selectedIds = Array.isArray(accessPolicyIds)
+                    ? accessPolicyIds.map(String)
+                    : [];
+                  const selectedAreActive = selectedIds.every((id) =>
+                    accessPolicies.data?.some(
+                      (policy) =>
+                        policy.id === id && policy.status === "ACTIVE",
+                    ),
+                  );
+                  return (
+                    <Button
+                      key="approve-create"
+                      type="button"
+                      disabled={
+                        !canSubmit ||
+                        Boolean(isSubmitting) ||
+                        mutation.isPending ||
+                        !String(policyId) ||
+                        !selectedIds.length ||
+                        !selectedAreActive ||
+                        accessPolicies.isPending ||
+                        accessPolicies.isError ||
+                        modelProfiles.isPending ||
+                        modelProfiles.isError ||
+                        !readyDefaultModelProfile
+                      }
+                      onClick={() => void form.handleSubmit()}
+                    >
+                      <ShieldCheck />{" "}
+                      {mutation.isPending
+                        ? "Creating Instance…"
+                        : "Approve and Create"}
+                    </Button>
+                  );
+                }}
+              </form.Subscribe>
+            )}
+          </div>
+        }
       >
-        <form onSubmit={(event) => event.preventDefault()} className="min-w-0 space-y-5">
-          {step === 0 ? (
-            <form.Subscribe selector={(state) => state.values.name}>
-              {(name) => (
-                <IdentityCapabilitiesStep
-                  name={String(name)}
-                  specialization={specialization}
-                  specializations={specializations}
-                  skills={skills}
-                  mcpServers={mcpServers}
-                  knowledgeSources={knowledgeSources}
-                  customSystemPrompt={customSystemPrompt}
-                  selectedSkillIds={selectedIds(selectedSkills)}
-                  selectedMcpServerIds={selectedIds(selectedMcps)}
-                  selectedKnowledgeSourceIds={selectedIds(selectedKnowledgeSources)}
-                  onNameChange={(value) => form.setFieldValue("name", value)}
-                  onCustomSystemPromptChange={(value) => { setCustomSystemPrompt(value); setSystemPrompt(value); }}
-                  onSpecializationChange={requestSpecializationChange}
-                  onSystemPromptChange={setSystemPrompt}
-                  systemPrompt={currentSystemPrompt}
-                  onSkillIdsChange={(ids) => { setSelectedSkills(updateCapabilitySelection(selectedSkills, ids)); setSkillsTouched(true); }}
-                  onMcpServerIdsChange={(ids) => { setSelectedMcps(updateCapabilitySelection(selectedMcps, ids)); setMcpsTouched(true); }}
-                  onKnowledgeSourceIdsChange={(ids) => setSelectedKnowledgeSources(updateCapabilitySelection(selectedKnowledgeSources, ids))}
-                />
-              )}
-            </form.Subscribe>
-          ) : null}
+        <CreateInstanceLayout
+          steps={steps}
+          currentStep={step}
+          onStepChange={setStep}
+        >
+          <form
+            onSubmit={(event) => event.preventDefault()}
+            className="min-w-0 space-y-5"
+          >
+            {step === 0 ? (
+              <form.Subscribe selector={(state) => state.values.name}>
+                {(name) => (
+                  <IdentityCapabilitiesStep
+                    name={String(name)}
+                    specialization={specialization}
+                    specializations={specializations}
+                    skills={skills}
+                    mcpServers={mcpServers}
+                    knowledgeSources={knowledgeSources}
+                    customSystemPrompt={customSystemPrompt}
+                    selectedSkillIds={selectedIds(selectedSkills)}
+                    selectedMcpServerIds={selectedIds(selectedMcps)}
+                    selectedKnowledgeSourceIds={selectedIds(
+                      selectedKnowledgeSources,
+                    )}
+                    onNameChange={(value) => form.setFieldValue("name", value)}
+                    onCustomSystemPromptChange={(value) => {
+                      setCustomSystemPrompt(value);
+                      setSystemPrompt(value);
+                    }}
+                    onSpecializationChange={requestSpecializationChange}
+                    onSystemPromptChange={setSystemPrompt}
+                    systemPrompt={currentSystemPrompt}
+                    onSkillIdsChange={(ids) => {
+                      setSelectedSkills(
+                        updateCapabilitySelection(selectedSkills, ids),
+                      );
+                      setSkillsTouched(true);
+                    }}
+                    onMcpServerIdsChange={(ids) => {
+                      setSelectedMcps(
+                        updateCapabilitySelection(selectedMcps, ids),
+                      );
+                      setMcpsTouched(true);
+                    }}
+                    onKnowledgeSourceIdsChange={(ids) =>
+                      setSelectedKnowledgeSources(
+                        updateCapabilitySelection(
+                          selectedKnowledgeSources,
+                          ids,
+                        ),
+                      )
+                    }
+                  />
+                )}
+              </form.Subscribe>
+            ) : null}
 
-          {step === 1 ? (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Bot className="size-5" /> Identity & Workbench</CardTitle>
-                <CardDescription>Bind the permission identity, Agent workbench, and Runtime access.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-5">
-                <section className="space-y-3" aria-labelledby="acts-as-heading">
-                  <h3 id="acts-as-heading" className="flex items-center gap-2 text-sm font-semibold"><UserRoundCheck className="size-4" /> Acts as</h3>
-                  <div className="grid items-start gap-5 md:grid-cols-2">
-                    <form.Field name="virtualEmployeeId">
-                      {(field) => (
-                        <div className="space-y-2">
-                          <div className="flex min-h-8 items-center justify-between gap-3">
-                            <FieldLabel
-                              label="Virtual Employee"
-                              tip="The business identity this Instance represents. It supplies the Project permission boundary."
-                            />
-                            <Link to="/$projectId/setting" params={{ projectId }} search={{ section: "virtual-employees" }} className="text-xs font-medium underline underline-offset-4">Manage employees</Link>
-                          </div>
-                          <Select value={field.state.value} disabled={virtualEmployees.isPending || Boolean(virtualEmployees.error)} onValueChange={field.handleChange}>
-                            <SelectTrigger className="h-auto min-h-14 w-full" aria-label="Virtual Employee">
-                              <SelectValue placeholder={virtualEmployees.isPending ? "Loading identities…" : "Select an identity"} />
-                            </SelectTrigger>
-                            <SelectContent>{activeVirtualEmployees.map((employee) => <SelectItem key={employee.id} value={employee.id}>{employee.displayName}</SelectItem>)}</SelectContent>
-                          </Select>
-                          {virtualEmployees.error ? <p role="alert" className="text-xs text-destructive">{virtualEmployees.error.message}</p> : !virtualEmployees.isPending && !activeVirtualEmployees.length ? <p role="alert" className="border-l-2 border-amber-500 bg-amber-500/5 px-3 py-2 text-xs"><Link to="/$projectId/setting" params={{ projectId }} search={{ section: "virtual-employees" }} className="font-semibold underline underline-offset-4">Create and activate a Virtual Employee</Link> to continue.</p> : null}
-                        </div>
-                      )}
-                    </form.Field>
-                    <form.Subscribe selector={(state) => state.values.virtualEmployeeId}>
-                      {(virtualEmployeeId) => {
-                        const selected = activeVirtualEmployees.find((item) => item.id === virtualEmployeeId);
-                        const bindings = (accessPolicies.data ?? []).filter((policy) => policy.virtualEmployeeIds.includes(String(virtualEmployeeId)));
+            {step === 1 ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <ShieldCheck className="size-5" /> Access & Workbench
+                  </CardTitle>
+                  <CardDescription>
+                    Select the Instance authorization boundary, Agent
+                    implementation, and OpenShell Runtime Policy.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  <section
+                    className="space-y-3"
+                    aria-labelledby="access-boundary-heading"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <h3
+                        id="access-boundary-heading"
+                        className="flex items-center gap-2 text-sm font-semibold"
+                      >
+                        <ShieldCheck className="size-4" /> Security boundary
+                      </h3>
+                      <Link
+                        to="/$projectId/access-policies"
+                        params={{ projectId }}
+                        className="text-xs font-medium underline underline-offset-4"
+                      >
+                        Manage Access Policies
+                      </Link>
+                    </div>
+                    <form.Field name="accessPolicyIds">
+                      {(field) => {
+                        const selectedIds = field.state.value;
+                        const invalidIds = selectedIds.filter(
+                          (id) =>
+                            !accessPolicies.data?.some(
+                              (policy) =>
+                                policy.id === id && policy.status === "ACTIVE",
+                            ),
+                        );
+                        const missingIds = selectedIds.filter(
+                          (id) =>
+                            !accessPolicies.data?.some(
+                              (policy) => policy.id === id,
+                            ),
+                        );
+                        const activeCount = (accessPolicies.data ?? []).filter(
+                          (policy) => policy.status === "ACTIVE",
+                        ).length;
                         return (
                           <div className="space-y-2">
-                            <div className="flex min-h-8 items-center">
-                              <FieldLabel
-                                label="Access Policies"
-                                tip="Policies inherited from the selected Virtual Employee. They define which Project resources this Instance may use."
-                              />
-                            </div>
-                            <div
-                              aria-live="polite"
-                              className={`flex min-h-14 flex-wrap items-center gap-x-2 gap-y-1 rounded-md border bg-muted/20 px-3 py-2 text-sm ${selected && !bindings.length ? "border-amber-500/40 text-amber-700 dark:text-amber-300" : ""}`}
-                            >
-                              {!selected ? <strong>Choose an identity first</strong> : !bindings.length ? <strong>No policy assigned</strong> : bindings.map((policy) => (
-                                <Link
-                                  key={policy.id}
-                                  to="/$projectId/access-policies/$policyId"
-                                  params={{ projectId, policyId: policy.id }}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex min-h-8 items-center gap-1 rounded-sm font-semibold text-foreground underline decoration-muted-foreground/50 underline-offset-4 transition-colors hover:text-primary hover:decoration-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                            <FieldLabel
+                              htmlFor="instance-access-policies"
+                              label="Access Policies"
+                              tip="One or more active policies define the MCP tools this Instance may invoke. Deny overrides allow when policies overlap."
+                            />
+                            <MultiSelectCombobox
+                              id="instance-access-policies"
+                              ariaLabel="Select Access Policies"
+                              value={selectedIds}
+                              options={accessPolicyOptions}
+                              maxSelected={64}
+                              disabled={
+                                accessPolicies.isPending ||
+                                accessPolicies.isError ||
+                                !activeCount
+                              }
+                              placeholder={
+                                accessPolicies.isPending
+                                  ? "Loading Access Policies…"
+                                  : "Select one or more active policies…"
+                              }
+                              searchPlaceholder="Search Access Policies…"
+                              emptyMessage="No Access Policies match"
+                              onValueChange={field.handleChange}
+                            />
+                            {accessPolicies.isError ? (
+                              <div
+                                className="border-l-2 border-destructive bg-destructive/5 px-3 py-2 text-xs text-destructive"
+                                role="alert"
+                              >
+                                <p>{accessPolicies.error.message}</p>
+                                <Button
+                                  className="mt-2"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => void accessPolicies.refetch()}
                                 >
-                                  {policy.name}
-                                  <ExternalLink className="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
-                                  <span className="sr-only"> Opens in a new tab</span>
-                                </Link>
-                              ))}
-                            </div>
+                                  Try again
+                                </Button>
+                              </div>
+                            ) : !accessPolicies.isPending &&
+                              !accessPolicies.data?.length ? (
+                              <p className="border-l-2 border-amber-500 bg-amber-500/5 px-3 py-2 text-xs">
+                                <Link
+                                  to="/$projectId/access-policies"
+                                  params={{ projectId }}
+                                  className="font-semibold underline underline-offset-4"
+                                >
+                                  Create an Access Policy
+                                </Link>{" "}
+                                to continue.
+                              </p>
+                            ) : !accessPolicies.isPending && !activeCount ? (
+                              <p className="border-l-2 border-amber-500 bg-amber-500/5 px-3 py-2 text-xs">
+                                <Link
+                                  to="/$projectId/access-policies"
+                                  params={{ projectId }}
+                                  className="font-semibold underline underline-offset-4"
+                                >
+                                  Activate an Access Policy
+                                </Link>{" "}
+                                to continue. Draft policies are not enforced.
+                              </p>
+                            ) : invalidIds.length ? (
+                              <div
+                                className="border-l-2 border-destructive bg-destructive/5 px-3 py-2 text-xs text-destructive"
+                                role="alert"
+                              >
+                                <p>
+                                  A selected policy is missing or no longer
+                                  active. Remove it or choose an active
+                                  replacement.
+                                </p>
+                                {missingIds.length ? (
+                                  <Button
+                                    type="button"
+                                    className="mt-2"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() =>
+                                      field.handleChange(
+                                        selectedIds.filter(
+                                          (id) => !missingIds.includes(id),
+                                        ),
+                                      )
+                                    }
+                                  >
+                                    Remove unavailable references (
+                                    {missingIds.length})
+                                  </Button>
+                                ) : null}
+                              </div>
+                            ) : !selectedIds.length ? (
+                              <p className="text-xs text-muted-foreground">
+                                At least one active Access Policy is required.
+                              </p>
+                            ) : selectedIds.length >= 64 ? (
+                              <p className="border-l-2 border-amber-500 bg-amber-500/5 px-3 py-2 text-xs">
+                                Maximum of 64 Access Policies reached. Remove one
+                                before selecting another.
+                              </p>
+                            ) : (
+                              <p className="text-xs text-muted-foreground">
+                                {selectedIds.length} selected · conflicting
+                                rules resolve to deny.
+                              </p>
+                            )}
                           </div>
                         );
                       }}
+                    </form.Field>
+                  </section>
+
+                  <Separator />
+
+                  <section
+                    className="space-y-3"
+                    aria-labelledby="works-on-heading"
+                  >
+                    <h3
+                      id="works-on-heading"
+                      className="flex items-center gap-2 text-sm font-semibold"
+                    >
+                      <Bot className="size-4" /> Execution
+                    </h3>
+                    <div className="grid items-start gap-5 lg:grid-cols-3">
+                      <form.Field name="agentPlatform">
+                        {(field) => (
+                          <div className="space-y-2">
+                            <div className="flex min-h-8 items-center">
+                              <FieldLabel
+                                htmlFor="instance-agent"
+                                label="Agent workbench"
+                                tip="The Agent implementation that performs this work."
+                              />
+                            </div>
+                            <AgentSelect
+                              id="instance-agent"
+                              value={field.state.value}
+                              onValueChange={field.handleChange}
+                            />
+                          </div>
+                        )}
+                      </form.Field>
+                      <form.Field name="policyId">
+                        {(field) => (
+                          <div className="space-y-2">
+                            <div className="flex min-h-8 items-center justify-between gap-3">
+                              <FieldLabel
+                                label="Runtime Policy"
+                                tip="Controls the files, commands, and network resources the Agent can access while it runs."
+                              />
+                            </div>
+                            <Select
+                              value={field.state.value}
+                              disabled={
+                                policies.isPending || Boolean(policies.error)
+                              }
+                              onValueChange={field.handleChange}
+                            >
+                              <SelectTrigger
+                                aria-label="Runtime Policy"
+                                className="h-auto min-h-14 w-full"
+                              >
+                                <SelectValue
+                                  placeholder={
+                                    policies.isPending
+                                      ? "Loading permissions…"
+                                      : "Select a permission"
+                                  }
+                                />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {policies.data?.policies.map((policy) => (
+                                  <SelectItem key={policy.id} value={policy.id}>
+                                    {policy.name} · {policy.networkAccess}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {policies.error ? (
+                              <p
+                                role="alert"
+                                className="text-xs text-destructive"
+                              >
+                                {policies.error.message}
+                              </p>
+                            ) : null}
+                          </div>
+                        )}
+                      </form.Field>
+                      <div className="space-y-2">
+                        <div className="flex min-h-8 items-center justify-between gap-3">
+                          <FieldLabel
+                            label="Default Model Profile"
+                            tip="The Project default READY Model Profile supplies model routing and an isolated LiteLLM key for this Instance."
+                          />
+                          <Link
+                            to="/$projectId/setting"
+                            params={{ projectId }}
+                            search={{ section: "model-profiles" }}
+                            className="text-xs font-medium underline underline-offset-4"
+                          >
+                            Manage models
+                          </Link>
+                        </div>
+                        <div
+                          className="flex min-h-14 items-center rounded-md border bg-muted/20 px-3 py-2 text-sm"
+                          aria-live="polite"
+                        >
+                          {modelProfiles.isPending ? (
+                            <span className="text-muted-foreground">
+                              Loading default Model Profile…
+                            </span>
+                          ) : modelProfiles.isError ? (
+                            <span className="text-destructive">
+                              Model Profiles unavailable
+                            </span>
+                          ) : defaultModelProfiles.length > 1 ? (
+                            <span className="text-destructive">
+                              Multiple default Model Profiles
+                            </span>
+                          ) : readyDefaultModelProfile ? (
+                            <span>
+                              <strong className="block">
+                                {readyDefaultModelProfile.name}
+                              </strong>
+                              <span className="mt-0.5 block text-xs text-muted-foreground">
+                                {readyDefaultModelProfile.publicModelAlias} ·
+                                READY
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="text-amber-700 dark:text-amber-300">
+                              {defaultModelProfiles.length > 1
+                                ? "Choose exactly one Project default Model Profile"
+                                : defaultModelProfile
+                                  ? `${defaultModelProfile.name} is ${defaultModelProfile.status.replaceAll("_", " ")}`
+                                  : "No default Model Profile"}
+                            </span>
+                          )}
+                        </div>
+                        {modelProfiles.isError ? (
+                          <div
+                            className="text-xs text-destructive"
+                            role="alert"
+                          >
+                            <p>{modelProfiles.error.message}</p>
+                            <Button
+                              className="mt-2"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => void modelProfiles.refetch()}
+                            >
+                              Try again
+                            </Button>
+                          </div>
+                        ) : !modelProfiles.isPending &&
+                          !readyDefaultModelProfile ? (
+                          <p className="border-l-2 border-amber-500 bg-amber-500/5 px-3 py-2 text-xs">
+                            Configure a READY Project default Model Profile
+                            before creating an Instance.
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="flex justify-end">
+                      <Link
+                        to="/$projectId/runtime-policies"
+                        params={{ projectId }}
+                        className="text-xs font-medium underline underline-offset-4"
+                      >
+                        Manage Runtime Policies
+                      </Link>
+                    </div>
+                    <form.Subscribe
+                      selector={(state) => [
+                        state.values.accessPolicyIds,
+                        state.values.agentPlatform,
+                        state.values.policyId,
+                      ]}
+                    >
+                      {([accessPolicyIds, agentPlatform, policyId]) => {
+                        const count = Array.isArray(accessPolicyIds)
+                          ? accessPolicyIds.length
+                          : 0;
+                        return count && policyId ? (
+                          <p className="border-l-2 border-primary bg-primary/5 px-3 py-2.5 text-xs leading-5">
+                            <strong>
+                              {
+                                getAgentPlatformPresentation(
+                                  agentPlatform as AgentPlatformId,
+                                ).name
+                              }
+                            </strong>{" "}
+                            uses{" "}
+                            <strong>
+                              {count} Access{" "}
+                              {count === 1 ? "Policy" : "Policies"}
+                            </strong>{" "}
+                            inside the{" "}
+                            <strong>{policyName(String(policyId))}</strong>{" "}
+                            OpenShell boundary.
+                          </p>
+                        ) : null;
+                      }}
                     </form.Subscribe>
-                  </div>
-                </section>
+                  </section>
+                </CardContent>
+              </Card>
+            ) : null}
 
-                <Separator />
+            {step === 2 ? (
+              <form.Subscribe selector={(state) => state.values}>
+                {(values) => (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Check className="size-5" /> Review & Approve
+                      </CardTitle>
+                      <CardDescription>
+                        Evaluate the complete work definition, access boundary,
+                        workbench, and extensions before provisioning.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      <div className="grid gap-5 sm:grid-cols-2">
+                        <ReviewSection title="Work">
+                          <ReviewRow
+                            label="Instance name"
+                            value={values.name}
+                          />
+                          <ReviewRow
+                            label="Role"
+                            value={specialization.roleLabel}
+                          />
+                          <ReviewRow
+                            label="System instructions"
+                            value={
+                              specialization.id === "custom" ||
+                              currentSystemPrompt !==
+                                specialization.systemPrompt
+                                ? "Customized for this Instance"
+                                : `Role default · ${specialization.roleLabel}`
+                            }
+                          />
+                        </ReviewSection>
+                        <ReviewSection title="Access & Workbench">
+                          <ReviewRow
+                            label="Agent workbench"
+                            value={
+                              getAgentPlatformPresentation(values.agentPlatform)
+                                .name
+                            }
+                          />
+                          <ReviewRow
+                            label="Runtime Policy"
+                            value={policyName(values.policyId)}
+                          />
+                          <ReviewRow
+                            label="Model Profile"
+                            value={
+                              readyDefaultModelProfile?.name ?? "Unavailable"
+                            }
+                          />
+                          <ReviewRow
+                            label="Access Policies"
+                            value={
+                              (accessPolicies.data ?? [])
+                                .filter((policy) =>
+                                  values.accessPolicyIds.includes(policy.id),
+                                )
+                                .map((policy) => policy.name)
+                                .join(", ") || "Unavailable"
+                            }
+                          />
+                        </ReviewSection>
+                      </div>
+                      <Separator />
+                      <div className="grid gap-5 lg:grid-cols-3">
+                        <ReviewSection
+                          title={`Skills (${selectedSkills.length})`}
+                        >
+                          {selectedSkills.length ? (
+                            selectedSkills.map((item) => (
+                              <ReviewPill
+                                key={item.id}
+                                label={capabilityName(
+                                  item.id,
+                                  skills,
+                                  mcpServers,
+                                )}
+                                source={item.source}
+                              />
+                            ))
+                          ) : (
+                            <EmptyReview label="No Skills selected" />
+                          )}
+                        </ReviewSection>
+                        <ReviewSection
+                          title={`MCP Servers (${selectedMcps.length})`}
+                        >
+                          {selectedMcps.length ? (
+                            selectedMcps.map((item) => (
+                              <ReviewPill
+                                key={item.id}
+                                label={capabilityName(
+                                  item.id,
+                                  skills,
+                                  mcpServers,
+                                )}
+                                source={item.source}
+                              />
+                            ))
+                          ) : (
+                            <EmptyReview label="No MCP Servers selected" />
+                          )}
+                        </ReviewSection>
+                        <ReviewSection
+                          title={`Knowledge (${selectedKnowledgeSources.length})`}
+                        >
+                          {selectedKnowledgeSources.length ? (
+                            selectedKnowledgeSources.map((item) => (
+                              <ReviewPill
+                                key={item.id}
+                                label={
+                                  knowledgeSources.find(
+                                    (source) => source.id === item.id,
+                                  )?.name ?? item.id
+                                }
+                                source={item.source}
+                              />
+                            ))
+                          ) : (
+                            <EmptyReview label="No Knowledge selected" />
+                          )}
+                        </ReviewSection>
+                      </div>
+                      <ReviewAssessment
+                        accessPolicyNames={(accessPolicies.data ?? [])
+                          .filter((policy) =>
+                            values.accessPolicyIds.includes(policy.id),
+                          )
+                          .map((policy) => policy.name)}
+                        incompleteMcpNames={incompleteMcps
+                          .map((item) => item?.name)
+                          .filter((name): name is string => Boolean(name))}
+                      />
+                    </CardContent>
+                  </Card>
+                )}
+              </form.Subscribe>
+            ) : null}
 
-                <section className="space-y-3" aria-labelledby="works-on-heading">
-                  <h3 id="works-on-heading" className="flex items-center gap-2 text-sm font-semibold"><Bot className="size-4" /> Works on</h3>
-                  <div className="grid items-start gap-5 md:grid-cols-2">
-                    <form.Field name="agentPlatform">
-                      {(field) => (
-                        <div className="space-y-2">
-                          <div className="flex min-h-8 items-center">
-                            <FieldLabel
-                              htmlFor="instance-agent"
-                              label="Agent workbench"
-                              tip="The Agent implementation that performs this work."
-                            />
-                          </div>
-                          <AgentSelect id="instance-agent" value={field.state.value} onValueChange={field.handleChange} />
-                        </div>
-                      )}
-                    </form.Field>
-                    <form.Field name="policyId">
-                      {(field) => (
-                        <div className="space-y-2">
-                          <div className="flex min-h-8 items-center justify-between gap-3">
-                            <FieldLabel
-                              label="Runtime permission"
-                              tip="Controls the files, commands, and network resources the Agent can access while it runs."
-                            />
-                            <Link to="/$projectId/runtime-policies" params={{ projectId }} className="text-xs font-medium underline underline-offset-4">Manage permissions</Link>
-                          </div>
-                          <Select value={field.state.value} disabled={policies.isPending || Boolean(policies.error)} onValueChange={field.handleChange}>
-                            <SelectTrigger aria-label="Runtime permission" className="h-auto min-h-14 w-full">
-                              <SelectValue placeholder={policies.isPending ? "Loading permissions…" : "Select a permission"} />
-                            </SelectTrigger>
-                            <SelectContent>{policies.data?.policies.map((policy) => <SelectItem key={policy.id} value={policy.id}>{policy.name} · {policy.networkAccess}</SelectItem>)}</SelectContent>
-                          </Select>
-                          {policies.error ? <p role="alert" className="text-xs text-destructive">{policies.error.message}</p> : null}
-                        </div>
-                      )}
-                    </form.Field>
-                  </div>
-                  <form.Subscribe selector={(state) => [state.values.virtualEmployeeId, state.values.agentPlatform, state.values.policyId]}>{([virtualEmployeeId, agentPlatform, policyId]) => { const employee = activeVirtualEmployees.find((item) => item.id === virtualEmployeeId); return employee && policyId ? <p className="border-l-2 border-primary bg-primary/5 px-3 py-2.5 text-xs leading-5"><strong>{getAgentPlatformPresentation(agentPlatform as AgentPlatformId).name}</strong> acts as <strong>{employee.displayName}</strong> with <strong>{policyName(policyId)}</strong> runtime access.</p> : null;}}</form.Subscribe>
-                </section>
-              </CardContent>
-            </Card>
-          ) : null}
-
-          {step === 2 ? (
-            <form.Subscribe selector={(state) => state.values}>
-              {(values) => (
-                <Card>
-                  <CardHeader><CardTitle className="flex items-center gap-2"><Check className="size-5" /> Review & Approve</CardTitle><CardDescription>Evaluate the complete work definition, permission identity, workbench, and extensions before provisioning.</CardDescription></CardHeader>
-                  <CardContent className="space-y-6">
-                    <div className="grid gap-5 sm:grid-cols-2">
-                      <ReviewSection title="Work"><ReviewRow label="Instance name" value={values.name} /><ReviewRow label="Role" value={specialization.roleLabel} /><ReviewRow label="System instructions" value={specialization.id === "custom" || currentSystemPrompt !== specialization.systemPrompt ? "Customized for this Instance" : `Role default · ${specialization.roleLabel}`} /></ReviewSection>
-                      <ReviewSection title="Identity & Workbench"><ReviewRow label="Acts as" value={activeVirtualEmployees.find((item) => item.id === values.virtualEmployeeId)?.displayName ?? "Unavailable"} /><ReviewRow label="Works on" value={getAgentPlatformPresentation(values.agentPlatform).name} /><ReviewRow label="Runtime permission" value={policyName(values.policyId)} /></ReviewSection>
-                    </div>
-                    <Separator />
-                    <div className="grid gap-5 lg:grid-cols-3">
-                      <ReviewSection title={`Skills (${selectedSkills.length})`}>{selectedSkills.length ? selectedSkills.map((item) => <ReviewPill key={item.id} label={capabilityName(item.id, skills, mcpServers)} source={item.source} />) : <EmptyReview label="No Skills selected" />}</ReviewSection>
-                      <ReviewSection title={`MCP Servers (${selectedMcps.length})`}>{selectedMcps.length ? selectedMcps.map((item) => <ReviewPill key={item.id} label={capabilityName(item.id, skills, mcpServers)} source={item.source} />) : <EmptyReview label="No MCP Servers selected" />}</ReviewSection>
-                      <ReviewSection title={`Knowledge (${selectedKnowledgeSources.length})`}>{selectedKnowledgeSources.length ? selectedKnowledgeSources.map((item) => <ReviewPill key={item.id} label={knowledgeSources.find((source) => source.id === item.id)?.name ?? item.id} source={item.source} />) : <EmptyReview label="No Knowledge selected" />}</ReviewSection>
-                    </div>
-                    <ReviewAssessment
-                      accessPolicyNames={(accessPolicies.data ?? []).filter((policy) => policy.virtualEmployeeIds.includes(String(values.virtualEmployeeId))).map((policy) => policy.name)}
-                      incompleteMcpNames={incompleteMcps.map((item) => item?.name).filter((name): name is string => Boolean(name))}
-                    />
-                  </CardContent>
-                </Card>
-              )}
-            </form.Subscribe>
-          ) : null}
-
-          {mutation.error ? <p role="alert" className="border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{mutation.error.message}</p> : null}
-        </form>
-      </CreateInstanceLayout>
-    </EntitySheet>
-      {pendingSpecialization ? <ChangeSpecializationDialog open add={pendingChange.add} keep={pendingChange.keep} remove={pendingChange.remove} fromName={specialization.name} toName={pendingSpecialization.name} onCancel={() => setPendingSpecializationId(null)} onConfirm={() => applySpecialization(pendingSpecialization.id)} /> : null}
+            {mutation.error ? (
+              <p
+                role="alert"
+                className="border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+              >
+                {mutation.error.message}
+              </p>
+            ) : null}
+          </form>
+        </CreateInstanceLayout>
+      </EntitySheet>
+      {pendingSpecialization ? (
+        <ChangeSpecializationDialog
+          open
+          add={pendingChange.add}
+          keep={pendingChange.keep}
+          remove={pendingChange.remove}
+          fromName={specialization.name}
+          toName={pendingSpecialization.name}
+          onCancel={() => setPendingSpecializationId(null)}
+          onConfirm={() => applySpecialization(pendingSpecialization.id)}
+        />
+      ) : null}
     </>
   );
 }
 
-function ReviewSection({ children, title }: { children: ReactNode; title: string }) {
-  return <section><h3 className="mb-3 text-sm font-semibold">{title}</h3><div className="space-y-2">{children}</div></section>;
+function ReviewSection({
+  children,
+  title,
+}: {
+  children: ReactNode;
+  title: string;
+}) {
+  return (
+    <section>
+      <h3 className="mb-3 text-sm font-semibold">{title}</h3>
+      <div className="space-y-2">{children}</div>
+    </section>
+  );
 }
 
 function ReviewRow({ label, value }: { label: string; value: string }) {
-  return <div className="flex items-start justify-between gap-4 text-xs"><span className="text-muted-foreground">{label}</span><strong className="max-w-[70%] break-words text-right">{value}</strong></div>;
+  return (
+    <div className="flex items-start justify-between gap-4 text-xs">
+      <span className="text-muted-foreground">{label}</span>
+      <strong className="max-w-[70%] break-words text-right">{value}</strong>
+    </div>
+  );
 }
 
-function ReviewPill({ label, source }: { label: string; source: SelectedCapability["source"] }) {
-  return <span className="mb-1.5 mr-1.5 inline-flex min-h-8 items-center gap-2 rounded-sm border bg-muted/40 px-2.5 text-xs font-medium">{label}<span className="text-[10px] font-normal text-muted-foreground">{source === "specialization" ? "Role default" : "Added"}</span></span>;
+function ReviewPill({
+  label,
+  source,
+}: {
+  label: string;
+  source: SelectedCapability["source"];
+}) {
+  return (
+    <span className="mb-1.5 mr-1.5 inline-flex min-h-8 items-center gap-2 rounded-sm border bg-muted/40 px-2.5 text-xs font-medium">
+      {label}
+      <span className="text-[10px] font-normal text-muted-foreground">
+        {source === "specialization" ? "Role default" : "Added"}
+      </span>
+    </span>
+  );
 }
 
 function EmptyReview({ label }: { label: string }) {
@@ -412,7 +1115,13 @@ function FieldLabel({
             <CircleHelp className="size-3.5" />
           </button>
         </TooltipTrigger>
-        <TooltipContent side="top" sideOffset={6} className="max-w-72 leading-5">{tip}</TooltipContent>
+        <TooltipContent
+          side="top"
+          sideOffset={6}
+          className="max-w-72 leading-5"
+        >
+          {tip}
+        </TooltipContent>
       </Tooltip>
     </div>
   );
@@ -426,19 +1135,61 @@ function ReviewAssessment({
   incompleteMcpNames: readonly string[];
 }) {
   const warnings = [
-    ...(!accessPolicyNames.length ? ["The selected Virtual Employee has no Access Policy binding."] : []),
-    ...(incompleteMcpNames.length ? [`Complete the connection or access request for ${incompleteMcpNames.join(", ")} before relying on those tools.`] : []),
+    ...(!accessPolicyNames.length
+      ? [
+          "Select at least one active Access Policy before creating this Instance.",
+        ]
+      : []),
+    ...(incompleteMcpNames.length
+      ? [
+          `Complete the connection or access request for ${incompleteMcpNames.join(", ")} before relying on those tools.`,
+        ]
+      : []),
   ];
 
   return (
-    <section aria-labelledby="creation-assessment-heading" className={warnings.length ? "border border-amber-500/30 bg-amber-500/5 p-4" : "border border-emerald-500/30 bg-emerald-500/5 p-4"}>
+    <section
+      aria-labelledby="creation-assessment-heading"
+      className={
+        warnings.length
+          ? "border border-amber-500/30 bg-amber-500/5 p-4"
+          : "border border-emerald-500/30 bg-emerald-500/5 p-4"
+      }
+    >
       <div className="flex items-start gap-3">
-        {warnings.length ? <CircleAlert className="mt-0.5 size-5 shrink-0 text-amber-700 dark:text-amber-300" /> : <ShieldCheck className="mt-0.5 size-5 shrink-0 text-emerald-700 dark:text-emerald-300" />}
+        {warnings.length ? (
+          <CircleAlert className="mt-0.5 size-5 shrink-0 text-amber-700 dark:text-amber-300" />
+        ) : (
+          <ShieldCheck className="mt-0.5 size-5 shrink-0 text-emerald-700 dark:text-emerald-300" />
+        )}
         <div className="min-w-0">
-          <h3 id="creation-assessment-heading" className="text-sm font-semibold">{warnings.length ? "Ready with attention required" : "Ready to create"}</h3>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">Work definition, permission identity, Agent workbench, and Runtime permission are complete.</p>
-          {accessPolicyNames.length ? <p className="mt-2 text-xs leading-5"><span className="text-muted-foreground">Effective Access Policies:</span> <strong>{accessPolicyNames.join(", ")}</strong></p> : null}
-          {warnings.length ? <ul className="mt-2 space-y-1 text-xs leading-5">{warnings.map((warning) => <li key={warning}>• {warning}</li>)}</ul> : null}
+          <h3
+            id="creation-assessment-heading"
+            className="text-sm font-semibold"
+          >
+            {warnings.length
+              ? "Ready with attention required"
+              : "Ready to create"}
+          </h3>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            Work definition, Access Policies, Agent workbench, Model Profile,
+            and Runtime Policy are complete.
+          </p>
+          {accessPolicyNames.length ? (
+            <p className="mt-2 text-xs leading-5">
+              <span className="text-muted-foreground">
+                Effective Access Policies:
+              </span>{" "}
+              <strong>{accessPolicyNames.join(", ")}</strong>
+            </p>
+          ) : null}
+          {warnings.length ? (
+            <ul className="mt-2 space-y-1 text-xs leading-5">
+              {warnings.map((warning) => (
+                <li key={warning}>• {warning}</li>
+              ))}
+            </ul>
+          ) : null}
         </div>
       </div>
     </section>

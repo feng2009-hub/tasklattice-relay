@@ -4,7 +4,7 @@ import type {
   CreateAgentGardenEntryInput,
 } from "@tasklattice/contracts";
 import { createTestStore } from "../test/store";
-import type { SecretStore } from "../virtual-employees/secret-store";
+import type { SecretStore } from "../secrets/secret-store";
 import type { AgentDiscoveryClient } from "./agent-discovery";
 import { AgentGardenService } from "./agent-garden-service";
 import { AgentGardenStore } from "./agent-garden-store";
@@ -12,7 +12,7 @@ import { AgentGardenStore } from "./agent-garden-store";
 function coordinator(id = "coordinator-a"): Agent {
   const now = new Date().toISOString();
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     id,
     name: "Hermes Coordinator",
     description: "",
@@ -24,7 +24,7 @@ function coordinator(id = "coordinator-a"): Agent {
     model: "production-chat",
     modelType: "llm",
     inferenceMode: "PLATFORM_MANAGED",
-    virtualEmployeeId: "11111111-1111-4111-8111-111111111111",
+    accessPolicyIds: ["11111111-1111-4111-8111-111111111111"],
     modelProfileId: "profile-a",
     modelProfileBindingId: "binding-a",
     modelProfileStatus: "READY",
@@ -73,10 +73,7 @@ describe("AgentGardenService", () => {
   it("keeps interactive runtimes out of the delegatable Agent set", async () => {
     const projectStore = createTestStore();
     const service = new AgentGardenService(
-      new AgentGardenStore(
-        projectStore.projectId,
-        projectStore.database(),
-      ),
+      new AgentGardenStore(projectStore.projectId, projectStore.database()),
       projectStore,
     );
 
@@ -99,14 +96,10 @@ describe("AgentGardenService", () => {
       usageCapabilities: { acceptsDelegation: false },
     });
     expect(
-      snapshot.agents.filter(
-        (agent) => agent.integrationType === "a2a",
-      ),
+      snapshot.agents.filter((agent) => agent.integrationType === "a2a"),
     ).toHaveLength(15);
     expect(
-      snapshot.agents.filter(
-        (agent) => agent.integrationType === "langgraph",
-      ),
+      snapshot.agents.filter((agent) => agent.integrationType === "langgraph"),
     ).toHaveLength(1);
     expect(
       snapshot.agents.some(
@@ -115,8 +108,7 @@ describe("AgentGardenService", () => {
     ).toBe(false);
     expect(
       snapshot.agents.filter(
-        (agent) =>
-          agent.configuration.catalogKind === "EXAMPLE_BLUEPRINT",
+        (agent) => agent.configuration.catalogKind === "EXAMPLE_BLUEPRINT",
       ),
     ).toHaveLength(12);
     await expect(
@@ -135,10 +127,7 @@ describe("AgentGardenService", () => {
     const projectStore = createTestStore();
     await projectStore.save(coordinator());
     const service = new AgentGardenService(
-      new AgentGardenStore(
-        projectStore.projectId,
-        projectStore.database(),
-      ),
+      new AgentGardenStore(projectStore.projectId, projectStore.database()),
       projectStore,
     );
 
@@ -148,29 +137,22 @@ describe("AgentGardenService", () => {
       allowedSkillIds: ["daily-repository-triage"],
       approvalMode: "AUTO_READ_ONLY",
     });
-    expect(connection.connectedAgentId).toBe(
-      "a2a-github-daily-triage",
-    );
+    expect(connection.connectedAgentId).toBe("a2a-github-daily-triage");
 
     const snapshot = await service.snapshot();
     expect(
-      snapshot.agents.filter(
-        (agent) => agent.id === "a2a-github-daily-triage",
-      ),
+      snapshot.agents.filter((agent) => agent.id === "a2a-github-daily-triage"),
     ).toHaveLength(1);
-    await expect(
-      service.remove("a2a-github-daily-triage"),
-    ).rejects.toThrow("managed by TaskLattice");
+    await expect(service.remove("a2a-github-daily-triage")).rejects.toThrow(
+      "managed by TaskLattice",
+    );
   });
 
   it("connects a database-seeded example blueprint", async () => {
     const projectStore = createTestStore();
     await projectStore.save(coordinator());
     const service = new AgentGardenService(
-      new AgentGardenStore(
-        projectStore.projectId,
-        projectStore.database(),
-      ),
+      new AgentGardenStore(projectStore.projectId, projectStore.database()),
       projectStore,
     );
 
@@ -201,8 +183,7 @@ describe("AgentGardenService", () => {
     const discovery: AgentDiscoveryClient = {
       discover: vi.fn(async (agent) => ({
         endpoint: agent.endpoint!,
-        agentCardUrl:
-          "https://agents.example.com/.well-known/agent-card.json",
+        agentCardUrl: "https://agents.example.com/.well-known/agent-card.json",
         skills: [
           {
             id: "daily-repository-triage",
@@ -219,10 +200,7 @@ describe("AgentGardenService", () => {
       delete: vi.fn(async () => undefined),
     };
     const service = new AgentGardenService(
-      new AgentGardenStore(
-        projectStore.projectId,
-        projectStore.database(),
-      ),
+      new AgentGardenStore(projectStore.projectId, projectStore.database()),
       projectStore,
       discovery,
       secrets,
@@ -268,10 +246,7 @@ describe("AgentGardenService", () => {
       })),
     };
     const service = new AgentGardenService(
-      new AgentGardenStore(
-        projectStore.projectId,
-        projectStore.database(),
-      ),
+      new AgentGardenStore(projectStore.projectId, projectStore.database()),
       projectStore,
       discovery,
     );

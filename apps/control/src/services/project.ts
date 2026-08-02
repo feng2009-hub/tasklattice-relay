@@ -6,7 +6,6 @@ import type {
 import type {
   HumanProjectMember,
   Project,
-  ProjectMember,
   ProjectRole,
 } from "@/types/project";
 
@@ -33,8 +32,8 @@ export async function getProjects(): Promise<Project[]> {
   return projectRequest<Project[]>("/api/v1/projects");
 }
 
-export async function getProjectMembers(projectId: string): Promise<ProjectMember[]> {
-  return projectRequest<ProjectMember[]>(
+export async function getProjectMembers(projectId: string): Promise<HumanProjectMember[]> {
+  return projectRequest<HumanProjectMember[]>(
     `/api/v1/projects/${encodeURIComponent(projectId)}/members`,
   );
 }

@@ -1,5 +1,4 @@
 import { createHash, randomUUID } from "node:crypto";
-import type { VirtualEmployeeStatus } from "@tasklattice/contracts";
 import type { AuthPayload, AuthUser } from "../auth/auth";
 import { requireAuth } from "../auth/auth";
 import { getControlConfig } from "../config/control-config";
@@ -30,19 +29,7 @@ export interface HumanProjectMemberView {
   status: "active" | "invited";
 }
 
-export interface VirtualProjectMemberView {
-  id: string;
-  kind: "virtual";
-  name: string;
-  businessRole?: string;
-  environment: string;
-  role: "virtual_employee";
-  status: VirtualEmployeeStatus;
-}
-
-export type ProjectMemberView =
-  | HumanProjectMemberView
-  | VirtualProjectMemberView;
+export type ProjectMemberView = HumanProjectMemberView;
 
 export interface InitialProjectInvitation {
   email: string;
@@ -159,7 +146,7 @@ export class ProjectService {
         project: {
           include: {
             _count: {
-              select: { humanMembers: true, virtualEmployees: true },
+              select: { humanMembers: true },
             },
           },
         },
@@ -171,8 +158,7 @@ export class ProjectService {
       name: project.name,
       type: project.type as ProjectType,
       ...(project.avatar ? { avatar: project.avatar } : {}),
-      memberCount:
-        project._count.humanMembers + project._count.virtualEmployees,
+      memberCount: project._count.humanMembers,
       role: role as ProjectRole,
     }));
   }
@@ -357,7 +343,7 @@ export class ProjectService {
 
   async members(projectId: string, currentUserId: string): Promise<ProjectMemberView[]> {
     await this.requireRole(projectId, currentUserId, ["admin", "member"]);
-    const [members, invitations, virtualEmployees] = await Promise.all([
+    const [members, invitations] = await Promise.all([
       this.db.projectMember.findMany({
         where: { projectId },
         include: { user: true },
@@ -366,17 +352,6 @@ export class ProjectService {
       this.db.projectInvitation.findMany({
         where: { projectId, status: "pending" },
         orderBy: { createdAt: "asc" },
-      }),
-      this.db.virtualEmployeeRecord.findMany({
-        where: { projectId },
-        orderBy: { createdAt: "asc" },
-        select: {
-          businessRole: true,
-          displayName: true,
-          environment: true,
-          id: true,
-          status: true,
-        },
       }),
     ]);
     return [
@@ -395,17 +370,6 @@ export class ProjectService {
         email: invite.email,
         role: invite.role as ProjectRole,
         status: "invited" as const,
-      })),
-      ...virtualEmployees.map((employee) => ({
-        id: employee.id,
-        kind: "virtual" as const,
-        name: employee.displayName,
-        ...(employee.businessRole
-          ? { businessRole: employee.businessRole }
-          : {}),
-        environment: employee.environment,
-        role: "virtual_employee" as const,
-        status: employee.status as VirtualEmployeeStatus,
       })),
     ];
   }

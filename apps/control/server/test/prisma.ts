@@ -18,6 +18,7 @@ import vendorSkillArtifactsMigration from "../../prisma/migrations/2026072623000
 import auditLogQueryAndTraceMigration from "../../prisma/migrations/20260727090000_audit_log_query_and_trace/migration.sql?raw";
 import auditFixtureTraceCorrelationMigration from "../../prisma/migrations/20260727091000_audit_fixture_trace_correlation/migration.sql?raw";
 import realAuditCaptureMigration from "../../prisma/migrations/20260727100000_real_audit_capture_and_project_soft_delete/migration.sql?raw";
+import instanceAccessPolicyBindingsMigration from "../../prisma/migrations/20260802000000_instance_access_policy_bindings/migration.sql?raw";
 import { developmentResourceCatalog } from "../catalog/development-resource-catalog";
 import { PrismaClient } from "../generated/prisma/client";
 
@@ -60,6 +61,26 @@ export function createTestPrisma(): PrismaClient {
   memory.public.none(auditLogQueryAndTraceMigration);
   memory.public.none(auditFixtureTraceCorrelationMigration);
   memory.public.none(realAuditCaptureMigration);
+  const instancePolicyTable = instanceAccessPolicyBindingsMigration.match(
+    /CREATE TABLE tasklattice\.agent_instance_access_policy_bindings[\s\S]*?\n\);/,
+  )?.[0];
+  const instancePolicyIndex = instanceAccessPolicyBindingsMigration.match(
+    /CREATE INDEX instance_access_policy_policy_idx[\s\S]*?;/,
+  )?.[0];
+  const removedVirtualEmployeeTables = [
+    ...instanceAccessPolicyBindingsMigration.matchAll(
+      /^DROP TABLE tasklattice\.(?:virtual_employee_audit|agent_instance_virtual_employee_bindings|access_scope_bindings|identity_bindings|virtual_employee_model_access|virtual_employees);$/gm,
+    ),
+  ].map(([statement]) => statement);
+  if (!instancePolicyTable || !instancePolicyIndex || removedVirtualEmployeeTables.length !== 6) {
+    throw new Error("Instance Access Policy migration structure is incomplete.");
+  }
+  // pg-mem does not implement the PostgreSQL JSONB lateral expansion and DO
+  // blocks used by the production backfill. The test seed has no Instances or
+  // Access Policies, so applying the equivalent structural migration is exact.
+  memory.public.none(
+    [instancePolicyTable, instancePolicyIndex, ...removedVirtualEmployeeTables].join("\n"),
+  );
   for (const skill of developmentResourceCatalog.skills) {
     const payload = JSON.stringify(skill).replaceAll("'", "''");
     memory.public.none(

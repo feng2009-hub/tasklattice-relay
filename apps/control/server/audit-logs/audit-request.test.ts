@@ -118,6 +118,6 @@ describe("platform audit request capture", () => {
     }
 
     expect(uncovered).toEqual([]);
-    expect(routeFiles).toHaveLength(56);
+    expect(routeFiles).toHaveLength(42);
   });
 });

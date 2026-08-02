@@ -155,11 +155,11 @@ clients. Use them only on a trusted local cluster.
 ## End-to-end runtime validation
 
 After registering a Provider, creating a ready default Model Profile, and
-creating an Active Virtual Employee, validate the runtime flow through the
+activating at least one Access Policy, validate the runtime flow through the
 Control console:
 
-1. Create an Instance with the Active Virtual Employee and confirm it reaches
-   `READY`.
+1. Create an Instance with one or more Active Access Policies and confirm it
+   reaches `READY`.
 2. OpenShell publishes the Agent UI and its routed endpoint returns HTTP 200.
 3. The terminal connects to the same-name Sandbox Pod.
 4. `/etc/hostname` matches the Instance `sandboxName`.
@@ -168,8 +168,8 @@ Control console:
 7. Deleting the Instance removes its API resource, HTTP endpoint, and runtime.
 
 The legacy `npm run validate:core` helper has not yet been migrated to the
-Project-scoped APIs and Virtual Employee creation contract. Do not use it as a
-release gate until that migration is complete.
+current Project-scoped Instance and Access Policy contracts. Do not use it as
+a release gate until that migration is complete.
 
 Useful runtime inspection commands:
 

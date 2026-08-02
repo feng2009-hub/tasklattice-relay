@@ -15,7 +15,6 @@ export interface CreateSandboxInput {
   policyYaml: string;
   systemPrompt: string;
   apiKey?: string;
-  virtualEmployeeId: string;
   instanceId: string;
 }
 

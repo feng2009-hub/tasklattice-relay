@@ -3,7 +3,7 @@ import { ProjectStore } from "../projects/project-store";
 import {
   createSecretStore,
   type SecretStore,
-} from "../virtual-employees/secret-store";
+} from "../secrets/secret-store";
 
 const searchRequestSchema = z.object({
   query: z.union([z.string().trim().min(1), z.array(z.string().trim().min(1)).min(1)]),

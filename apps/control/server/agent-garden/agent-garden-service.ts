@@ -14,7 +14,7 @@ import { ProjectStore } from "../projects/project-store";
 import {
   createSecretStore,
   type SecretStore,
-} from "../virtual-employees/secret-store";
+} from "../secrets/secret-store";
 import {
   HttpAgentDiscoveryClient,
   type AgentDiscoveryClient,

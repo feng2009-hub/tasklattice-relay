@@ -1,17 +1,19 @@
-import { describe, expect, it, vi } from "vitest";
 import {
   createAccessPolicySchema,
   updateAccessPolicySchema,
   type AccessPolicy,
   type McpServerDefinition,
 } from "@tasklattice/contracts";
+import { describe, expect, it, vi } from "vitest";
 
 import type { LiteLLMAdminClient } from "../providers/litellm-client";
 import { createTestStore } from "../test/store";
-import { AccessPolicyService, effectiveInstanceObjectPermissions } from "./access-policy-service";
+import {
+  AccessPolicyService,
+  effectiveInstanceObjectPermissions,
+} from "./access-policy-service";
 import { AccessPolicyStore } from "./access-policy-store";
 
-const employeeId = "11111111-1111-4111-8111-111111111111";
 const discoveredAt = "2026-07-25T00:00:00.000Z";
 const server: McpServerDefinition = {
   id: "documents",
@@ -41,17 +43,18 @@ const server: McpServerDefinition = {
   lastDiscoveryError: null,
 };
 
-function policy(overrides: Partial<AccessPolicy>): AccessPolicy {
+function policy(overrides: Partial<AccessPolicy> = {}): AccessPolicy {
   return {
     id: "policy-a",
     name: "Document access",
     status: "ACTIVE",
-    virtualEmployeeIds: [employeeId],
-    serverRules: [{
-      mcpServerId: server.id,
-      defaultDecision: "DENY",
-      tools: [{ toolName: "search", decision: "ALLOW" }],
-    }],
+    serverRules: [
+      {
+        mcpServerId: server.id,
+        defaultDecision: "DENY",
+        tools: [{ toolName: "search", decision: "ALLOW" }],
+      },
+    ],
     revision: 1,
     createdBy: "Test Admin",
     createdAt: discoveredAt,
@@ -73,37 +76,88 @@ function adapter(): LiteLLMAdminClient {
   };
 }
 
+async function saveInstance(
+  projects: ReturnType<typeof createTestStore>,
+  accessPolicyId: string,
+): Promise<void> {
+  await projects.database().agentRecord.create({
+    data: {
+      projectId: projects.projectId,
+      id: "instance-a",
+      createdAt: discoveredAt,
+      payload: {
+        schemaVersion: 2,
+        id: "instance-a",
+        name: "Research Instance",
+        sandboxName: "tali-research",
+        model: "production-chat",
+        systemPrompt: "Research approved documents and report the evidence.",
+        createdAt: discoveredAt,
+        updatedAt: discoveredAt,
+        logs: [],
+        inferenceMode: "PLATFORM_MANAGED",
+        modelProfileId: "profile-a",
+        modelProfileBindingId: "binding-a",
+        modelProfileKeyFingerprint: "token:instance-a",
+        modelProfileCapabilities: {
+          automaticRouting: "ENABLED",
+          routerType: "COMPLEXITY_ROUTER",
+          sessionAffinity: "ENABLED",
+          adaptiveRouting: "DISABLED",
+          failover: "ENABLED",
+          generalFallback: "ENABLED",
+          contextWindowFallback: "DISABLED",
+          contentPolicyFallback: "DISABLED",
+          retries: "ENABLED",
+          requestAudit: "ENABLED",
+        },
+        modelProfileComplianceDomain: "GLOBAL",
+        modelProfileStatus: "READY",
+        mcpServerIds: [server.id],
+        knowledgeSourceIds: [],
+        liteLLMTokenId: "instance-token-a",
+      },
+    },
+  });
+  await projects.replaceAgentAccessPolicies("instance-a", [accessPolicyId]);
+}
+
 describe("Access Policy enforcement", () => {
   it("accepts permission rules without policy description metadata", () => {
-    expect(createAccessPolicySchema.parse({
-      name: "Research read-only",
-      serverRules: [{
-        mcpServerId: server.id,
-        defaultDecision: "DENY",
-        tools: [{ toolName: "search", decision: "ALLOW" }],
-      }],
-    })).toEqual({
+    expect(
+      createAccessPolicySchema.parse({
+        name: "Research read-only",
+        serverRules: [
+          {
+            mcpServerId: server.id,
+            defaultDecision: "DENY",
+            tools: [{ toolName: "search", decision: "ALLOW" }],
+          },
+        ],
+      }),
+    ).toEqual({
       name: "Research read-only",
       status: "DRAFT",
-      virtualEmployeeIds: [],
-      serverRules: [{
-        mcpServerId: server.id,
-        defaultDecision: "DENY",
-        tools: [{ toolName: "search", decision: "ALLOW" }],
-      }],
+      serverRules: [
+        {
+          mcpServerId: server.id,
+          defaultDecision: "DENY",
+          tools: [{ toolName: "search", decision: "ALLOW" }],
+        },
+      ],
     });
   });
 
   it("accepts an empty deny-all permission baseline", () => {
-    expect(createAccessPolicySchema.parse({
+    expect(
+      createAccessPolicySchema.parse({
+        name: "No MCP access",
+        status: "ACTIVE",
+        serverRules: [],
+      }),
+    ).toEqual({
       name: "No MCP access",
       status: "ACTIVE",
-      virtualEmployeeIds: [employeeId],
-      serverRules: [],
-    })).toEqual({
-      name: "No MCP access",
-      status: "ACTIVE",
-      virtualEmployeeIds: [employeeId],
       serverRules: [],
     });
   });
@@ -114,27 +168,31 @@ describe("Access Policy enforcement", () => {
     });
   });
 
-  it("denies by default and gives deny precedence across active policies", () => {
+  it("denies by default and gives deny precedence across selected active policies", () => {
     const permissions = effectiveInstanceObjectPermissions(
-      employeeId,
+      ["policy-a", "policy-b"],
       [server],
       [],
       [
         policy({
-          serverRules: [{
-            mcpServerId: server.id,
-            defaultDecision: "ALLOW",
-            tools: [{ toolName: "search", decision: "ALLOW" }],
-          }],
+          serverRules: [
+            {
+              mcpServerId: server.id,
+              defaultDecision: "ALLOW",
+              tools: [{ toolName: "search", decision: "ALLOW" }],
+            },
+          ],
         }),
         policy({
           id: "policy-b",
           name: "Emergency restriction",
-          serverRules: [{
-            mcpServerId: server.id,
-            defaultDecision: "ALLOW",
-            tools: [{ toolName: "search", decision: "DENY" }],
-          }],
+          serverRules: [
+            {
+              mcpServerId: server.id,
+              defaultDecision: "ALLOW",
+              tools: [{ toolName: "search", decision: "DENY" }],
+            },
+          ],
         }),
       ],
     );
@@ -147,16 +205,21 @@ describe("Access Policy enforcement", () => {
     });
   });
 
-  it("returns an empty MCP scope when no active policy is bound", () => {
-    expect(effectiveInstanceObjectPermissions(employeeId, [server], [], [
-      policy({ status: "DRAFT" }),
-    ])).toMatchObject({
+  it("returns an empty MCP scope when the selected policy is not active", () => {
+    expect(
+      effectiveInstanceObjectPermissions(
+        ["policy-a"],
+        [server],
+        [],
+        [policy({ status: "DRAFT" })],
+      ),
+    ).toMatchObject({
       mcpServers: [],
       mcpToolPermissions: {},
     });
   });
 
-  it("persists revisions and validates discovered tool references", async () => {
+  it("persists revisions and reconciles every directly bound Instance", async () => {
     const projects = createTestStore();
     await projects.saveMcpServerDefinition(server);
     await projects.saveMcpDiscovery(server.id, {
@@ -165,72 +228,33 @@ describe("Access Policy enforcement", () => {
       discoveredAt,
       tools: server.tools,
     });
-    await projects.database().virtualEmployeeRecord.create({
-      data: {
-        projectId: projects.projectId,
-        id: employeeId,
-        name: "research-worker",
-        displayName: "Research Worker",
-        environment: "production",
-        status: "active",
-        tags: [],
-        createdBy: "Test Admin",
-      },
-    });
     const litellm = adapter();
-    const store = new AccessPolicyStore(projects.projectId, projects.database());
+    const store = new AccessPolicyStore(
+      projects.projectId,
+      projects.database(),
+    );
     const service = new AccessPolicyService(store, projects, litellm);
-    const created = await service.create({
-      name: "Research read-only",
-      status: "DRAFT",
-      virtualEmployeeIds: [employeeId],
-      serverRules: [{
-        mcpServerId: server.id,
-        defaultDecision: "DENY",
-        tools: [{ toolName: "search", decision: "ALLOW" }],
-      }],
-    }, "Test Admin");
-    await projects.database().agentRecord.create({
-      data: {
-        projectId: projects.projectId,
-        id: "instance-a",
-        createdAt: discoveredAt,
-        payload: {
-          schemaVersion: 1,
-          id: "instance-a",
-          name: "Research Instance",
-          sandboxName: "tali-research",
-          model: "production-chat",
-          systemPrompt: "Research approved documents and report the evidence.",
-          createdAt: discoveredAt,
-          updatedAt: discoveredAt,
-          logs: [],
-          inferenceMode: "PLATFORM_MANAGED",
-          modelProfileId: "profile-a",
-          modelProfileBindingId: "binding-a",
-          modelProfileKeyFingerprint: "token:instance-a",
-          modelProfileCapabilities: {
-            automaticRouting: "ENABLED",
-            routerType: "COMPLEXITY_ROUTER",
-            sessionAffinity: "ENABLED",
-            adaptiveRouting: "DISABLED",
-            failover: "ENABLED",
-            generalFallback: "ENABLED",
-            contextWindowFallback: "DISABLED",
-            contentPolicyFallback: "DISABLED",
-            retries: "ENABLED",
-            requestAudit: "ENABLED",
+    const created = await service.create(
+      {
+        name: "Research read-only",
+        status: "DRAFT",
+        serverRules: [
+          {
+            mcpServerId: server.id,
+            defaultDecision: "DENY",
+            tools: [{ toolName: "search", decision: "ALLOW" }],
           },
-          modelProfileComplianceDomain: "GLOBAL",
-          modelProfileStatus: "READY",
-          virtualEmployeeId: employeeId,
-          mcpServerIds: [server.id],
-          knowledgeSourceIds: [],
-          liteLLMTokenId: "instance-token-a",
-        },
+        ],
       },
-    });
-    const updated = await service.update(created.id, { status: "ACTIVE" }, "Security Admin");
+      "Test Admin",
+    );
+    await saveInstance(projects, created.id);
+
+    const updated = await service.update(
+      created.id,
+      { status: "ACTIVE" },
+      "Security Admin",
+    );
 
     expect(updated.revision).toBe(2);
     expect(litellm.updateInstanceObjectPermissions).toHaveBeenCalledWith(
@@ -242,13 +266,41 @@ describe("Access Policy enforcement", () => {
         vectorStores: [],
       },
     );
-    expect((await service.versions(created.id)).map((version) => version.revision)).toEqual([2, 1]);
-    await expect(service.update(created.id, {
-      serverRules: [{
-        mcpServerId: server.id,
-        defaultDecision: "DENY",
-        tools: [{ toolName: "unknown_tool", decision: "ALLOW" }],
-      }],
-    }, "Test Admin")).rejects.toThrow("not found");
+    expect(
+      (await service.versions(created.id)).map((version) => version.revision),
+    ).toEqual([2, 1]);
+    await expect(
+      service.update(
+        created.id,
+        {
+          serverRules: [
+            {
+              mcpServerId: server.id,
+              defaultDecision: "DENY",
+              tools: [{ toolName: "unknown_tool", decision: "ALLOW" }],
+            },
+          ],
+        },
+        "Test Admin",
+      ),
+    ).rejects.toThrow("not found");
+  });
+
+  it("rejects deletion while an Instance directly references the policy", async () => {
+    const projects = createTestStore();
+    const service = new AccessPolicyService(
+      new AccessPolicyStore(projects.projectId, projects.database()),
+      projects,
+      adapter(),
+    );
+    const created = await service.create(
+      { name: "Bound policy", status: "DRAFT", serverRules: [] },
+      "Test Admin",
+    );
+    await saveInstance(projects, created.id);
+
+    await expect(service.delete(created.id)).rejects.toThrow(
+      "in use by an Agent Instance",
+    );
   });
 });

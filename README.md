@@ -1,8 +1,8 @@
 # TaskLattice
 
 TaskLattice is a Project-scoped Kubernetes control plane for operating AI
-Agents. It manages model Providers and routing, Virtual Employee identities,
-runtime and access policies, Agent resources, and observability around
+Agents. It manages model Providers and routing, Instance-bound access and
+runtime policies, Agent resources, and observability around
 OpenShell sandboxes. OpenShell is the fixed runtime; OpenClaw is the default
 Agent implementation and Hermes is the second supported implementation.
 
@@ -42,8 +42,8 @@ OpenShell Gateway ---- Agent Sandbox CR
 - Project-scoped membership, quotas, configuration, and resource ownership.
 - Provider registration, model discovery, LiteLLM-backed Model Profiles,
   per-Instance virtual keys, spend attribution, and cost views.
-- Virtual Employee identities with Access Policy bindings and independently
-  selected OpenShell Runtime Policies.
+- Direct, many-to-many Instance bindings to reusable Access Policies, with
+  independently selected OpenShell Runtime Policies.
 - OpenClaw and Hermes Instances with Agent UI and terminal access.
 - Agent Garden registration and Agent-to-Agent connections, plus Skills, MCP
   Servers, and Knowledge Base catalogs.
@@ -184,12 +184,12 @@ After signing in:
    text-generation model.
 2. Create a Model Profile from the registered models and wait for it to reach
    `READY`. The first ready Profile becomes the Project default automatically.
-3. Create a Virtual Employee, bind it to an Access Policy, and confirm that it
-   is Active. A Virtual Employee without explicit model access inherits the
-   Project's default Model Profile.
-4. Create an Instance, choose OpenClaw or Hermes, select an Agent Role and the
-   Active Virtual Employee, and keep the built-in Unrestricted Runtime Policy
-   for the first validation run.
+3. Create and activate at least one Access Policy. A deny-all policy with no
+   MCP rules is a safe starting point.
+4. Create an Instance, choose OpenClaw or Hermes, select an Agent Role and one
+   or more Active Access Policies, and keep the built-in Unrestricted Runtime
+   Policy for the first validation run. The Instance uses the Project's READY
+   default Model Profile.
 5. Wait for the Instance to reach `READY`, then open its Agent UI and terminal.
 
 A successful Instance reaches `READY`, exposes its Agent UI, and enables its

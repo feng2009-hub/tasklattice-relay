@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { complianceDomainCatalog, providerPresets, type ModelProfile } from "@tasklattice/contracts";
-import { Activity, ArrowLeft, ArrowRight, Bot, Boxes, Cable, Check, CheckCircle2, CircleAlert, Database, Ellipsis, ExternalLink, FileClock, KeyRound, RefreshCw, Route as RouteIcon, ShieldCheck, SlidersHorizontal, Trash2 } from "lucide-react";
+import { Activity, ArrowLeft, ArrowRight, Boxes, Cable, Check, CheckCircle2, CircleAlert, Database, Ellipsis, ExternalLink, FileClock, KeyRound, RefreshCw, Route as RouteIcon, ShieldCheck, SlidersHorizontal, Trash2 } from "lucide-react";
 import { DeleteModelProfileDialog } from "@/components/providers/delete-model-profile-dialog";
 import { GatewaySyncStatus } from "@/components/providers/gateway-sync-status";
 import { ProviderIcon } from "@/components/providers/provider-icon";
@@ -45,7 +45,7 @@ function ModelProfileDetailPage() {
         <span className={cn("grid size-8 shrink-0 place-items-center rounded-full", ready ? "bg-emerald-500/10 text-emerald-700" : "bg-amber-500/10 text-amber-700")}>{ready ? <CheckCircle2 className="size-[18px]" /> : <CircleAlert className="size-[18px]" />}</span>
         <div><h2 className="font-sans text-sm font-semibold">{ready ? "This Model Profile is ready for Instances" : "This Model Profile needs attention"}</h2><p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">{ready ? `${current.publicModelAlias} passed ${passingChecks} routing, compliance, and access checks. Each Instance receives its own isolated Virtual Key.` : current.validationMessage}</p></div>
       </div>
-      {ready ? <Button asChild className="shrink-0"><Link to="/$projectId/setting" params={{ projectId }} search={{ section: "virtual-employees" }}><Bot />Manage Virtual Employees</Link></Button> : <Button className="shrink-0" disabled title="Resolve the failed checks before using this model through a Virtual Employee"><CircleAlert />Unavailable for Virtual Employees</Button>}
+      {ready ? <Button asChild className="shrink-0"><Link to="/$projectId/instances" params={{ projectId }} search={{ create: "instance" }}><Boxes />Create Instance</Link></Button> : <Button className="shrink-0" disabled title="Resolve the failed checks before using this model for a new Instance"><CircleAlert />Unavailable for new Instances</Button>}
     </section>
     <Tabs value={tab} onValueChange={(value) => setTab(value as Tab)} className="gap-4">
       <div className="overflow-x-auto">

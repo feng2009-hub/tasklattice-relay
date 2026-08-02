@@ -116,7 +116,7 @@ const controlLayers: Array<[LucideIcon, string, string, string]> = [
     Fingerprint,
     "Identity",
     "Project scoped",
-    "Project membership and Virtual Employee ownership define who the Agent is and who can operate it.",
+    "Project membership defines who may operate an Agent, while each Instance references its Access Policies directly.",
   ],
   [
     RouteIcon,
@@ -147,7 +147,7 @@ const workflow = [
   {
     label: "Govern",
     detail:
-      "Bind a Model Profile, Virtual Employee, Access Policy, and Runtime Policy.",
+      "Bind a Model Profile, one or more Access Policies, and a Runtime Policy.",
   },
   {
     label: "Provision",

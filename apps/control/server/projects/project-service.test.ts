@@ -47,12 +47,20 @@ describe("ProjectService", () => {
     ]);
 
     const team = await service.create(local, "AI Platform", []);
-    expect(team).toMatchObject({ name: "AI Platform", role: "admin", type: "team" });
-    expect(await db.skillRecord.count({
-      where: { projectId: team.id },
-    })).toBe(await db.skillRecord.count({
-      where: { projectId: "individual" },
-    }));
+    expect(team).toMatchObject({
+      name: "AI Platform",
+      role: "admin",
+      type: "team",
+    });
+    expect(
+      await db.skillRecord.count({
+        where: { projectId: team.id },
+      }),
+    ).toBe(
+      await db.skillRecord.count({
+        where: { projectId: "individual" },
+      }),
+    );
   });
 
   it("initializes the personal Project quota idempotently under concurrent requests", async () => {
@@ -68,11 +76,15 @@ describe("ProjectService", () => {
       where: { projectId: "individual" },
     });
 
-    await Promise.all(Array.from({ length: 4 }, () => service.ensureUser(local)));
+    await Promise.all(
+      Array.from({ length: 4 }, () => service.ensureUser(local)),
+    );
 
-    expect(await db.projectQuotaRecord.count({
-      where: { projectId: "individual" },
-    })).toBe(1);
+    expect(
+      await db.projectQuotaRecord.count({
+        where: { projectId: "individual" },
+      }),
+    ).toBe(1);
   });
 
   it("seeds a personal Project idempotently under concurrent requests", async () => {
@@ -106,7 +118,9 @@ describe("ProjectService", () => {
       }),
     ]);
 
-    await Promise.all(Array.from({ length: 4 }, () => service.ensureUser(user)));
+    await Promise.all(
+      Array.from({ length: 4 }, () => service.ensureUser(user)),
+    );
 
     const [
       sourceSkills,
@@ -125,11 +139,19 @@ describe("ProjectService", () => {
       db.mcpServerRecord.count({ where: { projectId: "individual" } }),
       db.mcpServerRecord.count({ where: { projectId: personalProject.id } }),
       db.knowledgeSourceRecord.count({ where: { projectId: "individual" } }),
-      db.knowledgeSourceRecord.count({ where: { projectId: personalProject.id } }),
-      db.agentSpecializationRecord.count({ where: { projectId: "individual" } }),
-      db.agentSpecializationRecord.count({ where: { projectId: personalProject.id } }),
+      db.knowledgeSourceRecord.count({
+        where: { projectId: personalProject.id },
+      }),
+      db.agentSpecializationRecord.count({
+        where: { projectId: "individual" },
+      }),
+      db.agentSpecializationRecord.count({
+        where: { projectId: personalProject.id },
+      }),
       db.sandboxPolicyRecord.count({ where: { projectId: "individual" } }),
-      db.sandboxPolicyRecord.count({ where: { projectId: personalProject.id } }),
+      db.sandboxPolicyRecord.count({
+        where: { projectId: personalProject.id },
+      }),
     ]);
     expect([
       personalSkills,
@@ -170,18 +192,6 @@ describe("ProjectService", () => {
       { email: "future-admin@example.com", role: "admin" },
     ]);
     const administratorId = await service.ensureUser(administrator);
-    await db.virtualEmployeeRecord.create({
-      data: {
-        createdBy: administratorId,
-        displayName: "Release Coordinator",
-        environment: "production",
-        id: "release-coordinator",
-        name: "release-coordinator",
-        projectId: team.id,
-        status: "active",
-        tags: [],
-      },
-    });
 
     expect(team).toMatchObject({
       memberCount: 2,
@@ -207,20 +217,13 @@ describe("ProjectService", () => {
           role: "admin",
           status: "invited",
         }),
-        expect.objectContaining({
-          id: "release-coordinator",
-          kind: "virtual",
-          name: "Release Coordinator",
-          role: "virtual_employee",
-          status: "active",
-        }),
       ]),
     );
     expect(await service.list(administrator)).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           id: team.id,
-          memberCount: 3,
+          memberCount: 2,
         }),
       ]),
     );
@@ -237,13 +240,17 @@ describe("ProjectService", () => {
     });
     await service.syncAuthUser(administrator.user);
 
-    await expect(service.create(administrator, "Duplicate Team", [
-      { email: "member@example.com", role: "member" },
-      { email: "MEMBER@example.com", role: "admin" },
-    ])).rejects.toThrow(/unique/i);
-    await expect(service.create(administrator, "Creator Team", [
-      { email: "administrator@tasklattice.local", role: "member" },
-    ])).rejects.toThrow(/already included/i);
+    await expect(
+      service.create(administrator, "Duplicate Team", [
+        { email: "member@example.com", role: "member" },
+        { email: "MEMBER@example.com", role: "admin" },
+      ]),
+    ).rejects.toThrow(/unique/i);
+    await expect(
+      service.create(administrator, "Creator Team", [
+        { email: "administrator@tasklattice.local", role: "member" },
+      ]),
+    ).rejects.toThrow(/already included/i);
   });
 
   it("requires Project names to be unique and immutable", async () => {
@@ -257,7 +264,11 @@ describe("ProjectService", () => {
     });
     await service.syncAuthUser(administrator.user);
 
-    const project = await service.create(administrator, "Security Research", []);
+    const project = await service.create(
+      administrator,
+      "Security Research",
+      [],
+    );
     const administratorId = await service.ensureUser(administrator);
 
     await expect(
@@ -304,20 +315,25 @@ describe("ProjectService", () => {
 
     await service.delete(project.id, administratorId);
 
-    expect(await db.project.findUnique({ where: { id: project.id } }))
-      .toMatchObject({
-        deletedAt: expect.any(Date),
-        deletedBy: administratorId,
-        name: "Retained Project",
-      });
-    expect((await service.list(administrator)).map(({ id }) => id))
-      .not.toContain(project.id);
-    expect(await db.auditLogRecord.count({ where: { projectId: project.id } }))
-      .toBe(1);
-    await expect(service.create(administrator, "Retained Project", []))
-      .rejects.toThrow(/already exists/i);
-    await expect(service.requireRole(project.id, administratorId, ["admin"]))
-      .rejects.toThrow(/permission/i);
+    expect(
+      await db.project.findUnique({ where: { id: project.id } }),
+    ).toMatchObject({
+      deletedAt: expect.any(Date),
+      deletedBy: administratorId,
+      name: "Retained Project",
+    });
+    expect(
+      (await service.list(administrator)).map(({ id }) => id),
+    ).not.toContain(project.id);
+    expect(
+      await db.auditLogRecord.count({ where: { projectId: project.id } }),
+    ).toBe(1);
+    await expect(
+      service.create(administrator, "Retained Project", []),
+    ).rejects.toThrow(/already exists/i);
+    await expect(
+      service.requireRole(project.id, administratorId, ["admin"]),
+    ).rejects.toThrow(/permission/i);
   });
 
   it("creates one personal project named after each username", async () => {
@@ -370,14 +386,10 @@ describe("ProjectService", () => {
     const memberId = await service.syncAuthUser(member);
     const team = await service.create(administrator, "DevOps", []);
 
-    await service.invite(
-      team.id,
-      administratorId,
-      member.email,
-      "member",
-    );
-    await expect(service.requireRole(team.id, memberId, ["admin"]))
-      .rejects.toThrow(/permission/i);
+    await service.invite(team.id, administratorId, member.email, "member");
+    await expect(
+      service.requireRole(team.id, memberId, ["admin"]),
+    ).rejects.toThrow(/permission/i);
 
     await db.skillRecord.delete({
       where: {
@@ -387,14 +399,16 @@ describe("ProjectService", () => {
         },
       },
     });
-    expect(await db.skillRecord.findUnique({
-      where: {
-        projectId_id: {
-          projectId: "individual",
-          id: "kubernetes-expert",
+    expect(
+      await db.skillRecord.findUnique({
+        where: {
+          projectId_id: {
+            projectId: "individual",
+            id: "kubernetes-expert",
+          },
         },
-      },
-    })).not.toBeNull();
+      }),
+    ).not.toBeNull();
   });
 
   it("accepts a pending invitation when the invited user first signs in", async () => {
@@ -423,12 +437,16 @@ describe("ProjectService", () => {
       username: "new-user",
     });
     await service.syncAuthUser(invitedUser.user);
-    expect(await service.list(invitedUser)).toEqual(expect.arrayContaining([
-      expect.objectContaining({ id: team.id, role: "admin" }),
-    ]));
-    expect(await db.projectInvitation.findFirst({
-      where: { projectId: team.id, email: "new-user@example.com" },
-    })).toMatchObject({ status: "accepted" });
+    expect(await service.list(invitedUser)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: team.id, role: "admin" }),
+      ]),
+    );
+    expect(
+      await db.projectInvitation.findFirst({
+        where: { projectId: team.id, email: "new-user@example.com" },
+      }),
+    ).toMatchObject({ status: "accepted" });
   });
 
   it("prevents removing the last project administrator", async () => {

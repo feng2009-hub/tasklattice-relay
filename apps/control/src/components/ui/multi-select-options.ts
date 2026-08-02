@@ -17,3 +17,17 @@ export function filterMultiSelectOptions(
     .toLocaleLowerCase()
     .includes(normalizedQuery));
 }
+
+export function isMultiSelectOptionDisabled(
+  option: MultiSelectOption,
+  selectedValues: readonly string[],
+  maxSelected?: number,
+): boolean {
+  const selected = selectedValues.includes(option.value);
+  return Boolean(
+    !selected &&
+      (option.disabled ||
+        (maxSelected !== undefined &&
+          selectedValues.length >= maxSelected)),
+  );
+}

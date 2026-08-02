@@ -11,6 +11,7 @@ import { Check, Search, X } from "lucide-react";
 
 import {
   filterMultiSelectOptions,
+  isMultiSelectOptionDisabled,
   type MultiSelectOption,
 } from "@/components/ui/multi-select-options";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
@@ -22,6 +23,7 @@ type MultiSelectComboboxProps = {
   disabled?: boolean;
   emptyMessage?: string;
   id?: string;
+  maxSelected?: number;
   onValueChange: (value: string[]) => void;
   options: readonly MultiSelectOption[];
   placeholder?: string;
@@ -37,6 +39,7 @@ export function MultiSelectCombobox({
   disabled = false,
   emptyMessage = "No options start with",
   id,
+  maxSelected,
   onValueChange,
   options,
   placeholder = "Select options…",
@@ -57,6 +60,8 @@ export function MultiSelectCombobox({
     )
     .filter((option): option is MultiSelectOption => Boolean(option));
   const activeOption = filteredOptions[activeIndex];
+  const selectionLimitReached =
+    maxSelected !== undefined && value.length >= maxSelected;
 
   useEffect(() => {
     setActiveIndex(0);
@@ -64,7 +69,7 @@ export function MultiSelectCombobox({
 
   const focusInput = () => inputRef.current?.focus();
   const toggleOption = (option: MultiSelectOption) => {
-    if (option.disabled) return;
+    if (isMultiSelectOptionDisabled(option, value, maxSelected)) return;
     const nextValue = value.includes(option.value)
       ? value.filter((selectedValue) => selectedValue !== option.value)
       : [...value, option.value];
@@ -166,7 +171,9 @@ export function MultiSelectCombobox({
         <div className="flex items-center gap-2 border-b px-3 py-2 text-xs text-muted-foreground">
           <Search className="size-4 shrink-0" />
           <span aria-live="polite" className="min-w-0 flex-1">
-            {query
+            {selectionLimitReached
+              ? `${value.length} selected · maximum ${maxSelected}`
+              : query
               ? `${filteredOptions.length} matching ${filteredOptions.length === 1 ? "option" : "options"}`
               : `${options.length} available ${options.length === 1 ? "option" : "options"}`}
           </span>
@@ -191,21 +198,26 @@ export function MultiSelectCombobox({
             filteredOptions.map((option, index) => {
               const selected = value.includes(option.value);
               const active = index === activeIndex;
+              const optionDisabled = isMultiSelectOptionDisabled(
+                option,
+                value,
+                maxSelected,
+              );
               return (
                 <button
                   key={option.value}
                   id={`${listboxId}-option-${index}`}
                   type="button"
                   role="option"
-                  aria-disabled={option.disabled || undefined}
+                  aria-disabled={optionDisabled || undefined}
                   aria-selected={selected}
-                  disabled={option.disabled}
+                  disabled={optionDisabled}
                   className={cn(
                     "grid min-h-16 w-full grid-cols-[1.25rem_minmax(0,1fr)] gap-x-3 rounded-sm px-3 py-2.5 text-left outline-hidden transition-colors",
                     selected && "bg-primary/5 text-foreground",
                     active && !selected && "bg-accent text-accent-foreground",
                     active && selected && "bg-primary/10",
-                    option.disabled && "cursor-not-allowed opacity-50",
+                    optionDisabled && "cursor-not-allowed opacity-50",
                   )}
                   onClick={() => toggleOption(option)}
                   onMouseEnter={() => setActiveIndex(index)}

@@ -2,33 +2,62 @@ import { describe, expect, it } from "vitest";
 import { parseAgent, ProjectStore } from "./project-store";
 import { createTestStore } from "../test/store";
 
+const accessPolicyId = "11111111-1111-4111-8111-111111111111";
+
+async function seedAccessPolicy(store: ProjectStore): Promise<void> {
+  const now = new Date();
+  await store.database().accessPolicyRecord.create({
+    data: {
+      projectId: store.projectId,
+      id: accessPolicyId,
+      payload: {
+        id: accessPolicyId,
+        name: "Default Instance access",
+        status: "ACTIVE",
+        serverRules: [],
+        revision: 1,
+        createdBy: "test",
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+      },
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+}
+
 describe("ProjectStore", () => {
   it("rejects pre-Model-Profile Instance records", () => {
     const now = new Date().toISOString();
-    expect(() => parseAgent(JSON.stringify({
-      id: "legacy-agent",
-      name: "Legacy research",
-      description: "",
-      runtime: "nemoclaw",
-      agentPlatform: "openclaw",
-      providerConnectionId: "connection-a",
-      provider: "deepseek",
-      model: "deepseek-chat",
-      policyId: "restricted",
-      systemPrompt: "Research the request and report the evidence.",
-      sandboxName: "tali-legacy-agent",
-      status: "FAILED",
-      createdAt: now,
-      updatedAt: now,
-      logs: ["Legacy provisioning failed."],
-    }))).toThrow("Stored Instance data is incomplete");
+    expect(() =>
+      parseAgent(
+        JSON.stringify({
+          id: "legacy-agent",
+          name: "Legacy research",
+          description: "",
+          runtime: "nemoclaw",
+          agentPlatform: "openclaw",
+          providerConnectionId: "connection-a",
+          provider: "deepseek",
+          model: "deepseek-chat",
+          policyId: "restricted",
+          systemPrompt: "Research the request and report the evidence.",
+          sandboxName: "tali-legacy-agent",
+          status: "FAILED",
+          createdAt: now,
+          updatedAt: now,
+          logs: ["Legacy provisioning failed."],
+        }),
+      ),
+    ).toThrow("Stored Instance data is incomplete");
   });
 
   it("persists the NemoClaw agent resource", async () => {
     const store = createTestStore();
     const now = new Date().toISOString();
+    await seedAccessPolicy(store);
     await store.save({
-      schemaVersion: 1,
+      schemaVersion: 2,
       id: "a",
       name: "Research",
       description: "",
@@ -43,7 +72,7 @@ describe("ProjectStore", () => {
       model: "deepseek-chat",
       modelType: "llm",
       inferenceMode: "PLATFORM_MANAGED",
-      virtualEmployeeId: "11111111-1111-4111-8111-111111111111",
+      accessPolicyIds: [accessPolicyId],
       modelProfileId: "profile-a",
       modelProfileBindingId: "binding-a",
       modelProfileStatus: "READY",
@@ -68,7 +97,9 @@ describe("ProjectStore", () => {
       updatedAt: now,
       logs: [],
     });
+    await store.replaceAgentAccessPolicies("a", [accessPolicyId]);
     expect((await store.get("a"))?.runtime).toBe("openshell");
+    expect((await store.get("a"))?.accessPolicyIds).toEqual([accessPolicyId]);
     expect(await store.list()).toHaveLength(1);
     await store.saveProviderAccount(
       {
@@ -101,8 +132,9 @@ describe("ProjectStore", () => {
     const store = createTestStore();
     const isolated = new ProjectStore("other-project", store.database());
     const now = new Date().toISOString();
+    await seedAccessPolicy(store);
     await store.save({
-      schemaVersion: 1,
+      schemaVersion: 2,
       id: "current-agent",
       name: "Current research",
       description: "",
@@ -117,7 +149,7 @@ describe("ProjectStore", () => {
       model: "deepseek-chat",
       modelType: "llm",
       inferenceMode: "PLATFORM_MANAGED",
-      virtualEmployeeId: "11111111-1111-4111-8111-111111111111",
+      accessPolicyIds: [accessPolicyId],
       modelProfileId: "profile-a",
       modelProfileBindingId: "binding-a",
       modelProfileStatus: "READY",
@@ -142,12 +174,15 @@ describe("ProjectStore", () => {
       updatedAt: now,
       logs: [],
     });
+    await store.replaceAgentAccessPolicies("current-agent", [accessPolicyId]);
 
-    expect((await store.list()).map((agent) => agent.id)).toEqual(["current-agent"]);
-    expect(await isolated.get("current-agent")).toBeUndefined();
-    expect((await store.listAgentsForReporting()).map((agent) => agent.id)).toEqual([
+    expect((await store.list()).map((agent) => agent.id)).toEqual([
       "current-agent",
     ]);
+    expect(await isolated.get("current-agent")).toBeUndefined();
+    expect(
+      (await store.listAgentsForReporting()).map((agent) => agent.id),
+    ).toEqual(["current-agent"]);
     expect(await store.isSandboxPolicyInUse("legacy-policy")).toBe(false);
   });
 });

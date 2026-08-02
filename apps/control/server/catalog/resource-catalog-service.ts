@@ -20,7 +20,7 @@ import {
 } from "../providers/litellm-client";
 import { ProjectStore } from "../projects/project-store";
 import { ProjectQuotaService } from "../quotas/project-quota-service";
-import { createSecretStore, type SecretStore } from "../virtual-employees/secret-store";
+import { createSecretStore, type SecretStore } from "../secrets/secret-store";
 import { mcpServerTemplates } from "./mcp-server-templates";
 import {
   vectorStoreBridgeApiBase,

@@ -698,14 +698,12 @@ export const accessPolicyServerRuleSchema = z.object({
 export const createAccessPolicySchema = z.object({
   name: z.string().trim().min(3).max(120),
   status: z.enum(accessPolicyStatuses).default("DRAFT"),
-  virtualEmployeeIds: z.array(z.string().uuid()).max(1_000).default([]),
   serverRules: z.array(accessPolicyServerRuleSchema).max(1_000),
 }).strict();
 
 export const updateAccessPolicySchema = z.object({
   name: z.string().trim().min(3).max(120).optional(),
   status: z.enum(accessPolicyStatuses).optional(),
-  virtualEmployeeIds: z.array(z.string().uuid()).max(1_000).optional(),
   serverRules: z.array(accessPolicyServerRuleSchema).max(1_000).optional(),
 }).strict();
 
@@ -934,18 +932,31 @@ export const createModelDeploymentSchema = z.object({
   feePerAudioMinute: z.number().min(0).max(1_000_000).optional(),
 });
 
+const agentAccessPolicyIdsSchema = z
+  .array(z.string().uuid())
+  .min(1)
+  .max(64)
+  .refine(
+    (ids) => new Set(ids).size === ids.length,
+    "Access Policy bindings must be unique.",
+  );
+
 export const createAgentSchema = z.object({
   name: z.string().trim().min(3).max(64),
   description: z.string().trim().max(300).default(""),
   runtime: z.literal("openshell"),
   agentPlatform: z.enum(agentPlatformIds).default(defaultAgentPlatformId),
-  virtualEmployeeId: z.string().uuid(),
+  accessPolicyIds: agentAccessPolicyIdsSchema,
   policyId: sandboxPolicyIdSchema.optional(),
   systemPrompt: z.string().trim().min(10).max(8000),
   specializationId: z.string().trim().min(1).max(64).optional(),
   skillIds: z.array(z.string().trim().min(1).max(160)).max(64).optional(),
   mcpServerIds: z.array(z.string().trim().min(1).max(160)).max(64).optional(),
   knowledgeSourceIds: z.array(z.string().trim().min(1).max(160)).max(64).optional(),
+}).strict();
+
+export const updateInstanceAccessPoliciesSchema = z.object({
+  accessPolicyIds: agentAccessPolicyIdsSchema,
 }).strict();
 
 const nullableQuotaInteger = z.number().int().min(0).max(1_000_000_000).nullable();
@@ -966,81 +977,6 @@ export const updateProjectQuotaSchema = z.object({
     });
   }
 });
-
-export const virtualEmployeeStatuses = [
-  "draft",
-  "pending_approval",
-  "provisioning",
-  "active",
-  "suspended",
-  "expired",
-  "error",
-] as const;
-export const virtualEmployeeEnvironments = ["development", "uat", "production"] as const;
-export const identityTypes = [
-  "kubernetes_service_account",
-  "functional_id",
-  "oauth_client",
-  "api_credential",
-  "cloud_role",
-  "custom",
-] as const;
-export const enforcementProviders = [
-  "litellm",
-  "kubernetes_rbac",
-  "target_system",
-  "adapter",
-  "metadata_only",
-] as const;
-
-const modelAccessInputSchema = z.object({
-  litellmTeamId: z.string().trim().max(160).optional(),
-  allowedModels: z.array(z.string().trim().min(1).max(160)).min(1).max(64),
-  accessGroups: z.array(z.string().trim().min(1).max(160)).max(64).default([]),
-  maxBudget: z.number().min(0).max(10_000_000).optional(),
-  budgetDuration: z.string().trim().max(64).default("30d"),
-  rpmLimit: z.number().int().min(1).max(10_000_000).optional(),
-  tpmLimit: z.number().int().min(1).max(1_000_000_000).optional(),
-  maxParallelRequests: z.number().int().min(1).max(100_000).optional(),
-  keyDuration: z.string().trim().regex(/^\d+(?:s|m|h|d|w)$/, "Use a duration such as 90d.").default("90d"),
-  fallbackModels: z.array(z.string().trim().min(1).max(160)).max(32).default([]),
-});
-
-export const identityBindingInputSchema = z.object({
-  identityType: z.enum(identityTypes),
-  provider: z.string().trim().min(1).max(160),
-  externalReference: z.string().trim().min(1).max(512),
-  displayName: z.string().trim().min(1).max(160),
-  system: z.string().trim().max(160).optional(),
-  metadata: z.record(z.string(), z.unknown()).default({}),
-});
-
-export const accessScopeBindingInputSchema = z.object({
-  resourceType: z.string().trim().min(1).max(160),
-  resourceId: z.string().trim().min(1).max(512),
-  actions: z.array(z.string().trim().min(1).max(160)).min(1).max(64),
-  conditions: z.record(z.string(), z.unknown()).default({}),
-  enforcementProvider: z.enum(enforcementProviders),
-  approvalStatus: z.enum(["not_required", "pending", "approved", "rejected"]).default("not_required"),
-});
-
-export const createVirtualEmployeeSchema = z.object({
-  name: z.string().trim().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use lowercase letters, numbers, and hyphens."),
-  displayName: z.string().trim().min(2).max(160),
-  description: z.string().trim().max(500).default(""),
-  businessRole: z.string().trim().max(160).optional(),
-  ownerTeamId: z.string().trim().max(160).optional(),
-  environment: z.enum(virtualEmployeeEnvironments),
-  tags: z.array(z.string().trim().min(1).max(64)).max(32).default([]),
-  modelAccess: modelAccessInputSchema.optional(),
-  identities: z.array(identityBindingInputSchema).max(64).default([]),
-  accessScopes: z.array(accessScopeBindingInputSchema).max(128).default([]),
-  activate: z.boolean().default(false),
-}).strict();
-
-export const updateVirtualEmployeeSchema = createVirtualEmployeeSchema
-  .omit({ identities: true, accessScopes: true, activate: true })
-  .partial();
 
 export const createInferenceGatewaySchema = z.object({
   name: z.string().trim().min(3).max(64),
@@ -1255,11 +1191,10 @@ export type ProviderModelSelection = z.infer<typeof providerModelSelectionSchema
 export type CreateProviderConnectionInput = z.infer<typeof createProviderConnectionSchema>;
 export type CreateModelDeploymentInput = z.infer<typeof createModelDeploymentSchema>;
 export type CreateAgentInput = z.infer<typeof createAgentSchema>;
+export type UpdateInstanceAccessPoliciesInput = z.infer<
+  typeof updateInstanceAccessPoliciesSchema
+>;
 export type UpdateProjectQuotaInput = z.infer<typeof updateProjectQuotaSchema>;
-export type CreateVirtualEmployeeInput = z.infer<typeof createVirtualEmployeeSchema>;
-export type UpdateVirtualEmployeeInput = z.infer<typeof updateVirtualEmployeeSchema>;
-export type IdentityBindingInput = z.infer<typeof identityBindingInputSchema>;
-export type AccessScopeBindingInput = z.infer<typeof accessScopeBindingInputSchema>;
 export type ComplianceDomain = (typeof complianceDomains)[number];
 export type ModelProfileStatus = (typeof modelProfileStatuses)[number];
 export type ModelProfileCapabilityState = (typeof modelProfileCapabilityStates)[number];
@@ -1705,59 +1640,6 @@ export interface ModelCostDataQualityResponse {
   spendDifference: number;
 }
 
-export type VirtualEmployeeStatus = (typeof virtualEmployeeStatuses)[number];
-export type VirtualEmployeeEnvironment = (typeof virtualEmployeeEnvironments)[number];
-export type IdentityType = (typeof identityTypes)[number];
-export type EnforcementProvider = (typeof enforcementProviders)[number];
-
-export interface VirtualEmployeeModelAccess {
-  id: string;
-  virtualEmployeeId: string;
-  provider: "litellm";
-  litellmTeamId?: string;
-  litellmKeyId?: string;
-  keyAlias: string;
-  keyLastFour?: string;
-  allowedModels: string[];
-  accessGroups: string[];
-  maxBudget?: number;
-  budgetDuration?: string;
-  rpmLimit?: number;
-  tpmLimit?: number;
-  maxParallelRequests?: number;
-  keyDuration: string;
-  expiresAt?: string;
-  fallbackModels: string[];
-  secretReference?: string;
-  syncStatus: "pending" | "synced" | "failed" | "drifted";
-  lastSyncedAt?: string;
-  lastSyncError?: string;
-  currentSpend?: number;
-}
-
-export interface IdentityBinding extends IdentityBindingInput {
-  id: string;
-  virtualEmployeeId: string;
-  status: "active" | "inactive" | "error";
-  updatedAt: string;
-}
-
-export interface AccessScopeBinding extends AccessScopeBindingInput {
-  id: string;
-  virtualEmployeeId: string;
-  updatedAt: string;
-}
-
-export interface VirtualEmployeeAuditEvent {
-  id: string;
-  virtualEmployeeId: string;
-  type: string;
-  actor: string;
-  result: "success" | "failed";
-  message: string;
-  createdAt: string;
-}
-
 export type PlatformAuditActorType = "user" | "service_account" | "system";
 export type PlatformAuditOutcome = "success" | "failed" | "denied";
 export type PlatformAuditSortDirection = "asc" | "desc";
@@ -1832,37 +1714,8 @@ export interface PlatformAuditLogListResponse {
   facets: PlatformAuditLogFacets;
 }
 
-export interface VirtualEmployee {
-  id: string;
-  projectId: string;
-  name: string;
-  displayName: string;
-  description?: string;
-  businessRole?: string;
-  ownerTeamId?: string;
-  environment: VirtualEmployeeEnvironment;
-  status: VirtualEmployeeStatus;
-  tags: string[];
-  createdBy: string;
-  createdAt: string;
-  updatedAt: string;
-  modelAccess?: VirtualEmployeeModelAccess;
-  identities: IdentityBinding[];
-  accessScopes: AccessScopeBinding[];
-  boundInstanceIds: string[];
-}
-
-export interface VirtualEmployeeSpend {
-  totalSpend: number;
-  requests: number;
-  tokens: number;
-  budgetUtilization?: number;
-  byModel: Array<{ model: string; spend: number; requests: number; tokens: number }>;
-  daily: Array<{ date: string; spend: number }>;
-}
-
 export interface Agent extends Omit<CreateAgentInput, "policyId"> {
-  schemaVersion: 1;
+  schemaVersion: 2;
   id: string;
   policyId: SandboxPolicyId;
   providerAccountId: string;

@@ -1,29 +1,43 @@
 import { describe, expect, it } from "vitest";
 import type { SandboxPolicyCatalog } from "@tasklattice/contracts";
 import { createTestStore } from "../test/store";
-import { FilePolicyCatalogSource, normalizeOpenShellPolicy, PolicyService, type PolicyCatalogSource } from "./policy-service";
+import {
+  FilePolicyCatalogSource,
+  normalizeOpenShellPolicy,
+  PolicyService,
+  type PolicyCatalogSource,
+} from "./policy-service";
 
 const source: PolicyCatalogSource = {
   load: (): SandboxPolicyCatalog => ({
     defaultPolicyId: "unrestricted",
-    templatePolicyYaml: "version: 1\nfilesystem_policy:\n  read_write:\n    - /sandbox\n    - /tmp\n    - /dev/null\nnetwork_policies: {}\n",
-    policies: [{
-      id: "unrestricted",
-      name: "Unrestricted",
-      description: "Allows arbitrary operations in Sandbox-owned writable paths.",
-      networkAccess: "Managed inference and declared destinations",
-      policyYaml: normalizeOpenShellPolicy("version: 1\nnetwork_policies: {}\n", "version: 1\nfilesystem_policy:\n  read_write:\n    - /dev/null\n"),
-      enforcement: "ENFORCE",
-      source: "BUILT_IN",
-      immutable: true,
-    }],
+    templatePolicyYaml:
+      "version: 1\nfilesystem_policy:\n  read_write:\n    - /sandbox\n    - /tmp\n    - /dev/null\nnetwork_policies: {}\n",
+    policies: [
+      {
+        id: "unrestricted",
+        name: "Unrestricted",
+        description:
+          "Allows arbitrary operations in Sandbox-owned writable paths.",
+        networkAccess: "Managed inference and declared destinations",
+        policyYaml: normalizeOpenShellPolicy(
+          "version: 1\nnetwork_policies: {}\n",
+          "version: 1\nfilesystem_policy:\n  read_write:\n    - /dev/null\n",
+        ),
+        enforcement: "ENFORCE",
+        source: "BUILT_IN",
+        immutable: true,
+      },
+    ],
   }),
 };
 
 describe("PolicyService", () => {
   it("loads the deployment catalog with unrestricted as the default", () => {
     const catalog = new FilePolicyCatalogSource().load();
-    const policy = catalog.policies.find((item) => item.id === catalog.defaultPolicyId);
+    const policy = catalog.policies.find(
+      (item) => item.id === catalog.defaultPolicyId,
+    );
 
     expect(catalog.defaultPolicyId).toBe("unrestricted");
     expect(policy).toMatchObject({ source: "BUILT_IN", immutable: true });
@@ -43,7 +57,14 @@ describe("PolicyService", () => {
 
     expect(created).toMatchObject({ source: "CUSTOM", immutable: false });
     expect(created.policyYaml).toContain("/dev/null");
-    expect((await service.update(created.id, { ...created, name: "Internal tooling" })).name).toBe("Internal tooling");
+    expect(
+      (
+        await service.update(created.id, {
+          ...created,
+          name: "Internal tooling",
+        })
+      ).name,
+    ).toBe("Internal tooling");
     expect(await service.delete(created.id)).toBe(true);
     expect(await service.get(created.id)).toBeUndefined();
   });
@@ -52,15 +73,22 @@ describe("PolicyService", () => {
     const service = new PolicyService(createTestStore(), source);
     const input = {
       name: "Unrestricted",
-      description: "Allows arbitrary operations in Sandbox-owned writable paths.",
+      description:
+        "Allows arbitrary operations in Sandbox-owned writable paths.",
       networkAccess: "Managed inference and declared destinations",
       policyYaml: "version: 1\nnetwork_policies: {}\n",
     };
 
-    await expect(service.update("unrestricted", input)).rejects.toThrow("Built-in");
+    await expect(service.update("unrestricted", input)).rejects.toThrow(
+      "Built-in",
+    );
     await expect(service.delete("unrestricted")).rejects.toThrow("Built-in");
-    expect(() => normalizeOpenShellPolicy("version: 1\nprocess:\n  run_as_user: root\n")).toThrow("root");
-    expect(() => normalizeOpenShellPolicy("version: 2\n")).toThrow("version: 1");
+    expect(() =>
+      normalizeOpenShellPolicy("version: 1\nprocess:\n  run_as_user: root\n"),
+    ).toThrow("root");
+    expect(() => normalizeOpenShellPolicy("version: 2\n")).toThrow(
+      "version: 1",
+    );
   });
 
   it("does not delete a custom Policy assigned to an Instance", async () => {
@@ -74,7 +102,7 @@ describe("PolicyService", () => {
     });
     const now = new Date().toISOString();
     await store.save({
-      schemaVersion: 1,
+      schemaVersion: 2,
       id: "agent-a",
       name: "Policy user",
       description: "",
@@ -88,7 +116,7 @@ describe("PolicyService", () => {
       model: "model-a",
       modelType: "llm",
       inferenceMode: "PLATFORM_MANAGED",
-      virtualEmployeeId: "11111111-1111-4111-8111-111111111111",
+      accessPolicyIds: ["11111111-1111-4111-8111-111111111111"],
       modelProfileId: "profile-a",
       modelProfileBindingId: "binding-a",
       modelProfileStatus: "READY",
@@ -115,6 +143,8 @@ describe("PolicyService", () => {
       logs: [],
     });
 
-    await expect(service.delete(policy.id)).rejects.toThrow("assigned to an Instance");
+    await expect(service.delete(policy.id)).rejects.toThrow(
+      "assigned to an Instance",
+    );
   });
 });

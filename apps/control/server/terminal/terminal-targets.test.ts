@@ -3,7 +3,7 @@ import type { Agent } from "@tasklattice/contracts";
 import { terminalTargetsForAgent } from "./terminal-targets";
 
 const agent = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   id: "2b0dc5a0-0d15-4b90-bc3f-71112b812efd",
   name: "research-agent",
   description: "",
@@ -17,7 +17,7 @@ const agent = {
   model: "deepseek-chat",
   modelType: "llm",
   inferenceMode: "PLATFORM_MANAGED",
-  virtualEmployeeId: "11111111-1111-4111-8111-111111111111",
+  accessPolicyIds: ["11111111-1111-4111-8111-111111111111"],
   modelProfileId: "profile-a",
   modelProfileBindingId: "binding-a",
   modelProfileStatus: "READY",
@@ -71,7 +71,8 @@ describe("terminalTargetsForAgent", () => {
     );
     expect(target).toMatchObject({
       available: false,
-      reason: "Terminal is available only when the agent is healthy and running.",
+      reason:
+        "Terminal is available only when the agent is healthy and running.",
     });
   });
 });

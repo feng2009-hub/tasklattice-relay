@@ -57,9 +57,7 @@ export function ProjectMembers({ project }: { project: Project }) {
     onSuccess: refreshTeam,
   });
 
-  const people = (members.data ?? []).filter(
-    (member): member is HumanProjectMember => member.kind === "human",
-  );
+  const people = members.data ?? [];
 
   return (
     <div>

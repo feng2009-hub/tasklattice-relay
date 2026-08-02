@@ -10,7 +10,10 @@ import { AccessPolicyService } from "../access-policies/access-policy-service";
 import { AccessPolicyStore } from "../access-policies/access-policy-store";
 import { ProjectStore } from "../projects/project-store";
 import { ResourceCatalogService } from "../catalog/resource-catalog-service";
-import { NemoClawRunnerClient, type RunnerClient } from "../runtime/nemoclaw-runner-client";
+import {
+  NemoClawRunnerClient,
+  type RunnerClient,
+} from "../runtime/nemoclaw-runner-client";
 import {
   LiteLLMClient,
   type LiteLLMAdminClient,
@@ -18,8 +21,6 @@ import {
 } from "../providers/litellm-client";
 import { PolicyService } from "../policies/policy-service";
 import { ModelProfileService } from "../model-profiles/model-profile-service";
-import { VirtualEmployeeService } from "../virtual-employees/virtual-employee-service";
-import { VirtualEmployeeStore } from "../virtual-employees/virtual-employee-store";
 import { ProjectQuotaService } from "../quotas/project-quota-service";
 
 export function agentSandboxName(name: string, id: string): string {
@@ -33,7 +34,10 @@ export function agentSandboxName(name: string, id: string): string {
   return `tali-${slug}-${id.slice(0, 8)}`;
 }
 
-export function applyObservedState(agent: Agent, observed: RunnerSandbox): Agent {
+export function applyObservedState(
+  agent: Agent,
+  observed: RunnerSandbox,
+): Agent {
   const status: Agent["status"] =
     observed.phase === "READY"
       ? "READY"
@@ -55,9 +59,7 @@ export function applyObservedState(agent: Agent, observed: RunnerSandbox): Agent
       ? { provisioningStage: observed.provisioningStage }
       : {}),
     logs: observed.logs.length > 0 ? observed.logs : agent.logs,
-    ...(observed.httpEndpoint
-      ? { httpEndpoint: observed.httpEndpoint }
-      : {}),
+    ...(observed.httpEndpoint ? { httpEndpoint: observed.httpEndpoint } : {}),
     updatedAt: new Date().toISOString(),
     ...(observed.operationId ? { operationId: observed.operationId } : {}),
     ...(observed.error
@@ -79,7 +81,6 @@ export class AgentService {
     readonly policies = new PolicyService(store),
     readonly catalog = new ResourceCatalogService(store),
     readonly modelProfiles = new ModelProfileService(store, litellm),
-    readonly virtualEmployees = new VirtualEmployeeService(new VirtualEmployeeStore(store.projectId, store.database()), litellm),
     readonly quotas = new ProjectQuotaService(store, litellm),
     readonly accessPolicies = new AccessPolicyService(
       new AccessPolicyStore(store.projectId, store.database()),
@@ -89,7 +90,9 @@ export class AgentService {
   ) {}
 
   async list(): Promise<Agent[]> {
-    return Promise.all((await this.store.list()).map((agent) => this.refresh(agent)));
+    return Promise.all(
+      (await this.store.list()).map((agent) => this.refresh(agent)),
+    );
   }
 
   async get(id: string): Promise<Agent | undefined> {
@@ -99,85 +102,91 @@ export class AgentService {
 
   async getAudit(id: string): Promise<SandboxAuditEvent[] | undefined> {
     const agent = await this.store.get(id);
-    return agent
-      ? this.runner.getSandboxAudit(agent.sandboxName)
-      : undefined;
+    return agent ? this.runner.getSandboxAudit(agent.sandboxName) : undefined;
   }
 
   async create(input: CreateAgentInput): Promise<Agent> {
     await this.quotas.assertCanCreate("instances");
     const catalog = await this.catalog.catalog();
-    if (input.specializationId && !catalog.specializations.some((item) => item.id === input.specializationId))
-      throw new Error("Select an available Agent Role before creating an Instance.");
-    const references: Array<[string, readonly string[] | undefined, Set<string>]> = [
+    if (
+      input.specializationId &&
+      !catalog.specializations.some(
+        (item) => item.id === input.specializationId,
+      )
+    )
+      throw new Error(
+        "Select an available Agent Role before creating an Instance.",
+      );
+    const references: Array<
+      [string, readonly string[] | undefined, Set<string>]
+    > = [
       ["Skill", input.skillIds, new Set(catalog.skills.map((item) => item.id))],
-      ["MCP server", input.mcpServerIds, new Set(catalog.mcpServers.map((item) => item.id))],
-      ["Knowledge source", input.knowledgeSourceIds, new Set(catalog.knowledgeSources.map((item) => item.id))],
+      [
+        "MCP server",
+        input.mcpServerIds,
+        new Set(catalog.mcpServers.map((item) => item.id)),
+      ],
+      [
+        "Knowledge source",
+        input.knowledgeSourceIds,
+        new Set(catalog.knowledgeSources.map((item) => item.id)),
+      ],
     ];
     for (const [label, ids, available] of references) {
       const missing = (ids ?? []).filter((id) => !available.has(id));
-      if (missing.length) throw new Error(`${label} configuration is unavailable: ${missing.join(", ")}.`);
+      if (missing.length)
+        throw new Error(
+          `${label} configuration is unavailable: ${missing.join(", ")}.`,
+        );
     }
     const policy = await this.policies.resolve(input.policyId);
     const id = randomUUID();
     const now = new Date().toISOString();
     const sandboxName = agentSandboxName(input.name, id);
-    const virtualEmployee = await this.virtualEmployees.get(input.virtualEmployeeId);
-    if (virtualEmployee.status !== "active") throw new Error("Select an Active Virtual Employee before creating an Instance.");
-    const runtimeConfiguration = await this.virtualEmployees.runtimeConfiguration(virtualEmployee.id);
-    const profiles = await this.store.listModelProfiles();
-    const profile = profiles.find((item) => item.status === "READY" && item.publicModelAlias === runtimeConfiguration.model);
-    if (!profile) throw new Error(`Virtual Employee model ${runtimeConfiguration.model} is not backed by a READY Model Profile.`);
+    await this.accessPolicies.assertActivePolicyIds(input.accessPolicyIds);
+    const profile = await this.modelProfiles.resolver.resolveDefault();
     const gateway = await this.store.getInferenceGateway(profile.gatewayId);
-    if (!gateway) throw new Error("The Virtual Employee LiteLLM Gateway is unavailable.");
-    const modelAccess = virtualEmployee.modelAccess;
+    if (!gateway)
+      throw new Error(
+        "The default Model Profile LiteLLM Gateway is unavailable.",
+      );
     const costKeyAlias = `tali-instance-${id}`;
     const serviceAccountId = `tali-instance-${id}`;
     const objectPermissions = await this.accessPolicies.permissionsForAgent({
-      virtualEmployeeId: virtualEmployee.id,
+      accessPolicyIds: input.accessPolicyIds,
       mcpServerIds: input.mcpServerIds,
       knowledgeSourceIds: input.knowledgeSourceIds,
     });
     const modelKeyRouting = await this.modelKeyRouting(profile);
     const { teamId, key: instanceKey } = await this.quotas.createInstanceKey({
       alias: costKeyAlias,
-      models: [
-        ...new Set([
-          ...modelKeyRouting.models,
-          ...(modelAccess?.accessGroups ?? []),
-        ]),
-      ],
+      models: modelKeyRouting.models,
       ...modelKeyRouting.keyConfiguration,
       metadata: {
         managed_by: "tali",
         tali_project_id: this.store.projectId,
-        tali_virtual_employee_id: virtualEmployee.id,
         tali_instance_id: id,
         service_account_id: serviceAccountId,
       },
       objectPermissions,
     });
     let agent: Agent = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       id,
       ...input,
       policyId: policy.id,
       modelDeploymentId: `model-profile:${profile.id}`,
       providerAccountId: gateway.id,
       providerName: "LiteLLM managed",
-      model: runtimeConfiguration.model,
+      model: profile.publicModelAlias,
       modelType: "llm",
       inferenceMode: "PLATFORM_MANAGED",
       modelProfileId: profile.id,
-      modelProfileBindingId:
-        modelAccess?.id ?? `project-default:${profile.id}`,
+      modelProfileBindingId: `project-default:${profile.id}`,
       modelProfileStatus: profile.status,
       modelProfileComplianceDomain: profile.complianceDomain,
       modelProfileCapabilities: profile.capabilities,
       modelProfileKeyFingerprint: `token:${instanceKey.tokenId.slice(-12)}`,
-      ...(modelAccess?.lastSyncedAt
-        ? { modelProfileLastSynchronizedAt: modelAccess.lastSyncedAt }
-        : {}),
       costKeyAlias,
       liteLLMTokenId: instanceKey.tokenId,
       liteLLMTeamId: teamId,
@@ -189,23 +198,30 @@ export class AgentService {
       updatedAt: now,
       logs: ["Agent request accepted. Waiting for the NemoClaw Runtime Host."],
     };
-    await this.store.save(agent);
-    await this.store.costAnalytics().saveAttribution({
-      id: `instance-key:${id}:${instanceKey.tokenId.slice(-12)}`,
-      projectId: this.store.projectId,
-      environmentId: virtualEmployee.environment,
-      instanceId: id,
-      instanceName: input.name,
-      liteLLMVirtualKeyId: instanceKey.tokenId,
-      hashedToken: instanceKey.tokenId,
-      virtualKeyAlias: costKeyAlias,
-      liteLLMTeamId: teamId,
-      providerAccountId: gateway.id,
-      validFrom: now,
-      createdAt: now,
-      updatedAt: now,
-    });
-    await this.virtualEmployees.bindInstance(virtualEmployee.id, id, "agent-service");
+    try {
+      await this.store.save(agent);
+      await this.store.replaceAgentAccessPolicies(id, input.accessPolicyIds);
+      await this.store.costAnalytics().saveAttribution({
+        id: `instance-key:${id}:${instanceKey.tokenId.slice(-12)}`,
+        projectId: this.store.projectId,
+        environmentId: "project-default",
+        instanceId: id,
+        instanceName: input.name,
+        liteLLMVirtualKeyId: instanceKey.tokenId,
+        hashedToken: instanceKey.tokenId,
+        virtualKeyAlias: costKeyAlias,
+        liteLLMTeamId: teamId,
+        providerAccountId: gateway.id,
+        validFrom: now,
+        createdAt: now,
+        updatedAt: now,
+      });
+    } catch (error) {
+      await this.litellm.revokeKey(instanceKey.tokenId).catch(() => undefined);
+      await this.closeInstanceAttributions(id).catch(() => undefined);
+      await this.store.delete(id).catch(() => undefined);
+      throw error;
+    }
     try {
       agent = await this.store.save(
         applyObservedState(
@@ -214,12 +230,11 @@ export class AgentService {
             name: agent.sandboxName,
             agentPlatform: agent.agentPlatform,
             providerName: "LiteLLM",
-            model: runtimeConfiguration.model,
-            inferenceEndpoint: runtimeConfiguration.endpoint,
+            model: profile.publicModelAlias,
+            inferenceEndpoint: `${this.litellm.baseUrl}/v1`,
             policyYaml: policy.policyYaml,
             systemPrompt: input.systemPrompt,
             apiKey: instanceKey.secret,
-            virtualEmployeeId: virtualEmployee.id,
             instanceId: id,
           }),
         ),
@@ -227,7 +242,6 @@ export class AgentService {
     } catch (error) {
       await this.litellm.revokeKey(instanceKey.tokenId).catch(() => undefined);
       await this.closeInstanceAttributions(id);
-      await this.virtualEmployees.unbindInstance(id, "agent-service").catch(() => undefined);
       agent = await this.store.save({
         ...agent,
         status: "FAILED",
@@ -250,128 +264,76 @@ export class AgentService {
       updatedAt: new Date().toISOString(),
     });
     await this.runner.destroySandbox(agent.sandboxName, agent.agentPlatform);
-    if (agent.liteLLMTokenId) await this.litellm.revokeKey(agent.liteLLMTokenId);
+    if (agent.liteLLMTokenId)
+      await this.litellm.revokeKey(agent.liteLLMTokenId);
     await this.closeInstanceAttributions(id);
-    await this.virtualEmployees.unbindInstance(id, "agent-service");
     await this.store.delete(id);
     return true;
   }
 
-  async bindVirtualEmployee(id: string, virtualEmployeeId: string, actor: string): Promise<Agent> {
+  async updateAccessPolicies(
+    id: string,
+    accessPolicyIds: string[],
+    actor: string,
+  ): Promise<Agent> {
     const current = await this.store.get(id);
     if (!current) throw new Error("Agent Instance not found.");
-    if (current.virtualEmployeeId === virtualEmployeeId) return current;
-    const employee = await this.virtualEmployees.get(virtualEmployeeId);
-    if (employee.status !== "active") throw new Error("Only an Active Virtual Employee can be bound to an Instance.");
-    const configuration = await this.virtualEmployees.runtimeConfiguration(virtualEmployeeId);
-    const profile = (await this.store.listModelProfiles()).find((item) => item.status === "READY" && item.publicModelAlias === configuration.model);
-    if (!profile) throw new Error(`Virtual Employee model ${configuration.model} is not backed by a READY Model Profile.`);
-    const gateway = await this.store.getInferenceGateway(profile.gatewayId);
-    if (!gateway) throw new Error("The Virtual Employee LiteLLM Gateway is unavailable.");
-    const policy = await this.policies.resolve(current.policyId);
-    const access = employee.modelAccess;
-    const keyAlias = `tali-instance-${id}`;
-    const serviceAccountId = `tali-instance-${id}`;
-    const objectPermissions = await this.accessPolicies.permissionsForAgent({
-      virtualEmployeeId,
-      mcpServerIds: current.mcpServerIds,
-      knowledgeSourceIds: current.knowledgeSourceIds,
-    });
-    const modelKeyRouting = await this.modelKeyRouting(profile);
-    const { teamId, key: instanceKey } = await this.quotas.createInstanceKey({
-      alias: keyAlias,
-      models: [
-        ...new Set([
-          ...modelKeyRouting.models,
-          ...(access?.accessGroups ?? []),
-        ]),
-      ],
-      ...modelKeyRouting.keyConfiguration,
-      metadata: {
-        managed_by: "tali",
-        tali_project_id: this.store.projectId,
-        tali_virtual_employee_id: virtualEmployeeId,
-        tali_instance_id: id,
-        service_account_id: serviceAccountId,
-      },
-      objectPermissions,
-    });
-
-    await this.runner.destroySandbox(current.sandboxName, current.agentPlatform);
-    let observed: RunnerSandbox;
+    await this.accessPolicies.assertActivePolicyIds(accessPolicyIds);
+    const next = {
+      ...current,
+      accessPolicyIds,
+      updatedAt: new Date().toISOString(),
+      logs: [...current.logs, `Access Policies updated by ${actor}.`],
+    };
+    const [permissions, previousPermissions] = await Promise.all([
+      this.accessPolicies.permissionsForAgent(next),
+      this.accessPolicies.permissionsForAgent(current),
+    ]);
+    if (current.liteLLMTokenId) {
+      if (!this.litellm.updateInstanceObjectPermissions) {
+        throw new Error("LiteLLM key permission updates are unavailable.");
+      }
+      await this.litellm.updateInstanceObjectPermissions(
+        current.liteLLMTokenId,
+        permissions,
+      );
+    }
     try {
-      observed = await this.runner.createSandbox({
-        name: current.sandboxName,
-        agentPlatform: current.agentPlatform,
-        providerName: "LiteLLM",
-        model: configuration.model,
-        inferenceEndpoint: configuration.endpoint,
-        policyYaml: policy.policyYaml,
-        systemPrompt: current.systemPrompt,
-        apiKey: instanceKey.secret,
-        virtualEmployeeId,
-        instanceId: id,
-      });
+      await this.store.replaceAgentAccessPolicies(id, accessPolicyIds, actor);
+      return await this.store.save(next);
     } catch (error) {
-      await this.litellm.revokeKey(instanceKey.tokenId).catch(() => undefined);
+      const rollbackFailures: string[] = [];
+      try {
+        await this.store.replaceAgentAccessPolicies(
+          id,
+          current.accessPolicyIds,
+          `${actor} (rollback)`,
+        );
+      } catch (rollbackError) {
+        rollbackFailures.push(
+          `database: ${rollbackError instanceof Error ? rollbackError.message : "unknown error"}`,
+        );
+      }
+      if (current.liteLLMTokenId) {
+        try {
+          await this.litellm.updateInstanceObjectPermissions!(
+            current.liteLLMTokenId,
+            previousPermissions,
+          );
+        } catch (rollbackError) {
+          rollbackFailures.push(
+            `LiteLLM: ${rollbackError instanceof Error ? rollbackError.message : "unknown error"}`,
+          );
+        }
+      }
+      if (rollbackFailures.length) {
+        throw new Error(
+          `Access Policy assignment failed and rollback was incomplete (${rollbackFailures.join("; ")}).`,
+          { cause: error },
+        );
+      }
       throw error;
     }
-    if (current.liteLLMTokenId) await this.litellm.revokeKey(current.liteLLMTokenId);
-    await this.closeInstanceAttributions(id);
-    const now = new Date().toISOString();
-    await this.store.costAnalytics().saveAttribution({
-      id: `instance-key:${id}:${instanceKey.tokenId.slice(-12)}`,
-      projectId: this.store.projectId,
-      environmentId: employee.environment,
-      instanceId: id,
-      instanceName: current.name,
-      liteLLMVirtualKeyId: instanceKey.tokenId,
-      hashedToken: instanceKey.tokenId,
-      virtualKeyAlias: keyAlias,
-      liteLLMTeamId: teamId,
-      providerAccountId: gateway.id,
-      validFrom: now,
-      createdAt: now,
-      updatedAt: now,
-    });
-    await this.virtualEmployees.unbindInstance(id, actor);
-    await this.virtualEmployees.bindInstance(virtualEmployeeId, id, actor);
-    return this.store.save(applyObservedState({
-      ...current,
-      virtualEmployeeId,
-      model: configuration.model,
-      modelDeploymentId: `model-profile:${profile.id}`,
-      providerAccountId: gateway.id,
-      modelProfileId: profile.id,
-      modelProfileBindingId:
-        access?.id ?? `project-default:${profile.id}`,
-      modelProfileStatus: profile.status,
-      modelProfileComplianceDomain: profile.complianceDomain,
-      modelProfileCapabilities: profile.capabilities,
-      modelProfileKeyFingerprint: `token:${instanceKey.tokenId.slice(-12)}`,
-      costKeyAlias: keyAlias,
-      liteLLMTokenId: instanceKey.tokenId,
-      liteLLMTeamId: teamId,
-      serviceAccountId,
-      updatedAt: new Date().toISOString(),
-      logs: [...current.logs, `Virtual Employee changed to ${employee.displayName}.`],
-    }, observed));
-  }
-
-  async unbindVirtualEmployee(id: string, actor: string): Promise<Agent> {
-    const current = await this.store.get(id);
-    if (!current) throw new Error("Agent Instance not found.");
-    await this.runner.destroySandbox(current.sandboxName, current.agentPlatform);
-    if (current.liteLLMTokenId) await this.litellm.revokeKey(current.liteLLMTokenId);
-    await this.closeInstanceAttributions(id);
-    await this.virtualEmployees.unbindInstance(id, actor);
-    return this.store.save({
-      ...current,
-      status: "FAILED",
-      updatedAt: new Date().toISOString(),
-      error: "Virtual Employee unbound. Bind an Active Virtual Employee before restarting this Instance.",
-      logs: [...current.logs, "Virtual Employee unbound; runtime stopped to prevent credential reuse."],
-    });
   }
 
   private async modelKeyRouting(profile: ModelProfile): Promise<{
