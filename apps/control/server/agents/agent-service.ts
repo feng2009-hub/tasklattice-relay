@@ -1,10 +1,12 @@
 import { randomUUID } from "node:crypto";
-import type {
-  Agent,
-  CreateAgentInput,
-  ModelRouting,
-  RunnerSandbox,
-  SandboxAuditEvent,
+import {
+  defaultNativeAgentMemoryConfiguration,
+  type Agent,
+  type AgentMemoryConfiguration,
+  type CreateAgentInput,
+  type ModelRouting,
+  type RunnerSandbox,
+  type SandboxAuditEvent,
 } from "@tasklattice/contracts";
 import { AccessPolicyService } from "../access-policies/access-policy-service";
 import { AccessPolicyStore } from "../access-policies/access-policy-store";
@@ -12,6 +14,7 @@ import { ProjectStore } from "../projects/project-store";
 import { ResourceCatalogService } from "../catalog/resource-catalog-service";
 import {
   NemoClawRunnerClient,
+  type CreateSandboxInput,
   type RunnerClient,
 } from "../runtime/nemoclaw-runner-client";
 import {
@@ -153,6 +156,15 @@ export class AgentService {
       throw new Error(
         "The selected Routing LiteLLM Gateway is unavailable.",
       );
+    const memoryConfiguration =
+      input.agentPlatform === "openclaw"
+        ? (input.memory ?? defaultNativeAgentMemoryConfiguration)
+        : input.memory;
+    const memory = await this.resolveMemory(
+      input.agentPlatform,
+      memoryConfiguration,
+      routing,
+    );
     const costKeyAlias = `tali-instance-${id}`;
     const serviceAccountId = `tali-instance-${id}`;
     const objectPermissions = await this.accessPolicies.permissionsForAgent({
@@ -163,7 +175,9 @@ export class AgentService {
     const modelKeyRouting = await this.modelKeyRouting(routing);
     const { teamId, key: instanceKey } = await this.quotas.createInstanceKey({
       alias: costKeyAlias,
-      models: modelKeyRouting.models,
+      models: memory.keyModel
+        ? [...new Set([...modelKeyRouting.models, memory.keyModel])]
+        : modelKeyRouting.models,
       ...modelKeyRouting.keyConfiguration,
       metadata: {
         managed_by: "tali",
@@ -177,6 +191,7 @@ export class AgentService {
       schemaVersion: 2,
       id,
       ...input,
+      ...(memoryConfiguration ? { memory: memoryConfiguration } : {}),
       policyId: policy.id,
       modelDeploymentId: `model-routing:${routing.id}`,
       providerAccountId: gateway.id,
@@ -239,6 +254,7 @@ export class AgentService {
             systemPrompt: input.systemPrompt,
             apiKey: instanceKey.secret,
             instanceId: id,
+            ...(memory.runtime ? { memory: memory.runtime } : {}),
           }),
         ),
       );
@@ -430,6 +446,56 @@ export class AgentService {
             ? { fallbacks: [{ [primary.litellmModelName]: fallbackModels }] }
             : {}),
         },
+      },
+    };
+  }
+
+  private async resolveMemory(
+    agentPlatform: CreateAgentInput["agentPlatform"],
+    memory: AgentMemoryConfiguration | undefined,
+    routing: ModelRouting,
+  ): Promise<{
+    keyModel?: string;
+    runtime?: NonNullable<CreateSandboxInput["memory"]>;
+  }> {
+    if (!memory) return {};
+    if (agentPlatform !== "openclaw") {
+      throw new Error("Memory is currently available only for OpenClaw Instances.");
+    }
+    if (memory.mode === "native") {
+      return {
+        runtime: {
+          mode: "native",
+          citations: memory.citations,
+        },
+      };
+    }
+    const embedding = await this.store.getModelDeployment(
+      memory.embeddingModelDeploymentId,
+    );
+    if (
+      !embedding ||
+      embedding.status !== "VALIDATED" ||
+      embedding.modelType !== "text-embedding"
+    ) {
+      throw new Error(
+        "Select a validated text embedding model for hybrid Memory.",
+      );
+    }
+    if (embedding.complianceDomain !== routing.complianceDomain) {
+      throw new Error(
+        "Memory embedding and model Routing must use the same compliance boundary.",
+      );
+    }
+    return {
+      keyModel: embedding.litellmModelName,
+      runtime: {
+        mode: "hybrid",
+        embeddingModel: embedding.litellmModelName,
+        includeSessionTranscripts: memory.includeSessionTranscripts,
+        citations: memory.citations,
+        maxResults: memory.maxResults,
+        minScore: memory.minScore,
       },
     };
   }

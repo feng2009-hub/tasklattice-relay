@@ -1,7 +1,14 @@
 import { useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import type { KnowledgeSourceDefinition, McpServerDefinition, SkillDefinition } from "@tasklattice/contracts";
-import { BookOpenText, Boxes, ChevronDown, Info, Network, Pencil, Plus, ServerCog, X } from "lucide-react";
+import type {
+  AgentMemoryConfiguration,
+  AgentPlatformId,
+  KnowledgeSourceDefinition,
+  McpServerDefinition,
+  ModelDeployment,
+  SkillDefinition,
+} from "@tasklattice/contracts";
+import { BookOpenText, Boxes, BrainCircuit, Check, ChevronDown, Info, Network, Pencil, Plus, ServerCog, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,14 +48,20 @@ function mcpStatusTone(server: McpServerDefinition): "danger" | "neutral" | "suc
   return "neutral";
 }
 
-export function IdentityCapabilitiesStep({ customSystemPrompt, knowledgeSources, mcpServers, name, onCustomSystemPromptChange, onKnowledgeSourceIdsChange, onMcpServerIdsChange, onNameChange, onSkillIdsChange, onSpecializationChange, onSystemPromptChange, selectedKnowledgeSourceIds, selectedMcpServerIds, selectedSkillIds, skills, specialization, specializations, systemPrompt }: {
+export function IdentityCapabilitiesStep({ agentPlatform, customSystemPrompt, embeddingModels, knowledgeSources, mcpServers, memory, memoryEnabled, name, onCustomSystemPromptChange, onKnowledgeSourceIdsChange, onMcpServerIdsChange, onMemoryChange, onMemoryEnabledChange, onNameChange, onSkillIdsChange, onSpecializationChange, onSystemPromptChange, selectedKnowledgeSourceIds, selectedMcpServerIds, selectedSkillIds, skills, specialization, specializations, systemPrompt }: {
+  agentPlatform: AgentPlatformId;
   customSystemPrompt: string;
+  embeddingModels: readonly ModelDeployment[];
   knowledgeSources: readonly KnowledgeSourceDefinition[];
   mcpServers: readonly McpServerDefinition[];
+  memory: AgentMemoryConfiguration;
+  memoryEnabled: boolean;
   name: string;
   onCustomSystemPromptChange: (value: string) => void;
   onKnowledgeSourceIdsChange: (ids: string[]) => void;
   onMcpServerIdsChange: (ids: string[]) => void;
+  onMemoryChange: (memory: AgentMemoryConfiguration) => void;
+  onMemoryEnabledChange: (enabled: boolean) => void;
   onNameChange: (value: string) => void;
   onSkillIdsChange: (ids: string[]) => void;
   onSpecializationChange: (id: SpecializationId) => void;
@@ -66,6 +79,7 @@ export function IdentityCapabilitiesStep({ customSystemPrompt, knowledgeSources,
   const [skillsOpen, setSkillsOpen] = useState(false);
   const [mcpOpen, setMcpOpen] = useState(false);
   const [knowledgeOpen, setKnowledgeOpen] = useState(false);
+  const [memoryOpen, setMemoryOpen] = useState(false);
   const skillOptions = skills.filter((skill) => skill.status === "PUBLISHED").map(skillOption);
   const mcpOptions: MultiSelectOption[] = mcpServers.map((server) => ({
     value: server.id,
@@ -149,6 +163,7 @@ export function IdentityCapabilitiesStep({ customSystemPrompt, knowledgeSources,
                 <DropdownMenuItem onSelect={() => setSkillsOpen(true)}><Boxes /> Skills</DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => setMcpOpen(true)}><ServerCog /> MCP Servers</DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => setKnowledgeOpen(true)}><BookOpenText /> Knowledge Bases</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setMemoryOpen(true)}><BrainCircuit /> Memory</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -185,6 +200,17 @@ export function IdentityCapabilitiesStep({ customSystemPrompt, knowledgeSources,
             selectedIds={selectedKnowledgeSourceIds}
             onChange={onKnowledgeSourceIdsChange}
           />
+          <MemoryCapabilityRow
+            agentPlatform={agentPlatform}
+            embeddingModels={embeddingModels}
+            enabled={memoryEnabled}
+            memory={memory}
+            onEnabledChange={onMemoryEnabledChange}
+            onMemoryChange={onMemoryChange}
+            onOpenChange={setMemoryOpen}
+            open={memoryOpen}
+            projectId={projectId}
+          />
         </CardContent>
       </Card>
 
@@ -199,6 +225,143 @@ export function IdentityCapabilitiesStep({ customSystemPrompt, knowledgeSources,
         />
       ) : null}
     </div>
+  );
+}
+
+function MemoryCapabilityRow({ agentPlatform, embeddingModels, enabled, memory, onEnabledChange, onMemoryChange, onOpenChange, open, projectId }: {
+  agentPlatform: AgentPlatformId;
+  embeddingModels: readonly ModelDeployment[];
+  enabled: boolean;
+  memory: AgentMemoryConfiguration;
+  onEnabledChange: (enabled: boolean) => void;
+  onMemoryChange: (memory: AgentMemoryConfiguration) => void;
+  onOpenChange: (open: boolean) => void;
+  open: boolean;
+  projectId: string;
+}) {
+  const supported = agentPlatform === "openclaw";
+  const selectMode = (mode: "native" | "hybrid") => {
+    if (mode === "native") {
+      onMemoryChange({ mode: "native", citations: memory.citations });
+      return;
+    }
+    onMemoryChange({
+      mode: "hybrid",
+      embeddingModelDeploymentId: embeddingModels[0]?.id ?? "",
+      includeSessionTranscripts: false,
+      citations: memory.citations,
+      maxResults: 6,
+      minScore: 0.35,
+    });
+  };
+
+  return (
+    <Collapsible open={open} onOpenChange={onOpenChange} className="rounded-md border">
+      <div className="flex min-h-20 items-start gap-3 px-4 py-3">
+        <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-md bg-primary/10 text-primary"><BrainCircuit className="size-4" /></span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-sm font-semibold">Memory</h3>
+            <Badge variant="outline" className="font-normal">
+              {!supported ? "OpenClaw only" : enabled ? (memory.mode === "hybrid" ? "Hybrid" : "Native") : "Not enabled"}
+            </Badge>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">Durable, Instance-isolated context that helps OpenClaw remember decisions and preferences.</p>
+          {supported && enabled ? <p className="mt-2 text-xs font-medium text-primary">{memory.mode === "hybrid" ? "Curated notes + semantic recall" : "Curated memory + daily notes"}</p> : null}
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={supported && enabled}
+          aria-label="Enable Memory"
+          disabled={!supported}
+          onClick={() => {
+            onEnabledChange(!enabled);
+            if (!enabled) onOpenChange(true);
+          }}
+          className={cn(
+            "relative mt-1 h-6 w-11 shrink-0 rounded-full border transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-40",
+            supported && enabled ? "border-primary bg-primary" : "border-input bg-muted",
+          )}
+        >
+          <span className={cn("absolute top-0.5 size-4 rounded-full bg-background shadow-sm transition-transform", supported && enabled ? "translate-x-5" : "translate-x-1")} />
+        </button>
+        <CollapsibleTrigger asChild>
+          <Button type="button" size="icon" variant="ghost" aria-label={`${open ? "Collapse" : "Expand"} Memory`} disabled={!supported}>
+            <ChevronDown className={cn("transition-transform", open && "rotate-180")} />
+          </Button>
+        </CollapsibleTrigger>
+      </div>
+      <CollapsibleContent className="border-t bg-muted/10 p-4">
+        {!supported ? (
+          <p className="text-xs text-muted-foreground">Select OpenClaw as the Agent workbench to configure Memory.</p>
+        ) : (
+          <div className={cn("space-y-4", !enabled && "pointer-events-none opacity-50")} aria-disabled={!enabled}>
+            <div className="grid gap-4 md:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]">
+              <div className="space-y-2">
+                <Label htmlFor="memory-mode">Memory mode</Label>
+                <Select value={memory.mode} onValueChange={(value) => selectMode(value as "native" | "hybrid")}>
+                  <SelectTrigger id="memory-mode" className="min-h-11 w-full"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="native">Native · recommended</SelectItem>
+                    <SelectItem value="hybrid">Hybrid · semantic recall</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="border-l-2 border-primary bg-primary/5 px-3 py-2.5 text-xs leading-5">
+                {memory.mode === "native"
+                  ? "No embedding dependency. OpenClaw reads curated MEMORY.md and maintains dated notes inside this Instance."
+                  : "TaskLattice routes recall through LiteLLM and enforces the same compliance boundary as this Instance's model Routing."}
+              </div>
+            </div>
+
+            {memory.mode === "hybrid" ? (
+              <div className="space-y-4 border-t pt-4">
+                <div className="space-y-2">
+                  <Label htmlFor="memory-embedding-model">Embedding model</Label>
+                  <Select
+                    value={memory.embeddingModelDeploymentId}
+                    disabled={!embeddingModels.length}
+                    onValueChange={(embeddingModelDeploymentId) => onMemoryChange({ ...memory, embeddingModelDeploymentId })}
+                  >
+                    <SelectTrigger id="memory-embedding-model" className="min-h-11 w-full"><SelectValue placeholder="Select a validated text-embedding model" /></SelectTrigger>
+                    <SelectContent>
+                      {embeddingModels.map((model) => (
+                        <SelectItem key={model.id} value={model.id}>{model.displayName} · {model.complianceDomain}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {!embeddingModels.length ? (
+                    <p role="alert" className="border-l-2 border-amber-500 bg-amber-500/5 px-3 py-2 text-xs">
+                      Register and validate a text-embedding model in the same compliance boundary before using Hybrid memory.
+                    </p>
+                  ) : null}
+                </div>
+                <button
+                  type="button"
+                  role="checkbox"
+                  aria-checked={memory.includeSessionTranscripts}
+                  onClick={() => onMemoryChange({ ...memory, includeSessionTranscripts: !memory.includeSessionTranscripts })}
+                  className="flex min-h-11 w-full items-start gap-3 border p-3 text-left hover:bg-muted/35 focus-visible:outline-2"
+                >
+                  <span className={cn("mt-0.5 grid size-5 shrink-0 place-items-center border", memory.includeSessionTranscripts && "border-primary bg-primary text-primary-foreground")}>
+                    {memory.includeSessionTranscripts ? <Check className="size-3.5" /> : null}
+                  </span>
+                  <span><strong className="block text-xs">Include session transcripts</strong><span className="mt-1 block text-xs leading-5 text-muted-foreground">Make recent OpenClaw sessions searchable in addition to curated notes.</span></span>
+                </button>
+              </div>
+            ) : null}
+
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3 text-xs text-muted-foreground">
+              <span>Memory is capability context, not an authorization source.</span>
+              <Button asChild variant="link" size="sm" className="h-auto min-h-0 p-0">
+                <Link to="/$projectId/memory" params={{ projectId }}>Review Memory architecture</Link>
+              </Button>
+            </div>
+          </div>
+        )}
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 

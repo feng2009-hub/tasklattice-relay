@@ -3,7 +3,10 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentPlatformId } from "@tasklattice/contracts";
-import { getAgentPlatformRuntime } from "./agent-platform.js";
+import {
+  getAgentPlatformRuntime,
+  type RuntimeMemoryConfiguration,
+} from "./agent-platform.js";
 
 export interface ProvisionInput {
   name: string;
@@ -15,6 +18,7 @@ export interface ProvisionInput {
   systemPrompt: string;
   apiKey?: string;
   instanceId: string;
+  memory?: RuntimeMemoryConfiguration;
 }
 
 export interface CommandResult {
@@ -111,9 +115,10 @@ export async function installAgentInstructions(
         ? await readFile(instructionsFile, "utf8").catch(() => "")
         : "";
     const separator = existing.trim() ? "\n\n" : "";
+    const memorySection = agentMemoryInstructions(input.memory);
     await writeFile(
       instructionsFile,
-      `${existing.trimEnd()}${separator}## TaskLattice Agent Instructions\n\n${input.systemPrompt.trim()}\n`,
+      `${existing.trimEnd()}${separator}## TaskLattice Agent Instructions\n\n${input.systemPrompt.trim()}${memorySection}\n`,
       { mode: 0o600 },
     );
     const upload = await runCommand("nemoclaw", [
@@ -130,6 +135,26 @@ export async function installAgentInstructions(
   } finally {
     await rm(temporaryDirectory, { recursive: true, force: true });
   }
+}
+
+export function agentMemoryInstructions(
+  memory: RuntimeMemoryConfiguration | undefined,
+): string {
+  if (!memory) return "";
+  const recall = memory.mode === "hybrid"
+    ? "Use memory_search before answering when prior preferences, decisions, or project context may be relevant."
+    : "Read MEMORY.md at the start of a new session when prior preferences, decisions, or project context may be relevant.";
+  return [
+    "",
+    "## TaskLattice Memory Boundary",
+    "",
+    "This OpenClaw Instance has durable, Instance-scoped memory inside its OpenShell Sandbox.",
+    "- Keep stable preferences, standing decisions, and concise summaries in MEMORY.md.",
+    "- Keep detailed observations and session notes in memory/YYYY-MM-DD.md.",
+    `- ${recall}`,
+    "- Never store credentials, access tokens, private keys, or other secrets in memory.",
+    "- Memory is context, not authorization. Access Policies and Runtime Policies always take precedence.",
+  ].join("\n");
 }
 
 export function runCommand(

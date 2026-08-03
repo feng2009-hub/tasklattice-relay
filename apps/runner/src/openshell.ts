@@ -7,7 +7,11 @@ import type { ProvisioningStage, SandboxAuditEvent } from "@tasklattice/contract
 import type { AgentPlatformId } from "@tasklattice/contracts";
 import { parse, stringify } from "yaml";
 import { getAgentPlatformRuntime } from "./agent-platform.js";
-import { runCommand, type ProvisionInput } from "./nemoclaw.js";
+import {
+  agentMemoryInstructions,
+  runCommand,
+  type ProvisionInput,
+} from "./nemoclaw.js";
 
 const nemoClawGatewayPort = process.env.NEMOCLAW_DASHBOARD_PORT ?? "18789";
 const nemoClawWebUiService = "webui";
@@ -778,7 +782,7 @@ export async function provisionOpenShellSandbox(
   try {
     await writeFile(
       instructionsFile,
-      `## TaskLattice Agent Instructions\n\n${input.systemPrompt.trim()}\n`,
+      `## TaskLattice Agent Instructions\n\n${input.systemPrompt.trim()}${agentMemoryInstructions(input.memory)}\n`,
       { mode: 0o600 },
     );
     await writeFile(
@@ -788,6 +792,7 @@ export async function provisionOpenShellSandbox(
         nemoClawGatewayPort,
         input.inferenceEndpoint,
         input.model,
+        input.memory,
       ),
       { mode: 0o600 },
     );

@@ -1,7 +1,23 @@
 import type {
+  AgentMemoryConfiguration,
   AgentPlatformId,
   HttpEndpoint,
 } from "@tasklattice/contracts";
+
+type NativeMemoryConfiguration = Extract<
+  AgentMemoryConfiguration,
+  { mode: "native" }
+>;
+type HybridMemoryConfiguration = Extract<
+  AgentMemoryConfiguration,
+  { mode: "hybrid" }
+>;
+
+export type RuntimeMemoryConfiguration =
+  | NativeMemoryConfiguration
+  | (Omit<HybridMemoryConfiguration, "embeddingModelDeploymentId"> & {
+      embeddingModel: string;
+    });
 
 export interface AgentPlatformRuntime {
   id: AgentPlatformId;
@@ -15,6 +31,7 @@ export interface AgentPlatformRuntime {
     dashboardPort: string,
     inferenceEndpoint: string,
     model: string,
+    memory?: RuntimeMemoryConfiguration,
   ) => string;
   healthProbe: (dashboardPort: string) => string;
   startupLogs: readonly string[];
@@ -25,16 +42,23 @@ const openClawBootstrapScript = (
   dashboardPort: string,
   inferenceEndpoint: string,
   model: string,
-) => `#!/usr/bin/env bash
+  memory?: RuntimeMemoryConfiguration,
+) => {
+  const memoryPayload = Buffer.from(
+    JSON.stringify(memory ?? null),
+    "utf8",
+  ).toString("base64");
+  return `#!/usr/bin/env bash
 set -euo pipefail
 
 readonly config_file=/sandbox/.openclaw/openclaw.json
 readonly hash_file=/sandbox/.openclaw/.config-hash
 
-node - "$config_file" "${dashboardOrigin}" "${inferenceEndpoint}" "${model}" <<'NODE'
+node - "$config_file" "${dashboardOrigin}" "${inferenceEndpoint}" "${model}" "${memoryPayload}" <<'NODE'
 const fs = require("node:fs");
-const [configFile, corsOrigin, inferenceEndpoint, modelId] = process.argv.slice(2);
+const [configFile, corsOrigin, inferenceEndpoint, modelId, memoryPayload] = process.argv.slice(2);
 const config = JSON.parse(fs.readFileSync(configFile, "utf8"));
+const memory = JSON.parse(Buffer.from(memoryPayload, "base64").toString("utf8"));
 const controlUi = (config.gateway ??= {}).controlUi ??= {};
 const origins = Array.isArray(controlUi.allowedOrigins)
   ? controlUi.allowedOrigins
@@ -49,6 +73,62 @@ provider.models = [{
   name: "inference/" + modelId,
 }];
 config.agents.defaults.model.primary = "inference/" + modelId;
+if (memory) {
+  const workspaceDirectory = "/sandbox/.openclaw/workspace";
+  const dailyMemoryDirectory = workspaceDirectory + "/memory";
+  const durableMemoryFile = workspaceDirectory + "/MEMORY.md";
+  fs.mkdirSync(dailyMemoryDirectory, { recursive: true, mode: 0o770 });
+  if (!fs.existsSync(durableMemoryFile)) {
+    fs.writeFileSync(
+      durableMemoryFile,
+      "# OpenClaw Memory\\n\\n<!-- Durable, Instance-scoped memory managed by the OpenClaw Agent. -->\\n",
+      { mode: 0o660 },
+    );
+  }
+  config.memory = {
+    ...(config.memory ?? {}),
+    backend: "builtin",
+    citations: memory.citations,
+  };
+  if (memory.mode === "hybrid") {
+    const secretProviders = (config.secrets ??= {}).providers ??= {};
+    secretProviders.tasklattice = {
+      source: "env",
+      allowlist: ["OPENAI_API_KEY"],
+    };
+    config.agents.defaults.memorySearch = {
+      ...(config.agents.defaults.memorySearch ?? {}),
+      enabled: true,
+      sources: memory.includeSessionTranscripts
+        ? ["memory", "sessions"]
+        : ["memory"],
+      experimental: {
+        sessionMemory: memory.includeSessionTranscripts,
+      },
+      provider: "openai-compatible",
+      remote: {
+        baseUrl: inferenceEndpoint,
+        apiKey: {
+          source: "env",
+          provider: "tasklattice",
+          id: "OPENAI_API_KEY",
+        },
+      },
+      fallback: "none",
+      model: memory.embeddingModel,
+      query: {
+        maxResults: memory.maxResults,
+        minScore: memory.minScore,
+      },
+    };
+  } else {
+    config.agents.defaults.memorySearch = {
+      ...(config.agents.defaults.memorySearch ?? {}),
+      enabled: false,
+      sources: ["memory"],
+    };
+  }
+}
 fs.writeFileSync(configFile, JSON.stringify(config, null, 2) + "\\n", {
   mode: 0o660,
 });
@@ -57,12 +137,14 @@ NODE
 (cd "$(dirname "$config_file")" && sha256sum "$(basename "$config_file")" >"$hash_file")
 exec env "NEMOCLAW_DASHBOARD_PORT=${dashboardPort}" /usr/local/bin/nemoclaw-start
 `;
+};
 
 const hermesBootstrapScript = (
   _dashboardOrigin: string,
   dashboardPort: string,
   inferenceEndpoint: string,
   model: string,
+  _memory?: RuntimeMemoryConfiguration,
 ) => `#!/usr/bin/env bash
 set -euo pipefail
 

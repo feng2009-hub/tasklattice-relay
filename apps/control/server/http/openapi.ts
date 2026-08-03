@@ -1610,6 +1610,65 @@ export const openApiDocument = {
             maxItems: 64,
             items: { type: "string" },
           },
+          memory: {
+            oneOf: [
+              {
+                type: "object",
+                additionalProperties: false,
+                required: ["mode", "citations"],
+                properties: {
+                  mode: { type: "string", const: "native" },
+                  citations: {
+                    type: "string",
+                    enum: ["auto", "on", "off"],
+                    default: "auto",
+                  },
+                },
+              },
+              {
+                type: "object",
+                additionalProperties: false,
+                required: [
+                  "mode",
+                  "embeddingModelDeploymentId",
+                  "includeSessionTranscripts",
+                  "citations",
+                  "maxResults",
+                  "minScore",
+                ],
+                properties: {
+                  mode: { type: "string", const: "hybrid" },
+                  embeddingModelDeploymentId: {
+                    type: "string",
+                    format: "uuid",
+                  },
+                  includeSessionTranscripts: {
+                    type: "boolean",
+                    default: false,
+                  },
+                  citations: {
+                    type: "string",
+                    enum: ["auto", "on", "off"],
+                    default: "auto",
+                  },
+                  maxResults: {
+                    type: "integer",
+                    minimum: 1,
+                    maximum: 20,
+                    default: 6,
+                  },
+                  minScore: {
+                    type: "number",
+                    minimum: 0,
+                    maximum: 1,
+                    default: 0.35,
+                  },
+                },
+              },
+            ],
+            description:
+              "OpenClaw-only, Instance-isolated durable memory configuration. OpenClaw defaults to native memory when omitted.",
+          },
         },
       },
       Agent: {

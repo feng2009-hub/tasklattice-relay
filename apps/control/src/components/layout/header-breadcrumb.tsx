@@ -13,6 +13,7 @@ const routeLabels: Record<string, string> = {
   instances: "Instances",
   instace: "Instances",
   knowledge: "Knowledge Base",
+  memory: "Memory",
   mcp: "MCP Servers",
   new: "Create Instance",
   policy: "Policy",

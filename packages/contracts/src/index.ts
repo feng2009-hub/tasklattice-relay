@@ -568,6 +568,26 @@ export const defaultAgentPlatformId = agentPlatforms.find(
   (platform) => platform.isDefault,
 )!.id;
 
+export const agentMemoryCitations = ["auto", "on", "off"] as const;
+
+export const agentMemoryConfigurationSchema = z.discriminatedUnion("mode", [
+  z.object({
+    mode: z.literal("native"),
+    citations: z.enum(agentMemoryCitations).default("auto"),
+  }).strict(),
+  z.object({
+    mode: z.literal("hybrid"),
+    embeddingModelDeploymentId: z.string().uuid(),
+    includeSessionTranscripts: z.boolean().default(false),
+    citations: z.enum(agentMemoryCitations).default("auto"),
+    maxResults: z.number().int().min(1).max(20).default(6),
+    minScore: z.number().min(0).max(1).default(0.35),
+  }).strict(),
+]);
+
+export const defaultNativeAgentMemoryConfiguration =
+  agentMemoryConfigurationSchema.parse({ mode: "native" });
+
 export const sandboxPolicyIdSchema = z
   .string()
   .trim()
@@ -1031,7 +1051,16 @@ export const createAgentSchema = z.object({
   skillIds: z.array(z.string().trim().min(1).max(160)).max(64).optional(),
   mcpServerIds: z.array(z.string().trim().min(1).max(160)).max(64).optional(),
   knowledgeSourceIds: z.array(z.string().trim().min(1).max(160)).max(64).optional(),
-}).strict();
+  memory: agentMemoryConfigurationSchema.optional(),
+}).strict().superRefine((value, context) => {
+  if (value.memory && value.agentPlatform !== "openclaw") {
+    context.addIssue({
+      code: "custom",
+      path: ["memory"],
+      message: "Memory is currently available only for OpenClaw Instances.",
+    });
+  }
+});
 
 export const updateInstanceAccessPoliciesSchema = z.object({
   accessPolicyIds: agentAccessPolicyIdsSchema,
@@ -1216,6 +1245,9 @@ export type ModelInputModality = (typeof modelInputModalities)[number];
 export type ModelOutputModality = (typeof modelOutputModalities)[number];
 export type AgentPlatformId = (typeof agentPlatformIds)[number];
 export type AgentPlatform = (typeof agentPlatforms)[number];
+export type AgentMemoryConfiguration = z.infer<
+  typeof agentMemoryConfigurationSchema
+>;
 export type SandboxPolicyId = z.infer<typeof sandboxPolicyIdSchema>;
 export type SandboxPolicyInput = z.infer<typeof sandboxPolicyInputSchema>;
 export type CreateSandboxPolicyInput = z.infer<typeof createSandboxPolicySchema>;

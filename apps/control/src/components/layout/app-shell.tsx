@@ -4,6 +4,7 @@ import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import {
   Boxes,
   Bot,
+  BrainCircuit,
   CheckCircle2,
   CircleDollarSign,
   CircleHelp,
@@ -70,6 +71,7 @@ type ProjectRoute =
   | "/$projectId/audit-logs"
   | "/$projectId/runtime-policies"
   | "/$projectId/knowledge-base"
+  | "/$projectId/memory"
   | "/$projectId/mcp-servers"
   | "/$projectId/skills"
   | "/$projectId/requests";
@@ -84,11 +86,12 @@ const navGroups: Array<{ items: NavItemDefinition[]; label: string }> = [
   {
     label: "Agentic",
     items: [
-      { icon: Boxes, label: "Instances", to: "/$projectId/instances" },
       { icon: Bot, label: "Agent Garden", to: "/$projectId/agent-garden" },
+      { icon: Boxes, label: "Instances", to: "/$projectId/instances" },
       { icon: Sparkles, label: "Skills", to: "/$projectId/skills" },
       { icon: ServerCog, label: "MCP Servers", to: "/$projectId/mcp-servers" },
       { icon: Network, label: "Knowledge Base", to: "/$projectId/knowledge-base" },
+      { icon: BrainCircuit, label: "Memory", to: "/$projectId/memory" },
     ],
   },
   {

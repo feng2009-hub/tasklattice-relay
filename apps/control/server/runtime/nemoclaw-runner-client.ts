@@ -16,6 +16,19 @@ export interface CreateSandboxInput {
   systemPrompt: string;
   apiKey?: string;
   instanceId: string;
+  memory?:
+    | {
+        mode: "native";
+        citations: "auto" | "on" | "off";
+      }
+    | {
+        mode: "hybrid";
+        embeddingModel: string;
+        includeSessionTranscripts: boolean;
+        citations: "auto" | "on" | "off";
+        maxResults: number;
+        minScore: number;
+      };
 }
 
 export interface RunnerClient {

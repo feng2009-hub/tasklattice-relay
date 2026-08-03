@@ -3,9 +3,12 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
+  defaultNativeAgentMemoryConfiguration,
   defaultAgentPlatformId,
+  type AgentMemoryConfiguration,
   type AgentPlatformId,
   type CreateAgentInput,
+  type ModelDeployment,
   type ModelRouting,
 } from "@tasklattice/contracts";
 import {
@@ -125,6 +128,12 @@ export function CreateInstanceSheet({
   const [skillsTouched, setSkillsTouched] = useState(false);
   const [mcpsTouched, setMcpsTouched] = useState(false);
   const [knowledgeSourcesTouched, setKnowledgeSourcesTouched] = useState(false);
+  const [memoryEnabled, setMemoryEnabled] = useState(
+    initialAgentPlatform === "openclaw",
+  );
+  const [memory, setMemory] = useState<AgentMemoryConfiguration>(
+    defaultNativeAgentMemoryConfiguration,
+  );
   const [capabilitiesInitialized, setCapabilitiesInitialized] = useState(false);
   const [pendingSpecializationId, setPendingSpecializationId] =
     useState<SpecializationId | null>(null);
@@ -147,6 +156,10 @@ export function CreateInstanceSheet({
   const modelRoutings = useQuery({
     queryKey: scope.key("model-routings"),
     queryFn: api.listModelRoutings,
+  });
+  const modelDeployments = useQuery({
+    queryKey: scope.key("model-deployments"),
+    queryFn: api.listModelDeployments,
   });
   const policies = useQuery({
     queryKey: scope.key("sandbox-policies"),
@@ -199,9 +212,23 @@ export function CreateInstanceSheet({
         skillIds: selectedIds(selectedSkills),
         mcpServerIds: selectedIds(selectedMcps),
         knowledgeSourceIds: selectedIds(selectedKnowledgeSources),
+        ...(value.agentPlatform === "openclaw" && memoryEnabled
+          ? { memory }
+          : {}),
       } satisfies CreateAgentInput);
     },
   });
+
+  const selectedRoutingComplianceDomain = modelRoutings.data?.find(
+    (routing) => routing.id === form.state.values.modelRoutingId,
+  )?.complianceDomain;
+  const embeddingModels = (modelDeployments.data ?? []).filter(
+    (model): model is ModelDeployment =>
+      model.status === "VALIDATED" &&
+      model.modelType === "text-embedding" &&
+      (!selectedRoutingComplianceDomain ||
+        model.complianceDomain === selectedRoutingComplianceDomain),
+  );
 
   useEffect(() => {
     if (!policies.data?.defaultPolicyId || form.state.values.policyId) return;
@@ -453,13 +480,25 @@ export function CreateInstanceSheet({
               </Button>
             )}
             {step === 0 ? (
-              <form.Subscribe selector={(state) => state.values.name}>
-                {(name) => (
+              <form.Subscribe
+                selector={(state) => [
+                  state.values.name,
+                  state.values.agentPlatform,
+                ]}
+              >
+                {([name, agentPlatform]) => (
                   <Button
                     type="button"
                     disabled={
                       String(name).trim().length < 3 ||
-                      currentSystemPrompt.trim().length < 10
+                      currentSystemPrompt.trim().length < 10 ||
+                      (memoryEnabled &&
+                        agentPlatform === "openclaw" &&
+                        memory.mode === "hybrid" &&
+                        !embeddingModels.some(
+                          (model) =>
+                            model.id === memory.embeddingModelDeploymentId,
+                        ))
                     }
                     onClick={() => setStep(1)}
                   >
@@ -583,15 +622,24 @@ export function CreateInstanceSheet({
             className="min-w-0 space-y-5"
           >
             {step === 0 ? (
-              <form.Subscribe selector={(state) => state.values.name}>
-                {(name) => (
+              <form.Subscribe
+                selector={(state) => [
+                  state.values.name,
+                  state.values.agentPlatform,
+                ]}
+              >
+                {([name, agentPlatform]) => (
                   <IdentityCapabilitiesStep
                     name={String(name)}
+                    agentPlatform={agentPlatform as AgentPlatformId}
                     specialization={specialization}
                     specializations={specializations}
                     skills={skills}
                     mcpServers={mcpServers}
                     knowledgeSources={knowledgeSources}
+                    embeddingModels={embeddingModels}
+                    memory={memory}
+                    memoryEnabled={memoryEnabled}
                     customSystemPrompt={customSystemPrompt}
                     selectedSkillIds={selectedIds(selectedSkills)}
                     selectedMcpServerIds={selectedIds(selectedMcps)}
@@ -627,6 +675,8 @@ export function CreateInstanceSheet({
                       );
                       setKnowledgeSourcesTouched(true);
                     }}
+                    onMemoryChange={setMemory}
+                    onMemoryEnabledChange={setMemoryEnabled}
                   />
                 )}
               </form.Subscribe>
@@ -1130,7 +1180,7 @@ export function CreateInstanceSheet({
                         </ReviewSection>
                       </div>
                       <Separator />
-                      <div className="grid gap-5 lg:grid-cols-3">
+                      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
                         <ReviewSection
                           title={`Skills (${selectedSkills.length})`}
                         >
@@ -1188,6 +1238,22 @@ export function CreateInstanceSheet({
                             ))
                           ) : (
                             <EmptyReview label="No Knowledge selected" />
+                          )}
+                        </ReviewSection>
+                        <ReviewSection title="Memory">
+                          {values.agentPlatform !== "openclaw" ? (
+                            <EmptyReview label="OpenClaw only" />
+                          ) : memoryEnabled ? (
+                            <ReviewPill
+                              label={
+                                memory.mode === "hybrid"
+                                  ? `Hybrid · ${embeddingModels.find((model) => model.id === memory.embeddingModelDeploymentId)?.displayName ?? "Embedding unavailable"}`
+                                  : "Native · curated notes"
+                              }
+                              source="manual"
+                            />
+                          ) : (
+                            <EmptyReview label="Memory disabled" />
                           )}
                         </ReviewSection>
                       </div>

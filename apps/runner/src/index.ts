@@ -52,6 +52,20 @@ const shutdownTimeoutMs = Number(
 );
 let shuttingDown = false;
 const agentPlatformSchema = z.enum(agentPlatformIds);
+const runtimeMemorySchema = z.discriminatedUnion("mode", [
+  z.object({
+    mode: z.literal("native"),
+    citations: z.enum(["auto", "on", "off"]),
+  }).strict(),
+  z.object({
+    mode: z.literal("hybrid"),
+    embeddingModel: z.string().min(1).max(240),
+    includeSessionTranscripts: z.boolean(),
+    citations: z.enum(["auto", "on", "off"]),
+    maxResults: z.number().int().min(1).max(20),
+    minScore: z.number().min(0).max(1),
+  }).strict(),
+]);
 const createSchema = z.object({
   name: z.string().regex(/^[a-z][a-z0-9-]{0,61}[a-z0-9]$/),
   agentPlatform: agentPlatformSchema.default("openclaw"),
@@ -62,6 +76,7 @@ const createSchema = z.object({
   policyYaml: z.string().min(10).max(64_000),
   apiKey: z.string().min(16).max(512).optional(),
   instanceId: z.string().uuid(),
+  memory: runtimeMemorySchema.optional(),
 });
 
 function authorized(header: string | undefined): boolean {
@@ -245,6 +260,7 @@ app.post("/v1/sandboxes", (request, response, next) => {
       systemPrompt: parsedInput.systemPrompt,
       policyYaml: parsedInput.policyYaml,
       ...(parsedInput.apiKey ? { apiKey: parsedInput.apiKey } : {}),
+      ...(parsedInput.memory ? { memory: parsedInput.memory } : {}),
       instanceId: parsedInput.instanceId,
     };
     if (states.has(input.name))

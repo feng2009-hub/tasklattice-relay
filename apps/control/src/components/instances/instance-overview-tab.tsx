@@ -1,6 +1,6 @@
 import { complianceDomainCatalog, type Agent, type SandboxAuditEvent } from "@tasklattice/contracts";
 import { Link } from "@tanstack/react-router";
-import { AlertTriangle, BookOpen, CheckCircle2, ChevronRight, ExternalLink, Globe2, Network, Sparkles, SquareTerminal } from "lucide-react";
+import { AlertTriangle, BookOpen, BrainCircuit, CheckCircle2, ChevronRight, ExternalLink, Globe2, Network, Sparkles, SquareTerminal } from "lucide-react";
 import { resolveProvisioningState } from "@/components/agents/provisioning-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -146,6 +146,7 @@ export function InstanceOverviewTab({ access, agent, auditEvents, auditLoading, 
               { icon: Sparkles, label: "Skills", count: counts.skills, hash: "skills" },
               { icon: Network, label: "MCP Servers", count: counts.mcpServers, hash: "mcp-servers" },
               { icon: BookOpen, label: "Knowledge Bases", count: counts.knowledgeBases, hash: "knowledge-bases" },
+              { icon: BrainCircuit, label: "Memory", count: agent.memory ? 1 : 0, hash: "memory" },
             ].map(({ icon: Icon, label, count, hash }) => (
               <Link key={label} to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: agent.id }} search={{ tab: "capabilities" }} hash={hash} className="flex min-h-12 items-center gap-3 py-2 text-sm hover:text-primary focus-visible:outline-2">
                 <Icon className="size-4 text-primary" /><span>{label}</span><span className="ml-auto text-xs text-muted-foreground">{count} selected</span><ChevronRight className="size-4 text-muted-foreground" />

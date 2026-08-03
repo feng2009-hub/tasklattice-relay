@@ -184,6 +184,22 @@ describe("Agent selection", () => {
     ).toBe("routing-selected");
   });
 
+  it("accepts Memory only for OpenClaw Instances", () => {
+    expect(
+      createAgentSchema.parse({
+        ...input,
+        memory: { mode: "native" },
+      }).memory,
+    ).toEqual({ mode: "native", citations: "auto" });
+    expect(() =>
+      createAgentSchema.parse({
+        ...input,
+        agentPlatform: "hermes",
+        memory: { mode: "native" },
+      }),
+    ).toThrow("Memory is currently available only for OpenClaw Instances");
+  });
+
   it("resolves Role and capability references from the PostgreSQL catalog", async () => {
     const service = new AgentService(createTestStore());
     await expect(
@@ -398,6 +414,81 @@ async function createConfiguredInstance(
 }
 
 describe("Instance Access Policy lifecycle", () => {
+  it("provisions native Memory without adding an embedding model to the Instance key", async () => {
+    const setup = await configuredService();
+    const agent = await createConfiguredInstance(setup, {
+      memory: { mode: "native", citations: "auto" },
+    });
+
+    expect(agent.memory).toEqual({ mode: "native", citations: "auto" });
+    expect(setup.runner.createSandbox).toHaveBeenCalledWith(
+      expect.objectContaining({
+        memory: { mode: "native", citations: "auto" },
+      }),
+    );
+    expect(
+      vi.mocked(setup.litellm.createInstanceServiceAccountKey!).mock.calls[0]![0]
+        .models,
+    ).not.toContain("tali/provider-a/text-embedding-3-small");
+  });
+
+  it("binds a validated same-boundary embedding model for hybrid Memory", async () => {
+    const setup = await configuredService();
+    const now = new Date().toISOString();
+    const embeddingModelDeploymentId = "22222222-2222-4222-8222-222222222222";
+    await setup.store.saveModelDeployment({
+      id: embeddingModelDeploymentId,
+      providerAccountId: "provider-a",
+      modelId: "text-embedding-3-small",
+      displayName: "Text Embedding 3 Small",
+      modelType: "text-embedding",
+      capabilities: [],
+      inputModalities: ["text"],
+      outputModalities: ["embedding"],
+      providerPresetId: "deepseek",
+      providerName: "DeepSeek",
+      endpoint: "https://api.deepseek.com/v1",
+      complianceDomain: "GLOBAL",
+      endpointRegion: "global",
+      crossBorderTransfer: false,
+      litellmModelName: "tali/provider-a/text-embedding-3-small",
+      status: "VALIDATED",
+      checks: [],
+      validationMessage: "Ready",
+      validatedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await createConfiguredInstance(setup, {
+      memory: {
+        mode: "hybrid",
+        embeddingModelDeploymentId,
+        includeSessionTranscripts: true,
+        citations: "auto",
+        maxResults: 6,
+        minScore: 0.35,
+      },
+    });
+
+    expect(
+      vi.mocked(setup.litellm.createInstanceServiceAccountKey!).mock.calls[0]![0]
+        .models,
+    ).toContain("tali/provider-a/text-embedding-3-small");
+    expect(setup.runner.createSandbox).toHaveBeenCalledWith(
+      expect.objectContaining({
+        memory: {
+          mode: "hybrid",
+          embeddingModel: "tali/provider-a/text-embedding-3-small",
+          includeSessionTranscripts: true,
+          citations: "auto",
+          maxResults: 6,
+          minScore: 0.35,
+        },
+      }),
+    );
+  });
+
   it("creates and revokes an Instance Service Account Key under the Project Team", async () => {
     const setup = await configuredService();
     const agent = await createConfiguredInstance(setup);

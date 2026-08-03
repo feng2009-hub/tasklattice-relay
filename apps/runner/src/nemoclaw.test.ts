@@ -3,7 +3,7 @@ import {
   encodeTerminalResize,
   parseTerminalResize,
 } from "@tasklattice/contracts";
-import { nemoClawTerminalArguments, onboardCommand } from "./nemoclaw.js";
+import { agentMemoryInstructions, nemoClawTerminalArguments, onboardCommand } from "./nemoclaw.js";
 import { getAgentPlatformRuntime } from "./agent-platform.js";
 import {
   composeOpenShellInferencePolicy,
@@ -272,6 +272,51 @@ describe("OpenShell Kubernetes command contract", () => {
     expect(bootstrap.indexOf("chmod 0770 /sandbox")).toBeLessThan(
       bootstrap.indexOf("/usr/local/bin/nemoclaw-start"),
     );
+  });
+
+  it("bootstraps native OpenClaw Memory without enabling semantic search", () => {
+    const bootstrap = getAgentPlatformRuntime("openclaw").bootstrapScript(
+      "http://openclaw.example.test",
+      "18789",
+      "http://inference.example.test/v1",
+      "deepseek-chat",
+      { mode: "native", citations: "auto" },
+    );
+
+    expect(bootstrap).toContain("MEMORY.md");
+    expect(bootstrap).toContain('enabled: false');
+    expect(bootstrap).toContain('backend: "builtin"');
+    expect(agentMemoryInstructions({ mode: "native", citations: "auto" }))
+      .toContain("Read MEMORY.md at the start of a new session");
+  });
+
+  it("configures Hybrid Memory through the Instance LiteLLM endpoint", () => {
+    const bootstrap = getAgentPlatformRuntime("openclaw").bootstrapScript(
+      "http://openclaw.example.test",
+      "18789",
+      "http://inference.example.test/v1",
+      "deepseek-chat",
+      {
+        mode: "hybrid",
+        embeddingModel: "tali/provider-a/text-embedding-3-small",
+        includeSessionTranscripts: true,
+        citations: "auto",
+        maxResults: 6,
+        minScore: 0.35,
+      },
+    );
+
+    expect(bootstrap).toContain('provider: "openai-compatible"');
+    expect(bootstrap).toContain("OPENAI_API_KEY");
+    expect(bootstrap).toContain('sources: memory.includeSessionTranscripts');
+    expect(agentMemoryInstructions({
+      mode: "hybrid",
+      embeddingModel: "embedding-model",
+      includeSessionTranscripts: true,
+      citations: "auto",
+      maxResults: 6,
+      minScore: 0.35,
+    })).toContain("Use memory_search before answering");
   });
 
   it("exposes the NemoClaw Web UI as a named OpenShell service", () => {

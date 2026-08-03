@@ -1,12 +1,14 @@
 import type { Agent } from "@tasklattice/contracts";
 import { useQuery } from "@tanstack/react-query";
-import { BookOpen, Network, Sparkles } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { BookOpen, BrainCircuit, Network, Sparkles } from "lucide-react";
 import { InstanceEffectiveAccessPreview } from "@/components/access/instance-effective-access-preview";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
+import { useCurrentProjectId } from "@/hooks/use-project";
 import { DetailCardHeader } from "./instance-detail-shared";
 
 function EmptyCapability({ label }: { label: string }) {
@@ -14,6 +16,7 @@ function EmptyCapability({ label }: { label: string }) {
 }
 
 export function InstanceCapabilitiesTab({ agent }: { agent: Agent }) {
+  const projectId = useCurrentProjectId();
   const scope = useProjectQueryScope();
   const catalog = useQuery({ queryKey: scope.key("resource-catalog"), queryFn: api.getResourceCatalog });
   const skills = (agent.skillIds ?? []).map((id) => catalog.data?.skills.find((item) => item.id === id) ?? { id, name: id, description: "Catalog details unavailable.", version: undefined });
@@ -22,7 +25,7 @@ export function InstanceCapabilitiesTab({ agent }: { agent: Agent }) {
   return (
     <div role="tabpanel" aria-label="Access" className="space-y-4 pt-5">
       <InstanceEffectiveAccessPreview agent={agent} />
-      <div className="grid gap-4 xl:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Card id="skills" className="scroll-mt-24">
           <DetailCardHeader title="Skills" description="Reusable capability packages configured for this Agent." action={<Sparkles className="size-5 text-primary" />} />
           <CardContent className="divide-y">
@@ -59,6 +62,28 @@ export function InstanceCapabilitiesTab({ agent }: { agent: Agent }) {
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">{source.description}</p>
               </article>
             )) : <EmptyCapability label="Knowledge Bases" />}
+          </CardContent>
+        </Card>
+
+        <Card id="memory" className="scroll-mt-24">
+          <DetailCardHeader title="Memory" description="Durable context isolated to this OpenClaw Instance." action={<BrainCircuit className="size-5 text-primary" />} />
+          <CardContent>
+            {agent.memory ? (
+              <div className="space-y-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-medium">{agent.memory.mode === "hybrid" ? "Hybrid memory" : "Native memory"}</h3>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">{agent.memory.mode === "hybrid" ? "Curated notes with LiteLLM-routed semantic recall." : "Curated MEMORY.md and dated daily notes."}</p>
+                  </div>
+                  <Badge variant="outline" className="capitalize">{agent.memory.citations} citations</Badge>
+                </div>
+                <dl className="space-y-2 border-t pt-3 text-xs">
+                  <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Scope</dt><dd className="font-medium">Instance sandbox</dd></div>
+                  <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Session recall</dt><dd className="font-medium">{agent.memory.mode === "hybrid" && agent.memory.includeSessionTranscripts ? "Included" : "Not indexed"}</dd></div>
+                </dl>
+                <Link to="/$projectId/memory" params={{ projectId }} className="inline-flex min-h-11 items-center text-xs font-medium text-primary underline underline-offset-4">Review Memory architecture</Link>
+              </div>
+            ) : <EmptyCapability label="Memory" />}
           </CardContent>
         </Card>
       </div>
