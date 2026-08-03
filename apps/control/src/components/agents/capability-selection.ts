@@ -15,6 +15,22 @@ export function specializationSelections(ids: readonly string[]): SelectedCapabi
   return ids.map((id) => ({ id, source: "specialization" }));
 }
 
+export function availableCapabilityIds(
+  ids: readonly string[],
+  availableIds: readonly string[],
+): string[] {
+  const available = new Set(availableIds);
+  return [...new Set(ids)].filter((id) => available.has(id));
+}
+
+export function reconcileCapabilitySelection(
+  current: readonly SelectedCapability[],
+  availableIds: readonly string[],
+): SelectedCapability[] {
+  const available = new Set(availableIds);
+  return current.filter((item) => available.has(item.id));
+}
+
 export function updateCapabilitySelection(
   current: readonly SelectedCapability[],
   nextIds: readonly string[],

@@ -8,6 +8,7 @@ import { getAgentPlatformRuntime } from "./agent-platform.js";
 import {
   composeOpenShellInferencePolicy,
   deepSeekProviderCreateCommand,
+  isOpenShellProviderAttachedError,
   openShellNemoClawProbeArguments,
   openShellAuditArguments,
   openShellSandboxCreateArguments,
@@ -76,6 +77,17 @@ describe("OpenShell Kubernetes command contract", () => {
     expect(command.args).toContain("OPENAI_API_KEY");
     expect(command.args).toContain("OPENAI_BASE_URL=http://tasklattice-litellm:4000/v1");
     expect(command.env.OPENAI_API_KEY).toBe("database-secret-value");
+  });
+
+  it("recognizes the transient Provider attachment conflict during deletion", () => {
+    expect(
+      isOpenShellProviderAttachedError(
+        "provider 'tali-instance' is attached to sandbox(es): tali-instance",
+      ),
+    ).toBe(true);
+    expect(
+      isOpenShellProviderAttachedError("provider 'tali-instance' not found"),
+    ).toBe(false);
   });
 
   it("defines LiteLLM credential injection for OpenClaw and Hermes", () => {

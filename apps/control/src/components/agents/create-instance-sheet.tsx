@@ -6,6 +6,7 @@ import {
   defaultAgentPlatformId,
   type AgentPlatformId,
   type CreateAgentInput,
+  type ModelRouting,
 } from "@tasklattice/contracts";
 import {
   ArrowLeft,
@@ -15,12 +16,16 @@ import {
   CircleAlert,
   CircleHelp,
   ShieldCheck,
+  Waypoints,
 } from "lucide-react";
 import { AgentSelect } from "@/components/agents/agent-select";
 import { ChangeSpecializationDialog } from "@/components/agents/change-specialization-dialog";
 import {
+  availableCapabilityIds,
   changeSpecializationSelection,
   previewSpecializationChange,
+  reconcileCapabilitySelection,
+  specializationSelections,
   updateCapabilitySelection,
   type SelectedCapability,
 } from "@/components/agents/capability-selection";
@@ -75,10 +80,12 @@ function capabilityName(
   id: string,
   skills: readonly { id: string; name: string }[],
   mcpServers: readonly { id: string; name: string }[],
+  knowledgeSources: readonly { id: string; name: string }[],
 ): string {
   return (
     skills.find((item) => item.id === id)?.name ??
     mcpServers.find((item) => item.id === id)?.name ??
+    knowledgeSources.find((item) => item.id === id)?.name ??
     id
   );
 }
@@ -117,6 +124,8 @@ export function CreateInstanceSheet({
   >([]);
   const [skillsTouched, setSkillsTouched] = useState(false);
   const [mcpsTouched, setMcpsTouched] = useState(false);
+  const [knowledgeSourcesTouched, setKnowledgeSourcesTouched] = useState(false);
+  const [capabilitiesInitialized, setCapabilitiesInitialized] = useState(false);
   const [pendingSpecializationId, setPendingSpecializationId] =
     useState<SpecializationId | null>(null);
   const resourceCatalog = useQuery({
@@ -135,21 +144,19 @@ export function CreateInstanceSheet({
     queryKey: scope.key("access-policies"),
     queryFn: api.listAccessPolicies,
   });
-  const modelProfiles = useQuery({
-    queryKey: scope.key("model-profiles"),
-    queryFn: api.listModelProfiles,
+  const modelRoutings = useQuery({
+    queryKey: scope.key("model-routings"),
+    queryFn: api.listModelRoutings,
   });
   const policies = useQuery({
     queryKey: scope.key("sandbox-policies"),
     queryFn: api.listPolicies,
   });
-  const defaultModelProfiles = (modelProfiles.data ?? []).filter(
-    (profile) => profile.isDefault,
+  const defaultModelRoutings = (modelRoutings.data ?? []).filter(
+    (routing) => routing.isDefault,
   );
-  const defaultModelProfile =
-    defaultModelProfiles.length === 1 ? defaultModelProfiles[0] : undefined;
-  const readyDefaultModelProfile =
-    defaultModelProfile?.status === "READY" ? defaultModelProfile : undefined;
+  const defaultModelRouting =
+    defaultModelRoutings.length === 1 ? defaultModelRoutings[0] : undefined;
   const accessPolicyOptions: MultiSelectOption[] = (
     accessPolicies.data ?? []
   ).map((policy) => ({
@@ -181,9 +188,10 @@ export function CreateInstanceSheet({
       agentPlatform: initialAgentPlatform,
       policyId: "",
       accessPolicyIds: [] as string[],
+      modelRoutingId: "",
     },
-    onSubmit: ({ value }) =>
-      mutation.mutateAsync({
+    onSubmit: ({ value }) => {
+      return mutation.mutateAsync({
         ...value,
         runtime: "openshell",
         systemPrompt: currentSystemPrompt,
@@ -191,13 +199,19 @@ export function CreateInstanceSheet({
         skillIds: selectedIds(selectedSkills),
         mcpServerIds: selectedIds(selectedMcps),
         knowledgeSourceIds: selectedIds(selectedKnowledgeSources),
-      } satisfies CreateAgentInput),
+      } satisfies CreateAgentInput);
+    },
   });
 
   useEffect(() => {
     if (!policies.data?.defaultPolicyId || form.state.values.policyId) return;
     form.setFieldValue("policyId", policies.data.defaultPolicyId);
   }, [form, policies.data?.defaultPolicyId]);
+
+  useEffect(() => {
+    if (!defaultModelRouting?.id || form.state.values.modelRoutingId) return;
+    form.setFieldValue("modelRoutingId", defaultModelRouting.id);
+  }, [defaultModelRouting?.id, form]);
 
   useEffect(() => {
     if (!specialization || systemPromptInitialized) return;
@@ -209,6 +223,65 @@ export function CreateInstanceSheet({
     setSystemPromptInitialized(true);
   }, [customSystemPrompt, specialization, systemPromptInitialized]);
 
+  useEffect(() => {
+    if (!resourceCatalog.data || !specialization || capabilitiesInitialized)
+      return;
+    setSelectedSkills(
+      specializationSelections(
+        availableCapabilityIds(
+          specialization.defaultSkillIds,
+          skills.map((item) => item.id),
+        ),
+      ),
+    );
+    setSelectedMcps(
+      specializationSelections(
+        availableCapabilityIds(
+          specialization.defaultMcpServerIds,
+          mcpServers.map((item) => item.id),
+        ),
+      ),
+    );
+    setSelectedKnowledgeSources(
+      specializationSelections(
+        availableCapabilityIds(
+          specialization.defaultKnowledgeSourceIds,
+          knowledgeSources.map((item) => item.id),
+        ),
+      ),
+    );
+    setCapabilitiesInitialized(true);
+  }, [
+    capabilitiesInitialized,
+    knowledgeSources,
+    mcpServers,
+    resourceCatalog.data,
+    skills,
+    specialization,
+  ]);
+
+  useEffect(() => {
+    if (!capabilitiesInitialized) return;
+    setSelectedSkills((current) =>
+      reconcileCapabilitySelection(
+        current,
+        skills.map((item) => item.id),
+      ),
+    );
+    setSelectedMcps((current) =>
+      reconcileCapabilitySelection(
+        current,
+        mcpServers.map((item) => item.id),
+      ),
+    );
+    setSelectedKnowledgeSources((current) =>
+      reconcileCapabilitySelection(
+        current,
+        knowledgeSources.map((item) => item.id),
+      ),
+    );
+  }, [capabilitiesInitialized, knowledgeSources, mcpServers, skills]);
+
   const policyName = (id: string) =>
     policies.data?.policies.find((policy) => policy.id === id)?.name ??
     (id || "Required");
@@ -218,30 +291,42 @@ export function CreateInstanceSheet({
     if (!next) return;
     const nextSkills = changeSpecializationSelection(
       selectedSkills,
-      next.defaultSkillIds,
+      availableCapabilityIds(
+        next.defaultSkillIds,
+        skills.map((item) => item.id),
+      ),
     );
     const nextMcps = changeSpecializationSelection(
       selectedMcps,
-      next.defaultMcpServerIds,
+      availableCapabilityIds(
+        next.defaultMcpServerIds,
+        mcpServers.map((item) => item.id),
+      ),
+    );
+    const nextKnowledgeSources = changeSpecializationSelection(
+      selectedKnowledgeSources,
+      availableCapabilityIds(
+        next.defaultKnowledgeSourceIds,
+        knowledgeSources.map((item) => item.id),
+      ),
     );
     setSpecializationId(id);
     setSelectedSkills(nextSkills);
     setSelectedMcps(nextMcps);
-    setSelectedKnowledgeSources(
-      changeSpecializationSelection(
-        selectedKnowledgeSources,
-        next.defaultKnowledgeSourceIds,
-      ),
-    );
+    setSelectedKnowledgeSources(nextKnowledgeSources);
     setSkillsTouched(nextSkills.some((item) => item.source === "manual"));
     setMcpsTouched(nextMcps.some((item) => item.source === "manual"));
+    setKnowledgeSourcesTouched(
+      nextKnowledgeSources.some((item) => item.source === "manual"),
+    );
     setSystemPrompt(id === "custom" ? customSystemPrompt : next.systemPrompt);
     setPendingSpecializationId(null);
   };
 
   const requestSpecializationChange = (id: SpecializationId) => {
     if (id === specializationId) return;
-    if (skillsTouched || mcpsTouched) setPendingSpecializationId(id);
+    if (skillsTouched || mcpsTouched || knowledgeSourcesTouched)
+      setPendingSpecializationId(id);
     else applySpecialization(id);
   };
 
@@ -249,24 +334,37 @@ export function CreateInstanceSheet({
     if (!pendingSpecialization) return { add: [], keep: [], remove: [] };
     const skillChange = previewSpecializationChange(
       selectedSkills,
-      pendingSpecialization.defaultSkillIds,
+      availableCapabilityIds(
+        pendingSpecialization.defaultSkillIds,
+        skills.map((item) => item.id),
+      ),
     );
     const mcpChange = previewSpecializationChange(
       selectedMcps,
-      pendingSpecialization.defaultMcpServerIds,
+      availableCapabilityIds(
+        pendingSpecialization.defaultMcpServerIds,
+        mcpServers.map((item) => item.id),
+      ),
+    );
+    const knowledgeChange = previewSpecializationChange(
+      selectedKnowledgeSources,
+      availableCapabilityIds(
+        pendingSpecialization.defaultKnowledgeSourceIds,
+        knowledgeSources.map((item) => item.id),
+      ),
     );
     return {
-      add: [...skillChange.add, ...mcpChange.add].map((id) =>
-        capabilityName(id, skills, mcpServers),
+      add: [...skillChange.add, ...mcpChange.add, ...knowledgeChange.add].map((id) =>
+        capabilityName(id, skills, mcpServers, knowledgeSources),
       ),
-      keep: [...skillChange.keep, ...mcpChange.keep].map((id) =>
-        capabilityName(id, skills, mcpServers),
+      keep: [...skillChange.keep, ...mcpChange.keep, ...knowledgeChange.keep].map((id) =>
+        capabilityName(id, skills, mcpServers, knowledgeSources),
       ),
-      remove: [...skillChange.remove, ...mcpChange.remove].map((id) =>
-        capabilityName(id, skills, mcpServers),
+      remove: [...skillChange.remove, ...mcpChange.remove, ...knowledgeChange.remove].map((id) =>
+        capabilityName(id, skills, mcpServers, knowledgeSources),
       ),
     };
-  }, [mcpServers, pendingSpecialization, selectedMcps, selectedSkills, skills]);
+  }, [knowledgeSources, mcpServers, pendingSpecialization, selectedKnowledgeSources, selectedMcps, selectedSkills, skills]);
 
   const shellProps = {
     description: "Configure an Agent Instance for a specific job.",
@@ -374,9 +472,10 @@ export function CreateInstanceSheet({
                 selector={(state) => [
                   state.values.policyId,
                   state.values.accessPolicyIds,
+                  state.values.modelRoutingId,
                 ]}
               >
-                {([policyId, accessPolicyIds]) => {
+                {([policyId, accessPolicyIds, modelRoutingId]) => {
                   const selectedIds = Array.isArray(accessPolicyIds)
                     ? accessPolicyIds.map(String)
                     : [];
@@ -385,6 +484,11 @@ export function CreateInstanceSheet({
                       (policy) =>
                         policy.id === id && policy.status === "ACTIVE",
                     ),
+                  );
+                  const selectedModelIsReady = modelRoutings.data?.some(
+                    (routing) =>
+                      routing.id === String(modelRoutingId) &&
+                      routing.status === "READY",
                   );
                   return (
                     <Button
@@ -396,9 +500,9 @@ export function CreateInstanceSheet({
                         !selectedAreActive ||
                         accessPolicies.isPending ||
                         accessPolicies.isError ||
-                        modelProfiles.isPending ||
-                        modelProfiles.isError ||
-                        !readyDefaultModelProfile
+                        modelRoutings.isPending ||
+                        modelRoutings.isError ||
+                        !selectedModelIsReady
                       }
                       onClick={() => setStep(2)}
                     >
@@ -414,9 +518,16 @@ export function CreateInstanceSheet({
                   state.isSubmitting,
                   state.values.policyId,
                   state.values.accessPolicyIds,
+                  state.values.modelRoutingId,
                 ]}
               >
-                {([canSubmit, isSubmitting, policyId, accessPolicyIds]) => {
+                {([
+                  canSubmit,
+                  isSubmitting,
+                  policyId,
+                  accessPolicyIds,
+                  modelRoutingId,
+                ]) => {
                   const selectedIds = Array.isArray(accessPolicyIds)
                     ? accessPolicyIds.map(String)
                     : [];
@@ -425,6 +536,11 @@ export function CreateInstanceSheet({
                       (policy) =>
                         policy.id === id && policy.status === "ACTIVE",
                     ),
+                  );
+                  const selectedModelIsReady = modelRoutings.data?.some(
+                    (routing) =>
+                      routing.id === String(modelRoutingId) &&
+                      routing.status === "READY",
                   );
                   return (
                     <Button
@@ -439,9 +555,9 @@ export function CreateInstanceSheet({
                         !selectedAreActive ||
                         accessPolicies.isPending ||
                         accessPolicies.isError ||
-                        modelProfiles.isPending ||
-                        modelProfiles.isError ||
-                        !readyDefaultModelProfile
+                        modelRoutings.isPending ||
+                        modelRoutings.isError ||
+                        !selectedModelIsReady
                       }
                       onClick={() => void form.handleSubmit()}
                     >
@@ -502,14 +618,15 @@ export function CreateInstanceSheet({
                       );
                       setMcpsTouched(true);
                     }}
-                    onKnowledgeSourceIdsChange={(ids) =>
+                    onKnowledgeSourceIdsChange={(ids) => {
                       setSelectedKnowledgeSources(
                         updateCapabilitySelection(
                           selectedKnowledgeSources,
                           ids,
                         ),
-                      )
-                    }
+                      );
+                      setKnowledgeSourcesTouched(true);
+                    }}
                   />
                 )}
               </form.Subscribe>
@@ -523,7 +640,7 @@ export function CreateInstanceSheet({
                   </CardTitle>
                   <CardDescription>
                     Select the Instance authorization boundary, Agent
-                    implementation, and OpenShell Runtime Policy.
+                    implementation, OpenShell Runtime Policy, and Routing.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-5">
@@ -686,13 +803,35 @@ export function CreateInstanceSheet({
                     className="space-y-3"
                     aria-labelledby="works-on-heading"
                   >
-                    <h3
-                      id="works-on-heading"
-                      className="flex items-center gap-2 text-sm font-semibold"
-                    >
-                      <Bot className="size-4" /> Execution
-                    </h3>
-                    <div className="grid items-start gap-5 lg:grid-cols-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <h3
+                        id="works-on-heading"
+                        className="flex items-center gap-2 text-sm font-semibold"
+                      >
+                        <Bot className="size-4" /> Execution
+                      </h3>
+                      <nav
+                        aria-label="Manage execution settings"
+                        className="flex flex-wrap items-center gap-x-5"
+                      >
+                        <Link
+                          to="/$projectId/setting"
+                          params={{ projectId }}
+                          search={{ section: "model-routings" }}
+                          className="inline-flex min-h-11 items-center text-xs font-medium underline underline-offset-4"
+                        >
+                          Manage Model and Routing
+                        </Link>
+                        <Link
+                          to="/$projectId/runtime-policies"
+                          params={{ projectId }}
+                          className="inline-flex min-h-11 items-center text-xs font-medium underline underline-offset-4"
+                        >
+                          Manage Runtime Policies
+                        </Link>
+                      </nav>
+                    </div>
+                    <div className="grid items-start gap-x-5 gap-y-5 md:grid-cols-2">
                       <form.Field name="agentPlatform">
                         {(field) => (
                           <div className="space-y-2">
@@ -758,101 +897,136 @@ export function CreateInstanceSheet({
                           </div>
                         )}
                       </form.Field>
-                      <div className="space-y-2">
-                        <div className="flex min-h-8 items-center justify-between gap-3">
-                          <FieldLabel
-                            label="Default Model Profile"
-                            tip="The Project default READY Model Profile supplies model routing and an isolated LiteLLM key for this Instance."
-                          />
-                          <Link
-                            to="/$projectId/setting"
-                            params={{ projectId }}
-                            search={{ section: "model-profiles" }}
-                            className="text-xs font-medium underline underline-offset-4"
-                          >
-                            Manage models
-                          </Link>
-                        </div>
-                        <div
-                          className="flex min-h-14 items-center rounded-md border bg-muted/20 px-3 py-2 text-sm"
-                          aria-live="polite"
-                        >
-                          {modelProfiles.isPending ? (
-                            <span className="text-muted-foreground">
-                              Loading default Model Profile…
-                            </span>
-                          ) : modelProfiles.isError ? (
-                            <span className="text-destructive">
-                              Model Profiles unavailable
-                            </span>
-                          ) : defaultModelProfiles.length > 1 ? (
-                            <span className="text-destructive">
-                              Multiple default Model Profiles
-                            </span>
-                          ) : readyDefaultModelProfile ? (
-                            <span>
-                              <strong className="block">
-                                {readyDefaultModelProfile.name}
-                              </strong>
-                              <span className="mt-0.5 block text-xs text-muted-foreground">
-                                {readyDefaultModelProfile.publicModelAlias} ·
-                                READY
-                              </span>
-                            </span>
-                          ) : (
-                            <span className="text-amber-700 dark:text-amber-300">
-                              {defaultModelProfiles.length > 1
-                                ? "Choose exactly one Project default Model Profile"
-                                : defaultModelProfile
-                                  ? `${defaultModelProfile.name} is ${defaultModelProfile.status.replaceAll("_", " ")}`
-                                  : "No default Model Profile"}
-                            </span>
-                          )}
-                        </div>
-                        {modelProfiles.isError ? (
-                          <div
-                            className="text-xs text-destructive"
-                            role="alert"
-                          >
-                            <p>{modelProfiles.error.message}</p>
-                            <Button
-                              className="mt-2"
-                              size="sm"
-                              variant="outline"
-                              onClick={() => void modelProfiles.refetch()}
-                            >
-                              Try again
-                            </Button>
-                          </div>
-                        ) : !modelProfiles.isPending &&
-                          !readyDefaultModelProfile ? (
-                          <p className="border-l-2 border-amber-500 bg-amber-500/5 px-3 py-2 text-xs">
-                            Configure a READY Project default Model Profile
-                            before creating an Instance.
-                          </p>
-                        ) : null}
-                      </div>
-                    </div>
-                    <div className="flex justify-end">
-                      <Link
-                        to="/$projectId/runtime-policies"
-                        params={{ projectId }}
-                        className="text-xs font-medium underline underline-offset-4"
-                      >
-                        Manage Runtime Policies
-                      </Link>
+                      <form.Field name="modelRoutingId">
+                        {(field) => {
+                          const selectedRouting = modelRoutings.data?.find(
+                            (routing) => routing.id === field.state.value,
+                          );
+                          const hasReadyRouting = modelRoutings.data?.some(
+                            (routing) => routing.status === "READY",
+                          );
+                          return (
+                            <div className="space-y-2 md:col-span-2 md:max-w-2xl">
+                              <div className="flex min-h-8 items-center">
+                                <FieldLabel
+                                  htmlFor="instance-model-routing"
+                                  label="Routing"
+                                  tip="Select the LiteLLM-managed routing configuration for this Instance. The Project default is preselected when available."
+                                />
+                              </div>
+                              <Select
+                                value={field.state.value}
+                                disabled={
+                                  modelRoutings.isPending ||
+                                  modelRoutings.isError ||
+                                  !modelRoutings.data?.length
+                                }
+                                onValueChange={field.handleChange}
+                              >
+                                <SelectTrigger
+                                  id="instance-model-routing"
+                                  aria-label="Routing"
+                                  className="h-auto min-h-14 w-full"
+                                >
+                                  <SelectValue
+                                    placeholder={
+                                      modelRoutings.isPending
+                                        ? "Loading routing…"
+                                        : "Select a ready routing"
+                                    }
+                                  >
+                                    {selectedRouting ? (
+                                      <ModelRoutingIdentity
+                                        routing={selectedRouting}
+                                      />
+                                    ) : null}
+                                  </SelectValue>
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {modelRoutings.data?.map((routing) => (
+                                    <SelectItem
+                                      key={routing.id}
+                                      value={routing.id}
+                                      disabled={routing.status !== "READY"}
+                                      className="py-3"
+                                    >
+                                      <ModelRoutingIdentity
+                                        routing={routing}
+                                        showDescription
+                                      />
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              {modelRoutings.isError ? (
+                                <div
+                                  className="text-xs text-destructive"
+                                  role="alert"
+                                >
+                                  <p>{modelRoutings.error.message}</p>
+                                  <Button
+                                    className="mt-2"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => void modelRoutings.refetch()}
+                                  >
+                                    Try again
+                                  </Button>
+                                </div>
+                              ) : !modelRoutings.isPending &&
+                                !modelRoutings.data?.length ? (
+                                <p className="border-l-2 border-amber-500 bg-amber-500/5 px-3 py-2 text-xs">
+                                  Configure routing before creating an
+                                  Instance.
+                                </p>
+                              ) : !modelRoutings.isPending &&
+                                !hasReadyRouting ? (
+                                <p className="border-l-2 border-amber-500 bg-amber-500/5 px-3 py-2 text-xs">
+                                  No ready routing is available. Resolve
+                                  validation before creating an Instance.
+                                </p>
+                              ) : selectedRouting?.status !== "READY" ? (
+                                <p className="border-l-2 border-amber-500 bg-amber-500/5 px-3 py-2 text-xs">
+                                  Select a ready routing to continue.
+                                </p>
+                              ) : (
+                                <p
+                                  aria-live="polite"
+                                  className="text-xs text-muted-foreground"
+                                >
+                                  {selectedRouting.isDefault
+                                    ? "Project default selected"
+                                    : "Instance-specific override"}
+                                  {" · "}an isolated LiteLLM key will be
+                                  provisioned for this Instance.
+                                </p>
+                              )}
+                            </div>
+                          );
+                        }}
+                      </form.Field>
                     </div>
                     <form.Subscribe
                       selector={(state) => [
                         state.values.accessPolicyIds,
                         state.values.agentPlatform,
                         state.values.policyId,
+                        state.values.modelRoutingId,
                       ]}
                     >
-                      {([accessPolicyIds, agentPlatform, policyId]) => {
+                      {([
+                        accessPolicyIds,
+                        agentPlatform,
+                        policyId,
+                        modelRoutingId,
+                      ]) => {
                         const count = Array.isArray(accessPolicyIds)
                           ? accessPolicyIds.length
                           : 0;
+                        const selectedRouting = modelRoutings.data?.find(
+                          (routing) =>
+                            routing.id === String(modelRoutingId),
+                        );
                         return count && policyId ? (
                           <p className="border-l-2 border-primary bg-primary/5 px-3 py-2.5 text-xs leading-5">
                             <strong>
@@ -869,7 +1043,14 @@ export function CreateInstanceSheet({
                             </strong>{" "}
                             inside the{" "}
                             <strong>{policyName(String(policyId))}</strong>{" "}
-                            OpenShell boundary.
+                            OpenShell boundary
+                            {selectedRouting ? (
+                              <>
+                                , with inference routed through{" "}
+                                <strong>{selectedRouting.name}</strong>
+                              </>
+                            ) : null}
+                            .
                           </p>
                         ) : null;
                       }}
@@ -927,9 +1108,12 @@ export function CreateInstanceSheet({
                             value={policyName(values.policyId)}
                           />
                           <ReviewRow
-                            label="Model Profile"
+                            label="Routing"
                             value={
-                              readyDefaultModelProfile?.name ?? "Unavailable"
+                              modelRoutings.data?.find(
+                                (routing) =>
+                                  routing.id === values.modelRoutingId,
+                              )?.name ?? "Unavailable"
                             }
                           />
                           <ReviewRow
@@ -958,6 +1142,7 @@ export function CreateInstanceSheet({
                                   item.id,
                                   skills,
                                   mcpServers,
+                                  knowledgeSources,
                                 )}
                                 source={item.source}
                               />
@@ -977,6 +1162,7 @@ export function CreateInstanceSheet({
                                   item.id,
                                   skills,
                                   mcpServers,
+                                  knowledgeSources,
                                 )}
                                 source={item.source}
                               />
@@ -1093,6 +1279,40 @@ function EmptyReview({ label }: { label: string }) {
   return <p className="text-xs text-muted-foreground">{label}</p>;
 }
 
+function ModelRoutingIdentity({
+  routing,
+  showDescription = false,
+}: {
+  routing: ModelRouting;
+  showDescription?: boolean;
+}) {
+  return (
+    <span className="flex min-w-0 items-center gap-3 text-left">
+      <span className="grid size-8 shrink-0 place-items-center rounded-sm border bg-muted/40 text-muted-foreground">
+        <Waypoints className="size-4" />
+      </span>
+      <span className="min-w-0">
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+          <strong className="text-sm">{routing.name}</strong>
+          {routing.isDefault ? (
+            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+              Project default
+            </span>
+          ) : null}
+        </span>
+        <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+          {routing.publicModelAlias} · {routing.status.replaceAll("_", " ")}
+        </span>
+        {showDescription && routing.description ? (
+          <span className="mt-0.5 block max-w-lg truncate text-[11px] text-muted-foreground">
+            {routing.description}
+          </span>
+        ) : null}
+      </span>
+    </span>
+  );
+}
+
 function FieldLabel({
   htmlFor,
   label,
@@ -1172,7 +1392,7 @@ function ReviewAssessment({
               : "Ready to create"}
           </h3>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Work definition, Access Policies, Agent workbench, Model Profile,
+            Work definition, Access Policies, Agent workbench, Routing,
             and Runtime Policy are complete.
           </p>
           {accessPolicyNames.length ? (

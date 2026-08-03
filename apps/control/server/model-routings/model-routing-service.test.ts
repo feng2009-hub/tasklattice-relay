@@ -1,17 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   createAgentSchema,
-  createModelProfileSchema,
+  createModelRoutingSchema,
 } from "@tasklattice/contracts";
 import { createTestStore } from "../test/store";
 import type {
   LiteLLMAdminClient,
-  LiteLLMModelProfileInspection,
+  LiteLLMModelRoutingInspection,
 } from "../providers/litellm-client";
 import {
-  ModelProfileResolver,
-  ModelProfileService,
-} from "./model-profile-service";
+  ModelRoutingResolver,
+  ModelRoutingService,
+} from "./model-routing-service";
 
 const capabilities = {
   automaticRouting: "ENABLED",
@@ -29,7 +29,7 @@ const capabilities = {
 const defaultModelId = "99999999-9999-4999-8999-999999999999";
 
 function adapter(
-  inspection: Omit<LiteLLMModelProfileInspection, "configurationHash"> & {
+  inspection: Omit<LiteLLMModelRoutingInspection, "configurationHash"> & {
     configurationHash?: string;
   },
 ): LiteLLMAdminClient {
@@ -41,18 +41,18 @@ function adapter(
     createInstanceKey: vi.fn(),
     revokeKey: vi.fn(),
     listSpendLogs: vi.fn(),
-    inspectModelProfile: vi.fn(async () => ({
+    inspectModelRouting: vi.fn(async () => ({
       configurationHash: "sha256:litellm",
       ...inspection,
     })),
-    reconcileModelProfileRoute: vi.fn(),
-    deleteModelProfileRoute: vi.fn(),
-    createModelProfileTeam: vi.fn(async () => "team-a"),
-    createModelProfileKey: vi.fn(async () => ({
+    reconcileModelRoutingRoute: vi.fn(),
+    deleteModelRoutingRoute: vi.fn(),
+    createModelRoutingTeam: vi.fn(async () => "team-a"),
+    createModelRoutingKey: vi.fn(async () => ({
       secret: "sk-instance-secret",
       tokenId: "token-hash",
     })),
-    deleteModelProfileTeam: vi.fn(),
+    deleteModelRoutingTeam: vi.fn(),
   };
 }
 
@@ -115,7 +115,7 @@ async function saveRoutingModel(
 }
 
 function input(domain: "CN_MAINLAND" | "GLOBAL" = "CN_MAINLAND") {
-  return createModelProfileSchema.parse({
+  return createModelRoutingSchema.parse({
     name: "Production inference",
     description: "Managed production inference access.",
     gatewayId: "litellm-default",
@@ -144,7 +144,7 @@ async function saveDefaultRoutingModel(
   );
 }
 
-describe("Model Profile contracts", () => {
+describe("Model Routing contracts", () => {
   it("keeps model selection out of Instance creation", () => {
     expect(() =>
       createAgentSchema.parse({
@@ -152,6 +152,7 @@ describe("Model Profile contracts", () => {
         description: "",
         runtime: "openshell",
         accessPolicyIds: ["11111111-1111-4111-8111-111111111111"],
+        modelRoutingId: "routing-a",
         systemPrompt: "Research the request and report the evidence.",
         modelDeploymentId: "must-be-ignored",
       }),
@@ -167,6 +168,7 @@ describe("Model Profile contracts", () => {
         runtime: "openshell",
         systemPrompt: "Research the request and report the evidence.",
         accessPolicyIds,
+        modelRoutingId: "routing-a",
       }).accessPolicyIds,
     ).toEqual(accessPolicyIds);
     expect(() =>
@@ -175,6 +177,7 @@ describe("Model Profile contracts", () => {
         description: "",
         runtime: "openshell",
         systemPrompt: "Research the request and report the evidence.",
+        modelRoutingId: "routing-a",
       }),
     ).toThrow();
   });
@@ -192,7 +195,7 @@ describe("Model Profile contracts", () => {
 
   it("accepts concise region-oriented names such as CN", () => {
     expect(
-      createModelProfileSchema.parse({
+      createModelRoutingSchema.parse({
         ...input(),
         name: "CN",
       }).name,
@@ -203,7 +206,7 @@ describe("Model Profile contracts", () => {
     const simpleId = "11111111-1111-4111-8111-111111111111";
     const complexId = "22222222-2222-4222-8222-222222222222";
     expect(
-      createModelProfileSchema.parse({
+      createModelRoutingSchema.parse({
         name: "Smart route",
         gatewayId: "litellm-default",
         complianceDomain: "GLOBAL",
@@ -222,7 +225,7 @@ describe("Model Profile contracts", () => {
       retries: 2,
     });
     expect(() =>
-      createModelProfileSchema.parse({
+      createModelRoutingSchema.parse({
         name: "Invalid route",
         gatewayId: "litellm-default",
         complianceDomain: "GLOBAL",
@@ -237,7 +240,7 @@ describe("Model Profile contracts", () => {
   });
 });
 
-describe("Model Profile validation", () => {
+describe("Model Routing validation", () => {
   it("reconciles a single model without creating a complexity router", async () => {
     const store = createTestStore();
     await saveDefaultRoutingModel(store);
@@ -253,22 +256,22 @@ describe("Model Profile validation", () => {
         routerType: "UNKNOWN",
       },
     });
-    const service = new ModelProfileService(store, client);
+    const service = new ModelRoutingService(store, client);
 
-    const profile = await service.create(input());
+    const routing = await service.create(input());
 
-    expect(profile.status).toBe("READY");
-    expect(client.reconcileModelProfileRoute).toHaveBeenCalledWith({
+    expect(routing.status).toBe("READY");
+    expect(client.reconcileModelRoutingRoute).toHaveBeenCalledWith({
       strategy: "SINGLE",
-      alias: profile.publicModelAlias,
-      modelProfileId: profile.id,
+      alias: routing.publicModelAlias,
+      modelRoutingId: routing.id,
       complianceDomain: "CN_MAINLAND",
       defaultModel: "production-chat",
       fallbackModels: [],
       retries: 2,
       requestAudit: true,
     });
-    expect(client.inspectModelProfile).toHaveBeenCalledWith("production-chat");
+    expect(client.inspectModelRouting).toHaveBeenCalledWith("production-chat");
   });
 
   it("reconciles a versioned complexity policy into a stable LiteLLM alias", async () => {
@@ -297,10 +300,10 @@ describe("Model Profile validation", () => {
       complianceUnknown: false,
       capabilities,
     });
-    const service = new ModelProfileService(store, client);
+    const service = new ModelRoutingService(store, client);
 
-    const profile = await service.create(
-      createModelProfileSchema.parse({
+    const routing = await service.create(
+      createModelRoutingSchema.parse({
         name: "Cost-aware production",
         gatewayId: "litellm-default",
         complianceDomain: "CN_MAINLAND",
@@ -315,15 +318,15 @@ describe("Model Profile validation", () => {
       }),
     );
 
-    expect(profile).toMatchObject({
+    expect(routing).toMatchObject({
       status: "READY",
-      publicModelAlias: `tali-profile-${profile.id}`,
+      publicModelAlias: `tali-routing-${routing.id}`,
       routingPolicy: { version: 1, mode: "COMPLEXITY", retries: 2 },
     });
-    expect(client.reconcileModelProfileRoute).toHaveBeenCalledWith({
+    expect(client.reconcileModelRoutingRoute).toHaveBeenCalledWith({
       strategy: "COMPLEXITY",
-      alias: profile.publicModelAlias,
-      modelProfileId: profile.id,
+      alias: routing.publicModelAlias,
+      modelRoutingId: routing.id,
       complianceDomain: "CN_MAINLAND",
       tiers: {
         SIMPLE: "tali/google/gemini-flash",
@@ -338,7 +341,7 @@ describe("Model Profile validation", () => {
     });
   });
 
-  it("rejects a routing candidate outside the Profile compliance boundary before writing LiteLLM", async () => {
+  it("rejects a routing candidate outside the Routing compliance boundary before writing LiteLLM", async () => {
     const store = createTestStore();
     const simpleId = "11111111-1111-4111-8111-111111111111";
     const complexId = "22222222-2222-4222-8222-222222222222";
@@ -362,11 +365,11 @@ describe("Model Profile validation", () => {
       complianceUnknown: false,
       capabilities,
     });
-    const service = new ModelProfileService(store, client);
+    const service = new ModelRoutingService(store, client);
 
     await expect(
       service.create(
-        createModelProfileSchema.parse({
+        createModelRoutingSchema.parse({
           name: "Invalid mixed region",
           gatewayId: "litellm-default",
           complianceDomain: "CN_MAINLAND",
@@ -379,7 +382,7 @@ describe("Model Profile validation", () => {
         }),
       ),
     ).rejects.toThrow("complex tier does not match");
-    expect(client.reconcileModelProfileRoute).not.toHaveBeenCalled();
+    expect(client.reconcileModelRoutingRoute).not.toHaveBeenCalled();
   });
 
   it("reconciles semantic intents with a registered embedding model", async () => {
@@ -410,10 +413,10 @@ describe("Model Profile validation", () => {
       complianceUnknown: false,
       capabilities: semanticCapabilities,
     });
-    const service = new ModelProfileService(store, client);
+    const service = new ModelRoutingService(store, client);
 
-    const profile = await service.create(
-      createModelProfileSchema.parse({
+    const routing = await service.create(
+      createModelRoutingSchema.parse({
         name: "Intent router",
         gatewayId: "litellm-default",
         complianceDomain: "CN_MAINLAND",
@@ -440,14 +443,14 @@ describe("Model Profile validation", () => {
       }),
     );
 
-    expect(profile).toMatchObject({
+    expect(routing).toMatchObject({
       status: "READY",
       routingPolicy: { mode: "SEMANTIC" },
     });
-    expect(client.reconcileModelProfileRoute).toHaveBeenCalledWith({
+    expect(client.reconcileModelRoutingRoute).toHaveBeenCalledWith({
       strategy: "SEMANTIC",
-      alias: profile.publicModelAlias,
-      modelProfileId: profile.id,
+      alias: routing.publicModelAlias,
+      modelRoutingId: routing.id,
       complianceDomain: "CN_MAINLAND",
       defaultModel: "tali/openai/general",
       embeddingModel: "tali/openai/embedding",
@@ -472,7 +475,7 @@ describe("Model Profile validation", () => {
   it("becomes READY and default only after a matching LiteLLM inspection", async () => {
     const store = createTestStore();
     await saveDefaultRoutingModel(store);
-    const service = new ModelProfileService(
+    const service = new ModelRoutingService(
       store,
       adapter({
         exists: true,
@@ -483,21 +486,21 @@ describe("Model Profile validation", () => {
         capabilities,
       }),
     );
-    const profile = await service.create(input());
-    expect(profile).toMatchObject({
+    const routing = await service.create(input());
+    expect(routing).toMatchObject({
       status: "READY",
       isDefault: true,
       capabilities,
     });
-    expect(profile.conditions).toContainEqual(
+    expect(routing.conditions).toContainEqual(
       expect.objectContaining({ type: "COMPLIANCE", status: "PASS" }),
     );
   });
 
-  it("atomically replaces the Project default Model Profile", async () => {
+  it("atomically replaces the Project default Model Routing", async () => {
     const store = createTestStore();
     await saveDefaultRoutingModel(store);
-    const service = new ModelProfileService(
+    const service = new ModelRoutingService(
       store,
       adapter({
         exists: true,
@@ -521,10 +524,10 @@ describe("Model Profile validation", () => {
     expect((await service.resolver.resolveDefault()).id).toBe(second.id);
   });
 
-  it("keeps the Project default usable until another Profile replaces it", async () => {
+  it("keeps the Project default usable until another Routing replaces it", async () => {
     const store = createTestStore();
     await saveDefaultRoutingModel(store);
-    const service = new ModelProfileService(
+    const service = new ModelRoutingService(
       store,
       adapter({
         exists: true,
@@ -534,15 +537,15 @@ describe("Model Profile validation", () => {
         capabilities,
       }),
     );
-    const profile = await service.create(input());
+    const routing = await service.create(input());
 
     await expect(
-      service.update(profile.id, { isDefault: false }),
+      service.update(routing.id, { isDefault: false }),
     ).rejects.toThrow("Choose another default");
     await expect(
-      service.update(profile.id, { suspended: true }),
+      service.update(routing.id, { suspended: true }),
     ).rejects.toThrow("Choose another default");
-    await expect(service.delete(profile.id)).rejects.toThrow(
+    await expect(service.delete(routing.id)).rejects.toThrow(
       "Choose another default",
     );
   });
@@ -550,7 +553,7 @@ describe("Model Profile validation", () => {
   it("rejects CN/GLOBAL mixing", async () => {
     const store = createTestStore();
     await saveDefaultRoutingModel(store);
-    const service = new ModelProfileService(
+    const service = new ModelRoutingService(
       store,
       adapter({
         exists: true,
@@ -561,9 +564,9 @@ describe("Model Profile validation", () => {
         capabilities,
       }),
     );
-    const profile = await service.create(input());
-    expect(profile.status).toBe("NON_COMPLIANT");
-    expect(profile.isDefault).toBe(false);
+    const routing = await service.create(input());
+    expect(routing.status).toBe("NON_COMPLIANT");
+    expect(routing.isDefault).toBe(false);
   });
 
   it("uses LiteLLM model metadata instead of a configured Gateway domain", async () => {
@@ -577,21 +580,21 @@ describe("Model Profile validation", () => {
     });
     const store = createTestStore();
     await saveDefaultRoutingModel(store);
-    const service = new ModelProfileService(store, client);
+    const service = new ModelRoutingService(store, client);
 
-    const profile = await service.create(input("CN_MAINLAND"));
+    const routing = await service.create(input("CN_MAINLAND"));
 
-    expect(profile.status).toBe("READY");
-    expect(profile.conditions).toContainEqual(
+    expect(routing.status).toBe("READY");
+    expect(routing.conditions).toContainEqual(
       expect.objectContaining({ type: "COMPLIANCE", status: "PASS" }),
     );
-    expect(client.inspectModelProfile).toHaveBeenCalledWith("production-chat");
+    expect(client.inspectModelRouting).toHaveBeenCalledWith("production-chat");
   });
 
   it("fails closed when compliance metadata is UNKNOWN", async () => {
     const store = createTestStore();
     await saveDefaultRoutingModel(store);
-    const service = new ModelProfileService(
+    const service = new ModelRoutingService(
       store,
       adapter({
         exists: true,
@@ -601,9 +604,9 @@ describe("Model Profile validation", () => {
         capabilities,
       }),
     );
-    const profile = await service.create(input());
-    expect(profile.status).toBe("NON_COMPLIANT");
-    expect(profile.conditions).toContainEqual(
+    const routing = await service.create(input());
+    expect(routing.status).toBe("NON_COMPLIANT");
+    expect(routing.conditions).toContainEqual(
       expect.objectContaining({ type: "COMPLIANCE", status: "UNKNOWN" }),
     );
   });
@@ -611,7 +614,7 @@ describe("Model Profile validation", () => {
   it("marks unsupported Auto Router versions explicitly", async () => {
     const store = createTestStore();
     await saveDefaultRoutingModel(store);
-    const service = new ModelProfileService(
+    const service = new ModelRoutingService(
       store,
       adapter({
         exists: true,
@@ -628,11 +631,11 @@ describe("Model Profile validation", () => {
   });
 });
 
-describe("ModelProfileResolver", () => {
+describe("ModelRoutingResolver", () => {
   it("requires exactly one READY default", async () => {
     const store = createTestStore();
     await saveDefaultRoutingModel(store);
-    const service = new ModelProfileService(
+    const service = new ModelRoutingService(
       store,
       adapter({
         exists: true,
@@ -643,24 +646,24 @@ describe("ModelProfileResolver", () => {
       }),
     );
     const ready = await service.create(input());
-    expect((await new ModelProfileResolver(store).resolveDefault()).id).toBe(
+    expect((await new ModelRoutingResolver(store).resolveDefault()).id).toBe(
       ready.id,
     );
-    await store.saveModelProfile({
+    await store.saveModelRouting({
       ...ready,
       id: "second",
       name: "Second default",
       createdAt: new Date().toISOString(),
     });
     await expect(
-      new ModelProfileResolver(store).resolveDefault(),
+      new ModelRoutingResolver(store).resolveDefault(),
     ).rejects.toThrow("Multiple default");
   });
 
-  it("does not resolve an explicitly selected suspended profile", async () => {
+  it("does not resolve an explicitly selected suspended routing", async () => {
     const store = createTestStore();
     await saveDefaultRoutingModel(store);
-    const service = new ModelProfileService(
+    const service = new ModelRoutingService(
       store,
       adapter({
         exists: true,
@@ -682,7 +685,7 @@ describe("ModelProfileResolver", () => {
     );
   });
 
-  it("binds an explicitly selected READY profile instead of the default", async () => {
+  it("binds an explicitly selected READY routing instead of the default", async () => {
     const store = createTestStore();
     await saveDefaultRoutingModel(store);
     const client = adapter({
@@ -692,13 +695,12 @@ describe("ModelProfileResolver", () => {
       complianceUnknown: false,
       capabilities,
     });
-    const service = new ModelProfileService(store, client);
-    const defaultProfile = await service.create(input());
-    const selectedProfile = await store.saveModelProfile({
-      ...defaultProfile,
+    const service = new ModelRoutingService(store, client);
+    const defaultRouting = await service.create(input());
+    const selectedRouting = await store.saveModelRouting({
+      ...defaultRouting,
       id: "2f3d37d9-fd85-49ee-80b3-06861b8c44b1",
       name: "Selected inference",
-      publicModelAlias: "selected-chat",
       isDefault: false,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -706,20 +708,20 @@ describe("ModelProfileResolver", () => {
 
     const binding = await service.bindAgent(
       "agent-selected",
-      selectedProfile.id,
+      selectedRouting.id,
     );
 
-    expect(binding.profile.id).toBe(selectedProfile.id);
-    expect(client.createModelProfileKey).toHaveBeenCalledWith(
+    expect(binding.routing.id).toBe(selectedRouting.id);
+    expect(client.createModelRoutingKey).toHaveBeenCalledWith(
       expect.objectContaining({
-        modelProfileId: selectedProfile.id,
-        modelAlias: "selected-chat",
+        modelRoutingId: selectedRouting.id,
+        modelAlias: `tali-routing-${selectedRouting.id}`,
       }),
     );
   });
 });
 
-describe("Model Profile deletion", () => {
+describe("Model Routing deletion", () => {
   it("blocks active consumers and deletes the LiteLLM team after they are removed", async () => {
     const store = createTestStore();
     await saveDefaultRoutingModel(store);
@@ -730,24 +732,24 @@ describe("Model Profile deletion", () => {
       complianceUnknown: false,
       capabilities,
     });
-    const service = new ModelProfileService(store, client);
+    const service = new ModelRoutingService(store, client);
     await service.create(input());
-    const profile = await service.create({
+    const routing = await service.create({
       ...input(),
       name: "Removable inference",
       isDefault: false,
     });
-    await service.bindAgent("agent-consumer", profile.id);
+    await service.bindAgent("agent-consumer", routing.id);
 
-    await expect(service.delete(profile.id)).rejects.toThrow(
+    await expect(service.delete(routing.id)).rejects.toThrow(
       "Remove all Consumers",
     );
-    expect(await service.get(profile.id)).toBeDefined();
+    expect(await service.get(routing.id)).toBeDefined();
 
     await service.unbindAgent("agent-consumer");
-    await service.delete(profile.id);
+    await service.delete(routing.id);
 
-    expect(await service.get(profile.id)).toBeUndefined();
-    expect(client.deleteModelProfileTeam).toHaveBeenCalledWith("team-a");
+    expect(await service.get(routing.id)).toBeUndefined();
+    expect(client.deleteModelRoutingTeam).toHaveBeenCalledWith("team-a");
   });
 });

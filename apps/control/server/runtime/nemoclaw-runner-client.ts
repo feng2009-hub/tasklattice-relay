@@ -38,7 +38,11 @@ export class NemoClawRunnerClient implements RunnerClient {
     this.baseUrl = baseUrl.replace(/\/$/, "");
   }
 
-  private async request<T>(path: string, init?: RequestInit): Promise<T> {
+  private async request<T>(
+    path: string,
+    init?: RequestInit,
+    timeoutMs = 15_000,
+  ): Promise<T> {
     const response = await fetch(`${this.baseUrl}${path}`, {
       ...init,
       headers: {
@@ -46,7 +50,7 @@ export class NemoClawRunnerClient implements RunnerClient {
         "content-type": "application/json",
         ...init?.headers,
       },
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     const payload = (await response.json()) as T | { error: string };
     if (!response.ok) {
@@ -90,6 +94,7 @@ export class NemoClawRunnerClient implements RunnerClient {
     return this.request<RunnerSandbox>(
       `/v1/sandboxes/${encodeURIComponent(name)}?agentPlatform=${agentPlatform}`,
       { method: "DELETE" },
+      90_000,
     );
   }
 

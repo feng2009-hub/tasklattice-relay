@@ -22,7 +22,7 @@ export function DeleteInstanceDialog({ deleting, error, instanceName, onConfirm,
       <DialogContent aria-describedby="delete-instance-description">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><AlertTriangle className="size-5 text-destructive" />Delete Instance?</DialogTitle>
-          <DialogDescription id="delete-instance-description">This deletes the Agent Instance and its OpenShell runtime resources. This action cannot be undone.</DialogDescription>
+          <DialogDescription id="delete-instance-description">This queues background cleanup of the Agent Instance and its OpenShell runtime resources. This action cannot be undone.</DialogDescription>
         </DialogHeader>
         <div className="space-y-4 px-6 py-5">
           <div className="space-y-2">

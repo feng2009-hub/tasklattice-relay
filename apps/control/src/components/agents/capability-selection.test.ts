@@ -1,12 +1,30 @@
 import { describe, expect, it } from "vitest";
 import {
+  availableCapabilityIds,
   changeSpecializationSelection,
   previewSpecializationChange,
+  reconcileCapabilitySelection,
   specializationSelections,
   updateCapabilitySelection,
 } from "./capability-selection";
 
 describe("capability selection sources", () => {
+  it("keeps only Role defaults that are available in the current Project", () => {
+    expect(availableCapabilityIds(
+      ["workday", "missing-server", "workday"],
+      ["workday", "github"],
+    )).toEqual(["workday"]);
+  });
+
+  it("removes selections when their catalog resources disappear", () => {
+    expect(reconcileCapabilitySelection([
+      { id: "workday", source: "specialization" },
+      { id: "missing-server", source: "manual" },
+    ], ["workday"])).toEqual([
+      { id: "workday", source: "specialization" },
+    ]);
+  });
+
   it("marks newly selected capabilities as manual and preserves existing sources", () => {
     expect(updateCapabilitySelection(
       specializationSelections(["policy-search", "onboarding"]),

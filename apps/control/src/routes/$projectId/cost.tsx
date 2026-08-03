@@ -182,7 +182,7 @@ function ModelCostPage() {
     void navigate({
       to: "/$projectId/setting",
       params: { projectId },
-      search: { section: "model-profiles" },
+      search: { section: "model-routings" },
     });
   };
   const retry = () => { queries.forEach((query) => void query.refetch()); };

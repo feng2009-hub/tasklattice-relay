@@ -4,7 +4,7 @@ import { Link } from "@tanstack/react-router";
 import {
   type ModelCapability,
   type ModelDeployment,
-  type ModelProfile,
+  type ModelRouting,
   type ModelType,
   type ProviderAccount,
 } from "@tasklattice/contracts";
@@ -24,7 +24,7 @@ import {
   Trash2,
   Workflow,
 } from "lucide-react";
-import { CreateModelProfileSheet } from "@/components/providers/create-model-profile-sheet";
+import { CreateModelRoutingSheet } from "@/components/providers/create-model-routing-sheet";
 import { GatewaySyncStatus } from "@/components/providers/gateway-sync-status";
 import { ProviderConnectionsManagement } from "@/components/providers/provider-connections-management";
 import { ProviderIcon } from "@/components/providers/provider-icon";
@@ -59,7 +59,7 @@ import { cn } from "@/lib/utils";
 import type { Project } from "@/types/project";
 
 type ModelTypeFilter = "all" | ModelType;
-type ManagementView = "models" | "profiles";
+type ManagementView = "models" | "routings";
 
 const modelTypeLabels: Record<ModelType, string> = {
   llm: "Text generation",
@@ -78,7 +78,7 @@ const capabilityLabels: Record<ModelCapability, string> = {
   multilingual: "Multilingual",
 };
 
-export function ProjectModelProfilesSettings({ project }: { project: Project }) {
+export function ProjectModelRoutingsSettings({ project }: { project: Project }) {
   const scope = useProjectQueryScope();
   const queryClient = useQueryClient();
   const [managementView, setManagementView] =
@@ -92,9 +92,9 @@ export function ProjectModelProfilesSettings({ project }: { project: Project }) 
   const [modelSearch, setModelSearch] = useState("");
   const [modelType, setModelType] = useState<ModelTypeFilter>("all");
   const canManage = project.role === "admin";
-  const profiles = useQuery({
-    queryKey: scope.key("model-profiles"),
-    queryFn: api.listModelProfiles,
+  const routings = useQuery({
+    queryKey: scope.key("model-routings"),
+    queryFn: api.listModelRoutings,
   });
   const deployments = useQuery({
     queryKey: scope.key("model-deployments"),
@@ -105,20 +105,20 @@ export function ProjectModelProfilesSettings({ project }: { project: Project }) 
     queryFn: api.listProviderAccounts,
   });
   const setDefault = useMutation({
-    mutationFn: (profile: ModelProfile) =>
-      api.updateModelProfile(profile.id, { isDefault: true }),
-    onSuccess: async (profile) => {
-      setSuccessMessage(`${profile.name} is now the Project default.`);
+    mutationFn: (routing: ModelRouting) =>
+      api.updateModelRouting(routing.id, { isDefault: true }),
+    onSuccess: async (routing) => {
+      setSuccessMessage(`${routing.name} is now the Project default.`);
       await queryClient.invalidateQueries({
-        queryKey: scope.key("model-profiles"),
+        queryKey: scope.key("model-routings"),
       });
     },
   });
   const refresh = useMutation({
-    mutationFn: api.refreshModelProfile,
+    mutationFn: api.refreshModelRouting,
     onSuccess: async () =>
       queryClient.invalidateQueries({
-        queryKey: scope.key("model-profiles"),
+        queryKey: scope.key("model-routings"),
       }),
   });
   const removeModel = useMutation({
@@ -134,10 +134,10 @@ export function ProjectModelProfilesSettings({ project }: { project: Project }) 
         }),
       ]),
   });
-  const profileItems = profiles.data ?? [];
+  const routingItems = routings.data ?? [];
   const models = deployments.data ?? [];
   const providerAccounts = accounts.data ?? [];
-  const defaultProfile = profileItems.find((profile) => profile.isDefault);
+  const defaultRouting = routingItems.find((routing) => routing.isDefault);
   const readyChatModels = models.filter(
     (model) => model.status === "VALIDATED" && model.modelType === "llm",
   );
@@ -173,12 +173,12 @@ export function ProjectModelProfilesSettings({ project }: { project: Project }) 
       new Map(
         models.map((model) => [
           model.id,
-          profileItems.filter((profile) =>
-            deploymentIds(profile).has(model.id),
+          routingItems.filter((routing) =>
+            deploymentIds(routing).has(model.id),
           ).length,
         ]),
       ),
-    [models, profileItems],
+    [models, routingItems],
   );
   const openModelRegistration = (account?: ProviderAccount) => {
     setRegisterAccount(account);
@@ -197,10 +197,10 @@ export function ProjectModelProfilesSettings({ project }: { project: Project }) 
     <div>
       <header className="border-b p-5">
         <div>
-          <h3 className="text-sm font-semibold">Models & Profiles</h3>
+          <h3 className="text-sm font-semibold">Model and Routing</h3>
           <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">
-            Models are registered from Provider connections. Profiles define
-            how Instances route, retry, and fail over between them.
+            Register models first, then configure how Instances route, retry,
+            and fail over between them.
           </p>
         </div>
       </header>
@@ -212,7 +212,7 @@ export function ProjectModelProfilesSettings({ project }: { project: Project }) 
       >
         <div className="flex flex-col gap-3 border-b px-5 sm:flex-row sm:items-center sm:justify-between">
           <TabsList
-            aria-label="Model and Profile management"
+            aria-label="Model and Routing management"
             className="h-12 w-full justify-start gap-1 rounded-none bg-transparent p-0 sm:w-auto"
           >
             <TabsTrigger
@@ -227,12 +227,12 @@ export function ProjectModelProfilesSettings({ project }: { project: Project }) 
             </TabsTrigger>
             <TabsTrigger
               className="h-12 rounded-none border-0 px-2 data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none"
-              value="profiles"
+              value="routings"
             >
               <Workflow />
-              Profiles
+              Routing
               <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
-                {profileItems.length}
+                {routingItems.length}
               </span>
             </TabsTrigger>
           </TabsList>
@@ -275,7 +275,7 @@ export function ProjectModelProfilesSettings({ project }: { project: Project }) 
                   onClick={() => setCreateOpen(true)}
                 >
                   <Plus />
-                  Create Profile
+                  Create Routing
                 </Button>
               )}
             </div>
@@ -304,7 +304,7 @@ export function ProjectModelProfilesSettings({ project }: { project: Project }) 
                   <Tip content="A registered model is one callable Provider endpoint. The same model can appear more than once when supplied by different Providers or regions." />
                 </div>
                 <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">
-                  Models available to this Project and to its Profiles.
+                  Models available to this Project and its routing configurations.
                 </p>
               </div>
               {models.length ? (
@@ -390,7 +390,7 @@ export function ProjectModelProfilesSettings({ project }: { project: Project }) 
                 title="No models registered"
                 description={
                   providerAccounts.length
-                    ? "Register models from a Provider connection to make them available to Profiles."
+                    ? "Register models from a Provider connection before configuring routing."
                     : "Connect a Provider below to discover and register its models."
                 }
                 action={
@@ -416,42 +416,41 @@ export function ProjectModelProfilesSettings({ project }: { project: Project }) 
           />
         </TabsContent>
 
-        <TabsContent className="mt-0" value="profiles">
-          <section aria-labelledby="profiles-title">
+        <TabsContent className="mt-0" value="routings">
+          <section aria-labelledby="routings-title">
             <div className="p-5 pb-4">
               <div className="flex flex-wrap items-center gap-2">
-                <h3 id="profiles-title" className="text-sm font-semibold">
-                  Profiles
+                <h3 id="routings-title" className="text-sm font-semibold">
+                  Routing
                 </h3>
-                <Badge variant="outline">{profileItems.length}</Badge>
-                <Tip content="Instances call a stable Profile identity while the gateway applies its routing, retry, and fallback policy." />
+                <Badge variant="outline">{routingItems.length}</Badge>
+                <Tip content="Instances reference a stable routing configuration while LiteLLM applies model selection, retries, and fallback policy." />
               </div>
               <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">
-                Reusable model-use policies exposed to Instances as stable model
-                identities.
+                Reusable routing configurations that Instances reference directly.
               </p>
             </div>
 
-            {profiles.isPending ? (
-              <LoadingState label="Loading Profiles…" />
-            ) : profiles.error ? (
+            {routings.isPending ? (
+              <LoadingState label="Loading routing…" />
+            ) : routings.error ? (
               <ErrorState
-                message={profiles.error.message}
-                onRetry={() => void profiles.refetch()}
+                message={routings.error.message}
+                onRetry={() => void routings.refetch()}
               />
-            ) : profileItems.length ? (
+            ) : routingItems.length ? (
               <>
-                {!defaultProfile ? (
+                {!defaultRouting ? (
                   <div
                     role="alert"
                     className="flex gap-3 border-y border-amber-500/20 bg-amber-500/5 px-5 py-4 text-sm"
                   >
                     <CircleAlert className="mt-0.5 size-4 shrink-0 text-amber-700" />
                     <span>
-                      <strong className="block">No default Profile</strong>
+                      <strong className="block">No default routing</strong>
                       <span className="mt-1 block text-xs text-muted-foreground">
                         New Instances cannot receive model access until a Ready
-                        Profile is selected.
+                        routing is selected.
                       </span>
                     </span>
                   </div>
@@ -472,30 +471,30 @@ export function ProjectModelProfilesSettings({ project }: { project: Project }) 
                     {setDefault.error.message}
                   </p>
                 ) : null}
-                <ProfileTable
+                <RoutingTable
                   canManage={canManage}
-                  profiles={profileItems}
+                  routings={routingItems}
                   {...(refresh.isPending && refresh.variables
                     ? { refreshingId: refresh.variables }
                     : {})}
                   {...(setDefault.isPending && setDefault.variables?.id
                     ? { selectingId: setDefault.variables.id }
                     : {})}
-                  onRefresh={(profile) => refresh.mutate(profile.id)}
-                  onSelectDefault={(profile) => {
+                  onRefresh={(routing) => refresh.mutate(routing.id)}
+                  onSelectDefault={(routing) => {
                     setSuccessMessage("");
-                    setDefault.mutate(profile);
+                    setDefault.mutate(routing);
                   }}
                 />
               </>
             ) : (
               <EmptyState
                 icon={<Workflow className="size-4" />}
-                title="No Profiles yet"
+                title="No routing configured"
                 description={
                   readyChatModels.length
                     ? "Create a fixed, complexity-aware, or semantic routing policy from registered models."
-                    : "Register a validated text generation model before creating a Profile."
+                    : "Register a validated text generation model before configuring routing."
                 }
                 action={
                   canManage ? (
@@ -511,7 +510,7 @@ export function ProjectModelProfilesSettings({ project }: { project: Project }) 
                     >
                       <Plus />
                       {readyChatModels.length
-                        ? "Create first Profile"
+                        ? "Create first routing"
                         : "View Models"}
                     </Button>
                   ) : null
@@ -522,11 +521,11 @@ export function ProjectModelProfilesSettings({ project }: { project: Project }) 
         </TabsContent>
       </Tabs>
 
-      <CreateModelProfileSheet
+      <CreateModelRoutingSheet
         open={createOpen}
         onOpenChange={setCreateOpen}
         availableModels={models}
-        defaultIsDefault={!defaultProfile}
+        defaultIsDefault={!defaultRouting}
         modelsLoading={deployments.isPending}
         {...(deployments.error?.message
           ? { modelsError: deployments.error.message }
@@ -630,7 +629,7 @@ function ModelTable({
                     <Boundary domain={model.complianceDomain} />
                   </td>
                   <td className="px-5 py-3 text-right text-xs tabular-nums">
-                    {useCount} Profile{useCount === 1 ? "" : "s"}
+                    {useCount} Routing{useCount === 1 ? "" : "s"}
                   </td>
                   <td className="px-2 py-3">
                     {canManage ? (
@@ -642,7 +641,7 @@ function ModelTable({
                         size="icon"
                         title={
                           removalBlocked
-                            ? "Remove this model from its Profiles first."
+                            ? "Remove this model from its routing configurations first."
                             : "Remove registered model"
                         }
                         variant="ghost"
@@ -686,7 +685,7 @@ function ModelTable({
               <div className="flex items-center justify-between gap-3 border-t pt-3">
                 <Boundary domain={model.complianceDomain} />
                 <span className="ml-auto text-xs text-muted-foreground">
-                  Used by {useCount} Profile{useCount === 1 ? "" : "s"}
+                  Used by {useCount} Routing{useCount === 1 ? "" : "s"}
                 </span>
                 {canManage ? (
                   <Button
@@ -695,7 +694,7 @@ function ModelTable({
                     size="icon"
                     title={
                       useCount
-                        ? "Remove this model from its Profiles first."
+                        ? "Remove this model from its routing configurations first."
                         : "Remove registered model"
                     }
                     variant="ghost"
@@ -716,18 +715,18 @@ function ModelTable({
   );
 }
 
-function ProfileTable({
+function RoutingTable({
   canManage,
   onRefresh,
   onSelectDefault,
-  profiles,
+  routings,
   refreshingId,
   selectingId,
 }: {
   canManage: boolean;
-  onRefresh: (profile: ModelProfile) => void;
-  onSelectDefault: (profile: ModelProfile) => void;
-  profiles: ModelProfile[];
+  onRefresh: (routing: ModelRouting) => void;
+  onSelectDefault: (routing: ModelRouting) => void;
+  routings: ModelRouting[];
   refreshingId?: string;
   selectingId?: string;
 }) {
@@ -736,8 +735,8 @@ function ProfileTable({
       <table className="w-full min-w-[980px] text-left">
         <thead className="border-b bg-muted/20 text-xs text-muted-foreground">
           <tr>
-            <th className="px-5 py-2.5 font-medium">Profile</th>
-            <th className="px-4 py-2.5 font-medium">Routing</th>
+            <th className="px-5 py-2.5 font-medium">Configuration</th>
+            <th className="px-4 py-2.5 font-medium">Strategy</th>
             <th className="px-4 py-2.5 font-medium">Resilience</th>
             <th className="px-4 py-2.5 font-medium">Boundary</th>
             <th className="px-4 py-2.5 font-medium">Use</th>
@@ -745,15 +744,15 @@ function ProfileTable({
           </tr>
         </thead>
         <tbody className="divide-y">
-          {profiles.map((profile) => (
-            <ProfileRow
-              key={profile.id}
+          {routings.map((routing) => (
+            <RoutingRow
+              key={routing.id}
               canManage={canManage}
-              profile={profile}
-              refreshing={refreshingId === profile.id}
-              selecting={selectingId === profile.id}
-              onRefresh={() => onRefresh(profile)}
-              onSelectDefault={() => onSelectDefault(profile)}
+              routing={routing}
+              refreshing={refreshingId === routing.id}
+              selecting={selectingId === routing.id}
+              onRefresh={() => onRefresh(routing)}
+              onSelectDefault={() => onSelectDefault(routing)}
             />
           ))}
         </tbody>
@@ -762,66 +761,66 @@ function ProfileTable({
   );
 }
 
-function ProfileRow({
+function RoutingRow({
   canManage,
   onRefresh,
   onSelectDefault,
-  profile,
+  routing,
   refreshing,
   selecting,
 }: {
   canManage: boolean;
   onRefresh: () => void;
   onSelectDefault: () => void;
-  profile: ModelProfile;
+  routing: ModelRouting;
   refreshing: boolean;
   selecting: boolean;
 }) {
   const projectId = useCurrentProjectId();
-  const routing = routingSummary(profile);
+  const summary = routingSummary(routing);
   const fallbackCount =
-    profile.routingPolicy.fallbackModelDeploymentIds.length;
-  const retries = profile.routingPolicy.retries;
+    routing.routingPolicy.fallbackModelDeploymentIds.length;
+  const retries = routing.routingPolicy.retries;
   const canBecomeDefault =
-    canManage && profile.status === "READY" && !profile.isDefault;
+    canManage && routing.status === "READY" && !routing.isDefault;
   return (
-    <tr className={cn(profile.isDefault && "bg-primary/[0.025]")}>
+    <tr className={cn(routing.isDefault && "bg-primary/[0.025]")}>
       <td className="px-5 py-3">
         <span className="flex min-w-0 items-start gap-3">
           <span
             className={cn(
               "mt-0.5 grid size-8 shrink-0 place-items-center rounded-md border",
-              profile.isDefault
+              routing.isDefault
                 ? "border-primary/25 bg-primary/10 text-primary"
                 : "text-muted-foreground",
             )}
           >
-            {profile.isDefault
+            {routing.isDefault
               ? <Check className="size-4" />
               : <Workflow className="size-4" />}
           </span>
           <span className="min-w-0">
             <span className="flex flex-wrap items-center gap-2">
-              <strong className="text-sm">{profile.name}</strong>
+              <strong className="text-sm">{routing.name}</strong>
               <GatewaySyncStatus
                 compact
-                message={profile.validationMessage}
-                status={profile.status}
+                message={routing.validationMessage}
+                status={routing.status}
               />
-              {profile.isDefault ? (
+              {routing.isDefault ? (
                 <Badge variant="secondary">Project default</Badge>
               ) : null}
             </span>
             <span className="mt-1 block max-w-xs truncate text-[11px] text-muted-foreground">
-              {profile.description || profile.publicModelAlias}
+              {routing.description || routing.publicModelAlias}
             </span>
           </span>
         </span>
       </td>
       <td className="px-4 py-3">
-        <strong className="block text-xs font-medium">{routing.label}</strong>
+        <strong className="block text-xs font-medium">{summary.label}</strong>
         <span className="mt-0.5 block text-[11px] text-muted-foreground">
-          {routing.detail}
+          {summary.detail}
         </span>
       </td>
       <td className="px-4 py-3">
@@ -835,12 +834,12 @@ function ProfileRow({
         </span>
       </td>
       <td className="px-4 py-3">
-        <Boundary domain={profile.complianceDomain} />
+        <Boundary domain={routing.complianceDomain} />
       </td>
       <td className="px-4 py-3">
         <span className="block text-xs text-muted-foreground">
-          {profile.consumers} active Instance
-          {profile.consumers === 1 ? "" : "s"}
+          {routing.consumers} active Instance
+          {routing.consumers === 1 ? "" : "s"}
         </span>
       </td>
       <td className="px-5 py-3">
@@ -848,20 +847,20 @@ function ProfileRow({
           <Button
             size="icon"
             variant="ghost"
-            aria-label={`Refresh ${profile.name}`}
+            aria-label={`Refresh ${routing.name}`}
             disabled={!canManage || refreshing}
             onClick={onRefresh}
           >
             <RefreshCw className={cn(refreshing && "animate-spin")} />
           </Button>
-          {!profile.isDefault && canManage ? (
+          {!routing.isDefault && canManage ? (
             <Button
               variant="outline"
               disabled={!canBecomeDefault || selecting}
               title={
                 canBecomeDefault
                   ? undefined
-                  : "Only a Ready Profile can become the Project default."
+                  : "Only ready routing can become the Project default."
               }
               onClick={onSelectDefault}
             >
@@ -871,8 +870,8 @@ function ProfileRow({
           ) : null}
           <Button asChild variant="ghost">
             <Link
-              to="/$projectId/setting/model-profiles/$profileId"
-              params={{ projectId, profileId: profile.id }}
+              to="/$projectId/setting/model-routings/$routingId"
+              params={{ projectId, routingId: routing.id }}
             >
               Configure
               <ArrowRight />
@@ -1076,14 +1075,14 @@ function ErrorState({
   );
 }
 
-function routingSummary(profile: ModelProfile): {
+function routingSummary(routing: ModelRouting): {
   label: string;
   detail: string;
 } {
-  if (profile.routingPolicy.mode === "SINGLE") {
+  if (routing.routingPolicy.mode === "SINGLE") {
     return { label: "Fixed model", detail: "One primary model" };
   }
-  if (profile.routingPolicy.mode === "COMPLEXITY") {
+  if (routing.routingPolicy.mode === "COMPLEXITY") {
     return {
       label: "By complexity",
       detail: "SIMPLE / MEDIUM · COMPLEX / REASONING",
@@ -1091,14 +1090,14 @@ function routingSummary(profile: ModelProfile): {
   }
   return {
     label: "By intent",
-    detail: `${profile.routingPolicy.routes.length} semantic intent${
-      profile.routingPolicy.routes.length === 1 ? "" : "s"
+    detail: `${routing.routingPolicy.routes.length} semantic intent${
+      routing.routingPolicy.routes.length === 1 ? "" : "s"
     }`,
   };
 }
 
-function deploymentIds(profile: ModelProfile): Set<string> {
-  const policy = profile.routingPolicy;
+function deploymentIds(routing: ModelRouting): Set<string> {
+  const policy = routing.routingPolicy;
   if (policy.mode === "SINGLE") {
     return new Set([
       policy.modelDeploymentId,

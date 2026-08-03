@@ -156,7 +156,16 @@ function InstanceActions({ instance, onDelete }: { instance: Agent; onDelete: ()
         {instance.status === "READY" ? <DropdownMenuItem asChild><Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: instance.id }} search={{ tab: "terminal" }}><SquareTerminal />Open {platform.consoleLabel}</Link></DropdownMenuItem> : null}
         <DropdownMenuItem asChild><Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: instance.id }} search={{ tab: "auditor-log" }} hash="provisioning-logs"><FileText />View logs</Link></DropdownMenuItem>
         <DropdownMenuItem disabled><RefreshCw />Restart unavailable</DropdownMenuItem>
-        <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={onDelete}><Trash2 />Delete Instance</DropdownMenuItem>
+        <DropdownMenuItem
+          className="text-destructive focus:text-destructive"
+          disabled={instance.status === "DESTROYING"}
+          onSelect={onDelete}
+        >
+          <Trash2 />
+          {instance.status === "DESTROYING"
+            ? "Deletion in progress"
+            : "Delete Instance"}
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

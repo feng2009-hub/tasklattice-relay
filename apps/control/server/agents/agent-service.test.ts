@@ -1,4 +1,9 @@
-import { createAgentSchema, type Agent } from "@tasklattice/contracts";
+import {
+  createAgentSchema,
+  type Agent,
+  type CreateAgentInput,
+  type RunnerSandbox,
+} from "@tasklattice/contracts";
 import { describe, expect, it, vi } from "vitest";
 
 import type { LiteLLMAdminClient } from "../providers/litellm-client";
@@ -48,11 +53,11 @@ describe("Instance lifecycle reconciliation", () => {
     model: "deepseek-chat",
     modelType: "llm",
     inferenceMode: "PLATFORM_MANAGED",
-    modelProfileId: "profile-a",
-    modelProfileBindingId: "binding-a",
-    modelProfileStatus: "READY",
-    modelProfileComplianceDomain: "GLOBAL",
-    modelProfileCapabilities: {
+    modelRoutingId: "routing-a",
+    modelRoutingBindingId: "binding-a",
+    modelRoutingStatus: "READY",
+    modelRoutingComplianceDomain: "GLOBAL",
+    modelRoutingCapabilities: {
       automaticRouting: "ENABLED",
       routerType: "COMPLEXITY_ROUTER",
       complexityTierCount: 4,
@@ -65,7 +70,7 @@ describe("Instance lifecycle reconciliation", () => {
       retries: "ENABLED",
       requestAudit: "ENABLED",
     },
-    modelProfileKeyFingerprint: "sha256:123456789abc",
+    modelRoutingKeyFingerprint: "sha256:123456789abc",
     costKeyAlias: "tali-research:deepseek-chat",
     sandboxName: "tali-research",
     status: "PROVISIONING",
@@ -123,6 +128,7 @@ describe("OpenShell policy assignment", () => {
         description: "",
         runtime: "openshell",
         accessPolicyIds: [accessPolicyId],
+        modelRoutingId: "routing-a",
         policyId: "github-full-access",
         systemPrompt: "Operate on GitHub and report the resulting evidence.",
       }).policyId,
@@ -136,6 +142,7 @@ describe("Agent selection", () => {
     description: "",
     runtime: "openshell" as const,
     accessPolicyIds: [accessPolicyId],
+    modelRoutingId: "routing-a",
     policyId: "restricted" as const,
     systemPrompt: "Research the request and report the resulting evidence.",
   };
@@ -166,6 +173,15 @@ describe("Agent selection", () => {
       mcpServerIds: ["workday"],
       knowledgeSourceIds: ["company-hr-handbook"],
     });
+  });
+
+  it("accepts an Instance-specific Model Routing selection", () => {
+    expect(
+      createAgentSchema.parse({
+        ...input,
+        modelRoutingId: "routing-selected",
+      }).modelRoutingId,
+    ).toBe("routing-selected");
   });
 
   it("resolves Role and capability references from the PostgreSQL catalog", async () => {
@@ -292,13 +308,13 @@ async function configuredService() {
     createdAt: now,
     updatedAt: now,
   });
-  await store.saveModelProfile({
-    id: "profile-a",
+  await store.saveModelRouting({
+    id: "routing-a",
     name: "Production inference",
     description: "Managed inference for production Instances.",
     gatewayId: "litellm-default",
     managementMode: "LITELLM_MANAGED",
-    publicModelAlias: "production-chat",
+    publicModelAlias: "tali-routing-routing-a",
     routingPolicy: {
       version: 1,
       mode: "SINGLE",
@@ -365,16 +381,19 @@ async function configuredService() {
 
 async function createConfiguredInstance(
   setup: Awaited<ReturnType<typeof configuredService>>,
+  overrides: Partial<CreateAgentInput> = {},
 ) {
   return setup.service.create({
     name: "Research Assistant",
     description: "",
     runtime: "openshell",
     accessPolicyIds: [setup.policy.id],
+    modelRoutingId: "routing-a",
     agentPlatform: "openclaw",
     policyId: "restricted",
     systemPrompt: "Research the request and report the resulting evidence.",
     knowledgeSourceIds: ["engineering-handbook"],
+    ...overrides,
   });
 }
 
@@ -386,9 +405,9 @@ describe("Instance Access Policy lifecycle", () => {
     expect(setup.litellm.createInstanceServiceAccountKey).toHaveBeenCalledWith(
       expect.objectContaining({
         teamId: "team-a",
-        models: ["production-chat", "tali/provider-a/deepseek-chat"],
+        models: ["tali-routing-routing-a", "tali/provider-a/deepseek-chat"],
         aliases: {
-          "production-chat": "tali/provider-a/deepseek-chat",
+          "tali-routing-routing-a": "tali/provider-a/deepseek-chat",
         },
         routerSettings: {
           num_retries: 2,
@@ -432,9 +451,36 @@ describe("Instance Access Policy lifecycle", () => {
     expect(attribution?.environmentId).toBe("project-default");
 
     await setup.service.destroy(agent.id);
-    expect(setup.litellm.revokeKey).toHaveBeenCalledWith(
-      "instance-hashed-token",
+    await vi.waitFor(() =>
+      expect(setup.litellm.revokeKey).toHaveBeenCalledWith(
+        "instance-hashed-token",
+      ),
     );
+  });
+
+  it("accepts deletion before background runtime cleanup completes", async () => {
+    const setup = await configuredService();
+    const agent = await createConfiguredInstance(setup);
+    let finishRuntimeCleanup!: (sandbox: RunnerSandbox) => void;
+    vi.mocked(setup.runner.destroySandbox).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishRuntimeCleanup = resolve;
+      }),
+    );
+
+    await expect(setup.service.destroy(agent.id)).resolves.toBe(true);
+    expect((await setup.store.get(agent.id))?.status).toBe("DESTROYING");
+    expect(setup.litellm.revokeKey).not.toHaveBeenCalled();
+
+    finishRuntimeCleanup({
+      name: agent.sandboxName,
+      agentPlatform: agent.agentPlatform,
+      phase: "NOT_FOUND",
+      logs: [],
+    });
+    await vi.waitFor(async () => {
+      expect(await setup.store.get(agent.id)).toBeUndefined();
+    });
   });
 
   it("updates permissions without recreating the Sandbox", async () => {
@@ -487,23 +533,52 @@ describe("Instance Access Policy lifecycle", () => {
     expect(setup.runner.createSandbox).not.toHaveBeenCalled();
   });
 
-  it("rejects multiple defaults even when only one Model Profile is READY", async () => {
+  it("binds the Model Routing selected for the Instance", async () => {
     const setup = await configuredService();
-    const ready = await setup.store.getModelProfile("profile-a");
+    const projectDefault = await setup.store.getModelRouting("routing-a");
+    expect(projectDefault).toBeDefined();
+    await setup.store.saveModelRouting({
+      ...projectDefault!,
+      id: "routing-selected",
+      name: "Selected inference",
+      publicModelAlias: "tali-routing-routing-selected",
+      isDefault: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    const agent = await createConfiguredInstance(setup, {
+      modelRoutingId: "routing-selected",
+    });
+
+    expect(agent.modelRoutingId).toBe("routing-selected");
+    expect(agent.model).toBe("tali-routing-routing-selected");
+    expect(agent.modelRoutingBindingId).toBe(
+      "instance-selected:routing-selected",
+    );
+    expect(
+      vi.mocked(setup.litellm.createInstanceServiceAccountKey!).mock.calls[0]![0]
+        .models,
+    ).toContain("tali-routing-routing-selected");
+  });
+
+  it("uses the Routing referenced by the Instance even if Project defaults conflict", async () => {
+    const setup = await configuredService();
+    const ready = await setup.store.getModelRouting("routing-a");
     expect(ready).toBeDefined();
-    await setup.store.saveModelProfile({
+    await setup.store.saveModelRouting({
       ...ready!,
-      id: "profile-b",
+      id: "routing-b",
       name: "Degraded duplicate default",
       status: "DEGRADED",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
 
-    await expect(createConfiguredInstance(setup)).rejects.toThrow(
-      "Multiple default Model Profiles",
-    );
-    expect(setup.litellm.createInstanceServiceAccountKey).not.toHaveBeenCalled();
-    expect(setup.runner.createSandbox).not.toHaveBeenCalled();
+    const agent = await createConfiguredInstance(setup);
+
+    expect(agent.modelRoutingId).toBe("routing-a");
+    expect(setup.litellm.createInstanceServiceAccountKey).toHaveBeenCalledOnce();
+    expect(setup.runner.createSandbox).toHaveBeenCalledOnce();
   });
 });

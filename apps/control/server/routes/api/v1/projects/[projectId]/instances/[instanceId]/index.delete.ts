@@ -15,7 +15,7 @@ export default defineHandler(async (event) => {
     const destroyed = await (await getAgentService(event.req)).destroy(id);
     return destroyed
       ? jsonResponse(
-          { id, status: "DESTROYED", previousStatus: "DESTROYING" },
+          { id, status: "DESTROYING", accepted: true },
           { status: 202 },
         )
       : jsonResponse({ error: "Agent not found." }, { status: 404 });

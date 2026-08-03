@@ -93,6 +93,36 @@ describe("ResourceCatalogService", () => {
       ]),
     );
     expect(catalog.mcpServers).toEqual([]);
+    expect(catalog.knowledgeSources).toEqual([]);
+    expect(
+      catalog.specializations.find((item) => item.id === "hr"),
+    ).toMatchObject({
+      defaultSkillIds: [
+        "employee-policy-search",
+        "document-summarization",
+        "onboarding-guidance",
+      ],
+      defaultMcpServerIds: [],
+      defaultKnowledgeSourceIds: [],
+    });
+    const availableSkillIds = new Set(catalog.skills.map((item) => item.id));
+    const availableMcpServerIds = new Set(
+      catalog.mcpServers.map((item) => item.id),
+    );
+    const availableKnowledgeSourceIds = new Set(
+      catalog.knowledgeSources.map((item) => item.id),
+    );
+    for (const role of catalog.specializations) {
+      expect(role.defaultSkillIds.every((id) => availableSkillIds.has(id))).toBe(true);
+      expect(
+        role.defaultMcpServerIds.every((id) => availableMcpServerIds.has(id)),
+      ).toBe(true);
+      expect(
+        role.defaultKnowledgeSourceIds.every((id) =>
+          availableKnowledgeSourceIds.has(id),
+        ),
+      ).toBe(true);
+    }
     expect(catalog.mcpServerTemplates.map((template) => template.name)).toEqual(
       expect.arrayContaining([
         "Cloudflare Documentation",

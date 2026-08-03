@@ -89,7 +89,7 @@ describe("LiteLLM Router capability inspection", () => {
         { model_name: "backup", model_info: { compliance_domain: "CN_MAINLAND" } }],
       } : { version: "1.86.2" }), { status: 200 });
     }));
-    const result = await new LiteLLMClient("http://litellm:4000", "master-secret").inspectModelProfile("production-chat");
+    const result = await new LiteLLMClient("http://litellm:4000", "master-secret").inspectModelRouting("production-chat");
     expect(result.capabilities).toMatchObject({
       automaticRouting: "ENABLED",
       routerType: "COMPLEXITY_ROUTER",
@@ -101,7 +101,7 @@ describe("LiteLLM Router capability inspection", () => {
 
   it("redacts virtual keys echoed by LiteLLM errors", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("failed sk-super-secret-value master-secret", { status: 500 })));
-    await expect(new LiteLLMClient("http://litellm:4000", "master-secret").inspectModelProfile("production-chat"))
+    await expect(new LiteLLMClient("http://litellm:4000", "master-secret").inspectModelRouting("production-chat"))
       .rejects.not.toThrow(/sk-super-secret-value|master-secret/);
   });
 
@@ -130,7 +130,7 @@ describe("LiteLLM Router capability inspection", () => {
       } : { version: "1.94.1" }), { status: 200 });
     }));
 
-    const result = await new LiteLLMClient("http://litellm:4000", "master-secret").inspectModelProfile("production-chat");
+    const result = await new LiteLLMClient("http://litellm:4000", "master-secret").inspectModelRouting("production-chat");
 
     expect(result).toMatchObject({
       exists: true,
@@ -165,10 +165,10 @@ describe("LiteLLM Router capability inspection", () => {
     }));
     const client = new LiteLLMClient("http://litellm:4000", "master-secret");
 
-    await client.reconcileModelProfileRoute({
+    await client.reconcileModelRoutingRoute({
       strategy: "COMPLEXITY",
-      alias: "tali-profile-profile-a",
-      modelProfileId: "profile-a",
+      alias: "tali-routing-routing-a",
+      modelRoutingId: "routing-a",
       complianceDomain: "GLOBAL",
       tiers: {
         SIMPLE: "tali/gemini/flash",
@@ -188,7 +188,7 @@ describe("LiteLLM Router capability inspection", () => {
         url: "http://litellm:4000/model/new",
         method: "POST",
         body: {
-          model_name: "tali-profile-profile-a",
+          model_name: "tali-routing-routing-a",
           litellm_params: {
             model: "auto_router/complexity_router",
             complexity_router_config: {
@@ -205,8 +205,8 @@ describe("LiteLLM Router capability inspection", () => {
           },
           model_info: {
             managed_by: "tasklattice",
-            tasklattice_resource: "model_profile_route",
-            model_profile_id: "profile-a",
+            tasklattice_resource: "model_routing_route",
+            model_routing_id: "routing-a",
             routing_strategy: "COMPLEXITY",
             compliance_domain: "GLOBAL",
             request_audit: true,
@@ -217,7 +217,7 @@ describe("LiteLLM Router capability inspection", () => {
         url: "http://litellm:4000/fallback",
         method: "POST",
         body: {
-          model: "tali-profile-profile-a",
+          model: "tali-routing-routing-a",
           fallback_models: ["tali/qwen/max"],
           fallback_type: "general",
         },
@@ -236,13 +236,13 @@ describe("LiteLLM Router capability inspection", () => {
       });
       if (url.endsWith("/model/info"))
         return new Response(JSON.stringify({ data: [{
-          model_name: "tali-profile-profile-single",
+          model_name: "tali-routing-routing-single",
           litellm_params: { model: "auto_router/complexity_router" },
           model_info: {
             id: "stale-route-id",
             managed_by: "tasklattice",
-            tasklattice_resource: "model_profile_route",
-            model_profile_id: "profile-single",
+            tasklattice_resource: "model_routing_route",
+            model_routing_id: "routing-single",
           },
         }] }), { status: 200 });
       if (init?.method === "DELETE")
@@ -251,10 +251,10 @@ describe("LiteLLM Router capability inspection", () => {
     }));
     const client = new LiteLLMClient("http://litellm:4000", "master-secret");
 
-    await client.reconcileModelProfileRoute({
+    await client.reconcileModelRoutingRoute({
       strategy: "SINGLE",
-      alias: "tali-profile-profile-single",
-      modelProfileId: "profile-single",
+      alias: "tali-routing-routing-single",
+      modelRoutingId: "routing-single",
       complianceDomain: "CN_MAINLAND",
       defaultModel: "tali/deepseek/chat",
       fallbackModels: [],
@@ -292,10 +292,10 @@ describe("LiteLLM Router capability inspection", () => {
     }));
     const client = new LiteLLMClient("http://litellm:4000", "master-secret");
 
-    await client.reconcileModelProfileRoute({
+    await client.reconcileModelRoutingRoute({
       strategy: "SEMANTIC",
-      alias: "tali-profile-profile-semantic",
-      modelProfileId: "profile-semantic",
+      alias: "tali-routing-routing-semantic",
+      modelRoutingId: "routing-semantic",
       complianceDomain: "EU_EEA",
       defaultModel: "tali/openai/general",
       embeddingModel: "tali/openai/embedding",
@@ -315,9 +315,9 @@ describe("LiteLLM Router capability inspection", () => {
       call.url.endsWith("/model/new")
     );
     expect(createCall?.body).toMatchObject({
-      model_name: "tali-profile-profile-semantic",
+      model_name: "tali-routing-routing-semantic",
       litellm_params: {
-        model: "auto_router/tali-profile-profile-semantic",
+        model: "auto_router/tali-routing-routing-semantic",
         auto_router_default_model: "tali/openai/general",
         auto_router_embedding_model: "tali/openai/embedding",
         num_retries: 2,
@@ -348,13 +348,13 @@ describe("LiteLLM Router capability inspection", () => {
     });
   });
 
-  it("patches only a route owned by the same Model Profile", async () => {
+  it("patches only a route owned by the same Model Routing", async () => {
     const fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
       if (url.endsWith("/model/info")) {
         return new Response(JSON.stringify({
           data: [{
-            model_name: "tali-profile-profile-a",
+            model_name: "tali-routing-routing-a",
             model_info: {
               id: "router-model-id",
               managed_by: "somebody-else",
@@ -367,10 +367,10 @@ describe("LiteLLM Router capability inspection", () => {
     vi.stubGlobal("fetch", fetchMock);
     const client = new LiteLLMClient("http://litellm:4000", "master-secret");
 
-    await expect(client.reconcileModelProfileRoute({
+    await expect(client.reconcileModelRoutingRoute({
       strategy: "COMPLEXITY",
-      alias: "tali-profile-profile-a",
-      modelProfileId: "profile-a",
+      alias: "tali-routing-routing-a",
+      modelRoutingId: "routing-a",
       complianceDomain: "GLOBAL",
       tiers: {
         SIMPLE: "fast",
@@ -396,18 +396,18 @@ describe("LiteLLM Router capability inspection", () => {
     }));
     const client = new LiteLLMClient("http://litellm:4000", "master-secret");
 
-    const teamId = await client.createModelProfileTeam({
-      alias: "tasklattice-profile-a",
+    const teamId = await client.createModelRoutingTeam({
+      alias: "tasklattice-routing-a",
       modelAlias: "production-chat",
-      modelProfileId: "profile-a",
+      modelRoutingId: "routing-a",
       complianceDomain: "GLOBAL",
     });
-    const key = await client.createModelProfileKey({
+    const key = await client.createModelRoutingKey({
       agentId: "agent-a",
-      alias: "tasklattice/profile-a/agent-a",
+      alias: "tasklattice/routing-a/agent-a",
       modelAlias: "production-chat",
       teamId,
-      modelProfileId: "profile-a",
+      modelRoutingId: "routing-a",
       complianceDomain: "GLOBAL",
     });
 
@@ -415,13 +415,13 @@ describe("LiteLLM Router capability inspection", () => {
     expect(bodies).toEqual([
       expect.objectContaining({
         models: ["production-chat"],
-        metadata: expect.objectContaining({ model_profile_id: "profile-a", compliance_domain: "GLOBAL" }),
+        metadata: expect.objectContaining({ model_routing_id: "routing-a", compliance_domain: "GLOBAL" }),
       }),
       expect.objectContaining({
         team_id: "team-a",
         user_id: "agent-a",
         models: ["production-chat"],
-        metadata: expect.objectContaining({ model_profile_id: "profile-a", agent_id: "agent-a", compliance_domain: "GLOBAL" }),
+        metadata: expect.objectContaining({ model_routing_id: "routing-a", agent_id: "agent-a", compliance_domain: "GLOBAL" }),
       }),
     ]);
   });

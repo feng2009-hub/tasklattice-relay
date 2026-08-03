@@ -154,9 +154,9 @@ clients. Use them only on a trusted local cluster.
 
 ## End-to-end runtime validation
 
-After registering a Provider, creating a ready default Model Profile, and
-activating at least one Access Policy, validate the runtime flow through the
-Control console:
+After registering a Provider, creating a ready default Model Routing, and
+reviewing the automatically configured deny-all `Default` Access Policy,
+validate the runtime flow through the Control console:
 
 1. Create an Instance with one or more Active Access Policies and confirm it
    reaches `READY`.

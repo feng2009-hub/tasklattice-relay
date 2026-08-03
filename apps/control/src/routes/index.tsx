@@ -65,7 +65,7 @@ const runtimeComponents = [
     eyebrow: "01 / Runtime adapter",
     title: "Configuration becomes inspectable desired state.",
     description:
-      "TaskLattice passes the selected Agent, Model Profile, Runtime Policy, and extensions through a pinned NemoClaw adapter instead of hand-editing a sandbox.",
+      "TaskLattice passes the selected Agent, Routing, Runtime Policy, and extensions through a pinned NemoClaw adapter instead of hand-editing a sandbox.",
     facts: [
       ["Manages", "OpenClaw or Hermes"],
       ["Evidence", "Desired + observed"],
@@ -89,7 +89,7 @@ const runtimeComponents = [
     eyebrow: "03 / Model gateway",
     title: "Model access is scoped per Agent Instance.",
     description:
-      "Model Profiles control routing and every Instance receives an independently revocable LiteLLM key, while upstream provider secrets stay outside the workspace.",
+      "Routing controls model selection and every Instance receives an independently revocable LiteLLM key, while upstream provider secrets stay outside the workspace.",
     facts: [
       ["Credential", "Per-instance virtual key"],
       ["Control", "Routing · budget · MCP"],
@@ -122,7 +122,7 @@ const controlLayers: Array<[LucideIcon, string, string, string]> = [
     RouteIcon,
     "Model access",
     "LiteLLM governed",
-    "Model Profiles constrain routing, while every Agent Instance receives an independently revocable key.",
+    "Routing configurations constrain model access, while every Agent Instance receives an independently revocable key.",
   ],
   [
     Boxes,
@@ -147,7 +147,7 @@ const workflow = [
   {
     label: "Govern",
     detail:
-      "Bind a Model Profile, one or more Access Policies, and a Runtime Policy.",
+      "Bind a Routing configuration, one or more Access Policies, and a Runtime Policy.",
   },
   {
     label: "Provision",

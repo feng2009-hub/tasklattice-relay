@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { ensureDefaultAccessPolicy } from "../access-policies/default-access-policy";
 import type { AuthPayload, AuthUser } from "../auth/auth";
 import { requireAuth } from "../auth/auth";
 import { getControlConfig } from "../config/control-config";
@@ -82,6 +83,7 @@ export class ProjectService {
       data: [{ projectId }],
       skipDuplicates: true,
     });
+    await ensureDefaultAccessPolicy(this.db, projectId);
     const invitations = await this.db.projectInvitation.findMany({
       where: {
         email,
@@ -250,6 +252,7 @@ export class ProjectService {
       },
     });
     await this.db.projectQuotaRecord.create({ data: { projectId: project.id } });
+    await ensureDefaultAccessPolicy(this.db, project.id);
     await this.seedProject(project.id);
     await this.syncProjectTeam(project.id);
     return {

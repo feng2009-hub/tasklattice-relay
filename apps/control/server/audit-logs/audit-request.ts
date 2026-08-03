@@ -49,7 +49,7 @@ const resources: Array<{
 }> = [
   { segment: "terminal-sessions", prefix: "terminal_session", type: "Terminal Session" },
   { segment: "access-policies", prefix: "access_policy", type: "Access Policy" },
-  { segment: "model-profiles", prefix: "model_profile", type: "Model Profile" },
+  { segment: "model-routings", prefix: "model_routing", type: "Routing" },
   { segment: "mcp-servers", prefix: "mcp_server", type: "MCP Server" },
   { segment: "knowledge-sources", prefix: "knowledge_source", type: "Knowledge Source" },
   { segment: "connections", prefix: "agent_connection", type: "Agent Connection" },

@@ -6,6 +6,7 @@ import {
   modelTypes,
   providerConnectionDraftSchema,
   providerPresets,
+  providerSupportsComplianceDomain,
   type ComplianceDomain,
   type ModelCapability,
   type ModelType,
@@ -21,9 +22,12 @@ import {
   Check,
   CheckCircle2,
   Copy,
+  Globe2,
   Info,
+  KeyRound,
   Minus,
   Plus,
+  ServerCog,
   TriangleAlert,
   X,
 } from "lucide-react";
@@ -33,7 +37,6 @@ import {
   providerUiRegistry,
 } from "./provider-ui-registry";
 import type { ProviderConfigurator } from "./configurators/types";
-import { dataBoundaryOptionLabel } from "@/components/shared/data-boundary-label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -224,27 +227,45 @@ export function RegisterModelsDrawer({
   }, [availableAccounts, defaultConnectionMode, initialAccount, open]);
 
   useEffect(() => {
-    if (!open || connectionMode !== "new") return;
+    if (
+      !open
+      || connectionMode !== "new"
+      || !complianceDomain
+      || providerSelected
+    ) return;
     const timer = window.setTimeout(
       () => providerTriggerRef.current?.focus(),
       100,
     );
     return () => window.clearTimeout(timer);
-  }, [connectionMode, open]);
+  }, [complianceDomain, connectionMode, open, providerSelected]);
 
   const pending = discover.isPending || register.isPending;
   const selectProvider = (kind: ProviderKind) => {
-    setDraft(createProviderDraft(kind));
+    if (!complianceDomain) return;
+    setDraft(createProviderDraft(kind, complianceDomain));
     setProviderSelected(true);
-    setComplianceDomain("");
     setErrors({});
+  };
+  const changeComplianceDomain = () => {
+    setComplianceDomain("");
+    setProviderSelected(false);
+    setDraft(createProviderDraft("openai"));
+    setErrors({});
+    discover.reset();
   };
   const validateAndDiscover = () => {
     if (connectionMode === "existing") {
       if (activeAccount) discover.mutate();
       return;
     }
-    if (!providerSelected) return;
+    if (!providerSelected || !complianceDomain) return;
+    if (!providerSupportsComplianceDomain(draft.provider, complianceDomain)) {
+      setErrors({
+        form: "This Provider is not available inside the selected compliance boundary.",
+      });
+      return;
+    }
     const parsed = providerConnectionDraftSchema.safeParse(draft);
     if (!parsed.success) {
       setErrors(
@@ -267,6 +288,14 @@ export function RegisterModelsDrawer({
       (provider) => provider.id === discovery?.providerKind,
     )?.modelTypes ?? modelTypes
   ) as readonly ModelType[];
+  const selectedComplianceDomain = complianceDomainCatalog.find(
+    (domain) => domain.id === complianceDomain,
+  );
+  const availableProviderCount = complianceDomain
+    ? providerPresets.filter((provider) =>
+        providerSupportsComplianceDomain(provider.id, complianceDomain)
+      ).length
+    : 0;
 
   return (
     <Drawer
@@ -282,8 +311,8 @@ export function RegisterModelsDrawer({
             Register models
           </DrawerTitle>
           <DrawerDescription>
-            Use a Provider connection to discover models, review their
-            capabilities, and register validated endpoints to this Project.
+            Set the compliance boundary first, connect an available Provider,
+            then discover and register its validated models.
           </DrawerDescription>
           <DrawerClose asChild>
             <Button
@@ -339,6 +368,12 @@ export function RegisterModelsDrawer({
                             providerPresets.find(
                               (provider) => provider.id === account.providerKind,
                             )?.name
+                          }{" "}
+                          ·{" "}
+                          {
+                            complianceDomainCatalog.find(
+                              (domain) => domain.id === account.complianceDomain,
+                            )?.label
                           }
                         </SelectItem>
                       ))}
@@ -350,18 +385,133 @@ export function RegisterModelsDrawer({
                   </p>
                 </div>
               ) : (
-                <>
-                  <div className="space-y-3">
-                    <Label htmlFor="provider-picker">Provider</Label>
+                <div className="space-y-5">
+                  <section className="space-y-3 border-b pb-5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex min-w-0 items-start gap-2.5">
+                        <Globe2
+                          aria-hidden
+                          className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                        />
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <h3 className="text-sm font-semibold">
+                              Compliance boundary
+                            </h3>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Info className="size-3.5 text-muted-foreground" />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                A routing constraint, not a legal certification.
+                                Routing only combines models inside the same
+                                boundary.
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                            Choose where Provider endpoints and routing fallbacks
+                            are allowed to operate.
+                          </p>
+                        </div>
+                      </div>
+                      {providerSelected ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="shrink-0"
+                          disabled={pending}
+                          onClick={changeComplianceDomain}
+                        >
+                          Change
+                        </Button>
+                      ) : null}
+                    </div>
+                    <select
+                      id="provider-compliance-boundary"
+                      aria-label="Compliance boundary"
+                      required
+                      value={complianceDomain}
+                      disabled={pending || providerSelected}
+                      onChange={(event) => {
+                        setComplianceDomain(
+                          event.target.value as ComplianceDomain,
+                        );
+                        setProviderSelected(false);
+                        setErrors({});
+                      }}
+                      className="flex min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <option value="" disabled>
+                        Select a compliance boundary
+                      </option>
+                      {complianceDomainCatalog.map((domain) => (
+                        <option key={domain.id} value={domain.id}>
+                          {domain.label}
+                        </option>
+                      ))}
+                    </select>
+                    <div
+                      className={cn(
+                        "border-l-2 px-3 py-2 text-xs leading-5",
+                        selectedComplianceDomain
+                          ? "border-primary bg-primary/5 text-foreground"
+                          : "border-border bg-muted/20 text-muted-foreground",
+                      )}
+                    >
+                      {selectedComplianceDomain
+                        ? selectedComplianceDomain.description
+                        : "TaskLattice uses this boundary to filter Provider configurations before credentials are entered."}
+                    </div>
+                  </section>
+
+                  <section className="space-y-3 border-b pb-5">
+                    <div className="flex items-start gap-2.5">
+                      <ServerCog
+                        aria-hidden
+                        className={cn(
+                          "mt-0.5 size-4 shrink-0",
+                          complianceDomain
+                            ? "text-foreground"
+                            : "text-muted-foreground",
+                        )}
+                      />
+                      <div>
+                        <h3 className="text-sm font-semibold">Provider</h3>
+                        <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                          {complianceDomain
+                            ? `${availableProviderCount} Provider configurations are available in ${selectedComplianceDomain?.label}.`
+                            : "Select a compliance boundary to unlock the Provider catalog."}
+                        </p>
+                      </div>
+                    </div>
                     <ProviderPicker
                       ref={providerTriggerRef}
+                      complianceDomain={complianceDomain || undefined}
                       disabled={pending}
                       value={providerSelected ? draft.provider : undefined}
                       onChange={selectProvider}
                     />
-                  </div>
+                  </section>
+
                   {providerSelected ? (
-                    <div className="space-y-5 border-t pt-5">
+                    <section className="space-y-5">
+                      <div className="flex items-start gap-2.5">
+                        <KeyRound
+                          aria-hidden
+                          className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                        />
+                        <div>
+                          <h3 className="text-sm font-semibold">
+                            Credentials & endpoint
+                          </h3>
+                          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                            Credentials are encrypted server-side. The endpoint
+                            defaults to the selected compliance boundary.
+                          </p>
+                        </div>
+                      </div>
                       <div className="space-y-2">
                         <Label htmlFor="provider-connection-name">
                           Connection name
@@ -381,66 +531,23 @@ export function RegisterModelsDrawer({
                           </p>
                         ) : null}
                       </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between gap-3">
-                          <Label
-                            htmlFor="provider-data-boundary"
-                            className="inline-flex items-center gap-1.5"
-                          >
-                            Data boundary
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Info className="size-3.5 text-muted-foreground" />
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                A routing boundary, not a legal certification.
-                                Profiles can only combine models inside the same
-                                boundary.
-                              </TooltipContent>
-                            </Tooltip>
-                          </Label>
-                          <span className="text-[11px] text-muted-foreground">
-                            {complianceDomainCatalog.length} regions available
-                          </span>
-                        </div>
-                        <select
-                          id="provider-data-boundary"
-                          required
-                          disabled={pending}
-                          value={complianceDomain}
-                          onChange={(event) =>
-                            setComplianceDomain(
-                              event.target.value as ComplianceDomain,
-                            )
-                          }
-                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          <option value="" disabled>
-                            Select data boundary
-                          </option>
-                          {complianceDomainCatalog.map((domain) => (
-                            <option key={domain.id} value={domain.id}>
-                              {dataBoundaryOptionLabel(domain.id)}
-                            </option>
-                          ))}
-                        </select>
-                        <p className="text-xs leading-5 text-muted-foreground">
-                          {complianceDomain
-                            ? complianceDomainCatalog.find(
-                                (domain) => domain.id === complianceDomain,
-                              )?.description
-                            : "Declare the residency boundary guaranteed by this Provider endpoint."}
-                        </p>
-                      </div>
                       <Configurator
                         value={draft}
                         onChange={setDraft}
                         errors={errors}
                         disabled={pending}
                       />
-                    </div>
+                      {errors.form ? (
+                        <p
+                          role="alert"
+                          className="border-l-2 border-destructive bg-destructive/5 px-3 py-2 text-sm text-destructive"
+                        >
+                          {errors.form}
+                        </p>
+                      ) : null}
+                    </section>
                   ) : null}
-                </>
+                </div>
               )}
               {discover.error ? (
                 <p

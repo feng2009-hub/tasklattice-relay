@@ -5,7 +5,7 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, Di
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export function DeleteModelProfileDialog({
+export function DeleteModelRoutingDialog({
   consumers,
   deleting,
   error,
@@ -13,7 +13,7 @@ export function DeleteModelProfileDialog({
   onOpenChange,
   onViewConsumers,
   open,
-  profileName,
+  routingName,
 }: {
   consumers: number;
   deleting: boolean;
@@ -22,25 +22,25 @@ export function DeleteModelProfileDialog({
   onOpenChange: (open: boolean) => void;
   onViewConsumers: () => void;
   open: boolean;
-  profileName: string;
+  routingName: string;
 }) {
   const [confirmation, setConfirmation] = useState("");
   useEffect(() => { if (!open) setConfirmation(""); }, [open]);
   const blocked = consumers > 0;
-  const confirmed = confirmation === profileName;
+  const confirmed = confirmation === routingName;
 
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!deleting) onOpenChange(next); }}>
-      <DialogContent aria-describedby="delete-model-profile-description">
+      <DialogContent aria-describedby="delete-model-routing-description">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <AlertTriangle className="size-5 text-destructive" />
-            {blocked ? "Model Profile cannot be deleted" : "Delete Model Profile?"}
+            {blocked ? "Routing cannot be deleted" : "Delete routing?"}
           </DialogTitle>
-          <DialogDescription id="delete-model-profile-description">
+          <DialogDescription id="delete-model-routing-description">
             {blocked
-              ? `${consumers} active ${consumers === 1 ? "Instance is" : "Instances are"} still using this Profile. Reassign or remove them before deleting it.`
-              : "This permanently removes the Profile identity, routing binding, and access policy. Provider connections and registered models are kept."}
+              ? `${consumers} active ${consumers === 1 ? "Instance is" : "Instances are"} still using this routing. Reassign or remove them before deleting it.`
+              : "This permanently removes the routing identity, binding, and policy. Provider connections and registered models are kept."}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 px-6 py-5">
@@ -54,8 +54,8 @@ export function DeleteModelProfileDialog({
             </div>
           ) : (
             <div className="space-y-2">
-              <Label htmlFor="delete-model-profile-confirmation">Type <strong>{profileName}</strong> to confirm.</Label>
-              <Input id="delete-model-profile-confirmation" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} disabled={deleting} autoComplete="off" />
+              <Label htmlFor="delete-model-routing-confirmation">Type <strong>{routingName}</strong> to confirm.</Label>
+              <Input id="delete-model-routing-confirmation" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} disabled={deleting} autoComplete="off" />
             </div>
           )}
           {error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 px-3 py-2 text-sm text-destructive">{error}</p> : null}
@@ -67,7 +67,7 @@ export function DeleteModelProfileDialog({
           ) : (
             <Button type="button" variant="destructive" disabled={!confirmed || deleting} onClick={onConfirm}>
               {deleting ? <LoaderCircle className="animate-spin motion-reduce:animate-none" /> : <Trash2 />}
-              {deleting ? "Deleting…" : "Delete Model Profile"}
+              {deleting ? "Deleting…" : "Delete routing"}
             </Button>
           )}
         </DialogFooter>

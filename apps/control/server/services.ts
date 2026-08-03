@@ -4,7 +4,7 @@ import { AgentGardenStore } from "./agent-garden/agent-garden-store";
 import { AccessPolicyService } from "./access-policies/access-policy-service";
 import { AccessPolicyStore } from "./access-policies/access-policy-store";
 import { ResourceCatalogService } from "./catalog/resource-catalog-service";
-import { ModelProfileService } from "./model-profiles/model-profile-service";
+import { ModelRoutingService } from "./model-routings/model-routing-service";
 import { PolicyService } from "./policies/policy-service";
 import { ProjectStore } from "./projects/project-store";
 import { CostService } from "./providers/cost-service";
@@ -20,7 +20,7 @@ interface ProjectServices {
   accessPolicies: AccessPolicyService;
   cost: CostService;
   catalog: ResourceCatalogService;
-  modelProfiles: ModelProfileService;
+  modelRoutings: ModelRoutingService;
   policies: PolicyService;
   provider: ProviderService;
   quotas: ProjectQuotaService;
@@ -34,7 +34,7 @@ const services = new Map<string, ProjectServices>();
 function createServices(projectId: string): ProjectServices {
   const store = new ProjectStore(projectId);
   const policies = new PolicyService(store);
-  const modelProfiles = new ModelProfileService(store, litellm);
+  const modelRoutings = new ModelRoutingService(store, litellm);
   const quotas = new ProjectQuotaService(store, litellm);
   const catalog = new ResourceCatalogService(store, quotas, litellm);
   const accessPolicies = new AccessPolicyService(
@@ -44,7 +44,7 @@ function createServices(projectId: string): ProjectServices {
   );
   return {
     auditLogs: new AuditLogService(projectId, store.database()),
-    agent: new AgentService(store, undefined, litellm, policies, catalog, modelProfiles, quotas, accessPolicies),
+    agent: new AgentService(store, undefined, litellm, policies, catalog, modelRoutings, quotas, accessPolicies),
     agentGarden: new AgentGardenService(
       new AgentGardenStore(projectId, store.database()),
       store,
@@ -54,7 +54,7 @@ function createServices(projectId: string): ProjectServices {
     cost: new CostService(store, litellm),
     policies,
     catalog,
-    modelProfiles,
+    modelRoutings,
     quotas,
   };
 }
@@ -115,8 +115,8 @@ export async function getResourceCatalogService(request?: Request): Promise<Reso
   return (await forRequest(request)).catalog;
 }
 
-export async function getModelProfileService(request?: Request): Promise<ModelProfileService> {
-  return (await forRequest(request)).modelProfiles;
+export async function getModelRoutingService(request?: Request): Promise<ModelRoutingService> {
+  return (await forRequest(request)).modelRoutings;
 }
 
 export async function getProjectQuotaService(request?: Request): Promise<ProjectQuotaService> {

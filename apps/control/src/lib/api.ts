@@ -30,11 +30,11 @@ import type {
   ResourceKind,
   KnowledgeSourceDefinition,
   InferenceGateway,
-  ModelProfile,
-  ModelProfileAuditEvent,
-  ModelProfileConsumer,
-  CreateModelProfileInput,
-  UpdateModelProfileInput,
+  ModelRouting,
+  ModelRoutingAuditEvent,
+  ModelRoutingConsumer,
+  CreateModelRoutingInput,
+  UpdateModelRoutingInput,
   McpServerDefinition,
   ModelDeployment,
   ProviderAccount,
@@ -195,22 +195,22 @@ export const api = {
     )).data,
   listInferenceGateways: async () =>
     (await request<{ data: InferenceGateway[] }>("/api/v1/inference-gateways")).data,
-  listModelProfiles: async () =>
-    (await request<{ data: ModelProfile[] }>("/api/v1/model-profiles")).data,
-  getModelProfile: (id: string) =>
-    request<ModelProfile>(`/api/v1/model-profiles/${encodeURIComponent(id)}`),
-  createModelProfile: (input: CreateModelProfileInput) =>
-    request<ModelProfile>("/api/v1/model-profiles", { method: "POST", body: JSON.stringify(input) }),
-  updateModelProfile: (id: string, input: UpdateModelProfileInput) =>
-    request<ModelProfile>(`/api/v1/model-profiles/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(input) }),
-  refreshModelProfile: (id: string) =>
-    request<ModelProfile>(`/api/v1/model-profiles/${encodeURIComponent(id)}/refresh`, { method: "POST", body: "{}" }),
-  deleteModelProfile: (id: string) =>
-    request<{ message: string }>(`/api/v1/model-profiles/${encodeURIComponent(id)}`, { method: "DELETE" }),
-  listModelProfileConsumers: async (id: string) =>
-    (await request<{ data: ModelProfileConsumer[] }>(`/api/v1/model-profiles/${encodeURIComponent(id)}/consumers`)).data,
-  listModelProfileAudit: async (id: string) =>
-    (await request<{ data: ModelProfileAuditEvent[] }>(`/api/v1/model-profiles/${encodeURIComponent(id)}/audit`)).data,
+  listModelRoutings: async () =>
+    (await request<{ data: ModelRouting[] }>("/api/v1/model-routings")).data,
+  getModelRouting: (id: string) =>
+    request<ModelRouting>(`/api/v1/model-routings/${encodeURIComponent(id)}`),
+  createModelRouting: (input: CreateModelRoutingInput) =>
+    request<ModelRouting>("/api/v1/model-routings", { method: "POST", body: JSON.stringify(input) }),
+  updateModelRouting: (id: string, input: UpdateModelRoutingInput) =>
+    request<ModelRouting>(`/api/v1/model-routings/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(input) }),
+  refreshModelRouting: (id: string) =>
+    request<ModelRouting>(`/api/v1/model-routings/${encodeURIComponent(id)}/refresh`, { method: "POST", body: "{}" }),
+  deleteModelRouting: (id: string) =>
+    request<{ message: string }>(`/api/v1/model-routings/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  listModelRoutingConsumers: async (id: string) =>
+    (await request<{ data: ModelRoutingConsumer[] }>(`/api/v1/model-routings/${encodeURIComponent(id)}/consumers`)).data,
+  listModelRoutingAudit: async (id: string) =>
+    (await request<{ data: ModelRoutingAuditEvent[] }>(`/api/v1/model-routings/${encodeURIComponent(id)}/audit`)).data,
   getResourceCatalog: () => request<ResourceCatalog>("/api/v1/catalog"),
   getAgentGarden: () =>
     request<AgentGardenSnapshot>("/api/v1/agent-garden"),

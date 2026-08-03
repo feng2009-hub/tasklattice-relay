@@ -293,7 +293,7 @@ export function InstanceConfigurationTab({
               {
                 label: "Inference status",
                 value:
-                  agent.modelProfileStatus?.replaceAll("_", " ") ??
+                  agent.modelRoutingStatus?.replaceAll("_", " ") ??
                   "Unavailable",
               },
               {
@@ -301,26 +301,26 @@ export function InstanceConfigurationTab({
                 value:
                   complianceDomainCatalog.find(
                     (domain) =>
-                      domain.id === agent.modelProfileComplianceDomain,
-                  )?.label ?? agent.modelProfileComplianceDomain,
+                      domain.id === agent.modelRoutingComplianceDomain,
+                  )?.label ?? agent.modelRoutingComplianceDomain,
               },
               {
                 label: "Automatic routing",
                 value:
-                  agent.modelProfileCapabilities?.automaticRouting === "ENABLED"
+                  agent.modelRoutingCapabilities?.automaticRouting === "ENABLED"
                     ? "Enabled"
                     : "Not enabled",
               },
               {
                 label: "Failover",
                 value:
-                  agent.modelProfileCapabilities?.failover === "ENABLED"
+                  agent.modelRoutingCapabilities?.failover === "ENABLED"
                     ? "Enabled"
                     : "Not enabled",
               },
               {
                 label: "Key fingerprint",
-                value: agent.modelProfileKeyFingerprint ?? "Unavailable",
+                value: agent.modelRoutingKeyFingerprint ?? "Unavailable",
               },
               { label: "Agent framework", value: platform.name },
               { label: "Runtime", value: platform.runtimeName },

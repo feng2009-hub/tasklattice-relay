@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type {
   ComplianceDomain,
   McpToolDefinition,
-  ModelProfileCapabilities,
+  ModelRoutingCapabilities,
   ModelType,
   ProviderKind,
   ProviderModelSelection,
@@ -73,20 +73,20 @@ export interface LiteLLMSpendLog {
   fallback_used?: boolean;
 }
 
-export interface LiteLLMModelProfileInspection {
+export interface LiteLLMModelRoutingInspection {
   exists: boolean;
   version?: string;
   modelCount: number;
   complianceDomains: ComplianceDomain[];
   complianceUnknown: boolean;
-  capabilities: ModelProfileCapabilities;
+  capabilities: ModelRoutingCapabilities;
   configurationHash: string;
   unsupportedReason?: string;
 }
 
-interface LiteLLMModelProfileRouteBase {
+interface LiteLLMModelRoutingRouteBase {
   alias: string;
-  modelProfileId: string;
+  modelRoutingId: string;
   complianceDomain: ComplianceDomain;
   defaultModel: string;
   fallbackModels: string[];
@@ -94,11 +94,11 @@ interface LiteLLMModelProfileRouteBase {
   requestAudit: boolean;
 }
 
-export type LiteLLMModelProfileRouteInput =
-  | LiteLLMModelProfileRouteBase & {
+export type LiteLLMModelRoutingRouteInput =
+  | LiteLLMModelRoutingRouteBase & {
       strategy: "SINGLE";
     }
-  | LiteLLMModelProfileRouteBase & {
+  | LiteLLMModelRoutingRouteBase & {
       strategy: "COMPLEXITY";
       tiers: {
         SIMPLE: string;
@@ -107,7 +107,7 @@ export type LiteLLMModelProfileRouteInput =
         REASONING: string;
       };
     }
-  | LiteLLMModelProfileRouteBase & {
+  | LiteLLMModelRoutingRouteBase & {
       strategy: "SEMANTIC";
       embeddingModel: string;
       routes: Array<{
@@ -119,14 +119,14 @@ export type LiteLLMModelProfileRouteInput =
       }>;
     };
 
-export interface LiteLLMModelProfileIdentity {
+export interface LiteLLMModelRoutingIdentity {
   alias: string;
   modelAlias: string;
-  modelProfileId: string;
+  modelRoutingId: string;
   complianceDomain: ComplianceDomain;
 }
 
-export interface LiteLLMModelProfileKeyInput extends LiteLLMModelProfileIdentity {
+export interface LiteLLMModelRoutingKeyInput extends LiteLLMModelRoutingIdentity {
   agentId: string;
   teamId: string;
 }
@@ -206,12 +206,12 @@ export interface LiteLLMAdminClient {
   createInstanceKey(input: { agentId: string; alias: string; modelName: string }): Promise<LiteLLMVirtualKey>;
   revokeKey(tokenId: string): Promise<void>;
   listSpendLogs(from: string, to: string): Promise<LiteLLMSpendLog[]>;
-  inspectModelProfile?(modelAlias: string): Promise<LiteLLMModelProfileInspection>;
-  reconcileModelProfileRoute?(input: LiteLLMModelProfileRouteInput): Promise<void>;
-  deleteModelProfileRoute?(alias: string, modelProfileId: string): Promise<void>;
-  createModelProfileTeam?(input: LiteLLMModelProfileIdentity): Promise<string>;
-  deleteModelProfileTeam?(teamId: string): Promise<void>;
-  createModelProfileKey?(input: LiteLLMModelProfileKeyInput): Promise<LiteLLMVirtualKey>;
+  inspectModelRouting?(modelAlias: string): Promise<LiteLLMModelRoutingInspection>;
+  reconcileModelRoutingRoute?(input: LiteLLMModelRoutingRouteInput): Promise<void>;
+  deleteModelRoutingRoute?(alias: string, modelRoutingId: string): Promise<void>;
+  createModelRoutingTeam?(input: LiteLLMModelRoutingIdentity): Promise<string>;
+  deleteModelRoutingTeam?(teamId: string): Promise<void>;
+  createModelRoutingKey?(input: LiteLLMModelRoutingKeyInput): Promise<LiteLLMVirtualKey>;
   ensureProjectTeam?(alias: string, metadata: Record<string, string>): Promise<string>;
   updateProjectTeam?(teamId: string, input: LiteLLMProjectQuotaInput): Promise<void>;
   updateProjectObjectPermissions?(teamId: string, input: LiteLLMObjectPermissions): Promise<void>;
@@ -295,7 +295,7 @@ export class LiteLLMClient implements LiteLLMAdminClient {
     });
   }
 
-  async reconcileModelProfileRoute(input: LiteLLMModelProfileRouteInput): Promise<void> {
+  async reconcileModelRoutingRoute(input: LiteLLMModelRoutingRouteInput): Promise<void> {
     this.assertConfigured();
     const response = await this.request<{
       data?: Array<{
@@ -308,7 +308,7 @@ export class LiteLLMClient implements LiteLLMAdminClient {
     if (matches.length > 1)
       throw new Error(`LiteLLM exposes multiple deployments for managed router alias ${input.alias}.`);
     const existing = matches[0];
-    if (existing) assertManagedModelProfileRoute(existing.model_info, input.modelProfileId, input.alias);
+    if (existing) assertManagedModelRoutingRoute(existing.model_info, input.modelRoutingId, input.alias);
     if (input.strategy === "SINGLE") {
       if (existing) {
         const modelId = existing.model_info?.id;
@@ -355,8 +355,8 @@ export class LiteLLMClient implements LiteLLMAdminClient {
       model_info: {
         ...(existing?.model_info ?? {}),
         managed_by: "tasklattice",
-        tasklattice_resource: "model_profile_route",
-        model_profile_id: input.modelProfileId,
+        tasklattice_resource: "model_routing_route",
+        model_routing_id: input.modelRoutingId,
         routing_strategy: input.strategy,
         compliance_domain: input.complianceDomain,
         request_audit: input.requestAudit,
@@ -379,7 +379,7 @@ export class LiteLLMClient implements LiteLLMAdminClient {
     await this.reconcileFallback(input.alias, input.fallbackModels);
   }
 
-  async deleteModelProfileRoute(alias: string, modelProfileId: string): Promise<void> {
+  async deleteModelRoutingRoute(alias: string, modelRoutingId: string): Promise<void> {
     this.assertConfigured();
     const response = await this.request<{
       data?: Array<{ model_name?: string; model_info?: Record<string, unknown> }>;
@@ -392,7 +392,7 @@ export class LiteLLMClient implements LiteLLMAdminClient {
     if (matches.length > 1)
       throw new Error(`LiteLLM exposes multiple deployments for managed router alias ${alias}.`);
     const existing = matches[0]!;
-    assertManagedModelProfileRoute(existing.model_info, modelProfileId, alias);
+    assertManagedModelRoutingRoute(existing.model_info, modelRoutingId, alias);
     const modelId = existing.model_info?.id;
     if (typeof modelId !== "string" || !modelId)
       throw new Error(`LiteLLM did not report an identifier for managed router alias ${alias}.`);
@@ -440,7 +440,7 @@ export class LiteLLMClient implements LiteLLMAdminClient {
     return { secret: response.key, tokenId: response.token ?? response.key };
   }
 
-  async createModelProfileTeam(input: LiteLLMModelProfileIdentity): Promise<string> {
+  async createModelRoutingTeam(input: LiteLLMModelRoutingIdentity): Promise<string> {
     this.assertConfigured();
     const response = await this.request<{ team_id?: string; id?: string }>("/team/new", {
       method: "POST",
@@ -449,8 +449,8 @@ export class LiteLLMClient implements LiteLLMAdminClient {
         models: [input.modelAlias],
         metadata: {
           managed_by: "tasklattice",
-          model_profile_id: input.modelProfileId,
-          model_profile_alias: input.modelAlias,
+          model_routing_id: input.modelRoutingId,
+          model_routing_alias: input.modelAlias,
           compliance_domain: input.complianceDomain,
         },
       }),
@@ -460,7 +460,7 @@ export class LiteLLMClient implements LiteLLMAdminClient {
     return id;
   }
 
-  async deleteModelProfileTeam(teamId: string): Promise<void> {
+  async deleteModelRoutingTeam(teamId: string): Promise<void> {
     this.assertConfigured();
     await this.request("/team/delete", {
       method: "POST",
@@ -468,7 +468,7 @@ export class LiteLLMClient implements LiteLLMAdminClient {
     });
   }
 
-  async createModelProfileKey(input: LiteLLMModelProfileKeyInput): Promise<LiteLLMVirtualKey> {
+  async createModelRoutingKey(input: LiteLLMModelRoutingKeyInput): Promise<LiteLLMVirtualKey> {
     this.assertConfigured();
     const response = await this.request<LiteLLMVirtualKeyResponse>("/key/generate", {
       method: "POST",
@@ -479,7 +479,7 @@ export class LiteLLMClient implements LiteLLMAdminClient {
         models: [input.modelAlias],
         metadata: {
           managed_by: "tasklattice",
-          model_profile_id: input.modelProfileId,
+          model_routing_id: input.modelRoutingId,
           agent_id: input.agentId,
           compliance_domain: input.complianceDomain,
         },
@@ -555,7 +555,7 @@ export class LiteLLMClient implements LiteLLMAdminClient {
   }
 
   async deleteProjectTeam(teamId: string): Promise<void> {
-    return this.deleteModelProfileTeam(teamId);
+    return this.deleteModelRoutingTeam(teamId);
   }
 
   async createInstanceServiceAccountKey(input: LiteLLMInstanceServiceAccountInput): Promise<LiteLLMVirtualKey> {
@@ -679,7 +679,7 @@ export class LiteLLMClient implements LiteLLMAdminClient {
     return { ok: true, ...(typeof version === "string" ? { version } : {}) };
   }
 
-  async inspectModelProfile(modelAlias: string): Promise<LiteLLMModelProfileInspection> {
+  async inspectModelRouting(modelAlias: string): Promise<LiteLLMModelRoutingInspection> {
     this.assertConfigured();
     const [models, health, configuredFallbacks] = await Promise.all([
       this.request<{ data?: Array<{
@@ -696,16 +696,16 @@ export class LiteLLMClient implements LiteLLMAdminClient {
     const version = typeof versionValue === "string" ? versionValue : undefined;
     const targetModelNames = new Set<string>();
     let automaticRouting = false;
-    let routerType: ModelProfileCapabilities["routerType"] = "UNKNOWN";
+    let routerType: ModelRoutingCapabilities["routerType"] = "UNKNOWN";
     let complexityTierCount: number | undefined;
     let semanticRouteCount: number | undefined;
-    let sessionAffinity: ModelProfileCapabilities["sessionAffinity"] = "UNKNOWN";
-    let adaptiveRouting: ModelProfileCapabilities["adaptiveRouting"] = "UNKNOWN";
-    let generalFallback: ModelProfileCapabilities["generalFallback"] = "UNKNOWN";
-    let contextWindowFallback: ModelProfileCapabilities["contextWindowFallback"] = "UNKNOWN";
-    let contentPolicyFallback: ModelProfileCapabilities["contentPolicyFallback"] = "UNKNOWN";
-    let retries: ModelProfileCapabilities["retries"] = "UNKNOWN";
-    let requestAudit: ModelProfileCapabilities["requestAudit"] = "UNKNOWN";
+    let sessionAffinity: ModelRoutingCapabilities["sessionAffinity"] = "UNKNOWN";
+    let adaptiveRouting: ModelRoutingCapabilities["adaptiveRouting"] = "UNKNOWN";
+    let generalFallback: ModelRoutingCapabilities["generalFallback"] = "UNKNOWN";
+    let contextWindowFallback: ModelRoutingCapabilities["contextWindowFallback"] = "UNKNOWN";
+    let contentPolicyFallback: ModelRoutingCapabilities["contentPolicyFallback"] = "UNKNOWN";
+    let retries: ModelRoutingCapabilities["retries"] = "UNKNOWN";
+    let requestAudit: ModelRoutingCapabilities["requestAudit"] = "UNKNOWN";
     for (const item of matching) {
       const info = item.model_info ?? {};
       const params = item.litellm_params ?? {};
@@ -1046,18 +1046,18 @@ function delay(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-function assertManagedModelProfileRoute(
+function assertManagedModelRoutingRoute(
   modelInfo: Record<string, unknown> | undefined,
-  modelProfileId: string,
+  modelRoutingId: string,
   alias: string,
 ): void {
   if (
     modelInfo?.managed_by !== "tasklattice"
-    || modelInfo.tasklattice_resource !== "model_profile_route"
-    || modelInfo.model_profile_id !== modelProfileId
+    || modelInfo.tasklattice_resource !== "model_routing_route"
+    || modelInfo.model_routing_id !== modelRoutingId
   ) {
     throw new Error(
-      `LiteLLM alias ${alias} already exists and is not owned by this TaskLattice Model Profile.`,
+      `LiteLLM alias ${alias} already exists and is not owned by this TaskLattice Routing.`,
     );
   }
 }

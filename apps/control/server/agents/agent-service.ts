@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type {
   Agent,
   CreateAgentInput,
-  ModelProfile,
+  ModelRouting,
   RunnerSandbox,
   SandboxAuditEvent,
 } from "@tasklattice/contracts";
@@ -20,7 +20,7 @@ import {
   type LiteLLMInstanceServiceAccountInput,
 } from "../providers/litellm-client";
 import { PolicyService } from "../policies/policy-service";
-import { ModelProfileService } from "../model-profiles/model-profile-service";
+import { ModelRoutingService } from "../model-routings/model-routing-service";
 import { ProjectQuotaService } from "../quotas/project-quota-service";
 
 export function agentSandboxName(name: string, id: string): string {
@@ -74,13 +74,16 @@ export function applyObservedState(
 }
 
 export class AgentService {
+  private readonly destroyTasks = new Map<string, Promise<void>>();
+  private readonly destroyRetryAttempts = new Map<string, number>();
+
   constructor(
     readonly store = new ProjectStore(),
     readonly runner: RunnerClient = new NemoClawRunnerClient(),
     readonly litellm: LiteLLMAdminClient = new LiteLLMClient(),
     readonly policies = new PolicyService(store),
     readonly catalog = new ResourceCatalogService(store),
-    readonly modelProfiles = new ModelProfileService(store, litellm),
+    readonly modelRoutings = new ModelRoutingService(store, litellm),
     readonly quotas = new ProjectQuotaService(store, litellm),
     readonly accessPolicies = new AccessPolicyService(
       new AccessPolicyStore(store.projectId, store.database()),
@@ -144,11 +147,11 @@ export class AgentService {
     const now = new Date().toISOString();
     const sandboxName = agentSandboxName(input.name, id);
     await this.accessPolicies.assertActivePolicyIds(input.accessPolicyIds);
-    const profile = await this.modelProfiles.resolver.resolveDefault();
-    const gateway = await this.store.getInferenceGateway(profile.gatewayId);
+    const routing = await this.modelRoutings.resolver.resolve(input.modelRoutingId);
+    const gateway = await this.store.getInferenceGateway(routing.gatewayId);
     if (!gateway)
       throw new Error(
-        "The default Model Profile LiteLLM Gateway is unavailable.",
+        "The selected Routing LiteLLM Gateway is unavailable.",
       );
     const costKeyAlias = `tali-instance-${id}`;
     const serviceAccountId = `tali-instance-${id}`;
@@ -157,7 +160,7 @@ export class AgentService {
       mcpServerIds: input.mcpServerIds,
       knowledgeSourceIds: input.knowledgeSourceIds,
     });
-    const modelKeyRouting = await this.modelKeyRouting(profile);
+    const modelKeyRouting = await this.modelKeyRouting(routing);
     const { teamId, key: instanceKey } = await this.quotas.createInstanceKey({
       alias: costKeyAlias,
       models: modelKeyRouting.models,
@@ -175,18 +178,18 @@ export class AgentService {
       id,
       ...input,
       policyId: policy.id,
-      modelDeploymentId: `model-profile:${profile.id}`,
+      modelDeploymentId: `model-routing:${routing.id}`,
       providerAccountId: gateway.id,
       providerName: "LiteLLM managed",
-      model: profile.publicModelAlias,
+      model: routing.publicModelAlias,
       modelType: "llm",
       inferenceMode: "PLATFORM_MANAGED",
-      modelProfileId: profile.id,
-      modelProfileBindingId: `project-default:${profile.id}`,
-      modelProfileStatus: profile.status,
-      modelProfileComplianceDomain: profile.complianceDomain,
-      modelProfileCapabilities: profile.capabilities,
-      modelProfileKeyFingerprint: `token:${instanceKey.tokenId.slice(-12)}`,
+      modelRoutingId: routing.id,
+      modelRoutingBindingId: `instance-selected:${routing.id}`,
+      modelRoutingStatus: routing.status,
+      modelRoutingComplianceDomain: routing.complianceDomain,
+      modelRoutingCapabilities: routing.capabilities,
+      modelRoutingKeyFingerprint: `token:${instanceKey.tokenId.slice(-12)}`,
       costKeyAlias,
       liteLLMTokenId: instanceKey.tokenId,
       liteLLMTeamId: teamId,
@@ -230,7 +233,7 @@ export class AgentService {
             name: agent.sandboxName,
             agentPlatform: agent.agentPlatform,
             providerName: "LiteLLM",
-            model: profile.publicModelAlias,
+            model: routing.publicModelAlias,
             inferenceEndpoint: `${this.litellm.baseUrl}/v1`,
             policyYaml: policy.policyYaml,
             systemPrompt: input.systemPrompt,
@@ -258,17 +261,66 @@ export class AgentService {
   async destroy(id: string): Promise<boolean> {
     const agent = await this.store.get(id);
     if (!agent) return false;
-    await this.store.save({
-      ...agent,
-      status: "DESTROYING",
-      updatedAt: new Date().toISOString(),
-    });
+    if (agent.status !== "DESTROYING") {
+      const { error: _previousError, ...current } = agent;
+      await this.store.save({
+        ...current,
+        status: "DESTROYING",
+        logs: [
+          ...current.logs,
+          "Instance deletion accepted. Runtime cleanup is continuing in the background.",
+        ],
+        updatedAt: new Date().toISOString(),
+      });
+    }
+    this.queueDestroy(id);
+    return true;
+  }
+
+  private queueDestroy(id: string): void {
+    if (this.destroyTasks.has(id)) return;
+    const task = this.completeDestroy(id)
+      .then(() => {
+        this.destroyRetryAttempts.delete(id);
+      })
+      .catch(async (error) => {
+        const message = error instanceof Error ? error.message : "unknown error";
+        const attempt = (this.destroyRetryAttempts.get(id) ?? 0) + 1;
+        this.destroyRetryAttempts.set(id, attempt);
+        const current = await this.store.get(id).catch(() => undefined);
+        if (current) {
+          const logs = current.logs.filter(
+            (line) => !line.startsWith("Deletion retry pending:"),
+          );
+          await this.store.save({
+            ...current,
+            status: "DESTROYING",
+            error: `Runtime cleanup is retrying: ${message}`,
+            logs: [
+              ...logs,
+              `Deletion retry pending: ${message}`,
+            ].slice(-100),
+            updatedAt: new Date().toISOString(),
+          }).catch(() => undefined);
+        }
+        const delayMs = Math.min(1_000 * 2 ** Math.min(attempt - 1, 5), 30_000);
+        const retry = setTimeout(() => this.queueDestroy(id), delayMs);
+        retry.unref();
+      })
+      .finally(() => {
+        this.destroyTasks.delete(id);
+      });
+    this.destroyTasks.set(id, task);
+  }
+
+  private async completeDestroy(id: string): Promise<void> {
+    const agent = await this.store.get(id);
+    if (!agent) return;
     await this.runner.destroySandbox(agent.sandboxName, agent.agentPlatform);
     if (agent.liteLLMTokenId)
       await this.litellm.revokeKey(agent.liteLLMTokenId);
     await this.closeInstanceAttributions(id);
     await this.store.delete(id);
-    return true;
   }
 
   async updateAccessPolicies(
@@ -336,26 +388,26 @@ export class AgentService {
     }
   }
 
-  private async modelKeyRouting(profile: ModelProfile): Promise<{
+  private async modelKeyRouting(routing: ModelRouting): Promise<{
     models: string[];
     keyConfiguration: Pick<
       LiteLLMInstanceServiceAccountInput,
       "aliases" | "routerSettings"
     >;
   }> {
-    if (profile.routingPolicy.mode !== "SINGLE") {
-      return { models: [profile.publicModelAlias], keyConfiguration: {} };
+    if (routing.routingPolicy.mode !== "SINGLE") {
+      return { models: [routing.publicModelAlias], keyConfiguration: {} };
     }
     const deployments = await Promise.all([
-      this.store.getModelDeployment(profile.routingPolicy.modelDeploymentId),
-      ...profile.routingPolicy.fallbackModelDeploymentIds.map((id) =>
+      this.store.getModelDeployment(routing.routingPolicy.modelDeploymentId),
+      ...routing.routingPolicy.fallbackModelDeploymentIds.map((id) =>
         this.store.getModelDeployment(id),
       ),
     ]);
     const missingIndex = deployments.findIndex((deployment) => !deployment);
     if (missingIndex >= 0) {
       const role = missingIndex === 0 ? "primary" : `fallback ${missingIndex}`;
-      throw new Error(`The ${role} Model Profile deployment is unavailable.`);
+      throw new Error(`The ${role} Routing deployment is unavailable.`);
     }
     const primary = deployments[0]!;
     const fallbacks = deployments.slice(1).map((deployment) => deployment!);
@@ -364,16 +416,16 @@ export class AgentService {
     );
     return {
       models: [
-        profile.publicModelAlias,
+        routing.publicModelAlias,
         primary.litellmModelName,
         ...fallbackModels,
       ],
       keyConfiguration: {
         aliases: {
-          [profile.publicModelAlias]: primary.litellmModelName,
+          [routing.publicModelAlias]: primary.litellmModelName,
         },
         routerSettings: {
-          num_retries: profile.routingPolicy.retries,
+          num_retries: routing.routingPolicy.retries,
           ...(fallbackModels.length
             ? { fallbacks: [{ [primary.litellmModelName]: fallbackModels }] }
             : {}),
@@ -383,6 +435,10 @@ export class AgentService {
   }
 
   private async refresh(agent: Agent): Promise<Agent> {
+    if (agent.status === "DESTROYING") {
+      this.queueDestroy(agent.id);
+      return agent;
+    }
     if (agent.status === "FAILED") return agent;
     try {
       return await this.store.save(

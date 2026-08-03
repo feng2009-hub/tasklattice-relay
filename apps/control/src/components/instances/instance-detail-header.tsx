@@ -51,7 +51,16 @@ export function InstanceHeader({ access, agent, onDelete, platform }: {
               <DropdownMenuItem disabled className="items-start"><RefreshCw className="mt-0.5" /><span><span className="block">Restart Instance</span><span className="block text-[10px] font-normal text-muted-foreground">No restart API is configured.</span></span></DropdownMenuItem>
               <DropdownMenuItem asChild><Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: agent.id }} search={{ tab: "auditor-log" }} hash="provisioning-logs"><FileText />View provisioning logs</Link></DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={onDelete}><Trash2 />Delete Instance</DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                disabled={agent.status === "DESTROYING"}
+                onSelect={onDelete}
+              >
+                <Trash2 />
+                {agent.status === "DESTROYING"
+                  ? "Deletion in progress"
+                  : "Delete Instance"}
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

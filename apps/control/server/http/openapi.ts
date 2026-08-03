@@ -30,8 +30,8 @@ const policyId = {
   schema: { type: "string", pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
 } as const;
 
-const profileId = {
-  name: "profileId",
+const routingId = {
+  name: "routingId",
   in: "path",
   required: true,
   schema: { type: "string", format: "uuid" },
@@ -141,17 +141,17 @@ export const openApiDocument = {
         },
       },
     },
-    "/profile": {
+    "/routing": {
       get: {
-        operationId: "getPersonalProfile",
-        summary: "Read the current user's personal profile",
+        operationId: "getPersonalRouting",
+        summary: "Read the current user's personal routing",
         responses: {
-          "200": { description: "Personal profile", ...json({ $ref: "#/components/schemas/PersonalProfile" }) },
+          "200": { description: "Personal routing", ...json({ $ref: "#/components/schemas/PersonalRouting" }) },
           "401": { $ref: "#/components/responses/Error" },
         },
       },
       patch: {
-        operationId: "updatePersonalProfile",
+        operationId: "updatePersonalRouting",
         summary: "Update personal details that are independent of a Project",
         requestBody: {
           required: true,
@@ -167,13 +167,13 @@ export const openApiDocument = {
           }),
         },
         responses: {
-          "200": { description: "Updated personal profile", ...json({ $ref: "#/components/schemas/PersonalProfile" }) },
+          "200": { description: "Updated personal routing", ...json({ $ref: "#/components/schemas/PersonalRouting" }) },
           "400": { $ref: "#/components/responses/Error" },
           "401": { $ref: "#/components/responses/Error" },
         },
       },
     },
-    "/profile/password": {
+    "/routing/password": {
       post: {
         operationId: "resetLocalPassword",
         summary: "Reset the current local account password",
@@ -599,37 +599,37 @@ export const openApiDocument = {
         },
       },
     },
-    "/projects/{projectId}/model-profiles": {
+    "/projects/{projectId}/model-routings": {
       parameters: [projectIdParameter],
       get: {
-        operationId: "listModelProfiles",
-        summary: "List LiteLLM-managed inference access contracts",
-        responses: { "200": { description: "Model Profile collection", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/ModelProfile" } } } }) } },
+        operationId: "listModelRoutings",
+        summary: "List LiteLLM-managed routing configurations",
+        responses: { "200": { description: "Routing collection", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/ModelRouting" } } } }) } },
       },
       post: {
-        operationId: "createModelProfile",
-        summary: "Create and validate a Model Profile binding",
-        requestBody: { required: true, ...json({ $ref: "#/components/schemas/CreateModelProfileInput" }) },
-        responses: { "201": { description: "Model Profile", ...json({ $ref: "#/components/schemas/ModelProfile" }) }, "400": { $ref: "#/components/responses/Error" } },
+        operationId: "createModelRouting",
+        summary: "Create and validate a Routing configuration",
+        requestBody: { required: true, ...json({ $ref: "#/components/schemas/CreateModelRoutingInput" }) },
+        responses: { "201": { description: "Routing", ...json({ $ref: "#/components/schemas/ModelRouting" }) }, "400": { $ref: "#/components/responses/Error" } },
       },
     },
-    "/projects/{projectId}/model-profiles/{profileId}": {
-      parameters: [projectIdParameter, profileId],
-      get: { operationId: "getModelProfile", summary: "Read a Model Profile", responses: { "200": { description: "Model Profile", ...json({ $ref: "#/components/schemas/ModelProfile" }) }, "404": { $ref: "#/components/responses/Error" } } },
-      put: { operationId: "updateModelProfile", summary: "Update TaskLattice-owned Model Profile policy", requestBody: { required: true, ...json({ type: "object", additionalProperties: false, properties: { name: { type: "string" }, description: { type: "string" }, isDefault: { type: "boolean" }, keyPolicy: { type: "object" }, auditPolicy: { type: "object" }, routingPolicy: { $ref: "#/components/schemas/ModelProfileRoutingPolicy" }, suspended: { type: "boolean" } } }) }, responses: { "200": { description: "Model Profile", ...json({ $ref: "#/components/schemas/ModelProfile" }) } } },
-      delete: { operationId: "deleteModelProfile", summary: "Delete a Model Profile without active Consumers", responses: { "200": { description: "Model Profile deleted", ...json({ type: "object" }) }, "409": { $ref: "#/components/responses/Error" } } },
+    "/projects/{projectId}/model-routings/{routingId}": {
+      parameters: [projectIdParameter, routingId],
+      get: { operationId: "getModelRouting", summary: "Read a Routing configuration", responses: { "200": { description: "Routing", ...json({ $ref: "#/components/schemas/ModelRouting" }) }, "404": { $ref: "#/components/responses/Error" } } },
+      put: { operationId: "updateModelRouting", summary: "Update TaskLattice-owned Routing policy", requestBody: { required: true, ...json({ type: "object", additionalProperties: false, properties: { name: { type: "string" }, description: { type: "string" }, isDefault: { type: "boolean" }, keyPolicy: { type: "object" }, auditPolicy: { type: "object" }, routingPolicy: { $ref: "#/components/schemas/ModelRoutingPolicy" }, suspended: { type: "boolean" } } }) }, responses: { "200": { description: "Routing", ...json({ $ref: "#/components/schemas/ModelRouting" }) } } },
+      delete: { operationId: "deleteModelRouting", summary: "Delete Routing without active Consumers", responses: { "200": { description: "Routing deleted", ...json({ type: "object" }) }, "409": { $ref: "#/components/responses/Error" } } },
     },
-    "/projects/{projectId}/model-profiles/{profileId}/refresh": {
-      parameters: [projectIdParameter, profileId],
-      post: { operationId: "refreshModelProfile", summary: "Synchronize effective LiteLLM capability and compliance status", responses: { "200": { description: "Synchronized Model Profile", ...json({ $ref: "#/components/schemas/ModelProfile" }) } } },
+    "/projects/{projectId}/model-routings/{routingId}/refresh": {
+      parameters: [projectIdParameter, routingId],
+      post: { operationId: "refreshModelRouting", summary: "Synchronize effective LiteLLM capability and compliance status", responses: { "200": { description: "Synchronized Routing", ...json({ $ref: "#/components/schemas/ModelRouting" }) } } },
     },
-    "/projects/{projectId}/model-profiles/{profileId}/consumers": {
-      parameters: [projectIdParameter, profileId],
-      get: { operationId: "listModelProfileConsumers", summary: "List redacted active Instance bindings", responses: { "200": { description: "Redacted Consumers", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/ModelProfileConsumer" } } } }) } } },
+    "/projects/{projectId}/model-routings/{routingId}/consumers": {
+      parameters: [projectIdParameter, routingId],
+      get: { operationId: "listModelRoutingConsumers", summary: "List redacted active Instance bindings", responses: { "200": { description: "Redacted Consumers", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/ModelRoutingConsumer" } } } }) } } },
     },
-    "/projects/{projectId}/model-profiles/{profileId}/audit": {
-      parameters: [projectIdParameter, profileId],
-      get: { operationId: "listModelProfileAudit", summary: "List secret-safe control-plane audit events", responses: { "200": { description: "Audit events", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/ModelProfileAuditEvent" } } } }) } } },
+    "/projects/{projectId}/model-routings/{routingId}/audit": {
+      parameters: [projectIdParameter, routingId],
+      get: { operationId: "listModelRoutingAudit", summary: "List secret-safe control-plane audit events", responses: { "200": { description: "Audit events", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/ModelRoutingAuditEvent" } } } }) } } },
     },
     "/projects/{projectId}/costs/summary": {
       parameters: [projectIdParameter],
@@ -886,9 +886,9 @@ export const openApiDocument = {
       },
       delete: {
         operationId: "deleteAgent",
-        summary: "Destroy an Agent and its NemoClaw sandbox",
+        summary: "Queue asynchronous destruction of an Agent and its runtime resources",
         responses: {
-          "202": { description: "Sandbox destroyed and resource removed", ...json({ $ref: "#/components/schemas/DeleteAgentResult" }) },
+          "202": { description: "Deletion accepted and runtime cleanup queued", ...json({ $ref: "#/components/schemas/DeleteAgentResult" }) },
           "404": { $ref: "#/components/responses/Error" },
         },
       },
@@ -1016,7 +1016,7 @@ export const openApiDocument = {
           user: { $ref: "#/components/schemas/AuthUser" },
         },
       },
-      PersonalProfile: {
+      PersonalRouting: {
         type: "object",
         additionalProperties: false,
         required: ["city", "displayName", "email", "provider", "systemRole", "theme", "timezone", "username"],
@@ -1563,6 +1563,7 @@ export const openApiDocument = {
           "runtime",
           "agentPlatform",
           "accessPolicyIds",
+          "modelRoutingId",
           "systemPrompt",
         ],
         properties: {
@@ -1591,6 +1592,11 @@ export const openApiDocument = {
             description:
               "Catalog Policy ID. Omit to use the deployment ConfigMap default.",
           },
+          modelRoutingId: {
+            type: "string",
+            description:
+              "READY Routing configuration referenced directly by this Instance.",
+          },
           systemPrompt: { type: "string", minLength: 10, maxLength: 8000 },
           specializationId: { type: "string", minLength: 1, maxLength: 64 },
           skillIds: { type: "array", maxItems: 64, items: { type: "string" } },
@@ -1611,7 +1617,7 @@ export const openApiDocument = {
           { $ref: "#/components/schemas/CreateAgentInput" },
           {
             type: "object",
-            required: ["schemaVersion", "id", "policyId", "providerAccountId", "providerName", "model", "modelType", "costKeyAlias", "sandboxName", "status", "createdAt", "updatedAt", "logs", "inferenceMode", "modelProfileId", "modelProfileBindingId", "modelProfileStatus", "modelProfileComplianceDomain", "modelProfileKeyFingerprint"],
+            required: ["schemaVersion", "id", "policyId", "providerAccountId", "providerName", "model", "modelType", "costKeyAlias", "sandboxName", "status", "createdAt", "updatedAt", "logs", "inferenceMode", "modelRoutingId", "modelRoutingBindingId", "modelRoutingStatus", "modelRoutingComplianceDomain", "modelRoutingKeyFingerprint"],
             properties: {
               schemaVersion: { type: "integer", const: 2 },
               id: { type: "string", format: "uuid" },
@@ -1632,11 +1638,11 @@ export const openApiDocument = {
               httpEndpoint: { $ref: "#/components/schemas/HttpEndpoint" },
               error: { type: "string" },
               inferenceMode: { type: "string", const: "PLATFORM_MANAGED" },
-              modelProfileId: { type: "string", format: "uuid" },
-              modelProfileBindingId: { type: "string", format: "uuid" },
-              modelProfileStatus: { type: "string", enum: ["DRAFT", "VALIDATING", "READY", "DEGRADED", "NON_COMPLIANT", "SUSPENDED", "UNSUPPORTED"] },
-              modelProfileComplianceDomain: { type: "string", enum: ["GLOBAL", "CN_MAINLAND", "EU_EEA", "US", "UK", "APAC_EX_CN"] },
-              modelProfileKeyFingerprint: { type: "string" },
+              modelRoutingId: { type: "string", format: "uuid" },
+              modelRoutingBindingId: { type: "string" },
+              modelRoutingStatus: { type: "string", enum: ["DRAFT", "VALIDATING", "READY", "DEGRADED", "NON_COMPLIANT", "SUSPENDED", "UNSUPPORTED"] },
+              modelRoutingComplianceDomain: { type: "string", enum: ["GLOBAL", "CN_MAINLAND", "EU_EEA", "US", "UK", "APAC_EX_CN"] },
+              modelRoutingKeyFingerprint: { type: "string" },
             },
           },
         ],
@@ -1680,13 +1686,13 @@ export const openApiDocument = {
         required: ["id", "name", "baseUrl", "adminUiUrl", "credentialSource", "status", "validationMessage", "createdAt", "updatedAt"],
         properties: { id: { type: "string" }, name: { type: "string" }, baseUrl: { type: "string", format: "uri" }, adminUiUrl: { type: "string", format: "uri" }, credentialSource: { type: "string", enum: ["ENVIRONMENT", "SECRET_REFERENCE"] }, status: { type: "string", enum: ["UNKNOWN", "READY", "DEGRADED"] }, validationMessage: { type: "string" }, validatedAt: { type: "string", format: "date-time" }, createdAt: { type: "string", format: "date-time" }, updatedAt: { type: "string", format: "date-time" } },
       },
-      CreateModelProfileInput: {
+      CreateModelRoutingInput: {
         type: "object",
         additionalProperties: false,
         required: ["name", "gatewayId", "routingPolicy", "complianceDomain"],
-        properties: { name: { type: "string", minLength: 2, maxLength: 64 }, description: { type: "string" }, gatewayId: { type: "string" }, routingPolicy: { $ref: "#/components/schemas/ModelProfileRoutingPolicy" }, complianceDomain: { type: "string", enum: ["GLOBAL", "CN_MAINLAND", "EU_EEA", "US", "UK", "APAC_EX_CN"] }, isDefault: { type: "boolean" }, keyPolicy: { type: "object" }, auditPolicy: { type: "object" } },
+        properties: { name: { type: "string", minLength: 2, maxLength: 64 }, description: { type: "string" }, gatewayId: { type: "string" }, routingPolicy: { $ref: "#/components/schemas/ModelRoutingPolicy" }, complianceDomain: { type: "string", enum: ["GLOBAL", "CN_MAINLAND", "EU_EEA", "US", "UK", "APAC_EX_CN"] }, isDefault: { type: "boolean" }, keyPolicy: { type: "object" }, auditPolicy: { type: "object" } },
       },
-      ModelProfileRoutingPolicy: {
+      ModelRoutingPolicy: {
         oneOf: [
           {
             type: "object",
@@ -1787,18 +1793,18 @@ export const openApiDocument = {
           },
         ],
       },
-      ModelProfile: {
-        allOf: [{ $ref: "#/components/schemas/CreateModelProfileInput" }, { type: "object", required: ["id", "managementMode", "publicModelAlias", "status", "capabilities", "conditions", "configurationHash", "observedGeneration", "validationMessage", "consumers", "createdAt", "updatedAt"], properties: { id: { type: "string", format: "uuid" }, managementMode: { type: "string", const: "LITELLM_MANAGED" }, publicModelAlias: { type: "string" }, status: { type: "string", enum: ["DRAFT", "VALIDATING", "READY", "DEGRADED", "NON_COMPLIANT", "SUSPENDED", "UNSUPPORTED"] }, capabilities: { type: "object", required: ["automaticRouting", "routerType", "sessionAffinity", "adaptiveRouting", "failover", "generalFallback", "contextWindowFallback", "contentPolicyFallback", "retries", "requestAudit"], properties: { automaticRouting: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, routerType: { type: "string", enum: ["COMPLEXITY_ROUTER", "SEMANTIC_ROUTER", "OTHER", "UNKNOWN"] }, complexityTierCount: { type: "integer", minimum: 0 }, semanticRouteCount: { type: "integer", minimum: 0 }, sessionAffinity: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, adaptiveRouting: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, failover: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, generalFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, contextWindowFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, contentPolicyFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, retries: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, requestAudit: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] } } }, conditions: { type: "array", items: { type: "object" } }, configurationHash: { type: "string" }, observedGeneration: { type: "integer", minimum: 1 }, validationMessage: { type: "string" }, consumers: { type: "integer" }, lastSynchronizedAt: { type: "string", format: "date-time" }, createdAt: { type: "string", format: "date-time" }, updatedAt: { type: "string", format: "date-time" } } }],
+      ModelRouting: {
+        allOf: [{ $ref: "#/components/schemas/CreateModelRoutingInput" }, { type: "object", required: ["id", "managementMode", "publicModelAlias", "status", "capabilities", "conditions", "configurationHash", "observedGeneration", "validationMessage", "consumers", "createdAt", "updatedAt"], properties: { id: { type: "string", format: "uuid" }, managementMode: { type: "string", const: "LITELLM_MANAGED" }, publicModelAlias: { type: "string" }, status: { type: "string", enum: ["DRAFT", "VALIDATING", "READY", "DEGRADED", "NON_COMPLIANT", "SUSPENDED", "UNSUPPORTED"] }, capabilities: { type: "object", required: ["automaticRouting", "routerType", "sessionAffinity", "adaptiveRouting", "failover", "generalFallback", "contextWindowFallback", "contentPolicyFallback", "retries", "requestAudit"], properties: { automaticRouting: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, routerType: { type: "string", enum: ["COMPLEXITY_ROUTER", "SEMANTIC_ROUTER", "OTHER", "UNKNOWN"] }, complexityTierCount: { type: "integer", minimum: 0 }, semanticRouteCount: { type: "integer", minimum: 0 }, sessionAffinity: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, adaptiveRouting: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, failover: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, generalFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, contextWindowFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, contentPolicyFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, retries: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, requestAudit: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] } } }, conditions: { type: "array", items: { type: "object" } }, configurationHash: { type: "string" }, observedGeneration: { type: "integer", minimum: 1 }, validationMessage: { type: "string" }, consumers: { type: "integer" }, lastSynchronizedAt: { type: "string", format: "date-time" }, createdAt: { type: "string", format: "date-time" }, updatedAt: { type: "string", format: "date-time" } } }],
       },
-      ModelProfileConsumer: {
+      ModelRoutingConsumer: {
         type: "object",
-        required: ["id", "modelProfileId", "instanceId", "liteLLMTeamId", "keyAlias", "keyFingerprint", "status", "createdAt"],
-        properties: { id: { type: "string" }, modelProfileId: { type: "string" }, instanceId: { type: "string" }, liteLLMTeamId: { type: "string" }, keyAlias: { type: "string" }, keyFingerprint: { type: "string" }, status: { type: "string", enum: ["ACTIVE", "REVOKED"] }, createdAt: { type: "string", format: "date-time" }, revokedAt: { type: "string", format: "date-time" } },
+        required: ["id", "modelRoutingId", "agentId", "liteLLMTeamId", "keyAlias", "keyFingerprint", "status", "createdAt"],
+        properties: { id: { type: "string" }, modelRoutingId: { type: "string" }, agentId: { type: "string" }, liteLLMTeamId: { type: "string" }, keyAlias: { type: "string" }, keyFingerprint: { type: "string" }, status: { type: "string", enum: ["ACTIVE", "REVOKED"] }, createdAt: { type: "string", format: "date-time" }, revokedAt: { type: "string", format: "date-time" } },
       },
-      ModelProfileAuditEvent: {
+      ModelRoutingAuditEvent: {
         type: "object",
-        required: ["eventId", "timestamp", "actor", "type", "modelProfileId", "configurationHash", "complianceDomain", "result", "reason"],
-        properties: { eventId: { type: "string" }, timestamp: { type: "string", format: "date-time" }, actor: { type: "string" }, type: { type: "string" }, modelProfileId: { type: "string" }, instanceId: { type: "string" }, configurationHash: { type: "string" }, complianceDomain: { type: "string", enum: ["GLOBAL", "CN_MAINLAND", "EU_EEA", "US", "UK", "APAC_EX_CN"] }, result: { type: "string", enum: ["SUCCESS", "FAILED"] }, reason: { type: "string" } },
+        required: ["eventId", "timestamp", "actor", "type", "modelRoutingId", "configurationHash", "complianceDomain", "result", "reason"],
+        properties: { eventId: { type: "string" }, timestamp: { type: "string", format: "date-time" }, actor: { type: "string" }, type: { type: "string" }, modelRoutingId: { type: "string" }, agentId: { type: "string" }, configurationHash: { type: "string" }, complianceDomain: { type: "string", enum: ["GLOBAL", "CN_MAINLAND", "EU_EEA", "US", "UK", "APAC_EX_CN"] }, result: { type: "string", enum: ["SUCCESS", "FAILED"] }, reason: { type: "string" } },
       },
       ProviderModelSelection: {
         type: "object",
@@ -2002,11 +2008,11 @@ export const openApiDocument = {
       },
       DeleteAgentResult: {
         type: "object",
-        required: ["id", "status", "previousStatus"],
+        required: ["id", "status", "accepted"],
         properties: {
           id: { type: "string", format: "uuid" },
-          status: { type: "string", const: "DESTROYED" },
-          previousStatus: { type: "string", const: "DESTROYING" },
+          status: { type: "string", const: "DESTROYING" },
+          accepted: { type: "boolean", const: true },
         },
       },
       Error: { type: "object", required: ["error"], properties: { error: { type: "string" } } },

@@ -37,6 +37,64 @@ function liteLLM(): LiteLLMAdminClient {
 
 describe("ProviderService", () => {
   afterEach(() => vi.unstubAllGlobals());
+  it("rejects a Provider that is unavailable inside the requested compliance boundary", async () => {
+    const service = new ProviderService(createTestStore(), liteLLM());
+    await expect(service.createConnection({
+      connection: {
+        provider: "openai",
+        name: "OpenAI production",
+        config: { endpoint: "https://api.openai.com/v1" },
+        credentials: { apiKey: "provider-secret-value" },
+      },
+      models: [
+        { modelId: "gpt-5.2", displayName: "GPT-5.2", modelType: "llm" },
+      ],
+      complianceDomain: "CN_MAINLAND",
+    })).rejects.toThrow("does not have a supported endpoint configuration");
+  });
+
+  it("rejects a regional endpoint that conflicts with its boundary", async () => {
+    const service = new ProviderService(createTestStore(), liteLLM());
+    await expect(service.createConnection({
+      connection: {
+        provider: "qwen",
+        name: "Qwen China",
+        config: {
+          region: "international",
+          endpoint: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+        },
+        credentials: { apiKey: "provider-secret-value" },
+      },
+      models: [
+        { modelId: "qwen-plus", displayName: "Qwen Plus", modelType: "llm" },
+      ],
+      complianceDomain: "CN_MAINLAND",
+    })).rejects.toThrow("endpoint region does not match");
+  });
+
+  it("rejects a cloud region that falls outside its selected boundary", async () => {
+    const service = new ProviderService(createTestStore(), liteLLM());
+    await expect(service.createConnection({
+      connection: {
+        provider: "aws-bedrock",
+        name: "Bedrock Europe",
+        config: { region: "us-east-1" },
+        credentials: {
+          accessKeyId: "provider-access-key",
+          secretAccessKey: "provider-secret-value",
+        },
+      },
+      models: [
+        {
+          modelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+          displayName: "Claude 3.5 Sonnet",
+          modelType: "llm",
+        },
+      ],
+      complianceDomain: "EU_EEA",
+    })).rejects.toThrow("region does not match");
+  });
+
   it("stores one credential and automatically configures exposed catalog models", async () => {
     mockDeepSeekCatalog();
     const store = createTestStore();
@@ -91,7 +149,7 @@ describe("ProviderService", () => {
     ]);
   });
 
-  it("blocks Provider deletion while a Model Profile references one of its deployments", async () => {
+  it("blocks Provider deletion while a Model Routing references one of its deployments", async () => {
     mockDeepSeekCatalog();
     const store = createTestStore();
     const litellm = liteLLM();
@@ -109,7 +167,7 @@ describe("ProviderService", () => {
       createdAt: now,
       updatedAt: now,
     });
-    await store.saveModelProfile({
+    await store.saveModelRouting({
       id: "11111111-1111-4111-8111-111111111111",
       name: "Production",
       description: "",
@@ -149,10 +207,10 @@ describe("ProviderService", () => {
       updatedAt: now,
     });
 
-    await expect(service.deleteAccount(account.id)).rejects.toThrow("Model Profile");
+    await expect(service.deleteAccount(account.id)).rejects.toThrow("Model Routing");
     await expect(
       service.deleteModelDeployment(models[0]!.id),
-    ).rejects.toThrow("in use by 1 Model Profile");
+    ).rejects.toThrow("in use by 1 Model Routing");
     expect(litellm.deleteModel).not.toHaveBeenCalled();
   });
 

@@ -1,20 +1,20 @@
 import { createHash, randomUUID } from "node:crypto";
 import type {
   ComplianceDomain,
-  CreateModelProfileInput,
+  CreateModelRoutingInput,
   InferenceGateway,
   ModelDeployment,
-  ModelProfile,
-  ModelProfileAuditEvent,
-  ModelProfileBinding,
-  ModelProfileRoutingPolicy,
-  UpdateModelProfileInput,
+  ModelRouting,
+  ModelRoutingAuditEvent,
+  ModelRoutingBinding,
+  ModelRoutingPolicy,
+  UpdateModelRoutingInput,
 } from "@tasklattice/contracts";
 import { ProjectStore } from "../projects/project-store";
 import {
   LiteLLMClient,
   type LiteLLMAdminClient,
-  type LiteLLMModelProfileRouteInput,
+  type LiteLLMModelRoutingRouteInput,
 } from "../providers/litellm-client";
 
 const defaultCapabilities = {
@@ -30,39 +30,43 @@ const defaultCapabilities = {
   requestAudit: "UNKNOWN",
 } as const;
 
-export class ModelProfileResolver {
+export class ModelRoutingResolver {
   constructor(private readonly store: ProjectStore) {}
 
-  async resolve(id?: string): Promise<ModelProfile> {
-    let profile: ModelProfile;
-    if (id) {
-      const selected = await this.store.getModelProfile(id);
-      if (!selected) throw new Error("The selected Model Profile is unavailable.");
-      profile = selected;
-    } else {
-      const defaults = (await this.store.listModelProfiles()).filter((candidate) => candidate.isDefault);
-      if (defaults.length !== 1)
-        throw new Error(defaults.length ? "Multiple default Model Profiles are configured." : "No default Model Profile is configured.");
-      profile = defaults[0]!;
-    }
-    if (profile.status !== "READY")
-      throw new Error(`The ${id ? "selected" : "default"} Model Profile is ${profile.status.toLowerCase().replaceAll("_", " ")}.`);
-    return profile;
+  async resolve(id: string): Promise<ModelRouting> {
+    const routing = await this.store.getModelRouting(id);
+    if (!routing) throw new Error("The selected Routing is unavailable.");
+    if (routing.status !== "READY")
+      throw new Error(`The selected Routing is ${routing.status.toLowerCase().replaceAll("_", " ")}.`);
+    return routing;
   }
 
-  resolveDefault(): Promise<ModelProfile> {
-    return this.resolve();
+  async resolveDefault(): Promise<ModelRouting> {
+    const defaults = (await this.store.listModelRoutings()).filter(
+      (candidate) => candidate.isDefault,
+    );
+    if (defaults.length !== 1) {
+      throw new Error(
+        defaults.length
+          ? "Multiple default routing configurations are configured."
+          : "No default Routing is configured.",
+      );
+    }
+    const routing = defaults[0]!;
+    if (routing.status !== "READY")
+      throw new Error(`The default Routing is ${routing.status.toLowerCase().replaceAll("_", " ")}.`);
+    return routing;
   }
 }
 
-export class ModelProfileService {
-  readonly resolver: ModelProfileResolver;
+export class ModelRoutingService {
+  readonly resolver: ModelRoutingResolver;
 
   constructor(
     readonly store = new ProjectStore(),
     readonly litellm: LiteLLMAdminClient = new LiteLLMClient(),
   ) {
-    this.resolver = new ModelProfileResolver(store);
+    this.resolver = new ModelRoutingResolver(store);
   }
 
   async listGateways(): Promise<InferenceGateway[]> {
@@ -70,17 +74,17 @@ export class ModelProfileService {
     return this.store.listInferenceGateways();
   }
 
-  async list(): Promise<ModelProfile[]> {
+  async list(): Promise<ModelRouting[]> {
     await this.ensureDefaultGateway();
-    return Promise.all((await this.store.listModelProfiles()).map((profile) => this.withConsumerCount(profile)));
+    return Promise.all((await this.store.listModelRoutings()).map((routing) => this.withConsumerCount(routing)));
   }
 
-  async get(id: string): Promise<ModelProfile | undefined> {
-    const profile = await this.store.getModelProfile(id);
-    return profile ? await this.withConsumerCount(profile) : undefined;
+  async get(id: string): Promise<ModelRouting | undefined> {
+    const routing = await this.store.getModelRouting(id);
+    return routing ? await this.withConsumerCount(routing) : undefined;
   }
 
-  async create(input: CreateModelProfileInput, actor = "control-api"): Promise<ModelProfile> {
+  async create(input: CreateModelRoutingInput, actor = "control-api"): Promise<ModelRouting> {
     await this.ensureDefaultGateway();
     if (!await this.store.getInferenceGateway(input.gatewayId)) throw new Error("Select an available LiteLLM Gateway.");
     const now = new Date().toISOString();
@@ -91,7 +95,7 @@ export class ModelProfileService {
       input.complianceDomain,
       input.auditPolicy.requestLogs,
     );
-    const profile: ModelProfile = {
+    const routing: ModelRouting = {
       id,
       name: input.name,
       description: input.description,
@@ -113,10 +117,10 @@ export class ModelProfileService {
       createdAt: now,
       updatedAt: now,
     };
-    await this.store.saveModelProfile(profile);
-    await this.audit(profile, "model_profile.created", actor, "SUCCESS", "Model Profile definition stored.");
+    await this.store.saveModelRouting(routing);
+    await this.audit(routing, "model_routing.created", actor, "SUCCESS", "Routing definition stored.");
     const refreshed = await this.refresh(id, actor);
-    const hasDefault = (await this.store.listModelProfiles()).some(
+    const hasDefault = (await this.store.listModelRoutings()).some(
       (candidate) => candidate.isDefault,
     );
     if (refreshed.status === "READY" && (input.isDefault || !hasDefault))
@@ -124,15 +128,15 @@ export class ModelProfileService {
     return refreshed;
   }
 
-  async update(id: string, input: UpdateModelProfileInput, actor = "control-api"): Promise<ModelProfile> {
+  async update(id: string, input: UpdateModelRoutingInput, actor = "control-api"): Promise<ModelRouting> {
     const current = await this.require(id);
     if (input.routingPolicy && input.suspended !== undefined)
       throw new Error("Update routing and lifecycle state in separate operations.");
     if (input.isDefault === false && current.isDefault)
-      throw new Error("Choose another default Model Profile before changing this one.");
+      throw new Error("Choose another default Routing before changing this one.");
     if (input.suspended === true && current.isDefault)
-      throw new Error("Choose another default Model Profile before suspending this one.");
-    if (input.isDefault && current.status !== "READY") throw new Error("Only a READY Model Profile can be the default.");
+      throw new Error("Choose another default Routing before suspending this one.");
+    if (input.isDefault && current.status !== "READY") throw new Error("Only a READY Routing can be the default.");
     const values = withoutUndefined(input);
     const nextRoutingPolicy = values.routingPolicy ?? current.routingPolicy;
     const resolvedRouting = input.routingPolicy
@@ -150,7 +154,7 @@ export class ModelProfileService {
     ) {
       throw new Error("Remove all Consumers before changing the public model alias.");
     }
-    const next: ModelProfile = {
+    const next: ModelRouting = {
       ...current,
       name: values.name ?? current.name,
       description: values.description ?? current.description,
@@ -171,21 +175,21 @@ export class ModelProfileService {
       observedGeneration: current.observedGeneration + 1,
       validationMessage: current.validationMessage,
     };
-    if (input.isDefault) await this.store.saveDefaultModelProfile(next);
-    else await this.store.saveModelProfile(next);
-    await this.audit(next, input.suspended === true ? "model_profile.suspended" : "model_profile.updated", actor, "SUCCESS", "Model Profile policy updated.");
+    if (input.isDefault) await this.store.saveDefaultModelRouting(next);
+    else await this.store.saveModelRouting(next);
+    await this.audit(next, input.suspended === true ? "model_routing.suspended" : "model_routing.updated", actor, "SUCCESS", "Routing policy updated.");
     if (input.routingPolicy) {
       return this.refresh(id, actor);
     }
     return this.withConsumerCount(next);
   }
 
-  async refresh(id: string, actor = "control-api"): Promise<ModelProfile> {
+  async refresh(id: string, actor = "control-api"): Promise<ModelRouting> {
     const current = await this.require(id);
     const gateway = await this.store.getInferenceGateway(current.gatewayId);
-    if (!gateway) throw new Error("The Model Profile gateway is unavailable.");
-    if (current.status === "SUSPENDED") throw new Error("Resume the Model Profile before validating it.");
-    await this.store.saveModelProfile({ ...current, status: "VALIDATING", updatedAt: new Date().toISOString() });
+    if (!gateway) throw new Error("The Routing gateway is unavailable.");
+    if (current.status === "SUSPENDED") throw new Error("Resume the Routing before validating it.");
+    await this.store.saveModelRouting({ ...current, status: "VALIDATING", updatedAt: new Date().toISOString() });
     try {
       const resolvedRouting = await this.resolveRoutingPolicy(
         current.id,
@@ -194,17 +198,17 @@ export class ModelProfileService {
         current.auditPolicy.requestLogs,
       );
       if (resolvedRouting.managedRoute) {
-        if (!this.litellm.reconcileModelProfileRoute)
+        if (!this.litellm.reconcileModelRoutingRoute)
           throw new Error("The configured LiteLLM adapter does not support managed Router reconciliation.");
-        await this.litellm.reconcileModelProfileRoute(resolvedRouting.managedRoute);
+        await this.litellm.reconcileModelRoutingRoute(resolvedRouting.managedRoute);
       }
-      if (!this.litellm.inspectModelProfile) throw new Error("The configured LiteLLM adapter does not support Router inspection.");
-      const inspection = await this.litellm.inspectModelProfile(
+      if (!this.litellm.inspectModelRouting) throw new Error("The configured LiteLLM adapter does not support Router inspection.");
+      const inspection = await this.litellm.inspectModelRouting(
         resolvedRouting.managedRoute?.strategy === "SINGLE"
           ? resolvedRouting.managedRoute.defaultModel
           : current.publicModelAlias,
       );
-      const conditions: ModelProfile["conditions"] = [];
+      const conditions: ModelRouting["conditions"] = [];
       conditions.push({ type: "GATEWAY", status: "PASS", reason: `LiteLLM Gateway ${gateway.name} is reachable.` });
       conditions.push({
         type: "BINDING",
@@ -240,10 +244,10 @@ export class ModelProfileService {
         status: inspection.unsupportedReason || !routingContractPass ? "FAIL" : "PASS",
         reason: inspection.unsupportedReason
           ?? (routingContractPass
-            ? "Routing capabilities match the stored Profile policy."
+            ? "Routing capabilities match the stored Routing policy."
             : "The effective LiteLLM Router does not match the stored complexity policy."),
       });
-      const status: ModelProfile["status"] = inspection.unsupportedReason
+      const status: ModelRouting["status"] = inspection.unsupportedReason
         ? "UNSUPPORTED"
         : !inspection.exists
           ? "DEGRADED"
@@ -261,7 +265,7 @@ export class ModelProfileService {
         auditPolicy: current.auditPolicy,
         liteLLM: inspection.configurationHash,
       });
-      const next = await this.store.saveModelProfile({
+      const next = await this.store.saveModelRouting({
         ...current,
         status,
         isDefault: current.isDefault,
@@ -284,12 +288,12 @@ export class ModelProfileService {
         updatedAt: new Date().toISOString(),
       });
       const changed = current.status !== next.status || JSON.stringify(current.capabilities) !== JSON.stringify(next.capabilities) || JSON.stringify(current.conditions) !== JSON.stringify(next.conditions);
-      if (changed) await this.audit(next, "model_profile.sync_changed", actor, "SUCCESS", "Effective LiteLLM status or capabilities changed.");
-      await this.audit(next, status === "NON_COMPLIANT" ? "model_profile.compliance_failed" : "model_profile.validated", actor, status === "READY" ? "SUCCESS" : "FAILED", conditions.find((condition) => condition.status !== "PASS")?.reason ?? "Binding is ready.");
+      if (changed) await this.audit(next, "model_routing.sync_changed", actor, "SUCCESS", "Effective LiteLLM status or capabilities changed.");
+      await this.audit(next, status === "NON_COMPLIANT" ? "model_routing.compliance_failed" : "model_routing.validated", actor, status === "READY" ? "SUCCESS" : "FAILED", conditions.find((condition) => condition.status !== "PASS")?.reason ?? "Binding is ready.");
       return this.withConsumerCount(next);
     } catch (error) {
       const reason = error instanceof Error ? error.message : "LiteLLM validation failed.";
-      const next = await this.store.saveModelProfile({
+      const next = await this.store.saveModelRouting({
         ...current,
         status: "DEGRADED",
         isDefault: current.isDefault,
@@ -306,43 +310,43 @@ export class ModelProfileService {
         validatedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
-      await this.audit(next, "model_profile.validated", actor, "FAILED", reason);
+      await this.audit(next, "model_routing.validated", actor, "FAILED", reason);
       return this.withConsumerCount(next);
     }
   }
 
-  async bindAgent(agentId: string, modelProfileId?: string): Promise<{ binding: ModelProfileBinding; profile: ModelProfile; gateway: InferenceGateway; secret: string }> {
+  async bindAgent(agentId: string, modelRoutingId: string): Promise<{ binding: ModelRoutingBinding; routing: ModelRouting; gateway: InferenceGateway; secret: string }> {
     await this.ensureDefaultGateway();
-    let profile = await this.resolver.resolve(modelProfileId);
-    const gateway = await this.store.getInferenceGateway(profile.gatewayId);
-    if (!gateway) throw new Error("The Model Profile gateway is unavailable.");
-    if (!profile.conditions.some((condition) => condition.type === "COMPLIANCE" && condition.status === "PASS"))
-      throw new Error("The Model Profile compliance validation is not current.");
-    if (!this.litellm.createModelProfileKey || !this.litellm.createModelProfileTeam)
+    let routing = await this.resolver.resolve(modelRoutingId);
+    const gateway = await this.store.getInferenceGateway(routing.gatewayId);
+    if (!gateway) throw new Error("The Routing gateway is unavailable.");
+    if (!routing.conditions.some((condition) => condition.type === "COMPLIANCE" && condition.status === "PASS"))
+      throw new Error("The Routing compliance validation is not current.");
+    if (!this.litellm.createModelRoutingKey || !this.litellm.createModelRoutingTeam)
       throw new Error("The LiteLLM adapter does not support Team-scoped Virtual Keys.");
-    let teamId = profile.liteLLMTeamId;
+    let teamId = routing.liteLLMTeamId;
     if (!teamId) {
-      teamId = await this.litellm.createModelProfileTeam({
-        alias: `tasklattice-${profile.id}`,
-        modelAlias: profile.publicModelAlias,
-        modelProfileId: profile.id,
-        complianceDomain: profile.complianceDomain,
+      teamId = await this.litellm.createModelRoutingTeam({
+        alias: `tasklattice-${routing.id}`,
+        modelAlias: routing.publicModelAlias,
+        modelRoutingId: routing.id,
+        complianceDomain: routing.complianceDomain,
       });
-      profile = await this.store.saveModelProfile({ ...profile, liteLLMTeamId: teamId, updatedAt: new Date().toISOString() });
+      routing = await this.store.saveModelRouting({ ...routing, liteLLMTeamId: teamId, updatedAt: new Date().toISOString() });
     }
-    const keyAlias = `tasklattice/${profile.id.slice(0, 8)}/${agentId.slice(0, 8)}`;
-    const key = await this.litellm.createModelProfileKey({
+    const keyAlias = `tasklattice/${routing.id.slice(0, 8)}/${agentId.slice(0, 8)}`;
+    const key = await this.litellm.createModelRoutingKey({
       agentId,
       alias: keyAlias,
-      modelAlias: profile.publicModelAlias,
+      modelAlias: routing.publicModelAlias,
       teamId,
-      modelProfileId: profile.id,
-      complianceDomain: profile.complianceDomain,
+      modelRoutingId: routing.id,
+      complianceDomain: routing.complianceDomain,
     });
     const now = new Date().toISOString();
-    const binding: ModelProfileBinding = {
+    const binding: ModelRoutingBinding = {
       id: randomUUID(),
-      modelProfileId: profile.id,
+      modelRoutingId: routing.id,
       agentId,
       liteLLMTeamId: teamId,
       liteLLMTokenId: key.tokenId,
@@ -351,44 +355,44 @@ export class ModelProfileService {
       status: "ACTIVE",
       createdAt: now,
     };
-    await this.store.saveModelProfileBinding(binding);
-    await this.audit(profile, "model_profile_binding.created", "agent-service", "SUCCESS", "Per-Instance Team-scoped Virtual Key created.", agentId);
-    await this.audit(profile, "virtual_key.created", "agent-service", "SUCCESS", `Virtual Key fingerprint ${binding.keyFingerprint}.`, agentId);
-    return { binding, profile: await this.withConsumerCount(profile), gateway, secret: key.secret };
+    await this.store.saveModelRoutingBinding(binding);
+    await this.audit(routing, "model_routing_binding.created", "agent-service", "SUCCESS", "Per-Instance Team-scoped Virtual Key created.", agentId);
+    await this.audit(routing, "virtual_key.created", "agent-service", "SUCCESS", `Virtual Key fingerprint ${binding.keyFingerprint}.`, agentId);
+    return { binding, routing: await this.withConsumerCount(routing), gateway, secret: key.secret };
   }
 
   async unbindAgent(agentId: string): Promise<void> {
-    const binding = await this.store.getModelProfileBindingForAgent(agentId);
+    const binding = await this.store.getModelRoutingBindingForAgent(agentId);
     if (!binding || binding.status === "REVOKED") return;
-    const profile = await this.require(binding.modelProfileId);
+    const routing = await this.require(binding.modelRoutingId);
     await this.litellm.revokeKey(binding.liteLLMTokenId);
-    await this.store.saveModelProfileBinding({ ...binding, status: "REVOKED", revokedAt: new Date().toISOString() });
-    await this.audit(profile, "model_profile_binding.revoked", "agent-service", "SUCCESS", "Instance binding revoked.", agentId);
-    await this.audit(profile, "virtual_key.revoked", "agent-service", "SUCCESS", `Virtual Key fingerprint ${binding.keyFingerprint}.`, agentId);
+    await this.store.saveModelRoutingBinding({ ...binding, status: "REVOKED", revokedAt: new Date().toISOString() });
+    await this.audit(routing, "model_routing_binding.revoked", "agent-service", "SUCCESS", "Instance binding revoked.", agentId);
+    await this.audit(routing, "virtual_key.revoked", "agent-service", "SUCCESS", `Virtual Key fingerprint ${binding.keyFingerprint}.`, agentId);
   }
 
-  async consumers(id: string): Promise<ModelProfileBinding[]> {
+  async consumers(id: string): Promise<ModelRoutingBinding[]> {
     await this.require(id);
-    return (await this.store.listModelProfileBindings(id)).filter((binding) => binding.status === "ACTIVE");
+    return (await this.store.listModelRoutingBindings(id)).filter((binding) => binding.status === "ACTIVE");
   }
 
-  async auditEvents(id: string): Promise<ModelProfileAuditEvent[]> {
+  async auditEvents(id: string): Promise<ModelRoutingAuditEvent[]> {
     await this.require(id);
-    return this.store.listModelProfileAudit(id);
+    return this.store.listModelRoutingAudit(id);
   }
 
   async delete(id: string, actor = "control-api"): Promise<void> {
-    const profile = await this.require(id);
-    if (profile.isDefault)
-      throw new Error("Choose another default Model Profile before deleting this one.");
-    if ((await this.consumers(id)).length) throw new Error("Remove all Consumers before deleting this Model Profile.");
-    if (!this.litellm.deleteModelProfileRoute)
+    const routing = await this.require(id);
+    if (routing.isDefault)
+      throw new Error("Choose another default Routing before deleting this one.");
+    if ((await this.consumers(id)).length) throw new Error("Remove all Consumers before deleting this Routing.");
+    if (!this.litellm.deleteModelRoutingRoute)
       throw new Error("The configured LiteLLM adapter does not support managed Router deletion.");
-    await this.litellm.deleteModelProfileRoute(profile.publicModelAlias, profile.id);
-    if (profile.liteLLMTeamId && this.litellm.deleteModelProfileTeam)
-      await this.litellm.deleteModelProfileTeam(profile.liteLLMTeamId);
-    await this.audit(profile, "model_profile.deleted", actor, "SUCCESS", "Model Profile deleted.");
-    await this.store.deleteModelProfile(id);
+    await this.litellm.deleteModelRoutingRoute(routing.publicModelAlias, routing.id);
+    if (routing.liteLLMTeamId && this.litellm.deleteModelRoutingTeam)
+      await this.litellm.deleteModelRoutingTeam(routing.liteLLMTeamId);
+    await this.audit(routing, "model_routing.deleted", actor, "SUCCESS", "Routing deleted.");
+    await this.store.deleteModelRouting(id);
   }
 
   private async ensureDefaultGateway(): Promise<void> {
@@ -407,18 +411,18 @@ export class ModelProfileService {
     });
   }
 
-  private async require(id: string): Promise<ModelProfile> {
-    const profile = await this.store.getModelProfile(id);
-    if (!profile) throw new Error("Model Profile not found.");
-    return profile;
+  private async require(id: string): Promise<ModelRouting> {
+    const routing = await this.store.getModelRouting(id);
+    if (!routing) throw new Error("Routing not found.");
+    return routing;
   }
 
   private async resolveRoutingPolicy(
-    profileId: string,
-    policy: ModelProfileRoutingPolicy,
+    routingId: string,
+    policy: ModelRoutingPolicy,
     complianceDomain: ComplianceDomain,
     requestAudit: boolean,
-  ): Promise<{ alias: string; managedRoute?: LiteLLMModelProfileRouteInput }> {
+  ): Promise<{ alias: string; managedRoute?: LiteLLMModelRoutingRouteInput }> {
     if (policy.mode === "SINGLE") {
       const deployment = await this.requireRoutingDeployment(
         policy.modelDeploymentId,
@@ -434,13 +438,13 @@ export class ModelProfileService {
           ),
         ),
       );
-      const alias = `tali-profile-${profileId}`;
+      const alias = `tali-routing-${routingId}`;
       return {
         alias,
         managedRoute: {
           strategy: "SINGLE",
           alias,
-          modelProfileId: profileId,
+          modelRoutingId: routingId,
           complianceDomain,
           defaultModel: deployment.litellmModelName,
           fallbackModels: fallbacks.map((model) => model.litellmModelName),
@@ -449,7 +453,7 @@ export class ModelProfileService {
         },
       };
     }
-    const alias = `tali-profile-${profileId}`;
+    const alias = `tali-routing-${routingId}`;
     if (policy.mode === "COMPLEXITY") {
       const simple = await this.requireRoutingDeployment(
         policy.simpleModelDeploymentId,
@@ -475,7 +479,7 @@ export class ModelProfileService {
         managedRoute: {
           strategy: "COMPLEXITY",
           alias,
-          modelProfileId: profileId,
+          modelRoutingId: routingId,
           complianceDomain,
           tiers: {
             SIMPLE: simple.litellmModelName,
@@ -531,7 +535,7 @@ export class ModelProfileService {
       managedRoute: {
         strategy: "SEMANTIC",
         alias,
-        modelProfileId: profileId,
+        modelRoutingId: routingId,
         complianceDomain,
         routes,
         defaultModel: defaultModel.litellmModelName,
@@ -569,20 +573,20 @@ export class ModelProfileService {
     return deployment;
   }
 
-  private async withConsumerCount(profile: ModelProfile): Promise<ModelProfile> {
-    return { ...profile, consumers: (await this.store.listModelProfileBindings(profile.id)).filter((binding) => binding.status === "ACTIVE").length };
+  private async withConsumerCount(routing: ModelRouting): Promise<ModelRouting> {
+    return { ...routing, consumers: (await this.store.listModelRoutingBindings(routing.id)).filter((binding) => binding.status === "ACTIVE").length };
   }
 
-  private async audit(profile: ModelProfile, type: string, actor: string, result: ModelProfileAuditEvent["result"], reason: string, agentId?: string): Promise<void> {
-    await this.store.appendModelProfileAudit({
+  private async audit(routing: ModelRouting, type: string, actor: string, result: ModelRoutingAuditEvent["result"], reason: string, agentId?: string): Promise<void> {
+    await this.store.appendModelRoutingAudit({
       eventId: randomUUID(),
       timestamp: new Date().toISOString(),
       actor,
       type,
-      modelProfileId: profile.id,
+      modelRoutingId: routing.id,
       ...(agentId ? { agentId } : {}),
-      configurationHash: profile.configurationHash,
-      complianceDomain: profile.complianceDomain,
+      configurationHash: routing.configurationHash,
+      complianceDomain: routing.complianceDomain,
       result,
       reason,
     });

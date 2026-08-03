@@ -40,7 +40,7 @@ OpenShell Gateway ---- Agent Sandbox CR
 ## Core capabilities
 
 - Project-scoped membership, quotas, configuration, and resource ownership.
-- Provider registration, model discovery, LiteLLM-backed Model Profiles,
+- Provider registration, model discovery, LiteLLM-backed Model Routings,
   per-Instance virtual keys, spend attribution, and cost views.
 - Direct, many-to-many Instance bindings to reusable Access Policies, with
   independently selected OpenShell Runtime Policies.
@@ -182,14 +182,15 @@ After signing in:
 
 1. In Project settings, connect a Provider and register at least one validated
    text-generation model.
-2. Create a Model Profile from the registered models and wait for it to reach
-   `READY`. The first ready Profile becomes the Project default automatically.
-3. Create and activate at least one Access Policy. A deny-all policy with no
-   MCP rules is a safe starting point.
+2. Create a Model Routing from the registered models and wait for it to reach
+   `READY`. The first ready Routing becomes the Project default automatically.
+3. Review the automatically configured `Default` Access Policy. It is Active
+   and intentionally has no MCP allow rules, so a new Project starts from a
+   deny-all baseline. Add narrower policies when the Instance needs tools.
 4. Create an Instance, choose OpenClaw or Hermes, select an Agent Role and one
    or more Active Access Policies, and keep the built-in Unrestricted Runtime
    Policy for the first validation run. The Instance uses the Project's READY
-   default Model Profile.
+   default Model Routing.
 5. Wait for the Instance to reach `READY`, then open its Agent UI and terminal.
 
 A successful Instance reaches `READY`, exposes its Agent UI, and enables its
@@ -220,7 +221,7 @@ Additional design documentation:
 - [Image release and Helm publishing](docs/image-release-and-helm.md)
 - [OpenShell Kubernetes runtime](docs/openshell-kubernetes-runtime.md)
 - [Agent Garden architecture](docs/agent-garden-architecture.md)
-- [Model Profiles](docs/model-profiles.md)
+- [Model and Routing](docs/model-routing.md)
 - [MVP core flow](docs/mvp-core-flow.md)
 - [Contributing and local development](CONTRIBUTING.md)
 

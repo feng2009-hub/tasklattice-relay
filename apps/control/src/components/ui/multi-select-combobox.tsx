@@ -7,7 +7,7 @@ import {
   useState,
   type KeyboardEvent,
 } from "react";
-import { Check, Search, X } from "lucide-react";
+import { Check, ChevronDown, Search, X } from "lucide-react";
 
 import {
   filterMultiSelectOptions,
@@ -24,6 +24,7 @@ type MultiSelectComboboxProps = {
   emptyMessage?: string;
   id?: string;
   maxSelected?: number;
+  noOptionsMessage?: string;
   onValueChange: (value: string[]) => void;
   options: readonly MultiSelectOption[];
   placeholder?: string;
@@ -40,6 +41,7 @@ export function MultiSelectCombobox({
   emptyMessage = "No options start with",
   id,
   maxSelected,
+  noOptionsMessage = "No options are available in this Project.",
   onValueChange,
   options,
   placeholder = "Select options…",
@@ -68,6 +70,11 @@ export function MultiSelectCombobox({
   }, [query]);
 
   const focusInput = () => inputRef.current?.focus();
+  const openOptions = () => {
+    if (disabled) return;
+    setOpen(true);
+    focusInput();
+  };
   const toggleOption = (option: MultiSelectOption) => {
     if (isMultiSelectOptionDisabled(option, value, maxSelected)) return;
     const nextValue = value.includes(option.value)
@@ -100,6 +107,9 @@ export function MultiSelectCombobox({
       return;
     }
     if (event.key === "Escape") {
+      if (!open) return;
+      event.preventDefault();
+      event.stopPropagation();
       setOpen(false);
       return;
     }
@@ -114,11 +124,11 @@ export function MultiSelectCombobox({
       <PopoverAnchor asChild>
         <div
           className={cn(
-            "flex min-h-12 w-full flex-wrap items-center gap-2 rounded-md border border-input bg-background px-2.5 py-2 transition-colors focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/30",
+            "flex min-h-12 w-full cursor-text flex-wrap items-center gap-2 rounded-md border border-input bg-background px-2.5 py-2 transition-colors focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/30",
             disabled && "cursor-not-allowed bg-input/50 opacity-50",
             className,
           )}
-          onClick={focusInput}
+          onClick={openOptions}
         >
           {selectedOptions.map((option) => (
             <button
@@ -160,6 +170,30 @@ export function MultiSelectCombobox({
             placeholder={selectedOptions.length ? searchPlaceholder : placeholder}
             value={query}
           />
+          <button
+            type="button"
+            aria-controls={open ? listboxId : undefined}
+            aria-expanded={open}
+            aria-label={`${open ? "Close" : "Open"} options for ${ariaLabel}`}
+            className="grid size-10 shrink-0 cursor-pointer place-items-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 disabled:cursor-not-allowed"
+            disabled={disabled}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (open) setOpen(false);
+              else openOptions();
+            }}
+            onPointerDown={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+          >
+            <ChevronDown
+              className={cn(
+                "size-4 transition-transform duration-200",
+                open && "rotate-180",
+              )}
+            />
+          </button>
         </div>
       </PopoverAnchor>
       <PopoverContent
@@ -261,9 +295,15 @@ export function MultiSelectCombobox({
             })
           ) : (
             <div className="px-4 py-8 text-center">
-              <strong className="block text-sm">{emptyMessage} “{query.trim()}”</strong>
+              <strong className="block text-sm">
+                {query.trim()
+                  ? `${emptyMessage} “${query.trim()}”`
+                  : noOptionsMessage}
+              </strong>
               <span className="mt-1 block text-xs text-muted-foreground">
-                Clear the input to browse every available option.
+                {query.trim()
+                  ? "Clear the input to browse every available option."
+                  : "Create or connect one before selecting it."}
               </span>
             </div>
           )}

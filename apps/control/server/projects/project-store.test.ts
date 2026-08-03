@@ -27,7 +27,7 @@ async function seedAccessPolicy(store: ProjectStore): Promise<void> {
 }
 
 describe("ProjectStore", () => {
-  it("rejects pre-Model-Profile Instance records", () => {
+  it("rejects pre-Model-Routing Instance records", () => {
     const now = new Date().toISOString();
     expect(() =>
       parseAgent(
@@ -73,11 +73,11 @@ describe("ProjectStore", () => {
       modelType: "llm",
       inferenceMode: "PLATFORM_MANAGED",
       accessPolicyIds: [accessPolicyId],
-      modelProfileId: "profile-a",
-      modelProfileBindingId: "binding-a",
-      modelProfileStatus: "READY",
-      modelProfileComplianceDomain: "CN_MAINLAND",
-      modelProfileCapabilities: {
+      modelRoutingId: "routing-a",
+      modelRoutingBindingId: "binding-a",
+      modelRoutingStatus: "READY",
+      modelRoutingComplianceDomain: "CN_MAINLAND",
+      modelRoutingCapabilities: {
         automaticRouting: "ENABLED",
         routerType: "COMPLEXITY_ROUTER",
         complexityTierCount: 4,
@@ -90,7 +90,7 @@ describe("ProjectStore", () => {
         retries: "ENABLED",
         requestAudit: "ENABLED",
       },
-      modelProfileKeyFingerprint: "sha256:123456789abc",
+      modelRoutingKeyFingerprint: "sha256:123456789abc",
       policyId: "restricted",
       systemPrompt: "You are a research agent.",
       createdAt: now,
@@ -150,11 +150,11 @@ describe("ProjectStore", () => {
       modelType: "llm",
       inferenceMode: "PLATFORM_MANAGED",
       accessPolicyIds: [accessPolicyId],
-      modelProfileId: "profile-a",
-      modelProfileBindingId: "binding-a",
-      modelProfileStatus: "READY",
-      modelProfileComplianceDomain: "CN_MAINLAND",
-      modelProfileCapabilities: {
+      modelRoutingId: "routing-a",
+      modelRoutingBindingId: "binding-a",
+      modelRoutingStatus: "READY",
+      modelRoutingComplianceDomain: "CN_MAINLAND",
+      modelRoutingCapabilities: {
         automaticRouting: "ENABLED",
         routerType: "COMPLEXITY_ROUTER",
         complexityTierCount: 4,
@@ -167,7 +167,7 @@ describe("ProjectStore", () => {
         retries: "ENABLED",
         requestAudit: "ENABLED",
       },
-      modelProfileKeyFingerprint: "sha256:123456789abc",
+      modelRoutingKeyFingerprint: "sha256:123456789abc",
       policyId: "restricted",
       systemPrompt: "You are a research agent.",
       createdAt: now,

@@ -31,7 +31,7 @@ import { Route as ProjectIdInstancesInstanceIdRouteImport } from './routes/$proj
 import { Route as ProjectIdRequestsIndexRouteImport } from './routes/$projectId/requests/index'
 import { Route as ProjectIdRequestsNewRouteImport } from './routes/$projectId/requests/new'
 import { Route as ProjectIdSettingIndexRouteImport } from './routes/$projectId/setting/index'
-import { Route as ProjectIdSettingModelProfilesProfileIdRouteImport } from './routes/$projectId/setting/model-profiles/$profileId'
+import { Route as ProjectIdSettingModelRoutingsRoutingIdRouteImport } from './routes/$projectId/setting/model-routings/$routingId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -149,10 +149,10 @@ const ProjectIdSettingIndexRoute = ProjectIdSettingIndexRouteImport.update({
   path: '/$projectId/setting/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ProjectIdSettingModelProfilesProfileIdRoute =
-  ProjectIdSettingModelProfilesProfileIdRouteImport.update({
-    id: '/$projectId/setting/model-profiles/$profileId',
-    path: '/$projectId/setting/model-profiles/$profileId',
+const ProjectIdSettingModelRoutingsRoutingIdRoute =
+  ProjectIdSettingModelRoutingsRoutingIdRouteImport.update({
+    id: '/$projectId/setting/model-routings/$routingId',
+    path: '/$projectId/setting/model-routings/$routingId',
     getParentRoute: () => rootRouteImport,
   } as any)
 
@@ -179,7 +179,7 @@ export interface FileRoutesByFullPath {
   '/$projectId/instances/': typeof ProjectIdInstancesIndexRoute
   '/$projectId/requests/': typeof ProjectIdRequestsIndexRoute
   '/$projectId/setting/': typeof ProjectIdSettingIndexRoute
-  '/$projectId/setting/model-profiles/$profileId': typeof ProjectIdSettingModelProfilesProfileIdRoute
+  '/$projectId/setting/model-routings/$routingId': typeof ProjectIdSettingModelRoutingsRoutingIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -204,7 +204,7 @@ export interface FileRoutesByTo {
   '/$projectId/instances': typeof ProjectIdInstancesIndexRoute
   '/$projectId/requests': typeof ProjectIdRequestsIndexRoute
   '/$projectId/setting': typeof ProjectIdSettingIndexRoute
-  '/$projectId/setting/model-profiles/$profileId': typeof ProjectIdSettingModelProfilesProfileIdRoute
+  '/$projectId/setting/model-routings/$routingId': typeof ProjectIdSettingModelRoutingsRoutingIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -230,7 +230,7 @@ export interface FileRoutesById {
   '/$projectId/instances/': typeof ProjectIdInstancesIndexRoute
   '/$projectId/requests/': typeof ProjectIdRequestsIndexRoute
   '/$projectId/setting/': typeof ProjectIdSettingIndexRoute
-  '/$projectId/setting/model-profiles/$profileId': typeof ProjectIdSettingModelProfilesProfileIdRoute
+  '/$projectId/setting/model-routings/$routingId': typeof ProjectIdSettingModelRoutingsRoutingIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -257,7 +257,7 @@ export interface FileRouteTypes {
     | '/$projectId/instances/'
     | '/$projectId/requests/'
     | '/$projectId/setting/'
-    | '/$projectId/setting/model-profiles/$profileId'
+    | '/$projectId/setting/model-routings/$routingId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -282,7 +282,7 @@ export interface FileRouteTypes {
     | '/$projectId/instances'
     | '/$projectId/requests'
     | '/$projectId/setting'
-    | '/$projectId/setting/model-profiles/$profileId'
+    | '/$projectId/setting/model-routings/$routingId'
   id:
     | '__root__'
     | '/'
@@ -307,7 +307,7 @@ export interface FileRouteTypes {
     | '/$projectId/instances/'
     | '/$projectId/requests/'
     | '/$projectId/setting/'
-    | '/$projectId/setting/model-profiles/$profileId'
+    | '/$projectId/setting/model-routings/$routingId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -333,7 +333,7 @@ export interface RootRouteChildren {
   ProjectIdInstancesIndexRoute: typeof ProjectIdInstancesIndexRoute
   ProjectIdRequestsIndexRoute: typeof ProjectIdRequestsIndexRoute
   ProjectIdSettingIndexRoute: typeof ProjectIdSettingIndexRoute
-  ProjectIdSettingModelProfilesProfileIdRoute: typeof ProjectIdSettingModelProfilesProfileIdRoute
+  ProjectIdSettingModelRoutingsRoutingIdRoute: typeof ProjectIdSettingModelRoutingsRoutingIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -492,11 +492,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectIdSettingIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/$projectId/setting/model-profiles/$profileId': {
-      id: '/$projectId/setting/model-profiles/$profileId'
-      path: '/$projectId/setting/model-profiles/$profileId'
-      fullPath: '/$projectId/setting/model-profiles/$profileId'
-      preLoaderRoute: typeof ProjectIdSettingModelProfilesProfileIdRouteImport
+    '/$projectId/setting/model-routings/$routingId': {
+      id: '/$projectId/setting/model-routings/$routingId'
+      path: '/$projectId/setting/model-routings/$routingId'
+      fullPath: '/$projectId/setting/model-routings/$routingId'
+      preLoaderRoute: typeof ProjectIdSettingModelRoutingsRoutingIdRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -525,8 +525,8 @@ const rootRouteChildren: RootRouteChildren = {
   ProjectIdInstancesIndexRoute: ProjectIdInstancesIndexRoute,
   ProjectIdRequestsIndexRoute: ProjectIdRequestsIndexRoute,
   ProjectIdSettingIndexRoute: ProjectIdSettingIndexRoute,
-  ProjectIdSettingModelProfilesProfileIdRoute:
-    ProjectIdSettingModelProfilesProfileIdRoute,
+  ProjectIdSettingModelRoutingsRoutingIdRoute:
+    ProjectIdSettingModelRoutingsRoutingIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

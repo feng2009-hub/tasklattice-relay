@@ -202,6 +202,9 @@ export class CostAnalyticsStore {
       }) as unknown as Prisma.ModelEndpointMappingRecordUncheckedCreateInput,
       update: {
         modelEndpointName: mapping.modelEndpointName,
+        liteLLMModelName: mapping.liteLLMModelName ?? null,
+        liteLLMModelGroup: mapping.liteLLMModelGroup ?? null,
+        liteLLMModelId: mapping.liteLLMModelId ?? null,
         providerAccountName: mapping.providerAccountName,
         validTo: mapping.validTo ?? null,
         updatedAt: mapping.updatedAt,

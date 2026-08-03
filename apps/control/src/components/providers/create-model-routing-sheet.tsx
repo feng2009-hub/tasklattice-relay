@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   complianceDomainCatalog,
   type ModelDeployment,
-  type ModelProfileRoutingPolicy,
+  type ModelRoutingPolicy,
 } from "@tasklattice/contracts";
 import {
   Activity,
@@ -12,7 +12,9 @@ import {
   Info,
   KeyRound,
   Plus,
+  Route,
   ShieldCheck,
+  Tag,
   Trash2,
 } from "lucide-react";
 import { EntitySheet } from "@/components/shared/entity-sheet";
@@ -67,7 +69,7 @@ const newSemanticRoute = (index: number): SemanticRouteDraft => ({
       : "",
 });
 
-export function CreateModelProfileSheet({
+export function CreateModelRoutingSheet({
   availableModels,
   defaultIsDefault,
   modelsError,
@@ -165,7 +167,7 @@ export function CreateModelProfileSheet({
     && new Set(parsedSemanticRoutes.map((route) => route.modelDeploymentId)).size
       === parsedSemanticRoutes.length;
   const fallbackIds = fallbackModel ? [fallbackModel.id] : [];
-  const routingPolicy: ModelProfileRoutingPolicy | undefined =
+  const routingPolicy: ModelRoutingPolicy | undefined =
     routingMode === "single" && primaryModel
       ? {
           version: 1,
@@ -267,7 +269,7 @@ export function CreateModelProfileSheet({
 
   const mutation = useMutation({
     mutationFn: () =>
-      api.createModelProfile({
+      api.createModelRouting({
         name,
         description: "",
         gatewayId: gateway?.id ?? "",
@@ -283,7 +285,7 @@ export function CreateModelProfileSheet({
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({
-        queryKey: scope.key("model-profiles"),
+        queryKey: scope.key("model-routings"),
       });
       onOpenChange(false);
     },
@@ -300,8 +302,8 @@ export function CreateModelProfileSheet({
     <EntitySheet
       open={open}
       onOpenChange={(next) => !mutation.isPending && onOpenChange(next)}
-      eyebrow="Model Profile"
-      title="Create Profile"
+      eyebrow="Routing"
+      title="Create Routing"
       description="Create one stable model identity with routing, resilience, and data residency controls."
       width="lg"
       footer={
@@ -323,7 +325,7 @@ export function CreateModelProfileSheet({
             }
             onClick={submit}
           >
-            {mutation.isPending ? "Synchronizing…" : "Create Profile"}
+            {mutation.isPending ? "Synchronizing…" : "Create Routing"}
           </Button>
         </>
       }
@@ -331,14 +333,14 @@ export function CreateModelProfileSheet({
       <div className="space-y-6">
         <section className="space-y-4">
           <SectionTitle
-            number="01"
-            title="Profile identity"
+            icon={Tag}
+            title="Routing identity"
             description="Name the workload policy, not the underlying Provider model."
           />
           <div className="max-w-2xl">
             <Field
-              label="Profile name"
-              htmlFor="profile-name"
+              label="Routing name"
+              htmlFor="routing-name"
               help={
                 attempted && !nameValid
                   ? "Enter at least 2 characters."
@@ -347,7 +349,7 @@ export function CreateModelProfileSheet({
               invalid={attempted && !nameValid}
             >
               <Input
-                id="profile-name"
+                id="routing-name"
                 value={name}
                 aria-invalid={attempted && !nameValid}
                 onChange={(event) => setName(event.target.value)}
@@ -359,14 +361,14 @@ export function CreateModelProfileSheet({
 
         <section className="space-y-4 border-t pt-5">
           <SectionTitle
-            number="02"
+            icon={Route}
             title="Routing"
             description="Choose how requests are routed to registered models."
           />
           <div className="max-w-sm">
             <Field
               label="Routing method"
-              htmlFor="profile-routing-method"
+              htmlFor="routing-routing-method"
               help={routingModeDescriptions[routingMode]}
             >
               <Select
@@ -375,7 +377,7 @@ export function CreateModelProfileSheet({
                   setRoutingMode(value as RoutingMode)
                 }
               >
-                <SelectTrigger id="profile-routing-method">
+                <SelectTrigger id="routing-routing-method">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -389,7 +391,7 @@ export function CreateModelProfileSheet({
 
           <div className="grid items-start gap-4 sm:grid-cols-2">
             <ModelField
-              id="profile-primary-model"
+              id="routing-primary-model"
               label={
                 routingMode === "complexity"
                   ? "Simple requests"
@@ -411,7 +413,7 @@ export function CreateModelProfileSheet({
 
             {routingMode === "complexity" ? (
               <ModelField
-                id="profile-complex-model"
+                id="routing-complex-model"
                 label="Complex requests"
                 models={sameBoundaryChatModels.filter(
                   (model) => model.id !== primaryModel?.id,
@@ -424,7 +426,7 @@ export function CreateModelProfileSheet({
               />
             ) : routingMode === "semantic" ? (
               <ModelField
-                id="profile-embedding-model"
+                id="routing-embedding-model"
                 label="Routing embedding model"
                 models={sameBoundaryEmbeddingModels}
                 value={embeddingModelId}
@@ -467,7 +469,7 @@ export function CreateModelProfileSheet({
               <span className="flex gap-2">
                 <CircleAlert className="mt-0.5 size-4 shrink-0 text-amber-700" />
                 Register and validate a text generation model before creating
-                a Profile.
+                routing.
               </span>
               <Button
                 type="button"
@@ -492,13 +494,13 @@ export function CreateModelProfileSheet({
 
         <section className="space-y-4 border-t pt-5">
           <SectionTitle
-            number="03"
+            icon={ShieldCheck}
             title="Resilience & boundary"
             description="Keep retries and failover inside the same declared data boundary."
           />
           <div className="grid items-start gap-4 sm:grid-cols-2">
             <ModelField
-              id="profile-fallback-model"
+              id="routing-fallback-model"
               label="Fallback model"
               models={sameBoundaryChatModels.filter(
                 (model) =>
@@ -516,11 +518,11 @@ export function CreateModelProfileSheet({
             />
             <Field
               label="Retries"
-              htmlFor="profile-retries"
+              htmlFor="routing-retries"
               help="Attempts on the selected model before fallback is used."
             >
               <Select value={retries} onValueChange={setRetries}>
-                <SelectTrigger id="profile-retries">
+                <SelectTrigger id="routing-retries">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -585,7 +587,7 @@ export function CreateModelProfileSheet({
           <p role="alert" className="flex gap-2 text-xs text-destructive">
             <CircleAlert className="size-4 shrink-0" />
             Complete the selected routing strategy before creating this
-            Profile.
+            routing.
           </p>
         ) : null}
         {mutation.error ? (
@@ -799,16 +801,19 @@ function ModelField({
 
 function SectionTitle({
   description,
-  number,
+  icon: Icon,
   title,
 }: {
   description: string;
-  number: string;
+  icon: typeof ShieldCheck;
   title: string;
 }) {
   return (
-    <div className="flex gap-3">
-      <span className="font-mono text-xs text-primary">{number}</span>
+    <div className="flex items-start gap-2.5">
+      <Icon
+        aria-hidden
+        className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+      />
       <div>
         <h3 className="text-sm font-semibold">{title}</h3>
         <p className="mt-1 text-xs text-muted-foreground">{description}</p>

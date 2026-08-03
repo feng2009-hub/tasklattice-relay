@@ -214,19 +214,20 @@ function CapabilityRow({ description, footer, icon, onChange, onOpenChange, open
   title: string;
 }) {
   const selected = selectedIds.map((id) => options.find((option) => option.value === id)).filter((option): option is MultiSelectOption => Boolean(option));
+  const resolvedSelectedIds = selected.map((option) => option.value);
   return (
     <Collapsible open={open} onOpenChange={onOpenChange} className="rounded-md border">
       <div className="flex min-h-20 items-start gap-3 px-4 py-3">
         <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">{icon}</span>
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-semibold">{title}</h3><Badge variant="outline" className="font-normal">{selectedIds.length} selected</Badge></div>
+          <div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-semibold">{title}</h3><Badge variant="outline" className="font-normal">{selected.length} selected</Badge></div>
           <p className="mt-1 text-xs text-muted-foreground">{description}</p>
-          {selected.length ? <div className="mt-2 flex flex-wrap gap-2">{selected.map((option) => <button key={option.value} type="button" className="inline-flex min-h-7 items-center gap-1.5 rounded-full bg-primary/10 px-2.5 text-xs font-medium text-primary hover:bg-primary/15" onClick={() => onChange(selectedIds.filter((id) => id !== option.value))}>{option.label}<X className="size-3" /><span className="sr-only">Remove</span></button>)}</div> : <p className="mt-2 text-xs text-muted-foreground">None selected</p>}
+          {selected.length ? <div className="mt-2 flex flex-wrap gap-2">{selected.map((option) => <button key={option.value} type="button" className="inline-flex min-h-7 items-center gap-1.5 rounded-full bg-primary/10 px-2.5 text-xs font-medium text-primary hover:bg-primary/15" onClick={() => onChange(resolvedSelectedIds.filter((id) => id !== option.value))}>{option.label}<X className="size-3" /><span className="sr-only">Remove</span></button>)}</div> : <p className="mt-2 text-xs text-muted-foreground">None selected</p>}
         </div>
         <CollapsibleTrigger asChild><Button type="button" size="icon" variant="ghost" aria-label={`${open ? "Collapse" : "Expand"} ${title}`}><ChevronDown className={cn("transition-transform", open && "rotate-180")} /></Button></CollapsibleTrigger>
       </div>
       <CollapsibleContent className="border-t bg-muted/10 p-4">
-        <MultiSelectCombobox ariaLabel={`Select ${title}`} emptyMessage={`No ${title.toLowerCase()} match`} onValueChange={onChange} options={options} placeholder={`Select ${title.toLowerCase()}…`} searchPlaceholder={`Search ${title.toLowerCase()}…`} value={selectedIds} />
+        <MultiSelectCombobox ariaLabel={`Select ${title}`} emptyMessage={`No ${title.toLowerCase()} match`} noOptionsMessage={`No ${title} are available in this Project.`} onValueChange={onChange} options={options} placeholder={`Select ${title.toLowerCase()}…`} searchPlaceholder={`Search ${title.toLowerCase()}…`} value={resolvedSelectedIds} />
         {footer ? <div className="mt-3">{footer}</div> : null}
       </CollapsibleContent>
     </Collapsible>

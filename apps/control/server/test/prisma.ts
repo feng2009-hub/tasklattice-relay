@@ -19,6 +19,9 @@ import auditLogQueryAndTraceMigration from "../../prisma/migrations/202607270900
 import auditFixtureTraceCorrelationMigration from "../../prisma/migrations/20260727091000_audit_fixture_trace_correlation/migration.sql?raw";
 import realAuditCaptureMigration from "../../prisma/migrations/20260727100000_real_audit_capture_and_project_soft_delete/migration.sql?raw";
 import instanceAccessPolicyBindingsMigration from "../../prisma/migrations/20260802000000_instance_access_policy_bindings/migration.sql?raw";
+import defaultAccessPolicyMigration from "../../prisma/migrations/20260803000000_default_access_policy/migration.sql?raw";
+import reconcileSpecializationCapabilitiesMigration from "../../prisma/migrations/20260803010000_reconcile_specialization_capabilities/migration.sql?raw";
+import modelRoutingDomainMigration from "../../prisma/migrations/20260803020000_model_routing_domain/migration.sql?raw";
 import { developmentResourceCatalog } from "../catalog/development-resource-catalog";
 import { PrismaClient } from "../generated/prisma/client";
 
@@ -81,6 +84,116 @@ export function createTestPrisma(): PrismaClient {
   memory.public.none(
     [instancePolicyTable, instancePolicyIndex, ...removedVirtualEmployeeTables].join("\n"),
   );
+  const defaultAccessPolicyId = "00000000-0000-4000-8000-00000000da12";
+  if (
+    !defaultAccessPolicyMigration.includes(defaultAccessPolicyId)
+    || !defaultAccessPolicyMigration.includes("'serverRules', '[]'::jsonb")
+    || !defaultAccessPolicyMigration.includes("'status', 'ACTIVE'")
+  ) {
+    throw new Error("Default Access Policy migration structure is incomplete.");
+  }
+  // pg-mem does not implement the PostgreSQL DO and JSONB builder functions
+  // used by the production migration. Apply its equivalent seed data here.
+  const defaultAccessPolicyCreatedAt = "2026-08-03T00:00:00.000Z";
+  const defaultAccessPolicy = {
+    id: defaultAccessPolicyId,
+    name: "Default",
+    status: "ACTIVE",
+    serverRules: [],
+    revision: 1,
+    createdBy: "system:setup",
+    createdAt: defaultAccessPolicyCreatedAt,
+    updatedAt: defaultAccessPolicyCreatedAt,
+  };
+  const defaultAccessPolicyVersion = {
+    policyId: defaultAccessPolicyId,
+    revision: 1,
+    actor: "system:setup",
+    summary: "Default deny-all Access Policy created during Project setup.",
+    snapshot: defaultAccessPolicy,
+    createdAt: defaultAccessPolicyCreatedAt,
+  };
+  memory.public.none(`
+    INSERT INTO tasklattice.access_policies (
+      project_id, id, payload, created_at, updated_at
+    )
+    SELECT
+      project.id,
+      '${defaultAccessPolicyId}',
+      '${JSON.stringify(defaultAccessPolicy)}'::jsonb,
+      '${defaultAccessPolicyCreatedAt}'::timestamptz,
+      '${defaultAccessPolicyCreatedAt}'::timestamptz
+    FROM tasklattice.projects AS project
+    WHERE project.deleted_at IS NULL;
+
+    INSERT INTO tasklattice.access_policy_versions (
+      project_id, policy_id, revision, payload, created_at
+    )
+    SELECT
+      project.id,
+      '${defaultAccessPolicyId}',
+      1,
+      '${JSON.stringify(defaultAccessPolicyVersion)}'::jsonb,
+      '${defaultAccessPolicyCreatedAt}'::timestamptz
+    FROM tasklattice.projects AS project
+      WHERE project.deleted_at IS NULL;
+  `);
+  if (
+    !reconcileSpecializationCapabilitiesMigration.includes(
+      "defaultMcpServerIds",
+    ) ||
+    !reconcileSpecializationCapabilitiesMigration.includes(
+      "defaultKnowledgeSourceIds",
+    ) ||
+    !reconcileSpecializationCapabilitiesMigration.includes(
+      "tasklattice.mcp_servers",
+    ) ||
+    !reconcileSpecializationCapabilitiesMigration.includes(
+      "tasklattice.knowledge_sources",
+    )
+  ) {
+    throw new Error("Role capability reconciliation migration is incomplete.");
+  }
+  // pg-mem does not implement the correlated JSONB expansion used by the
+  // production migration. Reconcile the same references in JavaScript.
+  const resourceIds = (table: "skills" | "mcp_servers" | "knowledge_sources") =>
+    new Set(
+      memory.public
+        .many(`SELECT project_id, id FROM tasklattice.${table}`)
+        .map((row) => `${String(row.project_id)}:${String(row.id)}`),
+    );
+  const availableSkillIds = resourceIds("skills");
+  const availableMcpServerIds = resourceIds("mcp_servers");
+  const availableKnowledgeSourceIds = resourceIds("knowledge_sources");
+  for (const row of memory.public.many(
+    "SELECT project_id, id, payload FROM tasklattice.agent_specializations",
+  )) {
+    const projectId = String(row.project_id);
+    const payload = row.payload as {
+      defaultSkillIds: string[];
+      defaultMcpServerIds: string[];
+      defaultKnowledgeSourceIds: string[];
+    };
+    const reconciled = {
+      ...payload,
+      defaultSkillIds: payload.defaultSkillIds.filter((id) =>
+        availableSkillIds.has(`${projectId}:${id}`),
+      ),
+      defaultMcpServerIds: payload.defaultMcpServerIds.filter((id) =>
+        availableMcpServerIds.has(`${projectId}:${id}`),
+      ),
+      defaultKnowledgeSourceIds: payload.defaultKnowledgeSourceIds.filter(
+        (id) => availableKnowledgeSourceIds.has(`${projectId}:${id}`),
+      ),
+    };
+    const encoded = JSON.stringify(reconciled).replaceAll("'", "''");
+    memory.public.none(
+      `UPDATE tasklattice.agent_specializations
+          SET payload = '${encoded}'::jsonb
+        WHERE project_id = '${projectId.replaceAll("'", "''")}'
+          AND id = '${String(row.id).replaceAll("'", "''")}';`,
+    );
+  }
   for (const skill of developmentResourceCatalog.skills) {
     const payload = JSON.stringify(skill).replaceAll("'", "''");
     memory.public.none(
@@ -89,6 +202,30 @@ export function createTestPrisma(): PrismaClient {
         WHERE project_id = 'individual' AND id = '${skill.id}';`,
     );
   }
+  if (
+    !modelRoutingDomainMigration.includes("RENAME TO model_routings")
+    || !modelRoutingDomainMigration.includes("model_routing_id")
+    || !modelRoutingDomainMigration.includes("modelRoutingId")
+  ) {
+    throw new Error("Model Routing domain migration is incomplete.");
+  }
+  // pg-mem does not implement PostgreSQL constraint/index renaming or the
+  // production JSONB backfill. Test seeds contain no routing or Instance rows,
+  // so the equivalent structural table/column rename is sufficient here.
+  memory.public.none(`
+    ALTER TABLE tasklattice.model_profile_bindings
+      DROP CONSTRAINT "model_profile_bindings_model_profile_id|project_id_fk";
+    ALTER TABLE tasklattice.model_profiles RENAME TO model_routings;
+    ALTER TABLE tasklattice.model_profile_bindings RENAME TO model_routing_bindings;
+    ALTER TABLE tasklattice.model_routing_bindings RENAME COLUMN model_profile_id TO model_routing_id;
+    ALTER TABLE tasklattice.model_routing_bindings
+      ADD CONSTRAINT model_routing_bindings_project_id_model_routing_id_fkey
+      FOREIGN KEY (project_id, model_routing_id)
+      REFERENCES tasklattice.model_routings(project_id, id)
+      ON DELETE CASCADE ON UPDATE CASCADE;
+    ALTER TABLE tasklattice.model_profile_audit RENAME TO model_routing_audit;
+    ALTER TABLE tasklattice.model_routing_audit RENAME COLUMN model_profile_id TO model_routing_id;
+  `);
   const pg = memory.adapters.createPg();
   const query = pg.Client.prototype.query;
   pg.Client.prototype.query = function (

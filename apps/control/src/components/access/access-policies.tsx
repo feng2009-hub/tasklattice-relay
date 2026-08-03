@@ -171,7 +171,7 @@ export function AccessPolicies({ projectId }: { projectId: string }) {
       </Card>
 
       <p className="text-xs leading-5 text-muted-foreground">
-        Access Policies govern MCP tool invocation only. Model Profiles,
+        Access Policies govern MCP tool invocation only. Routing,
         credentials, and OpenShell Runtime Policies remain separate controls.
       </p>
       <AccessPolicyEditorSheet open={creating} onOpenChange={setCreating} />

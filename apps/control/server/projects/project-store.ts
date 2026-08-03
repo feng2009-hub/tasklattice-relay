@@ -5,9 +5,9 @@ import type {
   ResourceKind,
   KnowledgeSourceDefinition,
   InferenceGateway,
-  ModelProfile,
-  ModelProfileAuditEvent,
-  ModelProfileBinding,
+  ModelRouting,
+  ModelRoutingAuditEvent,
+  ModelRoutingBinding,
   McpServerDefinition,
   McpToolDefinition,
   ModelDeployment,
@@ -82,12 +82,12 @@ export function parseAgent(
     typeof agent.updatedAt !== "string" ||
     !Array.isArray(agent.logs) ||
     agent.inferenceMode !== "PLATFORM_MANAGED" ||
-    typeof agent.modelProfileId !== "string" ||
-    typeof agent.modelProfileBindingId !== "string" ||
-    typeof agent.modelProfileKeyFingerprint !== "string" ||
-    !agent.modelProfileCapabilities ||
-    !agent.modelProfileComplianceDomain ||
-    !agent.modelProfileStatus
+    typeof agent.modelRoutingId !== "string" ||
+    typeof agent.modelRoutingBindingId !== "string" ||
+    typeof agent.modelRoutingKeyFingerprint !== "string" ||
+    !agent.modelRoutingCapabilities ||
+    !agent.modelRoutingComplianceDomain ||
+    !agent.modelRoutingStatus
   ) throw new Error("Stored Instance data is incomplete.");
   return { ...agent, accessPolicyIds } as Agent;
 }
@@ -108,8 +108,15 @@ function parseModelDeployment(payload: Prisma.JsonValue): ModelDeployment {
   return decode<ModelDeployment>(payload);
 }
 
-function parseModelProfile(payload: Prisma.JsonValue): ModelProfile {
-  return decode<ModelProfile>(payload);
+function canonicalModelRouting(routing: ModelRouting): ModelRouting {
+  return {
+    ...routing,
+    publicModelAlias: `tali-routing-${routing.id}`,
+  };
+}
+
+function parseModelRouting(payload: Prisma.JsonValue): ModelRouting {
+  return canonicalModelRouting(decode<ModelRouting>(payload));
 }
 
 export class ProjectStore {
@@ -367,7 +374,7 @@ export class ProjectStore {
       },
       update: { payload: agentPayload(agent) },
     });
-    const binding = await this.getModelProfileBindingForAgent(agent.id);
+    const binding = await this.getModelRoutingBindingForAgent(agent.id);
     if (binding) await this.saveBindingAttribution(binding, agent);
     return agent;
   }
@@ -470,13 +477,13 @@ export class ProjectStore {
     });
   }
 
-  async listAgentsForReporting(): Promise<Array<Pick<Agent, "id" | "name" | "sandboxName" | "costKeyAlias" | "modelProfileKeyFingerprint">>> {
+  async listAgentsForReporting(): Promise<Array<Pick<Agent, "id" | "name" | "sandboxName" | "costKeyAlias" | "modelRoutingKeyFingerprint">>> {
     return (await this.list()).map((agent) => ({
       id: agent.id,
       name: agent.name,
       sandboxName: agent.sandboxName,
       costKeyAlias: agent.costKeyAlias ?? `tali-${agent.name}`,
-      modelProfileKeyFingerprint: agent.modelProfileKeyFingerprint,
+      modelRoutingKeyFingerprint: agent.modelRoutingKeyFingerprint,
     }));
   }
 
@@ -627,35 +634,37 @@ export class ProjectStore {
     return rows.map((row) => decode<InferenceGateway>(row.payload));
   }
 
-  async saveModelProfile(profile: ModelProfile): Promise<ModelProfile> {
-    await this.db.modelProfileRecord.upsert({
-      where: { projectId_id: { projectId: this.projectId, id: profile.id } },
+  async saveModelRouting(routing: ModelRouting): Promise<ModelRouting> {
+    const canonicalRouting = canonicalModelRouting(routing);
+    await this.db.modelRoutingRecord.upsert({
+      where: { projectId_id: { projectId: this.projectId, id: canonicalRouting.id } },
       create: {
         projectId: this.projectId,
-        id: profile.id,
-        payload: jsonInput(profile),
-        createdAt: profile.createdAt,
+        id: canonicalRouting.id,
+        payload: jsonInput(canonicalRouting),
+        createdAt: canonicalRouting.createdAt,
       },
-      update: { payload: jsonInput(profile) },
+      update: { payload: jsonInput(canonicalRouting) },
     });
-    await this.saveModelProfileAttribution(profile);
-    return profile;
+    await this.saveModelRoutingAttribution(canonicalRouting);
+    return canonicalRouting;
   }
-  async saveDefaultModelProfile(profile: ModelProfile): Promise<ModelProfile> {
-    const existing = await this.listModelProfiles();
-    const now = profile.updatedAt;
-    const profiles = existing.map((candidate) =>
-      candidate.id === profile.id
-        ? { ...profile, isDefault: true }
+  async saveDefaultModelRouting(routing: ModelRouting): Promise<ModelRouting> {
+    const canonicalRouting = canonicalModelRouting(routing);
+    const existing = await this.listModelRoutings();
+    const now = canonicalRouting.updatedAt;
+    const routings = existing.map((candidate) =>
+      candidate.id === canonicalRouting.id
+        ? { ...canonicalRouting, isDefault: true }
         : candidate.isDefault
           ? { ...candidate, isDefault: false, updatedAt: now }
           : candidate,
     );
-    if (!profiles.some((candidate) => candidate.id === profile.id))
-      throw new Error("Model Profile not found.");
+    if (!routings.some((candidate) => candidate.id === canonicalRouting.id))
+      throw new Error("Routing not found.");
     await this.db.$transaction(
-      profiles.map((candidate) =>
-        this.db.modelProfileRecord.upsert({
+      routings.map((candidate) =>
+        this.db.modelRoutingRecord.upsert({
           where: {
             projectId_id: {
               projectId: this.projectId,
@@ -672,51 +681,51 @@ export class ProjectStore {
         }),
       ),
     );
-    await this.saveModelProfileAttribution(profile);
-    return { ...profile, isDefault: true };
+    await this.saveModelRoutingAttribution(canonicalRouting);
+    return { ...canonicalRouting, isDefault: true };
   }
-  private async saveModelProfileAttribution(
-    profile: ModelProfile,
+  private async saveModelRoutingAttribution(
+    routing: ModelRouting,
   ): Promise<void> {
-    const gateway = await this.getInferenceGateway(profile.gatewayId);
+    const gateway = await this.getInferenceGateway(routing.gatewayId);
     await this.costs.saveModelEndpointMapping({
-      id: `model-profile:${profile.id}:${profile.createdAt}`,
-      modelEndpointId: `model-profile:${profile.id}`,
-      modelEndpointName: profile.name,
-      liteLLMModelName: profile.publicModelAlias,
-      liteLLMModelGroup: profile.publicModelAlias,
+      id: `model-routing:${routing.id}:${routing.createdAt}`,
+      modelEndpointId: `model-routing:${routing.id}`,
+      modelEndpointName: routing.name,
+      liteLLMModelName: routing.publicModelAlias,
+      liteLLMModelGroup: routing.publicModelAlias,
       provider: "LiteLLM",
-      providerAccountId: profile.gatewayId,
-      providerAccountName: gateway?.name ?? profile.gatewayId,
-      validFrom: profile.createdAt,
-      createdAt: profile.createdAt,
-      updatedAt: profile.updatedAt,
+      providerAccountId: routing.gatewayId,
+      providerAccountName: gateway?.name ?? routing.gatewayId,
+      validFrom: routing.createdAt,
+      createdAt: routing.createdAt,
+      updatedAt: routing.updatedAt,
     });
   }
-  async getModelProfile(id: string): Promise<ModelProfile | undefined> {
-    const row = await this.db.modelProfileRecord.findUnique({
+  async getModelRouting(id: string): Promise<ModelRouting | undefined> {
+    const row = await this.db.modelRoutingRecord.findUnique({
       where: { projectId_id: { projectId: this.projectId, id } },
       select: { payload: true },
     });
-    return row ? parseModelProfile(row.payload) : undefined;
+    return row ? parseModelRouting(row.payload) : undefined;
   }
-  async listModelProfiles(): Promise<ModelProfile[]> {
-    const rows = await this.db.modelProfileRecord.findMany({
+  async listModelRoutings(): Promise<ModelRouting[]> {
+    const rows = await this.db.modelRoutingRecord.findMany({
       where: { projectId: this.projectId },
       orderBy: { createdAt: "desc" },
       select: { payload: true },
     });
-    return rows.map((row) => parseModelProfile(row.payload));
+    return rows.map((row) => parseModelRouting(row.payload));
   }
-  async deleteModelProfile(id: string): Promise<boolean> {
-    const result = await this.db.modelProfileRecord.deleteMany({
+  async deleteModelRouting(id: string): Promise<boolean> {
+    const result = await this.db.modelRoutingRecord.deleteMany({
       where: { projectId: this.projectId, id },
     });
     return result.count > 0;
   }
 
-  async saveModelProfileBinding(binding: ModelProfileBinding): Promise<ModelProfileBinding> {
-    const previous = await this.getModelProfileBindingForAgent(binding.agentId);
+  async saveModelRoutingBinding(binding: ModelRoutingBinding): Promise<ModelRoutingBinding> {
+    const previous = await this.getModelRoutingBindingForAgent(binding.agentId);
     if (previous && previous.id !== binding.id && !previous.revokedAt) {
       const previousAgent = await this.get(previous.agentId);
       await this.saveBindingAttribution(
@@ -724,12 +733,12 @@ export class ProjectStore {
         previousAgent,
       );
     }
-    await this.db.modelProfileBindingRecord.upsert({
+    await this.db.modelRoutingBindingRecord.upsert({
       where: { projectId_id: { projectId: this.projectId, id: binding.id } },
       create: {
         projectId: this.projectId,
         id: binding.id,
-        modelProfileId: binding.modelProfileId,
+        modelRoutingId: binding.modelRoutingId,
         agentId: binding.agentId,
         payload: jsonInput(binding),
         createdAt: binding.createdAt,
@@ -739,8 +748,8 @@ export class ProjectStore {
     await this.saveBindingAttribution(binding, await this.get(binding.agentId));
     return binding;
   }
-  private async saveBindingAttribution(binding: ModelProfileBinding, agent?: Agent): Promise<void> {
-    const profile = await this.getModelProfile(binding.modelProfileId);
+  private async saveBindingAttribution(binding: ModelRoutingBinding, agent?: Agent): Promise<void> {
+    const routing = await this.getModelRouting(binding.modelRoutingId);
     await this.costs.saveAttribution({
       id: `binding:${binding.id}`,
       projectId: this.projectId,
@@ -752,48 +761,48 @@ export class ProjectStore {
       virtualKeyAlias: binding.keyAlias,
       liteLLMUserId: binding.agentId,
       ...(binding.liteLLMTeamId ? { liteLLMTeamId: binding.liteLLMTeamId } : {}),
-      ...(profile?.gatewayId ? { providerAccountId: profile.gatewayId } : {}),
+      ...(routing?.gatewayId ? { providerAccountId: routing.gatewayId } : {}),
       validFrom: binding.createdAt,
       ...(binding.revokedAt ? { validTo: binding.revokedAt } : {}),
       createdAt: binding.createdAt,
       updatedAt: binding.revokedAt ?? agent?.updatedAt ?? binding.createdAt,
     });
   }
-  async getModelProfileBindingForAgent(agentId: string): Promise<ModelProfileBinding | undefined> {
-    const row = await this.db.modelProfileBindingRecord.findFirst({
+  async getModelRoutingBindingForAgent(agentId: string): Promise<ModelRoutingBinding | undefined> {
+    const row = await this.db.modelRoutingBindingRecord.findFirst({
       where: { projectId: this.projectId, agentId },
       orderBy: { createdAt: "desc" },
       select: { payload: true },
     });
-    return row ? decode<ModelProfileBinding>(row.payload) : undefined;
+    return row ? decode<ModelRoutingBinding>(row.payload) : undefined;
   }
-  async listModelProfileBindings(modelProfileId: string): Promise<ModelProfileBinding[]> {
-    const rows = await this.db.modelProfileBindingRecord.findMany({
-      where: { projectId: this.projectId, modelProfileId },
+  async listModelRoutingBindings(modelRoutingId: string): Promise<ModelRoutingBinding[]> {
+    const rows = await this.db.modelRoutingBindingRecord.findMany({
+      where: { projectId: this.projectId, modelRoutingId },
       orderBy: { createdAt: "desc" },
       select: { payload: true },
     });
-    return rows.map((row) => decode<ModelProfileBinding>(row.payload));
+    return rows.map((row) => decode<ModelRoutingBinding>(row.payload));
   }
-  async appendModelProfileAudit(event: ModelProfileAuditEvent): Promise<ModelProfileAuditEvent> {
-    await this.db.modelProfileAuditRecord.create({
+  async appendModelRoutingAudit(event: ModelRoutingAuditEvent): Promise<ModelRoutingAuditEvent> {
+    await this.db.modelRoutingAuditRecord.create({
       data: {
         projectId: this.projectId,
         eventId: event.eventId,
-        modelProfileId: event.modelProfileId,
+        modelRoutingId: event.modelRoutingId,
         payload: jsonInput(event),
         createdAt: event.timestamp,
       },
     });
     return event;
   }
-  async listModelProfileAudit(modelProfileId: string): Promise<ModelProfileAuditEvent[]> {
-    const rows = await this.db.modelProfileAuditRecord.findMany({
-      where: { projectId: this.projectId, modelProfileId },
+  async listModelRoutingAudit(modelRoutingId: string): Promise<ModelRoutingAuditEvent[]> {
+    const rows = await this.db.modelRoutingAuditRecord.findMany({
+      where: { projectId: this.projectId, modelRoutingId },
       orderBy: { createdAt: "desc" },
       select: { payload: true },
     });
-    return rows.map((row) => decode<ModelProfileAuditEvent>(row.payload));
+    return rows.map((row) => decode<ModelRoutingAuditEvent>(row.payload));
   }
 
   async saveSandboxPolicy(policy: SandboxPolicy): Promise<SandboxPolicy> {

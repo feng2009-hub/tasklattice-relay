@@ -17,7 +17,7 @@ const routeLabels: Record<string, string> = {
   new: "Create Instance",
   policy: "Policy",
   profile: "My Account",
-  "model-profiles": "Model Profiles",
+  "model-routings": "Routing",
   requests: "Requests",
   security: "Security",
   runtime: "Runtime",

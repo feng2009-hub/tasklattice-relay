@@ -42,7 +42,7 @@ export const taskLatticeLiteLlmProviderProfileId = "tasklattice-litellm";
 
 export function taskLatticeLiteLlmProviderProfile(
   inferenceEndpoint: string,
-  profileId = taskLatticeLiteLlmProviderProfileId,
+  routingId = taskLatticeLiteLlmProviderProfileId,
   resourceVersion?: number,
 ): string {
   const endpoint = new URL(inferenceEndpoint);
@@ -58,7 +58,7 @@ export function taskLatticeLiteLlmProviderProfile(
     endpoint.hostname.endsWith(`.${kubernetesServiceDnsSuffix}`);
   return stringify(
     {
-      id: profileId,
+      id: routingId,
       ...(resourceVersion !== undefined
         ? { resource_version: resourceVersion }
         : {}),
@@ -348,6 +348,30 @@ async function ensureProviderPolicyCompositionEnabled(): Promise<void> {
 
 export function openShellProviderName(sandboxName: string): string {
   return `tali-${sandboxName}`.slice(0, 63).replace(/-$/, "");
+}
+
+export function isOpenShellProviderAttachedError(output: string): boolean {
+  const normalized = output.toLowerCase();
+  return normalized.includes("provider")
+    && normalized.includes("attached to")
+    && normalized.includes("sandbox");
+}
+
+function openShellDeletionTiming(): { pollMs: number; timeoutMs: number } {
+  return {
+    pollMs: Math.max(
+      100,
+      Number(process.env.OPENSHELL_DELETE_POLL_INTERVAL_MS) || 500,
+    ),
+    timeoutMs: Math.max(
+      1_000,
+      Number(process.env.OPENSHELL_DELETE_TIMEOUT_MS) || 60_000,
+    ),
+  };
+}
+
+function waitForDeletionPoll(delayMs: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -794,15 +818,22 @@ export async function provisionOpenShellSandbox(
 }
 
 export async function deleteOpenShellProvider(name: string): Promise<void> {
-  const result = await runCommand(
-    openShellBinary(),
-    openShellArguments(["provider", "delete", openShellProviderName(name)]),
-  );
-  if (
-    result.exitCode !== 0 &&
-    !`${result.stdout}\n${result.stderr}`.toLowerCase().includes("not found")
-  )
-    throw new Error(result.stderr.trim() || "OpenShell Provider deletion failed.");
+  const timing = openShellDeletionTiming();
+  const deadline = Date.now() + timing.timeoutMs;
+  while (true) {
+    const result = await runCommand(
+      openShellBinary(),
+      openShellArguments(["provider", "delete", openShellProviderName(name)]),
+    );
+    const output = `${result.stdout}\n${result.stderr}`;
+    if (result.exitCode === 0 || output.toLowerCase().includes("not found"))
+      return;
+    if (!isOpenShellProviderAttachedError(output) || Date.now() >= deadline)
+      throw new Error(
+        result.stderr.trim() || "OpenShell Provider deletion failed.",
+      );
+    await waitForDeletionPoll(timing.pollMs);
+  }
 }
 
 export async function observeOpenShellSandbox(
@@ -825,11 +856,22 @@ export async function deleteOpenShellSandbox(name: string): Promise<void> {
     openShellBinary(),
     openShellArguments(["sandbox", "delete", name]),
   );
+  const output = `${result.stdout}\n${result.stderr}`.toLowerCase();
   if (
     result.exitCode !== 0 &&
-    !`${result.stdout}\n${result.stderr}`.includes("sandbox not found")
+    !output.includes("sandbox not found") &&
+    !output.includes("not found")
   )
     throw new Error(
       result.stderr.trim() || "OpenShell sandbox deletion failed.",
     );
+  const timing = openShellDeletionTiming();
+  const deadline = Date.now() + timing.timeoutMs;
+  while (await observeOpenShellSandbox(name)) {
+    if (Date.now() >= deadline)
+      throw new Error(
+        `OpenShell sandbox ${name} is still present after the deletion timeout.`,
+      );
+    await waitForDeletionPoll(timing.pollMs);
+  }
 }

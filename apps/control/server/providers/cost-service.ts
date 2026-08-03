@@ -321,8 +321,8 @@ export class CostService {
     const environmentId = "production";
     for (const agent of await this.store.listAgentsForReporting()) {
       const full = await this.store.get(agent.id);
-      const binding = await this.store.getModelProfileBindingForAgent(agent.id);
-      const profile = binding ? await this.store.getModelProfile(binding.modelProfileId) : undefined;
+      const binding = await this.store.getModelRoutingBindingForAgent(agent.id);
+      const routing = binding ? await this.store.getModelRouting(binding.modelRoutingId) : undefined;
       const virtualKeyId = binding?.liteLLMTokenId
         ? tokenIdentifier(binding.liteLLMTokenId)
         : undefined;
@@ -333,12 +333,12 @@ export class CostService {
         instanceId: agent.id,
         instanceName: agent.name,
         ...(virtualKeyId ? { liteLLMVirtualKeyId: virtualKeyId } : {}),
-        hashedToken: agent.modelProfileKeyFingerprint,
+        hashedToken: agent.modelRoutingKeyFingerprint,
         virtualKeyAlias: binding?.keyAlias ?? agent.costKeyAlias,
         liteLLMUserId: agent.id,
         ...(binding?.liteLLMTeamId ? { liteLLMTeamId: binding.liteLLMTeamId } : {}),
-        ...(profile?.gatewayId ?? full?.providerAccountId
-          ? { providerAccountId: profile?.gatewayId ?? full!.providerAccountId! }
+        ...(routing?.gatewayId ?? full?.providerAccountId
+          ? { providerAccountId: routing?.gatewayId ?? full!.providerAccountId! }
           : {}),
         validFrom: binding?.createdAt ?? full?.createdAt ?? new Date(0).toISOString(),
         ...(binding?.revokedAt ? { validTo: binding.revokedAt } : {}),
@@ -363,20 +363,20 @@ export class CostService {
         updatedAt: deployment.updatedAt,
       });
     }
-    for (const profile of await this.store.listModelProfiles()) {
-      const gateway = await this.store.getInferenceGateway(profile.gatewayId);
+    for (const routing of await this.store.listModelRoutings()) {
+      const gateway = await this.store.getInferenceGateway(routing.gatewayId);
       await analytics.saveModelEndpointMapping({
-        id: `model-profile:${profile.id}:${profile.createdAt}`,
-        modelEndpointId: `model-profile:${profile.id}`,
-        modelEndpointName: profile.name,
-        liteLLMModelName: profile.publicModelAlias,
-        liteLLMModelGroup: profile.publicModelAlias,
+        id: `model-routing:${routing.id}:${routing.createdAt}`,
+        modelEndpointId: `model-routing:${routing.id}`,
+        modelEndpointName: routing.name,
+        liteLLMModelName: routing.publicModelAlias,
+        liteLLMModelGroup: routing.publicModelAlias,
         provider: "LiteLLM",
-        providerAccountId: profile.gatewayId,
-        providerAccountName: gateway?.name ?? profile.gatewayId,
-        validFrom: profile.createdAt,
-        createdAt: profile.createdAt,
-        updatedAt: profile.updatedAt,
+        providerAccountId: routing.gatewayId,
+        providerAccountName: gateway?.name ?? routing.gatewayId,
+        validFrom: routing.createdAt,
+        createdAt: routing.createdAt,
+        updatedAt: routing.updatedAt,
       });
     }
   }

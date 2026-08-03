@@ -47,10 +47,10 @@ function AgentDetail() {
       return typeof document !== "undefined" && document.visibilityState === "hidden" ? 15_000 : 5_000;
     },
   });
-  const modelProfile = useQuery({
-    queryKey: scope.key("model-profile", agent.data?.modelProfileId),
-    queryFn: () => api.getModelProfile(agent.data!.modelProfileId),
-    enabled: Boolean(agent.data?.modelProfileId),
+  const modelRouting = useQuery({
+    queryKey: scope.key("model-routing", agent.data?.modelRoutingId),
+    queryFn: () => api.getModelRouting(agent.data!.modelRoutingId),
+    enabled: Boolean(agent.data?.modelRoutingId),
     retry: 1,
     staleTime: 30_000,
   });
@@ -128,7 +128,7 @@ function AgentDetail() {
       <InstanceHeader access={access} agent={agent.data} platform={platform} onDelete={() => setDeleteOpen(true)} />
       <InstanceTabs active={renderedTab} agentId={agentId} terminal={access.terminal} />
       {terminalNotice ? <p role="status" className="mt-4 border-l-2 border-amber-500 bg-amber-500/5 px-4 py-3 text-sm">{terminalNotice}</p> : null}
-      {renderedTab === "overview" ? <InstanceOverviewTab access={access} agent={agent.data} platform={platform} auditLoading={audit.isLoading} {...(audit.data ? { auditEvents: audit.data } : {})} {...(modelProfile.data?.name ? { modelProfileName: modelProfile.data.name } : {})} /> : null}
+      {renderedTab === "overview" ? <InstanceOverviewTab access={access} agent={agent.data} platform={platform} auditLoading={audit.isLoading} {...(audit.data ? { auditEvents: audit.data } : {})} {...(modelRouting.data?.name ? { modelRoutingName: modelRouting.data.name } : {})} /> : null}
       {renderedTab === "configuration" ? <InstanceConfigurationTab agent={agent.data} platform={platform} /> : null}
       {renderedTab === "capabilities" ? <InstanceCapabilitiesTab agent={agent.data} /> : null}
       {renderedTab === "terminal" ? <InstanceTerminalTab agent={agent.data} targets={(terminalTargets.data ?? []).filter((target) => target.available)} /> : null}

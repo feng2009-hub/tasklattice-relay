@@ -120,7 +120,7 @@ PLATFORM ADMIN
 ├── Endpoint Integrations
 ├── Service Offerings
 ├── Quota Policies
-├── Agent Runtime Profiles
+├── Runtime Policies
 ├── Skill Registry
 └── Provider Adapters
 ~~~

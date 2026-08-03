@@ -2,7 +2,7 @@ import { useMutation } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { Gauge, LockKeyhole, ShieldCheck, Trash2, Users, Workflow } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
-import { ProjectModelProfilesSettings } from "@/components/project/project-model-profiles-settings";
+import { ProjectModelRoutingsSettings } from "@/components/project/project-model-routing-settings";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -18,7 +18,7 @@ export const Route = createFileRoute("/$projectId/setting/")({
   validateSearch: (search): { section?: ProjectSettingsSection } => {
     const section =
       search.section === "members" ||
-      search.section === "model-profiles" ||
+      search.section === "model-routings" ||
       search.section === "quota" ||
       search.section === "settings"
         ? search.section
@@ -31,7 +31,7 @@ export const Route = createFileRoute("/$projectId/setting/")({
 type ProjectSettingsSection =
   | "settings"
   | "members"
-  | "model-profiles"
+  | "model-routings"
   | "quota";
 
 function ProjectSettingsPage() {
@@ -67,7 +67,7 @@ function ProjectSettingsPage() {
         </h1>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
           Only Project administrators can manage Project identity, members,
-          Model Profiles, and quota. Your personal details remain available
+          Model and Routing settings, and quota. Your personal details remain available
           from Personal profile in the account menu.
         </p>
       </section>
@@ -114,9 +114,9 @@ function ProjectSettingsPage() {
               <Users />
               Members
             </TabsTrigger>
-            <TabsTrigger value="model-profiles" className="h-11">
+            <TabsTrigger value="model-routings" className="h-11">
               <Workflow />
-              Models & Profiles
+              Model and Routing
             </TabsTrigger>
             <TabsTrigger value="quota" className="h-11">
               <Gauge />
@@ -139,8 +139,8 @@ function ProjectSettingsPage() {
           <TabsContent value="members" className="mt-0">
             <ProjectMembers project={project} />
           </TabsContent>
-          <TabsContent value="model-profiles" className="mt-0">
-            <ProjectModelProfilesSettings
+          <TabsContent value="model-routings" className="mt-0">
+            <ProjectModelRoutingsSettings
               project={project}
             />
           </TabsContent>

@@ -2,10 +2,11 @@ import { randomUUID } from "node:crypto";
 import {
   complianceDomainCatalog,
   providerPresets,
+  providerSupportsComplianceDomain,
   type CreateModelDeploymentInput,
   type CreateProviderConnectionInput,
   type ModelDeployment,
-  type ModelProfile,
+  type ModelRouting,
   type ProviderAccount,
   type ProviderConnectionCreationResult,
   type ProviderConnectionDraft,
@@ -53,6 +54,110 @@ function catalog(kind: ProviderKind) {
   const item = providerPresets.find((candidate) => candidate.id === kind);
   if (!item) throw new Error(`Provider catalog entry ${kind} was not found.`);
   return item;
+}
+
+function endpointHostname(endpoint: string): string {
+  try {
+    return new URL(endpoint).hostname;
+  } catch {
+    return "";
+  }
+}
+
+function awsRegionMatchesBoundary(
+  region: string,
+  domain: CreateProviderConnectionInput["complianceDomain"],
+): boolean {
+  if (domain === "GLOBAL") return true;
+  if (domain === "US") return region.startsWith("us-");
+  if (domain === "UK") return region === "eu-west-2";
+  if (domain === "EU_EEA") {
+    return region.startsWith("eu-") && region !== "eu-west-2";
+  }
+  if (domain === "APAC_EX_CN") return region.startsWith("ap-");
+  return false;
+}
+
+function vertexLocationMatchesBoundary(
+  location: string,
+  domain: CreateProviderConnectionInput["complianceDomain"],
+): boolean {
+  if (domain === "GLOBAL") return true;
+  if (domain === "US") return location.startsWith("us-");
+  if (domain === "UK") return location === "europe-west2";
+  if (domain === "EU_EEA") {
+    return location.startsWith("europe-") && location !== "europe-west2";
+  }
+  if (domain === "APAC_EX_CN") {
+    return location.startsWith("asia-") || location.startsWith("australia-");
+  }
+  return false;
+}
+
+function assertComplianceConfiguration(
+  input: CreateProviderConnectionInput,
+): void {
+  const provider = catalog(input.connection.provider);
+  const boundary = complianceDomainCatalog.find(
+    (candidate) => candidate.id === input.complianceDomain,
+  );
+  if (!providerSupportsComplianceDomain(provider.id, input.complianceDomain)) {
+    throw new Error(
+      `${provider.name} does not have a supported endpoint configuration for ${boundary?.label ?? input.complianceDomain}.`,
+    );
+  }
+  if (
+    input.connection.provider === "qwen"
+    && ((input.complianceDomain === "CN_MAINLAND"
+      && (input.connection.config.region !== "cn"
+        || endpointHostname(input.connection.config.endpoint)
+          !== "dashscope.aliyuncs.com"))
+      || (input.complianceDomain !== "CN_MAINLAND"
+        && (input.connection.config.region !== "international"
+          || endpointHostname(input.connection.config.endpoint)
+            !== "dashscope-intl.aliyuncs.com")))
+  ) {
+    throw new Error(
+      `Qwen endpoint region does not match the ${boundary?.label ?? input.complianceDomain} boundary.`,
+    );
+  }
+  if (
+    input.connection.provider === "moonshot"
+    && ((input.complianceDomain === "CN_MAINLAND"
+      && (input.connection.config.region !== "cn"
+        || endpointHostname(input.connection.config.endpoint)
+          !== "api.moonshot.cn"))
+      || (input.complianceDomain !== "CN_MAINLAND"
+        && (input.connection.config.region !== "global"
+          || endpointHostname(input.connection.config.endpoint)
+            !== "api.moonshot.ai")))
+  ) {
+    throw new Error(
+      `Moonshot endpoint region does not match the ${boundary?.label ?? input.complianceDomain} boundary.`,
+    );
+  }
+  if (
+    input.connection.provider === "aws-bedrock"
+    && !awsRegionMatchesBoundary(
+      input.connection.config.region,
+      input.complianceDomain,
+    )
+  ) {
+    throw new Error(
+      `AWS Bedrock region does not match the ${boundary?.label ?? input.complianceDomain} boundary.`,
+    );
+  }
+  if (
+    input.connection.provider === "vertex-ai"
+    && !vertexLocationMatchesBoundary(
+      input.connection.config.location,
+      input.complianceDomain,
+    )
+  ) {
+    throw new Error(
+      `Vertex AI location does not match the ${boundary?.label ?? input.complianceDomain} boundary.`,
+    );
+  }
 }
 
 function encodeCredential(draft: ProviderConnectionDraft): string {
@@ -104,11 +209,11 @@ function normalizeModelSelection(
   };
 }
 
-function profileUsesAnyModel(
-  profile: ModelProfile,
+function routingUsesAnyModel(
+  routing: ModelRouting,
   deploymentIds: ReadonlySet<string>,
 ): boolean {
-  const policy = profile.routingPolicy;
+  const policy = routing.routingPolicy;
   if (policy.mode === "SINGLE") {
     return deploymentIds.has(policy.modelDeploymentId)
       || policy.fallbackModelDeploymentIds.some((id) => deploymentIds.has(id));
@@ -152,6 +257,7 @@ export class ProviderService {
   }
 
   async createConnection(input: CreateProviderConnectionInput): Promise<ProviderConnectionCreationResult> {
+    assertComplianceConfiguration(input);
     const discovery = await this.discover(input.connection);
     return this.createConnectionWithDiscovery(input, discovery);
   }
@@ -222,12 +328,12 @@ export class ProviderService {
         `Delete the ${agentIds.length} Instance${agentIds.length === 1 ? "" : "s"} using this Provider before deleting the account.`,
       );
     const deploymentIds = new Set(models.map((model) => model.id));
-    const profiles = (await this.store.listModelProfiles()).filter((profile) =>
-      profileUsesAnyModel(profile, deploymentIds)
+    const routings = (await this.store.listModelRoutings()).filter((routing) =>
+      routingUsesAnyModel(routing, deploymentIds)
     );
-    if (profiles.length)
+    if (routings.length)
       throw new Error(
-        `Reconfigure the ${profiles.length} Model Profile${profiles.length === 1 ? "" : "s"} using this Provider before deleting the account.`,
+        `Reconfigure the ${routings.length} Model Routing${routings.length === 1 ? "" : "s"} using this Provider before deleting the account.`,
       );
     for (const model of models)
       await this.litellm.deleteModel(model.litellmModelName).catch(() => undefined);
@@ -245,13 +351,13 @@ export class ProviderService {
         }. Reassign them before removing the model.`,
       );
     }
-    const profiles = (await this.store.listModelProfiles()).filter((profile) =>
-      profileUsesAnyModel(profile, new Set([id]))
+    const routings = (await this.store.listModelRoutings()).filter((routing) =>
+      routingUsesAnyModel(routing, new Set([id]))
     );
-    if (profiles.length) {
+    if (routings.length) {
       throw new Error(
-        `${model.displayName} is in use by ${profiles.length} Model Profile${
-          profiles.length === 1 ? "" : "s"
+        `${model.displayName} is in use by ${routings.length} Model Routing${
+          routings.length === 1 ? "" : "s"
         }. Reconfigure them before removing the model.`,
       );
     }

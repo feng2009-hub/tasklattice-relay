@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DEFAULT_ACCESS_POLICY_ID } from "../access-policies/default-access-policy";
 import { AuditLogService } from "../audit-logs/audit-log-service";
 import type { AuthPayload, AuthUser } from "../auth/auth";
 import { createTestPrisma } from "../test/prisma";
@@ -61,6 +62,26 @@ describe("ProjectService", () => {
         where: { projectId: "individual" },
       }),
     );
+    for (const projectId of ["individual", team.id]) {
+      const policy = await db.accessPolicyRecord.findUnique({
+        where: {
+          projectId_id: { projectId, id: DEFAULT_ACCESS_POLICY_ID },
+        },
+      });
+      expect(policy?.payload).toMatchObject({
+        id: DEFAULT_ACCESS_POLICY_ID,
+        name: "Default",
+        status: "ACTIVE",
+        serverRules: [],
+        revision: 1,
+        createdBy: "system:setup",
+      });
+      expect(
+        await db.accessPolicyVersionRecord.count({
+          where: { projectId, policyId: DEFAULT_ACCESS_POLICY_ID },
+        }),
+      ).toBe(1);
+    }
   });
 
   it("initializes the personal Project quota idempotently under concurrent requests", async () => {
@@ -83,6 +104,48 @@ describe("ProjectService", () => {
     expect(
       await db.projectQuotaRecord.count({
         where: { projectId: "individual" },
+      }),
+    ).toBe(1);
+  });
+
+  it("initializes the default deny-all Access Policy idempotently", async () => {
+    const db = createTestPrisma();
+    const service = new ProjectService(db);
+    const local = auth({
+      displayName: "Local Administrator",
+      email: "admin@tasklattice.local",
+      provider: "local",
+      username: "admin",
+    });
+    await db.accessPolicyRecord.delete({
+      where: {
+        projectId_id: {
+          projectId: "individual",
+          id: DEFAULT_ACCESS_POLICY_ID,
+        },
+      },
+    });
+
+    await Promise.all(
+      Array.from({ length: 4 }, () => service.ensureUser(local)),
+    );
+
+    const policies = await db.accessPolicyRecord.findMany({
+      where: { projectId: "individual", id: DEFAULT_ACCESS_POLICY_ID },
+    });
+    expect(policies).toHaveLength(1);
+    expect(policies[0]?.payload).toMatchObject({
+      name: "Default",
+      status: "ACTIVE",
+      serverRules: [],
+      createdBy: "system:setup",
+    });
+    expect(
+      await db.accessPolicyVersionRecord.count({
+        where: {
+          projectId: "individual",
+          policyId: DEFAULT_ACCESS_POLICY_ID,
+        },
       }),
     ).toBe(1);
   });

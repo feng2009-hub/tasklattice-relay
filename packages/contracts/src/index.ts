@@ -83,31 +83,31 @@ export const complianceDomainCatalog = [
   {
     id: "CN_MAINLAND",
     label: "Mainland China",
-    description: "Keep registered endpoints and Profile fallbacks in Mainland China.",
+    description: "Keep registered endpoints and routing fallbacks in Mainland China.",
     endpointRegion: "cn-mainland",
   },
   {
     id: "EU_EEA",
     label: "EU / EEA",
-    description: "Keep registered endpoints and Profile fallbacks in the EU or EEA.",
+    description: "Keep registered endpoints and routing fallbacks in the EU or EEA.",
     endpointRegion: "eu-eea",
   },
   {
     id: "US",
     label: "United States",
-    description: "Keep registered endpoints and Profile fallbacks in the United States.",
+    description: "Keep registered endpoints and routing fallbacks in the United States.",
     endpointRegion: "us",
   },
   {
     id: "UK",
     label: "United Kingdom",
-    description: "Keep registered endpoints and Profile fallbacks in the United Kingdom.",
+    description: "Keep registered endpoints and routing fallbacks in the United Kingdom.",
     endpointRegion: "uk",
   },
   {
     id: "APAC_EX_CN",
     label: "APAC (excluding Mainland China)",
-    description: "Keep registered endpoints and Profile fallbacks in APAC outside Mainland China.",
+    description: "Keep registered endpoints and routing fallbacks in APAC outside Mainland China.",
     endpointRegion: "apac-ex-cn",
   },
 ] as const satisfies ReadonlyArray<{
@@ -116,7 +116,84 @@ export const complianceDomainCatalog = [
   description: string;
   endpointRegion: string;
 }>;
-export const modelProfileStatuses = [
+
+/**
+ * Provider boundaries describe the endpoint configurations that TaskLattice can
+ * guide and validate. They are routing constraints, not legal certifications.
+ * GLOBAL is intentionally available to every connector because it imposes no
+ * project-level residency restriction.
+ */
+export const providerComplianceDomains = {
+  openai: ["GLOBAL"],
+  anthropic: ["GLOBAL"],
+  gemini: ["GLOBAL"],
+  deepseek: ["GLOBAL"],
+  qwen: ["GLOBAL", "CN_MAINLAND", "APAC_EX_CN"],
+  moonshot: ["GLOBAL", "CN_MAINLAND"],
+  zai: ["GLOBAL"],
+  minimax: ["GLOBAL"],
+  "baidu-qianfan": ["GLOBAL", "CN_MAINLAND"],
+  volcengine: ["GLOBAL", "CN_MAINLAND"],
+  "nvidia-nim": ["GLOBAL"],
+  "azure-openai": ["GLOBAL"],
+  "aws-bedrock": [
+    "GLOBAL",
+    "EU_EEA",
+    "US",
+    "UK",
+    "APAC_EX_CN",
+  ],
+  "vertex-ai": ["GLOBAL", "EU_EEA", "US", "UK", "APAC_EX_CN"],
+  openrouter: ["GLOBAL"],
+  ollama: [
+    "GLOBAL",
+    "CN_MAINLAND",
+    "EU_EEA",
+    "US",
+    "UK",
+    "APAC_EX_CN",
+  ],
+  vllm: [
+    "GLOBAL",
+    "CN_MAINLAND",
+    "EU_EEA",
+    "US",
+    "UK",
+    "APAC_EX_CN",
+  ],
+  huggingface: ["GLOBAL"],
+  "custom-openai-compatible": [
+    "GLOBAL",
+    "CN_MAINLAND",
+    "EU_EEA",
+    "US",
+    "UK",
+    "APAC_EX_CN",
+  ],
+  "custom-anthropic-compatible": [
+    "GLOBAL",
+    "CN_MAINLAND",
+    "EU_EEA",
+    "US",
+    "UK",
+    "APAC_EX_CN",
+  ],
+} as const satisfies Record<
+  (typeof providerKinds)[number],
+  ReadonlyArray<(typeof complianceDomains)[number]>
+>;
+
+export function providerSupportsComplianceDomain(
+  provider: (typeof providerKinds)[number],
+  domain: (typeof complianceDomains)[number],
+): boolean {
+  return (
+    providerComplianceDomains[provider] as ReadonlyArray<
+      (typeof complianceDomains)[number]
+    >
+  ).includes(domain);
+}
+export const modelRoutingStatuses = [
   "DRAFT",
   "VALIDATING",
   "READY",
@@ -125,8 +202,8 @@ export const modelProfileStatuses = [
   "SUSPENDED",
   "UNSUPPORTED",
 ] as const;
-export const modelProfileCapabilityStates = ["ENABLED", "DISABLED", "UNKNOWN"] as const;
-export const modelProfileRoutingModes = ["SINGLE", "COMPLEXITY", "SEMANTIC"] as const;
+export const modelRoutingCapabilityStates = ["ENABLED", "DISABLED", "UNKNOWN"] as const;
+export const modelRoutingModes = ["SINGLE", "COMPLEXITY", "SEMANTIC"] as const;
 
 export interface ProviderPresetModel {
   modelId: string;
@@ -948,6 +1025,7 @@ export const createAgentSchema = z.object({
   agentPlatform: z.enum(agentPlatformIds).default(defaultAgentPlatformId),
   accessPolicyIds: agentAccessPolicyIdsSchema,
   policyId: sandboxPolicyIdSchema.optional(),
+  modelRoutingId: z.string().trim().min(1).max(160),
   systemPrompt: z.string().trim().min(10).max(8000),
   specializationId: z.string().trim().min(1).max(64).optional(),
   skillIds: z.array(z.string().trim().min(1).max(160)).max(64).optional(),
@@ -1002,7 +1080,7 @@ const semanticRouteSchema = z.object({
   scoreThreshold: z.number().min(0).max(1).default(0.5),
 }).strict();
 
-export const modelProfileRoutingPolicySchema = z.discriminatedUnion("mode", [
+export const modelRoutingPolicySchema = z.discriminatedUnion("mode", [
   z.object({
     version: z.literal(1).default(1),
     mode: z.literal("SINGLE"),
@@ -1095,37 +1173,37 @@ export const modelProfileRoutingPolicySchema = z.discriminatedUnion("mode", [
   }
 });
 
-const modelProfileKeyPolicySchema = z.object({
+const modelRoutingKeyPolicySchema = z.object({
   perInstance: z.literal(true).default(true),
   rotationDays: z.number().int().min(1).max(365).default(90),
 }).default({ perInstance: true, rotationDays: 90 });
 
-const modelProfileAuditPolicySchema = z.object({
+const modelRoutingAuditPolicySchema = z.object({
   controlPlane: z.literal(true).default(true),
   requestLogs: z.boolean().default(true),
   capturePrompts: z.literal(false).default(false),
 }).default({ controlPlane: true, requestLogs: true, capturePrompts: false });
 
-const createModelProfileBaseSchema = z.object({
+const createModelRoutingBaseSchema = z.object({
   name: z.string().trim().min(2).max(64),
   description: z.string().trim().max(300).default(""),
   gatewayId: z.string().trim().min(1),
-  routingPolicy: modelProfileRoutingPolicySchema,
+  routingPolicy: modelRoutingPolicySchema,
   complianceDomain: z.enum(complianceDomains),
   isDefault: z.boolean().default(false),
-  keyPolicy: modelProfileKeyPolicySchema,
-  auditPolicy: modelProfileAuditPolicySchema,
+  keyPolicy: modelRoutingKeyPolicySchema,
+  auditPolicy: modelRoutingAuditPolicySchema,
 }).strict();
 
-export const createModelProfileSchema = createModelProfileBaseSchema;
+export const createModelRoutingSchema = createModelRoutingBaseSchema;
 
-export const updateModelProfileSchema = z.object({
+export const updateModelRoutingSchema = z.object({
   name: z.string().trim().min(2).max(64).optional(),
   description: z.string().trim().max(300).optional(),
   isDefault: z.boolean().optional(),
-  keyPolicy: modelProfileKeyPolicySchema.optional(),
-  auditPolicy: modelProfileAuditPolicySchema.optional(),
-  routingPolicy: modelProfileRoutingPolicySchema.optional(),
+  keyPolicy: modelRoutingKeyPolicySchema.optional(),
+  auditPolicy: modelRoutingAuditPolicySchema.optional(),
+  routingPolicy: modelRoutingPolicySchema.optional(),
   suspended: z.boolean().optional(),
 }).strict();
 
@@ -1196,13 +1274,13 @@ export type UpdateInstanceAccessPoliciesInput = z.infer<
 >;
 export type UpdateProjectQuotaInput = z.infer<typeof updateProjectQuotaSchema>;
 export type ComplianceDomain = (typeof complianceDomains)[number];
-export type ModelProfileStatus = (typeof modelProfileStatuses)[number];
-export type ModelProfileCapabilityState = (typeof modelProfileCapabilityStates)[number];
-export type ModelProfileRoutingMode = (typeof modelProfileRoutingModes)[number];
-export type ModelProfileRoutingPolicy = z.infer<typeof modelProfileRoutingPolicySchema>;
+export type ModelRoutingStatus = (typeof modelRoutingStatuses)[number];
+export type ModelRoutingCapabilityState = (typeof modelRoutingCapabilityStates)[number];
+export type ModelRoutingMode = (typeof modelRoutingModes)[number];
+export type ModelRoutingPolicy = z.infer<typeof modelRoutingPolicySchema>;
 export type CreateInferenceGatewayInput = z.infer<typeof createInferenceGatewaySchema>;
-export type CreateModelProfileInput = z.infer<typeof createModelProfileSchema>;
-export type UpdateModelProfileInput = z.infer<typeof updateModelProfileSchema>;
+export type CreateModelRoutingInput = z.infer<typeof createModelRoutingSchema>;
+export type UpdateModelRoutingInput = z.infer<typeof updateModelRoutingSchema>;
 
 export interface InferenceGateway {
   id: string;
@@ -1217,42 +1295,42 @@ export interface InferenceGateway {
   updatedAt: string;
 }
 
-export interface ModelProfileCondition {
+export interface ModelRoutingCondition {
   type: "BINDING" | "GATEWAY" | "COMPLIANCE" | "CAPABILITY";
   status: "PASS" | "FAIL" | "UNKNOWN";
   reason: string;
 }
 
-export interface ModelProfileCapabilities {
-  automaticRouting: ModelProfileCapabilityState;
+export interface ModelRoutingCapabilities {
+  automaticRouting: ModelRoutingCapabilityState;
   routerType: "COMPLEXITY_ROUTER" | "SEMANTIC_ROUTER" | "OTHER" | "UNKNOWN";
   complexityTierCount?: number;
   semanticRouteCount?: number;
-  sessionAffinity: ModelProfileCapabilityState;
-  adaptiveRouting: ModelProfileCapabilityState;
-  failover: ModelProfileCapabilityState;
-  generalFallback: ModelProfileCapabilityState;
-  contextWindowFallback: ModelProfileCapabilityState;
-  contentPolicyFallback: ModelProfileCapabilityState;
-  retries: ModelProfileCapabilityState;
-  requestAudit: ModelProfileCapabilityState;
+  sessionAffinity: ModelRoutingCapabilityState;
+  adaptiveRouting: ModelRoutingCapabilityState;
+  failover: ModelRoutingCapabilityState;
+  generalFallback: ModelRoutingCapabilityState;
+  contextWindowFallback: ModelRoutingCapabilityState;
+  contentPolicyFallback: ModelRoutingCapabilityState;
+  retries: ModelRoutingCapabilityState;
+  requestAudit: ModelRoutingCapabilityState;
 }
 
-export interface ModelProfile {
+export interface ModelRouting {
   id: string;
   name: string;
   description: string;
   gatewayId: string;
   managementMode: "LITELLM_MANAGED";
   publicModelAlias: string;
-  routingPolicy: ModelProfileRoutingPolicy;
+  routingPolicy: ModelRoutingPolicy;
   complianceDomain: ComplianceDomain;
-  status: ModelProfileStatus;
+  status: ModelRoutingStatus;
   isDefault: boolean;
-  keyPolicy: CreateModelProfileInput["keyPolicy"];
-  auditPolicy: CreateModelProfileInput["auditPolicy"];
-  capabilities: ModelProfileCapabilities;
-  conditions: ModelProfileCondition[];
+  keyPolicy: CreateModelRoutingInput["keyPolicy"];
+  auditPolicy: CreateModelRoutingInput["auditPolicy"];
+  capabilities: ModelRoutingCapabilities;
+  conditions: ModelRoutingCondition[];
   configurationHash: string;
   observedGeneration: number;
   validationMessage: string;
@@ -1264,9 +1342,9 @@ export interface ModelProfile {
   updatedAt: string;
 }
 
-export interface ModelProfileBinding {
+export interface ModelRoutingBinding {
   id: string;
-  modelProfileId: string;
+  modelRoutingId: string;
   agentId: string;
   liteLLMTeamId: string;
   liteLLMTokenId: string;
@@ -1277,14 +1355,14 @@ export interface ModelProfileBinding {
   revokedAt?: string;
 }
 
-export type ModelProfileConsumer = Omit<ModelProfileBinding, "liteLLMTokenId">;
+export type ModelRoutingConsumer = Omit<ModelRoutingBinding, "liteLLMTokenId">;
 
-export interface ModelProfileAuditEvent {
+export interface ModelRoutingAuditEvent {
   eventId: string;
   timestamp: string;
   actor: string;
   type: string;
-  modelProfileId: string;
+  modelRoutingId: string;
   agentId?: string;
   configurationHash: string;
   complianceDomain: ComplianceDomain;
@@ -1724,13 +1802,13 @@ export interface Agent extends Omit<CreateAgentInput, "policyId"> {
   model: string;
   modelType: "llm";
   inferenceMode: "PLATFORM_MANAGED";
-  modelProfileId: string;
-  modelProfileBindingId: string;
-  modelProfileStatus: ModelProfileStatus;
-  modelProfileComplianceDomain: ComplianceDomain;
-  modelProfileCapabilities: ModelProfileCapabilities;
-  modelProfileKeyFingerprint: string;
-  modelProfileLastSynchronizedAt?: string;
+  modelRoutingId: string;
+  modelRoutingBindingId: string;
+  modelRoutingStatus: ModelRoutingStatus;
+  modelRoutingComplianceDomain: ComplianceDomain;
+  modelRoutingCapabilities: ModelRoutingCapabilities;
+  modelRoutingKeyFingerprint: string;
+  modelRoutingLastSynchronizedAt?: string;
   costKeyAlias: string;
   liteLLMTokenId?: string;
   liteLLMTeamId?: string;
