@@ -38,6 +38,17 @@ token = "replace-me"
 [litellm]
 url = "http://tasklattice-litellm:4000"
 master_key = "replace-me"
+
+[smtp]
+enabled = true
+host = "smtp.example.com"
+port = 587
+secure = false
+username = "tasklattice@example.com"
+password = "replace-me"
+from_address = "tasklattice@example.com"
+from_name = "TaskLattice"
+reply_to = "support@example.com"
 ```
 
 At least one authentication provider must be enabled. `server.public_url` is
@@ -46,6 +57,15 @@ Service type. When OIDC is enabled, it is required and redirect URIs are
 derived as `<server.public_url>/auth/sso/callback`; scopes are fixed to
 `openid profile email`. Internal callbacks prefer `server.internal_url`, so
 they do not depend on a public LoadBalancer, Route, or Ingress address.
+
+SMTP is optional, but invitations to email addresses that do not already map
+to a TaskLattice user are rejected unless `smtp.enabled = true`. SMTP also
+requires `server.public_url`; invitation emails use it as the browser-visible
+sign-in link. Set `secure = true` for implicit TLS, normally on port 465. For
+port 587, keep `secure = false` so the transport can upgrade with STARTTLS.
+`username` and `password` must either both be configured or both be empty for
+an unauthenticated internal relay. SMTP credentials live inside
+`control.toml`, so the file must remain a Secret.
 
 ## Identity ownership
 

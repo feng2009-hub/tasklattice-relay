@@ -23,10 +23,10 @@ first-party images to `:dev`. The Release workflow replaces both Chart version
 and `appVersion` with the exact Git Release version before publishing.
 
 `control.publicUrl` is independent of `control.service.type`. Leave it empty
-for Local authentication, including when exposing the Control Service through
-a LoadBalancer, Route, Ingress, or Gateway. Set a stable canonical browser URL
-only when enabling `auth.oidc` or the embedded Keycloak, because it is used to
-construct the OIDC callback URI.
+for Local authentication without SMTP invitations, including when exposing
+the Control Service through a LoadBalancer, Route, Ingress, or Gateway. Set a
+stable canonical browser URL when enabling `auth.oidc`, the embedded Keycloak,
+or `control.smtp.enabled`; it is used for OIDC callbacks and invitation links.
 
 Install a released chart:
 
@@ -89,8 +89,33 @@ When `secrets.existingSecret` is used it must contain `control.toml`,
 `runner-token`, `litellm-master-key`, `postgres-password`, `database-url`,
 `litellm-ui-username`, `litellm-ui-password`, and `litellm-salt-key`.
 `control.toml` contains the Control Plane database, Local/OIDC authentication,
-Runner, and LiteLLM settings. Set `runner.gatewayEndpoint`
+SMTP credentials, Runner, and LiteLLM settings. Set `runner.gatewayEndpoint`
 when `openshell.enabled=false` and the gateway is managed outside this release.
+
+To deliver Project invitations through SMTP, add the following to a private
+values file. Port 587 uses STARTTLS; use `secure: true` for implicit TLS,
+normally on port 465.
+
+```yaml
+control:
+  publicUrl: https://tasklattice.example.com
+  smtp:
+    enabled: true
+    host: smtp.example.com
+    port: 587
+    secure: false
+    username: tasklattice@example.com
+    fromAddress: tasklattice@example.com
+    fromName: TaskLattice
+    replyTo: support@example.com
+secrets:
+  smtpPassword: replace-me
+```
+
+If the SMTP relay does not require authentication, leave both
+`control.smtp.username` and `secrets.smtpPassword` empty. When
+`secrets.existingSecret` is used, configure the `[smtp]` section directly in
+its `control.toml` value instead.
 
 ## Disconnected / air-gapped installation
 

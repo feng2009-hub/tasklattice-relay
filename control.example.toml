@@ -31,3 +31,16 @@ token = "CHANGE_ME"
 [litellm]
 url = "http://tasklattice-litellm:4000"
 master_key = "CHANGE_ME"
+
+[smtp]
+# SMTP is required for sending invitations to users who do not already have a
+# TaskLattice account. server.public_url must be browser-accessible when enabled.
+enabled = false
+host = "smtp.example.com"
+port = 587
+secure = false
+username = "tasklattice@example.com"
+password = "CHANGE_ME"
+from_address = "tasklattice@example.com"
+from_name = "TaskLattice"
+reply_to = "support@example.com"

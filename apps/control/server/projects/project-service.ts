@@ -4,6 +4,10 @@ import type { AuthPayload, AuthUser } from "../auth/auth";
 import { requireAuth } from "../auth/auth";
 import { getControlConfig } from "../config/control-config";
 import { prisma } from "../db/prisma";
+import {
+  SmtpInvitationMailer,
+  type InvitationMailer,
+} from "../email/smtp-invitation-mailer";
 import type { PrismaClient } from "../generated/prisma/client";
 import { LiteLLMClient, type LiteLLMAdminClient } from "../providers/litellm-client";
 import { ProjectQuotaService } from "../quotas/project-quota-service";
@@ -50,6 +54,8 @@ export class ProjectService {
   constructor(
     private readonly db: PrismaClient = prisma(),
     private readonly litellm: LiteLLMAdminClient = new LiteLLMClient(),
+    private readonly invitationMailer: InvitationMailer =
+      new SmtpInvitationMailer(),
   ) {}
 
   async ensureUser(auth: AuthPayload): Promise<string> {
@@ -402,6 +408,19 @@ export class ProjectService {
         status: "active",
       };
     }
+    this.invitationMailer.assertConfigured();
+    const [project, inviter] = await Promise.all([
+      this.db.project.findUnique({
+        where: { id: projectId },
+        select: { name: true },
+      }),
+      this.db.user.findUnique({
+        where: { id: currentUserId },
+        select: { displayName: true, email: true },
+      }),
+    ]);
+    if (!project) throw new Error("Project not found.");
+    if (!inviter) throw new Error("Inviting user not found.");
     const invite = await this.db.projectInvitation.upsert({
       where: { projectId_email: { projectId, email: normalizedEmail } },
       create: {
@@ -413,6 +432,23 @@ export class ProjectService {
       },
       update: { role, status: "pending", invitedBy: currentUserId },
     });
+    try {
+      await this.invitationMailer.sendProjectInvitation({
+        email: normalizedEmail,
+        inviterEmail: inviter.email,
+        inviterName: inviter.displayName,
+        projectName: project.name,
+        role,
+      });
+    } catch (error) {
+      throw new Error(
+        `Invitation saved, but ${
+          error instanceof Error
+            ? error.message
+            : "SMTP delivery failed with an unknown error."
+        }`,
+      );
+    }
     return {
       id: invite.id,
       kind: "human",

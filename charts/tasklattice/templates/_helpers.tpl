@@ -80,6 +80,18 @@ app.kubernetes.io/component: {{ .component }}
 {{- if and (or .Values.auth.oidc.enabled .Values.keycloak.enabled) (not .Values.control.publicUrl) -}}
 {{- fail "control.publicUrl is required when OIDC authentication or the embedded Keycloak is enabled" -}}
 {{- end -}}
+{{- if and .Values.control.smtp.enabled (not .Values.control.publicUrl) -}}
+{{- fail "control.publicUrl is required when SMTP invitations are enabled" -}}
+{{- end -}}
+{{- if and .Values.control.smtp.enabled (not .Values.control.smtp.host) -}}
+{{- fail "control.smtp.host is required when SMTP invitations are enabled" -}}
+{{- end -}}
+{{- if and .Values.control.smtp.enabled (not .Values.control.smtp.fromAddress) -}}
+{{- fail "control.smtp.fromAddress is required when SMTP invitations are enabled" -}}
+{{- end -}}
+{{- if and .Values.control.smtp.enabled (ne (empty .Values.control.smtp.username) (empty .Values.secrets.smtpPassword)) -}}
+{{- fail "control.smtp.username and secrets.smtpPassword must be configured together" -}}
+{{- end -}}
 schema_version = 1
 
 [server]
@@ -127,6 +139,17 @@ token = {{ required "secrets.runnerToken is required" .Values.secrets.runnerToke
 [litellm]
 url = {{ printf "http://%s:4000" (include "tasklattice.componentName" (dict "root" . "component" "litellm")) | quote }}
 master_key = {{ required "secrets.litellmMasterKey is required" .Values.secrets.litellmMasterKey | quote }}
+
+[smtp]
+enabled = {{ .Values.control.smtp.enabled }}
+host = {{ .Values.control.smtp.host | quote }}
+port = {{ .Values.control.smtp.port }}
+secure = {{ .Values.control.smtp.secure }}
+username = {{ .Values.control.smtp.username | quote }}
+password = {{ .Values.secrets.smtpPassword | quote }}
+from_address = {{ .Values.control.smtp.fromAddress | quote }}
+from_name = {{ .Values.control.smtp.fromName | quote }}
+reply_to = {{ .Values.control.smtp.replyTo | quote }}
 {{- end }}
 
 {{- define "tasklattice.controlConfigChecksum" -}}

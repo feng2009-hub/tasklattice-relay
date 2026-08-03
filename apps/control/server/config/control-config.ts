@@ -19,6 +19,60 @@ const disabledOidcSchema = z.object({
   client_secret: z.string().default(""),
 });
 
+const disabledSmtpConfig = {
+  enabled: false as const,
+  host: "",
+  port: 587,
+  secure: false,
+  username: "",
+  password: "",
+  from_address: "",
+  from_name: "TaskLattice",
+  reply_to: "",
+};
+
+const smtpConfigSchema = z.object({
+  enabled: z.boolean(),
+  host: z.string().trim(),
+  port: z.number().int().min(1).max(65_535),
+  secure: z.boolean(),
+  username: z.string(),
+  password: z.string(),
+  from_address: z.string().trim(),
+  from_name: z.string().trim().min(1),
+  reply_to: z.string().trim(),
+}).superRefine((value, context) => {
+  if (!value.enabled) return;
+  if (!value.host) {
+    context.addIssue({
+      code: "custom",
+      path: ["host"],
+      message: "smtp.host is required when SMTP invitations are enabled.",
+    });
+  }
+  if (!z.email().safeParse(value.from_address).success) {
+    context.addIssue({
+      code: "custom",
+      path: ["from_address"],
+      message: "smtp.from_address must be a valid email address.",
+    });
+  }
+  if (value.reply_to && !z.email().safeParse(value.reply_to).success) {
+    context.addIssue({
+      code: "custom",
+      path: ["reply_to"],
+      message: "smtp.reply_to must be a valid email address when configured.",
+    });
+  }
+  if (Boolean(value.username) !== Boolean(value.password)) {
+    context.addIssue({
+      code: "custom",
+      path: [value.username ? "password" : "username"],
+      message: "smtp.username and smtp.password must be configured together.",
+    });
+  }
+});
+
 const controlConfigSchema = z.object({
   schema_version: z.literal(1),
   server: z.object({
@@ -75,12 +129,20 @@ const controlConfigSchema = z.object({
     url: z.string().url(),
     master_key: z.string(),
   }),
+  smtp: smtpConfigSchema.default(disabledSmtpConfig),
 }).superRefine((value, context) => {
   if (value.auth.oidc.enabled && !value.server.public_url) {
     context.addIssue({
       code: "custom",
       path: ["server", "public_url"],
       message: "server.public_url is required when OIDC authentication is enabled.",
+    });
+  }
+  if (value.smtp.enabled && !value.server.public_url) {
+    context.addIssue({
+      code: "custom",
+      path: ["server", "public_url"],
+      message: "server.public_url is required when SMTP invitations are enabled.",
     });
   }
 });
@@ -123,6 +185,7 @@ const developmentConfig: ControlConfig = {
     url: "http://127.0.0.1:4000",
     master_key: "",
   },
+  smtp: disabledSmtpConfig,
 };
 
 export function getControlConfig(): ControlConfig {

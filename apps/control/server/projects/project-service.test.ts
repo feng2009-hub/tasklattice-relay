@@ -2,8 +2,30 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_ACCESS_POLICY_ID } from "../access-policies/default-access-policy";
 import { AuditLogService } from "../audit-logs/audit-log-service";
 import type { AuthPayload, AuthUser } from "../auth/auth";
+import type {
+  InvitationMailer,
+  ProjectInvitationEmail,
+} from "../email/smtp-invitation-mailer";
 import { createTestPrisma } from "../test/prisma";
 import { ProjectService } from "./project-service";
+
+class RecordingInvitationMailer implements InvitationMailer {
+  readonly invitations: ProjectInvitationEmail[] = [];
+
+  constructor(
+    private readonly configured = true,
+    private readonly deliveryError?: Error,
+  ) {}
+
+  assertConfigured(): void {
+    if (!this.configured) throw new Error("SMTP invitation delivery is not configured.");
+  }
+
+  async sendProjectInvitation(invitation: ProjectInvitationEmail): Promise<void> {
+    if (this.deliveryError) throw this.deliveryError;
+    this.invitations.push(invitation);
+  }
+}
 
 function auth(
   input: Omit<AuthUser, "id" | "systemRole"> &
@@ -476,7 +498,8 @@ describe("ProjectService", () => {
 
   it("accepts a pending invitation when the invited user first signs in", async () => {
     const db = createTestPrisma();
-    const service = new ProjectService(db);
+    const mailer = new RecordingInvitationMailer();
+    const service = new ProjectService(db, undefined, mailer);
     const administrator = auth({
       displayName: "Administrator",
       email: "administrator@tasklattice.local",
@@ -510,6 +533,73 @@ describe("ProjectService", () => {
         where: { projectId: team.id, email: "new-user@example.com" },
       }),
     ).toMatchObject({ status: "accepted" });
+    expect(mailer.invitations).toEqual([
+      expect.objectContaining({
+        email: "new-user@example.com",
+        projectName: "SRE",
+        role: "admin",
+      }),
+    ]);
+  });
+
+  it("rejects an unknown-user invitation before persisting when SMTP is disabled", async () => {
+    const db = createTestPrisma();
+    const service = new ProjectService(
+      db,
+      undefined,
+      new RecordingInvitationMailer(false),
+    );
+    const administrator = auth({
+      displayName: "Administrator",
+      email: "administrator@tasklattice.local",
+      provider: "sso",
+      username: "administrator",
+    });
+    await service.syncAuthUser(administrator.user);
+    const administratorId = await service.ensureUser(administrator);
+    const team = await service.create(administrator, "Email disabled", []);
+
+    await expect(
+      service.invite(team.id, administratorId, "new-user@example.com", "member"),
+    ).rejects.toThrow(/SMTP invitation delivery is not configured/i);
+    expect(
+      await db.projectInvitation.count({ where: { projectId: team.id } }),
+    ).toBe(0);
+  });
+
+  it("keeps a pending invitation when SMTP delivery fails so it can be retried", async () => {
+    const db = createTestPrisma();
+    const service = new ProjectService(
+      db,
+      undefined,
+      new RecordingInvitationMailer(
+        true,
+        new Error("SMTP delivery failed: connection refused"),
+      ),
+    );
+    const administrator = auth({
+      displayName: "Administrator",
+      email: "administrator@tasklattice.local",
+      provider: "sso",
+      username: "administrator",
+    });
+    await service.syncAuthUser(administrator.user);
+    const administratorId = await service.ensureUser(administrator);
+    const team = await service.create(administrator, "Retry delivery", []);
+
+    await expect(
+      service.invite(team.id, administratorId, "retry@example.com", "member"),
+    ).rejects.toThrow(/Invitation saved.*SMTP delivery failed/i);
+    expect(
+      await db.projectInvitation.findUnique({
+        where: {
+          projectId_email: {
+            projectId: team.id,
+            email: "retry@example.com",
+          },
+        },
+      }),
+    ).toMatchObject({ status: "pending" });
   });
 
   it("prevents removing the last project administrator", async () => {

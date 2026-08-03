@@ -35,6 +35,8 @@ export function errorResponse(error: unknown): Response {
       ? 409
       : /LiteLLM|gateway is unavailable/i.test(message)
         ? 503
+      : /SMTP|invitation delivery/i.test(message)
+        ? 503
         : 500;
   return jsonResponse({ error: message }, { status });
 }

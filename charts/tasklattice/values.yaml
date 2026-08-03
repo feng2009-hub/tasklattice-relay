@@ -76,6 +76,19 @@ control:
   # Canonical browser URL used for OIDC callbacks. Local authentication and
   # Service exposure do not require it. Set it when auth.oidc or Keycloak is enabled.
   publicUrl: ""
+  smtp:
+    # Enables email delivery for invitations to users who do not already have
+    # a TaskLattice account. Requires control.publicUrl.
+    enabled: false
+    host: ""
+    port: 587
+    # Use true for implicit TLS (normally port 465). Keep false for STARTTLS
+    # on port 587.
+    secure: false
+    username: ""
+    fromAddress: ""
+    fromName: TaskLattice
+    replyTo: ""
   hostAliases: []
   service:
     type: LoadBalancer
@@ -176,6 +189,7 @@ secrets:
   litellmUiUsername: admin
   litellmUiPassword: tasklattice-local-admin
   litellmSaltKey: tasklattice-local-litellm-salt-v1
+  smtpPassword: ""
 
 auth:
   local:
