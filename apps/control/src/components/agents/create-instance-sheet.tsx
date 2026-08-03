@@ -75,7 +75,10 @@ import { useCurrentProjectId } from "@/hooks/use-project";
 
 const steps: readonly CreateInstanceStep[] = [
   { label: "Define Work", description: "Set the job and extensions" },
-  { label: "Access & Workbench", description: "Bind policies and runtime" },
+  {
+    label: "Security & Runtime",
+    description: "Choose access, execution, and routing",
+  },
   { label: "Review & Approve", description: "Evaluate and confirm" },
 ];
 
@@ -502,7 +505,7 @@ export function CreateInstanceSheet({
                     }
                     onClick={() => setStep(1)}
                   >
-                    Next: Access & Workbench <ArrowRight />
+                    Next: Security & Runtime <ArrowRight />
                   </Button>
                 )}
               </form.Subscribe>
@@ -686,11 +689,11 @@ export function CreateInstanceSheet({
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <ShieldCheck className="size-5" /> Access & Workbench
+                    <ShieldCheck className="size-5" /> Security & Runtime
                   </CardTitle>
                   <CardDescription>
-                    Select the Instance authorization boundary, Agent
-                    implementation, OpenShell Runtime Policy, and Routing.
+                    Choose the policies, Agent runtime, and model route this
+                    Instance will use.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-5">
@@ -1145,7 +1148,7 @@ export function CreateInstanceSheet({
                             }
                           />
                         </ReviewSection>
-                        <ReviewSection title="Access & Workbench">
+                        <ReviewSection title="Security & Runtime">
                           <ReviewRow
                             label="Agent workbench"
                             value={

@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useMemo, useState } from "react";
 import { ClientOnly } from "@tanstack/react-router";
 import type { CostDailyPoint, CostGroupBy } from "@tasklattice/contracts";
-import type { CalendarTooltipProps } from "@nivo/calendar";
+import type { CalendarTooltipProps } from "@/components/shared/calendar-heatmap";
 import { ChartLoadingState } from "@/components/shared/chart-loading-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -43,6 +43,13 @@ function addDays(value: string, days: number): string {
   const date = new Date(`${value}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
+}
+
+function today(): string {
+  const now = new Date();
+  return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()))
+    .toISOString()
+    .slice(0, 10);
 }
 
 function uniqueActive(points: CostDailyPoint[]): string[] {
@@ -131,6 +138,9 @@ export function SpendActivityHeatmap({
 }) {
   const [mode, setMode] = useState<ActivityMode>("daily");
   const daily = useMemo(() => fillDailyActivity(activity, from, to), [activity, from, to]);
+  const calendarTo = today();
+  const trailingYearStart = addDays(calendarTo, -364);
+  const calendarFrom = from < trailingYearStart ? from : trailingYearStart;
   const cells = useMemo<HeatmapCell[]>(() => {
     if (mode === "weekly") return buildWeekly(daily);
     if (mode === "cumulative") return buildCumulative(daily);
@@ -156,7 +166,7 @@ export function SpendActivityHeatmap({
         <div>
           <CardTitle className="font-sans text-sm font-medium">Spend activity</CardTitle>
           <p className="mt-0.5 text-[11px] text-muted-foreground">
-            Selected-period spend shown in calendar-year context.
+            Selected-period spend in a rolling view ending today.
           </p>
         </div>
         <Tabs value={mode} onValueChange={(value) => setMode(value as ActivityMode)}>
@@ -171,11 +181,11 @@ export function SpendActivityHeatmap({
         <ClientOnly fallback={<ChartLoadingState className="h-[220px] xl:h-[260px] 2xl:h-[300px]" />}>
           <Suspense fallback={<ChartLoadingState className="h-[220px] xl:h-[260px] 2xl:h-[300px]" />}>
             <CalendarHeatmap
-              ariaLabel={`${mode} spend activity from ${from} through ${to}`}
+              ariaLabel={`${mode} spend activity for ${from} through ${to}; calendar ends today`}
               colors={intensityColors}
               data={cells.map((cell) => ({ day: cell.date, value: cell.spend }))}
-              from={from}
-              to={to}
+              from={calendarFrom}
+              to={calendarTo}
               legendFormat={usd}
               maxValue={max}
               tooltip={tooltip}
