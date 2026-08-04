@@ -50,6 +50,10 @@ images:
     repository: tasklattice-litellm
     tag: ""
     pullPolicy: IfNotPresent
+  modelGuardrails:
+    repository: tasklattice-model-guardrails
+    tag: ""
+    pullPolicy: IfNotPresent
   exampleMcp:
     repository: tasklattice-example-mcp
     tag: ""
@@ -130,6 +134,9 @@ runner:
 litellm:
   replicaCount: 1
   workers: 2
+  # Keep request-log errors concise. Full tracebacks remain available in the
+  # LiteLLM container logs for operator diagnostics.
+  maximumTracebackLinesToLog: 0
   service:
     type: ClusterIP
     port: 4000
@@ -141,6 +148,31 @@ litellm:
     limits:
       cpu: "1"
       memory: 4Gi
+  extraEnv: []
+
+modelGuardrails:
+  replicaCount: 1
+  evaluator:
+    # This is owned by the standalone Model Guardrails component. It does not
+    # reuse Provider Accounts registered through the TaskLattice Dashboard.
+    enabled: false
+    kind: content_safety
+    model: nvidia/llama-3.1-nemotron-safety-guard-8b-v3
+    baseUrl: https://integrate.api.nvidia.com/v1
+    # Leave empty to use the chart's main Secret. Set a dedicated Secret name
+    # when Guardrails provider credentials are managed independently.
+    apiKeySecretName: ""
+    apiKeySecretKey: model-guardrails-evaluator-api-key
+  service:
+    type: ClusterIP
+    port: 8091
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 2Gi
   extraEnv: []
 
 # Test-only Streamable HTTP MCP Server. It exposes deterministic, side-effect
@@ -179,6 +211,8 @@ secrets:
   existingSecret: ""
   runnerToken: local-dev-token
   litellmMasterKey: sk-tasklattice-local
+  modelGuardrailsApiKey: tasklattice-local-model-guardrails-key
+  modelGuardrailsEvaluatorApiKey: ""
   postgresPassword: tasklattice-local
   databaseUrl: ""
   jwtSecret: tasklattice-local-development-secret

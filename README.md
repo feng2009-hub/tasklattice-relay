@@ -55,7 +55,7 @@ OpenShell Gateway ---- Agent Sandbox CR
 The default installation target is the
 [latest published GitHub Release](https://github.com/Sn0rt/TaskLattice/releases/latest).
 Set `VERSION` to that Release version without its leading `v`. The Chart and
-all five first-party images then use that exact immutable version; TaskLattice
+all seven first-party images then use that exact immutable version; TaskLattice
 does not deploy the floating `latest` image tag.
 
 Download the self-contained Chart attached to the Release:
@@ -119,6 +119,7 @@ Verify the installation:
 kubectl -n tasklattice-sandboxes rollout status deployment/tasklattice-control --timeout=300s
 kubectl -n tasklattice-sandboxes rollout status deployment/tasklattice-runner --timeout=300s
 kubectl -n tasklattice-sandboxes rollout status deployment/tasklattice-litellm --timeout=300s
+kubectl -n tasklattice-sandboxes rollout status deployment/tasklattice-model-guardrails --timeout=300s
 kubectl -n tasklattice-sandboxes rollout status statefulset/tasklattice-postgresql --timeout=300s
 kubectl -n tasklattice-sandboxes rollout status statefulset/tasklattice-openshell --timeout=300s
 kubectl -n agent-sandbox-system rollout status deployment/agent-sandbox-controller --timeout=300s
@@ -127,7 +128,7 @@ kubectl -n tasklattice-sandboxes get pods,services,pvc
 
 ## Images and versions
 
-TaskLattice publishes five first-party images. A packaged Release Chart sets
+TaskLattice publishes seven first-party images. A packaged Release Chart sets
 its `appVersion` to the Release version, and every empty first-party image tag
 resolves to that exact value.
 
@@ -136,6 +137,8 @@ resolves to that exact value.
 | TaskLattice control      | `ghcr.io/sn0rt/tasklattice-control:<release>`                   | UI, REST/WebSocket API, and PostgreSQL control data |
 | Runtime runner           | `ghcr.io/sn0rt/tasklattice-openshell-runner:<release>`          | OpenShell sandbox lifecycle and terminal relay     |
 | LiteLLM                  | `ghcr.io/sn0rt/tasklattice-litellm:<release>`                   | Model gateway, virtual keys, and spend attribution |
+| Model Guardrails         | `ghcr.io/sn0rt/tasklattice-model-guardrails:<release>`          | NeMo-backed model input/output safety              |
+| Example MCP server       | `ghcr.io/sn0rt/tasklattice-example-mcp:<release>`               | Reference MCP integration used by examples         |
 | OpenClaw sandbox         | `ghcr.io/sn0rt/tasklattice-nemoclaw-sandbox:<release>`          | Default Agent sandbox                              |
 | Hermes sandbox           | `ghcr.io/sn0rt/tasklattice-nemoclaw-hermes-sandbox:<release>`   | Hermes Agent sandbox                               |
 | LiteLLM PostgreSQL       | `postgres:17-alpine`                                            | LiteLLM configuration and usage data               |

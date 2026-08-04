@@ -79,6 +79,38 @@ not restart application Pods.
 LiteLLM defaults to two Uvicorn workers. Resource-constrained environments can
 set `litellm.workers=1` without patching the rendered Deployment.
 
+Model Guardrails always runs its deterministic fast checks. To add NeMo's
+independently managed content-safety model, configure its private provider
+endpoint and credential at deployment time:
+
+Enabling Model Guardrails on a Routing attaches three LiteLLM hooks:
+`tasklattice-model-input` (`pre_call`),
+`tasklattice-model-during-call` (`during_call`), and
+`tasklattice-model-output` (`post_call`). The post-call hook also wraps
+streaming responses and stops subsequent chunks after a violation is detected.
+The chart sets `litellm.maximumTracebackLinesToLog=0` so an expected policy
+block is stored in LiteLLM Request Logs as a concise error code, class, and
+message instead of an internal Python stack. Full exceptions remain available
+in the LiteLLM container logs. Increase this value only when request-level
+tracebacks are required for gateway diagnostics.
+
+```yaml
+modelGuardrails:
+  evaluator:
+    enabled: true
+    kind: content_safety
+    model: nvidia/llama-3.1-nemotron-safety-guard-8b-v3
+    baseUrl: https://integrate.api.nvidia.com/v1
+secrets:
+  modelGuardrailsEvaluatorApiKey: <private-api-key>
+```
+
+This provider configuration belongs only to the Model Guardrails component and
+is not read from or displayed in the TaskLattice Dashboard. Use
+`kind: self_check` for DeepSeek or another OpenAI-compatible evaluator.
+Set `apiKeySecretName` and `apiKeySecretKey` to reference a separately managed
+provider credential Secret without storing the provider key in Helm values.
+
 The dependency preparation step applies the small OpenShell 0.0.82 overlay in
 `patches/openshell-0.0.82-certgen-resources.patch`, which applies the configured
 `openshell.resources` to its pre-install certificate-generation Job. Keep or
@@ -86,8 +118,12 @@ upstream that patch when refreshing the dependency so the hook can run before
 the namespace `LimitRange` exists on a first installation.
 
 When `secrets.existingSecret` is used it must contain `control.toml`,
-`runner-token`, `litellm-master-key`, `postgres-password`, `database-url`,
-`litellm-ui-username`, `litellm-ui-password`, and `litellm-salt-key`.
+`runner-token`, `litellm-master-key`, `model-guardrails-api-key`,
+`postgres-password`, `database-url`, `litellm-ui-username`,
+`litellm-ui-password`, and `litellm-salt-key`. When the model evaluator is
+enabled without `modelGuardrails.evaluator.apiKeySecretName`, it must also
+contain the key named by `modelGuardrails.evaluator.apiKeySecretKey`. When an
+external Secret name is set, that Secret owns the evaluator key instead.
 `control.toml` contains the Control Plane database, Local/OIDC authentication,
 SMTP credentials, Runner, and LiteLLM settings. Set `runner.gatewayEndpoint`
 when `openshell.enabled=false` and the gateway is managed outside this release.

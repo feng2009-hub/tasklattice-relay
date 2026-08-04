@@ -104,6 +104,7 @@ export function CreateModelRoutingSheet({
     newSemanticRoute(0),
   ]);
   const [makeDefault, setMakeDefault] = useState(defaultIsDefault);
+  const [modelGuardrailsEnabled, setModelGuardrailsEnabled] = useState(false);
   const [attempted, setAttempted] = useState(false);
   const gateway = gateways.data?.[0];
   const chatModels = useMemo(
@@ -211,6 +212,7 @@ export function CreateModelRoutingSheet({
     setRetries("2");
     setSemanticRoutes([newSemanticRoute(0)]);
     setMakeDefault(defaultIsDefault);
+    setModelGuardrailsEnabled(false);
     setAttempted(false);
   }, [defaultIsDefault, open]);
 
@@ -282,6 +284,7 @@ export function CreateModelRoutingSheet({
           requestLogs: true,
           capturePrompts: false,
         },
+        modelGuardrailsEnabled,
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({
@@ -578,6 +581,31 @@ export function CreateModelRoutingSheet({
               <strong className="block font-medium">Project default</strong>
               <span className="text-xs text-muted-foreground">
                 Automatically selected for new Instances in this Project.
+              </span>
+            </span>
+          </button>
+          <button
+            type="button"
+            aria-pressed={modelGuardrailsEnabled}
+            className={cn(
+              "flex min-h-11 w-full items-center gap-3 border px-3 text-left text-sm transition-colors",
+              modelGuardrailsEnabled && "border-primary bg-primary/5",
+            )}
+            onClick={() => setModelGuardrailsEnabled((value) => !value)}
+          >
+            <span
+              className={cn(
+                "grid size-5 shrink-0 place-items-center border",
+                modelGuardrailsEnabled
+                  && "border-primary bg-primary text-primary-foreground",
+              )}
+            >
+              {modelGuardrailsEnabled ? <Check className="size-3.5" /> : null}
+            </span>
+            <span>
+              <strong className="block font-medium">Model Guardrails</strong>
+              <span className="text-xs text-muted-foreground">
+                Inspect provider-model input and output through the managed safety service.
               </span>
             </span>
           </button>

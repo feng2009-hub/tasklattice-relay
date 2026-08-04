@@ -1222,6 +1222,7 @@ const createModelRoutingBaseSchema = z.object({
   isDefault: z.boolean().default(false),
   keyPolicy: modelRoutingKeyPolicySchema,
   auditPolicy: modelRoutingAuditPolicySchema,
+  modelGuardrailsEnabled: z.boolean().default(false),
 }).strict();
 
 export const createModelRoutingSchema = createModelRoutingBaseSchema;
@@ -1232,6 +1233,7 @@ export const updateModelRoutingSchema = z.object({
   isDefault: z.boolean().optional(),
   keyPolicy: modelRoutingKeyPolicySchema.optional(),
   auditPolicy: modelRoutingAuditPolicySchema.optional(),
+  modelGuardrailsEnabled: z.boolean().optional(),
   routingPolicy: modelRoutingPolicySchema.optional(),
   suspended: z.boolean().optional(),
 }).strict();
@@ -1328,7 +1330,7 @@ export interface InferenceGateway {
 }
 
 export interface ModelRoutingCondition {
-  type: "BINDING" | "GATEWAY" | "COMPLIANCE" | "CAPABILITY";
+  type: "BINDING" | "GATEWAY" | "COMPLIANCE" | "CAPABILITY" | "GUARDRAIL";
   status: "PASS" | "FAIL" | "UNKNOWN";
   reason: string;
 }
@@ -1361,6 +1363,7 @@ export interface ModelRouting {
   isDefault: boolean;
   keyPolicy: CreateModelRoutingInput["keyPolicy"];
   auditPolicy: CreateModelRoutingInput["auditPolicy"];
+  modelGuardrailsEnabled: boolean;
   capabilities: ModelRoutingCapabilities;
   conditions: ModelRoutingCondition[];
   configurationHash: string;

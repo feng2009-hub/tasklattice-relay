@@ -102,6 +102,16 @@ jobs:
           cache-from: type=gha,scope=helm-smoke-litellm
           cache-to: type=gha,mode=max,scope=helm-smoke-litellm,ignore-error=true
 
+      - name: Build Model Guardrails image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/docker/Dockerfile.model-guardrails
+          load: true
+          tags: ghcr.io/sn0rt/tasklattice-model-guardrails:dev
+          cache-from: type=gha,scope=helm-smoke-model-guardrails
+          cache-to: type=gha,mode=max,scope=helm-smoke-model-guardrails,ignore-error=true
+
       - name: Create Kind cluster
         uses: helm/kind-action@v1.14.0
         with:

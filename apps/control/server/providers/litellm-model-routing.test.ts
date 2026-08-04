@@ -202,6 +202,7 @@ describe("LiteLLM Router capability inspection", () => {
             },
             complexity_router_default_model: "tali/gemini/flash",
             num_retries: 2,
+            guardrails: [],
           },
           model_info: {
             managed_by: "tasklattice",
@@ -235,16 +236,23 @@ describe("LiteLLM Router capability inspection", () => {
         ...(init?.body ? { body: JSON.parse(String(init.body)) } : {}),
       });
       if (url.endsWith("/model/info"))
-        return new Response(JSON.stringify({ data: [{
-          model_name: "tali-routing-routing-single",
-          litellm_params: { model: "auto_router/complexity_router" },
-          model_info: {
-            id: "stale-route-id",
-            managed_by: "tasklattice",
-            tasklattice_resource: "model_routing_route",
-            model_routing_id: "routing-single",
+        return new Response(JSON.stringify({ data: [
+          {
+            model_name: "tali-routing-routing-single",
+            litellm_params: { model: "auto_router/complexity_router" },
+            model_info: {
+              id: "stale-route-id",
+              managed_by: "tasklattice",
+              tasklattice_resource: "model_routing_route",
+              model_routing_id: "routing-single",
+            },
           },
-        }] }), { status: 200 });
+          {
+            model_name: "tali/deepseek/chat",
+            litellm_params: { model: "deepseek/chat" },
+            model_info: { id: "deepseek-chat-id" },
+          },
+        ] }), { status: 200 });
       if (init?.method === "DELETE")
         return new Response(JSON.stringify({ detail: "not found" }), { status: 404 });
       return new Response(JSON.stringify({ ok: true }), { status: 200 });

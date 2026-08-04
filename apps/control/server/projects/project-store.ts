@@ -112,6 +112,7 @@ function canonicalModelRouting(routing: ModelRouting): ModelRouting {
   return {
     ...routing,
     publicModelAlias: `tali-routing-${routing.id}`,
+    modelGuardrailsEnabled: routing.modelGuardrailsEnabled ?? false,
   };
 }
 

@@ -84,6 +84,7 @@ images=(
   "$image_registry/tasklattice-control:$image_tag"
   "$image_registry/tasklattice-openshell-runner:$image_tag"
   "$image_registry/tasklattice-litellm:$image_tag"
+  "$image_registry/tasklattice-model-guardrails:$image_tag"
   "$image_registry/tasklattice-nemoclaw-sandbox:$image_tag"
   "$image_registry/tasklattice-nemoclaw-hermes-sandbox:$image_tag"
 )

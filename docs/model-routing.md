@@ -31,6 +31,6 @@ Each backing LiteLLM model must declare `model_info.compliance_domain`. TaskLatt
 
 ## LiteLLM version capability
 
-The repository currently pins `litellm/litellm-database:v1.86.2`. LiteLLM Auto Router v2 ships in v1.94.x, so an Auto Router routing on an older or unreported Gateway is marked `UNSUPPORTED`. Upgrade the pinned image only after validating its database migration and the model, key, Team, spend-log, Provider registration, and Instance lifecycle APIs in the target environment.
+The repository currently pins `litellm/litellm-database:v1.87.0`. LiteLLM Auto Router v2 ships in v1.94.x, so an Auto Router routing on an older or unreported Gateway is marked `UNSUPPORTED`. Upgrade the pinned image only after validating its database migration and the model, key, Team, spend-log, Provider registration, and Instance lifecycle APIs in the target environment.
 
 TaskLattice inspects public management APIs and does not read LiteLLM's private PostgreSQL schema. Capabilities that cannot be established from the effective configuration are reported as `UNKNOWN`, never inferred as enabled.

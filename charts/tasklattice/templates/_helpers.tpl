@@ -180,7 +180,15 @@ reply_to = {{ .Values.control.smtp.replyTo | quote }}
 {{- if .Values.secrets.existingSecret -}}
 {{- printf "existing:%s" .Values.secrets.existingSecret | sha256sum -}}
 {{- else -}}
-{{- printf "%s:%s:%s:%s:%s:%s" .Values.secrets.existingSecret .Values.secrets.litellmMasterKey (include "tasklattice.databaseUrl" .) .Values.secrets.litellmUiUsername .Values.secrets.litellmUiPassword .Values.secrets.litellmSaltKey | sha256sum -}}
+{{- printf "%s:%s:%s:%s:%s:%s:%s" .Values.secrets.existingSecret .Values.secrets.litellmMasterKey (include "tasklattice.databaseUrl" .) .Values.secrets.litellmUiUsername .Values.secrets.litellmUiPassword .Values.secrets.litellmSaltKey .Values.secrets.modelGuardrailsApiKey | sha256sum -}}
+{{- end -}}
+{{- end }}
+
+{{- define "tasklattice.modelGuardrailsSecretChecksum" -}}
+{{- if .Values.secrets.existingSecret -}}
+{{- printf "existing:%s:%s:%s" .Values.secrets.existingSecret .Values.modelGuardrails.evaluator.apiKeySecretName .Values.modelGuardrails.evaluator.apiKeySecretKey | sha256sum -}}
+{{- else -}}
+{{- printf "%s:%s:%s:%s:%s:%s:%s" .Values.secrets.existingSecret .Values.secrets.modelGuardrailsApiKey .Values.secrets.modelGuardrailsEvaluatorApiKey .Values.modelGuardrails.evaluator.kind .Values.modelGuardrails.evaluator.model .Values.modelGuardrails.evaluator.baseUrl .Values.modelGuardrails.evaluator.apiKeySecretName | sha256sum -}}
 {{- end -}}
 {{- end }}
 

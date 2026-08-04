@@ -1,0 +1,99 @@
+{{- $component := "model-guardrails" -}}
+{{- $name := include "tasklattice.componentName" (dict "root" . "component" $component) -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tasklattice.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
+spec:
+  replicas: {{ .Values.modelGuardrails.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "tasklattice.selectorLabels" (dict "root" . "component" $component) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tasklattice.selectorLabels" (dict "root" . "component" $component) | nindent 8 }}
+      annotations:
+        checksum/model-guardrails-secret: {{ include "tasklattice.modelGuardrailsSecretChecksum" . }}
+        {{- with .Values.global.rolloutRevision }}
+        tasklattice.ai/rollout-revision: {{ . | quote }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "tasklattice.runtimeServiceAccountName" . }}
+      automountServiceAccountToken: false
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: model-guardrails
+          image: {{ include "tasklattice.image" (dict "root" . "image" .Values.images.modelGuardrails) }}
+          imagePullPolicy: {{ .Values.images.modelGuardrails.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8091
+          env:
+            - name: MODEL_GUARDRAILS_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tasklattice.secretName" . }}
+                  key: model-guardrails-api-key
+            - name: MODEL_GUARDRAILS_PROFILE_PATH
+              value: /opt/tasklattice/model-guardrails/profiles/model-io-default-v1
+            {{- if .Values.modelGuardrails.evaluator.enabled }}
+            - name: MODEL_GUARDRAILS_EVALUATOR_KIND
+              value: {{ .Values.modelGuardrails.evaluator.kind | quote }}
+            - name: MODEL_GUARDRAILS_EVALUATOR_MODEL
+              value: {{ required "modelGuardrails.evaluator.model is required when the evaluator is enabled" .Values.modelGuardrails.evaluator.model | quote }}
+            - name: MODEL_GUARDRAILS_EVALUATOR_BASE_URL
+              value: {{ required "modelGuardrails.evaluator.baseUrl is required when the evaluator is enabled" .Values.modelGuardrails.evaluator.baseUrl | quote }}
+            - name: MODEL_GUARDRAILS_EVALUATOR_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (include "tasklattice.secretName" .) .Values.modelGuardrails.evaluator.apiKeySecretName | quote }}
+                  key: {{ .Values.modelGuardrails.evaluator.apiKeySecretKey | quote }}
+            {{- end }}
+            {{- with .Values.modelGuardrails.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.modelGuardrails.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tasklattice.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.modelGuardrails.service.type }}
+  selector:
+    {{- include "tasklattice.selectorLabels" (dict "root" . "component" $component) | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.modelGuardrails.service.port }}
+      targetPort: http

@@ -1,12 +1,14 @@
-# The v1.86.2 database variant is public on LiteLLM's Docker Hub registry.
+# The v1.87.0 database variant includes the upstream GuardrailRaisedException
+# status_code contract, so Guardrail blocks remain HTTP 400 without local patches.
 # The equivalent GHCR database tag currently rejects anonymous pulls.
-FROM litellm/litellm-database:v1.86.2
+FROM litellm/litellm-database:v1.87.0
 
 USER root
 RUN apk add --no-cache libatomic \
+    && python -c 'from litellm.exceptions import GuardrailRaisedException; assert GuardrailRaisedException().status_code == 400' \
     && chown -R 65532:65532 /app/.venv/lib/python3.13/site-packages/prisma
 
-# LiteLLM 1.86.x rewrites static UI routes on first import. Do that while the
+# LiteLLM rewrites static UI routes on first import. Do that while the
 # image is writable so the non-root runtime can serve extensionless /ui routes.
 RUN litellm --version
 

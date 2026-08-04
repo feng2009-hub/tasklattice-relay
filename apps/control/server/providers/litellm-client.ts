@@ -80,6 +80,7 @@ export interface LiteLLMModelRoutingInspection {
   complianceDomains: ComplianceDomain[];
   complianceUnknown: boolean;
   capabilities: ModelRoutingCapabilities;
+  guardrails: string[];
   configurationHash: string;
   unsupportedReason?: string;
 }
@@ -92,6 +93,7 @@ interface LiteLLMModelRoutingRouteBase {
   fallbackModels: string[];
   retries: number;
   requestAudit: boolean;
+  guardrails?: string[];
 }
 
 export type LiteLLMModelRoutingRouteInput =
@@ -319,6 +321,11 @@ export class LiteLLMClient implements LiteLLMAdminClient {
           body: JSON.stringify({ id: modelId }),
         });
       }
+      await this.reconcileModelGuardrails(
+        response.data ?? [],
+        input.defaultModel,
+        input.guardrails ?? [],
+      );
       await this.deleteFallback(input.alias);
       return;
     }
@@ -331,6 +338,7 @@ export class LiteLLMClient implements LiteLLMAdminClient {
           },
           complexity_router_default_model: input.defaultModel,
           num_retries: input.retries,
+          guardrails: input.guardrails ?? [],
         }
       : {
           model: `auto_router/${input.alias}`,
@@ -348,6 +356,7 @@ export class LiteLLMClient implements LiteLLMAdminClient {
           auto_router_default_model: input.defaultModel,
           auto_router_embedding_model: input.embeddingModel,
           num_retries: input.retries,
+          guardrails: input.guardrails ?? [],
         };
     const body = {
       model_name: input.alias,
@@ -706,9 +715,12 @@ export class LiteLLMClient implements LiteLLMAdminClient {
     let contentPolicyFallback: ModelRoutingCapabilities["contentPolicyFallback"] = "UNKNOWN";
     let retries: ModelRoutingCapabilities["retries"] = "UNKNOWN";
     let requestAudit: ModelRoutingCapabilities["requestAudit"] = "UNKNOWN";
+    const guardrails = new Set<string>();
     for (const item of matching) {
       const info = item.model_info ?? {};
       const params = item.litellm_params ?? {};
+      if (Array.isArray(params.guardrails))
+        collectStrings(params.guardrails, guardrails);
       const backingModel = params.model;
       const isAutoRouter = typeof backingModel === "string" && backingModel.startsWith("auto_router/");
       automaticRouting ||= isAutoRouter;
@@ -812,6 +824,7 @@ export class LiteLLMClient implements LiteLLMAdminClient {
         retries,
         requestAudit,
       },
+      guardrails: [...guardrails].sort(),
       configurationHash: stableConfigurationHash({ matching, effectiveModels }),
       ...(autoRouterUnsupported ? { unsupportedReason: `LiteLLM ${version} does not support the managed Complexity Router; version 1.86.2 or newer is required.` } : {}),
     };
@@ -859,6 +872,36 @@ export class LiteLLMClient implements LiteLLMAdminClient {
         fallback_type: "general",
       }),
     });
+  }
+
+  private async reconcileModelGuardrails(
+    models: Array<{
+      model_name?: string;
+      litellm_params?: Record<string, unknown>;
+      model_info?: Record<string, unknown>;
+    }>,
+    modelAlias: string,
+    guardrails: string[],
+  ): Promise<void> {
+    const matches = models.filter((model) => model.model_name === modelAlias);
+    if (!matches.length)
+      throw new Error(`LiteLLM model ${modelAlias} is unavailable for Guardrails reconciliation.`);
+    for (const model of matches) {
+      const modelId = model.model_info?.id;
+      if (typeof modelId !== "string" || !modelId)
+        throw new Error(`LiteLLM did not report an identifier for model ${modelAlias}.`);
+      await this.request(`/model/${encodeURIComponent(modelId)}/update`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          model_name: modelAlias,
+          litellm_params: {
+            ...(model.litellm_params ?? {}),
+            guardrails: [...new Set(guardrails)],
+          },
+          model_info: model.model_info ?? {},
+        }),
+      });
+    }
   }
 
   private async readFallback(modelAlias: string): Promise<string[] | undefined> {

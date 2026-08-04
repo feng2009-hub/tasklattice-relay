@@ -2,23 +2,25 @@
 
 ## Image Inventory
 
-TaskLattice publishes **five first-party images**:
+TaskLattice publishes **seven first-party images**:
 
 | Image | Build entry point | Purpose | Published architectures |
 | --- | --- | --- | --- |
 | `tasklattice-control` | `infra/docker/Dockerfile`, target `control` | Web UI, REST/WebSocket API, and PostgreSQL control data | amd64, arm64 |
 | `tasklattice-openshell-runner` | `infra/docker/Dockerfile`, target `runner` | Invokes OpenShell to create, observe, connect to, and destroy Sandboxes | amd64, arm64 |
 | `tasklattice-litellm` | `infra/docker/Dockerfile.litellm` | Model gateway, virtual keys, and cost attribution | amd64, arm64 |
+| `tasklattice-model-guardrails` | `infra/docker/Dockerfile.model-guardrails` | LiteLLM Generic Guardrail API backed by NeMo Guardrails | amd64, arm64 |
+| `tasklattice-example-mcp` | `infra/docker/Dockerfile`, target `example-mcp` | Reference MCP integration used by examples | amd64, arm64 |
 | `tasklattice-nemoclaw-sandbox` | `scripts/build-nemoclaw-sandbox.sh` (`openclaw`) + `Dockerfile.nemoclaw-openclaw` | Dynamic Sandbox for the OpenClaw Agent | amd64, arm64 |
 | `tasklattice-nemoclaw-hermes-sandbox` | The same script (`hermes`) + `Dockerfile.nemoclaw-hermes` | Dynamic Sandbox for the Hermes Agent | amd64, arm64 |
 
 A complete deployment also pulls **four pinned third-party images**: PostgreSQL,
 the OpenShell gateway, the OpenShell supervisor, and the Agent Sandbox
-controller. The full system therefore uses **nine unique images** when at least
-one OpenClaw Instance and one Hermes Instance are running. The two Agent images
-and the supervisor do not create long-lived Pods immediately after installation
-and before an Agent Instance is created, but the runner already retains their
-released image references.
+controller. A deployment using the optional example MCP server and running at
+least one OpenClaw Instance and one Hermes Instance therefore uses **eleven
+unique images**. The two Agent images and the supervisor do not create
+long-lived Pods immediately after installation and before an Agent Instance is
+created, but the runner already retains their released image references.
 
 ## Build Relationships
 
@@ -68,7 +70,7 @@ git push origin v0.3.0
 ```
 
 The workflow runs tests, type checking, and Helm rendering before building the
-five GHCR images in parallel. Each image publishes `X.Y.Z` and
+seven GHCR images in parallel. Each image publishes `X.Y.Z` and
 `sha-<12-character-commit>`. Stable releases also update `latest`, while
 prerelease tags such as `v0.3.0-rc.1` do not. After a successful build, the
 workflow:
@@ -79,7 +81,7 @@ workflow:
 
 GHCR packages must be public unless the target cluster is configured with a
 pull secret. After publishing packages from the repository for the first time,
-verify in the GitHub package settings that the visibility of all five image
+verify in the GitHub package settings that the visibility of all seven image
 packages and the chart package matches the deployment environment.
 
 ## Deploy from a GitHub Release

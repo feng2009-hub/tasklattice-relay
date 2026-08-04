@@ -186,6 +186,7 @@ describe("ProviderService", () => {
       isDefault: false,
       keyPolicy: { perInstance: true, rotationDays: 90 },
       auditPolicy: { controlPlane: true, requestLogs: true, capturePrompts: false },
+      modelGuardrailsEnabled: false,
       capabilities: {
         automaticRouting: "DISABLED",
         routerType: "UNKNOWN",

@@ -14,3 +14,5 @@ apps/control/server/generated/
 .env
 control.toml
 apps/control/server/generated/
+__pycache__/
+*.py[cod]
