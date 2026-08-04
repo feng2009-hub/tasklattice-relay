@@ -19,26 +19,35 @@ rejects a complete non-streaming response, or terminates an active streaming
 response when its post-call streaming iterator detects a violation. Chunks
 already delivered before a streaming violation are not retractable.
 
-The bundled `model-io-default-v1` profile always runs deterministic secret and
-test-marker checks. When `MODEL_GUARDRAILS_EVALUATOR_MODEL` and
-`MODEL_GUARDRAILS_EVALUATOR_BASE_URL` are set, NeMo also runs real
-model-backed rails. `MODEL_GUARDRAILS_EVALUATOR_KIND=self_check` uses the
-configured OpenAI-compatible model for `self check input` and
-`self check output`. `content_safety` uses NeMo's dedicated content-safety
-input/output flows and a NIM-compatible endpoint. The credential is read only
-from `MODEL_GUARDRAILS_EVALUATOR_API_KEY`.
+The bundled `model-io-default-v1` profile runs a sequential three-stage policy:
 
-The evaluator is an internal dependency of this standalone component. Its
-provider, endpoint, model, and credential are configured through deployment
-configuration and Kubernetes Secrets, independently of Provider Accounts in
-the TaskLattice Dashboard. The Dashboard may configure LiteLLM to attach or
-detach the already-registered Guardrails, but it never controls this service's
-process or policy state.
+1. Colang actions block high-confidence secrets, identifiers, and configured
+   static markers without a model call.
+2. NVIDIA Nemotron Safety Guard checks input and output against its content
+   safety taxonomy.
+3. NVIDIA NemoGuard Topic Control checks input against the business-topic
+   guidelines in `prompts.yml`.
 
-The Helm defaults describe NVIDIA's hosted
-`nvidia/llama-3.1-nemotron-safety-guard-8b-v3` content-safety model. A DeepSeek
-or other OpenAI-compatible endpoint can instead use `kind: self_check` with the
-same service contract.
+Stages two and three are enabled by configuring their model names with one
+NVIDIA NIM-compatible endpoint. Topic Control is input-only by design. If its
+model is omitted, the first two stages continue to operate. The credential is
+read only from `MODEL_GUARDRAILS_NVIDIA_API_KEY`.
+
+```text
+MODEL_GUARDRAILS_NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
+MODEL_GUARDRAILS_CONTENT_SAFETY_MODEL=nvidia/llama-3.1-nemotron-safety-guard-8b-v3
+MODEL_GUARDRAILS_TOPIC_CONTROL_MODEL=nvidia/llama-3.1-nemoguard-8b-topic-control
+```
+
+Provider configuration is an internal dependency of this standalone component.
+It is independent of Provider Accounts in the TaskLattice Dashboard. The
+Dashboard may configure LiteLLM to attach or detach the registered Guardrails,
+but it never controls this service's process or policy state.
+
+`MODEL_GUARDRAILS_PROFILE_PATH` is the policy extension boundary. Point it at a
+NeMo Guardrails profile containing `config.yml`, Colang flows, prompts, and
+optional Python actions. The service contract and LiteLLM integration do not
+change when the profile changes.
 
 Streaming output is checked by LiteLLM's post-call streaming iterator. The
 iterator samples cumulative chunks and terminates the stream when this service

@@ -18,10 +18,10 @@ def create_app(
     configured = settings or Settings.from_env()
     guardrails_runtime = runtime or NemoGuardrailsRuntime(
         configured.profile_path,
-        evaluator_model=configured.evaluator_model,
-        evaluator_base_url=configured.evaluator_base_url,
-        evaluator_kind=configured.evaluator_kind,
-        evaluator_api_key_env_var=configured.evaluator_api_key_env_var,
+        nvidia_base_url=configured.nvidia_base_url,
+        content_safety_model=configured.content_safety_model,
+        topic_control_model=configured.topic_control_model,
+        nvidia_api_key_env_var=configured.nvidia_api_key_env_var,
     )
     service = ModelGuardrailsService(guardrails_runtime)
 

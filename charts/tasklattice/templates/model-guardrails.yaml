@@ -47,19 +47,21 @@ spec:
                   name: {{ include "tasklattice.secretName" . }}
                   key: model-guardrails-api-key
             - name: MODEL_GUARDRAILS_PROFILE_PATH
-              value: /opt/tasklattice/model-guardrails/profiles/model-io-default-v1
-            {{- if .Values.modelGuardrails.evaluator.enabled }}
-            - name: MODEL_GUARDRAILS_EVALUATOR_KIND
-              value: {{ .Values.modelGuardrails.evaluator.kind | quote }}
-            - name: MODEL_GUARDRAILS_EVALUATOR_MODEL
-              value: {{ required "modelGuardrails.evaluator.model is required when the evaluator is enabled" .Values.modelGuardrails.evaluator.model | quote }}
-            - name: MODEL_GUARDRAILS_EVALUATOR_BASE_URL
-              value: {{ required "modelGuardrails.evaluator.baseUrl is required when the evaluator is enabled" .Values.modelGuardrails.evaluator.baseUrl | quote }}
-            - name: MODEL_GUARDRAILS_EVALUATOR_API_KEY
+              value: {{ .Values.modelGuardrails.profilePath | quote }}
+            {{- if .Values.modelGuardrails.nvidia.enabled }}
+            - name: MODEL_GUARDRAILS_NVIDIA_BASE_URL
+              value: {{ required "modelGuardrails.nvidia.baseUrl is required when NVIDIA guardrails are enabled" .Values.modelGuardrails.nvidia.baseUrl | quote }}
+            - name: MODEL_GUARDRAILS_CONTENT_SAFETY_MODEL
+              value: {{ required "modelGuardrails.nvidia.contentSafetyModel is required when NVIDIA guardrails are enabled" .Values.modelGuardrails.nvidia.contentSafetyModel | quote }}
+            {{- if .Values.modelGuardrails.nvidia.topicControl.enabled }}
+            - name: MODEL_GUARDRAILS_TOPIC_CONTROL_MODEL
+              value: {{ required "modelGuardrails.nvidia.topicControl.model is required when Topic Control is enabled" .Values.modelGuardrails.nvidia.topicControl.model | quote }}
+            {{- end }}
+            - name: MODEL_GUARDRAILS_NVIDIA_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ default (include "tasklattice.secretName" .) .Values.modelGuardrails.evaluator.apiKeySecretName | quote }}
-                  key: {{ .Values.modelGuardrails.evaluator.apiKeySecretKey | quote }}
+                  name: {{ default (include "tasklattice.secretName" .) .Values.modelGuardrails.nvidia.apiKeySecretName | quote }}
+                  key: {{ .Values.modelGuardrails.nvidia.apiKeySecretKey | quote }}
             {{- end }}
             {{- with .Values.modelGuardrails.extraEnv }}
             {{- toYaml . | nindent 12 }}

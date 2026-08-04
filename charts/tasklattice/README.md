@@ -79,9 +79,9 @@ not restart application Pods.
 LiteLLM defaults to two Uvicorn workers. Resource-constrained environments can
 set `litellm.workers=1` without patching the rendered Deployment.
 
-Model Guardrails always runs its deterministic fast checks. To add NeMo's
-independently managed content-safety model, configure its private provider
-endpoint and credential at deployment time:
+Model Guardrails always runs the Colang profile's deterministic fast checks.
+Enable its independently managed NVIDIA model pipeline to add Content Safety
+for input/output and Topic Control for input:
 
 Enabling Model Guardrails on a Routing attaches three LiteLLM hooks:
 `tasklattice-model-input` (`pre_call`),
@@ -96,20 +96,23 @@ tracebacks are required for gateway diagnostics.
 
 ```yaml
 modelGuardrails:
-  evaluator:
+  nvidia:
     enabled: true
-    kind: content_safety
-    model: nvidia/llama-3.1-nemotron-safety-guard-8b-v3
     baseUrl: https://integrate.api.nvidia.com/v1
+    contentSafetyModel: nvidia/llama-3.1-nemotron-safety-guard-8b-v3
+    topicControl:
+      enabled: true
+      model: nvidia/llama-3.1-nemoguard-8b-topic-control
 secrets:
-  modelGuardrailsEvaluatorApiKey: <private-api-key>
+  modelGuardrailsNvidiaApiKey: <private-api-key>
 ```
 
 This provider configuration belongs only to the Model Guardrails component and
-is not read from or displayed in the TaskLattice Dashboard. Use
-`kind: self_check` for DeepSeek or another OpenAI-compatible evaluator.
-Set `apiKeySecretName` and `apiKeySecretKey` to reference a separately managed
-provider credential Secret without storing the provider key in Helm values.
+is not read from or displayed in the TaskLattice Dashboard. Set
+`apiKeySecretName` and `apiKeySecretKey` to reference a separately managed
+NVIDIA credential Secret without storing the provider key in Helm values.
+Set `modelGuardrails.profilePath` to a NeMo profile supplied by a custom image
+or volume when extending the policy with Colang flows and actions.
 
 The dependency preparation step applies the small OpenShell 0.0.82 overlay in
 `patches/openshell-0.0.82-certgen-resources.patch`, which applies the configured
@@ -120,10 +123,10 @@ the namespace `LimitRange` exists on a first installation.
 When `secrets.existingSecret` is used it must contain `control.toml`,
 `runner-token`, `litellm-master-key`, `model-guardrails-api-key`,
 `postgres-password`, `database-url`, `litellm-ui-username`,
-`litellm-ui-password`, and `litellm-salt-key`. When the model evaluator is
-enabled without `modelGuardrails.evaluator.apiKeySecretName`, it must also
-contain the key named by `modelGuardrails.evaluator.apiKeySecretKey`. When an
-external Secret name is set, that Secret owns the evaluator key instead.
+`litellm-ui-password`, and `litellm-salt-key`. When NVIDIA Model Guardrails are
+enabled without `modelGuardrails.nvidia.apiKeySecretName`, it must also contain
+the key named by `modelGuardrails.nvidia.apiKeySecretKey`. When an external
+Secret name is set, that Secret owns the NVIDIA API key instead.
 `control.toml` contains the Control Plane database, Local/OIDC authentication,
 SMTP credentials, Runner, and LiteLLM settings. Set `runner.gatewayEndpoint`
 when `openshell.enabled=false` and the gateway is managed outside this release.

@@ -30,19 +30,24 @@ def settings() -> Settings:
     )
 
 
-def test_evaluator_settings_require_model_and_base_url(monkeypatch):
-    monkeypatch.setenv("MODEL_GUARDRAILS_EVALUATOR_MODEL", "provider/safety")
-    monkeypatch.delenv("MODEL_GUARDRAILS_EVALUATOR_BASE_URL", raising=False)
+def test_nvidia_settings_require_base_url(monkeypatch):
+    monkeypatch.setenv("MODEL_GUARDRAILS_CONTENT_SAFETY_MODEL", "provider/safety")
+    monkeypatch.delenv("MODEL_GUARDRAILS_NVIDIA_BASE_URL", raising=False)
 
-    with pytest.raises(ValueError, match="must be configured together"):
+    with pytest.raises(ValueError, match="NVIDIA_BASE_URL is required"):
         Settings.from_env()
 
 
-def test_evaluator_settings_reject_unknown_kind(monkeypatch):
-    monkeypatch.setenv("MODEL_GUARDRAILS_EVALUATOR_KIND", "unknown")
+def test_nvidia_settings_load_both_guardrail_models(monkeypatch):
+    monkeypatch.setenv("MODEL_GUARDRAILS_NVIDIA_BASE_URL", "https://nvidia.test/v1/")
+    monkeypatch.setenv("MODEL_GUARDRAILS_CONTENT_SAFETY_MODEL", "nvidia/safety")
+    monkeypatch.setenv("MODEL_GUARDRAILS_TOPIC_CONTROL_MODEL", "nvidia/topic")
 
-    with pytest.raises(ValueError, match="must be self_check or content_safety"):
-        Settings.from_env()
+    configured = Settings.from_env()
+
+    assert configured.nvidia_base_url == "https://nvidia.test/v1"
+    assert configured.content_safety_model == "nvidia/safety"
+    assert configured.topic_control_model == "nvidia/topic"
 
 
 @pytest.mark.asyncio

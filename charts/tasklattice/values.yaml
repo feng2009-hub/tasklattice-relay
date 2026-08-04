@@ -152,17 +152,22 @@ litellm:
 
 modelGuardrails:
   replicaCount: 1
-  evaluator:
-    # This is owned by the standalone Model Guardrails component. It does not
+  # A custom image or volume can place another NeMo profile at this path. The
+  # profile is the supported extension point for Colang flows and actions.
+  profilePath: /opt/tasklattice/model-guardrails/profiles/model-io-default-v1
+  nvidia:
+    # NVIDIA model rails are owned by this standalone component and do not
     # reuse Provider Accounts registered through the TaskLattice Dashboard.
     enabled: false
-    kind: content_safety
-    model: nvidia/llama-3.1-nemotron-safety-guard-8b-v3
     baseUrl: https://integrate.api.nvidia.com/v1
+    contentSafetyModel: nvidia/llama-3.1-nemotron-safety-guard-8b-v3
+    topicControl:
+      enabled: true
+      model: nvidia/llama-3.1-nemoguard-8b-topic-control
     # Leave empty to use the chart's main Secret. Set a dedicated Secret name
     # when Guardrails provider credentials are managed independently.
     apiKeySecretName: ""
-    apiKeySecretKey: model-guardrails-evaluator-api-key
+    apiKeySecretKey: model-guardrails-nvidia-api-key
   service:
     type: ClusterIP
     port: 8091
@@ -212,7 +217,7 @@ secrets:
   runnerToken: local-dev-token
   litellmMasterKey: sk-tasklattice-local
   modelGuardrailsApiKey: tasklattice-local-model-guardrails-key
-  modelGuardrailsEvaluatorApiKey: ""
+  modelGuardrailsNvidiaApiKey: ""
   postgresPassword: tasklattice-local
   databaseUrl: ""
   jwtSecret: tasklattice-local-development-secret

@@ -9,31 +9,30 @@ from pathlib import Path
 class Settings:
     api_key: str
     profile_path: Path
-    evaluator_model: str | None = None
-    evaluator_base_url: str | None = None
-    evaluator_kind: str = "self_check"
-    evaluator_api_key_env_var: str = "MODEL_GUARDRAILS_EVALUATOR_API_KEY"
+    nvidia_base_url: str | None = None
+    content_safety_model: str | None = None
+    topic_control_model: str | None = None
+    nvidia_api_key_env_var: str = "MODEL_GUARDRAILS_NVIDIA_API_KEY"
 
     @classmethod
     def from_env(cls) -> "Settings":
         root = Path(__file__).resolve().parent.parent
-        evaluator_model = os.environ.get("MODEL_GUARDRAILS_EVALUATOR_MODEL", "").strip()
-        evaluator_base_url = os.environ.get(
-            "MODEL_GUARDRAILS_EVALUATOR_BASE_URL",
+        nvidia_base_url = os.environ.get(
+            "MODEL_GUARDRAILS_NVIDIA_BASE_URL",
             "",
         ).strip()
-        if bool(evaluator_model) != bool(evaluator_base_url):
-            raise ValueError(
-                "MODEL_GUARDRAILS_EVALUATOR_MODEL and "
-                "MODEL_GUARDRAILS_EVALUATOR_BASE_URL must be configured together."
-            )
-        evaluator_kind = os.environ.get(
-            "MODEL_GUARDRAILS_EVALUATOR_KIND",
-            "self_check",
+        content_safety_model = os.environ.get(
+            "MODEL_GUARDRAILS_CONTENT_SAFETY_MODEL",
+            "",
         ).strip()
-        if evaluator_kind not in {"self_check", "content_safety"}:
+        topic_control_model = os.environ.get(
+            "MODEL_GUARDRAILS_TOPIC_CONTROL_MODEL",
+            "",
+        ).strip()
+        if (content_safety_model or topic_control_model) and not nvidia_base_url:
             raise ValueError(
-                "MODEL_GUARDRAILS_EVALUATOR_KIND must be self_check or content_safety."
+                "MODEL_GUARDRAILS_NVIDIA_BASE_URL is required when an NVIDIA "
+                "guardrail model is configured."
             )
         return cls(
             api_key=os.environ.get("MODEL_GUARDRAILS_API_KEY", "local-model-guardrails-key"),
@@ -43,7 +42,7 @@ class Settings:
                     str(root / "profiles" / "model-io-default-v1"),
                 )
             ),
-            evaluator_model=evaluator_model or None,
-            evaluator_base_url=evaluator_base_url.rstrip("/") or None,
-            evaluator_kind=evaluator_kind,
+            nvidia_base_url=nvidia_base_url.rstrip("/") or None,
+            content_safety_model=content_safety_model or None,
+            topic_control_model=topic_control_model or None,
         )

@@ -186,9 +186,9 @@ reply_to = {{ .Values.control.smtp.replyTo | quote }}
 
 {{- define "tasklattice.modelGuardrailsSecretChecksum" -}}
 {{- if .Values.secrets.existingSecret -}}
-{{- printf "existing:%s:%s:%s" .Values.secrets.existingSecret .Values.modelGuardrails.evaluator.apiKeySecretName .Values.modelGuardrails.evaluator.apiKeySecretKey | sha256sum -}}
+{{- printf "existing:%s:%s:%s:%s:%s:%s:%t:%t" .Values.secrets.existingSecret .Values.modelGuardrails.profilePath .Values.modelGuardrails.nvidia.apiKeySecretName .Values.modelGuardrails.nvidia.apiKeySecretKey .Values.modelGuardrails.nvidia.contentSafetyModel .Values.modelGuardrails.nvidia.topicControl.model .Values.modelGuardrails.nvidia.enabled .Values.modelGuardrails.nvidia.topicControl.enabled | sha256sum -}}
 {{- else -}}
-{{- printf "%s:%s:%s:%s:%s:%s:%s" .Values.secrets.existingSecret .Values.secrets.modelGuardrailsApiKey .Values.secrets.modelGuardrailsEvaluatorApiKey .Values.modelGuardrails.evaluator.kind .Values.modelGuardrails.evaluator.model .Values.modelGuardrails.evaluator.baseUrl .Values.modelGuardrails.evaluator.apiKeySecretName | sha256sum -}}
+{{- printf "%s:%s:%s:%s:%s:%s:%s:%s:%t:%t" .Values.secrets.existingSecret .Values.secrets.modelGuardrailsApiKey .Values.secrets.modelGuardrailsNvidiaApiKey .Values.modelGuardrails.profilePath .Values.modelGuardrails.nvidia.baseUrl .Values.modelGuardrails.nvidia.contentSafetyModel .Values.modelGuardrails.nvidia.topicControl.model .Values.modelGuardrails.nvidia.apiKeySecretName .Values.modelGuardrails.nvidia.enabled .Values.modelGuardrails.nvidia.topicControl.enabled | sha256sum -}}
 {{- end -}}
 {{- end }}
 

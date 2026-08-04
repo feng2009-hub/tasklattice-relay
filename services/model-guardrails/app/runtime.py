@@ -16,58 +16,56 @@ class GuardrailsRuntime(Protocol):
 
 
 class NemoGuardrailsRuntime:
-    """Thin adapter around NeMo Guardrails' I/O-only check API."""
+    """Run the configured Colang profile and NVIDIA model rails in order."""
 
     def __init__(
         self,
         profile_path: Path,
         *,
-        evaluator_model: str | None = None,
-        evaluator_base_url: str | None = None,
-        evaluator_kind: str = "self_check",
-        evaluator_api_key_env_var: str = "MODEL_GUARDRAILS_EVALUATOR_API_KEY",
+        nvidia_base_url: str | None = None,
+        content_safety_model: str | None = None,
+        topic_control_model: str | None = None,
+        nvidia_api_key_env_var: str = "MODEL_GUARDRAILS_NVIDIA_API_KEY",
     ):
         from nemoguardrails import LLMRails, RailsConfig
         from nemoguardrails.rails.llm.config import Model
 
-        if bool(evaluator_model) != bool(evaluator_base_url):
-            raise ValueError("Evaluator model and base URL must be configured together.")
-        if evaluator_kind not in {"self_check", "content_safety"}:
-            raise ValueError("Evaluator kind must be self_check or content_safety.")
+        if (content_safety_model or topic_control_model) and not nvidia_base_url:
+            raise ValueError(
+                "NVIDIA base URL is required when a guardrail model is configured."
+            )
 
         config = RailsConfig.from_path(str(profile_path))
-        if evaluator_model and evaluator_base_url:
-            if evaluator_kind == "content_safety":
-                config.models.append(
-                    Model(
-                        type="content_safety",
-                        engine="nim",
-                        model=evaluator_model,
-                        api_key_env_var=evaluator_api_key_env_var,
-                        parameters={"base_url": evaluator_base_url},
-                    )
+        if content_safety_model and nvidia_base_url:
+            config.models.append(
+                Model(
+                    type="content_safety",
+                    engine="nim",
+                    model=content_safety_model,
+                    api_key_env_var=nvidia_api_key_env_var,
+                    parameters={"base_url": nvidia_base_url},
                 )
-                config.rails.input.flows.append(
-                    "content safety check input $model=content_safety"
+            )
+            config.rails.input.flows.append(
+                "content safety check input $model=content_safety"
+            )
+            config.rails.output.flows.append(
+                "content safety check output $model=content_safety"
+            )
+
+        if topic_control_model and nvidia_base_url:
+            config.models.append(
+                Model(
+                    type="topic_control",
+                    engine="nim",
+                    model=topic_control_model,
+                    api_key_env_var=nvidia_api_key_env_var,
+                    parameters={"base_url": nvidia_base_url},
                 )
-                config.rails.output.flows.append(
-                    "content safety check output $model=content_safety"
-                )
-            else:
-                config.models.append(
-                    Model(
-                        type="main",
-                        engine="openai",
-                        model=evaluator_model,
-                        api_key_env_var=evaluator_api_key_env_var,
-                        parameters={
-                            "base_url": evaluator_base_url,
-                            "temperature": 0,
-                        },
-                    )
-                )
-                config.rails.input.flows.append("self check input")
-                config.rails.output.flows.append("self check output")
+            )
+            config.rails.input.flows.append(
+                "topic safety check input $model=topic_control"
+            )
 
         self._rails = LLMRails(config)
 
