@@ -1,38 +1,29 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
-  Activity,
   ArrowRight,
-  Boxes,
   ExternalLink,
-  FileClock,
-  Fingerprint,
-  Gauge,
   Menu,
-  Route as RouteIcon,
-  ShieldCheck,
-  Sparkles,
-  SquareTerminal,
   X,
-  type LucideIcon,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { TechnologyMarquee } from "@/components/landing/technology-marquee";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getStoredProjectId } from "@/lib/project-storage";
 
 export const Route = createFileRoute("/")({ component: LandingPage });
 
 const landingNavigation = [
-  ["Product", "#platform"],
-  ["Architecture", "#runtime"],
-  ["Operations", "#operations"],
-  ["Security", "#security"],
+  ["Philosophy", "#philosophy"],
+  ["Design", "#design"],
+  ["Technology", "#technology"],
+  ["Resources", "#resources"],
 ] as const;
 
 const footerResources = [
   ["Documentation", "https://github.com/Sn0rt/TaskLattice/tree/main/docs"],
+  ["Support & issues", "https://github.com/Sn0rt/TaskLattice/issues"],
   ["Releases", "https://github.com/Sn0rt/TaskLattice/releases"],
   [
     "Install guide",
@@ -49,161 +40,109 @@ const footerOpenSource = [
   ["Apache-2.0", "https://github.com/Sn0rt/TaskLattice/blob/main/LICENSE"],
 ] as const;
 
-const footerTechnology = [
-  ["NVIDIA NemoClaw", "https://github.com/NVIDIA/NemoClaw"],
-  ["NVIDIA OpenShell", "https://github.com/NVIDIA/OpenShell"],
-  ["LiteLLM", "https://github.com/BerriAI/litellm"],
-  ["Kubernetes", "https://kubernetes.io/"],
-  ["PostgreSQL", "https://www.postgresql.org/"],
-  ["NeMo Guardrails · roadmap", "https://github.com/NVIDIA-NeMo/Guardrails"],
+const conceptStories = [
+  {
+    eyebrow: "Human",
+    title: "Intent begins the work.",
+    description:
+      "People provide context, the desired outcome, and the boundaries that matter. They delegate responsibility—not configuration.",
+    image: "/assets/landing/concepts/human-delegation.jpg",
+  },
+  {
+    eyebrow: "Capability",
+    title: "The organization supplies the means.",
+    description:
+      "Capabilities belong to the organization. The Supervisor discovers and requests the right knowledge, tools, and specialists for each job.",
+    image: "/assets/landing/concepts/capability-discovery.jpg",
+  },
+  {
+    eyebrow: "Experience",
+    title: "Every job changes the next one.",
+    description:
+      "Progress, outcomes, approvals, and human corrections become experience—so the workforce returns better prepared.",
+    image: "/assets/landing/concepts/experience-loop.jpg",
+  },
 ] as const;
 
 const runtimeComponents = [
   {
-    id: "nemoclaw",
-    label: "NEMOCLAW CONFIGURED",
-    eyebrow: "01 / Runtime adapter",
-    title: "Configuration becomes inspectable desired state.",
+    eyebrow: "Runtime adapter",
+    label: "NemoClaw",
+    title: "Intent becomes inspectable desired state.",
     description:
-      "TaskLattice passes the selected Agent, Routing, Runtime Policy, and extensions through a pinned NemoClaw adapter instead of hand-editing a sandbox.",
-    facts: [
-      ["Manages", "OpenClaw or Hermes"],
-      ["Evidence", "Desired + observed"],
-    ],
+      "TaskLattice passes the selected workforce configuration through a pinned NemoClaw adapter instead of hand-editing a sandbox.",
+    facts: ["OpenClaw or Hermes", "Desired + observed"],
   },
   {
-    id: "openshell",
-    label: "OPENSHELL POLICY BOUNDARY",
-    eyebrow: "02 / Sandbox boundary",
-    title: "Every Agent gets its own runtime boundary.",
+    eyebrow: "Sandbox boundary",
+    label: "OpenShell",
+    title: "Every worker gets a policy boundary.",
     description:
-      "OpenShell owns the sandbox lifecycle and applies workspace, process, credential, and network policy around the Agent runtime.",
-    facts: [
-      ["Boundary", "Filesystem · process · egress"],
-      ["Surface", "Terminal + runtime state"],
-    ],
+      "OpenShell owns the sandbox lifecycle and applies workspace, process, credential, and network policy around execution.",
+    facts: ["Filesystem + process", "Network + credentials"],
   },
   {
-    id: "litellm",
-    label: "LITELLM GOVERNED",
-    eyebrow: "03 / Model gateway",
-    title: "Model access is scoped per Agent Instance.",
+    eyebrow: "Model gateway",
+    label: "LiteLLM",
+    title: "Model access stays scoped and attributable.",
     description:
-      "Routing controls model selection and every Instance receives an independently revocable LiteLLM key, while upstream provider secrets stay outside the workspace.",
-    facts: [
-      ["Credential", "Per-instance virtual key"],
-      ["Control", "Routing · budget · MCP"],
-    ],
+      "Routing controls model selection and each Instance receives an independently revocable key while provider secrets stay outside the workspace.",
+    facts: ["Per-instance key", "Routing + budget"],
   },
   {
-    id: "agent-runtime",
-    label: "OPENCLAW OR HERMES",
-    eyebrow: "04 / Agent implementation",
-    title: "Choose the primary Agent, then bind enhancements.",
+    eyebrow: "Agent implementation",
+    label: "OpenClaw / Hermes",
+    title: "Agent implementations stay replaceable.",
     description:
-      "One Instance runs OpenClaw or Hermes as its primary Agent. Skills, MCP Servers, Knowledge Bases, and authorized Agent connections are attached explicitly.",
-    facts: [
-      ["Primary", "OpenClaw / Hermes"],
-      ["Enhance", "Skills · MCP · knowledge"],
-    ],
+      "OpenClaw or Hermes supplies the primary Agent runtime while TaskLattice keeps identity, capabilities, policy, and evidence above it.",
+    facts: ["Primary Agent", "Skills + MCP + knowledge"],
   },
 ] as const;
 
-type RuntimeComponentId = (typeof runtimeComponents)[number]["id"];
+const storyEase = [0.22, 1, 0.36, 1] as const;
 
-const controlLayers: Array<[LucideIcon, string, string, string]> = [
-  [
-    Fingerprint,
-    "Identity",
-    "Project scoped",
-    "Project membership defines who may operate an Agent, while each Instance references its Access Policies directly.",
-  ],
-  [
-    RouteIcon,
-    "Model access",
-    "LiteLLM governed",
-    "Routing configurations constrain model access, while every Agent Instance receives an independently revocable key.",
-  ],
-  [
-    Boxes,
-    "Runtime",
-    "NemoClaw configured",
-    "The selected Agent—OpenClaw or Hermes—runs inside an inspectable OpenShell policy boundary.",
-  ],
-  [
-    Sparkles,
-    "Capabilities",
-    "Bound, not implied",
-    "Skills, MCP Servers, Knowledge Bases, and authorized Agent connections enhance the primary Agent.",
-  ],
-];
+function StoryFrame({
+  activeIndex,
+  children,
+  className,
+  index,
+}: {
+  activeIndex: number;
+  children: ReactNode;
+  className: string;
+  index: number;
+}) {
+  const prefersReducedMotion = useReducedMotion();
+  const active = activeIndex === index;
+  const offset = index < activeIndex ? -16 : 16;
 
-const workflow = [
-  {
-    label: "Connect",
-    detail:
-      "Register a Provider and validate the models TaskLattice can route.",
-  },
-  {
-    label: "Govern",
-    detail:
-      "Bind a Routing configuration, one or more Access Policies, and a Runtime Policy.",
-  },
-  {
-    label: "Provision",
-    detail:
-      "NemoClaw configures OpenClaw or Hermes inside an OpenShell sandbox with the selected Runtime Policy.",
-  },
-  {
-    label: "Extend",
-    detail:
-      "Attach Skills, MCP Servers, Knowledge Bases, and authorized Agent connections.",
-  },
-];
-
-const operationalSurfaces: Array<[LucideIcon, string, string, string]> = [
-  [
-    Activity,
-    "Reconciliation",
-    "Desired → observed",
-    "Compare the saved Agent specification with runtime phase, conditions, and the latest operation.",
-  ],
-  [
-    SquareTerminal,
-    "Live access",
-    "Policy-gated session",
-    "Open the Agent UI or OpenShell-backed terminal only when the Instance reports an available target.",
-  ],
-  [
-    FileClock,
-    "Audit evidence",
-    "Actor → action → outcome",
-    "Trace Project and Instance changes through recorded control-plane and sandbox events.",
-  ],
-  [
-    Gauge,
-    "Usage & cost",
-    "Gateway → Project attribution",
-    "Review LiteLLM-attributed model activity and spend by period, resource, and model.",
-  ],
-];
-
-const securityBoundaries = [
-  [
-    "Project identity",
-    "Membership, local authentication or configured OIDC, and resource ownership",
-  ],
-  ["Inference access", "Model scope, budget, and per-instance credentials"],
-  ["Runtime boundary", "Sandbox, workspace, process, and egress policy"],
-];
+  return (
+    <motion.div
+      className={`landing-story-frame ${className}`}
+      initial={false}
+      animate={
+        prefersReducedMotion
+          ? { opacity: 1, scale: 1, y: 0 }
+          : {
+              opacity: active ? 1 : 0.72,
+              scale: active ? 1 : 0.992,
+              y: active ? 0 : offset,
+            }
+      }
+      transition={{ duration: prefersReducedMotion ? 0 : 0.34, ease: storyEase }}
+    >
+      {children}
+    </motion.div>
+  );
+}
 
 function LandingPage() {
   const { user } = useAuth();
-  const [activeRuntimeComponent, setActiveRuntimeComponent] =
-    useState<RuntimeComponentId>("nemoclaw");
+  const [activeStoryIndex, setActiveStoryIndex] = useState(0);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const mobileNavButtonRef = useRef<HTMLButtonElement>(null);
   const mobileNavPanelRef = useRef<HTMLElement>(null);
+  const storyScrollerRef = useRef<HTMLElement>(null);
   const projectId = getStoredProjectId() ?? "individual";
   const projectLink = user
     ? { to: "/$projectId" as const, params: { projectId } }
@@ -213,6 +152,7 @@ function LandingPage() {
     if (!mobileNavOpen) return;
 
     const previousOverflow = document.body.style.overflow;
+    const previousScrollerOverflow = storyScrollerRef.current?.style.overflowY;
     const desktopQuery = window.matchMedia("(min-width: 1024px)");
     const closeNavigation = () => setMobileNavOpen(false);
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -249,6 +189,9 @@ function LandingPage() {
     }, 0);
 
     document.body.style.overflow = "hidden";
+    if (storyScrollerRef.current) {
+      storyScrollerRef.current.style.overflowY = "hidden";
+    }
     window.addEventListener("keydown", handleKeyDown);
     desktopQuery.addEventListener("change", handleViewportChange);
 
@@ -257,13 +200,58 @@ function LandingPage() {
       window.removeEventListener("keydown", handleKeyDown);
       desktopQuery.removeEventListener("change", handleViewportChange);
       document.body.style.overflow = previousOverflow;
+      if (storyScrollerRef.current) {
+        storyScrollerRef.current.style.overflowY =
+          previousScrollerOverflow ?? "";
+      }
       mobileNavButtonRef.current?.focus();
     };
   }, [mobileNavOpen]);
 
+  useEffect(() => {
+    const scroller = storyScrollerRef.current;
+    if (!scroller) return;
+
+    const panels = Array.from(
+      scroller.querySelectorAll<HTMLElement>("[data-story-index]"),
+    );
+    const visibility = new Map<Element, number>();
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          visibility.set(entry.target, entry.intersectionRatio);
+        }
+
+        const nextPanel = panels.reduce<HTMLElement | null>(
+          (mostVisible, panel) => {
+            if (!mostVisible) return panel;
+            return (visibility.get(panel) ?? 0) >
+              (visibility.get(mostVisible) ?? 0)
+              ? panel
+              : mostVisible;
+          },
+          null,
+        );
+        const nextIndex = Number(nextPanel?.dataset.storyIndex);
+        if (Number.isInteger(nextIndex)) setActiveStoryIndex(nextIndex);
+      },
+      {
+        root: scroller,
+        threshold: [0.2, 0.35, 0.5, 0.65, 0.8],
+      },
+    );
+
+    for (const panel of panels) {
+      visibility.set(panel, 0);
+      observer.observe(panel);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <div className="landing-page min-h-svh bg-background text-foreground">
-      <header className="landing-header sticky top-0 z-50 border-b border-white/10 bg-[#07090c] text-white">
+    <div className="landing-page h-svh overflow-hidden bg-background text-foreground">
+      <header className="landing-header relative z-50 border-b border-white/10 bg-[#07090c] text-white">
         <div className="mx-auto flex h-16 max-w-[1480px] items-center justify-between px-5 sm:h-[4.5rem] sm:px-8 lg:px-8 xl:px-12">
           <Link
             to="/"
@@ -279,8 +267,14 @@ function LandingPage() {
             className="hidden h-full items-center gap-5 text-sm text-white/55 lg:flex xl:gap-7"
             aria-label="Landing navigation"
           >
-            {landingNavigation.map(([label, href]) => (
-              <a key={href} href={href} className="landing-header-link">
+            {landingNavigation.map(([label, href], index) => (
+              <a
+                key={href}
+                href={href}
+                aria-current={activeStoryIndex === index ? "page" : undefined}
+                data-active={activeStoryIndex === index}
+                className="landing-header-link"
+              >
                 {label}
               </a>
             ))}
@@ -351,12 +345,13 @@ function LandingPage() {
                   <a
                     key={href}
                     href={href}
+                    aria-current={
+                      activeStoryIndex === index ? "page" : undefined
+                    }
+                    data-active={activeStoryIndex === index}
                     onClick={() => setMobileNavOpen(false)}
-                    className="grid min-h-14 grid-cols-[2rem_1fr_auto] items-center border-b border-white/10 py-2 text-sm text-white/70 transition-colors hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2"
+                    className="grid min-h-14 grid-cols-[1fr_auto] items-center border-b border-white/10 py-2 text-sm text-white/70 transition-colors hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2"
                   >
-                    <span className="font-mono text-[9px] text-white/28">
-                      0{index + 1}
-                    </span>
                     <span>{label}</span>
                     <ArrowRight className="size-3.5" />
                   </a>
@@ -397,48 +392,68 @@ function LandingPage() {
         ) : null}
       </header>
 
-      <main>
-        <section className="landing-agent-hero relative isolate overflow-hidden border-b border-white/10 bg-[#07090c] text-white">
-          <div className="relative mx-auto grid min-h-[calc(100svh-4rem)] max-w-[1480px] items-center px-5 py-14 sm:min-h-[calc(100svh-4.5rem)] sm:px-8 sm:py-16 lg:px-12 lg:py-20">
-            <picture
+      <main
+        ref={storyScrollerRef}
+        tabIndex={0}
+        aria-label="TaskLattice product overview"
+        className="landing-story-scroller h-[calc(100svh-4rem)] overflow-y-auto sm:h-[calc(100svh-4.5rem)]"
+      >
+        <section
+          id="philosophy"
+          data-story-index={0}
+          data-active={activeStoryIndex === 0}
+          className="landing-story-panel landing-agent-hero isolate overflow-hidden border-b border-white/10 bg-[#07090c] text-white"
+        >
+          <StoryFrame
+            index={0}
+            activeIndex={activeStoryIndex}
+            className="relative mx-auto grid min-h-full max-w-[1480px] items-center px-5 py-10 sm:px-8 sm:py-12 lg:px-12 lg:py-16"
+          >
+            <div
               aria-hidden="true"
-              className="landing-agent-backdrop relative order-2 mt-14 block aspect-[4/3] overflow-hidden border border-white/10 lg:absolute lg:inset-0 lg:mt-0 lg:aspect-auto lg:border-0"
+              className="landing-agent-backdrop pointer-events-none absolute inset-0 overflow-hidden"
             >
-              <source
-                media="(prefers-reduced-motion: reduce)"
-                srcSet="/assets/landing/agent-control-layers-poster.png?v=5"
-              />
-              <img
-                src="/assets/landing/agent-control-layers.gif?v=5"
-                alt=""
+              <video
+                autoPlay
+                muted
+                loop
+                playsInline
+                controls={false}
+                preload="metadata"
+                poster="/assets/landing/tali-landing-page-background-poster.jpg"
+                className="pointer-events-none"
+                aria-hidden="true"
                 width={1280}
                 height={720}
-                loading="eager"
-                decoding="async"
-              />
-            </picture>
+              >
+                <source
+                  src="/assets/landing/tali-landing-page-background.mp4"
+                  type="video/mp4"
+                  media="(prefers-reduced-motion: no-preference)"
+                />
+              </video>
+            </div>
             <div
-              className="landing-agent-scrim pointer-events-none absolute inset-0 z-[1] hidden lg:block"
+              className="landing-agent-scrim pointer-events-none absolute inset-0 z-[1]"
               aria-hidden="true"
             />
 
-            <div className="relative z-10 order-1 max-w-[43rem]">
-              <p className="mb-8 flex items-center gap-3 font-mono text-xs uppercase tracking-[0.08em] text-white/50">
+            <div className="relative z-10 max-w-[43rem]">
+              <p className="mb-6 flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.1em] text-white/50 sm:mb-8 sm:text-xs">
                 <span className="h-px w-8 bg-[#42e3ff]" />
-                Kubernetes-native Agent Control Plane
+                Philosophy · Human intent leads
               </p>
-              <h1 className="max-w-4xl text-balance text-[clamp(3.5rem,7.2vw,7.5rem)] leading-[0.91] tracking-[-0.045em]">
-                Operate agents.
-                <span className="block text-[#9c96ff]">
-                  Control every layer.
-                </span>
+              <h1 className="max-w-4xl text-balance text-[clamp(3.25rem,7vw,7rem)] leading-[0.91] tracking-[-0.045em]">
+                Delegate work.
+                <span className="block text-[#9c96ff]">Build experience.</span>
               </h1>
-              <p className="mt-9 max-w-[39rem] text-pretty text-lg leading-8 text-white/60 sm:text-xl">
-                TaskLattice turns models, identities, policies, and extensions
-                into Agent Instance desired state, then reconciles it through
-                NemoClaw inside inspectable OpenShell sandboxes.
+              <p className="mt-7 max-w-[39rem] text-pretty text-base leading-7 text-white/60 sm:mt-9 sm:text-xl sm:leading-8">
+                Give your Supervisor the context, goal, and boundaries. It
+                plans the work, assembles the right capabilities, keeps you
+                informed, and turns every review into experience for the next
+                job.
               </p>
-              <div className="mt-10 flex flex-wrap items-center gap-4">
+              <div className="mt-8 flex flex-wrap items-center gap-4 sm:mt-10">
                 <Link
                   {...projectLink}
                   className="inline-flex min-h-12 items-center gap-3 bg-[#4339ff] px-6 text-sm font-medium text-white transition-colors hover:bg-[#564dff] focus-visible:outline-2 focus-visible:outline-offset-2"
@@ -447,429 +462,257 @@ function LandingPage() {
                   <ArrowRight className="size-4" />
                 </Link>
                 <a
-                  href="#runtime"
-                  className="inline-flex min-h-12 items-center px-2 text-sm font-medium underline decoration-white/25 underline-offset-8 transition-colors hover:decoration-white"
+                  href="#design"
+                  className="inline-flex min-h-12 items-center px-2 text-sm font-medium underline decoration-white/25 underline-offset-8 transition-colors hover:decoration-white focus-visible:outline-2 focus-visible:outline-offset-2"
                 >
-                  Explore the architecture
+                  Explore the product model
                 </a>
               </div>
             </div>
-          </div>
-        </section>
 
-        <TechnologyMarquee />
-
-        <section
-          id="platform"
-          className="border-b border-white/10 bg-[#191a1b] text-white"
-        >
-          <div className="mx-auto grid max-w-[1480px] lg:grid-cols-[0.78fr_1.22fr]">
-            <div className="border-b border-white/10 p-8 sm:p-12 lg:border-b-0 lg:border-r lg:p-16">
-              <p className="font-mono text-xs uppercase tracking-[0.08em] text-[#9c96ff]">
-                The control model
-              </p>
-              <h2 className="mt-8 max-w-lg text-4xl leading-tight tracking-[-0.025em] sm:text-5xl">
-                One Agent Instance. Four explicit layers.
-              </h2>
-              <p className="mt-6 max-w-md leading-7 text-white/58">
-                Desired configuration and observed runtime state remain
-                separate. You can see what was requested, what is running, and
-                which boundary rejected an action.
-              </p>
-            </div>
-            <div className="control-layer-grid grid sm:grid-cols-2">
-              {controlLayers.map(([Icon, title, kicker, copy], index) => (
-                <article key={title} className="p-8 sm:p-10">
-                  <div className="flex items-center justify-between">
-                    <Icon className="size-5 text-[#9c96ff]" />
-                    <span className="font-mono text-[10px] text-white/28">
-                      0{index + 1}
-                    </span>
-                  </div>
-                  <p className="mt-14 font-mono text-[10px] uppercase tracking-[0.08em] text-[#42e3ff]/70">
-                    {kicker}
-                  </p>
-                  <h3 className="mt-3 text-xl font-medium">{title}</h3>
-                  <p className="mt-3 max-w-sm text-sm leading-6 text-white/50">
-                    {copy}
-                  </p>
-                </article>
-              ))}
-            </div>
-          </div>
+          </StoryFrame>
         </section>
 
         <section
-          id="runtime"
-          className="mx-auto max-w-[1480px] px-5 py-24 sm:px-8 lg:px-12 lg:py-32"
+          id="design"
+          data-story-index={1}
+          data-active={activeStoryIndex === 1}
+          className="landing-story-panel overflow-hidden border-b border-[#d8d4ca] bg-[#f3f0e9] text-[#191c20]"
         >
-          <div className="grid gap-12 lg:grid-cols-[0.72fr_1.28fr]">
-            <div>
-              <p className="font-mono text-xs uppercase tracking-[0.08em] text-[var(--landing-runtime-accent)]">
-                Runtime path
-              </p>
-              <h2 className="mt-6 max-w-lg text-4xl leading-tight tracking-[-0.025em] sm:text-5xl">
-                From model access to a live Agent.
-              </h2>
-              <p className="mt-6 max-w-md leading-7 text-muted-foreground">
-                Each step creates an inspectable resource or policy. Nothing
-                jumps directly from a prompt to an opaque process.
-              </p>
-            </div>
-            <ol className="border-t border-border">
-              {workflow.map((item, index) => (
-                <li
-                  key={item.label}
-                  className="grid gap-4 border-b border-border py-7 sm:grid-cols-[4rem_0.65fr_1fr] sm:items-center"
-                >
-                  <span className="font-mono text-xs text-muted-foreground">
-                    0{index + 1}
-                  </span>
-                  <strong className="text-xl font-medium">{item.label}</strong>
-                  <span className="text-sm leading-6 text-muted-foreground">
-                    {item.detail}
-                  </span>
-                </li>
-              ))}
-            </ol>
-          </div>
-
-          <div className="mt-20 border-t border-border lg:mt-28">
-            <div className="grid gap-7 py-10 sm:py-12 lg:grid-cols-[0.72fr_1.28fr] lg:items-end">
+          <StoryFrame
+            index={1}
+            activeIndex={activeStoryIndex}
+            className="mx-auto flex min-h-full max-w-[1480px] flex-col justify-center px-5 py-8 sm:px-8 sm:py-10 lg:px-12 lg:py-6 xl:py-8"
+          >
+            <div className="grid gap-4 lg:grid-cols-[0.85fr_1.15fr] lg:items-end lg:gap-12">
               <div>
-                <p className="font-mono text-xs uppercase tracking-[0.08em] text-[var(--landing-runtime-accent)]">
-                  Runtime architecture
+                <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-[#4339ff] sm:text-xs">
+                  Product design
                 </p>
-                <h3 className="mt-5 max-w-xl text-3xl leading-tight tracking-[-0.025em] sm:text-4xl">
-                  Clear responsibilities. One governed path.
-                </h3>
+                <h2 className="mt-4 max-w-xl text-3xl leading-tight tracking-[-0.03em] sm:text-5xl lg:text-4xl 2xl:text-5xl">
+                  Intelligence grows through work.
+                </h2>
               </div>
-              <p className="max-w-2xl text-sm leading-7 text-muted-foreground lg:justify-self-end">
-                Inspect how configuration, sandbox policy, model access, and the
-                Agent runtime work together. Hover or focus a component to
-                preview it; select it to keep the detail in view.
+              <p className="max-w-2xl text-sm leading-6 text-[#62636a] sm:text-base sm:leading-7 lg:justify-self-end">
+                TaskLattice treats AI as a workforce with continuity—not a
+                collection of configuration screens. Human intent starts the
+                job, organizational capabilities make it possible, and
+                experience improves what happens next.
               </p>
             </div>
 
-            <Tabs
-              value={activeRuntimeComponent}
-              onValueChange={(value) =>
-                setActiveRuntimeComponent(value as RuntimeComponentId)
-              }
-              activationMode="automatic"
-              orientation="vertical"
-              className="landing-runtime-browser"
-            >
-              <TabsList
-                aria-label="Runtime architecture components"
-                className="landing-runtime-list"
-              >
-                {runtimeComponents.map((component, index) => (
-                  <TabsTrigger
-                    key={component.id}
-                    value={component.id}
-                    onFocus={() => setActiveRuntimeComponent(component.id)}
-                    onMouseEnter={() => setActiveRuntimeComponent(component.id)}
-                    className="landing-runtime-trigger"
-                  >
-                    <span className="landing-runtime-index">0{index + 1}</span>
-                    <span className="landing-runtime-label">
-                      {component.label}
-                    </span>
-                    <ArrowRight className="landing-runtime-arrow size-4" />
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-
-              <div className="landing-runtime-detail">
-                {runtimeComponents.map((component) => (
-                  <TabsContent
-                    key={component.id}
-                    value={component.id}
-                    className="landing-runtime-panel"
-                  >
-                    <div className="flex min-h-full flex-col justify-between gap-12">
-                      <div>
-                        <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-[var(--landing-runtime-accent)]">
-                          {component.eyebrow}
-                        </p>
-                        <h4 className="mt-5 max-w-2xl text-3xl leading-tight tracking-[-0.02em] sm:text-4xl">
-                          {component.title}
-                        </h4>
-                        <p className="mt-6 max-w-2xl text-base leading-7 text-muted-foreground">
-                          {component.description}
-                        </p>
-                      </div>
-                      <dl className="grid border-y border-border sm:grid-cols-2 sm:divide-x sm:divide-border">
-                        {component.facts.map(([label, value]) => (
-                          <div
-                            key={label}
-                            className="py-4 sm:px-5 sm:first:pl-0"
-                          >
-                            <dt className="font-mono text-[9px] uppercase tracking-[0.08em] text-muted-foreground">
-                              {label}
-                            </dt>
-                            <dd className="mt-2 text-sm font-medium text-foreground">
-                              {value}
-                            </dd>
-                          </div>
-                        ))}
-                      </dl>
-                    </div>
-                  </TabsContent>
-                ))}
-              </div>
-            </Tabs>
-          </div>
-        </section>
-
-        <section
-          id="operations"
-          className="border-y border-white/10 bg-[#0d0f12] text-white"
-        >
-          <div className="mx-auto grid max-w-[1480px] lg:grid-cols-[0.78fr_1.22fr]">
-            <div className="border-b border-white/10 p-8 sm:p-12 lg:border-b-0 lg:border-r lg:p-16">
-              <p className="font-mono text-xs uppercase tracking-[0.08em] text-[#42e3ff]/75">
-                Operating evidence
-              </p>
-              <h2 className="mt-7 max-w-xl text-4xl leading-tight tracking-[-0.025em] sm:text-5xl">
-                See intent, runtime, and evidence in one path.
-              </h2>
-              <p className="mt-6 max-w-lg leading-7 text-white/52">
-                Operations do not end at provisioning. TaskLattice keeps the
-                Agent specification, runtime access, audit history, and model
-                attribution connected to the same Project-scoped Instance.
-              </p>
-              <Link
-                {...projectLink}
-                className="mt-9 inline-flex min-h-11 items-center gap-2 border-b border-white/45 text-sm font-medium text-white transition-colors hover:border-white focus-visible:outline-2 focus-visible:outline-offset-2"
-              >
-                {user ? "Open console" : "Sign in"}
-                <ArrowRight className="size-4" />
-              </Link>
-            </div>
-
-            <div className="operations-ledger grid">
-              {operationalSurfaces.map(([Icon, title, signal, copy], index) => (
+            <div className="landing-concept-grid mt-7 grid gap-3 sm:mt-8 lg:mt-6 lg:grid-cols-3 lg:gap-px lg:border lg:border-[#d8d4ca] lg:bg-[#d8d4ca]">
+              {conceptStories.map((story) => (
                 <article
-                  key={title}
-                  className="operations-ledger-row grid gap-5 border-b border-white/10 p-8 last:border-b-0 sm:grid-cols-[3.5rem_0.75fr_1.25fr] sm:items-center sm:p-10"
+                  key={story.eyebrow}
+                  className="landing-concept-card grid overflow-hidden border border-[#d8d4ca] bg-[#faf8f3] lg:border-0"
                 >
-                  <div className="flex items-center justify-between sm:block">
-                    <Icon className="size-5 text-[#9c96ff]" />
-                    <span className="font-mono text-[9px] text-white/24 sm:mt-5 sm:block">
-                      0{index + 1}
-                    </span>
+                  <div className="landing-concept-visual overflow-hidden bg-[#f8f5ef]">
+                    <img
+                      src={story.image}
+                      alt=""
+                      aria-hidden="true"
+                      width={1254}
+                      height={1254}
+                      loading="lazy"
+                      decoding="async"
+                    />
                   </div>
-                  <div>
-                    <p className="font-mono text-[9px] uppercase tracking-[0.08em] text-[#42e3ff]/62">
-                      {signal}
+                  <div className="landing-concept-copy p-4 sm:p-5 lg:p-5">
+                    <p className="font-mono text-[9px] uppercase tracking-[0.1em] text-[#4339ff]">
+                      {story.eyebrow}
                     </p>
-                    <h3 className="mt-2 text-xl font-medium text-white">
-                      {title}
+                    <h3 className="mt-2 text-lg font-medium tracking-[-0.015em] sm:text-xl">
+                      {story.title}
                     </h3>
+                    <p className="mt-2 text-xs leading-5 text-[#62636a] sm:text-sm sm:leading-6 lg:text-xs lg:leading-5 xl:text-sm xl:leading-6">
+                      {story.description}
+                    </p>
                   </div>
-                  <p className="max-w-md text-sm leading-6 text-white/48">
-                    {copy}
-                  </p>
                 </article>
               ))}
             </div>
-          </div>
-        </section>
-
-        <section id="security" className="border-b border-border bg-muted">
-          <div className="mx-auto grid max-w-[1480px] lg:grid-cols-[0.9fr_1.1fr]">
-            <div className="border-b border-border p-8 sm:p-12 lg:border-b-0 lg:border-r lg:p-16">
-              <ShieldCheck className="size-7 text-primary" />
-              <p className="mt-8 font-mono text-xs uppercase tracking-[0.08em] text-primary">
-                Inspectable boundaries
-              </p>
-              <h2 className="mt-6 max-w-2xl text-4xl leading-tight tracking-[-0.025em] sm:text-6xl">
-                Security is explicit at every layer.
-              </h2>
-              <p className="mt-7 max-w-xl text-base leading-7 text-muted-foreground">
-                Project identity controls ownership. LiteLLM scopes model and
-                MCP access with per-instance credentials. OpenShell enforces
-                filesystem, process, and network policy—while upstream provider
-                secrets stay outside the Agent workspace.
-              </p>
-              <Link
-                {...projectLink}
-                className="mt-9 inline-flex min-h-11 items-center gap-2 border-b border-foreground text-sm font-medium"
-              >
-                {user ? "Open console" : "Sign in"}
-                <ArrowRight className="size-4" />
-              </Link>
-            </div>
-
-            <ol className="security-boundary-list grid">
-              {securityBoundaries.map(([title, detail], index) => (
-                <li
-                  key={title}
-                  className="grid gap-5 border-b border-border p-8 last:border-b-0 sm:grid-cols-[4rem_0.8fr_1.2fr] sm:items-center sm:p-10"
-                >
-                  <span className="font-mono text-xs text-primary">
-                    0{index + 1}
-                  </span>
-                  <strong className="text-lg font-medium">{title}</strong>
-                  <span className="text-sm leading-6 text-muted-foreground">
-                    {detail}
-                  </span>
-                </li>
-              ))}
-            </ol>
-          </div>
+          </StoryFrame>
         </section>
 
         <section
-          aria-labelledby="landing-final-cta"
-          className="border-b border-white/10 bg-[#191a1b] text-white"
+          id="technology"
+          data-story-index={2}
+          data-active={activeStoryIndex === 2}
+          className="landing-story-panel overflow-hidden border-b border-white/10 bg-[#0d0f12] text-white"
         >
-          <div className="mx-auto grid max-w-[1480px] gap-8 px-5 py-14 sm:px-8 sm:py-16 lg:grid-cols-[1fr_auto] lg:items-end lg:px-12">
-            <div>
-              <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-[#42e3ff]/70">
-                Start inside a Project boundary
-              </p>
-              <h2
-                id="landing-final-cta"
-                className="mt-5 max-w-3xl text-3xl leading-tight tracking-[-0.025em] sm:text-5xl"
-              >
-                Operate your first Agent.
-              </h2>
+          <StoryFrame
+            index={2}
+            activeIndex={activeStoryIndex}
+            className="flex min-h-full flex-col"
+          >
+            <div className="mx-auto flex w-full max-w-[1480px] flex-1 flex-col justify-center px-5 py-7 sm:px-8 sm:py-9 lg:px-12 lg:py-6 xl:py-8">
+              <div className="grid gap-4 lg:grid-cols-[0.85fr_1.15fr] lg:items-end lg:gap-12">
+                <div>
+                  <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-[#42e3ff]/70 sm:text-xs">
+                    Technology
+                  </p>
+                  <h2 className="mt-4 max-w-2xl text-3xl leading-tight tracking-[-0.03em] sm:text-5xl lg:text-4xl 2xl:text-5xl">
+                    A governed runtime beneath the simple experience.
+                  </h2>
+                </div>
+                <p className="max-w-2xl text-sm leading-6 text-white/48 sm:text-base sm:leading-7 lg:justify-self-end">
+                  The product hides infrastructure from everyday work without
+                  hiding responsibility. Every worker, capability, permission,
+                  model call, and cost remains attributable and inspectable.
+                </p>
+              </div>
+
+              <div className="landing-technology-cards mt-7 flex gap-3 overflow-x-auto pb-2 sm:mt-8 lg:mt-6 lg:grid lg:grid-cols-4 lg:gap-px lg:overflow-visible lg:border lg:border-white/10 lg:bg-white/10 lg:pb-0">
+                {runtimeComponents.map((component) => (
+                  <article
+                    key={component.label}
+                    className="w-[82vw] max-w-[20rem] shrink-0 border border-white/10 bg-[#121519] p-5 lg:w-auto lg:max-w-none lg:border-0 lg:p-3 2xl:p-5"
+                  >
+                    <p className="font-mono text-[9px] uppercase tracking-[0.1em] text-[#42e3ff]/62">
+                      {component.eyebrow}
+                    </p>
+                    <p className="mt-5 text-sm font-medium text-[#9c96ff] lg:mt-3 lg:text-xs 2xl:text-sm">
+                      {component.label}
+                    </p>
+                    <h3 className="mt-2 text-xl leading-tight tracking-[-0.02em] lg:text-lg 2xl:text-xl">
+                      {component.title}
+                    </h3>
+                    <p className="mt-4 text-xs leading-5 text-white/45 sm:text-sm sm:leading-6 lg:mt-3 lg:text-[11px] lg:leading-[1.125rem] 2xl:text-sm 2xl:leading-6">
+                      {component.description}
+                    </p>
+                    <ul className="mt-5 grid gap-2 border-t border-white/10 pt-4 font-mono text-[9px] uppercase tracking-[0.06em] text-white/32 lg:mt-3 lg:flex lg:flex-wrap lg:gap-x-3 lg:gap-y-1 lg:pt-3 lg:text-[8px] 2xl:grid 2xl:text-[9px]">
+                      {component.facts.map((fact) => (
+                        <li key={fact}>{fact}</li>
+                      ))}
+                    </ul>
+                  </article>
+                ))}
+              </div>
             </div>
-            <div className="flex flex-wrap items-center gap-4">
-              <Link
-                {...projectLink}
-                className="inline-flex min-h-12 w-fit items-center gap-3 bg-[#4339ff] px-6 text-sm font-medium text-white transition-colors hover:bg-[#564dff] focus-visible:outline-2 focus-visible:outline-offset-2"
-              >
-                {user ? "Open console" : "Sign in"}
-                <ArrowRight className="size-4" />
-              </Link>
-              <a
-                href="https://github.com/Sn0rt/TaskLattice/tree/main/docs"
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex min-h-12 items-center gap-2 px-2 text-sm text-white/68 underline decoration-white/25 underline-offset-8 transition-colors hover:text-white hover:decoration-white focus-visible:outline-2 focus-visible:outline-offset-2"
-              >
-                Read documentation
-                <ExternalLink className="size-3.5" />
-              </a>
-            </div>
-          </div>
+
+            <TechnologyMarquee />
+          </StoryFrame>
         </section>
+
+        <footer
+          id="resources"
+          data-story-index={3}
+          data-active={activeStoryIndex === 3}
+          className="landing-story-panel landing-footer bg-[#07090c] text-white"
+        >
+          <StoryFrame
+            index={3}
+            activeIndex={activeStoryIndex}
+            className="flex min-h-full flex-col"
+          >
+            <div className="mx-auto grid w-full max-w-[1480px] flex-1 gap-10 px-5 py-10 sm:px-8 sm:py-12 lg:grid-cols-[1.2fr_0.8fr] lg:items-center lg:gap-20 lg:px-12">
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-[#42e3ff]/70 sm:text-xs">
+                  What TaskLattice is
+                </p>
+                <h2 className="mt-5 max-w-3xl text-4xl leading-[1.04] tracking-[-0.035em] sm:text-6xl">
+                  The operating layer for an accountable AI workforce.
+                </h2>
+                <p className="mt-6 max-w-2xl text-sm leading-7 text-white/52 sm:text-base">
+                  TaskLattice is an open-source, Kubernetes-native AI workforce
+                  runtime. It brings persistent Supervisors, specialist agents,
+                  organizational capabilities, identity, policy, budget, and
+                  evidence into one inspectable system.
+                </p>
+                <div className="mt-8 flex flex-wrap items-center gap-4">
+                  <Link
+                    {...projectLink}
+                    className="inline-flex min-h-12 w-fit items-center gap-3 bg-[#4339ff] px-6 text-sm font-medium text-white transition-colors hover:bg-[#564dff] focus-visible:outline-2 focus-visible:outline-offset-2"
+                  >
+                    {user ? "Open console" : "Sign in"}
+                    <ArrowRight className="size-4" />
+                  </Link>
+                  <a
+                    href="https://github.com/Sn0rt/TaskLattice/tree/main/docs"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex min-h-12 items-center gap-2 px-2 text-sm text-white/68 underline decoration-white/25 underline-offset-8 transition-colors hover:text-white hover:decoration-white focus-visible:outline-2 focus-visible:outline-offset-2"
+                  >
+                    Read documentation
+                    <ExternalLink className="size-3.5" />
+                  </a>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-x-8 gap-y-8 border-t border-white/10 pt-8 sm:grid-cols-3 lg:border-l lg:border-t-0 lg:pl-12 lg:pt-0">
+                <nav aria-label="Landing chapters">
+                  <p className="font-mono text-[9px] uppercase tracking-[0.1em] text-white/28">
+                    Explore
+                  </p>
+                  <ul className="mt-4 grid text-sm text-white/52">
+                    {landingNavigation.map(([label, href]) => (
+                      <li key={href}>
+                        <a
+                          href={href}
+                          className="inline-flex min-h-11 items-center transition-colors hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2"
+                        >
+                          {label}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </nav>
+
+                <nav aria-label="TaskLattice resources">
+                  <p className="font-mono text-[9px] uppercase tracking-[0.1em] text-white/28">
+                    Resources
+                  </p>
+                  <ul className="mt-4 grid text-sm text-white/52">
+                    {footerResources.map(([label, href]) => (
+                      <li key={href}>
+                        <a
+                          href={href}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex min-h-11 items-center gap-2 transition-colors hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2"
+                        >
+                          {label}
+                          <ExternalLink className="size-3 shrink-0" />
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </nav>
+
+                <nav aria-label="Open source links">
+                  <p className="font-mono text-[9px] uppercase tracking-[0.1em] text-white/28">
+                    Open source
+                  </p>
+                  <ul className="mt-4 grid text-sm text-white/52">
+                    {footerOpenSource.map(([label, href]) => (
+                      <li key={href}>
+                        <a
+                          href={href}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex min-h-11 items-center gap-2 transition-colors hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2"
+                        >
+                          {label}
+                          <ExternalLink className="size-3 shrink-0" />
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </nav>
+              </div>
+            </div>
+
+            <div className="border-t border-white/10">
+              <div className="mx-auto flex max-w-[1480px] flex-wrap items-center justify-between gap-4 px-5 py-5 font-mono text-[9px] uppercase tracking-[0.08em] text-white/28 sm:px-8 lg:px-12">
+                <span>© {new Date().getFullYear()} TaskLattice</span>
+                <span>Kubernetes-native · AI workforce runtime</span>
+                <span>Self-hosted on Kubernetes</span>
+              </div>
+            </div>
+          </StoryFrame>
+        </footer>
       </main>
-
-      <footer className="landing-footer bg-[#07090c] text-white">
-        <div className="mx-auto grid max-w-[1480px] gap-12 px-5 py-14 sm:px-8 lg:grid-cols-[1.25fr_0.62fr_0.78fr_0.78fr_1fr] lg:gap-8 lg:px-12 lg:py-16 xl:gap-12">
-          <div>
-            <BrandLogo className="text-white [&_.text-muted-foreground]:text-white/42" />
-            <p className="mt-6 max-w-sm text-sm leading-6 text-white/45">
-              A Project-scoped Kubernetes control plane for configuring,
-              operating, and auditing Agent Instances without hiding their
-              runtime boundaries.
-            </p>
-            <p className="mt-7 font-mono text-[9px] uppercase tracking-[0.08em] text-white/25">
-              Early preview · v0.1.x
-            </p>
-            <p className="mt-4 max-w-sm text-[10px] leading-5 text-white/25">
-              Third-party marks identify technologies and integrations; they do
-              not imply endorsement.
-            </p>
-          </div>
-
-          <div className="col-span-full grid grid-cols-2 gap-x-8 gap-y-10 md:grid-cols-4 lg:contents">
-            <nav aria-label="Product links">
-              <p className="font-mono text-[9px] uppercase tracking-[0.1em] text-white/28">
-                Product
-              </p>
-              <ul className="mt-5 grid gap-3 text-sm text-white/52">
-                {landingNavigation.map(([label, href]) => (
-                  <li key={href}>
-                    <a
-                      href={href}
-                      className="inline-flex min-h-11 items-center transition-colors hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2"
-                    >
-                      {label}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </nav>
-
-            <nav aria-label="TaskLattice resources">
-              <p className="font-mono text-[9px] uppercase tracking-[0.1em] text-white/28">
-                Resources
-              </p>
-              <ul className="mt-5 grid gap-3 text-sm text-white/52">
-                {footerResources.map(([label, href]) => (
-                  <li key={href}>
-                    <a
-                      href={href}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex min-h-11 items-center gap-2 transition-colors hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2"
-                    >
-                      {label}
-                      <ExternalLink className="size-3" />
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </nav>
-
-            <nav aria-label="Open source links">
-              <p className="font-mono text-[9px] uppercase tracking-[0.1em] text-white/28">
-                Open source
-              </p>
-              <ul className="mt-5 grid gap-3 text-sm text-white/52">
-                {footerOpenSource.map(([label, href]) => (
-                  <li key={href}>
-                    <a
-                      href={href}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex min-h-11 items-center gap-2 transition-colors hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2"
-                    >
-                      {label}
-                      <ExternalLink className="size-3" />
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </nav>
-
-            <nav aria-label="Technology links">
-              <p className="font-mono text-[9px] uppercase tracking-[0.1em] text-white/28">
-                Technology
-              </p>
-              <ul className="mt-5 grid gap-3 text-sm text-white/52">
-                {footerTechnology.map(([label, href]) => (
-                  <li key={href}>
-                    <a
-                      href={href}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex min-h-11 items-center gap-2 transition-colors hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2"
-                    >
-                      {label}
-                      <ExternalLink className="size-3 shrink-0" />
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </nav>
-          </div>
-        </div>
-
-        <div className="border-t border-white/10">
-          <div className="mx-auto flex max-w-[1480px] flex-wrap items-center justify-between gap-4 px-5 py-6 font-mono text-[9px] uppercase tracking-[0.08em] text-white/28 sm:px-8 lg:px-12">
-            <span>© {new Date().getFullYear()} TaskLattice</span>
-            <span>Kubernetes-native · Agent operations</span>
-            <span>Self-hosted on Kubernetes</span>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }
