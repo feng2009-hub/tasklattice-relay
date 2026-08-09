@@ -13,7 +13,7 @@ describe("terminal sessions", () => {
       "openclaw",
       "primary",
     );
-    const url = new URL(created.websocketUrl, "http://tasklattice.local");
+    const url = new URL(created.websocketUrl, "http://tali.local");
     const token = url.searchParams.get("token");
 
     expect(url.pathname).toBe(

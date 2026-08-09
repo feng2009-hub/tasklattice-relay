@@ -13,7 +13,7 @@ import type {
   PlatformAuditLogEvent,
   PlatformAuditLogFacets,
   PlatformAuditSortDirection,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import {
   ChevronLeft,
   ChevronRight,

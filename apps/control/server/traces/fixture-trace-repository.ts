@@ -4,7 +4,7 @@ import type {
   TraceSpan,
   TraceStatus,
   TraceSummary,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import type { TraceRepository } from "./trace-repository";
 
 interface TraceFixture {
@@ -35,7 +35,7 @@ const successFixture: TraceFixture = {
       spanId: "span-root-success",
       name: "Resolve workspace access issue",
       type: "workflow",
-      serviceName: "tasklattice-control",
+      serviceName: "tali-control",
       agentName: "Support Coordinator",
       startOffsetMs: 0,
       durationMs: 4820,
@@ -52,8 +52,8 @@ const successFixture: TraceFixture = {
       attributes: {
         "gen_ai.operation.name": "invoke_workflow",
         "gen_ai.workflow.name": "workspace_access_resolution",
-        "tasklattice.flow.id": "flow-access-1042",
-        "tasklattice.environment": "demo",
+        "tali.flow.id": "flow-access-1042",
+        "tali.environment": "demo",
       },
     },
     {
@@ -189,8 +189,8 @@ const successFixture: TraceFixture = {
       input: { policy: "support-safe-response-v4" },
       output: { allowed: true, findings: [] },
       attributes: {
-        "tasklattice.policy.name": "support-safe-response-v4",
-        "tasklattice.policy.decision": "allow",
+        "tali.policy.name": "support-safe-response-v4",
+        "tali.policy.decision": "allow",
       },
     },
     {
@@ -227,7 +227,7 @@ const successFixture: TraceFixture = {
       input: { channel: "in_app" },
       output: { delivered: true },
       attributes: {
-        "messaging.system": "tasklattice.support",
+        "messaging.system": "tali.support",
         "messaging.operation.name": "send",
       },
     },
@@ -260,7 +260,7 @@ const errorFixture: TraceFixture = {
       output: { resolution: "escalated", retryable: true },
       attributes: {
         "gen_ai.operation.name": "invoke_workflow",
-        "tasklattice.flow.id": "flow-refund-7714",
+        "tali.flow.id": "flow-refund-7714",
       },
       events: [
         {
@@ -414,7 +414,7 @@ const asyncFixture: TraceFixture = {
       output: { taskId: "a2a-task-7730", state: "waiting_for_callback" },
       attributes: {
         "gen_ai.operation.name": "invoke_workflow",
-        "tasklattice.flow.id": "flow-risk-2094",
+        "tali.flow.id": "flow-risk-2094",
         "a2a.context.id": "a2a-context-risk-2094",
       },
     },
@@ -467,7 +467,7 @@ const asyncFixture: TraceFixture = {
         "gen_ai.operation.name": "invoke_agent",
         "a2a.context.id": "a2a-context-risk-2094",
         "a2a.task.id": "a2a-task-7730",
-        "tasklattice.telemetry.coverage": "boundary-only",
+        "tali.telemetry.coverage": "boundary-only",
       },
       links: [
         {
@@ -498,7 +498,7 @@ const asyncFixture: TraceFixture = {
       output: { callbackRegistered: true, expiresIn: "30m" },
       attributes: {
         "http.request.method": "POST",
-        "server.address": "a2a-gateway.tasklattice.internal",
+        "server.address": "a2a-gateway.tali.internal",
         "http.response.status_code": 202,
       },
     },

@@ -1,8 +1,8 @@
 import type { ThemePreference } from "@/services/personal-profile";
 
-const themeKey = "tasklattice.account.theme";
-const timezoneKey = "tasklattice.account.timezone";
-export const PREFERENCES_CHANGED_EVENT = "tasklattice:preferences-changed";
+const themeKey = "tali.account.theme";
+const timezoneKey = "tali.account.timezone";
+export const PREFERENCES_CHANGED_EVENT = "tali:preferences-changed";
 
 export function detectedTimezone(): string {
   if (typeof Intl === "undefined") return "UTC";

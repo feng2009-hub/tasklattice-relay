@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   encodeTerminalResize,
   parseTerminalResize,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import { agentMemoryInstructions, nemoClawTerminalArguments, onboardCommand } from "./nemoclaw.js";
 import { getAgentPlatformRuntime } from "./agent-platform.js";
 import {
@@ -19,8 +19,8 @@ import {
   openShellWebUiTokenArguments,
   parseOpenShellServiceUrl,
   parseOpenShellAuditLog,
-  taskLatticeLiteLlmProviderProfile,
-  taskLatticeLiteLlmProviderProfileId,
+  taliLiteLlmProviderProfile,
+  taliLiteLlmProviderProfileId,
   tokenizedOpenClawUrl,
 } from "./openshell.js";
 
@@ -28,28 +28,28 @@ describe("NemoClaw command contract", () => {
   it("maps the scoped LiteLLM endpoint without putting the key in argv", () => {
     vi.stubEnv("DEEPSEEK_API_KEY", "host-secret-value");
     const command = onboardCommand({
-      name: "tasklattice-research-a1b2c3d4",
+      name: "tali-research-a1b2c3d4",
       agentPlatform: "openclaw",
       providerName: "DeepSeek",
       model: "tali/provider/deepseek-chat",
-      inferenceEndpoint: "http://tasklattice-litellm:4000/v1",
+      inferenceEndpoint: "http://tali-litellm:4000/v1",
       systemPrompt: "You are a research agent.",
       apiKey: "database-secret-value",
     });
     expect(command.args).toContain("openclaw");
     expect(command.args.join(" ")).not.toContain("database-secret-value");
     expect(command.env.NEMOCLAW_PROVIDER).toBe("custom");
-    expect(command.env.NEMOCLAW_ENDPOINT_URL).toBe("http://tasklattice-litellm:4000/v1");
+    expect(command.env.NEMOCLAW_ENDPOINT_URL).toBe("http://tali-litellm:4000/v1");
     expect(command.env.COMPATIBLE_API_KEY).toBe("database-secret-value");
   });
 
   it("selects Hermes through the same NemoClaw onboarding contract", () => {
     const command = onboardCommand({
-      name: "tasklattice-hermes-a1b2c3d4",
+      name: "tali-hermes-a1b2c3d4",
       agentPlatform: "hermes",
       providerName: "DeepSeek",
       model: "tali/provider/deepseek-chat",
-      inferenceEndpoint: "http://tasklattice-litellm:4000/v1",
+      inferenceEndpoint: "http://tali-litellm:4000/v1",
       systemPrompt: "You are a research agent.",
       apiKey: "database-secret-value",
     });
@@ -61,11 +61,11 @@ describe("NemoClaw command contract", () => {
 
 describe("OpenShell Kubernetes command contract", () => {
   const input = {
-    name: "tasklattice-research-a1b2c3d4",
+    name: "tali-research-a1b2c3d4",
     agentPlatform: "openclaw" as const,
     providerName: "DeepSeek",
     model: "tali/provider/deepseek-chat",
-    inferenceEndpoint: "http://tasklattice-litellm:4000/v1",
+    inferenceEndpoint: "http://tali-litellm:4000/v1",
     systemPrompt: "You are a research agent.",
     apiKey: "database-secret-value",
   };
@@ -73,9 +73,9 @@ describe("OpenShell Kubernetes command contract", () => {
   it("passes the virtual key through the Provider environment only", () => {
     const command = deepSeekProviderCreateCommand(input);
     expect(command.args.join(" ")).not.toContain("database-secret-value");
-    expect(command.args).toContain(taskLatticeLiteLlmProviderProfileId);
+    expect(command.args).toContain(taliLiteLlmProviderProfileId);
     expect(command.args).toContain("OPENAI_API_KEY");
-    expect(command.args).toContain("OPENAI_BASE_URL=http://tasklattice-litellm:4000/v1");
+    expect(command.args).toContain("OPENAI_BASE_URL=http://tali-litellm:4000/v1");
     expect(command.env.OPENAI_API_KEY).toBe("database-secret-value");
   });
 
@@ -91,16 +91,16 @@ describe("OpenShell Kubernetes command contract", () => {
   });
 
   it("defines LiteLLM credential injection for OpenClaw and Hermes", () => {
-    const profile = taskLatticeLiteLlmProviderProfile(
-      "http://tasklattice-litellm.tasklattice-sandboxes.svc.cluster.local:4000/v1",
+    const profile = taliLiteLlmProviderProfile(
+      "http://tali-litellm.tali-sandboxes.svc.cluster.local:4000/v1",
     );
 
-    expect(profile).toContain("id: tasklattice-litellm");
+    expect(profile).toContain("id: tali-litellm");
     expect(profile).toContain("env_vars:\n      - OPENAI_API_KEY");
     expect(profile).toContain("auth_style: bearer");
     expect(profile).toContain("header_name: authorization");
     expect(profile).toContain(
-      "host: tasklattice-litellm.tasklattice-sandboxes.svc.cluster.local",
+      "host: tali-litellm.tali-sandboxes.svc.cluster.local",
     );
     expect(profile).toContain("port: 4000");
     expect(profile).toContain("access: full");
@@ -117,15 +117,15 @@ describe("OpenShell Kubernetes command contract", () => {
       "/tmp/tali-nemoclaw-start",
       "/tmp/openshell-policy.yaml",
     );
-    expect(args).toContain("ghcr.io/sn0rt/tasklattice-nemoclaw-sandbox:dev");
-    expect(args).toContain("tasklattice.ai/managed=true");
+    expect(args).toContain("ghcr.io/tasklattice/tali-nemoclaw-sandbox:dev");
+    expect(args).toContain("tali.ai/managed=true");
     expect(args).toContain(
       "/tmp/AGENTS.md:/sandbox/.openclaw/workspace/AGENTS.md",
     );
     expect(args).toContain(
       "/tmp/tali-nemoclaw-start:/tmp/tali-nemoclaw-start",
     );
-    expect(args).toContain("tali-tasklattice-research-a1b2c3d4");
+    expect(args).toContain("tali-research-a1b2c3d4");
     expect(args).toContain("--policy");
     expect(args).toContain("/tmp/openshell-policy.yaml");
     expect(args).toContain("1");
@@ -138,14 +138,14 @@ describe("OpenShell Kubernetes command contract", () => {
 
   it("leaves inference routing to the attached Provider profile", () => {
     const policy = composeOpenShellInferencePolicy(
-      "version: 1\nnetwork_policies:\n  github:\n    name: github\n  tasklattice_inference_gateway:\n    name: legacy\n",
-      "http://tasklattice-litellm.tasklattice-sandboxes.svc.cluster.local:4000/v1",
+      "version: 1\nnetwork_policies:\n  github:\n    name: github\n  tali_inference_gateway:\n    name: legacy\n",
+      "http://tali-litellm.tali-sandboxes.svc.cluster.local:4000/v1",
       "openclaw",
     );
 
     expect(policy).toContain("github:");
-    expect(policy).not.toContain("tasklattice_inference_gateway:");
-    expect(policy).not.toContain("tasklattice-litellm");
+    expect(policy).not.toContain("tali_inference_gateway:");
+    expect(policy).not.toContain("tali-litellm");
   });
 
   it("does not duplicate Provider routing in a minimal Hermes policy", () => {
@@ -230,7 +230,7 @@ describe("OpenShell Kubernetes command contract", () => {
     );
 
     expect(createArgs).toContain(
-      "ghcr.io/sn0rt/tasklattice-nemoclaw-hermes-sandbox:dev",
+      "ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:dev",
     );
     expect(createArgs).toContain("/tmp/SOUL.md:/sandbox/.hermes/SOUL.md");
     expect(

@@ -3,23 +3,23 @@
 import { execFileSync } from "node:child_process";
 import { parseAllDocuments } from "yaml";
 
-const releaseName = "tasklattice";
-const releaseNamespace = "tasklattice-openshift-validation";
+const releaseName = "tali";
+const releaseNamespace = "tali-openshift-validation";
 const rendered = execFileSync(
   "helm",
   [
     "template",
     releaseName,
-    "charts/tasklattice",
+    "charts/tali",
     "--namespace",
     releaseNamespace,
     "--kube-version",
     "1.29.0",
     "--include-crds",
     "--values",
-    "charts/tasklattice/values-openshift.yaml",
+    "charts/tali/values-openshift.yaml",
     "--set-string",
-    "control.publicUrl=https://tasklattice.apps.example.com",
+    "control.publicUrl=https://tali.apps.example.com",
     "--set",
     "keycloak.enabled=true",
     "--set-string",

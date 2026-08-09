@@ -10,7 +10,7 @@ import {
   type ProviderModelSelection,
   type ProviderPresetModel,
   type ProviderValidationCheck,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 
 export interface ProviderAdapter {
   readonly kind: ProviderKind;

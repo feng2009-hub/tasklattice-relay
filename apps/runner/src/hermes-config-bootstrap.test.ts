@@ -29,7 +29,7 @@ afterEach(async () => {
 
 describe("Hermes config bootstrap", () => {
   it("routes through the custom provider with an OpenShell placeholder", async () => {
-    const root = await mkdtemp(join(tmpdir(), "tasklattice-hermes-config-"));
+    const root = await mkdtemp(join(tmpdir(), "tali-hermes-config-"));
     temporaryDirectories.push(root);
     const state = join(root, ".hermes");
     await import("node:fs/promises").then(({ mkdir }) => mkdir(state));
@@ -75,7 +75,7 @@ custom_providers:
       "--hash-file",
       anchor,
       "--endpoint",
-      "http://tasklattice-litellm:4000/v1",
+      "http://tali-litellm:4000/v1",
       "--model",
       "tali/provider/deepseek-v4-pro",
       "--template-endpoint",

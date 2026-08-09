@@ -2,7 +2,7 @@ import type {
   AgentMemoryConfiguration,
   AgentPlatformId,
   HttpEndpoint,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 
 type NativeMemoryConfiguration = Extract<
   AgentMemoryConfiguration,
@@ -92,7 +92,7 @@ if (memory) {
   };
   if (memory.mode === "hybrid") {
     const secretProviders = (config.secrets ??= {}).providers ??= {};
-    secretProviders.tasklattice = {
+    secretProviders.tali = {
       source: "env",
       allowlist: ["OPENAI_API_KEY"],
     };
@@ -110,7 +110,7 @@ if (memory) {
         baseUrl: inferenceEndpoint,
         apiKey: {
           source: "env",
-          provider: "tasklattice",
+          provider: "tali",
           id: "OPENAI_API_KEY",
         },
       },
@@ -151,7 +151,7 @@ set -euo pipefail
 readonly hermes_dir=/sandbox/.hermes
 readonly config_file="$hermes_dir/config.yaml"
 readonly hash_file="$hermes_dir/.config-hash"
-readonly config_bootstrap=/usr/local/lib/tasklattice/bootstrap-hermes-config.py
+readonly config_bootstrap=/usr/local/lib/tali/bootstrap-hermes-config.py
 
 # OpenShell provisions the persistent workspace root with a setgid, writable
 # mode so uploaded files can be staged before the workload starts. Hermes
@@ -200,7 +200,7 @@ const agentPlatformRuntimeRegistry = {
     endpointKind: "openclaw-webui",
     sandboxImage: () =>
       process.env.OPENSHELL_SANDBOX_IMAGE ??
-      "ghcr.io/sn0rt/tasklattice-nemoclaw-sandbox:dev",
+      "ghcr.io/tasklattice/tali-nemoclaw-sandbox:dev",
     bootstrapScript: openClawBootstrapScript,
     healthProbe: (dashboardPort) =>
       `test -x /usr/local/bin/nemoclaw-start && test -f /sandbox/.openclaw/openclaw.json && curl -fsS --max-time 3 http://127.0.0.1:${dashboardPort}/health >/dev/null`,
@@ -223,7 +223,7 @@ const agentPlatformRuntimeRegistry = {
     endpointKind: "hermes-dashboard",
     sandboxImage: () =>
       process.env.OPENSHELL_HERMES_SANDBOX_IMAGE ??
-      "ghcr.io/sn0rt/tasklattice-nemoclaw-hermes-sandbox:dev",
+      "ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:dev",
     bootstrapScript: hermesBootstrapScript,
     healthProbe: () =>
       "test -x /usr/local/bin/hermes && test -f /sandbox/.hermes/config.yaml && curl -fsS --max-time 3 http://127.0.0.1:8642/health >/dev/null",

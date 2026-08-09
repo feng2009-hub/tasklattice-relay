@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import type { SandboxPolicy, SandboxPolicyInput } from "@tasklattice/contracts";
+import type { SandboxPolicy, SandboxPolicyInput } from "@tali/contracts";
 import { FilePlus2, Save, ShieldCheck } from "lucide-react";
 import { EntitySheet } from "@/components/shared/entity-sheet";
 import { Button } from "@/components/ui/button";
@@ -67,7 +67,7 @@ export function PolicyEditorDrawer({
       onOpenChange={(next) => !mutation.isPending && onOpenChange(next)}
       eyebrow="OpenShell Policy"
       title={policy ? `Edit ${policy.name}` : "Create Policy"}
-      description="Define a reusable OpenShell YAML boundary. TaskLattice always preserves the writable runtime paths required by OpenClaw."
+      description="Define a reusable OpenShell YAML boundary. TaskLattice Relay always preserves the writable runtime paths required by OpenClaw."
       width="lg"
       bodyClassName="p-0"
       footer={(
@@ -107,7 +107,7 @@ export function PolicyEditorDrawer({
             <Textarea id="policy-yaml" className="min-h-[360px] resize-y font-mono text-xs leading-5" value={value.policyYaml} onChange={(event) => update("policyYaml", event.target.value)} spellCheck={false} required />
             <p className="flex items-start gap-2 text-xs leading-5 text-muted-foreground">
               <ShieldCheck className="mt-0.5 size-3.5 shrink-0" />
-              TaskLattice validates version 1 YAML and adds the OpenClaw runtime baseline. OpenShell still rejects root execution and globally wildcarded egress.
+              TaskLattice Relay validates version 1 YAML and adds the OpenClaw runtime baseline. OpenShell still rejects root execution and globally wildcarded egress.
             </p>
           </div>
           {mutation.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 px-3 py-2 text-sm text-destructive">{mutation.error.message}</p> : null}

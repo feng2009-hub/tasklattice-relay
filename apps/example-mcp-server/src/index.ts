@@ -14,7 +14,7 @@ const allowedHosts = (process.env.ALLOWED_HOSTS ?? "localhost,127.0.0.1")
 
 function createExampleServer(): McpServer {
   const server = new McpServer({
-    name: "tasklattice-example-mcp",
+    name: "tali-example-mcp",
     version: "0.1.0",
   });
 
@@ -76,7 +76,7 @@ function createExampleServer(): McpServer {
       content: [{
         type: "text",
         text: JSON.stringify({
-          service: "tasklattice-example-mcp",
+          service: "tali-example-mcp",
           status: "healthy",
           transport: "streamable-http",
         }),
@@ -91,7 +91,7 @@ const app = createMcpExpressApp({ host, allowedHosts });
 
 app.get("/healthz", (_request, response) => {
   response.status(200).json({
-    service: "tasklattice-example-mcp",
+    service: "tali-example-mcp",
     status: "ok",
   });
 });
@@ -137,7 +137,7 @@ app.delete("/mcp", (_request, response) => {
 });
 
 const httpServer = app.listen(port, host, () => {
-  console.log(`TaskLattice example MCP Server listening on http://${host}:${port}/mcp`);
+  console.log(`TaskLattice Relay example MCP Server listening on http://${host}:${port}/mcp`);
 });
 
 function shutdown(signal: string): void {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { AgentMarketplaceBrief } from "@tasklattice/contracts";
+import type { AgentMarketplaceBrief } from "@tali/contracts";
 import {
   agentCatalogSeedVersion,
   databaseAgentCatalog,

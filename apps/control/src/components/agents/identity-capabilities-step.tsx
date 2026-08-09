@@ -7,7 +7,7 @@ import type {
   McpServerDefinition,
   ModelDeployment,
   SkillDefinition,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import { BookOpenText, Boxes, BrainCircuit, Check, ChevronDown, Info, Network, Pencil, Plus, ServerCog, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -311,7 +311,7 @@ function MemoryCapabilityRow({ agentPlatform, embeddingModels, enabled, memory, 
               <div className="border-l-2 border-primary bg-primary/5 px-3 py-2.5 text-xs leading-5">
                 {memory.mode === "native"
                   ? "No embedding dependency. OpenClaw reads curated MEMORY.md and maintains dated notes inside this Instance."
-                  : "TaskLattice routes recall through LiteLLM and enforces the same compliance boundary as this Instance's model Routing."}
+                  : "TaskLattice Relay routes recall through LiteLLM and enforces the same compliance boundary as this Instance's model Routing."}
               </div>
             </div>
 

@@ -63,7 +63,7 @@ export class ProjectService {
       where: { id: auth.sub },
     });
     if (!user || user.status !== "active") {
-      throw new Error("The authenticated TaskLattice user is unavailable.");
+      throw new Error("The authenticated TaskLattice Relay user is unavailable.");
     }
     const id = user.id;
     const email = user.email.trim().toLowerCase();
@@ -133,7 +133,7 @@ export class ProjectService {
       select: { id: true, status: true },
     });
     if (!user || user.status !== "active") {
-      throw new Error("The authenticated TaskLattice user is unavailable.");
+      throw new Error("The authenticated TaskLattice Relay user is unavailable.");
     }
     return user.id;
   }
@@ -508,7 +508,7 @@ export class ProjectService {
             id: `identity-${user.id}`,
             type: user.provider === "local" ? "local" : "oidc",
             issuer:
-              user.provider === "local" ? "tasklattice:local" : "test:sso",
+              user.provider === "local" ? "tali:local" : "test:sso",
             subject: user.username,
             username: user.username,
             email: user.email,
@@ -524,7 +524,7 @@ export class ProjectService {
     return this.ensureUser({
       exp: Number.MAX_SAFE_INTEGER,
       iat: 0,
-      iss: "tasklattice",
+      iss: "tali",
       sub: user.id,
       user,
     });

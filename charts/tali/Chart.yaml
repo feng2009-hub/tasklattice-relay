@@ -1,13 +1,13 @@
 apiVersion: v2
-name: tasklattice
-description: TaskLattice control plane, model gateway, and OpenShell agent runtime
+name: tali
+description: TaskLattice Relay control plane, model gateway, and OpenShell agent runtime
 type: application
 version: 0.0.0-dev
 appVersion: dev
 kubeVersion: ">=1.29.0-0"
-home: https://github.com/Sn0rt/TaskLattice
+home: https://github.com/tasklattice/tasklattice-relay
 sources:
-  - https://github.com/Sn0rt/TaskLattice
+  - https://github.com/tasklattice/tasklattice-relay
 dependencies:
   - name: helm-chart
     alias: openshell

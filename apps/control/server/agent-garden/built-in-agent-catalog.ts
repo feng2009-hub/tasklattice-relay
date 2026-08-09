@@ -1,7 +1,7 @@
 import {
   agentGardenEntrySchema,
   type AgentGardenEntry,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 
 const common = {
   source: "BUILT_IN" as const,
@@ -28,7 +28,7 @@ export const builtInAgentCatalog: AgentGardenEntry[] = [
     integrationType: "openclaw",
     platformLabel: "OpenClaw",
     category: "General",
-    owner: "TaskLattice",
+    owner: "TaskLattice Relay",
     tags: ["Automation", "Browser", "Coding"],
     status: "READY",
     usageMode: "INTERACTIVE",
@@ -48,7 +48,7 @@ export const builtInAgentCatalog: AgentGardenEntry[] = [
     integrationType: "hermes",
     platformLabel: "Hermes",
     category: "Research",
-    owner: "TaskLattice",
+    owner: "TaskLattice Relay",
     tags: ["Research", "RAG", "Memory"],
     status: "READY",
     usageMode: "INTERACTIVE",
@@ -64,11 +64,11 @@ export const builtInAgentCatalog: AgentGardenEntry[] = [
     id: "claude-code",
     name: "Claude Code",
     description:
-      "A repository-native interactive coding Agent. Runtime integration is on the TaskLattice roadmap.",
+      "A repository-native interactive coding Agent. Runtime integration is on the TaskLattice Relay roadmap.",
     integrationType: "claude-code",
     platformLabel: "Claude Code",
     category: "Developer Tools",
-    owner: "TaskLattice",
+    owner: "TaskLattice Relay",
     tags: ["Coding", "Repository"],
     status: "COMING_SOON",
     usageMode: "INTERACTIVE",

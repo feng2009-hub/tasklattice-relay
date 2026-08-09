@@ -7,27 +7,27 @@ Environment: macOS Apple Silicon, OrbStack Docker and Kubernetes
 
 ## 1. Decision
 
-NemoClaw with OpenShell is technically feasible as a TaskLattice Agent runtime on the tested OrbStack machine, with an important boundary:
+NemoClaw with OpenShell is technically feasible as a TaskLattice Relay Agent runtime on the tested OrbStack machine, with an important boundary:
 
 - The supported Apple Silicon path uses the OpenShell Docker driver.
 - The Agent sandbox is a Docker container, not a Pod in the existing OrbStack Kubernetes cluster.
-- Kubernetes can run the TaskLattice control plane and AI Service Endpoints, while a host-side Runtime Worker operates NemoClaw through Docker.
+- Kubernetes can run the TaskLattice Relay control plane and AI Service Endpoints, while a host-side Runtime Worker operates NemoClaw through Docker.
 - The existing Kubernetes cluster must not be presented as the NemoClaw compute plane. NemoClaw's legacy embedded-k3s implementation is not the default topology and is not the OrbStack cluster.
 
-The local proof of concept is a **GO**. A shared internal environment is a **conditional GO** after TaskLattice adds lifecycle normalization, Skill reconciliation, metrics export, version pinning, and dedicated Runtime Hosts. Deploying NemoClaw directly as Kubernetes-native Agent Pods is a **NO-GO with the currently validated upstream path**.
+The local proof of concept is a **GO**. A shared internal environment is a **conditional GO** after TaskLattice Relay adds lifecycle normalization, Skill reconciliation, metrics export, version pinning, and dedicated Runtime Hosts. Deploying NemoClaw directly as Kubernetes-native Agent Pods is a **NO-GO with the currently validated upstream path**.
 
 ## 2. Validated topology
 
 ```mermaid
 flowchart LR
     subgraph K8S["OrbStack Kubernetes"]
-        API["TaskLattice control plane"]
+        API["TaskLattice Relay control plane"]
         EP["Mock OpenAI-compatible AI Service Endpoint"]
         SK["HTTP Skill endpoint"]
     end
 
     subgraph HOST["macOS host"]
-        RW["TaskLattice Runtime Worker boundary"]
+        RW["TaskLattice Relay Runtime Worker boundary"]
         NC["NemoClaw CLI"]
         OS["OpenShell gateway"]
     end
@@ -55,7 +55,7 @@ The mock AI Service and Skill HTTP source ran in Kubernetes. `host.docker.intern
 | NemoClaw | `v0.1.0`, source revision `b00e2f21fe160eb26b0c626aa134d0014488f39b` |
 | OpenShell | `0.0.72` |
 | OpenClaw in sandbox | `2026.6.10` |
-| Agent sandbox | `tasklattice-core-runtime`, Docker driver, `arm64` |
+| Agent sandbox | `tali-core-runtime`, Docker driver, `arm64` |
 | Inference provider | Kubernetes-hosted OpenAI-compatible mock endpoint |
 | Web search | disabled for this test |
 | GPU | disabled for this test |
@@ -85,13 +85,13 @@ OrbStack is not in the upstream prerequisite list, which names Colima and Docker
 
 ## 5. Important lifecycle findings
 
-### 5.1 Stop state needs TaskLattice normalization
+### 5.1 Stop state needs TaskLattice Relay normalization
 
 `nemoclaw stop` preserved the workspace and stopped the container, but the container appeared as `Exited (137)`. Immediately afterward, `nemoclaw status --json` reported an `Error` phase with `sandbox_dashboard_port_conflict` rather than a stable `Stopped` phase. A later `start` passed through a transient error state before reaching `Ready` with healthy inference.
 
-TaskLattice must not expose the upstream phase directly as its user-visible lifecycle state. The adapter must combine:
+TaskLattice Relay must not expose the upstream phase directly as its user-visible lifecycle state. The adapter must combine:
 
-- TaskLattice desired state;
+- TaskLattice Relay desired state;
 - OpenShell/NemoClaw observed state;
 - Docker container state;
 - a start/stop grace period;
@@ -99,7 +99,7 @@ TaskLattice must not expose the upstream phase directly as its user-visible life
 
 Recommended mapping:
 
-| TaskLattice desired state | Observed evidence | TaskLattice state |
+| TaskLattice Relay desired state | Observed evidence | TaskLattice Relay state |
 | --- | --- | --- |
 | `STOPPED` | Sandbox container exited or absent after a successful stop operation | `STOPPED` |
 | `RUNNING` | Start is recent and container or inference is not ready | `STARTING` |
@@ -113,7 +113,7 @@ The installed Skill was present before stop. `start` recreated the sandbox conta
 Therefore:
 
 - a successful Skill install is an observation about the current sandbox container, not a durable platform fact;
-- TaskLattice must store desired Skill Bindings outside NemoClaw;
+- TaskLattice Relay must store desired Skill Bindings outside NemoClaw;
 - create, start, recover, rebuild, and host migration must all trigger Skill reconciliation;
 - reconciliation must compare name and verified artifact digest, then reinstall missing or mismatched Skills from the immutable cache;
 - an Agent becomes `READY` only after required Skills are observed.
@@ -124,7 +124,7 @@ This makes S3 useful as the durable L3 Skill cache, but it does not make S3 a ru
 
 ### 6.1 Coverage
 
-| Signal | Assessment | Validated source | TaskLattice action |
+| Signal | Assessment | Validated source | TaskLattice Relay action |
 | --- | --- | --- | --- |
 | Lifecycle status | Good with semantic gaps | `nemoclaw status --json` | Normalize desired and observed state; do not pass through the upstream phase verbatim. |
 | Runtime diagnostics | Good | `nemoclaw doctor --json` | Run after create/start/recover and on demand; persist individual check results. |
@@ -139,9 +139,9 @@ This makes S3 useful as the durable L3 Skill cache, but it does not make S3 a ru
 
 The merged runtime log was useful in practice. It included OpenClaw application logs, OpenShell audit events, allowed network connections, inference route and protocol details, Landlock configuration, and SSH relay lifecycle. It also surfaced actionable warnings about plugin allowlists, gateway binding, and control UI settings.
 
-The most important gap is metrics. A directly launched OpenShell gateway exposed Prometheus data such as database readiness and probe duration when given a metrics port. The NemoClaw-managed gateway used in the successful runtime did not expose a dedicated metrics listener. TaskLattice should not patch generated gateway state in place; the adapter should pin a supported configuration contract or provide its own metrics around operations and host/container health until upstream exposes this surface.
+The most important gap is metrics. A directly launched OpenShell gateway exposed Prometheus data such as database readiness and probe duration when given a metrics port. The NemoClaw-managed gateway used in the successful runtime did not expose a dedicated metrics listener. TaskLattice Relay should not patch generated gateway state in place; the adapter should pin a supported configuration contract or provide its own metrics around operations and host/container health until upstream exposes this surface.
 
-### 6.2 Required TaskLattice telemetry
+### 6.2 Required TaskLattice Relay telemetry
 
 Every Runtime Worker operation should emit:
 
@@ -163,7 +163,7 @@ Minimum alerts:
 
 ## 7. Recommended production shape
 
-Use Kubernetes for the TaskLattice control plane, queue workers that do not require a Docker socket, API services, policy services, and stable AI Service Endpoint ingress. Use a dedicated Runtime Host pool for NemoClaw.
+Use Kubernetes for the TaskLattice Relay control plane, queue workers that do not require a Docker socket, API services, policy services, and stable AI Service Endpoint ingress. Use a dedicated Runtime Host pool for NemoClaw.
 
 Each Runtime Host should have:
 
@@ -173,7 +173,7 @@ Each Runtime Host should have:
 - one hardened Host Runner as the only component allowed to invoke the NemoClaw CLI;
 - no user access to the Docker socket;
 - a local artifact cache, OTLP collector, log shipper, and container/host metrics collector;
-- host admission and drain controls so TaskLattice can stop placing new Agents before maintenance.
+- host admission and drain controls so TaskLattice Relay can stop placing new Agents before maintenance.
 
 Do not run the Host Runner as a privileged Kubernetes Pod merely to reach the host Docker socket. That would create a high-impact cluster escape boundary without making the upstream runtime Kubernetes-native.
 
@@ -196,7 +196,7 @@ Before using this runtime for a shared internal environment, automate the follow
 | Target | Decision | Reason |
 | --- | --- | --- |
 | Developer POC on the tested OrbStack machine | GO | Agent execution, policy mediation, inference, lifecycle, and Skill installation all worked. |
-| Internal low-scale TaskLattice runtime | Conditional GO | Requires the adapter reconciliation and observability work in this document. |
+| Internal low-scale TaskLattice Relay runtime | Conditional GO | Requires the adapter reconciliation and observability work in this document. |
 | Existing OrbStack Kubernetes as the direct NemoClaw sandbox scheduler | NO-GO | The validated supported topology creates Docker containers, not Pods in that cluster. |
 | Production runtime | Conditional GO on dedicated Linux Docker hosts | Avoids macOS/OrbStack support ambiguity and provides explicit capacity, security, and telemetry boundaries. |
 

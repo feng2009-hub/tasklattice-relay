@@ -1,4 +1,4 @@
-import type { CostInsight } from "@tasklattice/contracts";
+import type { CostInsight } from "@tali/contracts";
 import { Activity, CalendarRange, Coins, Cpu, Gauge, Layers3 } from "lucide-react";
 import { compactNumber, usd } from "./cost-utils";
 

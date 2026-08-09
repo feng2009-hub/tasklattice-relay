@@ -10,7 +10,7 @@ import {
   type CreateAgentInput,
   type ModelDeployment,
   type ModelRouting,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import {
   ArrowLeft,
   ArrowRight,

@@ -59,7 +59,7 @@ Guardian, Academic Research, Small Business Loans, Software Bug Assistant,
 Travel Concierge, Time Series Forecasting, LLM Auditor, and Personalized
 Shopping. It also contains GitHub Daily Triage, Pull Request Risk Scanner, and
 Release Notes Composer as A2A demos, plus Support Escalation Router as a
-LangGraph demo exposed through a TaskLattice A2A adapter.
+LangGraph demo exposed through a TaskLattice Relay A2A adapter.
 
 The examples support two separate interactions:
 
@@ -81,7 +81,7 @@ layer or source filter.
 Search and grouped capability labels are the only catalog refinement
 controls. Capability labels are direct, reversible buttons; selecting any
 label shows Agents matching at least one selected capability. The groups
-mirror the reference experience while using TaskLattice's existing cards,
+mirror the reference experience while using TaskLattice Relay's existing cards,
 typography, spacing, and interaction patterns.
 
 The registration wizard reuses the same lightweight, underline-based progress
@@ -177,7 +177,7 @@ catalog, filters, registration, discovery, capability enforcement, and desired
 connection state. A connection means “authorized and available for runtime
 reconciliation”; it does not claim that a task has already run.
 
-The runtime phase should expose one TaskLattice delegation tool inside each
+The runtime phase should expose one TaskLattice Relay delegation tool inside each
 Coordinator. That tool will:
 
 1. authenticate the calling Instance service account;

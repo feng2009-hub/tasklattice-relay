@@ -1,4 +1,4 @@
-import type { McpServerTemplate } from "@tasklattice/contracts";
+import type { McpServerTemplate } from "@tali/contracts";
 
 /**
  * A deliberately small, reviewed catalog. These entries are registration

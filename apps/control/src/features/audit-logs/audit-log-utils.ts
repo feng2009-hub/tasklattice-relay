@@ -1,7 +1,7 @@
 import type {
   PlatformAuditLogQuery,
   PlatformAuditOutcome,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 
 export type AuditTimeRange = "24h" | "7d" | "30d" | "all";
 

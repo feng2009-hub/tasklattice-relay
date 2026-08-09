@@ -3,9 +3,9 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { parseAllDocuments } from "yaml";
 
-const releaseName = "tasklattice";
-const releaseNamespace = "tasklattice-resource-validation";
-const chartPath = "charts/tasklattice";
+const releaseName = "tali";
+const releaseNamespace = "tali-resource-validation";
+const chartPath = "charts/tali";
 const requiredResources = [
   ["requests", "cpu"],
   ["requests", "memory"],
@@ -141,7 +141,7 @@ const missingOidcPublicUrlResult = spawnSync(
     "--set-string",
     "auth.oidc.issuer=https://identity.example.com",
     "--set-string",
-    "auth.oidc.clientId=tasklattice",
+    "auth.oidc.clientId=tali",
   ]),
   { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
 );

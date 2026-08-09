@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { AgentGardenEntry } from "@tasklattice/contracts";
+import type { AgentGardenEntry } from "@tali/contracts";
 import {
   CheckCircle2,
   LoaderCircle,

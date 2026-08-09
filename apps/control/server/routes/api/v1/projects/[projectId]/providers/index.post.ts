@@ -1,4 +1,4 @@
-import { createProviderConnectionSchema } from "@tasklattice/contracts";
+import { createProviderConnectionSchema } from "@tali/contracts";
 import { defineHandler } from "nitro";
 import { requireAuth, unauthorizedResponse } from "../../../../../../auth/auth";
 import { errorResponse, jsonResponse } from "../../../../../../http/responses";

@@ -14,12 +14,12 @@ const maxFileCount = 500;
 
 async function databaseUrl() {
   if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
-  const configPath = process.env.TASKLATTICE_CONFIG;
+  const configPath = process.env.TALI_CONFIG;
   if (!configPath) {
     if (process.env.NODE_ENV === "production") {
-      throw new Error("TASKLATTICE_CONFIG or DATABASE_URL is required.");
+      throw new Error("TALI_CONFIG or DATABASE_URL is required.");
     }
-    return "postgresql://tasklattice:development@127.0.0.1:5432/tasklattice";
+    return "postgresql://tali:development@127.0.0.1:5432/tali";
   }
   const config = parse(await readFile(configPath, "utf8"));
   const url = config?.database?.url;
@@ -77,7 +77,7 @@ async function seed() {
       }
       const existing = await client.query(
         `SELECT digest
-           FROM tasklattice.skill_artifacts
+           FROM tali.skill_artifacts
           WHERE skill_id = $1 AND version = $2`,
         [artifact.skillId, artifact.version],
       );
@@ -87,7 +87,7 @@ async function seed() {
         );
       }
       await client.query(
-        `INSERT INTO tasklattice.skill_artifacts (
+        `INSERT INTO tali.skill_artifacts (
            id, skill_id, version, digest, archive_format, content_type, archive,
            compressed_size_bytes, unpacked_size_bytes, file_count, manifest, source_path
          )
@@ -111,7 +111,7 @@ async function seed() {
       const endpoint =
         `tali+postgresql://skill-artifacts/${artifact.skillId}/${artifact.version}`;
       await client.query(
-        `UPDATE tasklattice.skills
+        `UPDATE tali.skills
             SET payload = jsonb_set(
                   jsonb_set(payload, '{endpoint}', to_jsonb($3::text), true),
                   '{digest}', to_jsonb($4::text), true

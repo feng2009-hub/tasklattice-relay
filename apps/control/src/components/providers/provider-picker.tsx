@@ -5,7 +5,7 @@ import {
   providerSupportsComplianceDomain,
   type ComplianceDomain,
   type ProviderKind,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import { ChevronDown, Plus, Search } from "lucide-react";
 import { ProviderIcon } from "./provider-icon";
 import { Input } from "@/components/ui/input";

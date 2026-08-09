@@ -1,4 +1,4 @@
-import type { CostGroupBy } from "@tasklattice/contracts";
+import type { CostGroupBy } from "@tali/contracts";
 import { Box, Boxes, KeyRound, SlidersHorizontal, type LucideIcon } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 

@@ -11,7 +11,7 @@ import type {
   UpdateKnowledgeSourceDefinitionInput,
   UpdateMcpServerDefinitionInput,
   UpdateSkillDefinitionInput,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import {
   LiteLLMClient,
   type LiteLLMAdminClient,
@@ -323,7 +323,7 @@ export class ResourceCatalogService {
       metadata: {
         managed_by: "tali",
         tali_project_id: this.store.projectId,
-        tasklattice_provider: source.provider,
+        tali_provider: source.provider,
         top_k: source.topK,
       },
       litellmParams: {

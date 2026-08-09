@@ -1,11 +1,11 @@
-# TaskLattice Helm Chart
+# TaskLattice Relay Helm Chart
 
-This chart installs the complete TaskLattice stack: control/UI, OpenShell
+This chart installs the complete TaskLattice Relay stack: control/UI, OpenShell
 runner, LiteLLM, PostgreSQL, OpenShell, and the Agent Sandbox controller.
 OpenShell 0.0.82 is a version- and checksum-pinned NVIDIA OCI dependency.
 Agent Sandbox v0.5.1 is fetched from its checksum-pinned Kubernetes SIGs
 release tag and packaged as a Helm dependency. Their upstream source is not
-copied into this repository, while the released TaskLattice archive remains
+copied into this repository, while the released TaskLattice Relay archive remains
 self-contained.
 
 Prepare the dependency archives before rendering the source Chart:
@@ -15,8 +15,8 @@ npm run helm:dependencies
 ```
 
 Release builds also package the complete Chart at
-`/opt/tasklattice/helm/tasklattice.tgz` inside the Control Plane image. The
-image exposes that location through `TASKLATTICE_HELM_CHART`.
+`/opt/tali/helm/tali.tgz` inside the Control Plane image. The
+image exposes that location through `TALI_HELM_CHART`.
 
 The source Chart uses the development version `0.0.0-dev` and resolves its
 first-party images to `:dev`. The Release workflow replaces both Chart version
@@ -32,9 +32,9 @@ Install a released chart:
 
 ```bash
 VERSION="<release-version>"
-curl -fLO "https://github.com/Sn0rt/TaskLattice/releases/download/v${VERSION}/tasklattice-${VERSION}.tgz"
-helm upgrade --install tasklattice "./tasklattice-${VERSION}.tgz" \
-  --namespace tasklattice-sandboxes \
+curl -fLO "https://github.com/tasklattice/tasklattice-relay/releases/download/v${VERSION}/tali-${VERSION}.tgz"
+helm upgrade --install tali "./tali-${VERSION}.tgz" \
+  --namespace tali-sandboxes \
   --create-namespace \
   --wait \
   --timeout 10m
@@ -44,10 +44,10 @@ The same chart is published as an OCI artifact:
 
 ```bash
 VERSION="<release-version>"
-helm upgrade --install tasklattice \
-  oci://ghcr.io/sn0rt/charts/tasklattice \
+helm upgrade --install tali \
+  oci://ghcr.io/tasklattice/charts/tali \
   --version "${VERSION}" \
-  --namespace tasklattice-sandboxes \
+  --namespace tali-sandboxes \
   --create-namespace \
   --wait \
   --timeout 10m
@@ -84,9 +84,9 @@ Enable its independently managed NVIDIA model pipeline to add Content Safety
 for input/output and Topic Control for input:
 
 Enabling Model Guardrails on a Routing attaches three LiteLLM hooks:
-`tasklattice-model-input` (`pre_call`),
-`tasklattice-model-during-call` (`during_call`), and
-`tasklattice-model-output` (`post_call`). The post-call hook also wraps
+`tali-model-input` (`pre_call`),
+`tali-model-during-call` (`during_call`), and
+`tali-model-output` (`post_call`). The post-call hook also wraps
 streaming responses and stops subsequent chunks after a violation is detected.
 The chart sets `litellm.maximumTracebackLinesToLog=0` so an expected policy
 block is stored in LiteLLM Request Logs as a concise error code, class, and
@@ -108,7 +108,7 @@ secrets:
 ```
 
 This provider configuration belongs only to the Model Guardrails component and
-is not read from or displayed in the TaskLattice Dashboard. Set
+is not read from or displayed in the TaskLattice Relay Dashboard. Set
 `apiKeySecretName` and `apiKeySecretKey` to reference a separately managed
 NVIDIA credential Secret without storing the provider key in Helm values.
 Set `modelGuardrails.profilePath` to a NeMo profile supplied by a custom image
@@ -137,15 +137,15 @@ normally on port 465.
 
 ```yaml
 control:
-  publicUrl: https://tasklattice.example.com
+  publicUrl: https://tali.example.com
   smtp:
     enabled: true
     host: smtp.example.com
     port: 587
     secure: false
-    username: tasklattice@example.com
-    fromAddress: tasklattice@example.com
-    fromName: TaskLattice
+    username: tali@example.com
+    fromAddress: tali@example.com
+    fromName: TaskLattice Relay
     replyTo: support@example.com
 secrets:
   smtpPassword: replace-me
@@ -163,7 +163,7 @@ including OpenShell, Agent Sandbox, their CRDs, and the Agent Sandbox upstream
 license:
 
 ```text
-/opt/tasklattice/helm/tasklattice.tgz
+/opt/tali/helm/tali.tgz
 ```
 
 The runtime image intentionally does not include the Helm CLI. Extract the
@@ -171,26 +171,26 @@ archive and render it with the Helm binary already approved for the
 disconnected environment without contacting a Helm or OCI repository:
 
 ```bash
-CONTROL_IMAGE=registry.internal.example.com/tasklattice-control:<version>
+CONTROL_IMAGE=registry.internal.example.com/tali-control:<version>
 CONTAINER_ID="$(podman create "${CONTROL_IMAGE}")"
 podman cp \
-  "${CONTAINER_ID}:/opt/tasklattice/helm/tasklattice.tgz" \
-  ./tasklattice.tgz
+  "${CONTAINER_ID}:/opt/tali/helm/tali.tgz" \
+  ./tali.tgz
 podman rm "${CONTAINER_ID}"
 
-tar -xzf tasklattice.tgz
-cp tasklattice/values-airgap.yaml ./my-airgap-values.yaml
+tar -xzf tali.tgz
+cp tali/values-airgap.yaml ./my-airgap-values.yaml
 # Replace registry.airgap.example.com and airgap-registry in the copied file.
 
-helm template tasklattice ./tasklattice \
-  --namespace tasklattice-sandboxes \
+helm template tali ./tali \
+  --namespace tali-sandboxes \
   --include-crds \
-  --values tasklattice/values-openshift.yaml \
+  --values tali/values-openshift.yaml \
   --values ./my-airgap-values.yaml \
-  > tasklattice-openshift.yaml
+  > tali-openshift.yaml
 ```
 
-`values-airgap.yaml` mirrors every image family independently: TaskLattice
+`values-airgap.yaml` mirrors every image family independently: TaskLattice Relay
 images through `global.imageRegistry`, PostgreSQL and Keycloak through
 `images.*`, Agent Sandbox through `agentSandbox.image`, and the OpenShell
 gateway, supervisor, and default sandbox through their respective `openshell`
@@ -203,8 +203,8 @@ each. The example sets `agentSandbox.namespace.create=false` so Helm can use
 the pre-created dependency namespace:
 
 ```bash
-oc new-project tasklattice-sandboxes
-oc -n tasklattice-sandboxes create secret docker-registry airgap-registry \
+oc new-project tali-sandboxes
+oc -n tali-sandboxes create secret docker-registry airgap-registry \
   --docker-server=registry.internal.example.com \
   --docker-username='<username>' \
   --docker-password='<password>'
@@ -247,15 +247,15 @@ installation, or install those cluster-scoped dependencies separately and set
 Example:
 
 ```bash
-NAMESPACE=tasklattice-sandboxes
+NAMESPACE=tali-sandboxes
 APPS_DOMAIN="$(oc get ingresses.config.openshift.io cluster \
   -o jsonpath='{.spec.domain}')"
-CONTROL_HOST="tasklattice.${APPS_DOMAIN}"
+CONTROL_HOST="tali.${APPS_DOMAIN}"
 
 oc new-project "${NAMESPACE}"
-helm upgrade --install tasklattice charts/tasklattice \
+helm upgrade --install tali charts/tali \
   --namespace "${NAMESPACE}" \
-  --values charts/tasklattice/values-openshift.yaml \
+  --values charts/tali/values-openshift.yaml \
   --set-string "control.publicUrl=https://${CONTROL_HOST}" \
   --set-string "openshift.routes.control.host=${CONTROL_HOST}" \
   --wait \
@@ -278,8 +278,8 @@ volume configuration.
 ## Embedded Keycloak for end-to-end tests
 
 Set `keycloak.enabled=true` to deploy a test-only Keycloak instance together
-with TaskLattice. The Chart imports the `tasklattice` realm, configures the
-confidential `tasklattice-control-plane` OIDC client, creates complete Alice
+with TaskLattice Relay. The Chart imports the `tali` realm, configures the
+confidential `tali-control-plane` OIDC client, creates complete Alice
 and Bob test profiles, and automatically enables the matching OIDC settings in
 `control.toml`.
 
@@ -287,8 +287,8 @@ Keycloak needs a stable URL that is reachable from both the browser and the
 Control pod. For a cluster with a reserved load-balancer address:
 
 ```bash
-helm upgrade --install tasklattice charts/tasklattice \
-  --namespace tasklattice-sandboxes \
+helm upgrade --install tali charts/tali \
+  --namespace tali-sandboxes \
   --create-namespace \
   --set control.publicUrl=http://192.168.139.2 \
   --set keycloak.enabled=true \
@@ -311,8 +311,8 @@ The development credentials are:
 | Purpose | Username | Password |
 | --- | --- | --- |
 | Keycloak administration | `admin` | `admin` |
-| TaskLattice SSO user | `alice` | `password` |
-| TaskLattice SSO user | `bob` | `password` |
+| TaskLattice Relay SSO user | `alice` | `password` |
+| TaskLattice Relay SSO user | `bob` | `password` |
 
 Override `secrets.keycloakAdminPassword`,
 `secrets.keycloakClientSecret`, and `secrets.keycloakTestUserPassword` when
@@ -333,17 +333,17 @@ MCP Server. It exposes three deterministic tools: `echo_message`,
 the cluster, requires HTTP Basic authentication, and is available to LiteLLM at:
 
 ```text
-http://tasklattice-example-mcp:3000/mcp
+http://tali-example-mcp:3000/mcp
 ```
 
 The test credentials are `Username` / `Password`. LiteLLM accepts the Basic
 credential as `username:password` and encodes it when creating the HTTP
-Authorization header, so the Chart creates `tasklattice-example-mcp-auth` with
+Authorization header, so the Chart creates `tali-example-mcp-auth` with
 an `auth-value` containing `Username:Password`. Register it with:
 
 ```text
 auth type: basic
-Secret reference: k8s://<namespace>/tasklattice-example-mcp-auth#auth-value
+Secret reference: k8s://<namespace>/tali-example-mcp-auth#auth-value
 ```
 
 Build and deploy the local example together with Keycloak:
@@ -353,7 +353,7 @@ npm run images:build:example-mcp
 npm run helm:deploy:dev:keycloak:example-mcp
 ```
 
-Register the endpoint as a custom HTTP MCP Server in a Project. TaskLattice
+Register the endpoint as a custom HTTP MCP Server in a Project. TaskLattice Relay
 then asks LiteLLM to discover the tools and stores the resulting names,
 descriptions, input schemas, and discovery status in the Project database.
 This component uses fixed test credentials and must not be enabled in
@@ -361,9 +361,9 @@ production.
 
 ## Shared database
 
-TaskLattice control and LiteLLM intentionally use the same `database-url`.
+TaskLattice Relay control and LiteLLM intentionally use the same `database-url`.
 LiteLLM owns the PostgreSQL `public` schema; the control plane and its Prisma
-migration history live in the `tasklattice` schema. The control Deployment has
+migration history live in the compatibility `tasklattice` schema. The control Deployment has
 an init container that runs `prisma migrate deploy`, including the SQL migration
 that creates the default Project and preconfigured Skill, MCP Server, Knowledge
 Source, Agent Role, and policy metadata.

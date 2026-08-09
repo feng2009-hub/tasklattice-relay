@@ -9,7 +9,7 @@ import {
   type AgentGardenSnapshot,
   type CreateAgentConnectionInput,
   type CreateAgentGardenEntryInput,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import { ProjectStore } from "../projects/project-store";
 import {
   createSecretStore,
@@ -241,7 +241,7 @@ export class AgentGardenService {
     const agent = await this.store.getAgent(id);
     if (!agent) throw new Error("Registered Agent was not found.");
     if (agent.source !== "PROJECT_REGISTERED") {
-      throw new Error("Built-in Agents are managed by TaskLattice.");
+      throw new Error("Built-in Agents are managed by TaskLattice Relay.");
     }
     return agent;
   }

@@ -27,7 +27,7 @@ const disabledSmtpConfig = {
   username: "",
   password: "",
   from_address: "",
-  from_name: "TaskLattice",
+  from_name: "TaskLattice Relay",
   reply_to: "",
 };
 
@@ -150,7 +150,7 @@ const controlConfigSchema = z.object({
 export type ControlConfig = z.infer<typeof controlConfigSchema>;
 
 declare global {
-  var tasklatticeControlConfig: ControlConfig | undefined;
+  var taliControlConfig: ControlConfig | undefined;
 }
 
 const developmentConfig: ControlConfig = {
@@ -159,10 +159,10 @@ const developmentConfig: ControlConfig = {
     public_url: "http://127.0.0.1:8080",
   },
   database: {
-    url: "postgresql://tasklattice:development@127.0.0.1:5432/tasklattice",
+    url: "postgresql://tali:development@127.0.0.1:5432/tali",
   },
   auth: {
-    session_signing_key: "tasklattice-local-development-secret",
+    session_signing_key: "tali-local-development-secret",
     local: {
       enabled: true,
       initial_super_admin_username: "admin",
@@ -189,17 +189,17 @@ const developmentConfig: ControlConfig = {
 };
 
 export function getControlConfig(): ControlConfig {
-  if (globalThis.tasklatticeControlConfig) {
-    return globalThis.tasklatticeControlConfig;
+  if (globalThis.taliControlConfig) {
+    return globalThis.taliControlConfig;
   }
-  const configuredPath = process.env.TASKLATTICE_CONFIG;
+  const configuredPath = process.env.TALI_CONFIG;
   if (!configuredPath) {
     if (process.env.NODE_ENV === "production") {
       throw new Error(
-        "TASKLATTICE_CONFIG must point to the Control Plane TOML file in production.",
+        "TALI_CONFIG must point to the Control Plane TOML file in production.",
       );
     }
-    globalThis.tasklatticeControlConfig = developmentConfig;
+    globalThis.taliControlConfig = developmentConfig;
     return developmentConfig;
   }
   const path = resolve(configuredPath);
@@ -208,7 +208,7 @@ export function getControlConfig(): ControlConfig {
     raw = readFileSync(path, "utf8");
   } catch (error) {
     throw new Error(
-      `Unable to read TaskLattice configuration at ${path}: ${
+      `Unable to read TaskLattice Relay configuration at ${path}: ${
         error instanceof Error ? error.message : "unknown error"
       }`,
     );
@@ -216,17 +216,17 @@ export function getControlConfig(): ControlConfig {
   const result = controlConfigSchema.safeParse(parse(raw));
   if (!result.success) {
     throw new Error(
-      `Invalid TaskLattice configuration at ${path}: ${z.prettifyError(result.error)}`,
+      `Invalid TaskLattice Relay configuration at ${path}: ${z.prettifyError(result.error)}`,
     );
   }
-  globalThis.tasklatticeControlConfig = result.data;
+  globalThis.taliControlConfig = result.data;
   return result.data;
 }
 
 export function setControlConfigForTests(
   config: ControlConfig | undefined,
 ): void {
-  globalThis.tasklatticeControlConfig = config;
+  globalThis.taliControlConfig = config;
 }
 
 export function developmentControlConfig(): ControlConfig {

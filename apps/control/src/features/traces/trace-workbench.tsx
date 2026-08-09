@@ -7,7 +7,7 @@ import type {
   TraceSpan,
   TraceSpanType,
   TraceStatus,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import {
   Activity,
   AlertTriangle,
@@ -400,7 +400,7 @@ function SpanInspector({ span, trace }: { span: TraceSpan; trace: TraceDetail })
 
         <TabsContent value="attributes" className="min-h-0 overflow-auto p-4">
           <div className="mb-3 flex items-center justify-between gap-3">
-            <p className="text-xs text-muted-foreground">OpenTelemetry and TaskLattice attributes</p>
+            <p className="text-xs text-muted-foreground">OpenTelemetry and TaskLattice Relay attributes</p>
             <Badge variant="secondary" className="font-mono">{Object.keys(span.attributes).length}</Badge>
           </div>
           <div className="border">

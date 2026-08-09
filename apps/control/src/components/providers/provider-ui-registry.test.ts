@@ -6,7 +6,7 @@ import {
   providerComplianceDomains,
   providerKinds,
   providerPresets,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import { createProviderDraft, providerUiRegistry } from "./provider-ui-registry";
 
 describe("providerUiRegistry", () => {

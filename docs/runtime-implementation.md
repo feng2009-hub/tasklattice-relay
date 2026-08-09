@@ -1,4 +1,4 @@
-# TaskLattice Agent Runtime Implementation
+# TaskLattice Relay Agent Runtime Implementation
 
 Status: Draft
 
@@ -8,11 +8,11 @@ Runtime: NVIDIA NemoClaw
 
 ## 1. Purpose
 
-This document defines how TaskLattice creates and operates Agents on NVIDIA NemoClaw and how it fetches, verifies, caches, installs, upgrades, and removes Skills obtained from an HTTP endpoint.
+This document defines how TaskLattice Relay creates and operates Agents on NVIDIA NemoClaw and how it fetches, verifies, caches, installs, upgrades, and removes Skills obtained from an HTTP endpoint.
 
 The central implementation decision is:
 
-> TaskLattice fetches a Skill outside the Agent sandbox, verifies it, stores an immutable copy in S3, hydrates a Runtime Host local cache, and then installs the verified local directory through the NemoClaw Skill CLI.
+> TaskLattice Relay fetches a Skill outside the Agent sandbox, verifies it, stores an immutable copy in S3, hydrates a Runtime Host local cache, and then installs the verified local directory through the NemoClaw Skill CLI.
 
 S3 is suitable as the shared persistent Skill cache. It is not the hot runtime cache and must not be mounted directly into the Agent sandbox.
 
@@ -25,12 +25,12 @@ The local execution proof, version matrix, lifecycle findings, and observability
 ### 2.1 In scope
 
 - Create, observe, stop, restart, and destroy NemoClaw-backed Agent instances.
-- Map a TaskLattice Agent Instance to a NemoClaw sandbox.
+- Map a TaskLattice Relay Agent Instance to a NemoClaw sandbox.
 - Fetch an approved Skill package from an HTTP or HTTPS endpoint.
 - Verify Skill identity, digest, package structure, provenance, and policy.
 - Cache immutable Skill artifacts in S3 and on Runtime Host local disk.
 - Install, update, roll back, and remove Skills from a NemoClaw sandbox.
-- Reconcile desired TaskLattice state with observed NemoClaw state.
+- Reconcile desired TaskLattice Relay state with observed NemoClaw state.
 - Record operations, errors, audit events, metrics, and runtime evidence.
 - Keep AI Service credentials and S3 credentials outside the Agent sandbox.
 
@@ -40,12 +40,12 @@ The local execution proof, version matrix, lifecycle findings, and observability
 - Creating model-serving instances.
 - Running vLLM or another inference server.
 - Managing the upstream AI Service Endpoint lifecycle.
-- Treating an OpenClaw plugin as a TaskLattice Skill.
+- Treating an OpenClaw plugin as a TaskLattice Relay Skill.
 - Allowing an Agent to fetch arbitrary packages from the internet.
 - Allowing an Agent sandbox to access the S3 bucket directly.
 - Promising in-process hot reload for the currently active conversation.
 
-The Agent may call approved AI Service Endpoints through the TaskLattice AI Service Gateway, using its active Quota Grants. That access-plane design remains outside this runtime document.
+The Agent may call approved AI Service Endpoints through the TaskLattice Relay AI Service Gateway, using its active Quota Grants. That access-plane design remains outside this runtime document.
 
 ## 3. NemoClaw facts that shape the design
 
@@ -66,7 +66,7 @@ nemoclaw <sandbox> skill install <local-path>
 nemoclaw <sandbox> skill remove <skill-name>
 ~~~
 
-The install command accepts a local Skill directory, or a path to `SKILL.md`. It does not accept the TaskLattice remote HTTP endpoint as its runtime contract. TaskLattice therefore needs a host-side fetch and materialization step before calling NemoClaw.
+The install command accepts a local Skill directory, or a path to `SKILL.md`. It does not accept the TaskLattice Relay remote HTTP endpoint as its runtime contract. TaskLattice Relay therefore needs a host-side fetch and materialization step before calling NemoClaw.
 
 The current implementation validates the Skill name from `SKILL.md`, uploads the Skill into the sandbox, mirrors it into the Agent-specific load path, refreshes the OpenClaw session index, and verifies installation. The relevant upstream implementation is in:
 
@@ -81,7 +81,7 @@ For OpenClaw, the observed installation paths are:
 $HOME/.openclaw/skills/<skill-name>
 ~~~
 
-These paths are NemoClaw implementation details. TaskLattice must use the CLI and its verification result instead of writing these directories directly.
+These paths are NemoClaw implementation details. TaskLattice Relay must use the CLI and its verification result instead of writing these directories directly.
 
 ### 3.3 Skill is not plugin
 
@@ -91,24 +91,24 @@ The HTTP artifact in this design is a Skill package. If executable plugins are r
 
 ### 3.4 Reload behavior
 
-OpenClaw caches Skill content by session. After Skill installation, NemoClaw refreshes session discovery so the new Skill can be discovered by a subsequent session. TaskLattice must report this as `AVAILABLE_FOR_NEW_SESSION`, not claim that a Skill has altered the current conversation in place.
+OpenClaw caches Skill content by session. After Skill installation, NemoClaw refreshes session discovery so the new Skill can be discovered by a subsequent session. TaskLattice Relay must report this as `AVAILABLE_FOR_NEW_SESSION`, not claim that a Skill has altered the current conversation in place.
 
 For another NemoClaw-supported Agent type, the adapter may need to restart the Agent gateway before the Skill is available. Reload behavior is therefore a capability reported by the runtime adapter, not a property declared only by the Skill publisher.
 
 ### 3.5 Version stability
 
-NemoClaw is currently described as alpha software. TaskLattice must pin tested NemoClaw and compatible Agent versions per Runtime Profile, wrap CLI output in an adapter, and run contract tests before a version upgrade. The upstream project is [NVIDIA/NemoClaw](https://github.com/NVIDIA/NemoClaw).
+NemoClaw is currently described as alpha software. TaskLattice Relay must pin tested NemoClaw and compatible Agent versions per Runtime Profile, wrap CLI output in an adapter, and run contract tests before a version upgrade. The upstream project is [NVIDIA/NemoClaw](https://github.com/NVIDIA/NemoClaw).
 
 ## 4. Target architecture
 
 ~~~mermaid
 flowchart LR
-    USER["Marketplace user"] --> API["TaskLattice Control API"]
+    USER["Marketplace user"] --> API["TaskLattice Relay Control API"]
     API --> DB[("PostgreSQL")]
     API --> OUTBOX["Transactional outbox"]
     OUTBOX --> WORKER["Runtime Control Worker"]
 
-    subgraph CONTROL["TaskLattice Control Plane"]
+    subgraph CONTROL["TaskLattice Relay Control Plane"]
         WORKER --> RM["Runtime Manager"]
         RM --> RESOLVER["Skill Artifact Resolver"]
         RESOLVER --> VERIFY["Package Verifier"]
@@ -135,7 +135,7 @@ flowchart LR
 
     ADAPTER --> RUNNER
     S3 --> RUNNER
-    SANDBOX --> AISG["TaskLattice AI Service Gateway"]
+    SANDBOX --> AISG["TaskLattice Relay AI Service Gateway"]
 ~~~
 
 ### 4.1 Trust boundaries
@@ -201,7 +201,7 @@ The adapter must not expose a general-purpose `exec(command)` API to the Control
 
 ### 5.5 Host Runner
 
-The Host Runner runs on each NemoClaw Runtime Host. It is the only TaskLattice component allowed to invoke the NemoClaw CLI on that host.
+The Host Runner runs on each NemoClaw Runtime Host. It is the only TaskLattice Relay component allowed to invoke the NemoClaw CLI on that host.
 
 Recommended deployment properties:
 
@@ -272,10 +272,10 @@ created_at
 updated_at
 ~~~
 
-`runtime_instance_ref` is generated by TaskLattice and is unique per environment. A recommended format is:
+`runtime_instance_ref` is generated by TaskLattice Relay and is unique per environment. A recommended format is:
 
 ~~~text
-tasklattice-<environment>-<agent-instance-short-id>
+tali-<environment>-<agent-instance-short-id>
 ~~~
 
 Do not derive authorization from the sandbox name. The database identity remains authoritative.
@@ -348,13 +348,13 @@ CANCELLED
 
 ## 7. HTTP Skill source contract
 
-TaskLattice can integrate an existing endpoint, but a precise response contract prevents ambiguous or mutable installs.
+TaskLattice Relay can integrate an existing endpoint, but a precise response contract prevents ambiguous or mutable installs.
 
 ### 7.1 Recommended endpoint
 
 ~~~http
 GET /v1/skills/{skill-name}/versions/{version}/bundle.tar.zst
-Accept: application/vnd.tasklattice.skill+tar+zstd
+Accept: application/vnd.tali.skill+tar+zstd
 If-None-Match: "<previous-etag>"
 ~~~
 
@@ -362,18 +362,18 @@ Successful response:
 
 ~~~http
 HTTP/1.1 200 OK
-Content-Type: application/vnd.tasklattice.skill+tar+zstd
+Content-Type: application/vnd.tali.skill+tar+zstd
 Content-Length: 18342
 ETag: "origin-cache-validator"
 Digest: sha-256=<base64-digest>
-X-TaskLattice-Skill-Name: knowledge-search
-X-TaskLattice-Skill-Version: 1.2.0
+X-Tali-Skill-Name: knowledge-search
+X-Tali-Skill-Version: 1.2.0
 Cache-Control: private, max-age=300
 ~~~
 
 An endpoint may instead expose a manifest that contains a signed artifact URL. The resolved artifact URL is still subject to the same host, redirect, size, and digest policy.
 
-The digest covers the exact compressed bundle bytes returned by the source. TaskLattice stores those same bytes in S3 and must not repackage them after verification. Package-structure checks are recorded separately in the verification report.
+The digest covers the exact compressed bundle bytes returned by the source. TaskLattice Relay stores those same bytes in S3 and must not repackage them after verification. Package-structure checks are recorded separately in the verification report.
 
 ### 7.2 Required package structure
 
@@ -390,7 +390,7 @@ Requirements:
 
 - Exactly one package root.
 - A root `SKILL.md` with valid YAML frontmatter.
-- Frontmatter `name` equals the approved TaskLattice Skill identity.
+- Frontmatter `name` equals the approved TaskLattice Relay Skill identity.
 - Skill name contains only characters accepted by the pinned NemoClaw version.
 - No absolute paths, `..` traversal, symlinks, hard links, device nodes, sockets, or FIFOs.
 - No duplicate normalized paths or case-collision paths.
@@ -398,19 +398,19 @@ Requirements:
 - No dotfiles unless a future explicitly reviewed contract requires them; current NemoClaw upload behavior skips dotfiles.
 - The calculated package digest equals the approved `SkillVersion.package_digest`.
 
-The TaskLattice Skill manifest remains the policy and approval record. `SKILL.md` is the Agent-consumable runtime projection. A publisher cannot obtain additional network, secret, or service access merely by writing it into `SKILL.md`.
+The TaskLattice Relay Skill manifest remains the policy and approval record. `SKILL.md` is the Agent-consumable runtime projection. A publisher cannot obtain additional network, secret, or service access merely by writing it into `SKILL.md`.
 
 ### 7.3 Mutable source handling
 
 The tuple `(skill name, version, source URL)` is not sufficient for integrity because an endpoint can change bytes without changing the URL.
 
-TaskLattice always resolves it to:
+TaskLattice Relay always resolves it to:
 
 ~~~text
 Skill Version -> content SHA-256 -> immutable S3 object
 ~~~
 
-If the source returns different bytes for an already approved version, TaskLattice quarantines the new digest and raises `SOURCE_DIGEST_CHANGED`. It never silently replaces the approved artifact.
+If the source returns different bytes for an already approved version, TaskLattice Relay quarantines the new digest and raises `SOURCE_DIGEST_CHANGED`. It never silently replaces the approved artifact.
 
 `ETag` and `Last-Modified` are freshness validators only. They are not substitutes for SHA-256 or a publisher signature.
 
@@ -437,15 +437,15 @@ S3 is not appropriate as the direct hot cache because every Agent start would ad
 Use a content-addressed prefix:
 
 ~~~text
-s3://<bucket>/tasklattice-skills/v1/sha256/<first-2>/<full-digest>/bundle.tar.zst
-s3://<bucket>/tasklattice-skills/v1/sha256/<first-2>/<full-digest>/manifest.json
-s3://<bucket>/tasklattice-skills/v1/sha256/<first-2>/<full-digest>/signature.json
+s3://<bucket>/tali-skills/v1/sha256/<first-2>/<full-digest>/bundle.tar.zst
+s3://<bucket>/tali-skills/v1/sha256/<first-2>/<full-digest>/manifest.json
+s3://<bucket>/tali-skills/v1/sha256/<first-2>/<full-digest>/signature.json
 ~~~
 
 Example:
 
 ~~~text
-s3://tasklattice-runtime-artifacts/tasklattice-skills/v1/sha256/7a/7a91...e0/bundle.tar.zst
+s3://tali-runtime-artifacts/tali-skills/v1/sha256/7a/7a91...e0/bundle.tar.zst
 ~~~
 
 Do not use only `skills/<name>/<version>` as the artifact key. A readable name/version index may exist in PostgreSQL, but the object body key is derived from the digest.
@@ -484,7 +484,7 @@ Use separate identities:
 
 | Identity | Required S3 permissions |
 |---|---|
-| Skill Resolver writer | `PutObject`, `HeadObject`, optional multipart operations on `tasklattice-skills/v1/sha256/*` |
+| Skill Resolver writer | `PutObject`, `HeadObject`, optional multipart operations on `tali-skills/v1/sha256/*` |
 | Runtime Host reader | `GetObject`, `HeadObject` on the same prefix |
 | Cache janitor | Lifecycle administration or narrowly scoped delete, separated from runtime |
 | Agent sandbox | None |
@@ -494,7 +494,7 @@ The resolver writer should not overwrite an existing digest object. The Runtime 
 ### 8.7 Local cache layout
 
 ~~~text
-/var/lib/tasklattice-runtime/skills/sha256/<full-digest>/
+/var/lib/tali-runtime/skills/sha256/<full-digest>/
 ├── bundle.tar.zst
 ├── expanded/
 │   └── <skill-name>/SKILL.md
@@ -539,7 +539,7 @@ materialize_on_runtime_host(artifact_reference):
   return L2 path
 ~~~
 
-A corrupt L2 entry is deleted and rehydrated from S3. A corrupt or digest-mismatched S3 object is quarantined and treated as a security incident; TaskLattice must not fall through and install it.
+A corrupt L2 entry is deleted and rehydrated from S3. A corrupt or digest-mismatched S3 object is quarantined and treated as a security incident; TaskLattice Relay must not fall through and install it.
 
 ## 9. Agent lifecycle
 
@@ -547,7 +547,7 @@ A corrupt L2 entry is deleted and rehydrated from S3. A corrupt or digest-mismat
 
 ~~~mermaid
 sequenceDiagram
-    participant API as TaskLattice Control API
+    participant API as TaskLattice Relay Control API
     participant W as Runtime Worker
     participant A as NemoClaw Adapter
     participant H as Host Runner
@@ -576,7 +576,7 @@ The adapter should treat lifecycle completion as successful only after observati
 
 ### 9.2 Stop and destroy
 
-Stop is reversible and preserves the TaskLattice Agent Instance identity. It does not guarantee that the next sandbox container retains installed Skills. Start must therefore reconcile required Skill Bindings before the Agent returns to `READY`. Destroy removes the NemoClaw sandbox only after TaskLattice revokes the Agent service identity and records the final observed state.
+Stop is reversible and preserves the TaskLattice Relay Agent Instance identity. It does not guarantee that the next sandbox container retains installed Skills. Start must therefore reconcile required Skill Bindings before the Agent returns to `READY`. Destroy removes the NemoClaw sandbox only after TaskLattice Relay revokes the Agent service identity and records the final observed state.
 
 Destroy is idempotent: an already absent sandbox is success when the database operation owns the expected instance reference.
 
@@ -592,14 +592,14 @@ Run reconciliation:
 
 Reconciliation compares desired state with observed sandbox, Agent type, Runtime Profile revision, installed Skills, and health. It never assumes that a timed-out CLI command failed.
 
-The adapter also normalizes lifecycle semantics. In the validated NemoClaw version, a successfully stopped Docker sandbox could temporarily be reported as an upstream `Error`, and a start could pass through transient error states before becoming healthy. TaskLattice combines desired state, container state, grace periods, Agent health, inference health, and required Skill observation instead of exposing the raw upstream phase directly.
+The adapter also normalizes lifecycle semantics. In the validated NemoClaw version, a successfully stopped Docker sandbox could temporarily be reported as an upstream `Error`, and a start could pass through transient error states before becoming healthy. TaskLattice Relay combines desired state, container state, grace periods, Agent health, inference health, and required Skill observation instead of exposing the raw upstream phase directly.
 
 ## 10. Skill install flow
 
 ~~~mermaid
 sequenceDiagram
     participant U as User
-    participant API as TaskLattice Control API
+    participant API as TaskLattice Relay Control API
     participant W as Runtime Worker
     participant R as Artifact Resolver
     participant O as Skill HTTP Origin
@@ -665,7 +665,7 @@ Before invoking NemoClaw, the worker verifies:
 9. Persist observed state and sanitized evidence.
 10. Remove the operation-scoped staging path.
 
-TaskLattice does not write NemoClaw internal Skill directories directly.
+TaskLattice Relay does not write NemoClaw internal Skill directories directly.
 
 ### 10.3 User-visible completion semantics
 
@@ -797,13 +797,13 @@ Treat the Skill endpoint and bundle as untrusted input even when they are intern
 
 The recommended architecture fetches Skills outside the sandbox, so the Agent does not need egress to the Skill endpoint or S3.
 
-If a future Skill needs runtime network access, that destination must be declared in the approved TaskLattice Skill manifest and translated into an explicit OpenShell network policy. NemoClaw blocks destinations that are not allowed by policy; do not add a broad wildcard merely to make Skill loading work. See the official [NemoClaw network policy documentation](https://docs.nvidia.com/nemoclaw/latest/reference/network-policies.html).
+If a future Skill needs runtime network access, that destination must be declared in the approved TaskLattice Relay Skill manifest and translated into an explicit OpenShell network policy. NemoClaw blocks destinations that are not allowed by policy; do not add a broad wildcard merely to make Skill loading work. See the official [NemoClaw network policy documentation](https://docs.nvidia.com/nemoclaw/latest/reference/network-policies.html).
 
 ### 14.4 Secrets
 
 - S3 credentials exist only on the resolver or Runtime Host identity.
 - Skill-origin credentials exist only in the resolver.
-- AI Service upstream credentials remain in the TaskLattice Gateway or OpenShell credential boundary.
+- AI Service upstream credentials remain in the TaskLattice Relay Gateway or OpenShell credential boundary.
 - The Agent receives only short-lived, grant-scoped internal access.
 - `SKILL.md`, runtime logs, operation evidence, and error messages are scanned or redacted before persistence.
 
@@ -814,7 +814,7 @@ The Host Runner API uses typed fields:
 ~~~json
 {
   "operationId": "op_01...",
-  "sandbox": "tasklattice-prod-a1b2c3",
+  "sandbox": "tali-prod-a1b2c3",
   "action": "INSTALL_SKILL",
   "skillName": "knowledge-search",
   "contentSha256": "7a91...e0"
@@ -869,7 +869,7 @@ completed_at
 sanitized_evidence
 ~~~
 
-The adapter normalizes known failures into stable TaskLattice codes such as:
+The adapter normalizes known failures into stable TaskLattice Relay codes such as:
 
 ~~~text
 RUNTIME_HOST_UNAVAILABLE
@@ -1003,7 +1003,7 @@ The scheduler selects only a host that:
 - belongs to the Runtime Profile host pool;
 - reports the pinned NemoClaw and Agent versions;
 - has sufficient declared capacity;
-- can reach the TaskLattice AI Service Gateway;
+- can reach the TaskLattice Relay AI Service Gateway;
 - can reach S3 through the approved path;
 - has a healthy Host Runner and OpenShell gateway.
 
@@ -1033,7 +1033,7 @@ Run against every pinned NemoClaw/Agent version:
 - Remove the Skill and verify absence.
 - Restart the Host Runner and reconcile state.
 
-These tests protect TaskLattice from changes in alpha CLI behavior and internal paths.
+These tests protect TaskLattice Relay from changes in alpha CLI behavior and internal paths.
 
 ### 19.3 Integration tests
 
@@ -1094,12 +1094,12 @@ These tests protect TaskLattice from changes in alpha CLI behavior and internal 
 | Is S3 the runtime hot cache? | No. Runtime Host local disk is the hot cache. |
 | Does the Agent download the Skill? | No. The trusted Artifact Resolver downloads and verifies it. |
 | Does the Agent receive S3 credentials? | No. |
-| Does NemoClaw install directly from HTTP? | No. TaskLattice materializes a verified local directory first. |
+| Does NemoClaw install directly from HTTP? | No. TaskLattice Relay materializes a verified local directory first. |
 | What is the cache key? | SHA-256 content digest, not URL, name, version, or ETag. |
 | Can an approved version change bytes? | No. A changed digest is quarantined as a new unapproved artifact. |
 | Is `ETag` an integrity check? | No. It is only a revalidation/freshness hint. |
 | Is Skill install immediately active in the current conversation? | Not guaranteed. For OpenClaw, report availability for a new session. |
-| Should TaskLattice write NemoClaw internal directories? | No. Use the supported CLI and verify observed state. |
+| Should TaskLattice Relay write NemoClaw internal directories? | No. Use the supported CLI and verify observed state. |
 | Should S3 be mounted into the sandbox? | No. Hydrate an atomic local cache outside the sandbox. |
 
 ## 22. Source references

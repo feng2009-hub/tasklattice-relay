@@ -44,7 +44,7 @@ The Routing detail page contains:
 
 ## Domain boundaries
 
-TaskLattice owns the Routing identity, readiness boundary, compliance gate,
+TaskLattice Relay owns the Routing identity, readiness boundary, compliance gate,
 per-Instance Virtual Key lifecycle, consumer relationship, and audit trail.
 
 LiteLLM remains the source of truth for actual router candidates, weights,
@@ -59,7 +59,7 @@ claims that every registered model belongs to the selected Routing.
 
 1. Define the consumer-facing name and description.
 2. Select a validated, compliance-compatible model from the upstream pool.
-   TaskLattice uses its registered LiteLLM model name as the Routing binding.
+   TaskLattice Relay uses its registered LiteLLM model name as the Routing binding.
    Binding an existing router alias remains available as an advanced option.
 3. Review inherited routing boundary, upstream readiness, compliance,
    per-Instance credentials, and audit policy.

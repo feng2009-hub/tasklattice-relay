@@ -1,4 +1,4 @@
-import type { TraceSpan, TraceSpanType, TraceStatus } from "@tasklattice/contracts";
+import type { TraceSpan, TraceSpanType, TraceStatus } from "@tali/contracts";
 
 export interface TraceRow {
   depth: number;

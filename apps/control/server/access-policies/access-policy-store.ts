@@ -1,7 +1,7 @@
 import type {
   AccessPolicy,
   AccessPolicyVersion,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import { prisma } from "../db/prisma";
 import type { Prisma, PrismaClient } from "../generated/prisma/client";
 

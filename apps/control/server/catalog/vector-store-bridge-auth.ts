@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { getControlConfig } from "../config/control-config";
 
-const bridgePurpose = "tasklattice:vector-store-bridge:v1";
+const bridgePurpose = "tali:vector-store-bridge:v1";
 
 export function vectorStoreBridgeApiKey(): string {
   return createHmac("sha256", getControlConfig().auth.session_signing_key)

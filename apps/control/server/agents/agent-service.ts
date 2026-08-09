@@ -7,7 +7,7 @@ import {
   type ModelRouting,
   type RunnerSandbox,
   type SandboxAuditEvent,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import { AccessPolicyService } from "../access-policies/access-policy-service";
 import { AccessPolicyStore } from "../access-policies/access-policy-store";
 import { ProjectStore } from "../projects/project-store";

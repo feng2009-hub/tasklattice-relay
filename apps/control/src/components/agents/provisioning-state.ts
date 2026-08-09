@@ -1,4 +1,4 @@
-import type { AgentStatus, ProvisioningStage } from "@tasklattice/contracts";
+import type { AgentStatus, ProvisioningStage } from "@tali/contracts";
 
 export type ProvisioningStepState = "active" | "complete" | "failed" | "pending";
 

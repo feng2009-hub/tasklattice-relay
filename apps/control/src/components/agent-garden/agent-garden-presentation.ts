@@ -2,7 +2,7 @@ import type {
   AgentGardenEntry,
   AgentGardenIntegrationType,
   AgentGardenRegisterableType,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 
 export interface AgentTypePresentation {
   description: string;

@@ -11,7 +11,7 @@ Pinned versions:
 
 ## Decision
 
-TaskLattice uses OpenShell's Kubernetes driver for the Kubernetes-native sandbox
+TaskLattice Relay uses OpenShell's Kubernetes driver for the Kubernetes-native sandbox
 lifecycle. Each created Agent maps to an OpenShell `Sandbox` resource, a
 same-name Kubernetes Pod, and a workspace PVC. The browser terminal reaches the
 same Pod through OpenShell's gRPC exec relay.
@@ -20,7 +20,7 @@ Generated Sandbox and Pod names use the short operational prefix `tali-` and
 stay at or below 28 characters because OpenShell uses the Sandbox name as part
 of its browser service-routing hostname.
 
-TaskLattice does not run the Docker-oriented `nemoclaw onboard` host lifecycle inside a
+TaskLattice Relay does not run the Docker-oriented `nemoclaw onboard` host lifecycle inside a
 privileged Pod. It uses OpenShell's Kubernetes driver while preserving the
 official in-sandbox runtime shape: OpenShell is PID 1, `nemoclaw-start` is its
 long-lived non-root child, and that supervisor owns the OpenClaw gateway. The
@@ -29,8 +29,8 @@ NemoClaw plugin, generated OpenClaw configuration, supervisor, and health check.
 
 ```mermaid
 flowchart TD
-    UI["TanStack UI"] -->|"REST + WebSocket"| API["TaskLattice Control API"]
-    API -->|"typed private REST"| RUNNER["TaskLattice OpenShell Runner"]
+    UI["TanStack UI"] -->|"REST + WebSocket"| API["TaskLattice Relay Control API"]
+    API -->|"typed private REST"| RUNNER["TaskLattice Relay OpenShell Runner"]
     RUNNER -->|"OpenShell CLI / gRPC"| GATEWAY["OpenShell Gateway"]
     GATEWAY --> CR["Agent Sandbox CR"]
     CR --> POD["NemoClaw Sandbox Pod"]

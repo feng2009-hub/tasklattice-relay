@@ -1,4 +1,4 @@
-import type { CostSummary } from "@tasklattice/contracts";
+import type { CostSummary } from "@tali/contracts";
 import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
 import { compactNumber, usd } from "./cost-utils";
 

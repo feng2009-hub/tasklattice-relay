@@ -1,12 +1,12 @@
 {{- if .Values.exampleMcp.enabled }}
 {{- $component := "example-mcp" -}}
-{{- $name := include "tasklattice.componentName" (dict "root" . "component" $component) -}}
+{{- $name := include "tali.componentName" (dict "root" . "component" $component) -}}
 apiVersion: v1
 kind: Secret
 metadata:
   name: {{ $name }}-auth
   labels:
-    {{- include "tasklattice.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
+    {{- include "tali.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
 type: Opaque
 stringData:
   username: {{ required "exampleMcp.auth.username is required" .Values.exampleMcp.auth.username | quote }}
@@ -18,23 +18,23 @@ kind: Deployment
 metadata:
   name: {{ $name }}
   labels:
-    {{- include "tasklattice.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
+    {{- include "tali.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
 spec:
   replicas: {{ .Values.exampleMcp.replicaCount }}
   selector:
     matchLabels:
-      {{- include "tasklattice.selectorLabels" (dict "root" . "component" $component) | nindent 6 }}
+      {{- include "tali.selectorLabels" (dict "root" . "component" $component) | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "tasklattice.selectorLabels" (dict "root" . "component" $component) | nindent 8 }}
+        {{- include "tali.selectorLabels" (dict "root" . "component" $component) | nindent 8 }}
       annotations:
         checksum/auth-secret: {{ printf "%s:%s" .Values.exampleMcp.auth.username .Values.exampleMcp.auth.password | sha256sum }}
         {{- with .Values.global.rolloutRevision }}
-        tasklattice.ai/rollout-revision: {{ . | quote }}
+        tali.ai/rollout-revision: {{ . | quote }}
         {{- end }}
     spec:
-      serviceAccountName: {{ include "tasklattice.runtimeServiceAccountName" . }}
+      serviceAccountName: {{ include "tali.runtimeServiceAccountName" . }}
       automountServiceAccountToken: false
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets:
@@ -48,7 +48,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: example-mcp
-          image: {{ include "tasklattice.image" (dict "root" . "image" .Values.images.exampleMcp) }}
+          image: {{ include "tali.image" (dict "root" . "image" .Values.images.exampleMcp) }}
           imagePullPolicy: {{ .Values.images.exampleMcp.pullPolicy }}
           ports:
             - name: http
@@ -101,11 +101,11 @@ kind: Service
 metadata:
   name: {{ $name }}
   labels:
-    {{- include "tasklattice.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
+    {{- include "tali.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
 spec:
   type: ClusterIP
   selector:
-    {{- include "tasklattice.selectorLabels" (dict "root" . "component" $component) | nindent 4 }}
+    {{- include "tali.selectorLabels" (dict "root" . "component" $component) | nindent 4 }}
   ports:
     - name: http
       port: {{ .Values.exampleMcp.service.port }}

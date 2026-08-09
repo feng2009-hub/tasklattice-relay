@@ -2,7 +2,7 @@ import type {
   Agent,
   AgentConnection,
   AgentGardenEntry,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import {
   Activity,
   ArrowRight,
@@ -191,7 +191,7 @@ export function AgentDetailSheet({
                   agent.source === "BUILT_IN"
                     ? agent.configuration.catalogKind === "EXAMPLE_BLUEPRINT"
                       ? "Database-backed example blueprint"
-                      : "TaskLattice built-in"
+                      : "TaskLattice Relay built-in"
                     : "Project registered",
               },
               {
@@ -204,7 +204,7 @@ export function AgentDetailSheet({
               },
               {
                 label: "Endpoint",
-                value: agent.endpoint ?? "Managed by TaskLattice",
+                value: agent.endpoint ?? "Managed by TaskLattice Relay",
                 mono: Boolean(agent.endpoint),
               },
               {

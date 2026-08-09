@@ -9,7 +9,7 @@ import type {
   KnowledgeSourceDefinition,
   McpServerDefinition,
   UpdateAccessPolicyInput,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import type {
   LiteLLMAdminClient,
   LiteLLMObjectPermissions,

@@ -23,7 +23,7 @@ export const Route = createRootRouteWithContext<{
         name: "viewport",
         content: "width=device-width, initial-scale=1",
       },
-      { title: "TaskLattice" },
+      { title: "TaskLattice Relay" },
       {
         name: "description",
         content: "Schedule and operate isolated agents on Kubernetes.",
@@ -64,7 +64,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <script
           dangerouslySetInnerHTML={{
             __html:
-              "try{const t=localStorage.getItem('tasklattice.account.theme')||'system';const d=t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);document.documentElement.style.colorScheme=d?'dark':'light'}catch{}",
+              "try{const t=localStorage.getItem('tali.account.theme')||'system';const d=t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);document.documentElement.style.colorScheme=d?'dark':'light'}catch{}",
           }}
         />
       </head>

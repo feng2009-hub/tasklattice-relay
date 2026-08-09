@@ -54,7 +54,7 @@ export function CreateProjectSheet({
   const [inviteError, setInviteError] = useState("");
   const creatorEmail = (
     user?.email?.trim()
-    || (user?.username ? `${user.username}@tasklattice.local` : "")
+    || (user?.username ? `${user.username}@tali.local` : "")
   ).toLowerCase();
 
   const reset = () => {

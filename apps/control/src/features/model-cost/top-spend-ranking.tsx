@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { CostBreakdownItem, CostGroupBy } from "@tasklattice/contracts";
+import type { CostBreakdownItem, CostGroupBy } from "@tali/contracts";
 import { Button } from "@/components/ui/button";
 import {
   Drawer,

@@ -1,4 +1,4 @@
-import { createModelDeploymentSchema } from "@tasklattice/contracts";
+import { createModelDeploymentSchema } from "@tali/contracts";
 import { defineHandler } from "nitro";
 import { requireAuth, unauthorizedResponse } from "../../../../../../auth/auth";
 import { errorResponse, jsonResponse } from "../../../../../../http/responses";

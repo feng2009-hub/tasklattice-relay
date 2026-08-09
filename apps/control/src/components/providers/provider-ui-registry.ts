@@ -4,7 +4,7 @@ import {
   type ComplianceDomain,
   type ProviderConnectionDraft,
   type ProviderKind,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import { AnthropicProvider } from "./configurators/anthropic-provider";
 import { AwsBedrockProvider } from "./configurators/aws-bedrock-provider";
 import { AzureOpenAIProvider } from "./configurators/azure-openai-provider";
@@ -58,7 +58,7 @@ export const providerUiRegistry = {
   "azure-openai": { Component: AzureOpenAIProvider, createDraft: () => ({ provider: "azure-openai", name: "Azure OpenAI production", config: { endpoint: "", apiVersion: "2024-10-21", deployment: "" }, credentials: { apiKey: "" } }) },
   "aws-bedrock": { Component: AwsBedrockProvider, createDraft: (domain = "GLOBAL") => ({ provider: "aws-bedrock", name: "AWS Bedrock production", config: { region: defaultAwsRegion(domain), roleArn: undefined }, credentials: { accessKeyId: "", secretAccessKey: "", sessionToken: undefined } }) },
   "vertex-ai": { Component: VertexAIProvider, createDraft: (domain = "GLOBAL") => ({ provider: "vertex-ai", name: "Vertex AI production", config: { project: "", location: defaultVertexLocation(domain) }, credentials: { serviceAccountJson: "" } }) },
-  openrouter: { Component: OpenRouterProvider, createDraft: () => ({ provider: "openrouter", name: "OpenRouter production", config: { endpoint: "https://openrouter.ai/api/v1", siteUrl: undefined, appName: "TaskLattice" }, credentials: { apiKey: "" } }) },
+  openrouter: { Component: OpenRouterProvider, createDraft: () => ({ provider: "openrouter", name: "OpenRouter production", config: { endpoint: "https://openrouter.ai/api/v1", siteUrl: undefined, appName: "TaskLattice Relay" }, credentials: { apiKey: "" } }) },
   ollama: { Component: OllamaProvider, createDraft: () => ({ provider: "ollama", name: "Local Ollama", config: { endpoint: "http://host.docker.internal:11434" }, credentials: {} }) },
   vllm: { Component: VllmProvider, createDraft: () => ({ provider: "vllm", name: "Self-hosted vLLM", config: { endpoint: "http://host.docker.internal:8000/v1" }, credentials: { apiKey: undefined } }) },
   huggingface: { Component: HuggingFaceProvider, createDraft: () => ({ provider: "huggingface", name: "Hugging Face production", config: { mode: "serverless", endpoint: undefined, inferenceProvider: undefined }, credentials: { apiKey: "" } }) },

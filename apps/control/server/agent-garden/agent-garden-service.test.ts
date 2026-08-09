@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type {
   Agent,
   CreateAgentGardenEntryInput,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import { createTestStore } from "../test/store";
 import type { SecretStore } from "../secrets/secret-store";
 import type { AgentDiscoveryClient } from "./agent-discovery";
@@ -144,7 +144,7 @@ describe("AgentGardenService", () => {
       snapshot.agents.filter((agent) => agent.id === "a2a-github-daily-triage"),
     ).toHaveLength(1);
     await expect(service.remove("a2a-github-daily-triage")).rejects.toThrow(
-      "managed by TaskLattice",
+      "managed by TaskLattice Relay",
     );
   });
 

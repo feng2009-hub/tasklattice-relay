@@ -1,4 +1,4 @@
-import { createAgentConnectionSchema } from "@tasklattice/contracts";
+import { createAgentConnectionSchema } from "@tali/contracts";
 import { defineHandler } from "nitro";
 import {
   requireAuth,

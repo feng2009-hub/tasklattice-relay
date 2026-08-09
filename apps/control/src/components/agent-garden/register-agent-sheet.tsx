@@ -6,7 +6,7 @@ import {
   type AgentGardenRegisterableType,
   type AgentGardenUsageMode,
   type CreateAgentGardenEntryInput,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import {
   ArrowLeft,
   ArrowRight,
@@ -167,7 +167,7 @@ export function RegisterAgentSheet({
       }}
       eyebrow="Agent Garden"
       title="Register Agent"
-      description="Connect an Agent built outside TaskLattice and define how it may participate in this Project."
+      description="Connect an Agent built outside TaskLattice Relay and define how it may participate in this Project."
       width="xl"
       footer={(
         <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">

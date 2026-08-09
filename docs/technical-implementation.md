@@ -1,4 +1,4 @@
-# TaskLattice Marketplace Technical Implementation
+# TaskLattice Relay Marketplace Technical Implementation
 
 Status: Draft
 
@@ -6,7 +6,7 @@ Version: 0.2
 
 ## 1. Purpose
 
-TaskLattice is an internal AI Service Marketplace and Agent Control Plane.
+TaskLattice Relay is an internal AI Service Marketplace and Agent Control Plane.
 
 The platform assumes that AI services already exist and expose runnable endpoints. It integrates those endpoints into a catalog, governs who may use them and how much quota they receive, and manages Agents that can load approved Skills while running.
 
@@ -94,7 +94,7 @@ flowchart LR
     USER["Requester / Approver / Admin"] --> UI["Marketplace Web Portal"]
     UI --> API["Marketplace API / BFF"]
 
-    subgraph CONTROL["TaskLattice Control Plane"]
+    subgraph CONTROL["TaskLattice Relay Control Plane"]
         API --> CATALOG["AI Service Catalog"]
         API --> REQUEST["Request and Approval"]
         API --> QUOTA["Quota Service"]
@@ -471,16 +471,16 @@ Every Skill Version is immutable. Code, dependency, configuration schema, or per
 ### 10.2 Manifest
 
 ~~~yaml
-apiVersion: tasklattice.ai/v1
+apiVersion: tali.ai/v1
 kind: Skill
 metadata:
   name: knowledge-search
   version: 1.2.0
 runtime:
   type: python
-  entrypoint: tasklattice_skill:create_skill
+  entrypoint: tali_skill:create_skill
   compatibleAgentRuntimes:
-    - tasklattice-agent-python-v1
+    - tali-agent-python-v1
 configuration:
   schemaRef: schemas/config.json
 permissions:
@@ -495,7 +495,7 @@ permissions:
   sideEffects:
     - type: external_read
 health:
-  check: tasklattice_skill:health
+  check: tali_skill:health
 reload:
   strategy: hot
   rollbackOnFailure: true
@@ -878,7 +878,7 @@ Acceptance checks:
 ## 22. Current repository structure
 
 ~~~text
-tasklattice/
+tali/
 ├── apps/
 │   ├── control/                 # TanStack Start UI, REST API, terminal proxy
 │   │   ├── src/                 # React routes and reusable components

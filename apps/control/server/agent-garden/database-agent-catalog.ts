@@ -1,7 +1,7 @@
 import {
   agentGardenEntrySchema,
   type AgentGardenEntry,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import {
   demoAgentCardUrl,
   demoAgentDefinitions,
@@ -15,7 +15,7 @@ const seededAt = "2026-07-26T00:00:00.000Z";
 export const databaseAgentCatalog: AgentGardenEntry[] =
   demoAgentDefinitions.map((definition, index) => {
     const catalogKind =
-      definition.catalogKind ?? "TASKLATTICE_DEMO";
+      definition.catalogKind ?? "TALI_DEMO";
     return agentGardenEntrySchema.parse({
       id: definition.id,
       name: definition.name,
@@ -26,8 +26,8 @@ export const databaseAgentCatalog: AgentGardenEntry[] =
       category: definition.category,
       owner:
         catalogKind === "EXAMPLE_BLUEPRINT"
-          ? "TaskLattice Example Store"
-          : "TaskLattice Demo",
+          ? "TaskLattice Relay Example Store"
+          : "TaskLattice Relay Demo",
       tags: definition.tags,
       status: "READY",
       usageMode: "CALLABLE",
@@ -61,11 +61,11 @@ export const databaseAgentCatalog: AgentGardenEntry[] =
         ),
         marketplaceVersion: "1.0.0-preview",
         releaseStage: "Preview",
-        supportLevel: "TaskLattice sample catalog",
+        supportLevel: "TaskLattice Relay sample catalog",
         license: "Sample blueprint",
         transport:
           definition.integrationType === "langgraph"
-            ? "TaskLattice A2A demo adapter"
+            ? "TaskLattice Relay A2A demo adapter"
             : "JSON-RPC",
       },
       skills: definition.skills,

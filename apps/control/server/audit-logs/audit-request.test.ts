@@ -20,7 +20,7 @@ describe("platform audit request capture", () => {
   it("classifies side-effect routes and redacts credentials recursively", async () => {
     database = createTestPrisma();
     const captured = await captureAuditRequest(new Request(
-      "http://tasklattice.local/api/v1/projects/individual/providers",
+      "http://tali.local/api/v1/projects/individual/providers",
       {
         method: "POST",
         headers: {
@@ -76,7 +76,7 @@ describe("platform audit request capture", () => {
 
   it("explicitly excludes read-only vector search POST requests", async () => {
     expect(await captureAuditRequest(new Request(
-      "http://tasklattice.local/api/internal/vector-stores/individual/v1/vector_stores/kb/search",
+      "http://tali.local/api/internal/vector-stores/individual/v1/vector_stores/kb/search",
       {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -87,7 +87,7 @@ describe("platform audit request capture", () => {
 
   it("excludes read-only cost analytics requests", async () => {
     expect(await captureAuditRequest(new Request(
-      "http://tasklattice.local/api/v1/projects/individual/costs/breakdown",
+      "http://tali.local/api/v1/projects/individual/costs/breakdown",
     ))).toBeUndefined();
   });
 
@@ -109,7 +109,7 @@ describe("platform audit request capture", () => {
         .replace(/\/index$/, "")
         .replace(/\[projectId\]/g, "individual")
         .replace(/\[[^\]]+\]/g, "test-object");
-      const request = new Request(`http://tasklattice.local/api/v1/${route}`, {
+      const request = new Request(`http://tali.local/api/v1/${route}`, {
         method,
         headers: { "content-type": "application/json" },
         body: JSON.stringify({}),

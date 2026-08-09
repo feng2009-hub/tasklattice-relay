@@ -10,7 +10,7 @@ for command_name in "${required_commands[@]}"; do
 done
 
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-chart_root="$repository_root/charts/tasklattice"
+chart_root="$repository_root/charts/tali"
 openshell_version="0.0.82"
 openshell_archive="$chart_root/charts/helm-chart-${openshell_version}.tgz"
 openshell_sha256="b610de578f6f517c884b5e9815f153fad426ea05ed6687b78fa28515e183b57f"
@@ -20,12 +20,12 @@ agent_sandbox_patch_file="$chart_root/patches/agent-sandbox-${agent_sandbox_vers
 agent_sandbox_source_directory="agent-sandbox-0.5.1"
 agent_sandbox_url="https://github.com/kubernetes-sigs/agent-sandbox/archive/refs/tags/${agent_sandbox_version}.tar.gz"
 agent_sandbox_sha256="b6f50dd6844f5c5d5a7b773a13d43a900dcbe3a20a8e02a8ea5731ec95dc0c42"
-dependency_cache="${TASKLATTICE_DEPENDENCY_CACHE:-${TMPDIR:-/tmp}/tasklattice-dependencies}"
+dependency_cache="${TALI_DEPENDENCY_CACHE:-${TMPDIR:-/tmp}/tali-dependencies}"
 agent_sandbox_archive="$dependency_cache/agent-sandbox-${agent_sandbox_version}.tar.gz"
 agent_sandbox_download="$agent_sandbox_archive.download.$$"
 dependency_source_root="$repository_root/.helm-dependencies"
 agent_sandbox_chart="$dependency_source_root/agent-sandbox"
-work_dir="$(mktemp -d "${TMPDIR:-/tmp}/tasklattice-helm-dependencies.XXXXXX")"
+work_dir="$(mktemp -d "${TMPDIR:-/tmp}/tali-helm-dependencies.XXXXXX")"
 
 cleanup() {
   rm -f "$agent_sandbox_download"

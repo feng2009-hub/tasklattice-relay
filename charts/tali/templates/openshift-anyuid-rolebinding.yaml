@@ -2,20 +2,20 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: {{ include "tasklattice.componentName" (dict "root" . "component" "anyuid") }}
+  name: {{ include "tali.componentName" (dict "root" . "component" "anyuid") }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "tasklattice.labels" . | nindent 4 }}
+    {{- include "tali.labels" . | nindent 4 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: system:openshift:scc:anyuid
 subjects:
   - kind: ServiceAccount
-    name: {{ include "tasklattice.runtimeServiceAccountName" . }}
+    name: {{ include "tali.runtimeServiceAccountName" . }}
     namespace: {{ .Release.Namespace }}
   - kind: ServiceAccount
-    name: {{ include "tasklattice.serviceAccountName" . }}
+    name: {{ include "tali.serviceAccountName" . }}
     namespace: {{ .Release.Namespace }}
   {{- if .Values.openshell.enabled }}
   - kind: ServiceAccount

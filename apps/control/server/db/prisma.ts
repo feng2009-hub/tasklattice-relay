@@ -3,11 +3,11 @@ import { getControlConfig } from "../config/control-config";
 import { PrismaClient } from "../generated/prisma/client";
 
 declare global {
-  var tasklatticePrisma: PrismaClient | undefined;
+  var taliPrisma: PrismaClient | undefined;
 }
 
 export function prisma(): PrismaClient {
-  if (!globalThis.tasklatticePrisma) {
+  if (!globalThis.taliPrisma) {
     const adapter = new PrismaPg(
       {
         connectionString: getControlConfig().database.url,
@@ -15,9 +15,9 @@ export function prisma(): PrismaClient {
       },
       { schema: "tasklattice" },
     );
-    globalThis.tasklatticePrisma = new PrismaClient({ adapter });
+    globalThis.taliPrisma = new PrismaClient({ adapter });
   }
-  return globalThis.tasklatticePrisma;
+  return globalThis.taliPrisma;
 }
 
 export async function databaseHealth(): Promise<void> {

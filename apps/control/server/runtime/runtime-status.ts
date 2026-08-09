@@ -2,7 +2,7 @@ import {
   supportsNemoClawTui,
   type RunnerHealth,
   type RuntimeStatus,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 
 export function runtimeStatusFromHealth(
   health: RunnerHealth,

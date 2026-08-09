@@ -2,7 +2,7 @@ import { getAuthToken } from "@/lib/auth-token";
 import type {
   ProjectQuota,
   UpdateProjectQuotaInput,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import type {
   HumanProjectMember,
   Project,

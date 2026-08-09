@@ -1,4 +1,4 @@
-import type { Agent, AgentStatus, TerminalTarget } from "@tasklattice/contracts";
+import type { Agent, AgentStatus, TerminalTarget } from "@tali/contracts";
 import { formatPlatformDateTime } from "@/lib/platform-preferences";
 
 export const instanceDetailTabs = ["overview", "configuration", "capabilities", "terminal", "auditor-log"] as const;

@@ -7,10 +7,10 @@ if (( $# > 0 )); then
 fi
 enable_keycloak=false
 enable_example_mcp=false
-release_name="${HELM_RELEASE_NAME:-tasklattice}"
-namespace="${HELM_NAMESPACE:-tasklattice-sandboxes}"
+release_name="${HELM_RELEASE_NAME:-tali}"
+namespace="${HELM_NAMESPACE:-tali-sandboxes}"
 helm_timeout="${HELM_TIMEOUT:-15m}"
-image_registry="ghcr.io/sn0rt"
+image_registry="ghcr.io/tasklattice"
 image_tag="dev"
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
@@ -81,15 +81,15 @@ if [[ "$action" == "delete" ]]; then
 fi
 
 images=(
-  "$image_registry/tasklattice-control:$image_tag"
-  "$image_registry/tasklattice-openshell-runner:$image_tag"
-  "$image_registry/tasklattice-litellm:$image_tag"
-  "$image_registry/tasklattice-model-guardrails:$image_tag"
-  "$image_registry/tasklattice-nemoclaw-sandbox:$image_tag"
-  "$image_registry/tasklattice-nemoclaw-hermes-sandbox:$image_tag"
+  "$image_registry/tali-control:$image_tag"
+  "$image_registry/tali-openshell-runner:$image_tag"
+  "$image_registry/tali-litellm:$image_tag"
+  "$image_registry/tali-model-guardrails:$image_tag"
+  "$image_registry/tali-nemoclaw-sandbox:$image_tag"
+  "$image_registry/tali-nemoclaw-hermes-sandbox:$image_tag"
 )
 if [[ "$enable_example_mcp" == "true" ]]; then
-  images+=("$image_registry/tasklattice-example-mcp:$image_tag")
+  images+=("$image_registry/tali-example-mcp:$image_tag")
 fi
 
 missing_images=()
@@ -133,7 +133,7 @@ if [[ "$enable_keycloak" == "true" ]]; then
       echo "Unable to find an IPv4 InternalIP for the OrbStack Kubernetes node." >&2
       exit 1
     fi
-    control_public_url="${CONTROL_PUBLIC_URL:-http://tasklattice.localhost}"
+    control_public_url="${CONTROL_PUBLIC_URL:-http://tali.localhost}"
     keycloak_public_url="${KEYCLOAK_PUBLIC_URL:-http://keycloak.localhost:${keycloak_service_port}}"
     keycloak_helm_args+=(
       --set-string "control.hostAliases[0].ip=$node_ip"
@@ -161,15 +161,15 @@ if [[ "$enable_example_mcp" == "true" ]]; then
 fi
 
 bash "$repository_root/scripts/prepare-helm-dependencies.sh"
-helm lint "$repository_root/charts/tasklattice" \
-  --values "$repository_root/charts/tasklattice/values-dev.yaml" \
+helm lint "$repository_root/charts/tali" \
+  --values "$repository_root/charts/tali/values-dev.yaml" \
   ${keycloak_helm_args[@]+"${keycloak_helm_args[@]}"} \
   ${example_mcp_helm_args[@]+"${example_mcp_helm_args[@]}"}
-helm upgrade --install "$release_name" "$repository_root/charts/tasklattice" \
+helm upgrade --install "$release_name" "$repository_root/charts/tali" \
   --kube-context "$kube_context" \
   --namespace "$namespace" \
   --create-namespace \
-  --values "$repository_root/charts/tasklattice/values-dev.yaml" \
+  --values "$repository_root/charts/tali/values-dev.yaml" \
   --set-string "global.rolloutRevision=$rollout_revision" \
   ${keycloak_helm_args[@]+"${keycloak_helm_args[@]}"} \
   ${example_mcp_helm_args[@]+"${example_mcp_helm_args[@]}"} \

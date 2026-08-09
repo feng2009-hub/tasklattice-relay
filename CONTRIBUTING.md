@@ -1,6 +1,6 @@
 # Contributing
 
-Thank you for contributing to TaskLattice. This guide covers source builds,
+Thank you for contributing to TaskLattice Relay. This guide covers source builds,
 tests, local Kubernetes deployment, and the checks expected before submitting
 a change. Released deployments should use the latest published Release Chart
 and its exact immutable Release version as described in the root README.
@@ -13,8 +13,8 @@ Run the checks relevant to your change. The complete repository validation is:
 npm test
 npm run typecheck
 npm run build
-helm lint charts/tasklattice
-helm lint charts/tasklattice --values charts/tasklattice/values-dev.yaml
+helm lint charts/tali
+helm lint charts/tali --values charts/tali/values-dev.yaml
 ```
 
 Keep generated credentials, `.env`, local databases, and provider keys out of
@@ -26,16 +26,16 @@ Local development uses the same canonical repositories as a Release and only
 changes the tag to the permanent `dev` value:
 
 ```text
-ghcr.io/sn0rt/tasklattice-control:dev
-ghcr.io/sn0rt/tasklattice-openshell-runner:dev
-ghcr.io/sn0rt/tasklattice-litellm:dev
-ghcr.io/sn0rt/tasklattice-nemoclaw-sandbox:dev
-ghcr.io/sn0rt/tasklattice-nemoclaw-hermes-sandbox:dev
+ghcr.io/tasklattice/tali-control:dev
+ghcr.io/tasklattice/tali-openshell-runner:dev
+ghcr.io/tasklattice/tali-litellm:dev
+ghcr.io/tasklattice/tali-nemoclaw-sandbox:dev
+ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:dev
 ```
 
 These images are built into the local Docker store. The Release workflow does
 not publish the `dev` tag. Local integration tests can additionally build
-`ghcr.io/sn0rt/tasklattice-example-mcp:dev`; it is test-only and is not one of
+`ghcr.io/tasklattice/tali-example-mcp:dev`; it is test-only and is not one of
 the five released images.
 
 ## Prerequisites
@@ -66,8 +66,8 @@ context, and finally an available `orbstack` context.
 ## Install and validate the source tree
 
 ```sh
-git clone git@github.com:Sn0rt/TaskLattice.git
-cd TaskLattice
+git clone git@github.com:tasklattice/tasklattice-relay.git
+cd TaskLattice Relay
 npm ci
 npm test
 npm run typecheck
@@ -92,19 +92,19 @@ npm run images:build
 ```
 
 The OpenClaw and Hermes builds clone pinned NVIDIA NemoClaw revisions, build an
-upstream image, and pass it through a TaskLattice-owned wrapper Dockerfile.
+upstream image, and pass it through a TaskLattice Relay-owned wrapper Dockerfile.
 Hermes builds its pinned base locally when the upstream GHCR base is
 unavailable.
 
 Confirm the resulting images:
 
 ```sh
-docker image inspect ghcr.io/sn0rt/tasklattice-control:dev
-docker image inspect ghcr.io/sn0rt/tasklattice-openshell-runner:dev
-docker image inspect ghcr.io/sn0rt/tasklattice-litellm:dev
-docker image inspect ghcr.io/sn0rt/tasklattice-nemoclaw-sandbox:dev
-docker image inspect ghcr.io/sn0rt/tasklattice-nemoclaw-hermes-sandbox:dev
-docker image inspect ghcr.io/sn0rt/tasklattice-example-mcp:dev
+docker image inspect ghcr.io/tasklattice/tali-control:dev
+docker image inspect ghcr.io/tasklattice/tali-openshell-runner:dev
+docker image inspect ghcr.io/tasklattice/tali-litellm:dev
+docker image inspect ghcr.io/tasklattice/tali-nemoclaw-sandbox:dev
+docker image inspect ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:dev
+docker image inspect ghcr.io/tasklattice/tali-example-mcp:dev
 ```
 
 Individual build commands are available for shorter loops:
@@ -120,7 +120,7 @@ npm run images:build:sandbox:hermes
 
 ## Deploy with Helm
 
-The development values install TaskLattice, LiteLLM, PostgreSQL, OpenShell, and
+The development values install TaskLattice Relay, LiteLLM, PostgreSQL, OpenShell, and
 the Agent Sandbox controller as one Helm release:
 
 ```sh
@@ -131,23 +131,23 @@ The deploy script:
 
 - verifies that all five `:dev` images exist locally;
 - loads them into Kind when the context name starts with `kind-`;
-- installs `charts/tasklattice` with `values-dev.yaml`;
+- installs `charts/tali` with `values-dev.yaml`;
 - changes `global.rolloutRevision` so rebuilt mutable images create new Pods;
 - waits for the complete release to become ready.
 
 Verify the workloads:
 
 ```sh
-kubectl -n tasklattice-sandboxes rollout status deployment/tasklattice-control --timeout=300s
-kubectl -n tasklattice-sandboxes rollout status deployment/tasklattice-runner --timeout=300s
-kubectl -n tasklattice-sandboxes rollout status deployment/tasklattice-litellm --timeout=300s
-kubectl -n tasklattice-sandboxes rollout status statefulset/tasklattice-postgresql --timeout=300s
-kubectl -n tasklattice-sandboxes rollout status statefulset/tasklattice-openshell --timeout=300s
+kubectl -n tali-sandboxes rollout status deployment/tali-control --timeout=300s
+kubectl -n tali-sandboxes rollout status deployment/tali-runner --timeout=300s
+kubectl -n tali-sandboxes rollout status deployment/tali-litellm --timeout=300s
+kubectl -n tali-sandboxes rollout status statefulset/tali-postgresql --timeout=300s
+kubectl -n tali-sandboxes rollout status statefulset/tali-openshell --timeout=300s
 kubectl -n agent-sandbox-system rollout status deployment/agent-sandbox-controller --timeout=300s
 ```
 
 On OrbStack, open `http://localhost` and sign in with `admin / admin`. The
-LiteLLM development UI uses `admin / tasklattice-local-admin`.
+LiteLLM development UI uses `admin / tali-local-admin`.
 
 The development values disable OpenShell TLS and allow unauthenticated gateway
 clients. Use them only on a trusted local cluster.
@@ -174,9 +174,9 @@ a release gate until that migration is complete.
 Useful runtime inspection commands:
 
 ```sh
-kubectl -n tasklattice-sandboxes get sandboxes,pods,pvc
-kubectl -n tasklattice-sandboxes logs deployment/tasklattice-runner --tail=200
-kubectl -n tasklattice-sandboxes logs statefulset/tasklattice-openshell --tail=200
+kubectl -n tali-sandboxes get sandboxes,pods,pvc
+kubectl -n tali-sandboxes logs deployment/tali-runner --tail=200
+kubectl -n tali-sandboxes logs statefulset/tali-openshell --tail=200
 ```
 
 ## Host-only API and UI development
@@ -192,9 +192,9 @@ NEMOCLAW_RUNNER_MODE=fixture npm run dev:runner
 Terminal 2:
 
 ```sh
-docker run --rm --name tasklattice-dev-postgres \
-  -e POSTGRES_PASSWORD=tasklattice \
-  -e POSTGRES_DB=tasklattice \
+docker run --rm --name tali-dev-postgres \
+  -e POSTGRES_PASSWORD=tali \
+  -e POSTGRES_DB=tali \
   -p 5432:5432 postgres:17-alpine
 ```
 
@@ -203,9 +203,9 @@ Terminal 3:
 ```sh
 cp control.example.toml control.toml
 # Set database.url to:
-# postgresql://postgres:tasklattice@127.0.0.1:5432/tasklattice
-export TASKLATTICE_CONFIG="$PWD/control.toml"
-npm run db:migrate --workspace @tasklattice/control
+# postgresql://postgres:tali@127.0.0.1:5432/tali
+export TALI_CONFIG="$PWD/control.toml"
+npm run db:migrate --workspace @tali/control
 PORT=18080 npm run dev:control
 ```
 
@@ -231,7 +231,7 @@ existing Kind cluster, installs the development Chart, and waits for the static
 control-plane Pods:
 
 ```sh
-kind create cluster --name tasklattice-ci
+kind create cluster --name tali-ci
 bash scripts/helm-kind-smoke.sh
 ```
 
@@ -265,8 +265,8 @@ Confirm the exact image exists in Docker. A non-shared Kubernetes runtime must
 load the same fully qualified image name into every node:
 
 ```sh
-docker image inspect ghcr.io/sn0rt/tasklattice-nemoclaw-sandbox:dev
-docker image inspect ghcr.io/sn0rt/tasklattice-nemoclaw-hermes-sandbox:dev
+docker image inspect ghcr.io/tasklattice/tali-nemoclaw-sandbox:dev
+docker image inspect ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:dev
 ```
 
 The deploy script loads all five images automatically for Kind. Other local
@@ -283,7 +283,7 @@ remains `dev`.
 Inspect the Sandbox, runner, and OpenShell gateway:
 
 ```sh
-kubectl -n tasklattice-sandboxes get sandboxes,pods,pvc
-kubectl -n tasklattice-sandboxes logs deployment/tasklattice-runner --tail=200
-kubectl -n tasklattice-sandboxes logs statefulset/tasklattice-openshell --tail=200
+kubectl -n tali-sandboxes get sandboxes,pods,pvc
+kubectl -n tali-sandboxes logs deployment/tali-runner --tail=200
+kubectl -n tali-sandboxes logs statefulset/tali-openshell --tail=200
 ```

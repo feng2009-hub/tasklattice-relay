@@ -1,20 +1,20 @@
 # Control Plane configuration
 
-TaskLattice Control reads one TOML file. Production starts only when
-`TASKLATTICE_CONFIG` points to a valid file. The Helm chart renders this file
-as the `control.toml` entry in the TaskLattice Secret and mounts it read-only at
-`/etc/tasklattice/control.toml`.
+TaskLattice Relay Control reads one TOML file. Production starts only when
+`TALI_CONFIG` points to a valid file. The Helm chart renders this file
+as the `control.toml` entry in the TaskLattice Relay Secret and mounts it read-only at
+`/etc/tali/control.toml`.
 
 ```toml
 schema_version = 1
 
 [server]
 # Optional for Local authentication; required when auth.oidc.enabled = true.
-public_url = "https://tasklattice.example.com"
-internal_url = "http://tasklattice-control"
+public_url = "https://tali.example.com"
+internal_url = "http://tali-control"
 
 [database]
-url = "postgresql://tasklattice:password@postgresql:5432/tasklattice"
+url = "postgresql://tali:password@postgresql:5432/tali"
 
 [auth]
 session_signing_key = "replace-with-a-long-random-secret"
@@ -27,16 +27,16 @@ initial_super_admin_password_hash = "$2b$12$REPLACE_WITH_A_REAL_BCRYPT_HASH"
 [auth.oidc]
 enabled = true
 display_name = "Company SSO"
-issuer = "https://identity.example.com/realms/tasklattice"
-client_id = "tasklattice-control-plane"
+issuer = "https://identity.example.com/realms/tali"
+client_id = "tali-control-plane"
 client_secret = "replace-me"
 
 [runner]
-url = "http://tasklattice-runner:9090"
+url = "http://tali-runner:9090"
 token = "replace-me"
 
 [litellm]
-url = "http://tasklattice-litellm:4000"
+url = "http://tali-litellm:4000"
 master_key = "replace-me"
 
 [smtp]
@@ -44,10 +44,10 @@ enabled = true
 host = "smtp.example.com"
 port = 587
 secure = false
-username = "tasklattice@example.com"
+username = "tali@example.com"
 password = "replace-me"
-from_address = "tasklattice@example.com"
-from_name = "TaskLattice"
+from_address = "tali@example.com"
+from_name = "TaskLattice Relay"
 reply_to = "support@example.com"
 ```
 
@@ -59,7 +59,7 @@ derived as `<server.public_url>/auth/sso/callback`; scopes are fixed to
 they do not depend on a public LoadBalancer, Route, or Ingress address.
 
 SMTP is optional, but invitations to email addresses that do not already map
-to a TaskLattice user are rejected unless `smtp.enabled = true`. SMTP also
+to a TaskLattice Relay user are rejected unless `smtp.enabled = true`. SMTP also
 requires `server.public_url`; invitation emails use it as the browser-visible
 sign-in link. Set `secure = true` for implicit TLS, normally on port 465. For
 port 587, keep `secure = false` so the transport can upgrade with STARTTLS.
@@ -85,7 +85,7 @@ pair. The first successful login creates a local `users` row and a
 the IdP username or email changes. An email collision with another local user
 is rejected instead of automatically linking accounts.
 
-TaskLattice sessions use the local `users.id` as their subject. Project
+TaskLattice Relay sessions use the local `users.id` as their subject. Project
 authorization is loaded exclusively from `project_members`, including for the
 bootstrap Super Administrator. The system-level `super_administrator` role is
 reserved for platform setup, administration, and cross-Project audit

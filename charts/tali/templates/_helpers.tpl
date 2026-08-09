@@ -1,12 +1,12 @@
-{{- define "tasklattice.name" -}}
+{{- define "tali.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end }}
 
-{{- define "tasklattice.fullname" -}}
+{{- define "tali.fullname" -}}
 {{- if .Values.fullnameOverride -}}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
 {{- else -}}
-{{- $name := include "tasklattice.name" . -}}
+{{- $name := include "tali.name" . -}}
 {{- if contains $name .Release.Name -}}
 {{- .Release.Name | trunc 63 | trimSuffix "-" -}}
 {{- else -}}
@@ -15,30 +15,30 @@
 {{- end -}}
 {{- end }}
 
-{{- define "tasklattice.componentName" -}}
-{{- printf "%s-%s" (include "tasklattice.fullname" .root) .component | trunc 63 | trimSuffix "-" -}}
+{{- define "tali.componentName" -}}
+{{- printf "%s-%s" (include "tali.fullname" .root) .component | trunc 63 | trimSuffix "-" -}}
 {{- end }}
 
-{{- define "tasklattice.labels" -}}
+{{- define "tali.labels" -}}
 helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/instance: {{ .Release.Name }}
-app.kubernetes.io/part-of: tasklattice
+app.kubernetes.io/part-of: tali
 {{- end }}
 
-{{- define "tasklattice.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "tasklattice.name" .root }}
+{{- define "tali.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "tali.name" .root }}
 app.kubernetes.io/instance: {{ .root.Release.Name }}
 app.kubernetes.io/component: {{ .component }}
 {{- end }}
 
-{{- define "tasklattice.componentLabels" -}}
-{{ include "tasklattice.labels" .root }}
-app.kubernetes.io/name: {{ include "tasklattice.name" .root }}
+{{- define "tali.componentLabels" -}}
+{{ include "tali.labels" .root }}
+app.kubernetes.io/name: {{ include "tali.name" .root }}
 app.kubernetes.io/component: {{ .component }}
 {{- end }}
 
-{{- define "tasklattice.image" -}}
+{{- define "tali.image" -}}
 {{- $registry := trimSuffix "/" .root.Values.global.imageRegistry -}}
 {{- $repository := .image.repository -}}
 {{- if or (not (hasKey .image "useGlobalRegistry")) .image.useGlobalRegistry -}}
@@ -48,35 +48,35 @@ app.kubernetes.io/component: {{ .component }}
 {{- end -}}
 {{- end }}
 
-{{- define "tasklattice.secretName" -}}
-{{- default (include "tasklattice.componentName" (dict "root" . "component" "secrets")) .Values.secrets.existingSecret -}}
+{{- define "tali.secretName" -}}
+{{- default (include "tali.componentName" (dict "root" . "component" "secrets")) .Values.secrets.existingSecret -}}
 {{- end }}
 
-{{- define "tasklattice.serviceAccountName" -}}
+{{- define "tali.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create -}}
-{{- default (include "tasklattice.componentName" (dict "root" . "component" "control")) .Values.serviceAccount.name -}}
+{{- default (include "tali.componentName" (dict "root" . "component" "control")) .Values.serviceAccount.name -}}
 {{- else -}}
 {{- required "serviceAccount.name is required when serviceAccount.create=false" .Values.serviceAccount.name -}}
 {{- end -}}
 {{- end }}
 
-{{- define "tasklattice.runtimeServiceAccountName" -}}
+{{- define "tali.runtimeServiceAccountName" -}}
 {{- if .Values.serviceAccount.runtime.create -}}
-{{- default (include "tasklattice.componentName" (dict "root" . "component" "runtime")) .Values.serviceAccount.runtime.name -}}
+{{- default (include "tali.componentName" (dict "root" . "component" "runtime")) .Values.serviceAccount.runtime.name -}}
 {{- else -}}
 {{- required "serviceAccount.runtime.name is required when serviceAccount.runtime.create=false" .Values.serviceAccount.runtime.name -}}
 {{- end -}}
 {{- end }}
 
-{{- define "tasklattice.databaseUrl" -}}
+{{- define "tali.databaseUrl" -}}
 {{- if .Values.secrets.databaseUrl -}}
 {{- .Values.secrets.databaseUrl -}}
 {{- else -}}
-{{- printf "postgresql://litellm:%s@%s:5432/litellm" .Values.secrets.postgresPassword (include "tasklattice.componentName" (dict "root" . "component" "postgresql")) -}}
+{{- printf "postgresql://litellm:%s@%s:5432/litellm" .Values.secrets.postgresPassword (include "tali.componentName" (dict "root" . "component" "postgresql")) -}}
 {{- end -}}
 {{- end }}
 
-{{- define "tasklattice.controlConfig" -}}
+{{- define "tali.controlConfig" -}}
 {{- if and (or .Values.auth.oidc.enabled .Values.keycloak.enabled) (not .Values.control.publicUrl) -}}
 {{- fail "control.publicUrl is required when OIDC authentication or the embedded Keycloak is enabled" -}}
 {{- end -}}
@@ -98,10 +98,10 @@ schema_version = 1
 {{- with .Values.control.publicUrl }}
 public_url = {{ . | quote }}
 {{- end }}
-internal_url = {{ printf "http://%s:%v" (include "tasklattice.componentName" (dict "root" . "component" "control")) .Values.control.service.port | quote }}
+internal_url = {{ printf "http://%s:%v" (include "tali.componentName" (dict "root" . "component" "control")) .Values.control.service.port | quote }}
 
 [database]
-url = {{ include "tasklattice.databaseUrl" . | quote }}
+url = {{ include "tali.databaseUrl" . | quote }}
 
 [auth]
 session_signing_key = {{ required "secrets.jwtSecret is required" .Values.secrets.jwtSecret | quote }}
@@ -116,9 +116,9 @@ initial_super_admin_password_hash = {{ required "secrets.initialSuperAdminPasswo
 [auth.oidc]
 enabled = {{ or .Values.auth.oidc.enabled .Values.keycloak.enabled }}
 {{ if .Values.keycloak.enabled }}
-display_name = "TaskLattice Test SSO"
-issuer = {{ printf "%s/realms/tasklattice" (trimSuffix "/" (required "keycloak.publicUrl is required when the embedded Keycloak is enabled" .Values.keycloak.publicUrl)) | quote }}
-client_id = "tasklattice-control-plane"
+display_name = "TaskLattice Relay Test SSO"
+issuer = {{ printf "%s/realms/tali" (trimSuffix "/" (required "keycloak.publicUrl is required when the embedded Keycloak is enabled" .Values.keycloak.publicUrl)) | quote }}
+client_id = "tali-control-plane"
 client_secret = {{ required "secrets.keycloakClientSecret is required when the embedded Keycloak is enabled" .Values.secrets.keycloakClientSecret | quote }}
 {{ else if .Values.auth.oidc.enabled }}
 display_name = {{ .Values.auth.oidc.displayName | quote }}
@@ -133,11 +133,11 @@ client_secret = ""
 {{ end }}
 
 [runner]
-url = {{ printf "http://%s:9090" (include "tasklattice.componentName" (dict "root" . "component" "runner")) | quote }}
+url = {{ printf "http://%s:9090" (include "tali.componentName" (dict "root" . "component" "runner")) | quote }}
 token = {{ required "secrets.runnerToken is required" .Values.secrets.runnerToken | quote }}
 
 [litellm]
-url = {{ printf "http://%s:4000" (include "tasklattice.componentName" (dict "root" . "component" "litellm")) | quote }}
+url = {{ printf "http://%s:4000" (include "tali.componentName" (dict "root" . "component" "litellm")) | quote }}
 master_key = {{ required "secrets.litellmMasterKey is required" .Values.secrets.litellmMasterKey | quote }}
 
 [smtp]
@@ -152,15 +152,15 @@ from_name = {{ .Values.control.smtp.fromName | quote }}
 reply_to = {{ .Values.control.smtp.replyTo | quote }}
 {{- end }}
 
-{{- define "tasklattice.controlConfigChecksum" -}}
+{{- define "tali.controlConfigChecksum" -}}
 {{- if .Values.secrets.existingSecret -}}
 {{- printf "existing:%s" .Values.secrets.existingSecret | sha256sum -}}
 {{- else -}}
-{{- include "tasklattice.controlConfig" . | sha256sum -}}
+{{- include "tali.controlConfig" . | sha256sum -}}
 {{- end -}}
 {{- end }}
 
-{{- define "tasklattice.runnerSecretChecksum" -}}
+{{- define "tali.runnerSecretChecksum" -}}
 {{- if .Values.secrets.existingSecret -}}
 {{- printf "existing:%s" .Values.secrets.existingSecret | sha256sum -}}
 {{- else -}}
@@ -168,7 +168,7 @@ reply_to = {{ .Values.control.smtp.replyTo | quote }}
 {{- end -}}
 {{- end }}
 
-{{- define "tasklattice.postgresqlSecretChecksum" -}}
+{{- define "tali.postgresqlSecretChecksum" -}}
 {{- if .Values.secrets.existingSecret -}}
 {{- printf "existing:%s" .Values.secrets.existingSecret | sha256sum -}}
 {{- else -}}
@@ -176,15 +176,15 @@ reply_to = {{ .Values.control.smtp.replyTo | quote }}
 {{- end -}}
 {{- end }}
 
-{{- define "tasklattice.litellmSecretChecksum" -}}
+{{- define "tali.litellmSecretChecksum" -}}
 {{- if .Values.secrets.existingSecret -}}
 {{- printf "existing:%s" .Values.secrets.existingSecret | sha256sum -}}
 {{- else -}}
-{{- printf "%s:%s:%s:%s:%s:%s:%s" .Values.secrets.existingSecret .Values.secrets.litellmMasterKey (include "tasklattice.databaseUrl" .) .Values.secrets.litellmUiUsername .Values.secrets.litellmUiPassword .Values.secrets.litellmSaltKey .Values.secrets.modelGuardrailsApiKey | sha256sum -}}
+{{- printf "%s:%s:%s:%s:%s:%s:%s" .Values.secrets.existingSecret .Values.secrets.litellmMasterKey (include "tali.databaseUrl" .) .Values.secrets.litellmUiUsername .Values.secrets.litellmUiPassword .Values.secrets.litellmSaltKey .Values.secrets.modelGuardrailsApiKey | sha256sum -}}
 {{- end -}}
 {{- end }}
 
-{{- define "tasklattice.modelGuardrailsSecretChecksum" -}}
+{{- define "tali.modelGuardrailsSecretChecksum" -}}
 {{- if .Values.secrets.existingSecret -}}
 {{- printf "existing:%s:%s:%s:%s:%s:%s:%t:%t" .Values.secrets.existingSecret .Values.modelGuardrails.profilePath .Values.modelGuardrails.nvidia.apiKeySecretName .Values.modelGuardrails.nvidia.apiKeySecretKey .Values.modelGuardrails.nvidia.contentSafetyModel .Values.modelGuardrails.nvidia.topicControl.model .Values.modelGuardrails.nvidia.enabled .Values.modelGuardrails.nvidia.topicControl.enabled | sha256sum -}}
 {{- else -}}
@@ -192,6 +192,6 @@ reply_to = {{ .Values.control.smtp.replyTo | quote }}
 {{- end -}}
 {{- end }}
 
-{{- define "tasklattice.keycloakSecretChecksum" -}}
+{{- define "tali.keycloakSecretChecksum" -}}
 {{- printf "%s:%s:%s:%s" .Values.secrets.existingSecret .Values.secrets.keycloakAdminPassword .Values.secrets.keycloakClientSecret .Values.secrets.keycloakTestUserPassword | sha256sum -}}
 {{- end }}

@@ -15,7 +15,7 @@ import {
   type ProviderDiscoveryResult,
   type ProviderKind,
   type ProviderModelSelection,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import {
   ArrowLeft,
   ArrowRight,
@@ -462,7 +462,7 @@ export function RegisterModelsDrawer({
                     >
                       {selectedComplianceDomain
                         ? selectedComplianceDomain.description
-                        : "TaskLattice uses this boundary to filter Provider configurations before credentials are entered."}
+                        : "TaskLattice Relay uses this boundary to filter Provider configurations before credentials are entered."}
                     </div>
                   </section>
 

@@ -1,6 +1,6 @@
 import { lazy, Suspense, useMemo, useState } from "react";
 import { ClientOnly } from "@tanstack/react-router";
-import type { CostGroupBy, CostTrendPoint } from "@tasklattice/contracts";
+import type { CostGroupBy, CostTrendPoint } from "@tali/contracts";
 import { Ellipsis, FileDown } from "lucide-react";
 import { ChartLoadingState } from "@/components/shared/chart-loading-state";
 import { Button } from "@/components/ui/button";

@@ -30,13 +30,13 @@ describe("SmtpInvitationMailer", () => {
       enabled: true,
       host: "127.0.0.1",
       port: address.port,
-      from_address: "invites@tasklattice.test",
-      from_name: "TaskLattice",
-      reply_to: "operator@tasklattice.test",
+      from_address: "invites@tali.test",
+      from_name: "TaskLattice Relay",
+      reply_to: "operator@tali.test",
     };
     const mailer = new SmtpInvitationMailer(
       smtp,
-      "https://tasklattice.example.com",
+      "https://tali.example.com",
     );
 
     await mailer.verify();
@@ -50,14 +50,14 @@ describe("SmtpInvitationMailer", () => {
 
     expect(messages).toHaveLength(1);
     expect(messages[0]).toContain("To: new-user@example.com");
-    expect(messages[0]).toContain("Subject: You are invited to AI Platform on TaskLattice");
-    expect(messages[0]).toContain("https://tasklattice.example.com");
+    expect(messages[0]).toContain("Subject: You are invited to AI Platform on TaskLattice Relay");
+    expect(messages[0]).toContain("https://tali.example.com");
   });
 
   it("rejects delivery when SMTP is disabled", async () => {
     const mailer = new SmtpInvitationMailer(
       developmentControlConfig().smtp,
-      "https://tasklattice.example.com",
+      "https://tali.example.com",
     );
     expect(() => mailer.assertConfigured()).toThrow(/not configured/i);
   });
@@ -66,7 +66,7 @@ describe("SmtpInvitationMailer", () => {
 function createSmtpServer(messages: string[]): Server {
   return createServer((socket) => {
     socket.setEncoding("utf8");
-    socket.write("220 localhost TaskLattice test SMTP\r\n");
+    socket.write("220 localhost TaskLattice Relay test SMTP\r\n");
     let buffer = "";
     let receivingData = false;
 

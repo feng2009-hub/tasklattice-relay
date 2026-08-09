@@ -176,7 +176,7 @@ function ProjectGeneralSettings({
           <span className="shrink-0 text-xs font-medium text-muted-foreground">Immutable</span>
         </div>
         <p className="max-w-2xl text-xs leading-5 text-muted-foreground">
-          Project names are unique across TaskLattice and are permanently fixed at creation. This protects stable URLs, audit records, and resource ownership.
+          Project names are unique across TaskLattice Relay and are permanently fixed at creation. This protects stable URLs, audit records, and resource ownership.
         </p>
       </div>
 

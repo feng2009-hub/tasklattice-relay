@@ -1,28 +1,28 @@
 {{- $root := . -}}
 {{- $component := "control" -}}
-{{- $name := include "tasklattice.componentName" (dict "root" . "component" $component) -}}
+{{- $name := include "tali.componentName" (dict "root" . "component" $component) -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ $name }}
   labels:
-    {{- include "tasklattice.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
+    {{- include "tali.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
 spec:
   replicas: {{ .Values.control.replicaCount }}
   selector:
     matchLabels:
-      {{- include "tasklattice.selectorLabels" (dict "root" . "component" $component) | nindent 6 }}
+      {{- include "tali.selectorLabels" (dict "root" . "component" $component) | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "tasklattice.selectorLabels" (dict "root" . "component" $component) | nindent 8 }}
+        {{- include "tali.selectorLabels" (dict "root" . "component" $component) | nindent 8 }}
       annotations:
-        checksum/control-config: {{ include "tasklattice.controlConfigChecksum" . }}
+        checksum/control-config: {{ include "tali.controlConfigChecksum" . }}
         {{- with .Values.global.rolloutRevision }}
-        tasklattice.ai/rollout-revision: {{ . | quote }}
+        tali.ai/rollout-revision: {{ . | quote }}
         {{- end }}
     spec:
-      serviceAccountName: {{ include "tasklattice.serviceAccountName" . }}
+      serviceAccountName: {{ include "tali.serviceAccountName" . }}
       automountServiceAccountToken: true
       {{- with .Values.control.hostAliases }}
       hostAliases:
@@ -40,17 +40,17 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: migrate-control-database
-          image: {{ include "tasklattice.image" (dict "root" . "image" .Values.images.control) }}
+          image: {{ include "tali.image" (dict "root" . "image" .Values.images.control) }}
           imagePullPolicy: {{ .Values.images.control.pullPolicy }}
           command:
             - npm
             - run
             - db:migrate
             - --workspace
-            - "@tasklattice/control"
+            - "@tali/control"
           env:
-            - name: TASKLATTICE_CONFIG
-              value: /etc/tasklattice/control.toml
+            - name: TALI_CONFIG
+              value: /etc/tali/control.toml
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -62,20 +62,20 @@ spec:
             - name: tmp
               mountPath: /tmp
             - name: control-config
-              mountPath: /etc/tasklattice
+              mountPath: /etc/tali
               readOnly: true
         - name: seed-built-in-skills
-          image: {{ include "tasklattice.image" (dict "root" . "image" .Values.images.control) }}
+          image: {{ include "tali.image" (dict "root" . "image" .Values.images.control) }}
           imagePullPolicy: {{ .Values.images.control.pullPolicy }}
           command:
             - npm
             - run
             - db:seed-skills
             - --workspace
-            - "@tasklattice/control"
+            - "@tali/control"
           env:
-            - name: TASKLATTICE_CONFIG
-              value: /etc/tasklattice/control.toml
+            - name: TALI_CONFIG
+              value: /etc/tali/control.toml
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -87,11 +87,11 @@ spec:
             - name: tmp
               mountPath: /tmp
             - name: control-config
-              mountPath: /etc/tasklattice
+              mountPath: /etc/tali
               readOnly: true
       containers:
         - name: control
-          image: {{ include "tasklattice.image" (dict "root" . "image" .Values.images.control) }}
+          image: {{ include "tali.image" (dict "root" . "image" .Values.images.control) }}
           imagePullPolicy: {{ .Values.images.control.pullPolicy }}
           ports:
             - name: http
@@ -99,8 +99,8 @@ spec:
           env:
             - name: PORT
               value: "8080"
-            - name: TASKLATTICE_CONFIG
-              value: /etc/tasklattice/control.toml
+            - name: TALI_CONFIG
+              value: /etc/tali/control.toml
             - name: POD_NAMESPACE
               valueFrom:
                 fieldRef:
@@ -133,7 +133,7 @@ spec:
             - name: tmp
               mountPath: /tmp
             - name: control-config
-              mountPath: /etc/tasklattice
+              mountPath: /etc/tali
               readOnly: true
       volumes:
         - name: tmp
@@ -141,7 +141,7 @@ spec:
             sizeLimit: 32Mi
         - name: control-config
           secret:
-            secretName: {{ include "tasklattice.secretName" . }}
+            secretName: {{ include "tali.secretName" . }}
             items:
               - key: control.toml
                 path: control.toml
@@ -151,7 +151,7 @@ kind: Service
 metadata:
   name: {{ $name }}
   labels:
-    {{- include "tasklattice.labels" . | nindent 4 }}
+    {{- include "tali.labels" . | nindent 4 }}
   {{- with .Values.control.service.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -159,7 +159,7 @@ metadata:
 spec:
   type: {{ .Values.control.service.type }}
   selector:
-    {{- include "tasklattice.selectorLabels" (dict "root" . "component" $component) | nindent 4 }}
+    {{- include "tali.selectorLabels" (dict "root" . "component" $component) | nindent 4 }}
   ports:
     - name: http
       port: {{ .Values.control.service.port }}

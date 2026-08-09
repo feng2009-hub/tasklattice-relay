@@ -2,11 +2,11 @@
 # and the Secret name with values from the target environment. Use this file
 # together with values-openshift.yaml for OpenShift.
 global:
-  imageRegistry: registry.airgap.example.com/tasklattice
+  imageRegistry: registry.airgap.example.com/tali
   imagePullSecrets:
     - name: airgap-registry
 
-# Images implemented by TaskLattice inherit global.imageRegistry. External
+# Images implemented by TaskLattice Relay inherit global.imageRegistry. External
 # runtime images use full repository paths so they can be mirrored separately.
 images:
   postgres:

@@ -17,7 +17,7 @@ const fixedAssignment =
   '_NO_PROXY_VAL="localhost,127.0.0.1,::1,${PROXY_HOST},${_GATEWAY_WS_HOST}"';
 
 async function fixture(contents: string): Promise<string> {
-  const directory = await mkdtemp(join(tmpdir(), "tasklattice-nemoclaw-patch-"));
+  const directory = await mkdtemp(join(tmpdir(), "tali-nemoclaw-patch-"));
   temporaryDirectories.push(directory);
   const file = join(directory, "nemoclaw-start.sh");
   await writeFile(file, contents, "utf8");

@@ -2,7 +2,7 @@ import type {
   AccessPolicy,
   Agent,
   McpServerDefinition,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import { useQuery } from "@tanstack/react-query";
 import { Bot, ServerCog, ShieldCheck } from "lucide-react";
 

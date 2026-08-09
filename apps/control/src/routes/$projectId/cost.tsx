@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import type { CostBreakdownItem, CostFilters, CostGroupBy, CostQueryParams } from "@tasklattice/contracts";
+import type { CostBreakdownItem, CostFilters, CostGroupBy, CostQueryParams } from "@tali/contracts";
 import { z } from "zod";
 import { CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type {
   AgentPlatformId,
   TerminalSessionResponse,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 
 export interface TerminalSessionRecord {
   projectId: string;

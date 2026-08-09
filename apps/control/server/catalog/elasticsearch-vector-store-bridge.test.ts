@@ -15,7 +15,7 @@ describe("ElasticsearchVectorStoreBridge", () => {
       apiBase: "https://elastic.example.test",
       semanticField: "content_semantic",
       contentField: "document.content",
-      credentialReference: "k8s://tasklattice/elasticsearch#API_KEY",
+      credentialReference: "k8s://tali/elasticsearch#API_KEY",
       status: "REGISTERED",
       lastReconciliationError: null,
       topK: 8,

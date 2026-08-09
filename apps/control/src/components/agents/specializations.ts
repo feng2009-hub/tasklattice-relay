@@ -1,4 +1,4 @@
-import type { AgentSpecializationDefinition } from "@tasklattice/contracts";
+import type { AgentSpecializationDefinition } from "@tali/contracts";
 
 export type SpecializationId = string;
 export type Specialization = AgentSpecializationDefinition;

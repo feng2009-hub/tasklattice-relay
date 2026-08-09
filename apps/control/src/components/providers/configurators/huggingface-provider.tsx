@@ -1,4 +1,4 @@
-import type { ProviderConnectionDraft } from "@tasklattice/contracts";
+import type { ProviderConnectionDraft } from "@tali/contracts";
 import { ProviderFormSection, ProviderSelectField, ProviderTextField } from "./fields";
 import type { ProviderConfiguratorProps } from "./types";
 type Draft = Extract<ProviderConnectionDraft, { provider: "huggingface" }>;

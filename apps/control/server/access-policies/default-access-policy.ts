@@ -1,4 +1,4 @@
-import type { AccessPolicy, AccessPolicyVersion } from "@tasklattice/contracts";
+import type { AccessPolicy, AccessPolicyVersion } from "@tali/contracts";
 import type { Prisma, PrismaClient } from "../generated/prisma/client";
 
 export const DEFAULT_ACCESS_POLICY_ID = "00000000-0000-4000-8000-00000000da12";

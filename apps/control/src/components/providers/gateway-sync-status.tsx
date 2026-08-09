@@ -1,4 +1,4 @@
-import type { ModelRoutingStatus as ModelRoutingStatusValue } from "@tasklattice/contracts";
+import type { ModelRoutingStatus as ModelRoutingStatusValue } from "@tali/contracts";
 import { CheckCircle2, CircleAlert, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 

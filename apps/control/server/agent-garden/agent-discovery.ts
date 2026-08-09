@@ -3,7 +3,7 @@ import { z } from "zod";
 import type {
   AgentGardenEntry,
   AgentGardenSkill,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 
 const agentCardSkillSchema = z.object({
   id: z.string().trim().min(1).max(200),

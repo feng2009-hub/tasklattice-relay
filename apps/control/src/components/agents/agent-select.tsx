@@ -1,4 +1,4 @@
-import type { AgentPlatformId } from "@tasklattice/contracts";
+import type { AgentPlatformId } from "@tali/contracts";
 import { AgentPlatformIcon } from "@/components/agents/agent-platform-icon";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { agentPlatformPresentations, getAgentPlatformPresentation } from "@/lib/agent-platforms";

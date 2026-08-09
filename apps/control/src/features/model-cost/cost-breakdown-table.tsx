@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { CostBreakdownItem, CostGroupBy } from "@tasklattice/contracts";
+import type { CostBreakdownItem, CostGroupBy } from "@tali/contracts";
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Download, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

@@ -93,7 +93,7 @@ const costGroupByParameter = {
 export const openApiDocument = {
   openapi: "3.1.0",
   info: {
-    title: "TaskLattice API",
+    title: "TaskLattice Relay API",
     version: "0.1.0",
     description: "REST API for provisioning NemoClaw Agents and opening short-lived terminal sessions.",
   },
@@ -114,7 +114,7 @@ export const openApiDocument = {
       post: {
         operationId: "localLogin",
         security: [],
-        summary: "Exchange local credentials for a TaskLattice bearer token",
+        summary: "Exchange local credentials for a TaskLattice Relay bearer token",
         requestBody: { required: true, ...json({ $ref: "#/components/schemas/LocalLoginInput" }) },
         responses: {
           "200": { description: "Authenticated session", ...json({ $ref: "#/components/schemas/AuthSession" }) },
@@ -616,7 +616,7 @@ export const openApiDocument = {
     "/projects/{projectId}/model-routings/{routingId}": {
       parameters: [projectIdParameter, routingId],
       get: { operationId: "getModelRouting", summary: "Read a Routing configuration", responses: { "200": { description: "Routing", ...json({ $ref: "#/components/schemas/ModelRouting" }) }, "404": { $ref: "#/components/responses/Error" } } },
-      put: { operationId: "updateModelRouting", summary: "Update TaskLattice-owned Routing policy", requestBody: { required: true, ...json({ type: "object", additionalProperties: false, properties: { name: { type: "string" }, description: { type: "string" }, isDefault: { type: "boolean" }, keyPolicy: { type: "object" }, auditPolicy: { type: "object" }, modelGuardrailsEnabled: { type: "boolean" }, routingPolicy: { $ref: "#/components/schemas/ModelRoutingPolicy" }, suspended: { type: "boolean" } } }) }, responses: { "200": { description: "Routing", ...json({ $ref: "#/components/schemas/ModelRouting" }) } } },
+      put: { operationId: "updateModelRouting", summary: "Update TaskLattice Relay-owned Routing policy", requestBody: { required: true, ...json({ type: "object", additionalProperties: false, properties: { name: { type: "string" }, description: { type: "string" }, isDefault: { type: "boolean" }, keyPolicy: { type: "object" }, auditPolicy: { type: "object" }, modelGuardrailsEnabled: { type: "boolean" }, routingPolicy: { $ref: "#/components/schemas/ModelRoutingPolicy" }, suspended: { type: "boolean" } } }) }, responses: { "200": { description: "Routing", ...json({ $ref: "#/components/schemas/ModelRouting" }) } } },
       delete: { operationId: "deleteModelRouting", summary: "Delete Routing without active Consumers", responses: { "200": { description: "Routing deleted", ...json({ type: "object" }) }, "409": { $ref: "#/components/responses/Error" } } },
     },
     "/projects/{projectId}/model-routings/{routingId}/refresh": {

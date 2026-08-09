@@ -1,7 +1,7 @@
 import type {
   AgentGardenEntry,
   AgentMarketplaceBrief,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 
 function fallbackBrief(agent: AgentGardenEntry): AgentMarketplaceBrief {
   return {

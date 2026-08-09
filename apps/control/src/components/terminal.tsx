@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal as Xterm } from "@xterm/xterm";
-import { encodeTerminalResize, type AgentPlatformId } from "@tasklattice/contracts";
+import { encodeTerminalResize, type AgentPlatformId } from "@tali/contracts";
 import "@xterm/xterm/css/xterm.css";
 import { api } from "@/lib/api";
 import {

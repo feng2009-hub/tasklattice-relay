@@ -6,8 +6,8 @@ import type {
   ModelType,
   ProviderKind,
   ProviderModelSelection,
-} from "@tasklattice/contracts";
-import { complianceDomains } from "@tasklattice/contracts";
+} from "@tali/contracts";
+import { complianceDomains } from "@tali/contracts";
 import { getControlConfig } from "../config/control-config";
 
 interface LiteLLMVirtualKeyResponse {
@@ -267,7 +267,7 @@ export class LiteLLMClient implements LiteLLMAdminClient {
             : {}),
         },
         model_info: {
-          tasklatticeProviderAccountId: input.accountId,
+          taliProviderAccountId: input.accountId,
           providerKind: input.providerKind,
           compliance_domain: input.complianceDomain,
           endpoint_region: input.endpointRegion,
@@ -350,7 +350,7 @@ export class LiteLLMClient implements LiteLLMAdminClient {
               description: route.description,
               utterances: route.utterances,
               score_threshold: route.scoreThreshold,
-              metadata: { tasklattice_intent: route.intent },
+              metadata: { tali_intent: route.intent },
             })),
           }),
           auto_router_default_model: input.defaultModel,
@@ -363,8 +363,8 @@ export class LiteLLMClient implements LiteLLMAdminClient {
       litellm_params: litellmParams,
       model_info: {
         ...(existing?.model_info ?? {}),
-        managed_by: "tasklattice",
-        tasklattice_resource: "model_routing_route",
+        managed_by: "tali",
+        tali_resource: "model_routing_route",
         model_routing_id: input.modelRoutingId,
         routing_strategy: input.strategy,
         compliance_domain: input.complianceDomain,
@@ -457,7 +457,7 @@ export class LiteLLMClient implements LiteLLMAdminClient {
         team_alias: input.alias,
         models: [input.modelAlias],
         metadata: {
-          managed_by: "tasklattice",
+          managed_by: "tali",
           model_routing_id: input.modelRoutingId,
           model_routing_alias: input.modelAlias,
           compliance_domain: input.complianceDomain,
@@ -487,7 +487,7 @@ export class LiteLLMClient implements LiteLLMAdminClient {
         team_id: input.teamId,
         models: [input.modelAlias],
         metadata: {
-          managed_by: "tasklattice",
+          managed_by: "tali",
           model_routing_id: input.modelRoutingId,
           agent_id: input.agentId,
           compliance_domain: input.complianceDomain,
@@ -971,7 +971,7 @@ export class LiteLLMClient implements LiteLLMAdminClient {
     if (modelType === "text-embedding") {
       await this.request("/embeddings", {
         method: "POST",
-        body: JSON.stringify({ model: modelName, input: "TaskLattice validation" }),
+        body: JSON.stringify({ model: modelName, input: "TaskLattice Relay validation" }),
       });
       return;
     }
@@ -1095,12 +1095,12 @@ function assertManagedModelRoutingRoute(
   alias: string,
 ): void {
   if (
-    modelInfo?.managed_by !== "tasklattice"
-    || modelInfo.tasklattice_resource !== "model_routing_route"
+    modelInfo?.managed_by !== "tali"
+    || modelInfo.tali_resource !== "model_routing_route"
     || modelInfo.model_routing_id !== modelRoutingId
   ) {
     throw new Error(
-      `LiteLLM alias ${alias} already exists and is not owned by this TaskLattice Routing.`,
+      `LiteLLM alias ${alias} already exists and is not owned by this TaskLattice Relay Routing.`,
     );
   }
 }

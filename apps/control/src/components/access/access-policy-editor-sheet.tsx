@@ -4,7 +4,7 @@ import type {
   AccessPolicyDecision,
   CreateAccessPolicyInput,
   McpServerDefinition,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ServerCog, ShieldCheck } from "lucide-react";
 

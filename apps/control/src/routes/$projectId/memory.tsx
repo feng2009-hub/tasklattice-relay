@@ -135,7 +135,7 @@ function Memory() {
                 <Badge variant="outline">Optional</Badge>
               </div>
               <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                Adds semantic recall through LiteLLM. TaskLattice binds one validated text-embedding deployment inside the same compliance boundary.
+                Adds semantic recall through LiteLLM. TaskLattice Relay binds one validated text-embedding deployment inside the same compliance boundary.
               </p>
             </div>
           </CardContent>

@@ -1,4 +1,4 @@
-import type { Agent, SandboxAuditEvent } from "@tasklattice/contracts";
+import type { Agent, SandboxAuditEvent } from "@tali/contracts";
 import { getPlatformTimezone } from "@/lib/platform-preferences";
 
 export const auditorLogLevels = ["info", "warning", "error", "debug"] as const;

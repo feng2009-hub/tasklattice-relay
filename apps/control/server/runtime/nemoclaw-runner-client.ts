@@ -3,7 +3,7 @@ import type {
   RunnerHealth,
   RunnerSandbox,
   SandboxAuditEvent,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import { getControlConfig } from "../config/control-config";
 
 export interface CreateSandboxInput {

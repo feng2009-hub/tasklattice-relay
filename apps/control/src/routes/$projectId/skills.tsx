@@ -9,7 +9,7 @@ import {
   type SkillCompatibilityTarget,
   type SkillDefinition,
   type SkillTrustLevel,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import {
   ChevronDown,
   Cloud,
@@ -538,7 +538,7 @@ function SkillCatalog() {
               ) : (
                 <p className="flex gap-3">
                   <ShieldCheck className="mt-1 size-4 shrink-0 text-primary" />
-                  <span><strong className="block">{selected.trustLevel === "BUILT_IN" ? "Built into TaskLattice" : "Trusted source"}</strong>{selected.trustLevel === "BUILT_IN" ? "This Skill ships with the platform catalog." : "TaskLattice recorded a successful source verification."}</span>
+                  <span><strong className="block">{selected.trustLevel === "BUILT_IN" ? "Built into TaskLattice Relay" : "Trusted source"}</strong>{selected.trustLevel === "BUILT_IN" ? "This Skill ships with the platform catalog." : "TaskLattice Relay recorded a successful source verification."}</span>
                 </p>
               )}
               {selected.endpoint.startsWith("tali+postgresql:") ? (

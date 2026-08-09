@@ -3,8 +3,8 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
-import type { ProvisioningStage, SandboxAuditEvent } from "@tasklattice/contracts";
-import type { AgentPlatformId } from "@tasklattice/contracts";
+import type { ProvisioningStage, SandboxAuditEvent } from "@tali/contracts";
+import type { AgentPlatformId } from "@tali/contracts";
 import { parse, stringify } from "yaml";
 import { getAgentPlatformRuntime } from "./agent-platform.js";
 import {
@@ -42,11 +42,11 @@ export interface ProvisioningObserver {
   onStage?: (stage: ProvisioningStage, message: string) => void;
 }
 
-export const taskLatticeLiteLlmProviderProfileId = "tasklattice-litellm";
+export const taliLiteLlmProviderProfileId = "tali-litellm";
 
-export function taskLatticeLiteLlmProviderProfile(
+export function taliLiteLlmProviderProfile(
   inferenceEndpoint: string,
-  routingId = taskLatticeLiteLlmProviderProfileId,
+  routingId = taliLiteLlmProviderProfileId,
   resourceVersion?: number,
 ): string {
   const endpoint = new URL(inferenceEndpoint);
@@ -66,14 +66,14 @@ export function taskLatticeLiteLlmProviderProfile(
       ...(resourceVersion !== undefined
         ? { resource_version: resourceVersion }
         : {}),
-      display_name: "TaskLattice LiteLLM",
+      display_name: "TaskLattice Relay LiteLLM",
       description:
-        "TaskLattice instance-scoped inference through the LiteLLM gateway",
+        "TaskLattice Relay instance-scoped inference through the LiteLLM gateway",
       category: "inference",
       credentials: [
         {
           name: "api_key",
-          description: "TaskLattice Instance virtual key",
+          description: "TaskLattice Relay Instance virtual key",
           env_vars: ["OPENAI_API_KEY"],
           required: true,
           auth_style: "bearer",
@@ -213,7 +213,7 @@ export function deepSeekProviderCreateCommand(input: ProvisionInput): {
       "--name",
       openShellProviderName(input.name),
       "--type",
-      taskLatticeLiteLlmProviderProfileId,
+      taliLiteLlmProviderProfileId,
       "--credential",
       "OPENAI_API_KEY",
       "--config",
@@ -230,9 +230,9 @@ async function ensureLiteLlmProviderProfile(
   inferenceEndpoint: string,
 ): Promise<void> {
   const temporaryDirectory = await mkdtemp(
-    join(tmpdir(), "tasklattice-openshell-profile-"),
+    join(tmpdir(), "tali-openshell-profile-"),
   );
-  const profileFile = join(temporaryDirectory, "tasklattice-litellm.yaml");
+  const profileFile = join(temporaryDirectory, "tali-litellm.yaml");
   try {
     const existing = await runCommand(
       openShellBinary(),
@@ -240,18 +240,18 @@ async function ensureLiteLlmProviderProfile(
         "provider",
         "profile",
         "export",
-        taskLatticeLiteLlmProviderProfileId,
+        taliLiteLlmProviderProfileId,
       ]),
     );
     let resourceVersion: number | undefined;
     const desiredProfile = parse(
-      taskLatticeLiteLlmProviderProfile(inferenceEndpoint),
+      taliLiteLlmProviderProfile(inferenceEndpoint),
     ) as unknown;
     if (existing.exitCode === 0) {
       const exported = parse(existing.stdout) as unknown;
       if (!isRecord(exported) || !Number.isInteger(exported.resource_version))
         throw new Error(
-          "OpenShell exported the TaskLattice LiteLLM Provider profile without a resource version.",
+          "OpenShell exported the TaskLattice Relay LiteLLM Provider profile without a resource version.",
         );
       resourceVersion = exported.resource_version as number;
       const currentProfile = { ...exported };
@@ -260,9 +260,9 @@ async function ensureLiteLlmProviderProfile(
     }
     await writeFile(
       profileFile,
-      taskLatticeLiteLlmProviderProfile(
+      taliLiteLlmProviderProfile(
         inferenceEndpoint,
-        taskLatticeLiteLlmProviderProfileId,
+        taliLiteLlmProviderProfileId,
         resourceVersion,
       ),
       { mode: 0o600 },
@@ -281,7 +281,7 @@ async function ensureLiteLlmProviderProfile(
       if (linted.exitCode !== 0)
         throw new Error(
           linted.stderr.trim() ||
-            "OpenShell rejected the TaskLattice LiteLLM Provider profile.",
+            "OpenShell rejected the TaskLattice Relay LiteLLM Provider profile.",
         );
     }
     const profileCommand = resourceVersion !== undefined
@@ -289,7 +289,7 @@ async function ensureLiteLlmProviderProfile(
           "provider",
           "profile",
           "update",
-          taskLatticeLiteLlmProviderProfileId,
+          taliLiteLlmProviderProfileId,
           "--file",
           profileFile,
         ]
@@ -307,7 +307,7 @@ async function ensureLiteLlmProviderProfile(
     if (applied.exitCode !== 0)
       throw new Error(
         applied.stderr.trim() ||
-          "Unable to register the TaskLattice LiteLLM Provider profile.",
+          "Unable to register the TaskLattice Relay LiteLLM Provider profile.",
       );
   } finally {
     await rm(temporaryDirectory, { recursive: true, force: true });
@@ -351,7 +351,10 @@ async function ensureProviderPolicyCompositionEnabled(): Promise<void> {
 }
 
 export function openShellProviderName(sandboxName: string): string {
-  return `tali-${sandboxName}`.slice(0, 63).replace(/-$/, "");
+  const name = sandboxName.startsWith("tali-")
+    ? sandboxName
+    : `tali-${sandboxName}`;
+  return name.slice(0, 63).replace(/-$/, "");
 }
 
 export function isOpenShellProviderAttachedError(output: string): boolean {
@@ -396,8 +399,8 @@ export function composeOpenShellInferencePolicy(
     : {};
   // Provider v2 composes the inference endpoint as an isolated `_provider_*`
   // rule. Keeping the legacy direct rule in a business policy can match first
-  // and bypass credential resolution, so remove only TaskLattice's old entry.
-  delete networkPolicies.tasklattice_inference_gateway;
+  // and bypass credential resolution, so remove only TaskLattice Relay's old entry.
+  delete networkPolicies.tali_inference_gateway;
   if (Object.keys(networkPolicies).length > 0)
     document.network_policies = networkPolicies;
   else
@@ -429,7 +432,7 @@ export function openShellSandboxCreateArguments(
     "--policy",
     policyFile,
     "--label",
-    "tasklattice.ai/managed=true",
+    "tali.ai/managed=true",
     "--label",
     `tali.io/instance-id=${input.instanceId}`,
     "--env",
@@ -734,7 +737,7 @@ async function ensureInstanceProvider(input: ProvisionInput): Promise<void> {
   if (existing.exitCode === 0) {
     const plain = existing.stdout.replace(/\u001b\[[0-9;]*m/g, "");
     const providerType = plain.match(/^\s*Type:\s*(\S+)/m)?.[1];
-    if (providerType === taskLatticeLiteLlmProviderProfileId) return;
+    if (providerType === taliLiteLlmProviderProfileId) return;
     throw new Error(
       `Existing OpenShell Provider ${providerName} uses legacy type ${providerType ?? "unknown"}; migrate or remove it before reprovisioning this Instance.`,
     );
@@ -774,7 +777,7 @@ export async function provisionOpenShellSandbox(
 
   observer?.onStage?.("SANDBOX", "Applying the OpenShell policy and scoped Provider attachment.");
 
-  const temporaryDirectory = await mkdtemp(join(tmpdir(), "tasklattice-openshell-"));
+  const temporaryDirectory = await mkdtemp(join(tmpdir(), "tali-openshell-"));
   const runtime = getAgentPlatformRuntime(input.agentPlatform);
   const instructionsFile = join(temporaryDirectory, "AGENTS.md");
   const bootstrapFile = join(temporaryDirectory, "tali-nemoclaw-start");
@@ -782,7 +785,7 @@ export async function provisionOpenShellSandbox(
   try {
     await writeFile(
       instructionsFile,
-      `## TaskLattice Agent Instructions\n\n${input.systemPrompt.trim()}${agentMemoryInstructions(input.memory)}\n`,
+      `## TaskLattice Relay Agent Instructions\n\n${input.systemPrompt.trim()}${agentMemoryInstructions(input.memory)}\n`,
       { mode: 0o600 },
     );
     await writeFile(

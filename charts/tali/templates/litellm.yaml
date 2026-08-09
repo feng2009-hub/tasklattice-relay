@@ -1,29 +1,29 @@
 {{- $component := "litellm" -}}
-{{- $name := include "tasklattice.componentName" (dict "root" . "component" $component) -}}
+{{- $name := include "tali.componentName" (dict "root" . "component" $component) -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ $name }}
   labels:
-    {{- include "tasklattice.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
+    {{- include "tali.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
 spec:
   replicas: {{ .Values.litellm.replicaCount }}
   strategy:
     type: Recreate
   selector:
     matchLabels:
-      {{- include "tasklattice.selectorLabels" (dict "root" . "component" $component) | nindent 6 }}
+      {{- include "tali.selectorLabels" (dict "root" . "component" $component) | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "tasklattice.selectorLabels" (dict "root" . "component" $component) | nindent 8 }}
+        {{- include "tali.selectorLabels" (dict "root" . "component" $component) | nindent 8 }}
       annotations:
-        checksum/litellm-secret: {{ include "tasklattice.litellmSecretChecksum" . }}
+        checksum/litellm-secret: {{ include "tali.litellmSecretChecksum" . }}
         {{- with .Values.global.rolloutRevision }}
-        tasklattice.ai/rollout-revision: {{ . | quote }}
+        tali.ai/rollout-revision: {{ . | quote }}
         {{- end }}
     spec:
-      serviceAccountName: {{ include "tasklattice.runtimeServiceAccountName" . }}
+      serviceAccountName: {{ include "tali.runtimeServiceAccountName" . }}
       automountServiceAccountToken: false
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets:
@@ -37,13 +37,13 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: wait-for-postgresql
-          image: {{ include "tasklattice.image" (dict "root" . "image" .Values.images.postgres) }}
+          image: {{ include "tali.image" (dict "root" . "image" .Values.images.postgres) }}
           imagePullPolicy: {{ .Values.images.postgres.pullPolicy }}
           command: ["sh", "-ec"]
           args:
             - >-
               until pg_isready
-              --host {{ include "tasklattice.componentName" (dict "root" . "component" "postgresql") }}
+              --host {{ include "tali.componentName" (dict "root" . "component" "postgresql") }}
               --port 5432
               --username litellm
               --dbname litellm;
@@ -61,7 +61,7 @@ spec:
               drop: ["ALL"]
       containers:
         - name: litellm
-          image: {{ include "tasklattice.image" (dict "root" . "image" .Values.images.litellm) }}
+          image: {{ include "tali.image" (dict "root" . "image" .Values.images.litellm) }}
           imagePullPolicy: {{ .Values.images.litellm.pullPolicy }}
           args: ["--config", "/etc/litellm/config.yaml", "--port", "4000", "--num_workers", {{ .Values.litellm.workers | quote }}, "--use_v2_migration_resolver"]
           ports:
@@ -77,27 +77,27 @@ spec:
             - name: LITELLM_MASTER_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tasklattice.secretName" . }}
+                  name: {{ include "tali.secretName" . }}
                   key: litellm-master-key
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tasklattice.secretName" . }}
+                  name: {{ include "tali.secretName" . }}
                   key: database-url
             - name: UI_USERNAME
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tasklattice.secretName" . }}
+                  name: {{ include "tali.secretName" . }}
                   key: litellm-ui-username
             - name: UI_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tasklattice.secretName" . }}
+                  name: {{ include "tali.secretName" . }}
                   key: litellm-ui-password
             - name: LITELLM_SALT_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tasklattice.secretName" . }}
+                  name: {{ include "tali.secretName" . }}
                   key: litellm-salt-key
             - name: DOCS_URL
               value: /docs
@@ -138,7 +138,7 @@ spec:
       volumes:
         - name: litellm-config
           secret:
-            secretName: {{ include "tasklattice.secretName" . }}
+            secretName: {{ include "tali.secretName" . }}
             items:
               - key: litellm-config.yaml
                 path: config.yaml
@@ -148,7 +148,7 @@ kind: Service
 metadata:
   name: {{ $name }}
   labels:
-    {{- include "tasklattice.labels" . | nindent 4 }}
+    {{- include "tali.labels" . | nindent 4 }}
   {{- with .Values.litellm.service.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -156,7 +156,7 @@ metadata:
 spec:
   type: {{ .Values.litellm.service.type }}
   selector:
-    {{- include "tasklattice.selectorLabels" (dict "root" . "component" $component) | nindent 4 }}
+    {{- include "tali.selectorLabels" (dict "root" . "component" $component) | nindent 4 }}
   ports:
     - name: http
       port: {{ .Values.litellm.service.port }}

@@ -1,4 +1,4 @@
-import { createTerminalSessionInputSchema } from "@tasklattice/contracts";
+import { createTerminalSessionInputSchema } from "@tali/contracts";
 import { defineHandler } from "nitro";
 import { z } from "zod";
 import { requireAuth, unauthorizedResponse } from "../../../../../../../auth/auth";

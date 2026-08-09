@@ -12,7 +12,7 @@ import { z } from "zod";
 import type {
   AgentGardenEntry,
   AgentPlatformId,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import {
   AlertTriangle,
   Bot,

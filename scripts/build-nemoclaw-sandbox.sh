@@ -11,17 +11,17 @@ case "$AGENT_PLATFORM" in
   openclaw)
     readonly NEMOCLAW_REVISION="${NEMOCLAW_REVISION:-2adc8481ff3053a5a7be37d130cb183e222934ff}"
     readonly NEMOCLAW_BASE_IMAGE="${NEMOCLAW_BASE_IMAGE:-ghcr.io/nvidia/nemoclaw/sandbox-base@sha256:132dfea81026fe91581ab97d9034fb61d97b41a9951c7fd59d3d8b3b1b37b246}"
-    readonly NEMOCLAW_IMAGE="${NEMOCLAW_IMAGE:-ghcr.io/sn0rt/tasklattice-nemoclaw-sandbox:dev}"
+    readonly NEMOCLAW_IMAGE="${NEMOCLAW_IMAGE:-ghcr.io/tasklattice/tali-nemoclaw-sandbox:dev}"
     readonly DOCKERFILE="Dockerfile"
-    readonly UPSTREAM_IMAGE="tasklattice-nemoclaw-openclaw-upstream:${NEMOCLAW_REVISION:0:12}"
+    readonly UPSTREAM_IMAGE="tali-nemoclaw-openclaw-upstream:${NEMOCLAW_REVISION:0:12}"
     readonly WRAPPER_DOCKERFILE="$REPOSITORY_ROOT/infra/docker/Dockerfile.nemoclaw-openclaw"
     ;;
   hermes)
     readonly NEMOCLAW_REVISION="${NEMOCLAW_HERMES_REVISION:-c1bda8069d95a84a9e16b0d292a5fe20ce7cea7d}"
     readonly NEMOCLAW_BASE_IMAGE="${NEMOCLAW_HERMES_BASE_IMAGE:-ghcr.io/nvidia/nemoclaw/hermes-sandbox-base@sha256:fa05221f5c7bcafea7e263c84e5d06f87e37d1ccb78dc28c113f1a4066aa544c}"
-    readonly NEMOCLAW_IMAGE="${NEMOCLAW_HERMES_IMAGE:-ghcr.io/sn0rt/tasklattice-nemoclaw-hermes-sandbox:dev}"
+    readonly NEMOCLAW_IMAGE="${NEMOCLAW_HERMES_IMAGE:-ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:dev}"
     readonly DOCKERFILE="agents/hermes/Dockerfile"
-    readonly UPSTREAM_IMAGE="tasklattice-nemoclaw-hermes-upstream:${NEMOCLAW_REVISION:0:12}"
+    readonly UPSTREAM_IMAGE="tali-nemoclaw-hermes-upstream:${NEMOCLAW_REVISION:0:12}"
     readonly WRAPPER_DOCKERFILE="$REPOSITORY_ROOT/infra/docker/Dockerfile.nemoclaw-hermes"
     ;;
   *)
@@ -30,7 +30,7 @@ case "$AGENT_PLATFORM" in
     ;;
 esac
 
-build_context="$(mktemp -d "${TMPDIR:-/tmp}/tasklattice-nemoclaw.XXXXXX")"
+build_context="$(mktemp -d "${TMPDIR:-/tmp}/tali-nemoclaw.XXXXXX")"
 trap 'rm -rf "$build_context"' EXIT
 
 git clone --quiet --filter=blob:none https://github.com/NVIDIA/NemoClaw.git "$build_context"
@@ -49,7 +49,7 @@ if ! docker image inspect "$resolved_base_image" >/dev/null 2>&1 \
     exit 1
   fi
 
-  resolved_base_image="tasklattice-nemoclaw-hermes-base:${NEMOCLAW_REVISION:0:12}"
+  resolved_base_image="tali-nemoclaw-hermes-base:${NEMOCLAW_REVISION:0:12}"
   if ! docker image inspect "$resolved_base_image" >/dev/null 2>&1; then
     echo "Hermes base image is unavailable from GHCR; building the pinned local fallback."
     docker build \
@@ -86,7 +86,7 @@ docker build \
   "$build_context"
 
 # Keep the pinned upstream Dockerfiles external while ensuring every published
-# Agent image crosses a TaskLattice-owned customization boundary.
+# Agent image crosses a TaskLattice Relay-owned customization boundary.
 docker build \
   --file "$WRAPPER_DOCKERFILE" \
   --build-arg "BASE_IMAGE=$UPSTREAM_IMAGE" \

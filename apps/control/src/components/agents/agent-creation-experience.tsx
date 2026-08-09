@@ -1,4 +1,4 @@
-import type { Agent } from "@tasklattice/contracts";
+import type { Agent } from "@tali/contracts";
 import { Link } from "@tanstack/react-router";
 import confetti from "canvas-confetti";
 import { AlertTriangle, ArrowRight, Check, CheckCircle2, ChevronDown, Circle, ExternalLink, RotateCw, TerminalSquare } from "lucide-react";
@@ -74,7 +74,7 @@ function ReadyState({ agent }: { agent: Agent }) {
   const endpointReady = agent.httpEndpoint?.status === "READY" && Boolean(agent.httpEndpoint.url);
 
   useEffect(() => {
-    const celebrationKey = `tasklattice:agent-ready:${agent.id}`;
+    const celebrationKey = `tali:agent-ready:${agent.id}`;
 
     try {
       if (window.sessionStorage.getItem(celebrationKey)) return;

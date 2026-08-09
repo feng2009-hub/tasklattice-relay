@@ -1,6 +1,6 @@
-# Released TaskLattice images. Override this for a fork or private mirror.
+# Released TaskLattice Relay images. Override this for a fork or private mirror.
 global:
-  imageRegistry: ghcr.io/sn0rt
+  imageRegistry: ghcr.io/tasklattice
   imagePullSecrets: []
   # Set by local deployment tooling to restart first-party workloads after a
   # mutable :dev image is rebuilt. Released charts leave this empty because
@@ -12,7 +12,7 @@ global:
 openshift:
   enabled: false
   anyuidScc:
-    # Static TaskLattice and OpenShell gateway pods use their image-defined
+    # Static TaskLattice Relay and OpenShell gateway pods use their image-defined
     # non-root IDs. Enable this binding only when the cluster permits anyuid.
     createRoleBinding: false
   sandboxScc:
@@ -39,30 +39,30 @@ openshift:
 
 images:
   control:
-    repository: tasklattice-control
+    repository: tali-control
     tag: ""
     pullPolicy: IfNotPresent
   runner:
-    repository: tasklattice-openshell-runner
+    repository: tali-openshell-runner
     tag: ""
     pullPolicy: IfNotPresent
   litellm:
-    repository: tasklattice-litellm
+    repository: tali-litellm
     tag: ""
     pullPolicy: IfNotPresent
   modelGuardrails:
-    repository: tasklattice-model-guardrails
+    repository: tali-model-guardrails
     tag: ""
     pullPolicy: IfNotPresent
   exampleMcp:
-    repository: tasklattice-example-mcp
+    repository: tali-example-mcp
     tag: ""
     pullPolicy: IfNotPresent
   openclawSandbox:
-    repository: tasklattice-nemoclaw-sandbox
+    repository: tali-nemoclaw-sandbox
     tag: ""
   hermesSandbox:
-    repository: tasklattice-nemoclaw-hermes-sandbox
+    repository: tali-nemoclaw-hermes-sandbox
     tag: ""
   postgres:
     repository: postgres
@@ -82,7 +82,7 @@ control:
   publicUrl: ""
   smtp:
     # Enables email delivery for invitations to users who do not already have
-    # a TaskLattice account. Requires control.publicUrl.
+    # a TaskLattice Relay account. Requires control.publicUrl.
     enabled: false
     host: ""
     port: 587
@@ -91,7 +91,7 @@ control:
     secure: false
     username: ""
     fromAddress: ""
-    fromName: TaskLattice
+    fromName: TaskLattice Relay
     replyTo: ""
   hostAliases: []
   service:
@@ -154,10 +154,10 @@ modelGuardrails:
   replicaCount: 1
   # A custom image or volume can place another NeMo profile at this path. The
   # profile is the supported extension point for Colang flows and actions.
-  profilePath: /opt/tasklattice/model-guardrails/profiles/model-io-default-v1
+  profilePath: /opt/tali/model-guardrails/profiles/model-io-default-v1
   nvidia:
     # NVIDIA model rails are owned by this standalone component and do not
-    # reuse Provider Accounts registered through the TaskLattice Dashboard.
+    # reuse Provider Accounts registered through the TaskLattice Relay Dashboard.
     enabled: false
     baseUrl: https://integrate.api.nvidia.com/v1
     contentSafetyModel: nvidia/llama-3.1-nemotron-safety-guard-8b-v3
@@ -215,19 +215,19 @@ postgresql:
 secrets:
   existingSecret: ""
   runnerToken: local-dev-token
-  litellmMasterKey: sk-tasklattice-local
-  modelGuardrailsApiKey: tasklattice-local-model-guardrails-key
+  litellmMasterKey: sk-tali-local
+  modelGuardrailsApiKey: tali-local-model-guardrails-key
   modelGuardrailsNvidiaApiKey: ""
-  postgresPassword: tasklattice-local
+  postgresPassword: tali-local
   databaseUrl: ""
-  jwtSecret: tasklattice-local-development-secret
+  jwtSecret: tali-local-development-secret
   initialSuperAdminPasswordHash: '$2b$12$Zx2mCLJZ0n/iY4Tq.Z3eXu0O.z5SHM.pKJyNNurKX/Z7CD5HHOg.e'
   keycloakAdminPassword: admin
-  keycloakClientSecret: tasklattice-keycloak-test-client-secret
+  keycloakClientSecret: tali-keycloak-test-client-secret
   keycloakTestUserPassword: password
   litellmUiUsername: admin
-  litellmUiPassword: tasklattice-local-admin
-  litellmSaltKey: tasklattice-local-litellm-salt-v1
+  litellmUiPassword: tali-local-admin
+  litellmSaltKey: tali-local-litellm-salt-v1
   smtpPassword: ""
 
 auth:
@@ -260,62 +260,62 @@ keycloak:
     # Keycloak Pod is recreated and imports the realm again.
     - id: 247cf669-9e00-4948-bc83-39d4fd3626fc
       username: alice
-      email: alice@tasklattice.test
+      email: alice@tali.test
       firstName: Alice
       lastName: Operator
     - id: 3ff7cb62-d951-4ea0-b5ca-cb465594f5e9
       username: bob
-      email: bob@tasklattice.test
+      email: bob@tali.test
       firstName: Bob
       lastName: Auditor
     - id: b7ebdb4c-caa3-4177-9196-71652156da38
       username: sso-1
-      email: sso-1@tasklattice.test
+      email: sso-1@tali.test
       firstName: SSO
       lastName: "1"
     - id: 7cffa5b7-e1e5-4f78-bddb-85a2cd610f5b
       username: sso-2
-      email: sso-2@tasklattice.test
+      email: sso-2@tali.test
       firstName: SSO
       lastName: "2"
     - id: fa8f658d-c7ce-4f5c-8bd3-ff0c08e18c7c
       username: sso-3
-      email: sso-3@tasklattice.test
+      email: sso-3@tali.test
       firstName: SSO
       lastName: "3"
     - id: b3f4b61d-06f9-467e-8f77-dc6c2ef87b5f
       username: sso-4
-      email: sso-4@tasklattice.test
+      email: sso-4@tali.test
       firstName: SSO
       lastName: "4"
     - id: 2681c7d0-e0f3-46e3-817d-566ddc9f42b8
       username: sso-5
-      email: sso-5@tasklattice.test
+      email: sso-5@tali.test
       firstName: SSO
       lastName: "5"
     - id: 9702bd2a-f9e4-40f2-aa52-3d0f0bd69cdb
       username: sso-6
-      email: sso-6@tasklattice.test
+      email: sso-6@tali.test
       firstName: SSO
       lastName: "6"
     - id: dba7ab69-0b5d-4338-b303-c48c4fbeb333
       username: sso-7
-      email: sso-7@tasklattice.test
+      email: sso-7@tali.test
       firstName: SSO
       lastName: "7"
     - id: 3ce07a30-6124-4dbd-8277-d737b6221110
       username: sso-8
-      email: sso-8@tasklattice.test
+      email: sso-8@tali.test
       firstName: SSO
       lastName: "8"
     - id: a43c0d28-e4f3-4e59-ad88-d9e9edc80e1e
       username: sso-9
-      email: sso-9@tasklattice.test
+      email: sso-9@tali.test
       firstName: SSO
       lastName: "9"
     - id: 1d020297-1cf1-403e-99a1-a902bb1e54ea
       username: sso-10
-      email: sso-10@tasklattice.test
+      email: sso-10@tali.test
       firstName: SSO
       lastName: "10"
   resources:
@@ -376,7 +376,7 @@ agentSandbox:
       memory: 256Mi
 
 # Pinned upstream OpenShell OCI chart. Plaintext/unauthenticated mode matches
-# TaskLattice's current trusted-cluster integration. Put the services behind an
+# TaskLattice Relay's current trusted-cluster integration. Put the services behind an
 # authenticated ingress or configure OpenShell TLS/OIDC for shared clusters.
 openshell:
   enabled: true

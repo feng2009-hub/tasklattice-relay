@@ -1,4 +1,4 @@
-import type { AgentStatus, ProvisioningStage } from "@tasklattice/contracts";
+import type { AgentStatus, ProvisioningStage } from "@tali/contracts";
 import { AlertTriangle, ScrollText } from "lucide-react";
 import type { ReactNode } from "react";
 import { ProvisioningLog } from "@/components/agents/provisioning-log";

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { providerKinds, type ProviderConnectionDraft } from "@tasklattice/contracts";
+import { providerKinds, type ProviderConnectionDraft } from "@tali/contracts";
 import { createProviderDraft } from "../../src/components/providers/provider-ui-registry";
 import { providerAdapterRegistry } from "./provider-adapters";
 
@@ -100,9 +100,9 @@ describe("providerAdapterRegistry", () => {
     expect(providerAdapterRegistry.openrouter.toLiteLLMParams({
       provider: "openrouter",
       name: "OpenRouter",
-      config: { endpoint: "https://openrouter.ai/api/v1", siteUrl: "https://tasklattice.example", appName: "TaskLattice" },
+      config: { endpoint: "https://openrouter.ai/api/v1", siteUrl: "https://tali.example", appName: "TaskLattice Relay" },
       credentials: { apiKey: "router-secret" },
-    }, model)).toMatchObject({ extra_headers: { "HTTP-Referer": "https://tasklattice.example", "X-Title": "TaskLattice" } });
+    }, model)).toMatchObject({ extra_headers: { "HTTP-Referer": "https://tali.example", "X-Title": "TaskLattice Relay" } });
 
     expect(providerAdapterRegistry["baidu-qianfan"].toLiteLLMParams({
       provider: "baidu-qianfan",

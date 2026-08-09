@@ -1,4 +1,4 @@
-import type { Agent } from "@tasklattice/contracts";
+import type { Agent } from "@tali/contracts";
 
 import { EffectiveMcpAccess } from "@/components/access/effective-mcp-access";
 

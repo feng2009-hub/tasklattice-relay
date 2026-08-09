@@ -15,22 +15,22 @@ import {
 } from "./auth";
 
 function localRequest(password: string) {
-  return new Request("http://tasklattice.local/api/v1/auth/local", {
+  return new Request("http://tali.local/api/v1/auth/local", {
     body: JSON.stringify({ password, username: "admin" }),
     headers: { "content-type": "application/json" },
     method: "POST",
   });
 }
 
-describe("TaskLattice authentication", () => {
+describe("TaskLattice Relay authentication", () => {
   const db = createTestPrisma();
 
   beforeEach(async () => {
-    globalThis.tasklatticePrisma = db;
+    globalThis.taliPrisma = db;
     vi.restoreAllMocks();
-    vi.stubEnv("TASKLATTICE_CONFIG", "/test/control.toml");
+    vi.stubEnv("TALI_CONFIG", "/test/control.toml");
     const config = developmentControlConfig();
-    config.server.public_url = "http://tasklattice.local";
+    config.server.public_url = "http://tali.local";
     config.auth.local.initial_super_admin_password_hash =
       await bcrypt.hash("bootstrap-password", 4);
     setControlConfigForTests(config);
@@ -80,7 +80,7 @@ describe("TaskLattice authentication", () => {
     expect(verifyAuthToken(body.token).user).toEqual(body.user);
 
     const me = await handleAuthMe(
-      new Request("http://tasklattice.local/api/v1/auth/me", {
+      new Request("http://tali.local/api/v1/auth/me", {
         headers: { authorization: `Bearer ${body.token}` },
       }),
     );
@@ -121,7 +121,7 @@ describe("TaskLattice authentication", () => {
       enabled: true,
       display_name: "Example ID",
       issuer: "https://identity.example/realms/agents",
-      client_id: "tasklattice",
+      client_id: "tali",
       client_secret: "",
     };
     setControlConfigForTests(config);
@@ -143,7 +143,7 @@ describe("TaskLattice authentication", () => {
       enabled: true,
       display_name: "Example ID",
       issuer: "https://identity.example/realms/agents",
-      client_id: "tasklattice",
+      client_id: "tali",
       client_secret: "",
     };
     setControlConfigForTests(config);
@@ -155,12 +155,12 @@ describe("TaskLattice authentication", () => {
 
   it("starts OIDC authorization with PKCE, nonce, and a protected state cookie", async () => {
     const config = developmentControlConfig();
-    config.server.public_url = "http://tasklattice.local";
+    config.server.public_url = "http://tali.local";
     config.auth.oidc = {
       enabled: true,
       display_name: "Example ID",
       issuer: "https://identity.example/realms/agents",
-      client_id: "tasklattice",
+      client_id: "tali",
       client_secret: "",
     };
     setControlConfigForTests(config);
@@ -176,17 +176,17 @@ describe("TaskLattice authentication", () => {
     );
 
     const response = await handleSsoStart(
-      new Request("http://tasklattice.local/api/v1/auth/sso/start"),
+      new Request("http://tali.local/api/v1/auth/sso/start"),
     );
     const location = new URL(response.headers.get("location") ?? "");
 
     expect(response.status).toBe(302);
-    expect(location.searchParams.get("client_id")).toBe("tasklattice");
+    expect(location.searchParams.get("client_id")).toBe("tali");
     expect(location.searchParams.get("code_challenge_method")).toBe("S256");
     expect(location.searchParams.get("code_challenge")).toBeTruthy();
     expect(location.searchParams.get("nonce")).toBeTruthy();
     expect(location.searchParams.get("redirect_uri")).toBe(
-      "http://tasklattice.local/auth/sso/callback",
+      "http://tali.local/auth/sso/callback",
     );
     expect(response.headers.get("set-cookie")).toContain("HttpOnly");
     expect(response.headers.get("set-cookie")).toContain("SameSite=Lax");
@@ -198,7 +198,7 @@ describe("TaskLattice authentication", () => {
       enabled: true,
       display_name: "Example ID",
       issuer: "https://identity.example/realms/agents",
-      client_id: "tasklattice",
+      client_id: "tali",
       client_secret: "",
     };
     setControlConfigForTests(config);

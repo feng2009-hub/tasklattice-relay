@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { AgentPlatformId, TerminalTarget } from "@tasklattice/contracts";
+import type { AgentPlatformId, TerminalTarget } from "@tali/contracts";
 import { Maximize2, Minimize2, RefreshCw } from "lucide-react";
 import {
   AgentTerminal,

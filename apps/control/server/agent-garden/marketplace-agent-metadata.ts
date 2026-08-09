@@ -1,7 +1,7 @@
 import type {
   AgentMarketplaceBrief,
   AgentGardenEntry,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 
 type MarketplaceDefinition = {
   category: string;

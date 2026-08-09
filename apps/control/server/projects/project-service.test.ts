@@ -43,7 +43,7 @@ function auth(
   return {
     exp: Number.MAX_SAFE_INTEGER,
     iat: 0,
-    iss: "tasklattice",
+    iss: "tali",
     sub: user.id,
     user,
   };
@@ -55,7 +55,7 @@ describe("ProjectService", () => {
     const service = new ProjectService(db);
     const local = auth({
       displayName: "Local Administrator",
-      email: "admin@tasklattice.local",
+      email: "admin@tali.local",
       provider: "local",
       username: "admin",
     });
@@ -111,7 +111,7 @@ describe("ProjectService", () => {
     const service = new ProjectService(db);
     const local = auth({
       displayName: "Local Administrator",
-      email: "admin@tasklattice.local",
+      email: "admin@tali.local",
       provider: "local",
       username: "admin",
     });
@@ -135,7 +135,7 @@ describe("ProjectService", () => {
     const service = new ProjectService(db);
     const local = auth({
       displayName: "Local Administrator",
-      email: "admin@tasklattice.local",
+      email: "admin@tali.local",
       provider: "local",
       username: "admin",
     });
@@ -258,7 +258,7 @@ describe("ProjectService", () => {
     const service = new ProjectService(db);
     const administrator = auth({
       displayName: "Administrator",
-      email: "administrator@tasklattice.local",
+      email: "administrator@tali.local",
       provider: "sso",
       username: "administrator",
     });
@@ -286,7 +286,7 @@ describe("ProjectService", () => {
     expect(await service.members(team.id, administratorId)).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          email: "administrator@tasklattice.local",
+          email: "administrator@tali.local",
           kind: "human",
           role: "admin",
           status: "active",
@@ -319,7 +319,7 @@ describe("ProjectService", () => {
     const service = new ProjectService(db);
     const administrator = auth({
       displayName: "Administrator",
-      email: "administrator@tasklattice.local",
+      email: "administrator@tali.local",
       provider: "sso",
       username: "administrator",
     });
@@ -333,7 +333,7 @@ describe("ProjectService", () => {
     ).rejects.toThrow(/unique/i);
     await expect(
       service.create(administrator, "Creator Team", [
-        { email: "administrator@tasklattice.local", role: "member" },
+        { email: "administrator@tali.local", role: "member" },
       ]),
     ).rejects.toThrow(/already included/i);
   });
@@ -343,7 +343,7 @@ describe("ProjectService", () => {
     const service = new ProjectService(db);
     const administrator = auth({
       displayName: "Administrator",
-      email: "administrator@tasklattice.local",
+      email: "administrator@tali.local",
       provider: "sso",
       username: "administrator",
     });
@@ -369,7 +369,7 @@ describe("ProjectService", () => {
     const service = new ProjectService(db);
     const administrator = auth({
       displayName: "Administrator",
-      email: "administrator@tasklattice.local",
+      email: "administrator@tali.local",
       provider: "sso",
       username: "administrator",
     });
@@ -454,7 +454,7 @@ describe("ProjectService", () => {
     const service = new ProjectService(db);
     const administrator = auth({
       displayName: "Administrator",
-      email: "administrator@tasklattice.local",
+      email: "administrator@tali.local",
       provider: "sso",
       username: "administrator",
     });
@@ -502,7 +502,7 @@ describe("ProjectService", () => {
     const service = new ProjectService(db, undefined, mailer);
     const administrator = auth({
       displayName: "Administrator",
-      email: "administrator@tasklattice.local",
+      email: "administrator@tali.local",
       provider: "sso",
       username: "administrator",
     });
@@ -551,7 +551,7 @@ describe("ProjectService", () => {
     );
     const administrator = auth({
       displayName: "Administrator",
-      email: "administrator@tasklattice.local",
+      email: "administrator@tali.local",
       provider: "sso",
       username: "administrator",
     });
@@ -579,7 +579,7 @@ describe("ProjectService", () => {
     );
     const administrator = auth({
       displayName: "Administrator",
-      email: "administrator@tasklattice.local",
+      email: "administrator@tali.local",
       provider: "sso",
       username: "administrator",
     });
@@ -607,7 +607,7 @@ describe("ProjectService", () => {
     const service = new ProjectService(db);
     const administrator = auth({
       displayName: "Administrator",
-      email: "administrator@tasklattice.local",
+      email: "administrator@tali.local",
       provider: "sso",
       username: "administrator",
     });
@@ -633,7 +633,7 @@ describe("ProjectService", () => {
     const team = await service.create(owner, "Restricted Project", []);
     const local = auth({
       displayName: "Local Administrator",
-      email: "admin@tasklattice.local",
+      email: "admin@tali.local",
       provider: "local",
       username: "admin",
     });

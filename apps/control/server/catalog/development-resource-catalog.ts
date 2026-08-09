@@ -1,4 +1,4 @@
-import type { ResourceCatalog } from "@tasklattice/contracts";
+import type { ResourceCatalog } from "@tali/contracts";
 import vendorSkillManifest from "../../../../skills/vendor/dist/manifest.json";
 import { mcpServerTemplates } from "./mcp-server-templates";
 
@@ -59,7 +59,7 @@ export const developmentResourceCatalog: ResourceCatalog = {
       name: "Document Summarization",
       description: "Summarize HR documents and reports.",
       ...skillInformation(
-        "TaskLattice Knowledge",
+        "TaskLattice Relay Knowledge",
         "Long internal documents are difficult to review quickly and important decisions can be hidden in supporting detail.",
         ["Create an executive summary of an internal document", "Extract decisions, risks, and follow-up actions from a report"],
         "Provide one or more approved documents and specify the audience and desired level of detail. Review cited source sections before sharing the summary.",
@@ -97,7 +97,7 @@ export const developmentResourceCatalog: ResourceCatalog = {
       name: "Data Extraction",
       description: "Extract structured data from documents and forms.",
       ...skillInformation(
-        "TaskLattice Data",
+        "TaskLattice Relay Data",
         "Operational data arrives in inconsistent documents and forms that cannot be processed reliably by downstream systems.",
         ["Extract invoice or form fields into JSON", "Normalize repeated document fields for a workflow"],
         "Provide the source document and the expected field schema. Validate required fields and confidence-sensitive values before sending the result downstream.",
@@ -135,7 +135,7 @@ export const developmentResourceCatalog: ResourceCatalog = {
       name: "Incident Triage",
       description: "Triage service alerts and assemble an evidence-backed incident summary.",
       ...skillInformation(
-        "TaskLattice Operations",
+        "TaskLattice Relay Operations",
         "Responders spend critical time correlating alerts, logs, and recent changes before they can choose the next action.",
         ["Prepare the first incident briefing", "Correlate alerts with recent infrastructure changes"],
         "Connect read-only observability sources and provide the alert context. Use the generated summary as evidence for a responder, not as authorization to execute changes.",
@@ -173,7 +173,7 @@ export const developmentResourceCatalog: ResourceCatalog = {
       name: "Customer Conversation Summary",
       description: "Summarize customer conversations and identify the requested outcome.",
       ...skillInformation(
-        "TaskLattice Customer Experience",
+        "TaskLattice Relay Customer Experience",
         "Support teams lose context when long conversations are handed between people or Agents.",
         ["Create a handoff summary for another support owner", "Extract the customer's goal, blockers, and promised actions"],
         "Provide the conversation transcript and optional account context. Confirm sensitive details are appropriate for the destination before sharing the summary.",
@@ -211,7 +211,7 @@ export const developmentResourceCatalog: ResourceCatalog = {
       name: "SQL Query",
       description: "Run governed read-only queries and return structured results.",
       ...skillInformation(
-        "TaskLattice Data",
+        "TaskLattice Relay Data",
         "Agents need structured business data but unrestricted SQL access creates correctness and security risks.",
         ["Answer a reporting question from an approved database", "Retrieve read-only records for another workflow step"],
         "Connect a read-only database identity, describe the required result, and review the generated query and row limits before execution.",

@@ -8,7 +8,7 @@ import {
   siUpstash,
   type SimpleIcon,
 } from "simple-icons";
-import type { McpServerDefinition, McpServerTemplate } from "@tasklattice/contracts";
+import type { McpServerDefinition, McpServerTemplate } from "@tali/contracts";
 import { useState } from "react";
 import { BookOpenText, ServerCog } from "lucide-react";
 import { BrandMark } from "@/components/brand/brand-logo";
@@ -47,7 +47,7 @@ export function McpBrandIcon({
       />
     );
   }
-  if (brand === "tasklattice") return <BrandMark className={cn("size-7", className)} />;
+  if (brand === "tali") return <BrandMark className={cn("size-7", className)} />;
   if (brand === "slack") return <SlackMark className={className} />;
   if (brand === "deepwiki") return <BookOpenText aria-hidden="true" className={cn("size-7 text-foreground", className)} />;
   const icon = icons[brand];
@@ -92,8 +92,8 @@ export function resolveMcpServerBrand(
   if (matchingTemplate) return matchingTemplate.logo;
 
   const identity = `${server.name} ${server.endpoint ?? ""}`.toLowerCase();
-  if (identity.includes("tasklattice") || identity.includes("tasklattice-example-mcp")) {
-    return "tasklattice";
+  if (identity.includes("tali") || identity.includes("tali-example-mcp")) {
+    return "tali";
   }
 
   return "";

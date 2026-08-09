@@ -1,7 +1,7 @@
 import {
   complianceDomainCatalog,
   type ComplianceDomain,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import { cn } from "@/lib/utils";
 
 const dataBoundarySymbols: Record<ComplianceDomain, string> = {

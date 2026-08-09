@@ -1,7 +1,7 @@
 import type {
   ProjectQuota,
   UpdateProjectQuotaInput,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import type { PrismaClient } from "../generated/prisma/client";
 import {
   LiteLLMClient,

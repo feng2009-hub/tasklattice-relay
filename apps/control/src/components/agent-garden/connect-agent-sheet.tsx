@@ -6,7 +6,7 @@ import type {
   AgentConnection,
   AgentConnectionApprovalMode,
   AgentGardenEntry,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import {
   Link2,
   ShieldCheck,

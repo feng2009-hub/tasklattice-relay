@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import type { Agent } from "@tasklattice/contracts";
+import type { Agent } from "@tali/contracts";
 import { ArrowRight, Link2, ShieldCheck, Waypoints } from "lucide-react";
 import { AgentGardenIcon } from "@/components/agent-garden/agent-garden-icon";
 import { DetailCardHeader } from "@/components/instances/instance-detail-shared";

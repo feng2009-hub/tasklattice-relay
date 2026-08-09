@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useMemo, useState } from "react";
 import { ClientOnly } from "@tanstack/react-router";
-import type { CostDailyPoint, CostGroupBy } from "@tasklattice/contracts";
+import type { CostDailyPoint, CostGroupBy } from "@tali/contracts";
 import type { CalendarTooltipProps } from "@/components/shared/calendar-heatmap";
 import { ChartLoadingState } from "@/components/shared/chart-loading-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

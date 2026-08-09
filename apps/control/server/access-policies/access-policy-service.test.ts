@@ -3,7 +3,7 @@ import {
   updateAccessPolicySchema,
   type AccessPolicy,
   type McpServerDefinition,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import { describe, expect, it, vi } from "vitest";
 
 import type { LiteLLMAdminClient } from "../providers/litellm-client";

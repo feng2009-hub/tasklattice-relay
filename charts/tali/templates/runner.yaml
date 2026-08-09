@@ -1,11 +1,11 @@
 {{- $component := "runner" -}}
-{{- $name := include "tasklattice.componentName" (dict "root" . "component" $component) -}}
+{{- $name := include "tali.componentName" (dict "root" . "component" $component) -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ $name }}
   labels:
-    {{- include "tasklattice.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
+    {{- include "tali.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
 spec:
   replicas: {{ .Values.runner.replicaCount }}
   strategy:
@@ -15,19 +15,19 @@ spec:
       maxSurge: 1
   selector:
     matchLabels:
-      {{- include "tasklattice.selectorLabels" (dict "root" . "component" $component) | nindent 6 }}
+      {{- include "tali.selectorLabels" (dict "root" . "component" $component) | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "tasklattice.selectorLabels" (dict "root" . "component" $component) | nindent 8 }}
+        {{- include "tali.selectorLabels" (dict "root" . "component" $component) | nindent 8 }}
       annotations:
-        checksum/runner-secret: {{ include "tasklattice.runnerSecretChecksum" . }}
+        checksum/runner-secret: {{ include "tali.runnerSecretChecksum" . }}
         {{- with .Values.global.rolloutRevision }}
-        tasklattice.ai/rollout-revision: {{ . | quote }}
+        tali.ai/rollout-revision: {{ . | quote }}
         {{- end }}
     spec:
       terminationGracePeriodSeconds: 600
-      serviceAccountName: {{ include "tasklattice.runtimeServiceAccountName" . }}
+      serviceAccountName: {{ include "tali.runtimeServiceAccountName" . }}
       automountServiceAccountToken: false
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets:
@@ -41,7 +41,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: runner
-          image: {{ include "tasklattice.image" (dict "root" . "image" .Values.images.runner) }}
+          image: {{ include "tali.image" (dict "root" . "image" .Values.images.runner) }}
           imagePullPolicy: {{ .Values.images.runner.pullPolicy }}
           ports:
             - name: http
@@ -52,16 +52,16 @@ spec:
             - name: NEMOCLAW_RUNNER_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tasklattice.secretName" . }}
+                  name: {{ include "tali.secretName" . }}
                   key: runner-token
             - name: OPENSHELL_GATEWAY_ENDPOINT
-              value: {{ default (printf "http://%s.%s.svc.cluster.local:8080" (include "tasklattice.componentName" (dict "root" . "component" "openshell")) .Release.Namespace) .Values.runner.gatewayEndpoint | quote }}
+              value: {{ default (printf "http://%s.%s.svc.cluster.local:8080" (include "tali.componentName" (dict "root" . "component" "openshell")) .Release.Namespace) .Values.runner.gatewayEndpoint | quote }}
             - name: OPENSHELL_SERVICE_BASE_URL
               value: {{ .Values.runner.serviceBaseUrl | quote }}
             - name: OPENSHELL_SANDBOX_IMAGE
-              value: {{ include "tasklattice.image" (dict "root" . "image" .Values.images.openclawSandbox) | quote }}
+              value: {{ include "tali.image" (dict "root" . "image" .Values.images.openclawSandbox) | quote }}
             - name: OPENSHELL_HERMES_SANDBOX_IMAGE
-              value: {{ include "tasklattice.image" (dict "root" . "image" .Values.images.hermesSandbox) | quote }}
+              value: {{ include "tali.image" (dict "root" . "image" .Values.images.hermesSandbox) | quote }}
             - name: OPENSHELL_KUBERNETES_SERVICE_CIDRS
               value: {{ .Values.runner.kubernetesServiceCidrs | quote }}
             - name: OPENSHELL_SANDBOX_CPU
@@ -110,10 +110,10 @@ kind: Service
 metadata:
   name: {{ $name }}
   labels:
-    {{- include "tasklattice.labels" . | nindent 4 }}
+    {{- include "tali.labels" . | nindent 4 }}
 spec:
   selector:
-    {{- include "tasklattice.selectorLabels" (dict "root" . "component" $component) | nindent 4 }}
+    {{- include "tali.selectorLabels" (dict "root" . "component" $component) | nindent 4 }}
   ports:
     - name: http
       port: 9090

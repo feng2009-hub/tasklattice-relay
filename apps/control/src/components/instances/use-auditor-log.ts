@@ -1,4 +1,4 @@
-import type { Agent } from "@tasklattice/contracts";
+import type { Agent } from "@tali/contracts";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { api } from "@/lib/api";

@@ -7,7 +7,7 @@ import {
   type ModelRouting,
   type ModelType,
   type ProviderAccount,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import {
   ArrowRight,
   AudioLines,

@@ -2,7 +2,7 @@ import { Fragment, useMemo } from "react";
 import type {
   PlatformAuditLogEvent,
   PlatformAuditSortDirection,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import {
   flexRender,
   getCoreRowModel,

@@ -2,8 +2,8 @@ import type {
   Agent,
   RuntimeStatus,
   TerminalTarget,
-} from "@tasklattice/contracts";
-import { agentPlatforms } from "@tasklattice/contracts";
+} from "@tali/contracts";
+import { agentPlatforms } from "@tali/contracts";
 
 export const primaryTerminalTargetId = "agent";
 

@@ -4,7 +4,7 @@ import {
   complianceDomainCatalog,
   type ModelDeployment,
   type ModelRoutingPolicy,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import {
   Activity,
   Check,

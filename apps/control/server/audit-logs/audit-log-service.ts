@@ -6,7 +6,7 @@ import type {
   PlatformAuditLogQuery,
   PlatformAuditOutcome,
   PlatformAuditSortDirection,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import { randomUUID } from "node:crypto";
 import { prisma } from "../db/prisma";
 import type { Prisma, PrismaClient } from "../generated/prisma/client";

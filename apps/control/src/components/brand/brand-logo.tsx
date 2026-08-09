@@ -49,7 +49,7 @@ export function BrandLogo({
             TALI
           </strong>
           <span className="mt-1 block truncate font-mono text-[9px] tracking-[0.12em] text-muted-foreground">
-            TaskLattice
+            TaskLattice Relay
           </span>
         </span>
       )}

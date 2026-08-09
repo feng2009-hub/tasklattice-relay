@@ -1,4 +1,4 @@
-# TaskLattice Marketplace Interaction Design
+# TaskLattice Relay Marketplace Interaction Design
 
 Status: Draft
 
@@ -16,7 +16,7 @@ UI language: English
 
 ## 1. Purpose
 
-This document defines the user-facing information architecture, page behavior, workflows, status language, feedback, and interaction rules for the TaskLattice Marketplace.
+This document defines the user-facing information architecture, page behavior, workflows, status language, feedback, and interaction rules for the TaskLattice Relay Marketplace.
 
 The product supports three user goals:
 
@@ -131,7 +131,7 @@ PLATFORM ADMIN
 
 The header contains:
 
-- TaskLattice Marketplace logo and home link;
+- TaskLattice Relay Marketplace logo and home link;
 - global search;
 - environment context selector;
 - notifications;

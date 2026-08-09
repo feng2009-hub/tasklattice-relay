@@ -1,7 +1,7 @@
-ARG BASE_IMAGE=tasklattice-nemoclaw-hermes-upstream:local
+ARG BASE_IMAGE=tali-nemoclaw-hermes-upstream:local
 FROM ${BASE_IMAGE}
 
-COPY --chmod=0555 scripts/bootstrap-hermes-config.py /usr/local/lib/tasklattice/bootstrap-hermes-config.py
+COPY --chmod=0555 scripts/bootstrap-hermes-config.py /usr/local/lib/tali/bootstrap-hermes-config.py
 
 # OpenShell's Kubernetes driver executes the named sandbox identity as the
 # provider-wide workload UID/GID. The upstream Hermes base inherits the Node
@@ -31,4 +31,4 @@ RUN set -eux; \
     test "$(id -u sandbox)" = "${OPENSHELL_SANDBOX_UID}"; \
     test "$(id -g sandbox)" = "${OPENSHELL_SANDBOX_GID}"; \
     test "$(stat -c '%u:%g' /sandbox)" = "${OPENSHELL_SANDBOX_UID}:${OPENSHELL_SANDBOX_GID}"; \
-    /usr/local/lib/tasklattice/bootstrap-hermes-config.py --help >/dev/null
+    /usr/local/lib/tali/bootstrap-hermes-config.py --help >/dev/null

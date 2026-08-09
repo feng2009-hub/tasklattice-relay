@@ -34,7 +34,7 @@ export const requireBasicAuthentication: RequestHandler = (request, response, ne
   });
   response
     .status(401)
-    .set("WWW-Authenticate", 'Basic realm="TaskLattice Example MCP", charset="UTF-8"')
+    .set("WWW-Authenticate", 'Basic realm="TaskLattice Relay Example MCP", charset="UTF-8"')
     .json({
       jsonrpc: "2.0",
       error: { code: -32001, message: "Basic authentication is required." },

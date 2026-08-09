@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { PlatformAuditLogEvent } from "@tasklattice/contracts";
+import type { PlatformAuditLogEvent } from "@tali/contracts";
 import {
   createAuditLogCsv,
   parseAuditLogQuery,
@@ -44,7 +44,7 @@ const event: PlatformAuditLogEvent = {
 describe("audit log HTTP helpers", () => {
   it("parses bounded server query parameters", () => {
     const request = new Request(
-      "https://tasklattice.local/api/v1/audit-logs"
+      "https://tali.local/api/v1/audit-logs"
       + "?query=maya&outcome=denied&limit=25&direction=asc",
     );
     expect(parseAuditLogQuery(request)).toEqual({

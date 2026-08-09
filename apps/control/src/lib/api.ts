@@ -56,7 +56,7 @@ import type {
   UpdateAccessPolicyInput,
   UpdateMcpServerDefinitionInput,
   UpdateSkillDefinitionInput,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import { clearAuthToken, getAuthToken } from "./auth-token";
 import { projectIdFromPathname } from "./project-storage";
 
@@ -69,7 +69,7 @@ export class ApiError extends Error {
 
 export function projectScopedPath(path: string, projectId: string | null): string {
   if (!projectId) return path;
-  const url = new URL(path, "http://tasklattice.local");
+  const url = new URL(path, "http://tali.local");
   const suffix = url.pathname
     .replace(/^\/api\/v1\/projects\/[^/]+\/?/, "")
     .replace(/^\/api\/v1\/?/, "");

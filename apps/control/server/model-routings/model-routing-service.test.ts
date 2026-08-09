@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createAgentSchema,
   createModelRoutingSchema,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import { createTestStore } from "../test/store";
 import type {
   LiteLLMAdminClient,
@@ -260,9 +260,9 @@ describe("Model Routing validation", () => {
           routerType: "UNKNOWN",
         },
         guardrails: [
-          "tasklattice-model-during-call",
-          "tasklattice-model-input",
-          "tasklattice-model-output",
+          "tali-model-during-call",
+          "tali-model-input",
+          "tali-model-output",
         ],
       }),
     );

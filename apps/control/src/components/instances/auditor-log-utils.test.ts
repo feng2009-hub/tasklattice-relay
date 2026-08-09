@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Agent, SandboxAuditEvent } from "@tasklattice/contracts";
+import type { Agent, SandboxAuditEvent } from "@tali/contracts";
 import { adaptAgentToAuditorLogs, filterAuditorLogs } from "./auditor-log-utils";
 
 const agent = {

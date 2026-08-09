@@ -1,10 +1,15 @@
-# TaskLattice
+# TaskLattice Relay
 
-TaskLattice is a Project-scoped Kubernetes control plane for operating AI
+TaskLattice Relay is a Project-scoped Kubernetes control plane for operating AI
 Agents. It manages model Providers and routing, Instance-bound access and
 runtime policies, Agent resources, and observability around
 OpenShell sandboxes. OpenShell is the fixed runtime; OpenClaw is the default
 Agent implementation and Hermes is the second supported implementation.
+
+TaskLattice is the open-source project name; Relay is this module. User-facing
+copy uses **TaskLattice Relay**, while code, package scopes, environment
+variables, images, and Kubernetes resources use the shorter **TALI** / `tali`
+prefix.
 
 The `v0.1.x` release line is an early preview. The Provider-to-Sandbox path is
 implemented end to end. The Traces workbench currently demonstrates the
@@ -19,7 +24,7 @@ Browser (TanStack Start + shadcn/ui)
                   |
                   | REST + WebSocket
                   v
-TaskLattice Control API ---- LiteLLM ---- Provider API
+TaskLattice Relay Control API ---- LiteLLM ---- Provider API
           |                    |
           `------.      .------'
                  v      v
@@ -27,7 +32,7 @@ TaskLattice Control API ---- LiteLLM ---- Provider API
           (`tasklattice` + `public` schemas)
           |
           v
-TaskLattice OpenShell Runner
+TaskLattice Relay OpenShell Runner
           |
           | OpenShell CLI / gRPC
           v
@@ -53,9 +58,9 @@ OpenShell Gateway ---- Agent Sandbox CR
 ## Install the latest Release
 
 The default installation target is the
-[latest published GitHub Release](https://github.com/Sn0rt/TaskLattice/releases/latest).
+[latest published GitHub Release](https://github.com/tasklattice/tasklattice-relay/releases/latest).
 Set `VERSION` to that Release version without its leading `v`. The Chart and
-all seven first-party images then use that exact immutable version; TaskLattice
+all seven first-party images then use that exact immutable version; TaskLattice Relay
 does not deploy the floating `latest` image tag.
 
 Download the self-contained Chart attached to the Release:
@@ -63,9 +68,9 @@ Download the self-contained Chart attached to the Release:
 ```sh
 VERSION="<latest-release-version>"
 curl --fail --location --remote-name \
-  "https://github.com/Sn0rt/TaskLattice/releases/download/v${VERSION}/tasklattice-${VERSION}.tgz"
-helm upgrade --install tasklattice "./tasklattice-${VERSION}.tgz" \
-  --namespace tasklattice-sandboxes \
+  "https://github.com/tasklattice/tasklattice-relay/releases/download/v${VERSION}/tali-${VERSION}.tgz"
+helm upgrade --install tali "./tali-${VERSION}.tgz" \
+  --namespace tali-sandboxes \
   --create-namespace \
   --wait \
   --timeout 10m
@@ -75,10 +80,10 @@ The same Chart is published to GHCR as an OCI artifact:
 
 ```sh
 VERSION="<latest-release-version>"
-helm upgrade --install tasklattice \
-  oci://ghcr.io/sn0rt/charts/tasklattice \
+helm upgrade --install tali \
+  oci://ghcr.io/tasklattice/charts/tali \
   --version "${VERSION}" \
-  --namespace tasklattice-sandboxes \
+  --namespace tali-sandboxes \
   --create-namespace \
   --wait \
   --timeout 10m
@@ -90,10 +95,10 @@ overrides to either installation command; without them, Helm `--wait` will time
 out:
 
 ```sh
-helm upgrade --install tasklattice \
-  oci://ghcr.io/sn0rt/charts/tasklattice \
+helm upgrade --install tali \
+  oci://ghcr.io/tasklattice/charts/tali \
   --version "${VERSION}" \
-  --namespace tasklattice-sandboxes \
+  --namespace tali-sandboxes \
   --create-namespace \
   --set control.service.type=ClusterIP \
   --set openshell.service.type=ClusterIP \
@@ -116,31 +121,31 @@ Requirements:
 Verify the installation:
 
 ```sh
-kubectl -n tasklattice-sandboxes rollout status deployment/tasklattice-control --timeout=300s
-kubectl -n tasklattice-sandboxes rollout status deployment/tasklattice-runner --timeout=300s
-kubectl -n tasklattice-sandboxes rollout status deployment/tasklattice-litellm --timeout=300s
-kubectl -n tasklattice-sandboxes rollout status deployment/tasklattice-model-guardrails --timeout=300s
-kubectl -n tasklattice-sandboxes rollout status statefulset/tasklattice-postgresql --timeout=300s
-kubectl -n tasklattice-sandboxes rollout status statefulset/tasklattice-openshell --timeout=300s
+kubectl -n tali-sandboxes rollout status deployment/tali-control --timeout=300s
+kubectl -n tali-sandboxes rollout status deployment/tali-runner --timeout=300s
+kubectl -n tali-sandboxes rollout status deployment/tali-litellm --timeout=300s
+kubectl -n tali-sandboxes rollout status deployment/tali-model-guardrails --timeout=300s
+kubectl -n tali-sandboxes rollout status statefulset/tali-postgresql --timeout=300s
+kubectl -n tali-sandboxes rollout status statefulset/tali-openshell --timeout=300s
 kubectl -n agent-sandbox-system rollout status deployment/agent-sandbox-controller --timeout=300s
-kubectl -n tasklattice-sandboxes get pods,services,pvc
+kubectl -n tali-sandboxes get pods,services,pvc
 ```
 
 ## Images and versions
 
-TaskLattice publishes seven first-party images. A packaged Release Chart sets
+TaskLattice Relay publishes seven first-party images. A packaged Release Chart sets
 its `appVersion` to the Release version, and every empty first-party image tag
 resolves to that exact value.
 
 | Component                | Released image or version                                       | Purpose                                            |
 | ------------------------ | --------------------------------------------------------------- | -------------------------------------------------- |
-| TaskLattice control      | `ghcr.io/sn0rt/tasklattice-control:<release>`                   | UI, REST/WebSocket API, and PostgreSQL control data |
-| Runtime runner           | `ghcr.io/sn0rt/tasklattice-openshell-runner:<release>`          | OpenShell sandbox lifecycle and terminal relay     |
-| LiteLLM                  | `ghcr.io/sn0rt/tasklattice-litellm:<release>`                   | Model gateway, virtual keys, and spend attribution |
-| Model Guardrails         | `ghcr.io/sn0rt/tasklattice-model-guardrails:<release>`          | NeMo-backed model input/output safety              |
-| Example MCP server       | `ghcr.io/sn0rt/tasklattice-example-mcp:<release>`               | Reference MCP integration used by examples         |
-| OpenClaw sandbox         | `ghcr.io/sn0rt/tasklattice-nemoclaw-sandbox:<release>`          | Default Agent sandbox                              |
-| Hermes sandbox           | `ghcr.io/sn0rt/tasklattice-nemoclaw-hermes-sandbox:<release>`   | Hermes Agent sandbox                               |
+| TaskLattice Relay control      | `ghcr.io/tasklattice/tali-control:<release>`                   | UI, REST/WebSocket API, and PostgreSQL control data |
+| Runtime runner           | `ghcr.io/tasklattice/tali-openshell-runner:<release>`          | OpenShell sandbox lifecycle and terminal relay     |
+| LiteLLM                  | `ghcr.io/tasklattice/tali-litellm:<release>`                   | Model gateway, virtual keys, and spend attribution |
+| Model Guardrails         | `ghcr.io/tasklattice/tali-model-guardrails:<release>`          | NeMo-backed model input/output safety              |
+| Example MCP server       | `ghcr.io/tasklattice/tali-example-mcp:<release>`               | Reference MCP integration used by examples         |
+| OpenClaw sandbox         | `ghcr.io/tasklattice/tali-nemoclaw-sandbox:<release>`          | Default Agent sandbox                              |
+| Hermes sandbox           | `ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:<release>`   | Hermes Agent sandbox                               |
 | LiteLLM PostgreSQL       | `postgres:17-alpine`                                            | LiteLLM configuration and usage data               |
 | OpenShell gateway        | `ghcr.io/nvidia/openshell/gateway:0.0.82`                       | Policy enforcement, audit, exec, and HTTP routing  |
 | OpenShell supervisor     | `ghcr.io/nvidia/openshell/supervisor:0.0.82`                    | Supervisor injected into Agent sandboxes           |
@@ -152,18 +157,18 @@ creates its Sandbox rather than running as permanent control-plane Pods.
 ## Access
 
 On a cluster with `LoadBalancer` support, open the external address of the
-`tasklattice-control` Service on port 80. When using the `ClusterIP` overrides,
+`tali-control` Service on port 80. When using the `ClusterIP` overrides,
 forward the Control Service and open `http://127.0.0.1:18080`:
 
 ```sh
-kubectl -n tasklattice-sandboxes port-forward service/tasklattice-control 18080:80
+kubectl -n tali-sandboxes port-forward service/tali-control 18080:80
 ```
 
 Keep this second forward running when validating a Sandbox Agent UI through
 OpenShell:
 
 ```sh
-kubectl -n tasklattice-sandboxes port-forward service/tasklattice-openshell 8080:8080
+kubectl -n tali-sandboxes port-forward service/tali-openshell 8080:8080
 ```
 
 The checked-in Chart defaults are suitable only for a trusted cluster: local
@@ -173,9 +178,9 @@ gateway clients. Before shared or internet-facing use, override every
 For an end-to-end SSO test environment, the Chart can deploy an ephemeral,
 preconfigured Keycloak. Do not enable `keycloak.enabled` alone:
 `keycloak.publicUrl` must be reachable from both the browser and the Control
-Pod, and `control.publicUrl` must match the browser-visible TaskLattice origin
+Pod, and `control.publicUrl` must match the browser-visible TaskLattice Relay origin
 used for the OIDC callback.
-See the [Chart documentation](charts/tasklattice/README.md) for existing
+See the [Chart documentation](charts/tali/README.md) for existing
 Secrets, image pull Secrets, embedded Keycloak examples, and external runtime
 settings.
 
@@ -203,7 +208,7 @@ OpenShell Sandbox with its own workspace PVC.
 ## Persistence and uninstall
 
 The control plane and LiteLLM share one PostgreSQL database instance. Control
-data is isolated in the `tasklattice` schema while LiteLLM retains its `public`
+data is isolated in the compatibility `tasklattice` schema while LiteLLM retains its `public`
 schema. OpenShell gateway data and Agent workspaces use their own PVCs.
 Restarting Pods does not reset that state. A control init container applies
 Prisma SQL migrations before each rollout.
@@ -211,8 +216,8 @@ Prisma SQL migrations before each rollout.
 Delete active Instances and back up required data before uninstalling:
 
 ```sh
-kubectl -n tasklattice-sandboxes get sandboxes,pvc
-helm uninstall tasklattice --namespace tasklattice-sandboxes
+kubectl -n tali-sandboxes get sandboxes,pvc
+helm uninstall tali --namespace tali-sandboxes
 ```
 
 StatefulSet claim-template PVCs, dynamically created workspace PVCs, Sandbox
@@ -230,6 +235,6 @@ Additional design documentation:
 
 ## License
 
-TaskLattice is licensed under the [Apache License 2.0](LICENSE). It permits
+TaskLattice Relay is licensed under the [Apache License 2.0](LICENSE). It permits
 commercial use, modification, and distribution subject to the terms of the
 license.

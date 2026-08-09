@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Agent } from "@tasklattice/contracts";
+import type { Agent } from "@tali/contracts";
 import { endpointStatus, formatUptime, getCapabilityCounts, getInstanceAccessState, getInstanceDisplayStatus, getTerminalAccessState, normalizeInstanceDetailTab, resolveAvailableInstanceDetailTab } from "./instance-detail-model";
 
 const agent = {

@@ -8,7 +8,7 @@ import {
 import type {
   AgentGardenEntry,
   AgentPlatformId,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import {
   ArrowLeft,
   ArrowRight,

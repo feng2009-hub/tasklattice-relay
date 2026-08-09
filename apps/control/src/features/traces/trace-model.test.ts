@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { TraceSpan } from "@tasklattice/contracts";
+import type { TraceSpan } from "@tali/contracts";
 import { buildTraceRows, formatDuration } from "./trace-model";
 
 const spans: TraceSpan[] = [

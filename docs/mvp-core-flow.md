@@ -1,4 +1,4 @@
-# TaskLattice NemoClaw Agent Core Flow
+# TaskLattice Relay NemoClaw Agent Core Flow
 
 Status: Implemented vertical slice
 
@@ -14,12 +14,12 @@ Everything else in the historical marketplace design is later scope. The UI keep
 
 ## Agent resource and runtime boundary
 
-The Agent is a first-class TaskLattice resource. It is not the sandbox itself: TaskLattice persists the desired Agent identity, platform, and configuration, then projects that resource into one NemoClaw sandbox containing the selected OpenClaw or Hermes Agent process.
+The Agent is a first-class TaskLattice Relay resource. It is not the sandbox itself: TaskLattice Relay persists the desired Agent identity, platform, and configuration, then projects that resource into one NemoClaw sandbox containing the selected OpenClaw or Hermes Agent process.
 
 ```mermaid
 flowchart TD
     USER["User"] --> UI["TanStack Agent UI"]
-    UI --> RESOURCE["TaskLattice Agent Resource<br/>identity, prompt, model, desired state"]
+    UI --> RESOURCE["TaskLattice Relay Agent Resource<br/>identity, prompt, model, desired state"]
     DB[("PostgreSQL · tasklattice schema<br/>Project-scoped control metadata")] --> RESOURCE
     RESOURCE --> ADAPTER["NemoClaw Runtime Adapter"]
     ADAPTER --> CONTROL["NemoClaw Control"]
@@ -35,7 +35,7 @@ flowchart TD
 sequenceDiagram
     actor User
     participant UI as TanStack / shadcn UI
-    participant API as TaskLattice REST API
+    participant API as TaskLattice Relay REST API
     participant DB as PostgreSQL
     participant Runner as NemoClaw Host Runner
     participant OS as OpenShell Kubernetes runtime
@@ -142,7 +142,7 @@ The browser never connects directly to a Runtime Host and never receives the sha
 
 Kubernetes runs the stateless web/API process and provides persistent storage for control-plane resources. The control Pod has no Kubernetes API token or RBAC permissions.
 
-The TaskLattice runner is an unprivileged Kubernetes workload without a Docker socket
+The TaskLattice Relay runner is an unprivileged Kubernetes workload without a Docker socket
 or Kubernetes ServiceAccount token. It calls the OpenShell gateway, whose
 Kubernetes driver creates the Agent Sandbox resource, Pod, and PVC. NemoClaw's
 Docker-oriented host lifecycle is deliberately not run inside the cluster;

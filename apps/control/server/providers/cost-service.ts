@@ -15,7 +15,7 @@ import type {
   ModelCostSummaryResponse,
   ModelCostTrendGranularity,
   ModelCostTrendResponse,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import { ProjectStore } from "../projects/project-store";
 import {
   type CostAttributionMapping,

@@ -1,15 +1,15 @@
 {{- $component := "postgresql" -}}
-{{- $name := include "tasklattice.componentName" (dict "root" . "component" $component) -}}
+{{- $name := include "tali.componentName" (dict "root" . "component" $component) -}}
 apiVersion: v1
 kind: Service
 metadata:
   name: {{ $name }}
   labels:
-    {{- include "tasklattice.labels" . | nindent 4 }}
+    {{- include "tali.labels" . | nindent 4 }}
 spec:
   clusterIP: None
   selector:
-    {{- include "tasklattice.selectorLabels" (dict "root" . "component" $component) | nindent 4 }}
+    {{- include "tali.selectorLabels" (dict "root" . "component" $component) | nindent 4 }}
   ports:
     - name: postgres
       port: 5432
@@ -19,21 +19,21 @@ kind: StatefulSet
 metadata:
   name: {{ $name }}
   labels:
-    {{- include "tasklattice.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
+    {{- include "tali.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
 spec:
   serviceName: {{ $name }}
   replicas: 1
   selector:
     matchLabels:
-      {{- include "tasklattice.selectorLabels" (dict "root" . "component" $component) | nindent 6 }}
+      {{- include "tali.selectorLabels" (dict "root" . "component" $component) | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "tasklattice.selectorLabels" (dict "root" . "component" $component) | nindent 8 }}
+        {{- include "tali.selectorLabels" (dict "root" . "component" $component) | nindent 8 }}
       annotations:
-        checksum/postgresql-secret: {{ include "tasklattice.postgresqlSecretChecksum" . }}
+        checksum/postgresql-secret: {{ include "tali.postgresqlSecretChecksum" . }}
     spec:
-      serviceAccountName: {{ include "tasklattice.runtimeServiceAccountName" . }}
+      serviceAccountName: {{ include "tali.runtimeServiceAccountName" . }}
       automountServiceAccountToken: false
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets:
@@ -49,7 +49,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: postgres
-          image: {{ include "tasklattice.image" (dict "root" . "image" .Values.images.postgres) }}
+          image: {{ include "tali.image" (dict "root" . "image" .Values.images.postgres) }}
           imagePullPolicy: {{ .Values.images.postgres.pullPolicy }}
           ports:
             - name: postgres
@@ -64,7 +64,7 @@ spec:
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tasklattice.secretName" . }}
+                  name: {{ include "tali.secretName" . }}
                   key: postgres-password
           readinessProbe:
             exec:

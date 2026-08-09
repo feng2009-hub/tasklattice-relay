@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import type { ProviderConnectionDraft } from "@tasklattice/contracts";
+import type { ProviderConnectionDraft } from "@tali/contracts";
 
 export interface ProviderConfiguratorProps<T extends ProviderConnectionDraft = ProviderConnectionDraft> {
   value: T;

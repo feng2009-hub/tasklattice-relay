@@ -6,7 +6,7 @@ import {
   type CreateMcpServerDefinitionInput,
   type McpServerDefinition,
   type McpServerTemplate,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import {
   Activity,
   Braces,
@@ -328,7 +328,7 @@ function McpServers() {
         }}
         eyebrow="MCP Server"
         title={editingId ? "Update MCP Server" : `Register ${draft.name || "MCP Server"}`}
-        description="TaskLattice stores desired state and Secret references; LiteLLM owns the connection and tool execution."
+        description="TaskLattice Relay stores desired state and Secret references; LiteLLM owns the connection and tool execution."
         width="xl"
         footer={(
           <>
@@ -412,7 +412,7 @@ function McpServers() {
             <div className="border bg-muted/25 p-4 text-sm">
               <div className="flex items-start gap-3">
                 <ShieldCheck className="mt-0.5 size-5 text-primary" />
-                <div><strong>Allow all LiteLLM Keys: Off</strong><p className="mt-1 text-xs leading-5 text-muted-foreground">Fixed by TaskLattice. This Server is added only to the current Project Team and selected Instance Keys.</p></div>
+                <div><strong>Allow all LiteLLM Keys: Off</strong><p className="mt-1 text-xs leading-5 text-muted-foreground">Fixed by TaskLattice Relay. This Server is added only to the current Project Team and selected Instance Keys.</p></div>
               </div>
             </div>
             <ToggleRow

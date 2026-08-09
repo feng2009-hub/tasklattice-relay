@@ -1,6 +1,6 @@
 import type {
   AgentGardenEntry,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import {
   ArrowRight,
   ExternalLink,

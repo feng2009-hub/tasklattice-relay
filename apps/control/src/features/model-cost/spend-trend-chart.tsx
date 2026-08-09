@@ -9,7 +9,7 @@ import {
   type LineSeries,
   type SliceTooltipProps,
 } from "@nivo/line";
-import type { CostTrendPoint } from "@tasklattice/contracts";
+import type { CostTrendPoint } from "@tali/contracts";
 import { nivoChartTheme } from "@/components/shared/nivo-theme";
 import { compactNumber, usd } from "./cost-utils";
 import { CostEmptyState } from "./cost-states";

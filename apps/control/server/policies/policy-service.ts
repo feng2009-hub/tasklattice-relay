@@ -7,7 +7,7 @@ import {
   type SandboxPolicy,
   type SandboxPolicyCatalog,
   type UpdateSandboxPolicyInput,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import { parse, stringify } from "yaml";
 import { z } from "zod";
 import { ProjectStore } from "../projects/project-store";
@@ -117,7 +117,7 @@ export class FilePolicyCatalogSource implements PolicyCatalogSource {
   constructor(
     readonly path = fileURLToPath(
       new URL(
-        "../../../../charts/tasklattice/files/policy-catalog.yaml",
+        "../../../../charts/tali/files/policy-catalog.yaml",
         import.meta.url,
       ),
     ),

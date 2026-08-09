@@ -1,4 +1,4 @@
-import type { AgentGardenIntegrationType } from "@tasklattice/contracts";
+import type { AgentGardenIntegrationType } from "@tali/contracts";
 import {
   siLangflow,
   siPydantic,

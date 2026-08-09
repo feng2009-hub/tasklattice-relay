@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { SandboxPolicy } from "@tasklattice/contracts";
+import type { SandboxPolicy } from "@tali/contracts";
 import { AlertTriangle, FileLock2, LockKeyhole, Pencil, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { PolicyEditorDrawer } from "@/components/policies/policy-editor-drawer";

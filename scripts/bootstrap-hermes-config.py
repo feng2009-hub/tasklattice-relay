@@ -1,5 +1,5 @@
 #!/opt/hermes/.venv/bin/python3
-"""Apply TaskLattice inference routing without weakening Hermes' hash anchor."""
+"""Apply TaskLattice Relay inference routing without weakening Hermes' hash anchor."""
 
 from __future__ import annotations
 

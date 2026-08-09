@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AgentPlatformId } from "@tasklattice/contracts";
+import type { AgentPlatformId } from "@tali/contracts";
 import {
   getAgentPlatformRuntime,
   type RuntimeMemoryConfiguration,
@@ -99,7 +99,7 @@ export async function installAgentInstructions(
   input: ProvisionInput,
 ): Promise<void> {
   const temporaryDirectory = await mkdtemp(
-    join(tmpdir(), "tasklattice-agent-instructions-"),
+    join(tmpdir(), "tali-agent-instructions-"),
   );
   const instructionsFile = join(temporaryDirectory, "AGENTS.md");
   const runtime = getAgentPlatformRuntime(input.agentPlatform);
@@ -118,7 +118,7 @@ export async function installAgentInstructions(
     const memorySection = agentMemoryInstructions(input.memory);
     await writeFile(
       instructionsFile,
-      `${existing.trimEnd()}${separator}## TaskLattice Agent Instructions\n\n${input.systemPrompt.trim()}${memorySection}\n`,
+      `${existing.trimEnd()}${separator}## TaskLattice Relay Agent Instructions\n\n${input.systemPrompt.trim()}${memorySection}\n`,
       { mode: 0o600 },
     );
     const upload = await runCommand("nemoclaw", [
@@ -146,7 +146,7 @@ export function agentMemoryInstructions(
     : "Read MEMORY.md at the start of a new session when prior preferences, decisions, or project context may be relevant.";
   return [
     "",
-    "## TaskLattice Memory Boundary",
+    "## TaskLattice Relay Memory Boundary",
     "",
     "This OpenClaw Instance has durable, Instance-scoped memory inside its OpenShell Sandbox.",
     "- Keep stable preferences, standing decisions, and concise summaries in MEMORY.md.",

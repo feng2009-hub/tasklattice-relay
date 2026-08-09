@@ -5,7 +5,7 @@ import {
   createKnowledgeSourceDefinitionSchema,
   type CreateKnowledgeSourceDefinitionInput,
   type KnowledgeSourceDefinition,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import { Database, Pencil, Plus, RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import {
@@ -129,7 +129,7 @@ function KnowledgeBase() {
       <Card>
         <CardHeader className="border-b">
           <CardTitle>Managed Vector Stores</CardTitle>
-          <CardDescription>TaskLattice owns desired state; LiteLLM owns provider routing and object permissions.</CardDescription>
+          <CardDescription>TaskLattice Relay owns desired state; LiteLLM owns provider routing and object permissions.</CardDescription>
         </CardHeader>
         <CardContent className="px-0">
           {items.length ? items.map((item) => (
@@ -260,7 +260,7 @@ function KnowledgeBase() {
           ) : null}
           {draft.provider === "elasticsearch" ? (
             <p className="border-l-2 border-[#005571] bg-muted/35 px-4 py-3 text-xs leading-5 text-muted-foreground">
-              TaskLattice bridges LiteLLM search to this index. The semantic field must be mapped as <span className="font-mono text-foreground">semantic_text</span> with an inference endpoint.
+              TaskLattice Relay bridges LiteLLM search to this index. The semantic field must be mapped as <span className="font-mono text-foreground">semantic_text</span> with an inference endpoint.
             </p>
           ) : null}
           <div className="space-y-2">

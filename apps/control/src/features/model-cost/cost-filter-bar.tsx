@@ -3,7 +3,7 @@ import type {
   CostFilterKey,
   CostFilterOption,
   CostFilters,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import { Filter, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox";

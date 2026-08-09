@@ -31,7 +31,7 @@ export function errorResponse(error: unknown): Response {
       ? 403
       : /Invalid |must be|before end_time/i.test(message)
         ? 400
-    : /Consumer|in use|already exists|already connected|connected to a Coordinator|cannot delegate|does not accept delegated|Only a READY Agent|managed by TaskLattice|immutable|digest does not match|cannot be changed|default Model Routing|compliance|suspended|READY Model Routing|Multiple default|quota exceeded/i.test(message)
+    : /Consumer|in use|already exists|already connected|connected to a Coordinator|cannot delegate|does not accept delegated|Only a READY Agent|managed by TaskLattice Relay|immutable|digest does not match|cannot be changed|default Model Routing|compliance|suspended|READY Model Routing|Multiple default|quota exceeded/i.test(message)
       ? 409
       : /LiteLLM|gateway is unavailable/i.test(message)
         ? 503

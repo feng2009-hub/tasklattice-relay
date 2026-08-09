@@ -1,4 +1,4 @@
-import type { McpToolDefinition } from "@tasklattice/contracts";
+import type { McpToolDefinition } from "@tali/contracts";
 import { Braces, ShieldAlert, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 

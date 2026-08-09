@@ -5,7 +5,7 @@ import {
   type ModelDeployment,
   type ProviderAccount,
   type ProviderResourceStatus,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import {
   Cable,
   Ellipsis,

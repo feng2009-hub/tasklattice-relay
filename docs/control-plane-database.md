@@ -1,6 +1,6 @@
 # Control-plane database
 
-TaskLattice uses Prisma ORM with PostgreSQL for all control-plane metadata.
+TaskLattice Relay uses Prisma ORM with PostgreSQL for all control-plane metadata.
 SQLite is not supported.
 
 ## Database boundary
@@ -8,7 +8,9 @@ SQLite is not supported.
 The control plane and LiteLLM use the same PostgreSQL instance and database:
 
 - LiteLLM keeps its tables and migration history in `public`.
-- TaskLattice keeps its tables and Prisma migration history in `tasklattice`.
+- TaskLattice Relay keeps its tables and Prisma migration history in the
+  compatibility `tasklattice` schema. The stable schema name is intentionally
+  not shortened because existing deployments already persist data there.
 - Every Project-owned control record includes `project_id`.
 - Project-scoped API routes use `/api/v1/projects/{projectId}/...`; stores apply
   that Project scope internally instead of accepting ad hoc page-level filters.
@@ -37,16 +39,16 @@ For local development:
 ```sh
 cp control.example.toml control.toml
 # Set database.url in control.toml for the local PostgreSQL instance.
-export TASKLATTICE_CONFIG="$PWD/control.toml"
-npm run db:migrate --workspace @tasklattice/control
-npm run dev --workspace @tasklattice/control
+export TALI_CONFIG="$PWD/control.toml"
+npm run db:migrate --workspace @tali/control
+npm run dev --workspace @tali/control
 ```
 
 To regenerate the checked-in SQL seed migration after deliberately changing
 the development catalogs:
 
 ```sh
-npm run db:generate-seed --workspace @tasklattice/control
+npm run db:generate-seed --workspace @tali/control
 ```
 
 Review the generated SQL before committing it. Existing applied migrations

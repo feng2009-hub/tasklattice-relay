@@ -1,4 +1,4 @@
-import { providerPresets, type ProviderKind } from "@tasklattice/contracts";
+import { providerPresets, type ProviderKind } from "@tali/contracts";
 import { ServerCog } from "lucide-react";
 import { cn } from "@/lib/utils";
 

@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import type { AgentGardenEntry } from "@tasklattice/contracts";
+import type { AgentGardenEntry } from "@tali/contracts";
 import { exampleStoreAgentDefinitions } from "./example-store-agent-definitions";
 
-const demoServiceOrigin = "http://tasklattice-control";
+const demoServiceOrigin = "http://tali-control";
 
 export interface DemoAgentDefinition {
   id: string;
@@ -12,7 +12,7 @@ export interface DemoAgentDefinition {
   integrationType: "a2a" | "langgraph";
   platformLabel: string;
   category: string;
-  catalogKind?: "TASKLATTICE_DEMO" | "EXAMPLE_BLUEPRINT";
+  catalogKind?: "TALI_DEMO" | "EXAMPLE_BLUEPRINT";
   framework?: string;
   icon?: string;
   language?: string;

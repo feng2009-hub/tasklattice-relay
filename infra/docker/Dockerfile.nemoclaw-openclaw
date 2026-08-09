@@ -1,6 +1,6 @@
-ARG BASE_IMAGE=tasklattice-nemoclaw-openclaw-upstream:local
+ARG BASE_IMAGE=tali-nemoclaw-openclaw-upstream:local
 FROM ${BASE_IMAGE}
 
-# Keep TaskLattice-owned OpenClaw customizations in this wrapper instead of
+# Keep TaskLattice Relay-owned OpenClaw customizations in this wrapper instead of
 # copying the pinned NVIDIA NemoClaw Dockerfile into this repository. The build
 # script produces BASE_IMAGE from upstream first, then publishes this image.

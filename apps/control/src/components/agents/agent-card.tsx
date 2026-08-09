@@ -1,4 +1,4 @@
-import type { Agent } from "@tasklattice/contracts";
+import type { Agent } from "@tali/contracts";
 import { Link } from "@tanstack/react-router";
 import { AgentStatusBadge } from "./agent-status-badge";
 import { Card, CardContent } from "@/components/ui/card";

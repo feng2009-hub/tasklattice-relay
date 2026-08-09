@@ -1,4 +1,4 @@
-import { updateAccessPolicySchema } from "@tasklattice/contracts";
+import { updateAccessPolicySchema } from "@tali/contracts";
 import { defineHandler } from "nitro";
 import { requireAuth, unauthorizedResponse } from "../../../../../../../auth/auth";
 import { errorResponse, jsonResponse } from "../../../../../../../http/responses";

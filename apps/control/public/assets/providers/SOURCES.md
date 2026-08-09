@@ -9,7 +9,7 @@ property of their respective owners; inclusion does not imply endorsement.
 - All `.webp` files in this directory are the matching Provider avatars from
   [Lobe Icons](https://lobehub.com/icons), downloaded from the
   [`lobehub/lobe-icons`](https://github.com/lobehub/lobe-icons/tree/master/packages/static-avatar/avatars)
-  static-avatar package on 2026-07-18. The local filenames map TaskLattice's
+  static-avatar package on 2026-07-18. The local filenames map TaskLattice Relay's
   Provider names to LobeHub slugs as follows: `kimi` → `moonshot`, `zai` →
   `zhipu`, `baidu` → `baiducloud`, `volcengine` → `doubao`, `aws` → `bedrock`,
   and `vertex` → `vertexai`. All other filenames use the same slug.
@@ -18,5 +18,5 @@ property of their respective owners; inclusion does not imply endorsement.
 
 ## Neutral assets
 
-- `custom.svg` and `custom-anthropic.svg`: TaskLattice-owned neutral interface
+- `custom.svg` and `custom-anthropic.svg`: TaskLattice Relay-owned neutral interface
   icons for custom compatible endpoints; they are not third-party trademarks.

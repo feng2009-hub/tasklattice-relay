@@ -26,7 +26,7 @@ afterEach(async () => {
 
 describe("NemoClaw sandbox image build", () => {
   it("passes the pinned OpenClaw upstream image through the local wrapper", async () => {
-    const root = await mkdtemp(join(tmpdir(), "tasklattice-nemoclaw-build-"));
+    const root = await mkdtemp(join(tmpdir(), "tali-nemoclaw-build-"));
     temporaryDirectories.push(root);
     const bin = join(root, "bin");
     const log = join(root, "docker.log");
@@ -55,7 +55,7 @@ exit 0
 `,
     );
 
-    const finalImage = "registry.example/tasklattice-nemoclaw-sandbox:test";
+    const finalImage = "registry.example/tali-nemoclaw-sandbox:test";
     const result = spawnSync("bash", [buildScript], {
       encoding: "utf8",
       env: {
@@ -74,7 +74,7 @@ exit 0
       .split("\n")
       .filter((line) => line.startsWith("build "));
     const upstreamImage =
-      "tasklattice-nemoclaw-openclaw-upstream:2adc8481ff30";
+      "tali-nemoclaw-openclaw-upstream:2adc8481ff30";
 
     expect(builds).toHaveLength(2);
     expect(builds[0]).toMatch(/^build --file .*\/Dockerfile /);

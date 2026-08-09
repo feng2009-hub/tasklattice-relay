@@ -69,8 +69,8 @@ interface OidcState {
 
 type OidcJwk = import("node:crypto").JsonWebKey & { kid?: string };
 
-const issuer = "tasklattice";
-const oidcCookie = "tasklattice_oidc";
+const issuer = "tali";
+const oidcCookie = "tali_oidc";
 
 export function getAuthConfig(): AuthConfig {
   const source = getControlConfig();
@@ -78,7 +78,7 @@ export function getAuthConfig(): AuthConfig {
 
   const config: AuthConfig = {
     developmentDefaults:
-      !process.env.TASKLATTICE_CONFIG && process.env.NODE_ENV !== "production",
+      !process.env.TALI_CONFIG && process.env.NODE_ENV !== "production",
     jwtSecret: source.auth.session_signing_key,
     local: {
       enabled: source.auth.local.enabled,
@@ -296,7 +296,7 @@ export async function ensureInitialSuperAdministrator(): Promise<void> {
         id: randomUUID(),
         userId: existingAdministrator.id,
         type: "local",
-        issuer: "tasklattice:local",
+        issuer: "tali:local",
         subject: username,
         username,
         email: existingAdministrator.email,
@@ -342,7 +342,7 @@ export async function ensureInitialSuperAdministrator(): Promise<void> {
     data: {
       id: "local-admin",
       username,
-      email: "admin@tasklattice.local",
+      email: "admin@tali.local",
       displayName: "Super Administrator",
       systemRole: "super_administrator",
       status: "active",
@@ -350,10 +350,10 @@ export async function ensureInitialSuperAdministrator(): Promise<void> {
         create: {
           id: "identity-local-admin",
           type: "local",
-          issuer: "tasklattice:local",
+          issuer: "tali:local",
           subject: username,
           username,
-          email: "admin@tasklattice.local",
+          email: "admin@tali.local",
           credential: { create: { passwordHash } },
         },
       },
@@ -627,7 +627,7 @@ export async function provisionOidcUser(
     claimString(claims, "name") || claimUsername;
   if (existing) {
     if (existing.type !== "oidc" || existing.user.status !== "active") {
-      throw new Error("The mapped TaskLattice account is disabled.");
+      throw new Error("The mapped TaskLattice Relay account is disabled.");
     }
     await prisma().userIdentity.update({
       where: { id: existing.id },
@@ -651,7 +651,7 @@ export async function provisionOidcUser(
     });
     if (emailOwner) {
       throw new Error(
-        "An existing TaskLattice account uses this email. Sign in to that account and link SSO before continuing.",
+        "An existing TaskLattice Relay account uses this email. Sign in to that account and link SSO before continuing.",
       );
     }
   }
@@ -666,7 +666,7 @@ export async function provisionOidcUser(
     `sso-${createHash("sha256")
       .update(`${config.oidc.issuer}\0${subject}`)
       .digest("hex")
-      .slice(0, 16)}@tasklattice.invalid`;
+      .slice(0, 16)}@tali.invalid`;
   const user = await prisma().user.create({
     data: {
       id,
@@ -774,7 +774,7 @@ export async function handleAuthMe(request: Request): Promise<Response> {
       where: { id: payload.sub },
     });
     if (!user || user.status !== "active") {
-      throw new Error("The TaskLattice account is disabled or unavailable.");
+      throw new Error("The TaskLattice Relay account is disabled or unavailable.");
     }
     const currentUser: AuthUser = {
       displayName: user.displayName,

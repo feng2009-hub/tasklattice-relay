@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { SandboxPolicyCatalog } from "@tasklattice/contracts";
+import type { SandboxPolicyCatalog } from "@tali/contracts";
 import { createTestStore } from "../test/store";
 import {
   FilePolicyCatalogSource,

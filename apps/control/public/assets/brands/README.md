@@ -36,29 +36,6 @@ NVIDIA runtime, and confirm authorization before public or commercial release.
 The Hermes Agent Avatar is used only to identify the Agent option.
 Keep it unmodified and do not imply Nous Research endorsement.
 
-## OpenShell
-
-- File: `openshell-mark-reversed.svg`
-- Source: NVIDIA OpenShell brand assets
-- Source URL: https://github.com/NVIDIA/OpenShell/blob/main/docs/brand/assets/openshell-mark-reversed.svg
-- Downloaded: 2026-08-02
-- SHA-256: `1046a9c33187a283d80ea692333b5a8c56cbb9bd14bf8d4b5e3f89e71bbe28b0`
-
-The OpenShell mark remains a trademark of NVIDIA Corporation. It is used only
-to identify the sandbox runtime and does not imply NVIDIA endorsement of
-TaskLattice.
-
-## LiteLLM
-
-- File: `litellm-train.webp`
-- Source: LiteLLM website CDN asset
-- Source URL: https://cdn.prod.website-files.com/69eb241da3f923869c226875/6a5a06e951e6eed22a8c3395_litellm-train.webp
-- Downloaded: 2026-08-02
-- SHA-256: `0362ea92d59d7114078c4c24b4d21eea8c327c5fbc58900e2849a0e0c517d93c`
-
-The LiteLLM train asset is kept unmodified and is used only to identify the model
-gateway. It does not imply BerriAI endorsement of TaskLattice.
-
 ## Landing request-flow product marks
 
 The animated request-flow diagram uses compact transparent marks solely to

@@ -1,7 +1,7 @@
 import type {
   PlatformAuditLogEvent,
   PlatformAuditLogQuery,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import { z } from "zod";
 
 const querySchema = z.object({

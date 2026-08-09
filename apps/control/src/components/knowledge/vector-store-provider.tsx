@@ -1,7 +1,7 @@
 import {
   type KnowledgeSourceDefinition,
   type ProviderKind,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import {
   siElasticsearch,
   siPostgresql,

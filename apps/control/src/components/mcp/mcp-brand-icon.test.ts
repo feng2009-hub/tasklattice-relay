@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { McpServerTemplate } from "@tasklattice/contracts";
+import type { McpServerTemplate } from "@tali/contracts";
 import { resolveMcpServerBrand } from "./mcp-brand-icon";
 
 const templates: McpServerTemplate[] = [
@@ -33,11 +33,11 @@ describe("resolveMcpServerBrand", () => {
     }, templates)).toBe("cloudflare");
   });
 
-  it("uses TaskLattice branding for the local example server", () => {
+  it("uses TaskLattice Relay branding for the local example server", () => {
     expect(resolveMcpServerBrand({
-      name: "TaskLattice Example MCP",
-      endpoint: "http://tasklattice-example-mcp:3000/mcp",
-    }, templates)).toBe("tasklattice");
+      name: "TaskLattice Relay Example MCP",
+      endpoint: "http://tali-example-mcp:3000/mcp",
+    }, templates)).toBe("tali");
   });
 
   it("keeps unknown custom servers on the generic fallback", () => {

@@ -3,7 +3,7 @@ import {
   type Agent,
   type CreateAgentInput,
   type RunnerSandbox,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import { describe, expect, it, vi } from "vitest";
 
 import type { LiteLLMAdminClient } from "../providers/litellm-client";

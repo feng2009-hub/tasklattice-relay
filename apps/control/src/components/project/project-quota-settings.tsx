@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import type { ProjectQuota, UpdateProjectQuotaInput } from "@tasklattice/contracts";
+import type { ProjectQuota, UpdateProjectQuotaInput } from "@tali/contracts";
 import { Bot, CircleDollarSign, Gauge, Plug, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

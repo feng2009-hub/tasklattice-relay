@@ -205,8 +205,8 @@ describe("LiteLLM Router capability inspection", () => {
             guardrails: [],
           },
           model_info: {
-            managed_by: "tasklattice",
-            tasklattice_resource: "model_routing_route",
+            managed_by: "tali",
+            tali_resource: "model_routing_route",
             model_routing_id: "routing-a",
             routing_strategy: "COMPLEXITY",
             compliance_domain: "GLOBAL",
@@ -242,8 +242,8 @@ describe("LiteLLM Router capability inspection", () => {
             litellm_params: { model: "auto_router/complexity_router" },
             model_info: {
               id: "stale-route-id",
-              managed_by: "tasklattice",
-              tasklattice_resource: "model_routing_route",
+              managed_by: "tali",
+              tali_resource: "model_routing_route",
               model_routing_id: "routing-single",
             },
           },
@@ -331,7 +331,7 @@ describe("LiteLLM Router capability inspection", () => {
         num_retries: 2,
       },
       model_info: {
-        managed_by: "tasklattice",
+        managed_by: "tali",
         routing_strategy: "SEMANTIC",
         compliance_domain: "EU_EEA",
       },
@@ -351,7 +351,7 @@ describe("LiteLLM Router capability inspection", () => {
         description: "Programming and debugging requests.",
         utterances: ["Debug this function", "Design an API"],
         score_threshold: 0.5,
-        metadata: { tasklattice_intent: "coding" },
+        metadata: { tali_intent: "coding" },
       }],
     });
   });
@@ -405,14 +405,14 @@ describe("LiteLLM Router capability inspection", () => {
     const client = new LiteLLMClient("http://litellm:4000", "master-secret");
 
     const teamId = await client.createModelRoutingTeam({
-      alias: "tasklattice-routing-a",
+      alias: "tali-routing-a",
       modelAlias: "production-chat",
       modelRoutingId: "routing-a",
       complianceDomain: "GLOBAL",
     });
     const key = await client.createModelRoutingKey({
       agentId: "agent-a",
-      alias: "tasklattice/routing-a/agent-a",
+      alias: "tali/routing-a/agent-a",
       modelAlias: "production-chat",
       teamId,
       modelRoutingId: "routing-a",

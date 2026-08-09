@@ -3,7 +3,7 @@ import {
   agentPlatformIds,
   type Agent,
   type AgentStatus,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";

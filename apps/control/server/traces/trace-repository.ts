@@ -1,4 +1,4 @@
-import type { TraceDetail, TraceSummary } from "@tasklattice/contracts";
+import type { TraceDetail, TraceSummary } from "@tali/contracts";
 
 export interface TraceRepository {
   list(): Promise<TraceSummary[]>;

@@ -118,7 +118,7 @@ export const complianceDomainCatalog = [
 }>;
 
 /**
- * Provider boundaries describe the endpoint configurations that TaskLattice can
+ * Provider boundaries describe the endpoint configurations that TaskLattice Relay can
  * guide and validate. They are routing constraints, not legal certifications.
  * GLOBAL is intentionally available to every connector because it imposes no
  * project-level residency restriction.

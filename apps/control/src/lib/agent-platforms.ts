@@ -2,7 +2,7 @@ import {
   agentPlatforms,
   defaultAgentPlatformId,
   type AgentPlatformId,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 
 const platformBrandAssets: Partial<Record<AgentPlatformId, string>> = {
   openclaw: "/assets/brands/openclaw-lobehub.webp",

@@ -1,4 +1,4 @@
-import type { CostGroupBy } from "@tasklattice/contracts";
+import type { CostGroupBy } from "@tali/contracts";
 import type { PrismaClient } from "../generated/prisma/client";
 import type { Prisma } from "../generated/prisma/client";
 

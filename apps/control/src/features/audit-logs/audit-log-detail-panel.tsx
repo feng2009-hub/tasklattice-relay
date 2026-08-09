@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { PlatformAuditLogEvent } from "@tasklattice/contracts";
+import type { PlatformAuditLogEvent } from "@tali/contracts";
 import { Link } from "@tanstack/react-router";
 import {
   Braces,

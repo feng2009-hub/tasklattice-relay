@@ -6,9 +6,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseAllDocuments } from "yaml";
 
-const releaseName = "tasklattice";
-const releaseNamespace = "tasklattice-airgap-validation";
-const chartPath = process.env.TASKLATTICE_CHART_PATH ?? "charts/tasklattice";
+const releaseName = "tali";
+const releaseNamespace = "tali-airgap-validation";
+const chartPath = process.env.TALI_CHART_PATH ?? "charts/tali";
 const expectedRegistry = "registry.airgap.example.com/";
 const expectedPullSecret = "airgap-registry";
 const forbiddenRegistries = [
@@ -18,14 +18,14 @@ const forbiddenRegistries = [
   "registry.k8s.io/",
 ];
 let extractedChartRoot;
-let valuesRoot = "charts/tasklattice";
+let valuesRoot = "charts/tali";
 
 if (chartPath.endsWith(".tgz")) {
   extractedChartRoot = mkdtempSync(
-    join(tmpdir(), "tasklattice-airgap-validation-"),
+    join(tmpdir(), "tali-airgap-validation-"),
   );
   execFileSync("tar", ["-xzf", chartPath, "-C", extractedChartRoot]);
-  valuesRoot = join(extractedChartRoot, "tasklattice");
+  valuesRoot = join(extractedChartRoot, "tali");
 
   for (const requiredPath of [
     "Chart.lock",
@@ -65,7 +65,7 @@ const rendered = execFileSync(
     "--values",
     join(valuesRoot, "values-airgap.yaml"),
     "--set-string",
-    "control.publicUrl=https://tasklattice.apps.airgap.example.com",
+    "control.publicUrl=https://tali.apps.airgap.example.com",
     "--set",
     "keycloak.enabled=true",
     "--set-string",
@@ -203,8 +203,8 @@ for (const [label, pattern] of [
 }
 
 for (const sandboxImage of [
-  "registry.airgap.example.com/tasklattice/tasklattice-nemoclaw-sandbox:",
-  "registry.airgap.example.com/tasklattice/tasklattice-nemoclaw-hermes-sandbox:",
+  "registry.airgap.example.com/tali/tali-nemoclaw-sandbox:",
+  "registry.airgap.example.com/tali/tali-nemoclaw-hermes-sandbox:",
 ]) {
   if (!rendered.includes(sandboxImage)) {
     violations.push(`Runner config is missing mirrored image ${sandboxImage}`);

@@ -3,7 +3,7 @@ import type {
   CostFilterKey,
   CostFilters,
   CostGroupBy,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 
 export type CostRange =
   | "7d"

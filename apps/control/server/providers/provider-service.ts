@@ -14,7 +14,7 @@ import {
   type ProviderKind,
   type ProviderModelSelection,
   type ProviderValidationCheck,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import { ProjectStore } from "../projects/project-store";
 import {
   classifyModelMetadata,

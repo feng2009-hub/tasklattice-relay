@@ -1,4 +1,4 @@
-import type { PlatformAuditLogEvent } from "@tasklattice/contracts";
+import type { PlatformAuditLogEvent } from "@tali/contracts";
 import { cn } from "@/lib/utils";
 
 export function AuditLogOutcomeMark({

@@ -2,11 +2,11 @@
 
 set -euo pipefail
 
-cluster_name="${KIND_CLUSTER_NAME:-tasklattice-ci}"
+cluster_name="${KIND_CLUSTER_NAME:-tali-ci}"
 kube_context="kind-${cluster_name}"
-release_name="${HELM_RELEASE_NAME:-tasklattice}"
-namespace="${HELM_NAMESPACE:-tasklattice-smoke}"
-image_registry="${IMAGE_REGISTRY:-ghcr.io/sn0rt}"
+release_name="${HELM_RELEASE_NAME:-tali}"
+namespace="${HELM_NAMESPACE:-tali-smoke}"
+image_registry="${IMAGE_REGISTRY:-ghcr.io/tasklattice}"
 helm_timeout="${HELM_TIMEOUT:-15m}"
 build_images="${BUILD_IMAGES:-1}"
 image_tag="${IMAGE_TAG:-dev}"
@@ -30,10 +30,10 @@ if ! kubectl config get-contexts "${kube_context}" >/dev/null 2>&1; then
   exit 1
 fi
 
-control_image="${image_registry}/tasklattice-control:${image_tag}"
-runner_image="${image_registry}/tasklattice-openshell-runner:${image_tag}"
-litellm_image="${image_registry}/tasklattice-litellm:${image_tag}"
-model_guardrails_image="${image_registry}/tasklattice-model-guardrails:${image_tag}"
+control_image="${image_registry}/tali-control:${image_tag}"
+runner_image="${image_registry}/tali-openshell-runner:${image_tag}"
+litellm_image="${image_registry}/tali-litellm:${image_tag}"
+model_guardrails_image="${image_registry}/tali-model-guardrails:${image_tag}"
 
 bash scripts/package-control-plane-chart.sh 0.0.0-dev
 
@@ -69,13 +69,13 @@ kind load docker-image --name "${cluster_name}" \
 
 rollout_revision="smoke-$(date -u +%Y%m%d%H%M%S)"
 
-helm lint charts/tasklattice --values charts/tasklattice/values-dev.yaml
+helm lint charts/tali --values charts/tali/values-dev.yaml
 npm run helm:validate:resources
-helm upgrade --install "${release_name}" charts/tasklattice \
+helm upgrade --install "${release_name}" charts/tali \
   --kube-context "${kube_context}" \
   --namespace "${namespace}" \
   --create-namespace \
-  --values charts/tasklattice/values-dev.yaml \
+  --values charts/tali/values-dev.yaml \
   --set-string "global.imageRegistry=${image_registry}" \
   --set-string "global.rolloutRevision=${rollout_revision}" \
   --set-string "images.control.tag=${image_tag}" \

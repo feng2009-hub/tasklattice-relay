@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - ".github/workflows/helm-kind-smoke.yml"
-      - "charts/tasklattice/**"
+      - "charts/tali/**"
       - "infra/docker/**"
       - "apps/**"
       - "packages/**"
@@ -19,7 +19,7 @@ on:
       - main
     paths:
       - ".github/workflows/helm-kind-smoke.yml"
-      - "charts/tasklattice/**"
+      - "charts/tali/**"
       - "infra/docker/**"
       - "apps/**"
       - "packages/**"
@@ -39,10 +39,10 @@ permissions:
   contents: read
 
 env:
-  KIND_CLUSTER_NAME: tasklattice-ci
-  HELM_RELEASE_NAME: tasklattice
-  HELM_NAMESPACE: tasklattice-smoke
-  IMAGE_REGISTRY: ghcr.io/sn0rt
+  KIND_CLUSTER_NAME: tali-ci
+  HELM_RELEASE_NAME: tali
+  HELM_NAMESPACE: tali-smoke
+  IMAGE_REGISTRY: ghcr.io/tasklattice
   IMAGE_TAG: dev
   BUILD_IMAGES: "0"
   HELM_TIMEOUT: 15m
@@ -77,7 +77,7 @@ jobs:
           file: infra/docker/Dockerfile
           target: control
           load: true
-          tags: ghcr.io/sn0rt/tasklattice-control:dev
+          tags: ghcr.io/tasklattice/tali-control:dev
           cache-from: type=gha,scope=helm-smoke-control
           cache-to: type=gha,mode=max,scope=helm-smoke-control,ignore-error=true
 
@@ -88,7 +88,7 @@ jobs:
           file: infra/docker/Dockerfile
           target: runner
           load: true
-          tags: ghcr.io/sn0rt/tasklattice-openshell-runner:dev
+          tags: ghcr.io/tasklattice/tali-openshell-runner:dev
           cache-from: type=gha,scope=helm-smoke-runner
           cache-to: type=gha,mode=max,scope=helm-smoke-runner,ignore-error=true
 
@@ -98,7 +98,7 @@ jobs:
           context: .
           file: infra/docker/Dockerfile.litellm
           load: true
-          tags: ghcr.io/sn0rt/tasklattice-litellm:dev
+          tags: ghcr.io/tasklattice/tali-litellm:dev
           cache-from: type=gha,scope=helm-smoke-litellm
           cache-to: type=gha,mode=max,scope=helm-smoke-litellm,ignore-error=true
 
@@ -108,7 +108,7 @@ jobs:
           context: .
           file: infra/docker/Dockerfile.model-guardrails
           load: true
-          tags: ghcr.io/sn0rt/tasklattice-model-guardrails:dev
+          tags: ghcr.io/tasklattice/tali-model-guardrails:dev
           cache-from: type=gha,scope=helm-smoke-model-guardrails
           cache-to: type=gha,mode=max,scope=helm-smoke-model-guardrails,ignore-error=true
 
@@ -117,7 +117,7 @@ jobs:
         with:
           version: v0.31.0
           kubectl_version: v1.32.0
-          cluster_name: tasklattice-ci
+          cluster_name: tali-ci
           node_image: kindest/node:v1.32.0@sha256:c48c62eac5da28cdadcf560d1d8616cfa6783b58f0d94cf63ad1bf49600cb027
           wait: 120s
 

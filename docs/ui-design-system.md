@@ -1,16 +1,16 @@
-# TaskLattice UI and Interaction System
+# TaskLattice Relay UI and Interaction System
 
 Status: Implemented baseline
 
 Version: 0.2
 
-This contract applies the Vibe Designing evidence model to TaskLattice. It
+This contract applies the Vibe Designing evidence model to TaskLattice Relay. It
 covers the public landing page, authentication, and the protected Project
 console.
 
 ## Product intent
 
-TaskLattice helps an operator declare, provision, inspect, and enter an
+TaskLattice Relay helps an operator declare, provision, inspect, and enter an
 isolated Agent runtime. The interface must keep desired Agent configuration and
 actual sandbox state distinguishable. It must never imply that a provisioning
 request succeeded before the runtime reports success.
@@ -38,7 +38,7 @@ prioritizes the operating task and current state over marketing expression.
 
 - The mark is a seven-node triangular lattice: isolated runtime nodes become a
   connected orchestration boundary and converge on one execution point.
-- The primary lockup uses `TALI` as the compact wordmark and `TaskLattice` as
+- The primary lockup uses `TALI` as the compact wordmark and `TaskLattice Relay` as
   the durable product name. The mark remains recognizable without the wordmark
   in collapsed navigation and favicon contexts.
 - Light surfaces use a darker cyan signal for contrast; dark assets use the
@@ -83,7 +83,7 @@ accept an eyebrow or breadcrumb prop. Breadcrumb construction remains owned by
 ## Authentication contract
 
 The login page supports configured local credentials and optional OIDC SSO.
-Local login and SSO resolve to the same TaskLattice session and protected API
+Local login and SSO resolve to the same TaskLattice Relay session and protected API
 boundary.
 
 States:
@@ -93,7 +93,7 @@ States:
 - Development defaults: explicitly warn that `admin / admin` is active.
 - SSO unavailable: keep local login available and surface the provider error.
 - SSO callback: show a single-purpose completion state, then validate the
-  returned TaskLattice session before entering the Project console.
+  returned TaskLattice Relay session before entering the Project console.
 - Expired session: clear stored credentials and return to login.
 - Project switcher: switch Project context and expose Project settings to
   administrators; it never owns session actions.

@@ -1,6 +1,6 @@
 import { useState, type ReactElement } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { Agent, SandboxAuditEvent } from "@tasklattice/contracts";
+import type { Agent, SandboxAuditEvent } from "@tali/contracts";
 import {
   Download,
   RefreshCw,

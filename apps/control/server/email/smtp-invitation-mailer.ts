@@ -52,24 +52,24 @@ export class SmtpInvitationMailer implements InvitationMailer {
     this.assertConfigured();
     const loginUrl = this.publicUrl!.replace(/\/$/, "");
     const roleLabel = invitation.role === "admin" ? "Administrator" : "Member";
-    const subject = `You are invited to ${invitation.projectName} on TaskLattice`;
+    const subject = `You are invited to ${invitation.projectName} on TaskLattice Relay`;
     const text = [
       `${invitation.inviterName} (${invitation.inviterEmail}) invited you to join ${invitation.projectName} as ${roleLabel}.`,
       "",
-      `Open TaskLattice and sign in with ${invitation.email}:`,
+      `Open TaskLattice Relay and sign in with ${invitation.email}:`,
       loginUrl,
       "",
-      "The invitation is accepted automatically after TaskLattice verifies the same email address through your configured identity provider.",
+      "The invitation is accepted automatically after TaskLattice Relay verifies the same email address through your configured identity provider.",
     ].join("\n");
     const html = `<!doctype html>
 <html lang="en">
   <body style="margin:0;background:#f7f7f7;color:#171717;font-family:Arial,sans-serif">
     <div style="max-width:560px;margin:0 auto;padding:40px 24px">
       <div style="background:#ffffff;border:1px solid #e5e5e5;padding:32px">
-        <p style="margin:0 0 12px;color:#6b6b6b;font-size:12px;letter-spacing:.12em;text-transform:uppercase">TaskLattice invitation</p>
+        <p style="margin:0 0 12px;color:#6b6b6b;font-size:12px;letter-spacing:.12em;text-transform:uppercase">TaskLattice Relay invitation</p>
         <h1 style="margin:0 0 16px;font-size:26px;line-height:1.25">Join ${escapeHtml(invitation.projectName)}</h1>
         <p style="margin:0 0 24px;font-size:15px;line-height:1.6">${escapeHtml(invitation.inviterName)} invited you to collaborate as <strong>${roleLabel}</strong>.</p>
-        <a href="${escapeHtml(loginUrl)}" style="display:inline-block;background:#4c36ff;color:#ffffff;text-decoration:none;padding:12px 18px;font-weight:600">Open TaskLattice</a>
+        <a href="${escapeHtml(loginUrl)}" style="display:inline-block;background:#4c36ff;color:#ffffff;text-decoration:none;padding:12px 18px;font-weight:600">Open TaskLattice Relay</a>
         <p style="margin:24px 0 0;color:#6b6b6b;font-size:13px;line-height:1.6">Sign in with <strong>${escapeHtml(invitation.email)}</strong>. Your invitation is accepted after the configured identity provider verifies that email address.</p>
       </div>
     </div>

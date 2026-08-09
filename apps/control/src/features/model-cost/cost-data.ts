@@ -12,7 +12,7 @@ import type {
   ModelCostObjectSpend,
   ModelCostSummaryResponse,
   ModelCostTrendResponse,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import { api } from "@/lib/api";
 
 function comparison(current: number, changePercent: number | undefined): CostComparison {

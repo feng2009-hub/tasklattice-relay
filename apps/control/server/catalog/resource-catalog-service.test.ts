@@ -391,7 +391,7 @@ describe("ResourceCatalogService", () => {
       provider: "pg_vector",
       apiBase: "https://pgvector.example.test",
       topK: 6,
-      credentialReference: "k8s://tasklattice/pgvector#API_KEY",
+      credentialReference: "k8s://tali/pgvector#API_KEY",
     });
 
     expect(created.status).toBe("REGISTERED");
@@ -406,7 +406,7 @@ describe("ResourceCatalogService", () => {
     );
   });
 
-  it("registers Elasticsearch through the authenticated TaskLattice bridge", async () => {
+  it("registers Elasticsearch through the authenticated TaskLattice Relay bridge", async () => {
     const store = createTestStore();
     const litellm = adapter();
     const secrets: SecretStore = {
@@ -431,7 +431,7 @@ describe("ResourceCatalogService", () => {
       semanticField: "content_semantic",
       contentField: "content",
       topK: 10,
-      credentialReference: "k8s://tasklattice/elasticsearch#API_KEY",
+      credentialReference: "k8s://tali/elasticsearch#API_KEY",
     });
 
     expect(created.status).toBe("REGISTERED");
@@ -439,7 +439,7 @@ describe("ResourceCatalogService", () => {
       expect.objectContaining({
         provider: "pg_vector",
         metadata: expect.objectContaining({
-          tasklattice_provider: "elasticsearch",
+          tali_provider: "elasticsearch",
         }),
         litellmParams: expect.objectContaining({
           api_base:

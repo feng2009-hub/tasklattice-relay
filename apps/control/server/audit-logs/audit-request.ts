@@ -1,4 +1,4 @@
-import type { PlatformAuditLogEvent } from "@tasklattice/contracts";
+import type { PlatformAuditLogEvent } from "@tali/contracts";
 import type { AuthPayload } from "../auth/auth";
 import { requireAuth, verifyAuthToken } from "../auth/auth";
 import { prisma } from "../db/prisma";

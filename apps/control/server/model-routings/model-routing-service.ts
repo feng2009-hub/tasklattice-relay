@@ -9,7 +9,7 @@ import type {
   ModelRoutingBinding,
   ModelRoutingPolicy,
   UpdateModelRoutingInput,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import { ProjectStore } from "../projects/project-store";
 import {
   LiteLLMClient,
@@ -18,9 +18,9 @@ import {
 } from "../providers/litellm-client";
 
 const modelGuardrails = [
-  "tasklattice-model-input",
-  "tasklattice-model-during-call",
-  "tasklattice-model-output",
+  "tali-model-input",
+  "tali-model-during-call",
+  "tali-model-output",
 ] as const;
 
 const defaultCapabilities = {
@@ -355,14 +355,14 @@ export class ModelRoutingService {
     let teamId = routing.liteLLMTeamId;
     if (!teamId) {
       teamId = await this.litellm.createModelRoutingTeam({
-        alias: `tasklattice-${routing.id}`,
+        alias: `tali-${routing.id}`,
         modelAlias: routing.publicModelAlias,
         modelRoutingId: routing.id,
         complianceDomain: routing.complianceDomain,
       });
       routing = await this.store.saveModelRouting({ ...routing, liteLLMTeamId: teamId, updatedAt: new Date().toISOString() });
     }
-    const keyAlias = `tasklattice/${routing.id.slice(0, 8)}/${agentId.slice(0, 8)}`;
+    const keyAlias = `tali/${routing.id.slice(0, 8)}/${agentId.slice(0, 8)}`;
     const key = await this.litellm.createModelRoutingKey({
       agentId,
       alias: keyAlias,

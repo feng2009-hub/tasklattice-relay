@@ -8,11 +8,11 @@ function auth(): AuthPayload {
   return {
     exp: Number.MAX_SAFE_INTEGER,
     iat: 0,
-    iss: "tasklattice",
+    iss: "tali",
     sub: "local-admin",
     user: {
       displayName: "Local Administrator",
-      email: "admin@tasklattice.local",
+      email: "admin@tali.local",
       id: "local-admin",
       provider: "local",
       systemRole: "super_administrator",

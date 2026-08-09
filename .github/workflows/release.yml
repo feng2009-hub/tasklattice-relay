@@ -36,15 +36,15 @@ jobs:
         with:
           version: v3.18.4
       - run: npm run helm:dependencies
-      - run: helm lint charts/tasklattice
+      - run: helm lint charts/tali
       - run: npm run helm:validate:resources
       - run: npm run helm:validate:openshift
       - run: npm run helm:validate:airgap
-      - run: helm template tasklattice charts/tasklattice --namespace tasklattice-sandboxes --kube-version 1.29.0 > /dev/null
+      - run: helm template tali charts/tali --namespace tali-sandboxes --kube-version 1.29.0 > /dev/null
       - name: Render embedded Keycloak test mode
         run: >-
-          helm template tasklattice charts/tasklattice
-          --namespace tasklattice-sandboxes
+          helm template tali charts/tali
+          --namespace tali-sandboxes
           --kube-version 1.29.0
           --set control.publicUrl=http://192.0.2.10
           --set keycloak.enabled=true
@@ -61,52 +61,52 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - image: tasklattice-control
+          - image: tali-control
             dockerfile: infra/docker/Dockerfile
             target: control
             architecture: amd64
             runner: ubuntu-24.04
-          - image: tasklattice-control
+          - image: tali-control
             dockerfile: infra/docker/Dockerfile
             target: control
             architecture: arm64
             runner: ubuntu-24.04-arm
-          - image: tasklattice-openshell-runner
+          - image: tali-openshell-runner
             dockerfile: infra/docker/Dockerfile
             target: runner
             architecture: amd64
             runner: ubuntu-24.04
-          - image: tasklattice-openshell-runner
+          - image: tali-openshell-runner
             dockerfile: infra/docker/Dockerfile
             target: runner
             architecture: arm64
             runner: ubuntu-24.04-arm
-          - image: tasklattice-litellm
+          - image: tali-litellm
             dockerfile: infra/docker/Dockerfile.litellm
             target: ""
             architecture: amd64
             runner: ubuntu-24.04
-          - image: tasklattice-litellm
+          - image: tali-litellm
             dockerfile: infra/docker/Dockerfile.litellm
             target: ""
             architecture: arm64
             runner: ubuntu-24.04-arm
-          - image: tasklattice-model-guardrails
+          - image: tali-model-guardrails
             dockerfile: infra/docker/Dockerfile.model-guardrails
             target: ""
             architecture: amd64
             runner: ubuntu-24.04
-          - image: tasklattice-model-guardrails
+          - image: tali-model-guardrails
             dockerfile: infra/docker/Dockerfile.model-guardrails
             target: ""
             architecture: arm64
             runner: ubuntu-24.04-arm
-          - image: tasklattice-example-mcp
+          - image: tali-example-mcp
             dockerfile: infra/docker/Dockerfile
             target: example-mcp
             architecture: amd64
             runner: ubuntu-24.04
-          - image: tasklattice-example-mcp
+          - image: tali-example-mcp
             dockerfile: infra/docker/Dockerfile
             target: example-mcp
             architecture: arm64
@@ -120,15 +120,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: azure/setup-helm@v4
-        if: matrix.image == 'tasklattice-control'
+        if: matrix.image == 'tali-control'
         with:
           version: v3.18.4
       - name: Package Helm chart for Control Plane image
-        if: matrix.image == 'tasklattice-control'
+        if: matrix.image == 'tali-control'
         shell: bash
         run: |
           registry="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}"
-          TASKLATTICE_IMAGE_REGISTRY="${registry}" \
+          TALI_IMAGE_REGISTRY="${registry}" \
             bash scripts/package-control-plane-chart.sh "${GITHUB_REF_NAME#v}"
       - id: image
         name: Resolve image tags
@@ -169,11 +169,11 @@ jobs:
     strategy:
       matrix:
         image:
-          - tasklattice-control
-          - tasklattice-openshell-runner
-          - tasklattice-litellm
-          - tasklattice-model-guardrails
-          - tasklattice-example-mcp
+          - tali-control
+          - tali-openshell-runner
+          - tali-litellm
+          - tali-model-guardrails
+          - tali-example-mcp
     steps:
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
@@ -235,10 +235,10 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           registry="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}"
           if [[ "${NEMOCLAW_AGENT_PLATFORM}" == "openclaw" ]]; then
-            image="${registry}/tasklattice-nemoclaw-sandbox"
+            image="${registry}/tali-nemoclaw-sandbox"
             export NEMOCLAW_IMAGE="${image}:${version}-${{ matrix.architecture }}"
           else
-            image="${registry}/tasklattice-nemoclaw-hermes-sandbox"
+            image="${registry}/tali-nemoclaw-hermes-sandbox"
             export NEMOCLAW_HERMES_IMAGE="${image}:${version}-${{ matrix.architecture }}"
           fi
           bash scripts/build-nemoclaw-sandbox.sh
@@ -253,8 +253,8 @@ jobs:
     strategy:
       matrix:
         image:
-          - tasklattice-nemoclaw-sandbox
-          - tasklattice-nemoclaw-hermes-sandbox
+          - tali-nemoclaw-sandbox
+          - tali-nemoclaw-hermes-sandbox
     steps:
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
@@ -299,10 +299,10 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           registry="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}"
           mkdir -p dist
-          TASKLATTICE_IMAGE_REGISTRY="${registry}" \
+          TALI_IMAGE_REGISTRY="${registry}" \
             bash scripts/package-control-plane-chart.sh "${version}"
-          cp dist/control-plane-chart/tasklattice.tgz "dist/tasklattice-${version}.tgz"
-          helm push "dist/tasklattice-${version}.tgz" "oci://${registry}/charts"
+          cp dist/control-plane-chart/tali.tgz "dist/tali-${version}.tgz"
+          helm push "dist/tali-${version}.tgz" "oci://${registry}/charts"
       - name: Create or update GitHub Release
         shell: bash
         env:
@@ -310,12 +310,12 @@ jobs:
         run: |
           set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
-          asset="dist/tasklattice-${version}.tgz"
+          asset="dist/tali-${version}.tgz"
           if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
             gh release upload "${GITHUB_REF_NAME}" "${asset}" --clobber
           else
             gh release create "${GITHUB_REF_NAME}" "${asset}" \
               --verify-tag \
               --generate-notes \
-              --title "TaskLattice ${version}"
+              --title "TaskLattice Relay ${version}"
           fi

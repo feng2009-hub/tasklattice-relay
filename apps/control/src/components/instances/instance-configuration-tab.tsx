@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { complianceDomainCatalog, type Agent } from "@tasklattice/contracts";
+import { complianceDomainCatalog, type Agent } from "@tali/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Eye, ShieldCheck } from "lucide-react";
@@ -283,7 +283,7 @@ export function InstanceConfigurationTab({
       <Card className="lg:col-span-2">
         <DetailCardHeader
           title="Managed inference"
-          description="TaskLattice resolved this access contract automatically when the Instance was created."
+          description="TaskLattice Relay resolved this access contract automatically when the Instance was created."
         />
         <CardContent>
           <DefinitionList

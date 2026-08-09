@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { McpServerTemplate } from "@tasklattice/contracts";
+import type { McpServerTemplate } from "@tali/contracts";
 import {
   ArrowRight,
   PackageCheck,

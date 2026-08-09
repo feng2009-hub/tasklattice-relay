@@ -1,4 +1,4 @@
-import type { AgentStatus } from "@tasklattice/contracts";
+import type { AgentStatus } from "@tali/contracts";
 import { Badge } from "@/components/ui/badge";
 
 export function AgentStatusBadge({ status }: { status: AgentStatus }) {

@@ -1,6 +1,6 @@
 # Agent provider logo sources
 
-These assets are checked into TaskLattice so the Agent registration UI does
+These assets are checked into TaskLattice Relay so the Agent registration UI does
 not depend on the LiteLLM service at runtime. Product names and marks remain
 the property of their respective owners; inclusion identifies an integration
 option and does not imply endorsement.

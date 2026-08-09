@@ -1,4 +1,4 @@
-import { updateInstanceAccessPoliciesSchema } from "@tasklattice/contracts";
+import { updateInstanceAccessPoliciesSchema } from "@tali/contracts";
 import { defineHandler } from "nitro";
 import {
   requireAuth,

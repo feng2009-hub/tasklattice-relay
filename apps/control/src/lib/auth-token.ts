@@ -1,5 +1,5 @@
-const persistentKey = "tasklattice.auth.token";
-const sessionKey = "tasklattice.auth.session-token";
+const persistentKey = "tali.auth.token";
+const sessionKey = "tali.auth.session-token";
 
 export function getAuthToken(): string {
   if (typeof window === "undefined") return "";

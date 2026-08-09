@@ -186,7 +186,7 @@ function ProjectSidebar({ logout, pathname, user }: {
     <ToastProvider duration={3_000} swipeDirection="right">
       <Sidebar collapsible="icon">
         <SidebarHeader className="gap-1.5 border-b border-sidebar-border p-2">
-          <Link to="/$projectId" params={{ projectId }} onClick={() => setOpenMobile(false)} className="flex min-h-11 min-w-0 items-center gap-3 px-2 focus-visible:outline-2 group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:size-11 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0" aria-label="TaskLattice home">
+          <Link to="/$projectId" params={{ projectId }} onClick={() => setOpenMobile(false)} className="flex min-h-11 min-w-0 items-center gap-3 px-2 focus-visible:outline-2 group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:size-11 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0" aria-label="TaskLattice Relay home">
             <BrandLogo compact={!isMobile && state === "collapsed"} />
           </Link>
           <ProjectSwitcher
@@ -314,12 +314,12 @@ export function AppShell() {
   }, []);
 
   useEffect(() => {
-    setSidebarOpen(window.localStorage.getItem("tasklattice.sidebar.collapsed") !== "true");
+    setSidebarOpen(window.localStorage.getItem("tali.sidebar.collapsed") !== "true");
   }, []);
 
   const handleSidebarOpenChange = (open: boolean) => {
     setSidebarOpen(open);
-    window.localStorage.setItem("tasklattice.sidebar.collapsed", String(!open));
+    window.localStorage.setItem("tali.sidebar.collapsed", String(!open));
   };
 
   return (

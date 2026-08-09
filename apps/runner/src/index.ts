@@ -5,7 +5,7 @@ import {
   type AgentPlatformId,
   type ProvisioningStage,
   type RunnerSandbox,
-} from "@tasklattice/contracts";
+} from "@tali/contracts";
 import { createServer } from "node:http";
 import type { Duplex } from "node:stream";
 import * as pty from "node-pty";
@@ -562,7 +562,7 @@ app.use(
 );
 
 server.listen(port, host, () =>
-  console.log(`TaskLattice Runtime Runner listening on ${host}:${port} (${mode})`),
+  console.log(`TaskLattice Relay Runtime Runner listening on ${host}:${port} (${mode})`),
 );
 
 async function gracefulShutdown(signal: NodeJS.Signals): Promise<void> {
