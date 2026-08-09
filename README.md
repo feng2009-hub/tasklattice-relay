@@ -65,12 +65,17 @@ does not deploy the floating `latest` image tag.
 
 Download the self-contained Chart attached to the Release:
 
+The canonical application namespace is `tali` (displayed as **TALI**). Install
+the separate `tasklattice-guard` project into this same namespace when it is
+used with Relay. Guard remains independently released and is not bundled in
+this repository or Chart.
+
 ```sh
 VERSION="<latest-release-version>"
 curl --fail --location --remote-name \
   "https://github.com/tasklattice/tasklattice-relay/releases/download/v${VERSION}/tali-${VERSION}.tgz"
 helm upgrade --install tali "./tali-${VERSION}.tgz" \
-  --namespace tali-sandboxes \
+  --namespace tali \
   --create-namespace \
   --wait \
   --timeout 10m
@@ -83,7 +88,7 @@ VERSION="<latest-release-version>"
 helm upgrade --install tali \
   oci://ghcr.io/tasklattice/charts/tali \
   --version "${VERSION}" \
-  --namespace tali-sandboxes \
+  --namespace tali \
   --create-namespace \
   --wait \
   --timeout 10m
@@ -98,7 +103,7 @@ out:
 helm upgrade --install tali \
   oci://ghcr.io/tasklattice/charts/tali \
   --version "${VERSION}" \
-  --namespace tali-sandboxes \
+  --namespace tali \
   --create-namespace \
   --set control.service.type=ClusterIP \
   --set openshell.service.type=ClusterIP \
@@ -121,13 +126,13 @@ Requirements:
 Verify the installation:
 
 ```sh
-kubectl -n tali-sandboxes rollout status deployment/tali-control --timeout=300s
-kubectl -n tali-sandboxes rollout status deployment/tali-runner --timeout=300s
-kubectl -n tali-sandboxes rollout status deployment/tali-litellm --timeout=300s
-kubectl -n tali-sandboxes rollout status statefulset/tali-postgresql --timeout=300s
-kubectl -n tali-sandboxes rollout status statefulset/tali-openshell --timeout=300s
+kubectl -n tali rollout status deployment/tali-control --timeout=300s
+kubectl -n tali rollout status deployment/tali-runner --timeout=300s
+kubectl -n tali rollout status deployment/tali-litellm --timeout=300s
+kubectl -n tali rollout status statefulset/tali-postgresql --timeout=300s
+kubectl -n tali rollout status statefulset/tali-openshell --timeout=300s
 kubectl -n agent-sandbox-system rollout status deployment/agent-sandbox-controller --timeout=300s
-kubectl -n tali-sandboxes get pods,services,pvc
+kubectl -n tali get pods,services,pvc
 ```
 
 ## Images and versions
@@ -159,14 +164,14 @@ On a cluster with `LoadBalancer` support, open the external address of the
 forward the Control Service and open `http://127.0.0.1:18080`:
 
 ```sh
-kubectl -n tali-sandboxes port-forward service/tali-control 18080:80
+kubectl -n tali port-forward service/tali-control 18080:80
 ```
 
 Keep this second forward running when validating a Sandbox Agent UI through
 OpenShell:
 
 ```sh
-kubectl -n tali-sandboxes port-forward service/tali-openshell 8080:8080
+kubectl -n tali port-forward service/tali-openshell 8080:8080
 ```
 
 The checked-in Chart defaults are suitable only for a trusted cluster: local
@@ -214,8 +219,8 @@ Prisma SQL migrations before each rollout.
 Delete active Instances and back up required data before uninstalling:
 
 ```sh
-kubectl -n tali-sandboxes get sandboxes,pvc
-helm uninstall tali --namespace tali-sandboxes
+kubectl -n tali get sandboxes,pvc
+helm uninstall tali --namespace tali
 ```
 
 StatefulSet claim-template PVCs, dynamically created workspace PVCs, Sandbox

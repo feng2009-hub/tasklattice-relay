@@ -89,7 +89,7 @@ packages and the chart package matches the deployment environment.
 VERSION="<release-version>"
 curl -fLO "https://github.com/tasklattice/tasklattice-relay/releases/download/v${VERSION}/tali-${VERSION}.tgz"
 helm upgrade --install tali "./tali-${VERSION}.tgz" \
-  --namespace tali-sandboxes \
+  --namespace tali \
   --create-namespace \
   --wait \
   --timeout 10m
@@ -102,7 +102,7 @@ VERSION="<release-version>"
 helm upgrade --install tali \
   oci://ghcr.io/tasklattice/charts/tali \
   --version "${VERSION}" \
-  --namespace tali-sandboxes \
+  --namespace tali \
   --create-namespace \
   --wait \
   --timeout 10m

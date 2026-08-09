@@ -40,11 +40,11 @@ jobs:
       - run: npm run helm:validate:resources
       - run: npm run helm:validate:openshift
       - run: npm run helm:validate:airgap
-      - run: helm template tali charts/tali --namespace tali-sandboxes --kube-version 1.29.0 > /dev/null
+      - run: helm template tali charts/tali --namespace tali --kube-version 1.29.0 > /dev/null
       - name: Render embedded Keycloak test mode
         run: >-
           helm template tali charts/tali
-          --namespace tali-sandboxes
+          --namespace tali
           --kube-version 1.29.0
           --set control.publicUrl=http://192.0.2.10
           --set keycloak.enabled=true

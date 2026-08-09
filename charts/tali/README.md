@@ -22,6 +22,11 @@ The source Chart uses the development version `0.0.0-dev` and resolves its
 first-party images to `:dev`. The Release workflow replaces both Chart version
 and `appVersion` with the exact Git Release version before publishing.
 
+The canonical application namespace is `tali` (displayed as **TALI**). The
+separately released `tasklattice-guard` project must use the same namespace
+when integrated with Relay. It is not a dependency of this Chart and no Guard
+workload is packaged by this repository.
+
 `control.publicUrl` is independent of `control.service.type`. Leave it empty
 for Local authentication without SMTP invitations, including when exposing
 the Control Service through a LoadBalancer, Route, Ingress, or Gateway. Set a
@@ -34,7 +39,7 @@ Install a released chart:
 VERSION="<release-version>"
 curl -fLO "https://github.com/tasklattice/tasklattice-relay/releases/download/v${VERSION}/tali-${VERSION}.tgz"
 helm upgrade --install tali "./tali-${VERSION}.tgz" \
-  --namespace tali-sandboxes \
+  --namespace tali \
   --create-namespace \
   --wait \
   --timeout 10m
@@ -47,7 +52,7 @@ VERSION="<release-version>"
 helm upgrade --install tali \
   oci://ghcr.io/tasklattice/charts/tali \
   --version "${VERSION}" \
-  --namespace tali-sandboxes \
+  --namespace tali \
   --create-namespace \
   --wait \
   --timeout 10m
@@ -147,7 +152,7 @@ cp tali/values-airgap.yaml ./my-airgap-values.yaml
 # Replace registry.airgap.example.com and airgap-registry in the copied file.
 
 helm template tali ./tali \
-  --namespace tali-sandboxes \
+  --namespace tali \
   --include-crds \
   --values tali/values-openshift.yaml \
   --values ./my-airgap-values.yaml \
@@ -167,8 +172,8 @@ each. The example sets `agentSandbox.namespace.create=false` so Helm can use
 the pre-created dependency namespace:
 
 ```bash
-oc new-project tali-sandboxes
-oc -n tali-sandboxes create secret docker-registry airgap-registry \
+oc new-project tali
+oc -n tali create secret docker-registry airgap-registry \
   --docker-server=registry.internal.example.com \
   --docker-username='<username>' \
   --docker-password='<password>'
@@ -211,7 +216,7 @@ installation, or install those cluster-scoped dependencies separately and set
 Example:
 
 ```bash
-NAMESPACE=tali-sandboxes
+NAMESPACE=tali
 APPS_DOMAIN="$(oc get ingresses.config.openshift.io cluster \
   -o jsonpath='{.spec.domain}')"
 CONTROL_HOST="tali.${APPS_DOMAIN}"
@@ -252,7 +257,7 @@ Control pod. For a cluster with a reserved load-balancer address:
 
 ```bash
 helm upgrade --install tali charts/tali \
-  --namespace tali-sandboxes \
+  --namespace tali \
   --create-namespace \
   --set control.publicUrl=http://192.168.139.2 \
   --set keycloak.enabled=true \

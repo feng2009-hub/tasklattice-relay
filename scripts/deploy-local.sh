@@ -8,7 +8,7 @@ fi
 enable_keycloak=false
 enable_example_mcp=false
 release_name="${HELM_RELEASE_NAME:-tali}"
-namespace="${HELM_NAMESPACE:-tali-sandboxes}"
+namespace="${HELM_NAMESPACE:-tali}"
 helm_timeout="${HELM_TIMEOUT:-15m}"
 image_registry="ghcr.io/tasklattice"
 image_tag="dev"
