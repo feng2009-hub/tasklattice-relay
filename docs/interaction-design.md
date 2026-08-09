@@ -6,8 +6,8 @@ Version: 0.1
 
 UI language: English
 
-> Implementation note: the current 0.2 product slice implements the public
-> landing page, local/OIDC login, and the authenticated Project console. Its
+> Implementation note: the current 0.2 product slice implements local/OIDC
+> login and the authenticated Project console. Its
 > concrete visual, responsive, navigation, authentication, accessibility, and
 > evidence-gate rules are defined in [ui-design-system.md](ui-design-system.md).
 > The broader marketplace information architecture below remains the product

@@ -202,7 +202,6 @@ describe("LiteLLM Router capability inspection", () => {
             },
             complexity_router_default_model: "tali/gemini/flash",
             num_retries: 2,
-            guardrails: [],
           },
           model_info: {
             managed_by: "tali",

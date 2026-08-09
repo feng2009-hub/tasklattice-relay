@@ -84,7 +84,6 @@ images=(
   "$image_registry/tali-control:$image_tag"
   "$image_registry/tali-openshell-runner:$image_tag"
   "$image_registry/tali-litellm:$image_tag"
-  "$image_registry/tali-model-guardrails:$image_tag"
   "$image_registry/tali-nemoclaw-sandbox:$image_tag"
   "$image_registry/tali-nemoclaw-hermes-sandbox:$image_tag"
 )

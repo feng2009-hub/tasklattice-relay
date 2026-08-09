@@ -33,7 +33,6 @@ fi
 control_image="${image_registry}/tali-control:${image_tag}"
 runner_image="${image_registry}/tali-openshell-runner:${image_tag}"
 litellm_image="${image_registry}/tali-litellm:${image_tag}"
-model_guardrails_image="${image_registry}/tali-model-guardrails:${image_tag}"
 
 bash scripts/package-control-plane-chart.sh 0.0.0-dev
 
@@ -52,10 +51,6 @@ if [[ "${build_images}" == "1" ]]; then
     --file infra/docker/Dockerfile.litellm \
     --tag "${litellm_image}" \
     .
-  docker build \
-    --file infra/docker/Dockerfile.model-guardrails \
-    --tag "${model_guardrails_image}" \
-    .
 elif [[ "${build_images}" != "0" ]]; then
   echo "BUILD_IMAGES must be 0 or 1." >&2
   exit 1
@@ -64,8 +59,7 @@ fi
 kind load docker-image --name "${cluster_name}" \
   "${control_image}" \
   "${runner_image}" \
-  "${litellm_image}" \
-  "${model_guardrails_image}"
+  "${litellm_image}"
 
 rollout_revision="smoke-$(date -u +%Y%m%d%H%M%S)"
 
@@ -81,7 +75,6 @@ helm upgrade --install "${release_name}" charts/tali \
   --set-string "images.control.tag=${image_tag}" \
   --set-string "images.runner.tag=${image_tag}" \
   --set-string "images.litellm.tag=${image_tag}" \
-  --set-string "images.modelGuardrails.tag=${image_tag}" \
   --set "control.service.type=ClusterIP" \
   --set "litellm.service.type=ClusterIP" \
   --set "openshell.service.type=ClusterIP" \

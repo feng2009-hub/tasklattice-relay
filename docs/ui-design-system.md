@@ -5,8 +5,7 @@ Status: Implemented baseline
 Version: 0.2
 
 This contract applies the Vibe Designing evidence model to TaskLattice Relay. It
-covers the public landing page, authentication, and the protected Project
-console.
+covers authentication and the protected Project console.
 
 ## Product intent
 
@@ -15,8 +14,8 @@ isolated Agent runtime. The interface must keep desired Agent configuration and
 actual sandbox state distinguishable. It must never imply that a provisioning
 request succeeded before the runtime reports success.
 
-The public page establishes the value and trust boundary. The control console
-prioritizes the operating task and current state over marketing expression.
+The control console prioritizes the operating task and current state over
+marketing expression.
 
 ## Visual intent
 
@@ -43,8 +42,7 @@ prioritizes the operating task and current state over marketing expression.
   in collapsed navigation and favicon contexts.
 - Light surfaces use a darker cyan signal for contrast; dark assets use the
   storyboard cyan `#42e3ff`.
-- The public-page entrance draws the lattice before revealing its nodes. The
-  protected console stays static, and reduced-motion mode suppresses the draw.
+- The protected console keeps the lattice mark static.
 
 ## Navigation contract
 
@@ -130,13 +128,12 @@ Use `release_gate` for changes intended for deployment. A pass requires:
 2. Unauthenticated Agent API access returns 401.
 3. Local login, session resolution, protected Agent access, and sign out work.
 4. SSO start produces PKCE, nonce, state protection, and the configured redirect.
-5. Desktop landing, login, expanded/collapsed console, and mobile layouts render
+5. Desktop login, expanded/collapsed console, and mobile layouts render
    without overflow or unreadable text.
 6. Mobile navigation opens and closes with Escape.
 7. The main CTA and primary control path produce visible feedback.
 8. Browser console has no application errors or missing first-party assets.
 
-Score landing pages with the Brand Landing profile and Project pages with the
-Product Console profile. Treat broken auth, a broken primary operation, generic
-template output, or an inconsistent component system as blockers regardless of
-the weighted score.
+Score Project pages with the Product Console profile. Treat broken auth, a
+broken primary operation, generic template output, or an inconsistent component
+system as blockers regardless of the weighted score.

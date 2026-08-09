@@ -9,7 +9,6 @@ TaskLattice Relay publishes **seven first-party images**:
 | `tali-control` | `infra/docker/Dockerfile`, target `control` | Web UI, REST/WebSocket API, and PostgreSQL control data | amd64, arm64 |
 | `tali-openshell-runner` | `infra/docker/Dockerfile`, target `runner` | Invokes OpenShell to create, observe, connect to, and destroy Sandboxes | amd64, arm64 |
 | `tali-litellm` | `infra/docker/Dockerfile.litellm` | Model gateway, virtual keys, and cost attribution | amd64, arm64 |
-| `tali-model-guardrails` | `infra/docker/Dockerfile.model-guardrails` | LiteLLM Generic Guardrail API backed by NeMo Guardrails | amd64, arm64 |
 | `tali-example-mcp` | `infra/docker/Dockerfile`, target `example-mcp` | Reference MCP integration used by examples | amd64, arm64 |
 | `tali-nemoclaw-sandbox` | `scripts/build-nemoclaw-sandbox.sh` (`openclaw`) + `Dockerfile.nemoclaw-openclaw` | Dynamic Sandbox for the OpenClaw Agent | amd64, arm64 |
 | `tali-nemoclaw-hermes-sandbox` | The same script (`hermes`) + `Dockerfile.nemoclaw-hermes` | Dynamic Sandbox for the Hermes Agent | amd64, arm64 |

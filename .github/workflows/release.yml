@@ -91,16 +91,6 @@ jobs:
             target: ""
             architecture: arm64
             runner: ubuntu-24.04-arm
-          - image: tali-model-guardrails
-            dockerfile: infra/docker/Dockerfile.model-guardrails
-            target: ""
-            architecture: amd64
-            runner: ubuntu-24.04
-          - image: tali-model-guardrails
-            dockerfile: infra/docker/Dockerfile.model-guardrails
-            target: ""
-            architecture: arm64
-            runner: ubuntu-24.04-arm
           - image: tali-example-mcp
             dockerfile: infra/docker/Dockerfile
             target: example-mcp
@@ -172,7 +162,6 @@ jobs:
           - tali-control
           - tali-openshell-runner
           - tali-litellm
-          - tali-model-guardrails
           - tali-example-mcp
     steps:
       - uses: docker/setup-buildx-action@v3

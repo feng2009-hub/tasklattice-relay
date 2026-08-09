@@ -14,9 +14,6 @@ images:
   litellm:
     tag: dev
     pullPolicy: IfNotPresent
-  modelGuardrails:
-    tag: dev
-    pullPolicy: IfNotPresent
   exampleMcp:
     tag: dev
     pullPolicy: IfNotPresent

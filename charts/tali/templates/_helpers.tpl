@@ -180,15 +180,7 @@ reply_to = {{ .Values.control.smtp.replyTo | quote }}
 {{- if .Values.secrets.existingSecret -}}
 {{- printf "existing:%s" .Values.secrets.existingSecret | sha256sum -}}
 {{- else -}}
-{{- printf "%s:%s:%s:%s:%s:%s:%s" .Values.secrets.existingSecret .Values.secrets.litellmMasterKey (include "tali.databaseUrl" .) .Values.secrets.litellmUiUsername .Values.secrets.litellmUiPassword .Values.secrets.litellmSaltKey .Values.secrets.modelGuardrailsApiKey | sha256sum -}}
-{{- end -}}
-{{- end }}
-
-{{- define "tali.modelGuardrailsSecretChecksum" -}}
-{{- if .Values.secrets.existingSecret -}}
-{{- printf "existing:%s:%s:%s:%s:%s:%s:%t:%t" .Values.secrets.existingSecret .Values.modelGuardrails.profilePath .Values.modelGuardrails.nvidia.apiKeySecretName .Values.modelGuardrails.nvidia.apiKeySecretKey .Values.modelGuardrails.nvidia.contentSafetyModel .Values.modelGuardrails.nvidia.topicControl.model .Values.modelGuardrails.nvidia.enabled .Values.modelGuardrails.nvidia.topicControl.enabled | sha256sum -}}
-{{- else -}}
-{{- printf "%s:%s:%s:%s:%s:%s:%s:%s:%t:%t" .Values.secrets.existingSecret .Values.secrets.modelGuardrailsApiKey .Values.secrets.modelGuardrailsNvidiaApiKey .Values.modelGuardrails.profilePath .Values.modelGuardrails.nvidia.baseUrl .Values.modelGuardrails.nvidia.contentSafetyModel .Values.modelGuardrails.nvidia.topicControl.model .Values.modelGuardrails.nvidia.apiKeySecretName .Values.modelGuardrails.nvidia.enabled .Values.modelGuardrails.nvidia.topicControl.enabled | sha256sum -}}
+{{- printf "%s:%s:%s:%s:%s:%s" .Values.secrets.existingSecret .Values.secrets.litellmMasterKey (include "tali.databaseUrl" .) .Values.secrets.litellmUiUsername .Values.secrets.litellmUiPassword .Values.secrets.litellmSaltKey | sha256sum -}}
 {{- end -}}
 {{- end }}
 

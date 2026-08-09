@@ -17,12 +17,6 @@ import {
   type LiteLLMModelRoutingRouteInput,
 } from "../providers/litellm-client";
 
-const modelGuardrails = [
-  "tali-model-input",
-  "tali-model-during-call",
-  "tali-model-output",
-] as const;
-
 const defaultCapabilities = {
   automaticRouting: "UNKNOWN",
   routerType: "UNKNOWN",
@@ -100,7 +94,6 @@ export class ModelRoutingService {
       input.routingPolicy,
       input.complianceDomain,
       input.auditPolicy.requestLogs,
-      input.modelGuardrailsEnabled,
     );
     const routing: ModelRouting = {
       id,
@@ -115,7 +108,6 @@ export class ModelRoutingService {
       isDefault: false,
       keyPolicy: input.keyPolicy,
       auditPolicy: input.auditPolicy,
-      modelGuardrailsEnabled: input.modelGuardrailsEnabled,
       capabilities: defaultCapabilities,
       conditions: [],
       configurationHash: configurationHash(input),
@@ -153,7 +145,6 @@ export class ModelRoutingService {
           input.routingPolicy,
           current.complianceDomain,
           (values.auditPolicy ?? current.auditPolicy).requestLogs,
-          values.modelGuardrailsEnabled ?? current.modelGuardrailsEnabled,
         )
       : undefined;
     if (
@@ -172,8 +163,6 @@ export class ModelRoutingService {
       isDefault: values.isDefault ?? current.isDefault,
       keyPolicy: values.keyPolicy ?? current.keyPolicy,
       auditPolicy: values.auditPolicy ?? current.auditPolicy,
-      modelGuardrailsEnabled:
-        values.modelGuardrailsEnabled ?? current.modelGuardrailsEnabled,
       status: input.routingPolicy
         ? "DRAFT"
         : input.suspended === true
@@ -189,7 +178,7 @@ export class ModelRoutingService {
     if (input.isDefault) await this.store.saveDefaultModelRouting(next);
     else await this.store.saveModelRouting(next);
     await this.audit(next, input.suspended === true ? "model_routing.suspended" : "model_routing.updated", actor, "SUCCESS", "Routing policy updated.");
-    if (input.routingPolicy || input.modelGuardrailsEnabled !== undefined) {
+    if (input.routingPolicy) {
       return this.refresh(id, actor);
     }
     return this.withConsumerCount(next);
@@ -207,7 +196,6 @@ export class ModelRoutingService {
         current.routingPolicy,
         current.complianceDomain,
         current.auditPolicy.requestLogs,
-        current.modelGuardrailsEnabled,
       );
       if (resolvedRouting.managedRoute) {
         if (!this.litellm.reconcileModelRoutingRoute)
@@ -259,19 +247,6 @@ export class ModelRoutingService {
             ? "Routing capabilities match the stored Routing policy."
             : "The effective LiteLLM Router does not match the stored complexity policy."),
       });
-      const configuredModelGuardrails = new Set(inspection.guardrails);
-      const modelGuardrailsPass = current.modelGuardrailsEnabled
-        ? modelGuardrails.every((name) => configuredModelGuardrails.has(name))
-        : modelGuardrails.every((name) => !configuredModelGuardrails.has(name));
-      conditions.push({
-        type: "GUARDRAIL",
-        status: modelGuardrailsPass ? "PASS" : "FAIL",
-        reason: modelGuardrailsPass
-          ? current.modelGuardrailsEnabled
-            ? "LiteLLM applies pre-call, during-call, and post-call Model Guardrails to this Routing."
-            : "LiteLLM does not apply Model Guardrails to this Routing."
-          : "LiteLLM Guardrails binding does not match the stored Routing setting.",
-      });
       const status: ModelRouting["status"] = inspection.unsupportedReason
         ? "UNSUPPORTED"
         : !inspection.exists
@@ -279,8 +254,6 @@ export class ModelRoutingService {
           : !compliancePass
             ? "NON_COMPLIANT"
             : !routingContractPass
-              ? "DEGRADED"
-            : !modelGuardrailsPass
               ? "DEGRADED"
             : "READY";
       const nextConfigurationHash = configurationHash({
@@ -290,7 +263,6 @@ export class ModelRoutingService {
         complianceDomain: current.complianceDomain,
         keyPolicy: current.keyPolicy,
         auditPolicy: current.auditPolicy,
-        modelGuardrailsEnabled: current.modelGuardrailsEnabled,
         liteLLM: inspection.configurationHash,
       });
       const next = await this.store.saveModelRouting({
@@ -450,7 +422,6 @@ export class ModelRoutingService {
     policy: ModelRoutingPolicy,
     complianceDomain: ComplianceDomain,
     requestAudit: boolean,
-    modelGuardrailsEnabled: boolean,
   ): Promise<{ alias: string; managedRoute?: LiteLLMModelRoutingRouteInput }> {
     if (policy.mode === "SINGLE") {
       const deployment = await this.requireRoutingDeployment(
@@ -479,7 +450,6 @@ export class ModelRoutingService {
           fallbackModels: fallbacks.map((model) => model.litellmModelName),
           retries: policy.retries,
           requestAudit,
-          guardrails: modelGuardrailsEnabled ? [...modelGuardrails] : [],
         },
       };
     }
@@ -521,7 +491,6 @@ export class ModelRoutingService {
           fallbackModels: fallbacks.map((model) => model.litellmModelName),
           retries: policy.retries,
           requestAudit,
-          guardrails: modelGuardrailsEnabled ? [...modelGuardrails] : [],
         },
       };
     }
@@ -574,7 +543,6 @@ export class ModelRoutingService {
         fallbackModels: fallbacks.map((model) => model.litellmModelName),
         retries: policy.retries,
         requestAudit,
-        guardrails: modelGuardrailsEnabled ? [...modelGuardrails] : [],
       },
     };
   }

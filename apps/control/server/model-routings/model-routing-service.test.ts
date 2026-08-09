@@ -29,9 +29,8 @@ const capabilities = {
 const defaultModelId = "99999999-9999-4999-8999-999999999999";
 
 function adapter(
-  inspection: Omit<LiteLLMModelRoutingInspection, "configurationHash" | "guardrails"> & {
+  inspection: Omit<LiteLLMModelRoutingInspection, "configurationHash"> & {
     configurationHash?: string;
-    guardrails?: string[];
   },
 ): LiteLLMAdminClient {
   return {
@@ -44,7 +43,6 @@ function adapter(
     listSpendLogs: vi.fn(),
     inspectModelRouting: vi.fn(async () => ({
       configurationHash: "sha256:litellm",
-      guardrails: [],
       ...inspection,
     })),
     reconcileModelRoutingRoute: vi.fn(),
@@ -192,7 +190,6 @@ describe("Model Routing contracts", () => {
         requestLogs: true,
         capturePrompts: false,
       },
-      modelGuardrailsEnabled: false,
     });
   });
 
@@ -244,42 +241,6 @@ describe("Model Routing contracts", () => {
 });
 
 describe("Model Routing validation", () => {
-  it("validates the LiteLLM model Guardrails binding when enabled", async () => {
-    const store = createTestStore();
-    await saveDefaultRoutingModel(store);
-    const service = new ModelRoutingService(
-      store,
-      adapter({
-        exists: true,
-        modelCount: 1,
-        complianceDomains: ["CN_MAINLAND"],
-        complianceUnknown: false,
-        capabilities: {
-          ...capabilities,
-          automaticRouting: "DISABLED",
-          routerType: "UNKNOWN",
-        },
-        guardrails: [
-          "tali-model-during-call",
-          "tali-model-input",
-          "tali-model-output",
-        ],
-      }),
-    );
-
-    const routing = await service.create({
-      ...input(),
-      modelGuardrailsEnabled: true,
-    });
-
-    expect(routing.status).toBe("READY");
-    expect(routing.conditions).toContainEqual({
-      type: "GUARDRAIL",
-      status: "PASS",
-      reason: "LiteLLM applies pre-call, during-call, and post-call Model Guardrails to this Routing.",
-    });
-  });
-
   it("reconciles a single model without creating a complexity router", async () => {
     const store = createTestStore();
     await saveDefaultRoutingModel(store);
@@ -309,7 +270,6 @@ describe("Model Routing validation", () => {
       fallbackModels: [],
       retries: 2,
       requestAudit: true,
-      guardrails: [],
     });
     expect(client.inspectModelRouting).toHaveBeenCalledWith("production-chat");
   });
@@ -378,7 +338,6 @@ describe("Model Routing validation", () => {
       fallbackModels: ["tali/qwen/max"],
       retries: 2,
       requestAudit: true,
-      guardrails: [],
     });
   });
 
@@ -510,7 +469,6 @@ describe("Model Routing validation", () => {
       fallbackModels: [],
       retries: 2,
       requestAudit: true,
-      guardrails: [],
     });
   });
 

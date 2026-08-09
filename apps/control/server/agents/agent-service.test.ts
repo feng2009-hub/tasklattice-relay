@@ -347,7 +347,6 @@ async function configuredService() {
       requestLogs: true,
       capturePrompts: false,
     },
-    modelGuardrailsEnabled: false,
     capabilities: {
       automaticRouting: "ENABLED",
       routerType: "COMPLEXITY_ROUTER",

@@ -124,7 +124,6 @@ Verify the installation:
 kubectl -n tali-sandboxes rollout status deployment/tali-control --timeout=300s
 kubectl -n tali-sandboxes rollout status deployment/tali-runner --timeout=300s
 kubectl -n tali-sandboxes rollout status deployment/tali-litellm --timeout=300s
-kubectl -n tali-sandboxes rollout status deployment/tali-model-guardrails --timeout=300s
 kubectl -n tali-sandboxes rollout status statefulset/tali-postgresql --timeout=300s
 kubectl -n tali-sandboxes rollout status statefulset/tali-openshell --timeout=300s
 kubectl -n agent-sandbox-system rollout status deployment/agent-sandbox-controller --timeout=300s
@@ -142,7 +141,6 @@ resolves to that exact value.
 | TaskLattice Relay control      | `ghcr.io/tasklattice/tali-control:<release>`                   | UI, REST/WebSocket API, and PostgreSQL control data |
 | Runtime runner           | `ghcr.io/tasklattice/tali-openshell-runner:<release>`          | OpenShell sandbox lifecycle and terminal relay     |
 | LiteLLM                  | `ghcr.io/tasklattice/tali-litellm:<release>`                   | Model gateway, virtual keys, and spend attribution |
-| Model Guardrails         | `ghcr.io/tasklattice/tali-model-guardrails:<release>`          | NeMo-backed model input/output safety              |
 | Example MCP server       | `ghcr.io/tasklattice/tali-example-mcp:<release>`               | Reference MCP integration used by examples         |
 | OpenClaw sandbox         | `ghcr.io/tasklattice/tali-nemoclaw-sandbox:<release>`          | Default Agent sandbox                              |
 | Hermes sandbox           | `ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:<release>`   | Hermes Agent sandbox                               |
