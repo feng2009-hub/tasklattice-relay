@@ -77,7 +77,7 @@ async function seed() {
       }
       const existing = await client.query(
         `SELECT digest
-           FROM tali.skill_artifacts
+           FROM tasklattice.skill_artifacts
           WHERE skill_id = $1 AND version = $2`,
         [artifact.skillId, artifact.version],
       );
@@ -87,7 +87,7 @@ async function seed() {
         );
       }
       await client.query(
-        `INSERT INTO tali.skill_artifacts (
+        `INSERT INTO tasklattice.skill_artifacts (
            id, skill_id, version, digest, archive_format, content_type, archive,
            compressed_size_bytes, unpacked_size_bytes, file_count, manifest, source_path
          )
@@ -111,7 +111,7 @@ async function seed() {
       const endpoint =
         `tali+postgresql://skill-artifacts/${artifact.skillId}/${artifact.version}`;
       await client.query(
-        `UPDATE tali.skills
+        `UPDATE tasklattice.skills
             SET payload = jsonb_set(
                   jsonb_set(payload, '{endpoint}', to_jsonb($3::text), true),
                   '{digest}', to_jsonb($4::text), true
