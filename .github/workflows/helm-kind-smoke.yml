@@ -68,7 +68,8 @@ jobs:
       - name: Package Helm chart for Control Plane image
         run: npm run helm:package:control
 
-      - uses: docker/setup-buildx-action@v3
+      - id: buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Build control image
         uses: docker/build-push-action@v6
@@ -101,6 +102,16 @@ jobs:
           tags: ghcr.io/tasklattice/tali-litellm:dev
           cache-from: type=gha,scope=helm-smoke-litellm
           cache-to: type=gha,mode=max,scope=helm-smoke-litellm,ignore-error=true
+
+      - name: Release BuildKit resources before Kind
+        shell: bash
+        run: |
+          set -euo pipefail
+          free -h
+          df -h
+          docker system df
+          docker stats --no-stream
+          docker buildx stop "${{ steps.buildx.outputs.name }}"
 
       - name: Create Kind cluster
         uses: helm/kind-action@v1.14.0
