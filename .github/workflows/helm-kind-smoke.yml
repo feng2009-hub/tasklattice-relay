@@ -68,6 +68,14 @@ jobs:
       - name: Package Helm chart for Control Plane image
         run: npm run helm:package:control
 
+      - name: Reclaim runner Docker storage before builds
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker system df
+          docker system prune --all --force --volumes
+          df -h /
+
       - id: buildx
         uses: docker/setup-buildx-action@v3
 
@@ -111,7 +119,9 @@ jobs:
           df -h
           docker system df
           docker stats --no-stream
+          docker buildx prune --all --force
           docker buildx stop "${{ steps.buildx.outputs.name }}"
+          df -h /
 
       - name: Create Kind cluster
         uses: helm/kind-action@v1.14.0

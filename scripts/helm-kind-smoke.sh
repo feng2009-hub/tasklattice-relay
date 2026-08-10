@@ -56,10 +56,11 @@ elif [[ "${build_images}" != "0" ]]; then
   exit 1
 fi
 
-kind load docker-image --name "${cluster_name}" \
-  "${control_image}" \
-  "${runner_image}" \
-  "${litellm_image}"
+images=("${control_image}" "${runner_image}" "${litellm_image}")
+for image in "${images[@]}"; do
+  echo "Loading ${image} into Kind cluster ${cluster_name}."
+  kind load docker-image --name "${cluster_name}" "${image}"
+done
 
 rollout_revision="smoke-$(date -u +%Y%m%d%H%M%S)"
 
