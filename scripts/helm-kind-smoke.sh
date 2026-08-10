@@ -10,6 +10,7 @@ image_registry="${IMAGE_REGISTRY:-ghcr.io/tasklattice}"
 helm_timeout="${HELM_TIMEOUT:-15m}"
 build_images="${BUILD_IMAGES:-1}"
 image_tag="${IMAGE_TAG:-dev}"
+remove_loaded_images="${REMOVE_LOADED_IMAGES:-0}"
 
 required_commands=(curl docker helm kind kubectl patch shasum)
 for command_name in "${required_commands[@]}"; do
@@ -56,10 +57,23 @@ elif [[ "${build_images}" != "0" ]]; then
   exit 1
 fi
 
-images=("${control_image}" "${runner_image}" "${litellm_image}")
+if [[ "${remove_loaded_images}" != "0" && "${remove_loaded_images}" != "1" ]]; then
+  echo "REMOVE_LOADED_IMAGES must be 0 or 1." >&2
+  exit 1
+fi
+
+# Load the largest image first while the runner has the most free space. CI
+# deletes each Docker source image after Kind has imported it, avoiding the
+# source image, Kind copy, and the next temporary docker-save tar coexisting.
+images=("${litellm_image}" "${control_image}" "${runner_image}")
 for image in "${images[@]}"; do
   echo "Loading ${image} into Kind cluster ${cluster_name}."
   kind load docker-image --name "${cluster_name}" "${image}"
+  if [[ "${remove_loaded_images}" == "1" ]]; then
+    echo "Removing loaded Docker source image ${image}."
+    docker image rm "${image}"
+    df -h /
+  fi
 done
 
 rollout_revision="smoke-$(date -u +%Y%m%d%H%M%S)"

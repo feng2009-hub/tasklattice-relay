@@ -45,6 +45,7 @@ env:
   IMAGE_REGISTRY: ghcr.io/tasklattice
   IMAGE_TAG: dev
   BUILD_IMAGES: "0"
+  REMOVE_LOADED_IMAGES: "1"
   HELM_TIMEOUT: 15m
 
 jobs:
