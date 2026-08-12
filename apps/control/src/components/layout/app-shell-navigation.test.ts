@@ -1,38 +1,44 @@
 import { describe, expect, it } from "vitest";
-import { homeItem, itemIsActive, navGroups } from "./app-shell";
+import { itemIsActive, navGroups, projectHomeIsActive } from "./app-shell";
 
 describe("Project control-plane navigation", () => {
-  it("expresses the layered information architecture without exposing implementation routes", () => {
+  it("uses Home as a linked section with Instances and Memory beneath it", () => {
     expect(navGroups.map((group) => group.label)).toEqual([
+      "Home",
       "Capability toolbox",
       "Governance",
       "Evidence",
     ]);
     expect(navGroups.map((group) => group.items.map((item) => item.label))).toEqual([
+      ["Instances", "Memory"],
       ["Specialist Agents", "Skills", "MCP Connections", "Knowledge Sources"],
       ["Access Policies", "Runtime Policies", "Project Settings"],
       ["Traces", "Audit Logs", "Cost"],
     ]);
-    expect(navGroups.flatMap((group) => group.items.map((item) => item.label))).not.toContain(
-      "Instances",
-    );
-    expect(navGroups.flatMap((group) => group.items.map((item) => item.label))).not.toContain(
-      "Memory",
-    );
+    expect(navGroups[0]?.labelTo).toBe("/$projectId");
+    expect(navGroups.flatMap((group) => group.items.map((item) => item.label))).not.toContain("Home");
   });
 
-  it("treats Runtime Instances and Memory as Home detail surfaces", () => {
-    expect(itemIsActive(homeItem, "/p-hr", "p-hr")).toBe(true);
-    expect(itemIsActive(homeItem, "/p-hr/", "p-hr")).toBe(true);
-    expect(itemIsActive(homeItem, "/p-hr/instances", "p-hr")).toBe(true);
-    expect(itemIsActive(homeItem, "/p-hr/instances/runtime-1", "p-hr")).toBe(true);
-    expect(itemIsActive(homeItem, "/p-hr/memory", "p-hr")).toBe(true);
-    expect(itemIsActive(homeItem, "/p-hr/skills", "p-hr")).toBe(false);
+  it("keeps the linked Home section title active only on the Project root", () => {
+    expect(projectHomeIsActive("/p-hr", "p-hr")).toBe(true);
+    expect(projectHomeIsActive("/p-hr/", "p-hr")).toBe(true);
+    expect(projectHomeIsActive("/p-hr/instances", "p-hr")).toBe(false);
+    expect(projectHomeIsActive("/p-hr/memory", "p-hr")).toBe(false);
+  });
+
+  it("gives Instances and Memory their own active states", () => {
+    const instances = navGroups[0]!.items[0]!;
+    const memory = navGroups[0]!.items[1]!;
+    expect(itemIsActive(instances, "/p-hr/instances", "p-hr")).toBe(true);
+    expect(itemIsActive(instances, "/p-hr/instances/runtime-1", "p-hr")).toBe(true);
+    expect(itemIsActive(instances, "/p-hr/memory", "p-hr")).toBe(false);
+    expect(itemIsActive(memory, "/p-hr/memory", "p-hr")).toBe(true);
+    expect(itemIsActive(memory, "/p-hr/instances", "p-hr")).toBe(false);
   });
 
   it("keeps nested resource pages active within their visible navigation item", () => {
-    const specialistAgents = navGroups[0]!.items[0]!;
-    const accessPolicies = navGroups[1]!.items[0]!;
+    const specialistAgents = navGroups[1]!.items[0]!;
+    const accessPolicies = navGroups[2]!.items[0]!;
     expect(
       itemIsActive(specialistAgents, "/p-hr/agent-garden/catalog-agent", "p-hr"),
     ).toBe(true);

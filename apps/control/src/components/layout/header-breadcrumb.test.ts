@@ -8,7 +8,7 @@ describe("getHeaderBreadcrumbItems", () => {
     ]);
   });
 
-  it("nests the OpenClaw Memory destination under Home", () => {
+  it("nests Memory within the Home section", () => {
     expect(getHeaderBreadcrumbItems("/individual/memory")).toEqual([
       { href: "/individual", label: "Home" },
       { href: "/individual/memory", label: "Memory" },
