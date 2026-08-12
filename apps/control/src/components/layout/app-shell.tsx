@@ -2,17 +2,17 @@ import { Fragment, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import {
-  Boxes,
   Bot,
-  BrainCircuit,
   CheckCircle2,
   CircleDollarSign,
   CircleHelp,
   FileLock2,
   FileClock,
+  House,
   Network,
   Search,
   ServerCog,
+  Settings,
   ShieldCheck,
   Sparkles,
   Waypoints,
@@ -62,6 +62,7 @@ import {
 } from "@/components/ui/toast";
 
 type ProjectRoute =
+  | "/$projectId"
   | "/$projectId/agent-garden"
   | "/$projectId/cost"
   | "/$projectId/traces"
@@ -74,28 +75,35 @@ type ProjectRoute =
   | "/$projectId/memory"
   | "/$projectId/mcp-servers"
   | "/$projectId/skills"
+  | "/$projectId/setting"
   | "/$projectId/requests";
 
 type NavItemDefinition = {
+  activeWithin?: ProjectRoute[];
   icon: LucideIcon;
   label: string;
   to: ProjectRoute;
 };
 
-const navGroups: Array<{ items: NavItemDefinition[]; label: string }> = [
+export const homeItem: NavItemDefinition = {
+  activeWithin: ["/$projectId/instances", "/$projectId/memory"],
+  icon: House,
+  label: "Home",
+  to: "/$projectId",
+};
+
+export const navGroups: Array<{ items: NavItemDefinition[]; label: string }> = [
   {
-    label: "Agentic",
+    label: "Capability toolbox",
     items: [
-      { icon: Bot, label: "Agent Garden", to: "/$projectId/agent-garden" },
-      { icon: Boxes, label: "Instances", to: "/$projectId/instances" },
+      { icon: Bot, label: "Specialist Agents", to: "/$projectId/agent-garden" },
       { icon: Sparkles, label: "Skills", to: "/$projectId/skills" },
-      { icon: ServerCog, label: "MCP Servers", to: "/$projectId/mcp-servers" },
-      { icon: Network, label: "Knowledge Base", to: "/$projectId/knowledge-base" },
-      { icon: BrainCircuit, label: "Memory", to: "/$projectId/memory" },
+      { icon: ServerCog, label: "MCP Connections", to: "/$projectId/mcp-servers" },
+      { icon: Network, label: "Knowledge Sources", to: "/$projectId/knowledge-base" },
     ],
   },
   {
-    label: "Security",
+    label: "Governance",
     items: [
       {
         icon: ShieldCheck,
@@ -103,26 +111,34 @@ const navGroups: Array<{ items: NavItemDefinition[]; label: string }> = [
         to: "/$projectId/access-policies",
       },
       { icon: FileLock2, label: "Runtime Policies", to: "/$projectId/runtime-policies" },
-      { icon: FileClock, label: "Audit Logs", to: "/$projectId/audit-logs" },
+      { icon: Settings, label: "Project Settings", to: "/$projectId/setting" },
     ],
   },
   {
-    label: "Observer",
+    label: "Evidence",
     items: [
       { icon: Waypoints, label: "Traces", to: "/$projectId/traces" },
+      { icon: FileClock, label: "Audit Logs", to: "/$projectId/audit-logs" },
       { icon: CircleDollarSign, label: "Cost", to: "/$projectId/cost" },
     ],
   },
 ];
 
-function itemIsActive(item: NavItemDefinition, pathname: string, projectId: string) {
+export function itemIsActive(item: NavItemDefinition, pathname: string, projectId: string) {
   const target = item.to.replace("$projectId", encodeURIComponent(projectId));
+  const normalizedPathname = pathname.replace(/\/$/, "");
+  const normalizedTarget = target.replace(/\/$/, "");
+  if (normalizedPathname === normalizedTarget) return true;
   if (
-    item.to === "/$projectId/instances" ||
-    item.to === "/$projectId/access-policies"
-  )
-    return pathname === target || pathname.startsWith(`${target}/`);
-  return pathname === target;
+    item.activeWithin?.some((route) => {
+      const prefix = route
+        .replace("$projectId", encodeURIComponent(projectId))
+        .replace(/\/$/, "");
+      return normalizedPathname === prefix || normalizedPathname.startsWith(`${prefix}/`);
+    })
+  ) return true;
+  if (item.to === "/$projectId") return false;
+  return normalizedPathname.startsWith(`${normalizedTarget}/`);
 }
 
 function NavigationItem({ item, pathname, projectId }: {
@@ -151,13 +167,13 @@ function NavigationItem({ item, pathname, projectId }: {
   );
 }
 
-function DisabledNav({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
+function DisabledNav({ description, icon: Icon, label }: { description: string; icon: LucideIcon; label: string }) {
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
         aria-label={label}
         disabled
-        tooltip={`${label} — not part of the current Agent operating path.`}
+        tooltip={description}
       >
         <Icon />
         <span>{label}</span>
@@ -203,6 +219,13 @@ function ProjectSidebar({ logout, pathname, user }: {
         </SidebarHeader>
         <SidebarContent>
           <nav aria-label="Project navigation" className="flex flex-col py-1">
+            <SidebarGroup className="pt-2">
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  <NavigationItem item={homeItem} pathname={pathname} projectId={projectId} />
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
             {navGroups.map((group) => (
               <SidebarGroup key={group.label}>
                 <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
@@ -210,8 +233,8 @@ function ProjectSidebar({ logout, pathname, user }: {
                   <SidebarMenu>
                     {group.items
                       .filter((item) =>
-                        item.to !== "/$projectId/audit-logs" ||
-                        permissions.canViewAuditLogs,
+                        (item.to !== "/$projectId/audit-logs" || permissions.canViewAuditLogs)
+                        && (item.to !== "/$projectId/setting" || permissions.canManageProject),
                       )
                       .map((item) => (
                         <Fragment key={item.to}>
@@ -226,7 +249,11 @@ function ProjectSidebar({ logout, pathname, user }: {
         </SidebarContent>
         <SidebarFooter className="border-t border-sidebar-border p-2">
           <SidebarMenu>
-            <DisabledNav icon={CircleHelp} label="Help & documentation" />
+            <DisabledNav
+              description="Help and documentation are planned for a later control-plane release."
+              icon={CircleHelp}
+              label="Help & documentation"
+            />
           </SidebarMenu>
           <div className="mt-1 border-t border-sidebar-border pt-2">
             <AccountMenu
