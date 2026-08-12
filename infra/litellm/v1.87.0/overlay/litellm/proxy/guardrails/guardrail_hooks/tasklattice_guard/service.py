@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional, Tuple, cast
+from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple, cast
 from urllib.parse import urlparse
 from uuid import UUID
 
@@ -25,10 +25,60 @@ CREDENTIAL_PREFIX = "tasklattice-guard/"
 VERIFY_SUFFIX = "/verify"
 EXPECTED_ADAPTER_ID = "litellm-generic-guardrail"
 EXPECTED_PROTOCOL = "litellm"
+TaskLatticeGuardMode = Literal["pre_call", "post_call"]
+TaskLatticeGuardFallback = Literal["fail_closed", "fail_open"]
+DEFAULT_MODE: Tuple[TaskLatticeGuardMode, ...] = ("pre_call", "post_call")
+DEFAULT_DEFAULT_ON = True
+DEFAULT_UNREACHABLE_FALLBACK: TaskLatticeGuardFallback = "fail_closed"
+DEFAULT_TIMEOUT_SECONDS = 10
+MIN_TIMEOUT_SECONDS = 1
+MAX_TIMEOUT_SECONDS = 60
 
 
 class TaskLatticeGuardConnectionError(ValueError):
     """A safe validation error that never contains the submitted secret."""
+
+
+def validate_mode(mode: Any) -> List[TaskLatticeGuardMode]:
+    if not isinstance(mode, (list, tuple)) or not mode:
+        raise TaskLatticeGuardConnectionError(
+            "Mode must select at least one of pre_call or post_call"
+        )
+    if any(not isinstance(value, str) or value not in DEFAULT_MODE for value in mode):
+        raise TaskLatticeGuardConnectionError(
+            "Mode must be a non-empty subset of pre_call and post_call"
+        )
+    if len(mode) != len(set(mode)):
+        raise TaskLatticeGuardConnectionError(
+            "Mode must be a non-empty subset of pre_call and post_call"
+        )
+    return [value for value in DEFAULT_MODE if value in mode]
+
+
+def validate_default_on(default_on: Any) -> bool:
+    if not isinstance(default_on, bool):
+        raise TaskLatticeGuardConnectionError("Default On must be true or false")
+    return default_on
+
+
+def validate_unreachable_fallback(value: Any) -> TaskLatticeGuardFallback:
+    if value not in {"fail_closed", "fail_open"}:
+        raise TaskLatticeGuardConnectionError(
+            "Unreachable fallback must be fail_closed or fail_open"
+        )
+    return cast(TaskLatticeGuardFallback, value)
+
+
+def validate_timeout_seconds(value: Any) -> int:
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int)
+        or not MIN_TIMEOUT_SECONDS <= value <= MAX_TIMEOUT_SECONDS
+    ):
+        raise TaskLatticeGuardConnectionError(
+            "Timeout must be an integer between 1 and 60 seconds"
+        )
+    return value
 
 
 def normalize_endpoint(endpoint: str) -> str:
@@ -66,20 +116,28 @@ def build_guardrail_record(
     credential_name: str,
     *,
     guardrail_id: Optional[str] = None,
+    mode: Sequence[str] = DEFAULT_MODE,
+    default_on: bool = DEFAULT_DEFAULT_ON,
+    unreachable_fallback: str = DEFAULT_UNREACHABLE_FALLBACK,
+    timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
 ) -> Guardrail:
     endpoint = normalize_endpoint(endpoint)
+    validated_mode = validate_mode(mode)
+    validated_default_on = validate_default_on(default_on)
+    validated_fallback = validate_unreachable_fallback(unreachable_fallback)
+    validated_timeout = validate_timeout_seconds(timeout_seconds)
     generated_id = guardrail_id or str(uuid.uuid4())
     return Guardrail(
         guardrail_id=generated_id,
         guardrail_name=f"tasklattice-guard-{generated_id[:8]}",
         litellm_params={
             "guardrail": PROVIDER_ID,
-            "mode": ["pre_call", "post_call"],
+            "mode": validated_mode,
             "api_base": endpoint,
             "credential_name": credential_name,
-            "default_on": True,
-            "fail_on_error": True,
-            "unreachable_fallback": "fail_closed",
+            "default_on": validated_default_on,
+            "unreachable_fallback": validated_fallback,
+            "timeout_seconds": validated_timeout,
         },
         guardrail_info={"managed_by": PROVIDER_ID},
     )
@@ -91,6 +149,10 @@ def masked_view(
     credential_name: str,
     *,
     guardrail_name: Optional[str] = None,
+    mode: Sequence[str] = DEFAULT_MODE,
+    default_on: bool = DEFAULT_DEFAULT_ON,
+    unreachable_fallback: str = DEFAULT_UNREACHABLE_FALLBACK,
+    timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
 ) -> Dict[str, Any]:
     return {
         "guardrail_id": guardrail_id,
@@ -98,9 +160,12 @@ def masked_view(
         "provider": PROVIDER_ID,
         "endpoint": normalize_endpoint(endpoint),
         "credential_configured": bool(credential_name),
-        "mode": ["pre_call", "post_call"],
-        "default_on": True,
-        "unreachable_fallback": "fail_closed",
+        "mode": validate_mode(mode),
+        "default_on": validate_default_on(default_on),
+        "unreachable_fallback": validate_unreachable_fallback(
+            unreachable_fallback
+        ),
+        "timeout_seconds": validate_timeout_seconds(timeout_seconds),
     }
 
 
@@ -121,6 +186,17 @@ def _record_params(record: Guardrail) -> Dict[str, Any]:
             )
         return decoded
     return dict(params)
+
+
+def _runtime_config_from_params(
+    params: Dict[str, Any],
+) -> Tuple[List[TaskLatticeGuardMode], bool, TaskLatticeGuardFallback, int]:
+    return (
+        validate_mode(params.get("mode")),
+        validate_default_on(params.get("default_on")),
+        validate_unreachable_fallback(params.get("unreachable_fallback")),
+        validate_timeout_seconds(params.get("timeout_seconds")),
+    )
 
 
 def _row_to_guardrail(row: Any) -> Guardrail:
@@ -234,14 +310,28 @@ def _guardrail_db_data(record: Guardrail) -> Dict[str, Any]:
 
 
 async def create_tasklattice_guard_connection(
-    *, prisma_client: Any, endpoint: str, secret: str, user_id: Optional[str]
+    *,
+    prisma_client: Any,
+    endpoint: str,
+    secret: str,
+    user_id: Optional[str],
+    mode: Sequence[str] = DEFAULT_MODE,
+    default_on: bool = DEFAULT_DEFAULT_ON,
+    unreachable_fallback: str = DEFAULT_UNREACHABLE_FALLBACK,
+    timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
 ) -> Dict[str, Any]:
     endpoint = normalize_endpoint(endpoint)
     await verify_connection(endpoint, secret)
     guardrail_id = str(uuid.uuid4())
     credential_name = f"{CREDENTIAL_PREFIX}{guardrail_id}"
     record = build_guardrail_record(
-        endpoint, credential_name, guardrail_id=guardrail_id
+        endpoint,
+        credential_name,
+        guardrail_id=guardrail_id,
+        mode=mode,
+        default_on=default_on,
+        unreachable_fallback=unreachable_fallback,
+        timeout_seconds=timeout_seconds,
     )
     plaintext, encrypted = _credential_items(credential_name, secret, guardrail_id)
 
@@ -273,7 +363,15 @@ async def create_tasklattice_guard_connection(
         ]
         raise
 
-    return masked_view(guardrail_id, endpoint, credential_name)
+    return masked_view(
+        guardrail_id,
+        endpoint,
+        credential_name,
+        mode=mode,
+        default_on=default_on,
+        unreachable_fallback=unreachable_fallback,
+        timeout_seconds=timeout_seconds,
+    )
 
 
 async def get_tasklattice_guard_connection(
@@ -284,11 +382,18 @@ async def get_tasklattice_guard_connection(
     )
     record = _assert_tasklattice_record(_row_to_guardrail(row) if row else None)
     params = _record_params(record)
+    mode, default_on, unreachable_fallback, timeout_seconds = (
+        _runtime_config_from_params(params)
+    )
     return masked_view(
         guardrail_id,
         cast(str, params["api_base"]),
         cast(str, params["credential_name"]),
         guardrail_name=record.get("guardrail_name"),
+        mode=mode,
+        default_on=default_on,
+        unreachable_fallback=unreachable_fallback,
+        timeout_seconds=timeout_seconds,
     )
 
 
@@ -299,6 +404,10 @@ async def update_tasklattice_guard_connection(
     endpoint: Optional[str],
     secret: Optional[str],
     user_id: Optional[str],
+    mode: Optional[Sequence[str]] = None,
+    default_on: Optional[bool] = None,
+    unreachable_fallback: Optional[str] = None,
+    timeout_seconds: Optional[int] = None,
 ) -> Dict[str, Any]:
     row = await prisma_client.db.litellm_guardrailstable.find_unique(
         where={"guardrail_id": guardrail_id}
@@ -307,8 +416,30 @@ async def update_tasklattice_guard_connection(
     params = _record_params(current)
     credential_name = cast(str, params["credential_name"])
     current_endpoint = normalize_endpoint(cast(str, params["api_base"]))
+    (
+        current_mode,
+        current_default_on,
+        current_unreachable_fallback,
+        current_timeout_seconds,
+    ) = _runtime_config_from_params(params)
     next_endpoint = normalize_endpoint(endpoint) if endpoint else current_endpoint
     next_secret = secret or None
+    next_mode = validate_mode(mode) if mode is not None else current_mode
+    next_default_on = (
+        validate_default_on(default_on)
+        if default_on is not None
+        else current_default_on
+    )
+    next_unreachable_fallback = (
+        validate_unreachable_fallback(unreachable_fallback)
+        if unreachable_fallback is not None
+        else current_unreachable_fallback
+    )
+    next_timeout_seconds = (
+        validate_timeout_seconds(timeout_seconds)
+        if timeout_seconds is not None
+        else current_timeout_seconds
+    )
 
     if next_endpoint != current_endpoint and not next_secret:
         raise TaskLatticeGuardConnectionError(
@@ -318,7 +449,13 @@ async def update_tasklattice_guard_connection(
         await verify_connection(next_endpoint, next_secret)
 
     updated = build_guardrail_record(
-        next_endpoint, credential_name, guardrail_id=guardrail_id
+        next_endpoint,
+        credential_name,
+        guardrail_id=guardrail_id,
+        mode=next_mode,
+        default_on=next_default_on,
+        unreachable_fallback=next_unreachable_fallback,
+        timeout_seconds=next_timeout_seconds,
     )
     updated["guardrail_name"] = current["guardrail_name"]
     batcher = prisma_client.db.batch_()
@@ -354,6 +491,10 @@ async def update_tasklattice_guard_connection(
         next_endpoint,
         credential_name,
         guardrail_name=updated["guardrail_name"],
+        mode=next_mode,
+        default_on=next_default_on,
+        unreachable_fallback=next_unreachable_fallback,
+        timeout_seconds=next_timeout_seconds,
     )
 
 

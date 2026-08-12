@@ -13,9 +13,12 @@ def initialize_guardrail(litellm_params: "LitellmParams", guardrail: "Guardrail"
         api_base=litellm_params.api_base,
         credential_name=getattr(litellm_params, "credential_name", None),
         guardrail_name=guardrail.get("guardrail_name", "TaskLattice Guard"),
-        event_hook=["pre_call", "post_call"],
-        default_on=True,
-        unreachable_fallback="fail_closed",
+        event_hook=litellm_params.mode,
+        default_on=getattr(litellm_params, "default_on", None),
+        unreachable_fallback=getattr(
+            litellm_params, "unreachable_fallback", "fail_closed"
+        ),
+        timeout_seconds=getattr(litellm_params, "timeout_seconds", 10),
     )
     litellm.logging_callback_manager.add_litellm_callback(callback)
     return callback

@@ -1,16 +1,15 @@
 """Admin-only TaskLattice Guard connection endpoints.
 
-These endpoints intentionally bypass LiteLLM's generic Guardrail form.  The
-service owns the fixed safety policy and the credential reference lifecycle;
-the HTTP surface only accepts the two values a human needs to provide.
+These endpoints intentionally bypass LiteLLM's generic Guardrail form while
+preserving its runtime policy controls and credential reference lifecycle.
 """
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from pydantic import BaseModel, SecretStr
+from pydantic import BaseModel, Field, SecretStr
 
 from litellm._logging import verbose_proxy_logger
 from litellm.proxy._types import LitellmUserRoles, UserAPIKeyAuth
@@ -30,11 +29,32 @@ router = APIRouter()
 class CreateTaskLatticeGuardRequest(BaseModel):
     endpoint: str
     secret: SecretStr
+    mode: List[Literal["pre_call", "post_call"]] = Field(
+        default_factory=lambda: ["pre_call", "post_call"],
+        min_length=1,
+        max_length=2,
+    )
+    default_on: bool = True
+    unreachable_fallback: Literal["fail_closed", "fail_open"] = "fail_closed"
+    timeout_seconds: int = Field(default=10, ge=1, le=60, strict=True)
 
 
 class UpdateTaskLatticeGuardRequest(BaseModel):
     endpoint: Optional[str] = None
     secret: Optional[SecretStr] = None
+    mode: Optional[List[Literal["pre_call", "post_call"]]] = Field(
+        default=None,
+        min_length=1,
+        max_length=2,
+    )
+    default_on: Optional[bool] = None
+    unreachable_fallback: Optional[Literal["fail_closed", "fail_open"]] = None
+    timeout_seconds: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=60,
+        strict=True,
+    )
 
 
 def _require_admin(user_api_key_dict: UserAPIKeyAuth) -> None:
@@ -78,6 +98,10 @@ async def create_tasklattice_guard(
             endpoint=request.endpoint,
             secret=request.secret.get_secret_value(),
             user_id=user_api_key_dict.user_id,
+            mode=request.mode,
+            default_on=request.default_on,
+            unreachable_fallback=request.unreachable_fallback,
+            timeout_seconds=request.timeout_seconds,
         )
     except TaskLatticeGuardConnectionError as error:
         raise _safe_error(error) from error
@@ -131,6 +155,10 @@ async def update_tasklattice_guard(
                 else None
             ),
             user_id=user_api_key_dict.user_id,
+            mode=request.mode,
+            default_on=request.default_on,
+            unreachable_fallback=request.unreachable_fallback,
+            timeout_seconds=request.timeout_seconds,
         )
     except TaskLatticeGuardConnectionError as error:
         raise _safe_error(error) from error
