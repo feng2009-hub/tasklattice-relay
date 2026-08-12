@@ -1,7 +1,23 @@
-# The equivalent GHCR database tag currently rejects anonymous pulls.
-FROM litellm/litellm-database:v1.87.0
+# This overlay is reviewed against exactly this multi-arch upstream manifest.
+ARG LITELLM_IMAGE=litellm/litellm-database:v1.87.0@sha256:23f40f60a9effdc064ca6affe1d9f6f4f976604feab0682f0401a2046af54b37
+
+FROM ${LITELLM_IMAGE} AS tasklattice-litellm-builder
 
 USER root
+COPY infra/litellm/v1.87.0 /tmp/tasklattice-litellm-overlay
+RUN python /tmp/tasklattice-litellm-overlay/apply-overlay.py --root /app \
+    && cd /app/ui/litellm-dashboard \
+    && npm ci --ignore-scripts \
+    && npm run build \
+    && rm -rf /app/litellm/proxy/_experimental/out \
+    && mkdir -p /app/litellm/proxy/_experimental/out \
+    && cp -R out/. /app/litellm/proxy/_experimental/out/
+
+FROM ${LITELLM_IMAGE}
+
+USER root
+ENV PYTHONPATH=/app
+COPY --from=tasklattice-litellm-builder /app/litellm /app/litellm
 RUN apk add --no-cache libatomic \
     && chown -R 65532:65532 /app/.venv/lib/python3.13/site-packages/prisma
 
