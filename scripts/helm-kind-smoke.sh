@@ -2,117 +2,54 @@
 
 set -euo pipefail
 
+repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cluster_name="${KIND_CLUSTER_NAME:-tali-ci}"
 kube_context="kind-${cluster_name}"
 release_name="${HELM_RELEASE_NAME:-tali}"
 namespace="${HELM_NAMESPACE:-tali-smoke}"
 image_registry="${IMAGE_REGISTRY:-ghcr.io/tasklattice}"
+image_tag="${IMAGE_TAG:-latest}"
 helm_timeout="${HELM_TIMEOUT:-15m}"
-build_images="${BUILD_IMAGES:-1}"
-image_tag="${IMAGE_TAG:-dev}"
-remove_loaded_images="${REMOVE_LOADED_IMAGES:-0}"
 
-required_commands=(curl docker helm kind kubectl patch shasum)
-for command_name in "${required_commands[@]}"; do
-  if ! command -v "${command_name}" >/dev/null 2>&1; then
-    echo "Required command is not installed: ${command_name}" >&2
+for command_name in helm kind kubectl; do
+  if ! command -v "$command_name" >/dev/null 2>&1; then
+    echo "Required command is not installed: $command_name" >&2
     exit 1
   fi
 done
 
-if ! kind get clusters | grep -Fxq "${cluster_name}"; then
-  echo "Kind cluster does not exist: ${cluster_name}" >&2
-  echo "Create it first or set KIND_CLUSTER_NAME to an existing cluster." >&2
+if ! kind get clusters | grep -Fxq "$cluster_name"; then
+  echo "Kind cluster does not exist: $cluster_name" >&2
   exit 1
 fi
 
-if ! kubectl config get-contexts "${kube_context}" >/dev/null 2>&1; then
-  echo "kubectl context does not exist: ${kube_context}" >&2
+if ! kubectl config get-contexts "$kube_context" >/dev/null 2>&1; then
+  echo "kubectl context does not exist: $kube_context" >&2
   exit 1
 fi
 
-control_image="${image_registry}/tali-control:${image_tag}"
-runner_image="${image_registry}/tali-openshell-runner:${image_tag}"
-litellm_image="${image_registry}/tali-litellm:${image_tag}"
+bash "$repository_root/scripts/prepare-helm-dependencies.sh"
 
-bash scripts/package-control-plane-chart.sh 0.0.0-dev
-
-if [[ "${build_images}" == "1" ]]; then
-  docker build \
-    --file infra/docker/Dockerfile \
-    --target control \
-    --tag "${control_image}" \
-    .
-  docker build \
-    --file infra/docker/Dockerfile \
-    --target runner \
-    --tag "${runner_image}" \
-    .
-  docker build \
-    --file infra/docker/Dockerfile.litellm \
-    --tag "${litellm_image}" \
-    .
-elif [[ "${build_images}" != "0" ]]; then
-  echo "BUILD_IMAGES must be 0 or 1." >&2
-  exit 1
-fi
-
-if [[ "${remove_loaded_images}" != "0" && "${remove_loaded_images}" != "1" ]]; then
-  echo "REMOVE_LOADED_IMAGES must be 0 or 1." >&2
-  exit 1
-fi
-
-# Load the largest image first while the runner has the most free space. CI
-# deletes each Docker source image after Kind has imported it, avoiding the
-# source image, Kind copy, and the next temporary docker-save tar coexisting.
-images=("${litellm_image}" "${control_image}" "${runner_image}")
-for image in "${images[@]}"; do
-  echo "Loading ${image} into Kind cluster ${cluster_name}."
-  kind load docker-image --name "${cluster_name}" "${image}"
-  if [[ "${remove_loaded_images}" == "1" ]]; then
-    echo "Removing loaded Docker source image ${image}."
-    docker image rm "${image}"
-    df -h /
-  fi
-done
-
-rollout_revision="smoke-$(date -u +%Y%m%d%H%M%S)"
-
-helm lint charts/tali --values charts/tali/values-dev.yaml
-npm run helm:validate:resources
-helm upgrade --install "${release_name}" charts/tali \
-  --kube-context "${kube_context}" \
-  --namespace "${namespace}" \
+helm upgrade --install "$release_name" "$repository_root/charts/tali" \
+  --kube-context "$kube_context" \
+  --namespace "$namespace" \
   --create-namespace \
-  --values charts/tali/values-dev.yaml \
-  --set-string "global.imageRegistry=${image_registry}" \
-  --set-string "global.rolloutRevision=${rollout_revision}" \
-  --set-string "images.control.tag=${image_tag}" \
-  --set-string "images.runner.tag=${image_tag}" \
-  --set-string "images.litellm.tag=${image_tag}" \
+  --set-string "global.imageRegistry=$image_registry" \
+  --set-string "images.control.tag=$image_tag" \
+  --set "images.control.pullPolicy=Always" \
+  --set-string "images.runner.tag=$image_tag" \
+  --set "images.runner.pullPolicy=Always" \
+  --set-string "images.litellm.tag=$image_tag" \
+  --set "images.litellm.pullPolicy=Always" \
+  --set-string "images.exampleMcp.tag=$image_tag" \
+  --set "images.exampleMcp.pullPolicy=Always" \
+  --set-string "images.openclawSandbox.tag=$image_tag" \
+  --set-string "images.hermesSandbox.tag=$image_tag" \
   --set "control.service.type=ClusterIP" \
   --set "litellm.service.type=ClusterIP" \
   --set "openshell.service.type=ClusterIP" \
   --wait \
   --wait-for-jobs \
-  --timeout "${helm_timeout}"
+  --timeout "$helm_timeout"
 
-kubectl --context "${kube_context}" --namespace "${namespace}" wait \
-  --for=condition=Ready pod \
-  --all \
-  --timeout="${helm_timeout}"
-kubectl --context "${kube_context}" --namespace agent-sandbox-system wait \
-  --for=condition=Ready pod \
-  --all \
-  --timeout="${helm_timeout}"
-
-for required_namespace in "${namespace}" agent-sandbox-system; do
-  pod_count="$(kubectl --context "${kube_context}" --namespace "${required_namespace}" get pods --no-headers | wc -l | tr -d ' ')"
-  if [[ "${pod_count}" == "0" ]]; then
-    echo "No Pods were created in namespace ${required_namespace}." >&2
-    exit 1
-  fi
-  kubectl --context "${kube_context}" --namespace "${required_namespace}" get pods -o wide
-done
-
-helm --kube-context "${kube_context}" --namespace "${namespace}" status "${release_name}"
+kubectl --context "$kube_context" --namespace "$namespace" get pods,services

@@ -12,6 +12,7 @@ namespace="${HELM_NAMESPACE:-tali}"
 helm_timeout="${HELM_TIMEOUT:-15m}"
 image_registry="ghcr.io/tasklattice"
 image_tag="dev"
+control_service_port="${CONTROL_SERVICE_PORT:-38080}"
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 case "$action" in
@@ -132,7 +133,7 @@ if [[ "$enable_keycloak" == "true" ]]; then
       echo "Unable to find an IPv4 InternalIP for the OrbStack Kubernetes node." >&2
       exit 1
     fi
-    control_public_url="${CONTROL_PUBLIC_URL:-http://tali.localhost}"
+    control_public_url="${CONTROL_PUBLIC_URL:-http://tali.localhost:${control_service_port}}"
     keycloak_public_url="${KEYCLOAK_PUBLIC_URL:-http://keycloak.localhost:${keycloak_service_port}}"
     keycloak_helm_args+=(
       --set-string "control.hostAliases[0].ip=$node_ip"
@@ -170,6 +171,7 @@ helm upgrade --install "$release_name" "$repository_root/charts/tali" \
   --create-namespace \
   --values "$repository_root/charts/tali/values-dev.yaml" \
   --set-string "global.rolloutRevision=$rollout_revision" \
+  --set "control.service.port=$control_service_port" \
   ${keycloak_helm_args[@]+"${keycloak_helm_args[@]}"} \
   ${example_mcp_helm_args[@]+"${example_mcp_helm_args[@]}"} \
   --wait \

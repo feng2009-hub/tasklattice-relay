@@ -65,8 +65,8 @@ If the Agent Sandbox controller already exists cluster-wide, set
 `agentSandbox.enabled=false`. For private GHCR packages, create a registry
 pull Secret and add its `{name: ...}` reference to `global.imagePullSecrets`,
 `agentSandbox.imagePullSecrets`, `openshell.imagePullSecrets`, and
-`openshell.server.sandboxImagePullSecrets`. The Agent Sandbox controller uses
-its own namespace, so its Secret must also exist there.
+`openshell.server.sandboxImagePullSecrets`. The Agent Sandbox controller runs
+in the Helm release namespace and can reuse the same registry pull Secret.
 
 Every first-party workload and configurable runtime dependency has explicit
 CPU and memory requests and limits. The Chart also creates a namespace-scoped
@@ -167,19 +167,12 @@ values. Do not put a full image repository under a first-party
 `images.<name>.repository` unless `useGlobalRegistry=false`; normally set
 `global.imageRegistry` once and keep those repository names relative.
 
-Before installing, create both namespaces and the same registry pull Secret in
-each. The example sets `agentSandbox.namespace.create=false` so Helm can use
-the pre-created dependency namespace:
+Before installing, create the release namespace and its registry pull Secret.
+The Agent Sandbox controller and webhook are installed into that same namespace:
 
 ```bash
 oc new-project tali
 oc -n tali create secret docker-registry airgap-registry \
-  --docker-server=registry.internal.example.com \
-  --docker-username='<username>' \
-  --docker-password='<password>'
-
-oc new-project agent-sandbox-system
-oc -n agent-sandbox-system create secret docker-registry airgap-registry \
   --docker-server=registry.internal.example.com \
   --docker-username='<username>' \
   --docker-password='<password>'
@@ -209,7 +202,7 @@ that ClusterRole. Set `openshift.anyuidScc.createRoleBinding=false` and/or
 manages the corresponding SCC grants separately.
 
 The Chart also installs CRDs, ClusterRoles, ClusterRoleBindings, and the Agent
-Sandbox controller namespace. A cluster administrator must perform the first
+Sandbox controller in the release namespace. A cluster administrator must perform the first
 installation, or install those cluster-scoped dependencies separately and set
 `agentSandbox.enabled=false`.
 
@@ -259,7 +252,7 @@ Control pod. For a cluster with a reserved load-balancer address:
 helm upgrade --install tali charts/tali \
   --namespace tali \
   --create-namespace \
-  --set control.publicUrl=http://192.168.139.2 \
+  --set control.publicUrl=http://192.168.139.2:38080 \
   --set keycloak.enabled=true \
   --set keycloak.publicUrl=http://192.168.139.3:8080 \
   --set keycloak.service.loadBalancerIP=192.168.139.3
