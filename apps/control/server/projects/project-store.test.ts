@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { Agent } from "@tali/contracts";
 import { parseAgent, ProjectStore } from "./project-store";
 import { createTestStore } from "../test/store";
 
@@ -27,6 +28,37 @@ async function seedAccessPolicy(store: ProjectStore): Promise<void> {
 }
 
 describe("ProjectStore", () => {
+  it("backfills the personal Project as DEV and defaults new Projects to PROD", async () => {
+    const store = createTestStore();
+    await expect(
+      store.database().project.findUnique({
+        where: { id: "individual" },
+        select: { authorizationEnvironment: true },
+      }),
+    ).resolves.toEqual({ authorizationEnvironment: "DEV" });
+
+    await store.database().project.create({
+      data: {
+        id: "team-project",
+        name: "Team Project",
+        type: "team",
+        createdBy: "local-admin",
+      },
+    });
+    await expect(
+      store.database().project.findUnique({
+        where: { id: "team-project" },
+        select: { authorizationEnvironment: true },
+      }),
+    ).resolves.toEqual({ authorizationEnvironment: "PROD" });
+    await expect(
+      store.database().project.update({
+        where: { id: "team-project" },
+        data: { authorizationEnvironment: "INVALID" },
+      }),
+    ).rejects.toThrow();
+  });
+
   it("rejects pre-Model-Routing Instance records", () => {
     const now = new Date().toISOString();
     expect(() =>
@@ -56,7 +88,7 @@ describe("ProjectStore", () => {
     const store = createTestStore();
     const now = new Date().toISOString();
     await seedAccessPolicy(store);
-    await store.save({
+    const agent: Agent = {
       schemaVersion: 2,
       id: "a",
       name: "Research",
@@ -96,11 +128,32 @@ describe("ProjectStore", () => {
       createdAt: now,
       updatedAt: now,
       logs: [],
-    });
+    };
+    await expect(store.save({ ...agent, id: "ownerless" })).rejects.toThrow(
+      "owner user is required",
+    );
+    await store.save(agent, "local-admin");
     await store.replaceAgentAccessPolicies("a", [accessPolicyId]);
     expect((await store.get("a"))?.runtime).toBe("openshell");
     expect((await store.get("a"))?.accessPolicyIds).toEqual([accessPolicyId]);
     expect(await store.list()).toHaveLength(1);
+    await store.database().user.create({
+      data: {
+        id: "other-owner",
+        username: "other-owner",
+        email: "other-owner@tasklattice.local",
+        displayName: "Other Owner",
+      },
+    });
+    await store.database().projectMember.create({
+      data: {
+        projectId: store.projectId,
+        userId: "other-owner",
+        role: "developer",
+      },
+    });
+    await store.save({ ...agent, name: "Research updated" }, "other-owner");
+    expect(await store.ownerUserId("a")).toBe("local-admin");
     await store.saveProviderAccount(
       {
         id: "provider-a",
@@ -173,7 +226,7 @@ describe("ProjectStore", () => {
       createdAt: now,
       updatedAt: now,
       logs: [],
-    });
+    }, "local-admin");
     await store.replaceAgentAccessPolicies("current-agent", [accessPolicyId]);
 
     expect((await store.list()).map((agent) => agent.id)).toEqual([

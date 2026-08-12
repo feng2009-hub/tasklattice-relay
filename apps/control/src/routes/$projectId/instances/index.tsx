@@ -7,7 +7,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
-import { AlertTriangle, Boxes, Eye, FileText, Globe2, Info, MoreHorizontal, Plus, RefreshCw, Search, SquareTerminal, Trash2, X } from "lucide-react";
+import { AlertTriangle, Boxes, Eye, Globe2, Info, MoreHorizontal, Plus, RefreshCw, Search, SquareTerminal, Trash2, X } from "lucide-react";
 import { AgentPlatformIcon } from "@/components/agents/agent-platform-icon";
 import { CreateInstanceSheet } from "@/components/agents/create-instance-sheet";
 import { resolveProvisioningState } from "@/components/agents/provisioning-state";
@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 import { formatPlatformDate } from "@/lib/platform-preferences";
 import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
 import { useCurrentProjectId } from "@/hooks/use-project";
+import { useProjectPermissions } from "@/hooks/use-project-permissions";
 
 export const Route = createFileRoute("/$projectId/instances/")({
   validateSearch: z.object({
@@ -96,29 +97,27 @@ function ActionTooltip({ children, label }: { children: ReactElement; label: str
   );
 }
 
-function PrimaryInstanceAction({ instance }: { instance: Agent }) {
+function PrimaryInstanceAction({ canInteract, instance }: { canInteract: boolean; instance: Agent }) {
   const projectId = useCurrentProjectId();
   const platform = getAgentPlatformPresentation(instance.agentPlatform);
-  const endpointReady = instance.httpEndpoint?.status === "READY" && Boolean(instance.httpEndpoint.url);
+  const scope = useProjectQueryScope();
+  const interaction = useQuery({
+    queryKey: scope.key("agent-interaction", instance.id),
+    queryFn: () => api.getAgentInteraction(instance.id),
+    enabled: canInteract && instance.status === "READY",
+    retry: 1,
+    staleTime: 15_000,
+  });
+  const endpoint = interaction.data?.httpEndpoint;
+  const endpointReady = endpoint?.status === "READY" && Boolean(endpoint.url);
 
-  if (instance.status === "READY" && endpointReady && instance.httpEndpoint?.url) {
+  if (instance.status === "READY" && endpointReady && endpoint?.url) {
     return (
       <ActionTooltip label={`Open ${platform.endpointLabel}`}>
         <Button asChild variant="outline" size="icon">
-          <a href={instance.httpEndpoint.url} target="_blank" rel="noreferrer" aria-label={`Open ${platform.endpointLabel} for ${instance.name}`}>
+          <a href={endpoint.url} target="_blank" rel="noreferrer" aria-label={`Open ${platform.endpointLabel} for ${instance.name}`}>
             <Globe2 className="size-[18px]" />
           </a>
-        </Button>
-      </ActionTooltip>
-    );
-  }
-  if (instance.status === "READY") {
-    return (
-      <ActionTooltip label={`Open ${platform.consoleLabel}`}>
-        <Button asChild variant="outline" size="icon">
-          <Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: instance.id }} search={{ tab: "terminal" }} aria-label={`Open ${platform.consoleLabel} for ${instance.name}`}>
-            <SquareTerminal className="size-[18px]" />
-          </Link>
         </Button>
       </ActionTooltip>
     );
@@ -135,15 +134,17 @@ function PrimaryInstanceAction({ instance }: { instance: Agent }) {
     );
   }
   return (
-    <ActionTooltip label="Web UI available after creation">
-      <Button variant="outline" size="icon" disabled aria-label={`Web UI unavailable while ${instance.name} is being created`}>
-        <Globe2 className="size-[18px]" />
+    <ActionTooltip label="View Instance details">
+      <Button asChild variant="outline" size="icon">
+        <Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: instance.id }} aria-label={`View details for ${instance.name}`}>
+          <Eye className="size-[18px]" />
+        </Link>
       </Button>
     </ActionTooltip>
   );
 }
 
-function InstanceActions({ instance, onDelete }: { instance: Agent; onDelete: () => void }) {
+function InstanceActions({ canDelete, canUseTerminal, instance, onDelete }: { canDelete: boolean; canUseTerminal: boolean; instance: Agent; onDelete: () => void }) {
   const projectId = useCurrentProjectId();
   const platform = getAgentPlatformPresentation(instance.agentPlatform);
   return (
@@ -153,10 +154,9 @@ function InstanceActions({ instance, onDelete }: { instance: Agent; onDelete: ()
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem asChild><Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: instance.id }}><Eye />View details</Link></DropdownMenuItem>
-        {instance.status === "READY" ? <DropdownMenuItem asChild><Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: instance.id }} search={{ tab: "terminal" }}><SquareTerminal />Open {platform.consoleLabel}</Link></DropdownMenuItem> : null}
-        <DropdownMenuItem asChild><Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: instance.id }} search={{ tab: "auditor-log" }} hash="provisioning-logs"><FileText />View logs</Link></DropdownMenuItem>
+        {canUseTerminal && instance.status === "READY" ? <DropdownMenuItem asChild><Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: instance.id }} search={{ tab: "terminal" }}><SquareTerminal />Open {platform.consoleLabel}</Link></DropdownMenuItem> : null}
         <DropdownMenuItem disabled><RefreshCw />Restart unavailable</DropdownMenuItem>
-        <DropdownMenuItem
+        {canDelete ? <DropdownMenuItem
           className="text-destructive focus:text-destructive"
           disabled={instance.status === "DESTROYING"}
           onSelect={onDelete}
@@ -165,7 +165,7 @@ function InstanceActions({ instance, onDelete }: { instance: Agent; onDelete: ()
           {instance.status === "DESTROYING"
             ? "Deletion in progress"
             : "Delete Instance"}
-        </DropdownMenuItem>
+        </DropdownMenuItem> : null}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -175,6 +175,7 @@ function Instances() {
   const projectId = useCurrentProjectId();
   const queryClient = useQueryClient();
   const scope = useProjectQueryScope();
+  const permissions = useProjectPermissions();
   const navigate = useNavigate();
   const search = Route.useSearch();
   const [query, setQuery] = useState("");
@@ -195,7 +196,7 @@ function Instances() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Instances" description="View and manage your Agent instances. Start new instances and monitor their status." actions={<Button asChild className="h-11"><Link to="/$projectId/instances" params={{ projectId }} search={{ create: "instance" }}><Plus />Create Instance</Link></Button>} />
+      <PageHeader title="Instances" description="View and manage your Agent instances. Start new instances and monitor their status." actions={permissions.canCreateAgents ? <Button asChild className="h-11"><Link to="/$projectId/instances" params={{ projectId }} search={{ create: "instance" }}><Plus />Create Instance</Link></Button> : undefined} />
 
       {search.created ? <CreationNotice onClose={() => void navigate({ to: "/$projectId/instances", params: { projectId }, search: {}, replace: true })} /> : null}
 
@@ -244,8 +245,8 @@ function Instances() {
                     <span className="pointer-events-none relative z-10 hidden min-w-0 lg:block"><strong className="block truncate text-xs font-medium">{platform.runtimeName}</strong><span className="mt-1 block truncate font-mono text-xs text-muted-foreground">{agent.sandboxName}</span></span>
                     <span className="pointer-events-none relative z-10 hidden text-xs text-muted-foreground lg:block">{relativeTime(agent.updatedAt)}</span>
                     <span className="relative z-20" onClick={(event) => event.stopPropagation()}><InstanceLifecycleStatus instance={agent} /></span>
-                    <span className="relative z-20 justify-self-end lg:justify-self-start" onClick={(event) => event.stopPropagation()}><PrimaryInstanceAction instance={agent} /></span>
-                    <span className="relative z-20 justify-self-end" onClick={(event) => event.stopPropagation()}><InstanceActions instance={agent} onDelete={() => setDeletingInstance(agent)} /></span>
+                    <span className="relative z-20 justify-self-end lg:justify-self-start" onClick={(event) => event.stopPropagation()}><PrimaryInstanceAction canInteract={permissions.canInteractWithAgents} instance={agent} /></span>
+                    <span className="relative z-20 justify-self-end" onClick={(event) => event.stopPropagation()}><InstanceActions canDelete={permissions.canDeleteAgents} canUseTerminal={permissions.canUseAgentTerminal} instance={agent} onDelete={() => setDeletingInstance(agent)} /></span>
                   </div>
                 );
               })}
@@ -255,8 +256,8 @@ function Instances() {
       </Card>
       </TooltipProvider>
 
-      {deletingInstance ? <DeleteInstanceDialog open instanceName={deletingInstance.name} deleting={remove.isPending} onOpenChange={(open) => { if (!open) setDeletingInstance(undefined); }} onConfirm={() => remove.mutate(deletingInstance.id)} {...(remove.error instanceof Error ? { error: remove.error.message } : {})} /> : null}
-      {search.create === "instance" ? (
+      {permissions.canDeleteAgents && deletingInstance ? <DeleteInstanceDialog open instanceName={deletingInstance.name} deleting={remove.isPending} onOpenChange={(open) => { if (!open) setDeletingInstance(undefined); }} onConfirm={() => remove.mutate(deletingInstance.id)} {...(remove.error instanceof Error ? { error: remove.error.message } : {})} /> : null}
+      {permissions.canCreateAgents && search.create === "instance" ? (
         <CreateInstanceSheet
           open
           {...(search.platform ? { initialAgentPlatform: search.platform } : {})}

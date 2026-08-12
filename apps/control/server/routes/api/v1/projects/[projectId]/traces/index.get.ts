@@ -14,7 +14,7 @@ export default defineHandler(async (event) => {
   }
 
   try {
-    await requireProjectRole(event.req, ["admin", "member"]);
+    await requireProjectRole(event.req, ["admin", "user"]);
     return jsonResponse({ data: await repository.list(), source: "fixture" });
   } catch (error) {
     return errorResponse(error);

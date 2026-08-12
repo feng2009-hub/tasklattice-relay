@@ -45,7 +45,7 @@ describe("SmtpInvitationMailer", () => {
       inviterEmail: "admin@example.com",
       inviterName: "Platform Administrator",
       projectName: "AI Platform",
-      role: "member",
+      role: "user",
     });
 
     expect(messages).toHaveLength(1);

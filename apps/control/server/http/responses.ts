@@ -25,6 +25,28 @@ export function errorResponse(error: unknown): Response {
       { status: 400 },
     );
   const message = error instanceof Error ? error.message : "Unexpected error.";
+  const evidence = error && typeof error === "object" && "evidence" in error
+    ? (error as { evidence?: {
+        capability?: string;
+        decision?: string;
+        policyId?: string;
+        reason?: string;
+      } }).evidence
+    : undefined;
+  if (evidence?.decision === "DENY" || evidence?.decision === "APPROVAL_REQUIRED") {
+    return jsonResponse(
+      {
+        error: message,
+        authorization: {
+          capability: evidence.capability,
+          decision: evidence.decision,
+          ...(evidence.policyId ? { policyId: evidence.policyId } : {}),
+          ...(evidence.reason ? { reason: evidence.reason } : {}),
+        },
+      },
+      { status: 403 },
+    );
+  }
   const status = /not found/i.test(message)
     ? 404
     : /access denied|do not have permission/i.test(message)

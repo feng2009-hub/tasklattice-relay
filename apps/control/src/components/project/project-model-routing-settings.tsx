@@ -91,7 +91,13 @@ export function ProjectModelRoutingsSettings({ project }: { project: Project }) 
   const [successMessage, setSuccessMessage] = useState("");
   const [modelSearch, setModelSearch] = useState("");
   const [modelType, setModelType] = useState<ModelTypeFilter>("all");
-  const canManage = project.role === "admin";
+  const canManage = [
+    "CAP_PROVIDER_CREATE",
+    "CAP_MODEL_CREATE",
+    "CAP_MODEL_ROUTING_UPDATE",
+  ].some((capability) => project.effectiveCapabilities.includes(
+    capability as (typeof project.effectiveCapabilities)[number],
+  ));
   const routings = useQuery({
     queryKey: scope.key("model-routings"),
     queryFn: api.listModelRoutings,

@@ -581,6 +581,16 @@ export async function ensureOpenShellWebUiEndpoint(
   name: string,
   agentPlatform: AgentPlatformId,
 ): Promise<string> {
+  if (agentPlatform === "hermes") {
+    // Reconciliation may encounter a service exposed by a pre-CAP release.
+    // Remove that predictable unauthenticated route before reporting Hermes
+    // unavailable so upgrading closes the old interaction bypass as well as
+    // preventing new publication.
+    await deleteOpenShellWebUiEndpoint(name);
+    throw new Error(
+      "Hermes browser interaction is disabled until the routed dashboard supports a user-bound, revocable access token.",
+    );
+  }
   const existing = await runCommand(
     openShellBinary(),
     openShellWebUiServiceArguments(name, "get"),
@@ -599,8 +609,6 @@ export async function ensureOpenShellWebUiEndpoint(
           "OpenShell did not return a NemoClaw Web UI endpoint.",
       );
   }
-
-  if (agentPlatform === "hermes") return endpointUrl;
 
   if (new URL(endpointUrl).origin !== openShellWebUiOrigin(name))
     throw new Error(

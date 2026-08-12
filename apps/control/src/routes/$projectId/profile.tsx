@@ -34,6 +34,7 @@ import {
   detectedTimezone,
 } from "@/lib/platform-preferences";
 import { cn } from "@/lib/utils";
+import { projectRoleLabels } from "@/types/project";
 import {
   getPersonalProfile,
   personalProfileQueryKey,
@@ -328,7 +329,7 @@ function MyAccountPage() {
                           {project.name}
                         </strong>
                         <span className="mt-0.5 block text-xs text-muted-foreground">
-                          {project.role === "admin" ? "Administrator" : "Member"} ·{" "}
+                          {projectRoleLabels[project.role]} ·{" "}
                           {project.type === "personal" ? "Personal" : "Team"}
                         </span>
                       </span>

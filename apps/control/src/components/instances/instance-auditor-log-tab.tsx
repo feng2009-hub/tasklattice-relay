@@ -194,7 +194,10 @@ function AuditorLogViewer({ autoScroll, entries, error, fullScreen, isLoading, o
   );
 }
 
-export function InstanceAuditorLogTab({ agent }: { agent: Agent }) {
+export function InstanceAuditorLogTab({ agent, includeSandboxAudit = true }: {
+  agent: Agent;
+  includeSandboxAudit?: boolean;
+}) {
   const moduleRef = useRef<HTMLDivElement>(null);
   const [stream, setStream] = useState<AuditorLogStream>("all");
   const [level, setLevel] = useState<AuditorLogLevelFilter>("all");
@@ -211,7 +214,10 @@ export function InstanceAuditorLogTab({ agent }: { agent: Agent }) {
     if (stream === "control-plane") return { component: "Control plane" };
     return {};
   }, [stream]);
-  const filters = useMemo(() => ({ level, timeRange, live, search, ...streamFilter }), [level, live, search, streamFilter, timeRange]);
+  const filters = useMemo(
+    () => ({ includeSandboxAudit, level, timeRange, live, search, ...streamFilter }),
+    [includeSandboxAudit, level, live, search, streamFilter, timeRange],
+  );
   const logs = useAuditorLog(agent, filters);
   const visibleLogs = useMemo(() => logs.data.slice(-200), [logs.data]);
 

@@ -2,10 +2,15 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_ACCESS_POLICY_ID } from "../access-policies/default-access-policy";
 import { AuditLogService } from "../audit-logs/audit-log-service";
 import type { AuthPayload, AuthUser } from "../auth/auth";
+import {
+  developmentControlConfig,
+  setControlConfigForTests,
+} from "../config/control-config";
 import type {
   InvitationMailer,
   ProjectInvitationEmail,
 } from "../email/smtp-invitation-mailer";
+import type { LiteLLMAdminClient } from "../providers/litellm-client";
 import { createTestPrisma } from "../test/prisma";
 import { ProjectService } from "./project-service";
 
@@ -273,7 +278,7 @@ describe("ProjectService", () => {
     });
 
     const team = await service.create(administrator, "Agent Operations", [
-      { email: "member@example.com", role: "member" },
+      { email: "member@example.com", role: "user" },
       { email: "future-admin@example.com", role: "admin" },
     ]);
     const administratorId = await service.ensureUser(administrator);
@@ -293,7 +298,7 @@ describe("ProjectService", () => {
         }),
         expect.objectContaining({
           email: "member@example.com",
-          role: "member",
+          role: "user",
           status: "active",
         }),
         expect.objectContaining({
@@ -314,6 +319,55 @@ describe("ProjectService", () => {
     );
   });
 
+  it("redacts member and invitation identities for the Auditor role", async () => {
+    const db = createTestPrisma();
+    const service = new ProjectService(db);
+    const administrator = auth({
+      displayName: "Administrator Name",
+      email: "administrator@example.com",
+      provider: "sso",
+      username: "identity-admin",
+    });
+    const auditor = auth({
+      displayName: "Compliance Auditor",
+      email: "auditor@example.com",
+      provider: "sso",
+      username: "compliance-auditor",
+    });
+    await service.syncAuthUser(administrator.user);
+    await service.syncAuthUser(auditor.user);
+    const administratorId = await service.ensureUser(administrator);
+    const auditorId = await service.ensureUser(auditor);
+    const team = await service.create(administrator, "Redacted Membership", []);
+    await db.projectMember.create({
+      data: { projectId: team.id, userId: auditorId, role: "auditor" },
+    });
+    await db.projectInvitation.create({
+      data: {
+        id: "invite-sensitive",
+        projectId: team.id,
+        email: "future.developer@example.com",
+        role: "developer",
+        invitedBy: administratorId,
+      },
+    });
+
+    const result = await service.members(team.id, auditorId);
+    expect(JSON.stringify(result)).not.toContain("Administrator Name");
+    expect(JSON.stringify(result)).not.toContain("administrator@example.com");
+    expect(JSON.stringify(result)).not.toContain("future.developer@example.com");
+    expect(result).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        email: "a***@example.com",
+        name: expect.stringMatching(/^Project member [a-f0-9]{8}$/),
+      }),
+      expect.objectContaining({
+        email: "f***@example.com",
+        status: "invited",
+      }),
+    ]));
+  });
+
   it("rejects duplicate invitations and inviting the creator", async () => {
     const db = createTestPrisma();
     const service = new ProjectService(db);
@@ -327,13 +381,13 @@ describe("ProjectService", () => {
 
     await expect(
       service.create(administrator, "Duplicate Team", [
-        { email: "member@example.com", role: "member" },
+        { email: "member@example.com", role: "user" },
         { email: "MEMBER@example.com", role: "admin" },
       ]),
     ).rejects.toThrow(/unique/i);
     await expect(
       service.create(administrator, "Creator Team", [
-        { email: "administrator@tali.local", role: "member" },
+        { email: "administrator@tali.local", role: "user" },
       ]),
     ).rejects.toThrow(/already included/i);
   });
@@ -438,6 +492,11 @@ describe("ProjectService", () => {
           name: "alex",
           role: "admin",
           type: "personal",
+          effectiveCapabilities: expect.arrayContaining([
+            "CAP_PROJECT_SETTINGS_UPDATE",
+            "CAP_AGENT_INSTANCE_CREATE",
+            "CAP_AGENT_INSTANCE_DELETE",
+          ]),
         }),
       ]),
     );
@@ -465,13 +524,13 @@ describe("ProjectService", () => {
       id: "test-member",
       provider: "sso" as const,
       systemRole: "user" as const,
-      username: "member",
+      username: "project-user",
     };
     const administratorId = await service.ensureUser(administrator);
     const memberId = await service.syncAuthUser(member);
     const team = await service.create(administrator, "DevOps", []);
 
-    await service.invite(team.id, administratorId, member.email, "member");
+    await service.invite(team.id, administratorId, member.email, "user");
     await expect(
       service.requireRole(team.id, memberId, ["admin"]),
     ).rejects.toThrow(/permission/i);
@@ -560,7 +619,7 @@ describe("ProjectService", () => {
     const team = await service.create(administrator, "Email disabled", []);
 
     await expect(
-      service.invite(team.id, administratorId, "new-user@example.com", "member"),
+      service.invite(team.id, administratorId, "new-user@example.com", "user"),
     ).rejects.toThrow(/SMTP invitation delivery is not configured/i);
     expect(
       await db.projectInvitation.count({ where: { projectId: team.id } }),
@@ -588,7 +647,7 @@ describe("ProjectService", () => {
     const team = await service.create(administrator, "Retry delivery", []);
 
     await expect(
-      service.invite(team.id, administratorId, "retry@example.com", "member"),
+      service.invite(team.id, administratorId, "retry@example.com", "user"),
     ).rejects.toThrow(/Invitation saved.*SMTP delivery failed/i);
     expect(
       await db.projectInvitation.findUnique({
@@ -618,6 +677,153 @@ describe("ProjectService", () => {
     await expect(
       service.removeMember(team.id, administratorId, administratorId),
     ).rejects.toThrow(/at least one administrator/i);
+  });
+
+  it("prevents changing the last project administrator to another role", async () => {
+    const db = createTestPrisma();
+    const service = new ProjectService(db);
+    const administrator = auth({
+      displayName: "Administrator",
+      email: "administrator@tali.local",
+      provider: "sso",
+      username: "administrator",
+    });
+    await service.syncAuthUser(administrator.user);
+    const administratorId = await service.ensureUser(administrator);
+    const team = await service.create(administrator, "Role Safety", []);
+
+    await expect(service.invite(
+      team.id,
+      administratorId,
+      administrator.user.email,
+      "developer",
+    )).rejects.toThrow(/at least one administrator/i);
+  });
+
+  it("serializes concurrent administrator removals and retains one administrator", async () => {
+    const db = createTestPrisma();
+    const service = new ProjectService(db);
+    const first = auth({
+      displayName: "First Administrator",
+      email: "first-admin@example.com",
+      provider: "sso",
+      username: "first-admin",
+    });
+    const second = auth({
+      displayName: "Second Administrator",
+      email: "second-admin@example.com",
+      provider: "sso",
+      username: "second-admin",
+    });
+    await service.syncAuthUser(first.user);
+    await service.syncAuthUser(second.user);
+    const firstId = await service.ensureUser(first);
+    const secondId = await service.ensureUser(second);
+    const team = await service.create(first, "Concurrent Admin Safety", []);
+    await service.invite(team.id, firstId, second.user.email, "admin");
+
+    const outcomes = await Promise.allSettled([
+      service.removeMember(team.id, firstId, secondId),
+      service.removeMember(team.id, secondId, firstId),
+    ]);
+    expect(outcomes.filter(({ status }) => status === "fulfilled")).toHaveLength(1);
+    expect(outcomes.filter(({ status }) => status === "rejected")).toHaveLength(1);
+    await expect(db.projectMember.count({
+      where: { projectId: team.id, role: "admin" },
+    })).resolves.toBe(1);
+  });
+
+  it("prevents removing a member who still owns Project Agent resources", async () => {
+    const db = createTestPrisma();
+    const service = new ProjectService(db);
+    const administrator = auth({
+      displayName: "Administrator",
+      email: "administrator@tali.local",
+      provider: "sso",
+      username: "administrator",
+    });
+    await service.syncAuthUser(administrator.user);
+    const administratorId = await service.ensureUser(administrator);
+    const developer = {
+      displayName: "Developer",
+      email: "developer-owner@example.com",
+      id: "developer-owner",
+      provider: "sso" as const,
+      systemRole: "user" as const,
+      username: "developer-owner",
+    };
+    await service.syncAuthUser(developer);
+    const team = await service.create(administrator, "Owned Resource Safety", []);
+    await service.invite(team.id, administratorId, developer.email, "developer");
+    const now = new Date().toISOString();
+    await db.agentRecord.create({
+      data: {
+        projectId: team.id,
+        id: "owned-agent",
+        ownerUserId: developer.id,
+        createdAt: new Date(now),
+        payload: { id: "owned-agent" },
+      },
+    });
+
+    await expect(
+      service.removeMember(team.id, administratorId, developer.id),
+    ).rejects.toThrow(/Transfer.*Agent Instance/i);
+    await expect(db.projectMember.findUnique({
+      where: {
+        projectId_userId: { projectId: team.id, userId: developer.id },
+      },
+    })).resolves.not.toBeNull();
+  });
+
+  it("keeps membership active when external quota-team revocation fails", async () => {
+    const config = developmentControlConfig();
+    config.litellm.master_key = "test-master-key";
+    setControlConfigForTests(config);
+    try {
+      const db = createTestPrisma();
+      const litellm = {
+        removeProjectTeamMember: async () => {
+          throw new Error("LiteLLM is unavailable");
+        },
+      } as unknown as LiteLLMAdminClient;
+      const service = new ProjectService(db, litellm);
+      const administrator = auth({
+        displayName: "Administrator",
+        email: "revoke-admin@example.com",
+        provider: "sso",
+        username: "revoke-admin",
+      });
+      const member = auth({
+        displayName: "Member",
+        email: "revoke-member@example.com",
+        provider: "sso",
+        username: "revoke-member",
+      });
+      await service.syncAuthUser(administrator.user);
+      await service.syncAuthUser(member.user);
+      const administratorId = await service.ensureUser(administrator);
+      const memberId = await service.ensureUser(member);
+      const team = await service.create(administrator, "Revocation Safety", []);
+      await db.projectMember.create({
+        data: { projectId: team.id, userId: memberId, role: "user" },
+      });
+      await db.projectQuotaRecord.update({
+        where: { projectId: team.id },
+        data: { litellmTeamId: "team-revocation" },
+      });
+
+      await expect(
+        service.removeMember(team.id, administratorId, memberId),
+      ).rejects.toThrow("LiteLLM is unavailable");
+      await expect(db.projectMember.findUnique({
+        where: {
+          projectId_userId: { projectId: team.id, userId: memberId },
+        },
+      })).resolves.not.toBeNull();
+    } finally {
+      setControlConfigForTests(developmentControlConfig());
+    }
   });
 
   it("does not let the system Super Administrator bypass Project membership", async () => {

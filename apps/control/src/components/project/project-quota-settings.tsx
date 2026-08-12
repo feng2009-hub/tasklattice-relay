@@ -32,7 +32,7 @@ const emptyForm: FormState = {
 };
 
 export function ProjectQuotaSettings({ project }: { project: Project }) {
-  const canEdit = useProjectPermissions(project.role).canManageProject;
+  const canEdit = useProjectPermissions().canManageProject;
   const quota = useQuery({
     queryKey: ["project-quota", project.id],
     queryFn: () => getProjectQuota(project.id),

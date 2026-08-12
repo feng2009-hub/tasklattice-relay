@@ -363,17 +363,33 @@ export class ProjectStore {
       .some((specialization) => specialization[specializationField].includes(id));
   }
 
-  async save(agent: Agent): Promise<Agent> {
-    await this.db.agentRecord.upsert({
-      where: { projectId_id: { projectId: this.projectId, id: agent.id } },
-      create: {
-        projectId: this.projectId,
-        id: agent.id,
-        payload: agentPayload(agent),
-        createdAt: agent.createdAt,
-      },
-      update: { payload: agentPayload(agent) },
-    });
+  async save(agent: Agent, ownerUserId?: string): Promise<Agent> {
+    const create = {
+      projectId: this.projectId,
+      id: agent.id,
+      payload: agentPayload(agent),
+      createdAt: agent.createdAt,
+    };
+    if (!ownerUserId) {
+      const updated = await this.db.agentRecord.updateMany({
+        where: { projectId: this.projectId, id: agent.id },
+        data: { payload: agentPayload(agent) },
+      });
+      if (!updated.count) {
+        throw new Error("An owner user is required when creating an Agent Instance.");
+      }
+    } else {
+      await this.db.agentRecord.upsert({
+        where: { projectId_id: { projectId: this.projectId, id: agent.id } },
+        create: {
+          ...create,
+          ownerUserId,
+        },
+        update: {
+          payload: agentPayload(agent),
+        },
+      });
+    }
     const binding = await this.getModelRoutingBindingForAgent(agent.id);
     if (binding) await this.saveBindingAttribution(binding, agent);
     return agent;
@@ -398,9 +414,20 @@ export class ProjectStore {
       : undefined;
   }
 
-  async list(): Promise<Agent[]> {
+  async ownerUserId(id: string): Promise<string | undefined> {
+    const row = await this.db.agentRecord.findUnique({
+      where: { projectId_id: { projectId: this.projectId, id } },
+      select: { ownerUserId: true },
+    });
+    return row?.ownerUserId ?? undefined;
+  }
+
+  async list(ownerUserId?: string): Promise<Agent[]> {
     const rows = await this.db.agentRecord.findMany({
-      where: { projectId: this.projectId },
+      where: {
+        projectId: this.projectId,
+        ...(ownerUserId ? { ownerUserId } : {}),
+      },
       orderBy: { createdAt: "desc" },
       select: {
         payload: true,

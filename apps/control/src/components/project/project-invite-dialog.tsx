@@ -21,21 +21,28 @@ import {
 } from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
 import { inviteMember } from "@/services/project";
-import type { HumanProjectMember, Project } from "@/types/project";
+import {
+  projectRoleLabels,
+  type HumanProjectMember,
+  type Project,
+  type ProjectRole,
+} from "@/types/project";
 
 export function ProjectInviteDialog({
+  canAssignRoles,
   onInvited,
   onOpenChange,
   open,
   project,
 }: {
+  canAssignRoles: boolean;
   onInvited: (member: HumanProjectMember) => void | Promise<void>;
   onOpenChange: (open: boolean) => void;
   open: boolean;
   project: Project;
 }) {
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<"admin" | "member">("member");
+  const [role, setRole] = useState<ProjectRole>("developer");
   const invite = useMutation({
     mutationFn: () => inviteMember(project.id, { email: email.trim(), role }),
     onSuccess: async (member) => {
@@ -47,7 +54,7 @@ export function ProjectInviteDialog({
   useEffect(() => {
     if (!open) {
       setEmail("");
-      setRole("member");
+      setRole("developer");
       invite.reset();
     }
   }, [open]);
@@ -90,8 +97,9 @@ export function ProjectInviteDialog({
             <div className="space-y-2">
               <Label htmlFor="project-invite-role">Role</Label>
               <Select
+                disabled={!canAssignRoles}
                 value={role}
-                onValueChange={(value) => setRole(value as "admin" | "member")}
+                onValueChange={(value) => setRole(value as ProjectRole)}
               >
                 <SelectTrigger
                   id="project-invite-role"
@@ -100,22 +108,12 @@ export function ProjectInviteDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="admin">
-                    <span className="flex flex-col items-start">
-                      <span>Admin</span>
-                      <span className="text-xs text-muted-foreground">
-                        Invite people and manage Project resources
-                      </span>
-                    </span>
-                  </SelectItem>
-                  <SelectItem value="member">
-                    <span className="flex flex-col items-start">
-                      <span>Member</span>
-                      <span className="text-xs text-muted-foreground">
-                        Use resources and create agents
-                      </span>
-                    </span>
-                  </SelectItem>
+                  {(["developer", "user", "auditor", "admin", "approver"] as const)
+                    .map((roleId) => (
+                      <SelectItem key={roleId} value={roleId}>
+                        {projectRoleLabels[roleId]}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -140,7 +138,7 @@ export function ProjectInviteDialog({
             <Button
               className="h-11"
               type="submit"
-              disabled={invite.isPending || !email.trim()}
+              disabled={invite.isPending || !email.trim() || !canAssignRoles}
             >
               {invite.isPending ? <Spinner /> : <Send />}
               Send invite

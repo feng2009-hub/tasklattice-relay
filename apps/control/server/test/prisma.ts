@@ -22,6 +22,7 @@ import instanceAccessPolicyBindingsMigration from "../../prisma/migrations/20260
 import defaultAccessPolicyMigration from "../../prisma/migrations/20260803000000_default_access_policy/migration.sql?raw";
 import reconcileSpecializationCapabilitiesMigration from "../../prisma/migrations/20260803010000_reconcile_specialization_capabilities/migration.sql?raw";
 import modelRoutingDomainMigration from "../../prisma/migrations/20260803020000_model_routing_domain/migration.sql?raw";
+import capabilityAdmissionMigration from "../../prisma/migrations/20260812000000_project_capability_admission/migration.sql?raw";
 import { developmentResourceCatalog } from "../catalog/development-resource-catalog";
 import { PrismaClient } from "../generated/prisma/client";
 
@@ -35,8 +36,25 @@ export function createTestPrisma(): PrismaClient {
     returns: DataType.timestamptz,
     implementation: (seconds: number) => new Date(seconds * 1_000),
   });
+  memory.public.registerFunction({
+    name: "pg_advisory_xact_lock",
+    args: [DataType.integer, DataType.integer],
+    returns: DataType.integer,
+    implementation: () => 1,
+  });
   // pg-mem models NUMERIC values but does not parse PostgreSQL precision
   // metadata. Production migrations retain Prisma's DECIMAL(65,30).
+  if (
+    !migration.includes(
+      "ENUM ('admin', 'auditor', 'developer', 'user', 'approver')",
+    )
+    || migration.includes("'member'")
+    || migration.includes("'end_user'")
+    || !migration.includes("owner_user_id TEXT NOT NULL")
+    || !migration.includes("agents_owner_membership_fkey")
+  ) {
+    throw new Error("Initial Project role and Agent ownership schema is incomplete.");
+  }
   memory.public.none(migration.replaceAll("DECIMAL(65,30)", "NUMERIC"));
   memory.public.none(seedMigration);
   memory.public.none(virtualEmployeeMigration.replaceAll("DECIMAL(18,6)", "NUMERIC"));
@@ -59,6 +77,13 @@ export function createTestPrisma(): PrismaClient {
   memory.public.none(liteLLMResourceControlPlaneMigration);
   memory.public.none(accessPoliciesMigration);
   memory.public.none(auditLogsMigration);
+  if (
+    !agentGardenMigration.includes("agent_catalog_owner_membership_fkey")
+    || !agentGardenMigration.includes("agent_catalog_owner_kind_check")
+    || !agentGardenMigration.includes("agent_catalog_project_owner_idx")
+  ) {
+    throw new Error("Agent Garden ownership schema is incomplete.");
+  }
   memory.public.none(agentGardenMigration);
   memory.public.none(vendorSkillArtifactsMigration);
   memory.public.none(auditLogQueryAndTraceMigration);
@@ -225,6 +250,41 @@ export function createTestPrisma(): PrismaClient {
       ON DELETE CASCADE ON UPDATE CASCADE;
     ALTER TABLE tasklattice.model_profile_audit RENAME TO model_routing_audit;
     ALTER TABLE tasklattice.model_routing_audit RENAME COLUMN model_profile_id TO model_routing_id;
+  `);
+  if (
+    !capabilityAdmissionMigration.includes("authorization_environment")
+    || !capabilityAdmissionMigration.includes("WHEN type = 'personal' THEN 'DEV'")
+    || !capabilityAdmissionMigration.includes("authorization_environment IN ('DEV', 'UAT', 'PROD')")
+    || !capabilityAdmissionMigration.includes("authorization_capability")
+    || capabilityAdmissionMigration.includes("ALTER TYPE tasklattice.project_role")
+    || capabilityAdmissionMigration.includes("backfill")
+  ) {
+    throw new Error("Project capability admission migration is incomplete.");
+  }
+  // pg-mem applies the authorization-environment and audit additions using an
+  // equivalent sequence because it does not support every multi-action ALTER
+  // TABLE form used by PostgreSQL.
+  memory.public.none(`
+    ALTER TABLE tasklattice.projects
+      ADD COLUMN authorization_environment TEXT NOT NULL DEFAULT 'PROD';
+    UPDATE tasklattice.projects
+      SET authorization_environment = CASE
+        WHEN type = 'personal' THEN 'DEV'
+        ELSE 'PROD'
+      END;
+    ALTER TABLE tasklattice.projects
+      ADD CONSTRAINT projects_authorization_environment_check
+      CHECK (authorization_environment IN ('DEV', 'UAT', 'PROD'));
+    ALTER TABLE tasklattice.audit_logs
+      ADD COLUMN authorization_capability TEXT,
+      ADD COLUMN authorization_reason TEXT;
+    ALTER TABLE tasklattice.audit_logs
+      DROP CONSTRAINT audit_logs_authorization_decision_check;
+    ALTER TABLE tasklattice.audit_logs
+      ADD CONSTRAINT audit_logs_authorization_decision_check
+      CHECK (authorization_decision IN ('allowed', 'denied', 'approval_required'));
+    CREATE INDEX audit_logs_project_capability_idx
+      ON tasklattice.audit_logs(project_id, authorization_capability, occurred_at DESC);
   `);
   const pg = memory.adapters.createPg();
   const query = pg.Client.prototype.query;

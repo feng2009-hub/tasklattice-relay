@@ -6,7 +6,7 @@ import { getProjectQuotaService, requireProjectRole } from "../../../../../../se
 export default defineHandler(async (event) => {
   try { requireAuth(event.req); } catch (error) { return unauthorizedResponse(error); }
   try {
-    await requireProjectRole(event.req, ["admin", "member"]);
+    await requireProjectRole(event.req, ["admin", "user"]);
     return jsonResponse(await (await getProjectQuotaService(event.req)).get());
   } catch (error) {
     return errorResponse(error);

@@ -121,11 +121,14 @@ describe("AgentGardenService", () => {
 
     await service.snapshot();
     await expect(service.store.listAgents()).resolves.toHaveLength(16);
+    await expect(
+      service.store.ownerUserId("adk-customer-service"),
+    ).resolves.toBeUndefined();
   });
 
   it("connects a callable built-in demo without duplicating its card", async () => {
     const projectStore = createTestStore();
-    await projectStore.save(coordinator());
+    await projectStore.save(coordinator(), "local-admin");
     const service = new AgentGardenService(
       new AgentGardenStore(projectStore.projectId, projectStore.database()),
       projectStore,
@@ -150,7 +153,7 @@ describe("AgentGardenService", () => {
 
   it("connects a database-seeded example blueprint", async () => {
     const projectStore = createTestStore();
-    await projectStore.save(coordinator());
+    await projectStore.save(coordinator(), "local-admin");
     const service = new AgentGardenService(
       new AgentGardenStore(projectStore.projectId, projectStore.database()),
       projectStore,
@@ -179,7 +182,7 @@ describe("AgentGardenService", () => {
 
   it("registers, discovers, connects, and disconnects an A2A Agent", async () => {
     const projectStore = createTestStore();
-    await projectStore.save(coordinator());
+    await projectStore.save(coordinator(), "local-admin");
     const discovery: AgentDiscoveryClient = {
       discover: vi.fn(async (agent) => ({
         endpoint: agent.endpoint!,
@@ -206,7 +209,10 @@ describe("AgentGardenService", () => {
       secrets,
     );
 
-    const agent = await service.register(githubAgentInput);
+    await expect(service.register(githubAgentInput)).rejects.toThrow(
+      "owner user is required",
+    );
+    const agent = await service.register(githubAgentInput, "local-admin");
     expect(agent).toMatchObject({
       source: "PROJECT_REGISTERED",
       status: "READY",
@@ -219,6 +225,28 @@ describe("AgentGardenService", () => {
     expect(agent.skills.map((skill) => skill.id)).toEqual([
       "daily-repository-triage",
     ]);
+    await projectStore.database().user.create({
+      data: {
+        id: "other-owner",
+        username: "other-owner",
+        email: "other-owner@tasklattice.local",
+        displayName: "Other Owner",
+      },
+    });
+    await projectStore.database().projectMember.create({
+      data: {
+        projectId: projectStore.projectId,
+        userId: "other-owner",
+        role: "developer",
+      },
+    });
+    await service.store.saveAgent(
+      { ...agent, description: "Updated without ownership transfer." },
+      "other-owner",
+    );
+    await expect(service.store.ownerUserId(agent.id)).resolves.toBe(
+      "local-admin",
+    );
 
     const connection = await service.connect({
       coordinatorInstanceId: "coordinator-a",
@@ -237,7 +265,7 @@ describe("AgentGardenService", () => {
 
   it("rejects an interactive-only registered Agent connection", async () => {
     const projectStore = createTestStore();
-    await projectStore.save(coordinator());
+    await projectStore.save(coordinator(), "local-admin");
     const discovery: AgentDiscoveryClient = {
       discover: vi.fn(async (agent) => ({
         endpoint: agent.endpoint!,
@@ -250,11 +278,14 @@ describe("AgentGardenService", () => {
       projectStore,
       discovery,
     );
-    const interactive = await service.register({
-      ...githubAgentInput,
-      name: "Interactive repository workbench",
-      usageMode: "INTERACTIVE",
-    });
+    const interactive = await service.register(
+      {
+        ...githubAgentInput,
+        name: "Interactive repository workbench",
+        usageMode: "INTERACTIVE",
+      },
+      "local-admin",
+    );
 
     await expect(
       service.connect({

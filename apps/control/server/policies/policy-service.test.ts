@@ -141,7 +141,7 @@ describe("PolicyService", () => {
       createdAt: now,
       updatedAt: now,
       logs: [],
-    });
+    }, "local-admin");
 
     await expect(service.delete(policy.id)).rejects.toThrow(
       "assigned to an Instance",

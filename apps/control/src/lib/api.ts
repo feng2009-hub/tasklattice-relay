@@ -2,6 +2,8 @@ import type {
   AccessPolicy,
   AccessPolicyVersion,
   Agent,
+  AgentInteractionAccess,
+  AgentRuntimeLogView,
   AgentConnection,
   AgentGardenEntry,
   AgentGardenSnapshot,
@@ -403,6 +405,14 @@ export const api = {
   listAgents: async () =>
     (await request<{ data: Agent[] }>("/api/v1/instances")).data,
   getAgent: (id: string) => request<Agent>(`/api/v1/instances/${id}`),
+  getAgentInteraction: (id: string) =>
+    request<AgentInteractionAccess>(
+      `/api/v1/instances/${encodeURIComponent(id)}/interaction`,
+    ),
+  getAgentLogs: (id: string) =>
+    request<AgentRuntimeLogView>(
+      `/api/v1/instances/${encodeURIComponent(id)}/logs`,
+    ),
   getAgentAudit: async (id: string) =>
     (
       await request<{ data: SandboxAuditEvent[] }>(

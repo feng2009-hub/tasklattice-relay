@@ -15,7 +15,7 @@ export default defineHandler(async (event) => {
   }
 
   try {
-    await requireProjectRole(event.req, ["admin", "member"]);
+    await requireProjectRole(event.req, ["admin", "user"]);
     const traceId = z.string().regex(/^[0-9a-f]{32}$/).parse(event.context.params?.traceId);
     const trace = await repository.getById(traceId);
     return trace

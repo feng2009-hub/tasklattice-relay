@@ -14,8 +14,9 @@ import {
 } from "../../../../../../../services";
 
 export default defineHandler(async (event) => {
+  let actorId: string;
   try {
-    requireAuth(event.req);
+    actorId = requireAuth(event.req).sub;
   } catch (error) {
     return unauthorizedResponse(error);
   }
@@ -24,7 +25,7 @@ export default defineHandler(async (event) => {
     const input = createAgentGardenEntrySchema.parse(await event.req.json());
     const created = await (
       await getAgentGardenService(event.req)
-    ).register(input);
+    ).register(input, actorId);
     return jsonResponse(created, {
       status: 201,
       headers: {

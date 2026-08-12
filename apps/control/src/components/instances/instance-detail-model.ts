@@ -93,10 +93,16 @@ export function getInstanceAccessState(
   agent: Agent,
   targets?: TerminalTarget[],
   terminalOptions: Parameters<typeof getTerminalAccessState>[2] = {},
+  canInteractAgent = true,
 ): InstanceAccessState {
   const ready = agent.status === "READY";
   const webUrl = agent.httpEndpoint?.status === "READY" ? agent.httpEndpoint.url : undefined;
-  const webUI = ready && webUrl
+  const webUI = !canInteractAgent
+    ? {
+        enabled: false,
+        disabledReason: "You do not have permission to interact with this Agent.",
+      }
+    : ready && webUrl
     ? { enabled: true, url: webUrl }
     : {
         enabled: false,

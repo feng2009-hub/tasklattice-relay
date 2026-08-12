@@ -6,6 +6,7 @@ import type {
   PlatformAuditLogQuery,
   PlatformAuditOutcome,
   PlatformAuditSortDirection,
+  ProjectCapability,
 } from "@tali/contracts";
 import { randomUUID } from "node:crypto";
 import { prisma } from "../db/prisma";
@@ -28,7 +29,9 @@ export interface AuditLogWriteInput {
   };
   authorization: {
     role: string;
-    decision: "allowed" | "denied";
+    decision: "allowed" | "denied" | "approval_required";
+    capability?: ProjectCapability;
+    reason?: string;
   };
   action: string;
   verb: string;
@@ -93,6 +96,7 @@ function decodeCursor(value: string, direction: PlatformAuditSortDirection): Aud
 
 function mapEvent(
   row: Prisma.AuditLogRecordGetPayload<Record<string, never>>,
+  includeSensitiveContent = true,
 ): PlatformAuditLogEvent {
   const parameters = optionalObject(row.parameters);
   const metadata = optionalObject(row.metadata);
@@ -109,7 +113,11 @@ function mapEvent(
     authorization: {
       scope: "project",
       role: row.authorizationRole,
-      decision: row.authorizationDecision as "allowed" | "denied",
+      decision: row.authorizationDecision as "allowed" | "denied" | "approval_required",
+      ...(row.authorizationCapability
+        ? { capability: row.authorizationCapability as ProjectCapability }
+        : {}),
+      ...(row.authorizationReason ? { reason: row.authorizationReason } : {}),
     },
     action: row.action,
     verb: row.verb,
@@ -127,7 +135,9 @@ function mapEvent(
       ipAddress: row.ipAddress,
       userAgent: row.userAgent,
       ...(parameters ? { parameters } : {}),
-      ...(row.requestBody !== null ? { body: row.requestBody } : {}),
+      ...(includeSensitiveContent && row.requestBody !== null
+        ? { body: row.requestBody }
+        : {}),
     },
     ...(row.traceId
       ? {
@@ -159,6 +169,12 @@ export class AuditLogService {
         ...(input.actor.email ? { actorEmail: input.actor.email } : {}),
         authorizationRole: input.authorization.role,
         authorizationDecision: input.authorization.decision,
+        ...(input.authorization.capability
+          ? { authorizationCapability: input.authorization.capability }
+          : {}),
+        ...(input.authorization.reason
+          ? { authorizationReason: input.authorization.reason }
+          : {}),
         action: input.action,
         verb: input.verb,
         objectType: input.object.type,
@@ -271,7 +287,10 @@ export class AuditLogService {
     };
   }
 
-  async list(input: PlatformAuditLogQuery = {}): Promise<PlatformAuditLogListResponse> {
+  async list(
+    input: PlatformAuditLogQuery = {},
+    options: { includeSensitiveContent?: boolean } = {},
+  ): Promise<PlatformAuditLogListResponse> {
     const limit = Math.min(Math.max(input.limit ?? 50, 1), 100);
     const direction = input.direction ?? "desc";
     const baseWhere = this.where(input);
@@ -316,7 +335,9 @@ export class AuditLogService {
     const last = visibleRows.at(-1);
 
     return {
-      data: visibleRows.map(mapEvent),
+      data: visibleRows.map((row) =>
+        mapEvent(row, options.includeSensitiveContent ?? false)
+      ),
       totalCount,
       facets,
       ...(hasNextPage && last
@@ -340,6 +361,9 @@ export class AuditLogService {
         { id: direction },
       ],
     });
-    return rows.map(mapEvent);
+    // CAP_AUDIT_EXPORT authorizes the audit envelope, not retained request
+    // bodies. Raw bodies require CAP_AUDIT_SENSITIVE_CONTENT_VIEW and are not
+    // part of the CSV export contract.
+    return rows.map((row) => mapEvent(row, false));
   }
 }

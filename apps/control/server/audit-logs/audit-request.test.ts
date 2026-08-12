@@ -91,6 +91,60 @@ describe("platform audit request capture", () => {
     ))).toBeUndefined();
   });
 
+  it("captures only the sensitive audit read paths", async () => {
+    await expect(captureAuditRequest(new Request(
+      "http://tali.local/api/v1/projects/individual/instances/agent-1/audit",
+    ))).resolves.toMatchObject({
+      descriptor: {
+        action: "instance.audit_view",
+        objectId: "agent-1",
+        objectType: "Instance Audit",
+        operation: "view",
+        projectId: "individual",
+      },
+    });
+    await expect(captureAuditRequest(new Request(
+      "http://tali.local/api/v1/projects/individual/audit-logs?include_sensitive=true",
+    ))).resolves.toMatchObject({
+      descriptor: {
+        action: "audit_log.sensitive_content_view",
+        objectType: "Audit Log",
+        operation: "view",
+        projectId: "individual",
+      },
+    });
+    await expect(captureAuditRequest(new Request(
+      "http://tali.local/api/v1/projects/individual/audit-logs/?include_sensitive=true",
+    ))).resolves.toMatchObject({
+      descriptor: { action: "audit_log.sensitive_content_view" },
+    });
+    await expect(captureAuditRequest(new Request(
+      "http://tali.local/api/v1/projects/individual/audit-logs",
+    ))).resolves.toBeUndefined();
+    await expect(captureAuditRequest(new Request(
+      "http://tali.local/api/v1/projects/individual/instances/agent-1/interaction",
+    ))).resolves.toMatchObject({
+      descriptor: {
+        action: "instance.interact",
+        objectId: "agent-1",
+        objectType: "Agent Instance",
+        operation: "view",
+        projectId: "individual",
+      },
+    });
+    await expect(captureAuditRequest(new Request(
+      "http://tali.local/api/v1/projects/individual/instances/agent-1/logs",
+    ))).resolves.toMatchObject({
+      descriptor: {
+        action: "instance.logs_view",
+        objectId: "agent-1",
+        objectType: "Runtime Log",
+        operation: "view",
+        projectId: "individual",
+      },
+    });
+  });
+
   it("classifies every side-effect API route", async () => {
     const routeRoot = fileURLToPath(new URL("../routes/api/v1", import.meta.url));
     const routeFiles = readdirSync(routeRoot, {
@@ -119,5 +173,123 @@ describe("platform audit request capture", () => {
 
     expect(uncovered).toEqual([]);
     expect(routeFiles).toHaveLength(42);
+  });
+
+  it("persists the exact CAP decision instead of inferring it from HTTP status", async () => {
+    database = createTestPrisma();
+    const captured = await captureAuditRequest(new Request(
+      "http://tali.local/api/v1/projects/individual/instances/00000000-0000-4000-8000-000000000001",
+      {
+        method: "DELETE",
+        headers: { "x-request-id": "request-cap-approval" },
+      },
+    ));
+    captured!.admission = [{
+      actorId: "local-admin",
+      capability: "CAP_AGENT_INSTANCE_DELETE",
+      decision: "APPROVAL_REQUIRED",
+      environment: "PROD",
+      policyId: "builtin:prod:governed-change",
+      projectId: "individual",
+      reason: "Agent deletion requires approval in PROD.",
+      relation: "OWNER",
+      resourceId: "00000000-0000-4000-8000-000000000001",
+      resourceType: "AgentInstance",
+      roleId: "ROLE_AGENT_DEVELOPER",
+    }];
+
+    await writeAuditResponse(
+      captured!,
+      new Response(JSON.stringify({ error: "Approval required." }), {
+        status: 403,
+        headers: { "content-type": "application/json" },
+      }),
+      database,
+    );
+
+    const row = await database.auditLogRecord.findFirstOrThrow({
+      where: { requestId: "request-cap-approval" },
+    });
+    expect(row).toMatchObject({
+      authorizationCapability: "CAP_AGENT_INSTANCE_DELETE",
+      authorizationDecision: "approval_required",
+      authorizationReason: "Agent deletion requires approval in PROD.",
+      authorizationRole: "ROLE_AGENT_DEVELOPER",
+      outcome: "denied",
+    });
+    expect(row.metadata).toMatchObject({
+      admission: [{
+        capability: "CAP_AGENT_INSTANCE_DELETE",
+        decision: "APPROVAL_REQUIRED",
+        policyId: "builtin:prod:governed-change",
+        relation: "OWNER",
+      }],
+    });
+  });
+
+  it("keeps the primary route CAP searchable while retaining all admitted CAPs", async () => {
+    database = createTestPrisma();
+    const captured = await captureAuditRequest(new Request(
+      "http://tali.local/api/v1/projects/individual/instances",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-request-id": "request-multi-cap-primary",
+        },
+        body: JSON.stringify({ name: "Multi-cap Agent" }),
+      },
+    ));
+    captured!.admission = [
+      {
+        actorId: "local-admin",
+        capability: "CAP_AGENT_INSTANCE_CREATE",
+        decision: "ALLOW",
+        environment: "DEV",
+        projectId: "individual",
+        reason: "Primary route capability allowed.",
+        relation: "OWNER",
+        resourceType: "AgentInstance",
+        roleId: "ROLE_AGENT_DEVELOPER",
+      },
+      {
+        actorId: "local-admin",
+        capability: "CAP_AGENT_INSTANCE_MODEL_ROUTING_ASSIGN",
+        decision: "ALLOW",
+        environment: "DEV",
+        projectId: "individual",
+        reason: "Additional binding capability allowed.",
+        relation: "OWNER",
+        resourceType: "AgentInstance",
+        roleId: "ROLE_AGENT_DEVELOPER",
+      },
+    ];
+
+    await writeAuditResponse(
+      captured!,
+      new Response(JSON.stringify({ id: "agent-multi", name: "Multi-cap Agent" }), {
+        status: 201,
+        headers: { "content-type": "application/json" },
+      }),
+      database,
+    );
+
+    const row = await database.auditLogRecord.findFirstOrThrow({
+      where: { requestId: "request-multi-cap-primary" },
+    });
+    expect(row).toMatchObject({
+      authorizationCapability: "CAP_AGENT_INSTANCE_CREATE",
+      authorizationDecision: "allowed",
+      authorizationReason: "Primary route capability allowed.",
+    });
+    expect(row.metadata).toMatchObject({
+      admission: [
+        { capability: "CAP_AGENT_INSTANCE_CREATE", decision: "ALLOW" },
+        {
+          capability: "CAP_AGENT_INSTANCE_MODEL_ROUTING_ASSIGN",
+          decision: "ALLOW",
+        },
+      ],
+    });
   });
 });

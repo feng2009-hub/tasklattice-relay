@@ -8,6 +8,7 @@ import {
   jsonResponse,
 } from "../../../../../../http/responses";
 import { getAgentGardenService } from "../../../../../../services";
+import { ownerFilterForCapability } from "../../../../../../authorization/authorization-context";
 
 export default defineHandler(async (event) => {
   try {
@@ -17,7 +18,9 @@ export default defineHandler(async (event) => {
   }
   try {
     return jsonResponse(
-      await (await getAgentGardenService(event.req)).snapshot(),
+      await (await getAgentGardenService(event.req)).snapshot(
+        ownerFilterForCapability(event.req, "CAP_AGENT_REGISTRATION_VIEW"),
+      ),
     );
   } catch (error) {
     return errorResponse(error);

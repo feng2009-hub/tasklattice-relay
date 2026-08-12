@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireAuth, unauthorizedResponse } from "../../../../../../../auth/auth";
 import { errorResponse, jsonResponse } from "../../../../../../../http/responses";
 import { getAgentService } from "../../../../../../../services";
+import { agentConfigurationView } from "../../../../../../../agents/agent-http-view";
 
 export default defineHandler(async (event) => {
   try {
@@ -14,7 +15,7 @@ export default defineHandler(async (event) => {
     const id = z.string().uuid().parse(event.context.params?.instanceId);
     const agent = await (await getAgentService(event.req)).get(id);
     return agent
-      ? jsonResponse(agent)
+      ? jsonResponse(agentConfigurationView(agent))
       : jsonResponse({ error: "Agent not found." }, { status: 404 });
   } catch (error) {
     return errorResponse(error);

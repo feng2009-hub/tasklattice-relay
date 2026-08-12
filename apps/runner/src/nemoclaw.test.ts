@@ -8,6 +8,7 @@ import { getAgentPlatformRuntime } from "./agent-platform.js";
 import {
   composeOpenShellInferencePolicy,
   deepSeekProviderCreateCommand,
+  ensureOpenShellWebUiEndpoint,
   isOpenShellProviderAttachedError,
   openShellNemoClawProbeArguments,
   openShellAuditArguments,
@@ -370,6 +371,12 @@ describe("OpenShell Kubernetes command contract", () => {
     expect(tokenizedOpenClawUrl(endpoint, "secret value\n")).toBe(
       `${endpoint}#token=secret+value`,
     );
+  });
+
+  it("fails Hermes browser exposure closed until it has revocable authentication", async () => {
+    vi.stubEnv("OPENSHELL_BIN", "true");
+    await expect(ensureOpenShellWebUiEndpoint("hermes", "hermes"))
+      .rejects.toThrow(/user-bound, revocable access token/i);
   });
 
   it("round-trips bounded browser terminal resize messages", () => {

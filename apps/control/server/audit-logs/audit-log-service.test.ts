@@ -13,7 +13,10 @@ afterEach(async () => {
 describe("AuditLogService", () => {
   it("returns structured Project events with retained request attachments", async () => {
     database = createTestPrisma();
-    const result = await new AuditLogService("individual", database).list();
+    const result = await new AuditLogService("individual", database).list(
+      {},
+      { includeSensitiveContent: true },
+    );
     const events = result.data;
 
     expect(events).toHaveLength(8);
@@ -78,6 +81,22 @@ describe("AuditLogService", () => {
       outcome: "denied",
       object: { name: "Production GitHub" },
     });
+  });
+
+  it("redacts retained request bodies unless sensitive-content access was admitted", async () => {
+    database = createTestPrisma();
+    const result = await new AuditLogService("individual", database).list(
+      {},
+      { includeSensitiveContent: false },
+    );
+    expect(result.data.every((event) => event.request.body === undefined)).toBe(true);
+  });
+
+  it("never includes retained request bodies in audit exports", async () => {
+    database = createTestPrisma();
+    const events = await new AuditLogService("individual", database).listForExport();
+    expect(events.length).toBeGreaterThan(0);
+    expect(events.every((event) => event.request.body === undefined)).toBe(true);
   });
 
   it("purges only events older than the 90-day retention window", async () => {

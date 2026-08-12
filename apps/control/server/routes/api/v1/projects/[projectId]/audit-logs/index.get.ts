@@ -16,11 +16,16 @@ export default defineHandler(async (event) => {
 
   try {
     await requireProjectRole(event.req, ["admin"]);
-    return jsonResponse(
-      await (await getAuditLogService(event.req)).list(
-        parseAuditLogQuery(event.req),
-      ),
+    const includeSensitiveContent = new URL(event.req.url).searchParams.get(
+      "include_sensitive",
+    ) === "true";
+    const data = await (await getAuditLogService(event.req)).list(
+      parseAuditLogQuery(event.req),
+      { includeSensitiveContent },
     );
+    return jsonResponse(data, includeSensitiveContent
+      ? { headers: { "cache-control": "no-store" } }
+      : {});
   } catch (error) {
     return errorResponse(error);
   }

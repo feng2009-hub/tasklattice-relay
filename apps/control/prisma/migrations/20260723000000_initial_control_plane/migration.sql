@@ -1,6 +1,6 @@
 CREATE SCHEMA IF NOT EXISTS tasklattice;
 
-CREATE TYPE tasklattice.project_role AS ENUM ('admin', 'member');
+CREATE TYPE tasklattice.project_role AS ENUM ('admin', 'auditor', 'developer', 'user', 'approver');
 
 CREATE TABLE IF NOT EXISTS tasklattice.users (
   id TEXT PRIMARY KEY,
@@ -47,9 +47,17 @@ CREATE TABLE IF NOT EXISTS tasklattice.agents (
   project_id TEXT NOT NULL REFERENCES tasklattice.projects(id) ON DELETE CASCADE ON UPDATE CASCADE,
   id TEXT NOT NULL,
   payload JSONB NOT NULL,
+  owner_user_id TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL,
-  PRIMARY KEY (project_id, id)
+  PRIMARY KEY (project_id, id),
+  CONSTRAINT agents_owner_membership_fkey
+    FOREIGN KEY (project_id, owner_user_id)
+    REFERENCES tasklattice.project_members(project_id, user_id)
+    ON DELETE RESTRICT ON UPDATE CASCADE
 );
+
+CREATE INDEX agents_project_owner_idx
+  ON tasklattice.agents(project_id, owner_user_id);
 
 CREATE TABLE IF NOT EXISTS tasklattice.provider_accounts (
   project_id TEXT NOT NULL REFERENCES tasklattice.projects(id) ON DELETE CASCADE ON UPDATE CASCADE,

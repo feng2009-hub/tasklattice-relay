@@ -12,7 +12,10 @@ datasource db {
 
 enum ProjectRole {
   admin
-  member
+  auditor
+  developer
+  user
+  approver
 
   @@map("project_role")
   @@schema("tasklattice")
@@ -107,44 +110,45 @@ model LocalCredential {
 }
 
 model Project {
-  id        String    @id
-  name      String    @unique(map: "projects_name_key")
-  type      String
-  avatar    String?
-  createdBy String    @map("created_by")
-  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
-  deletedBy String?   @map("deleted_by")
+  id                       String    @id
+  name                     String    @unique(map: "projects_name_key")
+  type                     String
+  authorizationEnvironment String    @default("PROD") @map("authorization_environment")
+  avatar                   String?
+  createdBy                String    @map("created_by")
+  createdAt                DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt                DateTime? @map("deleted_at") @db.Timestamptz(6)
+  deletedBy                String?   @map("deleted_by")
 
-  creator                         User                                        @relation("ProjectCreator", fields: [createdBy], references: [id])
-  humanMembers                    ProjectMember[]
-  invitations                     ProjectInvitation[]
-  agents                          AgentRecord[]
-  agentCatalogEntries             AgentCatalogRecord[]
-  agentConnections                AgentConnectionRecord[]
-  providerAccounts                ProviderAccountRecord[]
-  modelDeployments                ModelDeploymentRecord[]
-  inferenceGateways               InferenceGatewayRecord[]
-  modelRoutings                   ModelRoutingRecord[]
-  modelRoutingBindings            ModelRoutingBindingRecord[]
-  modelRoutingAudit               ModelRoutingAuditRecord[]
-  sandboxPolicies                 SandboxPolicyRecord[]
-  accessPolicies                  AccessPolicyRecord[]
-  accessPolicyVersions            AccessPolicyVersionRecord[]
-  instanceAccessPolicyBindings     AgentInstanceAccessPolicyBindingRecord[]
-  skills                          SkillRecord[]
-  mcpServers                      McpServerRecord[]
-  knowledgeSources                KnowledgeSourceRecord[]
-  specializations                 AgentSpecializationRecord[]
-  costAttributions                CostAttributionMappingRecord[]
-  modelEndpointMaps               ModelEndpointMappingRecord[]
-  usageFacts                      ModelUsageFactRecord[]
-  usageObservations               ModelUsageFactObservation[]
-  usageDaily                      ModelUsageDailyRecord[]
-  costSyncCheckpoints             CostSyncCheckpointRecord[]
-  auditLogs                       AuditLogRecord[]
-  quota                           ProjectQuotaRecord?
+  creator                      User                                     @relation("ProjectCreator", fields: [createdBy], references: [id])
+  humanMembers                 ProjectMember[]
+  invitations                  ProjectInvitation[]
+  agents                       AgentRecord[]
+  agentCatalogEntries          AgentCatalogRecord[]
+  agentConnections             AgentConnectionRecord[]
+  providerAccounts             ProviderAccountRecord[]
+  modelDeployments             ModelDeploymentRecord[]
+  inferenceGateways            InferenceGatewayRecord[]
+  modelRoutings                ModelRoutingRecord[]
+  modelRoutingBindings         ModelRoutingBindingRecord[]
+  modelRoutingAudit            ModelRoutingAuditRecord[]
+  sandboxPolicies              SandboxPolicyRecord[]
+  accessPolicies               AccessPolicyRecord[]
+  accessPolicyVersions         AccessPolicyVersionRecord[]
+  instanceAccessPolicyBindings AgentInstanceAccessPolicyBindingRecord[]
+  skills                       SkillRecord[]
+  mcpServers                   McpServerRecord[]
+  knowledgeSources             KnowledgeSourceRecord[]
+  specializations              AgentSpecializationRecord[]
+  costAttributions             CostAttributionMappingRecord[]
+  modelEndpointMaps            ModelEndpointMappingRecord[]
+  usageFacts                   ModelUsageFactRecord[]
+  usageObservations            ModelUsageFactObservation[]
+  usageDaily                   ModelUsageDailyRecord[]
+  costSyncCheckpoints          CostSyncCheckpointRecord[]
+  auditLogs                    AuditLogRecord[]
+  quota                        ProjectQuotaRecord?
 
   @@map("projects")
   @@schema("tasklattice")
@@ -174,33 +178,35 @@ model ProjectQuotaRecord {
 }
 
 model AuditLogRecord {
-  recordId              String   @id @default(uuid()) @map("record_id")
-  projectId             String?  @map("project_id")
-  id                    String
-  occurredAt            DateTime @map("occurred_at") @db.Timestamptz(6)
-  actorType              String   @map("actor_type")
-  actorId                String   @map("actor_id")
-  actorName              String   @map("actor_name")
-  actorEmail             String?  @map("actor_email")
-  authorizationRole     String   @map("authorization_role")
-  authorizationDecision String   @map("authorization_decision")
-  action                 String
-  verb                   String
-  objectType             String   @map("object_type")
-  objectId               String   @map("object_id")
-  objectName             String   @map("object_name")
-  outcome                String
-  summary                String
-  requestId              String   @map("request_id")
-  httpMethod             String   @map("http_method")
-  route                  String
-  ipAddress              String   @map("ip_address")
-  userAgent              String   @map("user_agent")
-  parameters             Json?
-  requestBody            Json?    @map("request_body")
-  traceId                String?   @map("trace_id")
-  spanId                 String?   @map("span_id")
-  metadata               Json?
+  recordId                String   @id @default(uuid()) @map("record_id")
+  projectId               String?  @map("project_id")
+  id                      String
+  occurredAt              DateTime @map("occurred_at") @db.Timestamptz(6)
+  actorType               String   @map("actor_type")
+  actorId                 String   @map("actor_id")
+  actorName               String   @map("actor_name")
+  actorEmail              String?  @map("actor_email")
+  authorizationRole       String   @map("authorization_role")
+  authorizationDecision   String   @map("authorization_decision")
+  authorizationCapability String?  @map("authorization_capability")
+  authorizationReason     String?  @map("authorization_reason")
+  action                  String
+  verb                    String
+  objectType              String   @map("object_type")
+  objectId                String   @map("object_id")
+  objectName              String   @map("object_name")
+  outcome                 String
+  summary                 String
+  requestId               String   @map("request_id")
+  httpMethod              String   @map("http_method")
+  route                   String
+  ipAddress               String   @map("ip_address")
+  userAgent               String   @map("user_agent")
+  parameters              Json?
+  requestBody             Json?    @map("request_body")
+  traceId                 String?  @map("trace_id")
+  spanId                  String?  @map("span_id")
+  metadata                Json?
 
   project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
@@ -209,6 +215,7 @@ model AuditLogRecord {
   @@index([projectId, occurredAt(sort: Desc)])
   @@index([projectId, actorId, occurredAt(sort: Desc)])
   @@index([projectId, action, occurredAt(sort: Desc)])
+  @@index([projectId, authorizationCapability, occurredAt(sort: Desc)], map: "audit_logs_project_capability_idx")
   @@index([projectId, traceId])
   @@map("audit_logs")
   @@schema("tasklattice")
@@ -220,8 +227,10 @@ model ProjectMember {
   role      ProjectRole
   joinedAt  DateTime    @default(now()) @map("joined_at") @db.Timestamptz(6)
 
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project            Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user               User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ownedAgents        AgentRecord[]        @relation("AgentRecordOwnerMembership")
+  ownedCatalogAgents AgentCatalogRecord[] @relation("AgentCatalogRecordOwnerMembership")
 
   @@id([projectId, userId])
   @@map("project_members")
@@ -247,30 +256,38 @@ model ProjectInvitation {
 }
 
 model AgentRecord {
-  projectId String   @map("project_id")
-  id        String
-  payload   Json
-  createdAt DateTime @map("created_at") @db.Timestamptz(6)
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  outboundAgentConnections AgentConnectionRecord[] @relation("CoordinatorAgentConnections")
-  accessPolicyBindings       AgentInstanceAccessPolicyBindingRecord[]
+  projectId                String                                   @map("project_id")
+  id                       String
+  payload                  Json
+  ownerUserId              String                                   @map("owner_user_id")
+  createdAt                DateTime                                 @map("created_at") @db.Timestamptz(6)
+  project                  Project                                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  ownerMembership          ProjectMember                            @relation("AgentRecordOwnerMembership", fields: [projectId, ownerUserId], references: [projectId, userId], onDelete: Restrict, map: "agents_owner_membership_fkey")
+  outboundAgentConnections AgentConnectionRecord[]                  @relation("CoordinatorAgentConnections")
+  accessPolicyBindings     AgentInstanceAccessPolicyBindingRecord[]
 
   @@id([projectId, id])
+  @@index([projectId, ownerUserId], map: "agents_project_owner_idx")
   @@map("agents")
   @@schema("tasklattice")
 }
 
 model AgentCatalogRecord {
-  projectId String   @map("project_id")
-  id        String
-  payload   Json
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  projectId   String   @map("project_id")
+  id          String
+  payload     Json
+  // BUILT_IN catalog entries are platform-owned; PROJECT_REGISTERED entries
+  // must have a same-Project member owner (enforced by a database CHECK + FK).
+  ownerUserId String?  @map("owner_user_id")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  project     Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  connections AgentConnectionRecord[]
+  project         Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  ownerMembership ProjectMember?          @relation("AgentCatalogRecordOwnerMembership", fields: [projectId, ownerUserId], references: [projectId, userId], onDelete: Restrict, map: "agent_catalog_owner_membership_fkey")
+  connections     AgentConnectionRecord[]
 
   @@id([projectId, id])
+  @@index([projectId, ownerUserId], map: "agent_catalog_project_owner_idx")
   @@index([projectId, updatedAt(sort: Desc)], map: "agent_catalog_updated_idx")
   @@map("agent_catalog")
   @@schema("tasklattice")
@@ -285,9 +302,9 @@ model AgentConnectionRecord {
   createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt             DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  project          Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  coordinator      AgentRecord        @relation("CoordinatorAgentConnections", fields: [projectId, coordinatorInstanceId], references: [projectId, id], onDelete: Cascade)
-  connectedAgent   AgentCatalogRecord @relation(fields: [projectId, connectedAgentId], references: [projectId, id], onDelete: Restrict)
+  project        Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  coordinator    AgentRecord        @relation("CoordinatorAgentConnections", fields: [projectId, coordinatorInstanceId], references: [projectId, id], onDelete: Cascade)
+  connectedAgent AgentCatalogRecord @relation(fields: [projectId, connectedAgentId], references: [projectId, id], onDelete: Restrict)
 
   @@id([projectId, id])
   @@unique([projectId, coordinatorInstanceId, connectedAgentId], map: "agent_connections_unique_binding")
@@ -399,7 +416,7 @@ model AccessPolicyRecord {
   createdAt DateTime @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @map("updated_at") @db.Timestamptz(6)
 
-  project  Project                     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project          Project                                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   versions         AccessPolicyVersionRecord[]
   instanceBindings AgentInstanceAccessPolicyBindingRecord[]
 
@@ -410,11 +427,11 @@ model AccessPolicyRecord {
 }
 
 model AgentInstanceAccessPolicyBindingRecord {
-  projectId     String   @map("project_id")
-  instanceId    String   @map("instance_id")
+  projectId      String   @map("project_id")
+  instanceId     String   @map("instance_id")
   accessPolicyId String   @map("access_policy_id")
-  boundAt       DateTime @default(now()) @map("bound_at") @db.Timestamptz(6)
-  boundBy       String   @map("bound_by")
+  boundAt        DateTime @default(now()) @map("bound_at") @db.Timestamptz(6)
+  boundBy        String   @map("bound_by")
 
   project      Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
   instance     AgentRecord        @relation(fields: [projectId, instanceId], references: [projectId, id], onDelete: Cascade)
@@ -443,19 +460,19 @@ model AccessPolicyVersionRecord {
 }
 
 model SkillArtifactRecord {
-  id                    String   @id
-  skillId               String   @map("skill_id")
-  version               String
-  digest                String   @unique
-  archiveFormat         String   @map("archive_format")
-  contentType           String   @map("content_type")
-  archive               Bytes    @db.ByteA
-  compressedSizeBytes   Int      @map("compressed_size_bytes")
-  unpackedSizeBytes     Int      @map("unpacked_size_bytes")
-  fileCount             Int      @map("file_count")
-  manifest              Json
-  sourcePath            String   @map("source_path")
-  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  id                  String   @id
+  skillId             String   @map("skill_id")
+  version             String
+  digest              String   @unique
+  archiveFormat       String   @map("archive_format")
+  contentType         String   @map("content_type")
+  archive             Bytes    @db.ByteA
+  compressedSizeBytes Int      @map("compressed_size_bytes")
+  unpackedSizeBytes   Int      @map("unpacked_size_bytes")
+  fileCount           Int      @map("file_count")
+  manifest            Json
+  sourcePath          String   @map("source_path")
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@unique([skillId, version])
   @@index([skillId])
@@ -478,19 +495,19 @@ model SkillRecord {
 }
 
 model McpServerRecord {
-  projectId             String             @map("project_id")
-  id                    String
-  litellmServerId       String             @unique @map("litellm_server_id")
-  payload               Json
-  discoveryStatus       McpDiscoveryStatus @default(UNCHECKED) @map("discovery_status")
+  projectId              String             @map("project_id")
+  id                     String
+  litellmServerId        String             @unique @map("litellm_server_id")
+  payload                Json
+  discoveryStatus        McpDiscoveryStatus @default(UNCHECKED) @map("discovery_status")
   lastDiscoveryAttemptAt DateTime?          @map("last_discovery_attempt_at") @db.Timestamptz(6)
-  lastDiscoveredAt      DateTime?           @map("last_discovered_at") @db.Timestamptz(6)
-  lastDiscoveryError    String?             @map("last_discovery_error")
-  sortOrder             Int                @default(1000) @map("sort_order")
-  createdAt             DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt             DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  project               Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  tools                 McpToolRecord[]
+  lastDiscoveredAt       DateTime?          @map("last_discovered_at") @db.Timestamptz(6)
+  lastDiscoveryError     String?            @map("last_discovery_error")
+  sortOrder              Int                @default(1000) @map("sort_order")
+  createdAt              DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  project                Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tools                  McpToolRecord[]
 
   @@id([projectId, id])
   @@map("mcp_servers")
@@ -498,16 +515,16 @@ model McpServerRecord {
 }
 
 model McpToolRecord {
-  projectId    String   @map("project_id")
-  mcpServerId  String   @map("mcp_server_id")
+  projectId    String          @map("project_id")
+  mcpServerId  String          @map("mcp_server_id")
   name         String
   title        String?
   description  String?
-  inputSchema  Json     @map("input_schema")
-  outputSchema Json?    @map("output_schema")
+  inputSchema  Json            @map("input_schema")
+  outputSchema Json?           @map("output_schema")
   annotations  Json?
-  discoveredAt DateTime @map("discovered_at") @db.Timestamptz(6)
-  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  discoveredAt DateTime        @map("discovered_at") @db.Timestamptz(6)
+  updatedAt    DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   server       McpServerRecord @relation(fields: [projectId, mcpServerId], references: [projectId, id], onDelete: Cascade)
 
   @@id([projectId, mcpServerId, name])

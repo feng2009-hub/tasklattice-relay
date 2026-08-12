@@ -84,6 +84,7 @@ async function saveInstance(
     data: {
       projectId: projects.projectId,
       id: "instance-a",
+      ownerUserId: "local-admin",
       createdAt: discoveredAt,
       payload: {
         schemaVersion: 2,

@@ -14,9 +14,10 @@ function DisabledAction({ children, reason }: { children: React.ReactElement; re
   return <Tooltip><TooltipTrigger asChild><span className="inline-flex">{children}</span></TooltipTrigger><TooltipContent>{reason}</TooltipContent></Tooltip>;
 }
 
-export function InstanceHeader({ access, agent, onDelete, platform }: {
+export function InstanceHeader({ access, agent, canDelete, onDelete, platform }: {
   access: InstanceAccessState;
   agent: Agent;
+  canDelete: boolean;
   onDelete: () => void;
   platform: AgentPlatformPresentation;
 }) {
@@ -50,17 +51,19 @@ export function InstanceHeader({ access, agent, onDelete, platform }: {
               <DropdownMenuItem disabled className="items-start"><Pencil className="mt-0.5" /><span><span className="block">Edit configuration</span><span className="block text-[10px] font-normal text-muted-foreground">Runtime reconciliation is not available.</span></span></DropdownMenuItem>
               <DropdownMenuItem disabled className="items-start"><RefreshCw className="mt-0.5" /><span><span className="block">Restart Instance</span><span className="block text-[10px] font-normal text-muted-foreground">No restart API is configured.</span></span></DropdownMenuItem>
               <DropdownMenuItem asChild><Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: agent.id }} search={{ tab: "auditor-log" }} hash="provisioning-logs"><FileText />View provisioning logs</Link></DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="text-destructive focus:text-destructive"
-                disabled={agent.status === "DESTROYING"}
-                onSelect={onDelete}
-              >
-                <Trash2 />
-                {agent.status === "DESTROYING"
-                  ? "Deletion in progress"
-                  : "Delete Instance"}
-              </DropdownMenuItem>
+              {canDelete ? <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  disabled={agent.status === "DESTROYING"}
+                  onSelect={onDelete}
+                >
+                  <Trash2 />
+                  {agent.status === "DESTROYING"
+                    ? "Deletion in progress"
+                    : "Delete Instance"}
+                </DropdownMenuItem>
+              </> : null}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

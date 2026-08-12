@@ -13,6 +13,18 @@ import { ProviderService } from "./providers/provider-service";
 import { ProjectService, type ProjectRole } from "./projects/project-service";
 import { ProjectQuotaService } from "./quotas/project-quota-service";
 import { AuditLogService } from "./audit-logs/audit-log-service";
+import type {
+  ProjectCapability,
+  ResourceRelation,
+} from "@tali/contracts";
+import {
+  ProjectAdmissionService,
+  type AdmissionResult,
+} from "./authorization/admission-control";
+import {
+  appendAdmissionEvidence,
+  isProjectAdmissionComplete,
+} from "./authorization/authorization-context";
 
 interface ProjectServices {
   agent: AgentService;
@@ -29,6 +41,7 @@ interface ProjectServices {
 
 const litellm = new LiteLLMClient();
 const projectService = new ProjectService();
+const projectAdmissionService = new ProjectAdmissionService();
 const services = new Map<string, ProjectServices>();
 
 function createServices(projectId: string): ProjectServices {
@@ -79,10 +92,54 @@ export async function requireProjectRole(
   request: Request,
   roles: ProjectRole[],
 ): Promise<void> {
+  if (isProjectAdmissionComplete(request)) return;
   const context = await projectService.resolve(request);
   if (!roles.includes(context.role)) {
     throw new Error("You do not have permission to perform this project action.");
   }
+}
+
+export interface ProjectCapabilityOptions {
+  relation?: ResourceRelation;
+  resourceId?: string;
+  resourceType: string;
+}
+
+export async function requireProjectCapability(
+  request: Request,
+  capability: ProjectCapability,
+  options: ProjectCapabilityOptions,
+): Promise<AdmissionResult> {
+  const { userId } = await projectService.authenticate(request);
+  return projectAdmissionService.authorize(
+    request,
+    userId,
+    capability,
+    {
+      ...options,
+    },
+  );
+}
+
+/**
+ * Project creation is a system-scoped entitlement, not a permission inherited
+ * from whichever Project happens to be selected in the UI. Every active,
+ * authenticated user currently receives it explicitly.
+ */
+export async function requireProjectCreateCapability(
+  request: Request,
+): Promise<void> {
+  const { userId } = await projectService.authenticate(request);
+  appendAdmissionEvidence(request, {
+    actorId: userId,
+    capability: "CAP_PROJECT_CREATE",
+    decision: "ALLOW",
+    environment: "DEV",
+    projectId: "system",
+    reason: "Active authenticated users receive the system Project-create entitlement.",
+    relation: "PROJECT_ANY",
+    resourceType: "Project",
+  });
 }
 
 export async function getAgentService(request?: Request): Promise<AgentService> {

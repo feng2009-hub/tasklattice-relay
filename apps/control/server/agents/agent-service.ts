@@ -95,9 +95,9 @@ export class AgentService {
     ),
   ) {}
 
-  async list(): Promise<Agent[]> {
+  async list(ownerUserId?: string): Promise<Agent[]> {
     return Promise.all(
-      (await this.store.list()).map((agent) => this.refresh(agent)),
+      (await this.store.list(ownerUserId)).map((agent) => this.refresh(agent)),
     );
   }
 
@@ -111,7 +111,7 @@ export class AgentService {
     return agent ? this.runner.getSandboxAudit(agent.sandboxName) : undefined;
   }
 
-  async create(input: CreateAgentInput): Promise<Agent> {
+  async create(input: CreateAgentInput, ownerUserId?: string): Promise<Agent> {
     await this.quotas.assertCanCreate("instances");
     const catalog = await this.catalog.catalog();
     if (
@@ -217,7 +217,7 @@ export class AgentService {
       logs: ["Agent request accepted. Waiting for the NemoClaw Runtime Host."],
     };
     try {
-      await this.store.save(agent);
+      await this.store.save(agent, ownerUserId);
       await this.store.replaceAgentAccessPolicies(id, input.accessPolicyIds);
       await this.store.costAnalytics().saveAttribution({
         id: `instance-key:${id}:${instanceKey.tokenId.slice(-12)}`,

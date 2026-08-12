@@ -75,12 +75,12 @@ export class AgentGardenService {
     readonly secrets: SecretStore = createSecretStore(),
   ) {}
 
-  async snapshot(): Promise<AgentGardenSnapshot> {
+  async snapshot(ownerUserId?: string): Promise<AgentGardenSnapshot> {
     const [, connections] = await Promise.all([
       this.store.ensureAgents(databaseAgentCatalog),
-      this.store.listConnections(),
+      this.store.listConnections(ownerUserId),
     ]);
-    const persistedAgents = await this.store.listAgents();
+    const persistedAgents = await this.store.listAgents(ownerUserId);
     const builtInIds = new Set(
       builtInAgentCatalog.map((agent) => agent.id),
     );
@@ -108,6 +108,7 @@ export class AgentGardenService {
 
   async register(
     rawInput: CreateAgentGardenEntryInput,
+    ownerUserId?: string,
   ): Promise<AgentGardenEntry> {
     const input = createAgentGardenEntrySchema.parse(rawInput);
     const now = new Date().toISOString();
@@ -137,7 +138,7 @@ export class AgentGardenService {
       lastDiscoveredAt: null,
       lastDiscoveryError: null,
     });
-    await this.store.saveAgent(agent);
+    await this.store.saveAgent(agent, ownerUserId);
     return this.discover(agent.id);
   }
 

@@ -399,18 +399,21 @@ async function createConfiguredInstance(
   setup: Awaited<ReturnType<typeof configuredService>>,
   overrides: Partial<CreateAgentInput> = {},
 ) {
-  return setup.service.create({
-    name: "Research Assistant",
-    description: "",
-    runtime: "openshell",
-    accessPolicyIds: [setup.policy.id],
-    modelRoutingId: "routing-a",
-    agentPlatform: "openclaw",
-    policyId: "restricted",
-    systemPrompt: "Research the request and report the resulting evidence.",
-    knowledgeSourceIds: ["engineering-handbook"],
-    ...overrides,
-  });
+  return setup.service.create(
+    {
+      name: "Research Assistant",
+      description: "",
+      runtime: "openshell",
+      accessPolicyIds: [setup.policy.id],
+      modelRoutingId: "routing-a",
+      agentPlatform: "openclaw",
+      policyId: "restricted",
+      systemPrompt: "Research the request and report the resulting evidence.",
+      knowledgeSourceIds: ["engineering-handbook"],
+      ...overrides,
+    },
+    "local-admin",
+  );
 }
 
 describe("Instance Access Policy lifecycle", () => {

@@ -1,8 +1,10 @@
+import { assignableProjectMembershipRoles } from "@tali/contracts";
 import { z } from "zod";
 import { defineHandler } from "nitro";
 import { requireAuth, unauthorizedResponse } from "../../../../auth/auth";
 import { errorResponse, jsonResponse } from "../../../../http/responses";
 import { ProjectService } from "../../../../projects/project-service";
+import { requireProjectCreateCapability } from "../../../../services";
 
 const inputSchema = z.object({
   confirmImmutableName: z.literal(true, {
@@ -11,7 +13,7 @@ const inputSchema = z.object({
   name: z.string().trim().min(2).max(80),
   invitations: z.array(z.object({
     email: z.email().transform((email) => email.trim().toLowerCase()),
-    role: z.enum(["admin", "member"]),
+    role: z.enum(assignableProjectMembershipRoles),
   })).max(25),
 }).superRefine(({ invitations }, context) => {
   const seen = new Set<string>();
@@ -31,6 +33,7 @@ export default defineHandler(async (event) => {
   let auth;
   try { auth = requireAuth(event.req); } catch (error) { return unauthorizedResponse(error); }
   try {
+    await requireProjectCreateCapability(event.req);
     const service = new ProjectService();
     const input = inputSchema.parse(await event.req.json());
     return jsonResponse(

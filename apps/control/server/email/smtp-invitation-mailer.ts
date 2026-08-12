@@ -51,7 +51,13 @@ export class SmtpInvitationMailer implements InvitationMailer {
   ): Promise<void> {
     this.assertConfigured();
     const loginUrl = this.publicUrl!.replace(/\/$/, "");
-    const roleLabel = invitation.role === "admin" ? "Administrator" : "Member";
+    const roleLabel = ({
+      admin: "Project Administrator",
+      auditor: "Auditor",
+      developer: "Agent Developer",
+      user: "User",
+      approver: "Approver",
+    } as const)[invitation.role];
     const subject = `You are invited to ${invitation.projectName} on TaskLattice Relay`;
     const text = [
       `${invitation.inviterName} (${invitation.inviterEmail}) invited you to join ${invitation.projectName} as ${roleLabel}.`,

@@ -18,12 +18,16 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Spinner } from "@/components/ui/spinner";
 import { useProject } from "@/hooks/use-project";
-import { useProjectPermissions } from "@/hooks/use-project-permissions";
+import { permissionsForCapabilities } from "@/hooks/use-project-permissions";
 import {
   getProjectMembers,
   removeMember,
 } from "@/services/project";
-import type { HumanProjectMember, Project } from "@/types/project";
+import {
+  projectRoleLabels,
+  type HumanProjectMember,
+  type Project,
+} from "@/types/project";
 
 function memberInitials(member: HumanProjectMember): string {
   return member.name
@@ -36,7 +40,9 @@ function memberInitials(member: HumanProjectMember): string {
 export function ProjectMembers({ project }: { project: Project }) {
   const queryClient = useQueryClient();
   const { refreshProjects } = useProject();
-  const permissions = useProjectPermissions(project.role);
+  const permissions = permissionsForCapabilities(
+    project.effectiveCapabilities,
+  );
   const [inviteOpen, setInviteOpen] = useState(false);
   const members = useQuery({
     queryKey: ["project", project.id, "members"],
@@ -70,7 +76,7 @@ export function ProjectMembers({ project }: { project: Project }) {
               : `${people.length} ${people.length === 1 ? "person" : "people"} with Project access`}
           </p>
         </div>
-        {permissions.canManageProject ? (
+        {permissions.canInviteMembers && permissions.canAssignRoles ? (
           <Button
             className="h-11"
             size="sm"
@@ -135,9 +141,9 @@ export function ProjectMembers({ project }: { project: Project }) {
                   </span>
                 </span>
                 <span className="hidden text-xs font-medium capitalize text-muted-foreground sm:block">
-                  {member.role}
+                  {projectRoleLabels[member.role]}
                 </span>
-                {permissions.canManageProject ? (
+                {permissions.canRemoveMembers ? (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button
@@ -187,6 +193,7 @@ export function ProjectMembers({ project }: { project: Project }) {
       ) : null}
 
       <ProjectInviteDialog
+        canAssignRoles={permissions.canAssignRoles}
         project={project}
         open={inviteOpen}
         onOpenChange={setInviteOpen}

@@ -181,7 +181,7 @@ function ProjectSidebar({ logout, pathname, user }: {
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
   const [toastProject, setToastProject] = useState("");
   const projectId = currentProject?.id ?? "individual";
-  const permissions = useProjectPermissions(currentProject?.role);
+  const permissions = useProjectPermissions();
   return (
     <ToastProvider duration={3_000} swipeDirection="right">
       <Sidebar collapsible="icon">

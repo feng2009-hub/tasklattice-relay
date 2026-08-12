@@ -262,6 +262,80 @@ export const openApiDocument = {
         },
       },
     },
+    "/projects/{projectId}/authorization/capabilities": {
+      parameters: [projectIdParameter],
+      get: {
+        operationId: "listProjectCapabilities",
+        summary: "List the immutable CAP registry used by Project admission",
+        responses: {
+          "200": {
+            description: "Capability registry",
+            ...json({
+              type: "object",
+              required: ["data"],
+              properties: {
+                data: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    required: ["id", "sideEffect", "sensitiveContent"],
+                    properties: {
+                      id: { type: "string", pattern: "^CAP_[A-Z0-9_]+$" },
+                      sideEffect: { type: "boolean" },
+                      sensitiveContent: { type: "boolean" },
+                    },
+                  },
+                },
+              },
+            }),
+          },
+        },
+      },
+    },
+    "/projects/{projectId}/authorization/roles": {
+      parameters: [projectIdParameter],
+      get: {
+        operationId: "listBuiltinProjectRoles",
+        summary: "List builtin Project roles and their effective CAP bindings",
+        responses: {
+          "200": {
+            description: "Builtin Project roles",
+            ...json({
+              type: "object",
+              required: ["data"],
+              properties: {
+                data: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    required: ["id", "name", "description", "immutable", "grants", "capabilities", "relations"],
+                    properties: {
+                      id: { type: "string", enum: ["ROLE_PROJECT_ADMIN", "ROLE_AUDITOR", "ROLE_AGENT_DEVELOPER", "ROLE_USER", "ROLE_APPROVER"] },
+                      name: { type: "string" },
+                      description: { type: "string" },
+                      immutable: { type: "boolean", const: true },
+                      grants: {
+                        type: "array",
+                        items: {
+                          type: "object",
+                          required: ["capability", "relations"],
+                          properties: {
+                            capability: { type: "string", pattern: "^CAP_[A-Z0-9_]+$" },
+                            relations: { type: "array", items: { type: "string", enum: ["OWNER", "MAINTAINER", "ASSIGNED", "SESSION_PARTICIPANT", "PROJECT_ANY"] } },
+                          },
+                        },
+                      },
+                      capabilities: { type: "array", items: { type: "string", pattern: "^CAP_[A-Z0-9_]+$" } },
+                      relations: { type: "array", items: { type: "string", enum: ["OWNER", "MAINTAINER", "ASSIGNED", "SESSION_PARTICIPANT", "PROJECT_ANY"] } },
+                    },
+                  },
+                },
+              },
+            }),
+          },
+        },
+      },
+    },
     "/projects/{projectId}/catalog": {
       parameters: [projectIdParameter],
       get: {
@@ -924,6 +998,34 @@ export const openApiDocument = {
         },
       },
     },
+    "/projects/{projectId}/instances/{instanceId}/interaction": {
+      parameters: [projectIdParameter, instanceId],
+      get: {
+        operationId: "getAgentInteractionAccess",
+        summary: "Resolve the browser endpoint after CAP_AGENT_INSTANCE_INTERACT admission",
+        responses: {
+          "200": {
+            description: "Sensitive Agent interaction access; never cache this response",
+            ...json({ $ref: "#/components/schemas/AgentInteractionAccess" }),
+          },
+          "404": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
+    "/projects/{projectId}/instances/{instanceId}/logs": {
+      parameters: [projectIdParameter, instanceId],
+      get: {
+        operationId: "getAgentRuntimeLogs",
+        summary: "Read Instance runtime diagnostics after CAP_AGENT_INSTANCE_LOG_VIEW admission",
+        responses: {
+          "200": {
+            description: "Sensitive Instance runtime diagnostics; never cache this response",
+            ...json({ $ref: "#/components/schemas/AgentRuntimeLogView" }),
+          },
+          "404": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
     "/projects/{projectId}/instances/{instanceId}/terminal-sessions": {
       parameters: [projectIdParameter, instanceId],
       post: {
@@ -1040,7 +1142,7 @@ export const openApiDocument = {
           id: { type: "string" },
           kind: { type: "string", const: "human" },
           name: { type: "string" },
-          role: { type: "string", enum: ["admin", "member"] },
+          role: { type: "string", enum: ["admin", "auditor", "developer", "user", "approver"] },
           status: { type: "string", enum: ["active", "invited"] },
         },
       },
@@ -1705,6 +1807,24 @@ export const openApiDocument = {
             },
           },
         ],
+      },
+      AgentInteractionAccess: {
+        type: "object",
+        required: ["instanceId", "status"],
+        properties: {
+          instanceId: { type: "string", format: "uuid" },
+          status: { type: "string", enum: ["PROVISIONING", "READY", "FAILED", "DESTROYING"] },
+          httpEndpoint: { $ref: "#/components/schemas/HttpEndpoint" },
+        },
+      },
+      AgentRuntimeLogView: {
+        type: "object",
+        required: ["instanceId", "logs"],
+        properties: {
+          instanceId: { type: "string", format: "uuid" },
+          logs: { type: "array", items: { type: "string" } },
+          error: { type: "string" },
+        },
       },
       HttpEndpoint: {
         type: "object",

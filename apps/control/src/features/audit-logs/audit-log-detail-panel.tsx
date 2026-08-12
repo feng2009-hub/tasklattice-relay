@@ -191,6 +191,12 @@ export function AuditLogDetailPanel({
               <Fact label="Time" value={formatPlatformDateTime(event.occurredAt, { timeStyle: "medium" })} />
               <Fact label="Actor" value={`${event.actor.name}${event.actor.email ? ` · ${event.actor.email}` : ""}`} />
               <Fact label="Authorization" value={`${titleCase(event.authorization.decision)} · ${titleCase(event.authorization.role)}`} />
+              {event.authorization.capability ? (
+                <Fact label="Required capability" value={event.authorization.capability} mono />
+              ) : null}
+              {event.authorization.reason ? (
+                <Fact label="Authorization reason" value={event.authorization.reason} />
+              ) : null}
               <Fact label="Actor type" value={titleCase(event.actor.type)} />
               <Fact label="Action" value={event.action} mono />
               <Fact label="Object" value={`${event.object.type} · ${event.object.name}`} />

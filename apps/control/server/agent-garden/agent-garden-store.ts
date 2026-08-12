@@ -21,8 +21,28 @@ export class AgentGardenStore {
     return this.db;
   }
 
-  async saveAgent(agent: AgentGardenEntry): Promise<AgentGardenEntry> {
+  async saveAgent(
+    agent: AgentGardenEntry,
+    ownerUserId?: string,
+  ): Promise<AgentGardenEntry> {
     const parsed = agentGardenEntrySchema.parse(agent);
+    const timestamps = {
+      createdAt: parsed.createdAt ? new Date(parsed.createdAt) : new Date(),
+      updatedAt: parsed.updatedAt ? new Date(parsed.updatedAt) : new Date(),
+    };
+    if (!ownerUserId) {
+      const updated = await this.db.agentCatalogRecord.updateMany({
+        where: { projectId: this.projectId, id: parsed.id },
+        data: {
+          payload: jsonInput(parsed),
+          updatedAt: timestamps.updatedAt,
+        },
+      });
+      if (updated.count) return parsed;
+      if (parsed.source !== "BUILT_IN") {
+        throw new Error("An owner user is required when creating an Agent Garden entry.");
+      }
+    }
     await this.db.agentCatalogRecord.upsert({
       where: {
         projectId_id: {
@@ -34,12 +54,12 @@ export class AgentGardenStore {
         projectId: this.projectId,
         id: parsed.id,
         payload: jsonInput(parsed),
-        createdAt: parsed.createdAt ? new Date(parsed.createdAt) : new Date(),
-        updatedAt: parsed.updatedAt ? new Date(parsed.updatedAt) : new Date(),
+        ...(ownerUserId ? { ownerUserId } : {}),
+        ...timestamps,
       },
       update: {
         payload: jsonInput(parsed),
-        updatedAt: parsed.updatedAt ? new Date(parsed.updatedAt) : new Date(),
+        updatedAt: timestamps.updatedAt,
       },
     });
     return parsed;
@@ -88,9 +108,20 @@ export class AgentGardenStore {
     return row ? agentGardenEntrySchema.parse(row.payload) : undefined;
   }
 
-  async listAgents(): Promise<AgentGardenEntry[]> {
+  async ownerUserId(id: string): Promise<string | undefined> {
+    const row = await this.db.agentCatalogRecord.findUnique({
+      where: { projectId_id: { projectId: this.projectId, id } },
+      select: { ownerUserId: true },
+    });
+    return row?.ownerUserId ?? undefined;
+  }
+
+  async listAgents(ownerUserId?: string): Promise<AgentGardenEntry[]> {
     const rows = await this.db.agentCatalogRecord.findMany({
-      where: { projectId: this.projectId },
+      where: {
+        projectId: this.projectId,
+        ...(ownerUserId ? { ownerUserId } : {}),
+      },
       orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
       select: { payload: true },
     });
@@ -122,9 +153,12 @@ export class AgentGardenStore {
     return parsed;
   }
 
-  async listConnections(): Promise<AgentConnection[]> {
+  async listConnections(ownerUserId?: string): Promise<AgentConnection[]> {
     const rows = await this.db.agentConnectionRecord.findMany({
-      where: { projectId: this.projectId },
+      where: {
+        projectId: this.projectId,
+        ...(ownerUserId ? { coordinator: { ownerUserId } } : {}),
+      },
       orderBy: [{ createdAt: "desc" }, { id: "asc" }],
       select: { payload: true },
     });

@@ -1,6 +1,8 @@
 import { z } from "zod";
+import type { ProjectCapability } from "./authorization.js";
 
 export * from "./traces.js";
+export * from "./authorization.js";
 
 export const agentStatuses = [
   "PROVISIONING",
@@ -1790,7 +1792,9 @@ export interface PlatformAuditLogEvent {
   authorization: {
     scope: "project";
     role: string;
-    decision: "allowed" | "denied";
+    decision: "allowed" | "denied" | "approval_required";
+    capability?: ProjectCapability;
+    reason?: string;
   };
   action: string;
   verb: string;
@@ -1854,6 +1858,24 @@ export interface Agent extends Omit<CreateAgentInput, "policyId"> {
   provisioningStage?: ProvisioningStage;
   logs: string[];
   httpEndpoint?: HttpEndpoint;
+  error?: string;
+}
+
+/**
+ * Sensitive interaction material returned only after
+ * CAP_AGENT_INSTANCE_INTERACT admission. It is deliberately separate from
+ * the Agent configuration representation.
+ */
+export interface AgentInteractionAccess {
+  instanceId: string;
+  status: AgentStatus;
+  httpEndpoint?: HttpEndpoint;
+}
+
+/** Runtime diagnostics disclosed only by CAP_AGENT_INSTANCE_LOG_VIEW. */
+export interface AgentRuntimeLogView {
+  instanceId: string;
+  logs: string[];
   error?: string;
 }
 

@@ -160,7 +160,20 @@ catalog Agent.
 | `POST` | `/agent-garden/connections` | Authorize a Coordinator connection |
 | `DELETE` | `/agent-garden/connections/:id` | Revoke a connection |
 
-Reads require Project membership; mutations require the Project admin role.
+All Project-scoped Agent Garden routes pass through Capability admission. The
+snapshot read requires both `CAP_AGENT_REGISTRATION_VIEW` and
+`CAP_AGENT_CONNECTION_VIEW`. Registration, discovery, deletion, connection
+grant, and connection revoke require their corresponding `CAP_AGENT_*`
+capabilities and a relation proved from the registered Agent or Coordinator
+Instance. In the current builtin presets these mutation capabilities belong to
+Agent Developer and are limited to `OWNER`/`MAINTAINER`; `OWNER` is implemented
+and `MAINTAINER` is not yet persisted. A team Project Administrator does not
+implicitly receive Agent lifecycle permissions. A personal Project
+Administrator currently receives a hard-coded composite Developer binding.
+Governed mutations in a `PROD` Project return `APPROVAL_REQUIRED`, and the
+approval workflow is not yet implemented. See
+[`capability-authorization.md`](capability-authorization.md) for the complete
+current boundary.
 
 The interaction samples also expose two intentionally small, side-effect-free
 endpoints:

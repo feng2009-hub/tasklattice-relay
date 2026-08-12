@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { createProject } from "@/services/project";
-import type { ProjectRole } from "@/types/project";
+import { projectRoleLabels, type ProjectRole } from "@/types/project";
 
 type InitialInvitation = {
   email: string;
@@ -49,7 +49,7 @@ export function CreateProjectSheet({
   const [name, setName] = useState("");
   const [nameConfirmed, setNameConfirmed] = useState(false);
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<ProjectRole>("member");
+  const [role, setRole] = useState<ProjectRole>("developer");
   const [invitations, setInvitations] = useState<InitialInvitation[]>([]);
   const [inviteError, setInviteError] = useState("");
   const creatorEmail = (
@@ -61,7 +61,7 @@ export function CreateProjectSheet({
     setName("");
     setNameConfirmed(false);
     setEmail("");
-    setRole("member");
+    setRole("developer");
     setInvitations([]);
     setInviteError("");
     create.reset();
@@ -100,7 +100,7 @@ export function CreateProjectSheet({
       { email: normalizedEmail, role },
     ]);
     setEmail("");
-    setRole("member");
+    setRole("developer");
     setInviteError("");
   };
 
@@ -253,8 +253,12 @@ export function CreateProjectSheet({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="member">Member</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
+                  {(["developer", "user", "auditor", "admin", "approver"] as const)
+                    .map((roleId) => (
+                      <SelectItem key={roleId} value={roleId}>
+                        {projectRoleLabels[roleId]}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -293,7 +297,7 @@ export function CreateProjectSheet({
                       </td>
                       <td className="px-3 py-3">
                         <Badge variant="outline">
-                          {invitation.role === "admin" ? "Admin" : "Member"}
+                          {projectRoleLabels[invitation.role]}
                         </Badge>
                       </td>
                       <td className="px-2 py-2 text-right">

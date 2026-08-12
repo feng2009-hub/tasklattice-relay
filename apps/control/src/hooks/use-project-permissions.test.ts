@@ -1,30 +1,85 @@
 import { describe, expect, it } from "vitest";
-import { permissionsForRole } from "./use-project-permissions";
+import { permissionsForCapabilities } from "./use-project-permissions";
 
-describe("permissionsForRole", () => {
-  it("grants administrators all project management capabilities", () => {
-    expect(permissionsForRole("admin")).toEqual({
-      canCreateAgents: true,
-      canCreateProject: true,
+describe("permissionsForCapabilities", () => {
+  it("derives controls from API capabilities instead of a role name", () => {
+    expect(permissionsForCapabilities([
+      "CAP_PROJECT_DELETE",
+      "CAP_PROJECT_MEMBER_INVITE",
+      "CAP_PROJECT_MEMBER_REMOVE",
+      "CAP_PROJECT_MEMBER_ROLE_ASSIGN",
+      "CAP_PROJECT_SETTINGS_UPDATE",
+      "CAP_AUDIT_DETAIL_VIEW",
+      "CAP_SKILL_VIEW",
+    ])).toEqual({
+      canCreateAgents: false,
+      canDeleteAgents: false,
+      canInteractWithAgents: false,
+      canViewAgentLogs: false,
+      canUseAgentTerminal: false,
+      canViewSensitiveAgentAudit: false,
+      canCreateProject: false,
       canDeleteProject: true,
       canInviteMembers: true,
-      canManageResources: true,
+      canRemoveMembers: true,
+      canAssignRoles: true,
+      canManageResources: false,
       canManageProject: true,
       canViewAuditLogs: true,
       canViewResources: true,
     });
   });
 
-  it("keeps members as a strict subset of administrator capabilities", () => {
-    expect(permissionsForRole("member")).toEqual({
+  it("does not infer unrelated controls from a granted capability", () => {
+    expect(permissionsForCapabilities(["CAP_AGENT_INSTANCE_CREATE"])).toEqual({
       canCreateAgents: true,
+      canDeleteAgents: false,
+      canInteractWithAgents: false,
+      canViewAgentLogs: false,
+      canUseAgentTerminal: false,
+      canViewSensitiveAgentAudit: false,
       canCreateProject: false,
       canDeleteProject: false,
       canInviteMembers: false,
+      canRemoveMembers: false,
+      canAssignRoles: false,
       canManageResources: false,
       canManageProject: false,
       canViewAuditLogs: false,
-      canViewResources: true,
+      canViewResources: false,
     });
+  });
+
+  it("keeps invite, removal, and role assignment independent", () => {
+    expect(
+      permissionsForCapabilities(["CAP_PROJECT_MEMBER_INVITE"]),
+    ).toMatchObject({
+      canInviteMembers: true,
+      canRemoveMembers: false,
+      canAssignRoles: false,
+    });
+  });
+
+  it("keeps the system-scoped Project create gate explicit", () => {
+    expect(
+      permissionsForCapabilities([], { canCreateProject: true })
+        .canCreateProject,
+    ).toBe(true);
+  });
+
+  it("does not conflate configuration, interaction, terminal, and audit access", () => {
+    expect(permissionsForCapabilities([
+      "CAP_AGENT_INSTANCE_INTERACT",
+      "CAP_AUDIT_DETAIL_VIEW",
+    ])).toMatchObject({
+      canInteractWithAgents: true,
+      canViewAgentLogs: false,
+      canUseAgentTerminal: false,
+      canViewSensitiveAgentAudit: false,
+    });
+    expect(permissionsForCapabilities([
+      "CAP_AUDIT_DETAIL_VIEW",
+      "CAP_AUDIT_SENSITIVE_CONTENT_VIEW",
+    ]).canViewSensitiveAgentAudit).toBe(true);
   });
 });

@@ -6,6 +6,7 @@ import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
 import { adaptAgentToAuditorLogs, filterAuditorLogs, type AuditorLogFilters } from "./auditor-log-utils";
 
 export type UseAuditorLogOptions = AuditorLogFilters & {
+  includeSandboxAudit?: boolean;
   live?: boolean;
 };
 
@@ -14,6 +15,7 @@ export function useAuditorLog(agent: Agent, options: UseAuditorLogOptions) {
   const query = useQuery({
     queryKey: scope.key("agent-audit", agent.id),
     queryFn: () => api.getAgentAudit(agent.id),
+    enabled: options.includeSandboxAudit ?? true,
     retry: 1,
     staleTime: 5_000,
     refetchInterval: options.live ? 5_000 : false,
@@ -25,7 +27,7 @@ export function useAuditorLog(agent: Agent, options: UseAuditorLogOptions) {
   return {
     allData,
     data,
-    isLoading: query.isPending,
+    isLoading: (options.includeSandboxAudit ?? true) && query.isPending,
     error: query.error instanceof Error ? query.error : undefined,
     connected: !query.isError,
     isFetching: query.isFetching,

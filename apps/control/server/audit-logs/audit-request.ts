@@ -4,6 +4,10 @@ import { requireAuth, verifyAuthToken } from "../auth/auth";
 import { prisma } from "../db/prisma";
 import type { PrismaClient } from "../generated/prisma/client";
 import { AuditLogService } from "./audit-log-service";
+import {
+  decisiveAdmissionEvidence,
+  type AdmissionEvidence,
+} from "../authorization/authorization-context";
 
 const maxBodyBytes = 64 * 1024;
 const sensitiveKey =
@@ -29,6 +33,7 @@ interface AuditDescriptor {
 }
 
 export interface CapturedAuditRequest {
+  admission?: readonly AdmissionEvidence[];
   auth?: AuthPayload;
   body?: unknown;
   descriptor: AuditDescriptor;
@@ -216,6 +221,42 @@ function descriptor(method: string, path: string): AuditDescriptor | undefined {
   };
 }
 
+function sensitiveReadDescriptor(url: URL): AuditDescriptor | undefined {
+  const pathname = url.pathname.replace(/\/+$/, "") || "/";
+  const match = pathname.match(
+    /^\/api\/v1\/projects\/([^/]+)\/(?:instances\/([^/]+)\/(audit|interaction|logs)|audit-logs)$/,
+  );
+  if (!match) return undefined;
+  const projectId = decodeURIComponent(match[1]!);
+  const instanceId = match[2] ? decodeURIComponent(match[2]) : undefined;
+  if (instanceId) {
+    const interaction = match[3] === "interaction";
+    const logs = match[3] === "logs";
+    return {
+      action: interaction
+        ? "instance.interact"
+        : logs
+          ? "instance.logs_view"
+          : "instance.audit_view",
+      objectId: instanceId,
+      objectType: interaction
+        ? "Agent Instance"
+        : logs
+          ? "Runtime Log"
+          : "Instance Audit",
+      operation: "view",
+      projectId,
+    };
+  }
+  if (url.searchParams.get("include_sensitive") !== "true") return undefined;
+  return {
+    action: "audit_log.sensitive_content_view",
+    objectType: "Audit Log",
+    operation: "view",
+    projectId,
+  };
+}
+
 function traceContext(request: Request): PlatformAuditLogEvent["trace"] | undefined {
   const traceparent = request.headers.get("traceparent");
   const match = traceparent?.match(
@@ -229,7 +270,8 @@ export async function captureAuditRequest(
 ): Promise<CapturedAuditRequest | undefined> {
   const url = new URL(request.url);
   const method = request.method.toUpperCase();
-  const requestDescriptor = descriptor(method, url.pathname);
+  const requestDescriptor = descriptor(method, url.pathname)
+    ?? (method === "GET" ? sensitiveReadDescriptor(url) : undefined);
   if (!requestDescriptor) return undefined;
   let auth: AuthPayload | undefined;
   try {
@@ -251,6 +293,48 @@ export async function captureAuditRequest(
     ...(Object.keys(parameters).length
       ? { parameters: sanitize(parameters) as Record<string, unknown> }
       : {}),
+    path: url.pathname,
+    requestId: request.headers.get("x-request-id")?.slice(0, 200) || crypto.randomUUID(),
+    startedAt: Date.now(),
+    ...(traceContext(request) ? { trace: traceContext(request) } : {}),
+    userAgent: (request.headers.get("user-agent") || "unknown").slice(0, 1000),
+  };
+}
+
+/**
+ * Creates a lightweight audit envelope for a read request only when admission
+ * denied it. Successful high-volume reads remain outside the mutation audit
+ * stream, while every denied CAP check is still durable and searchable.
+ */
+export function captureDeniedAdmissionRequest(
+  request: Request,
+  evidence: AdmissionEvidence,
+): CapturedAuditRequest {
+  const url = new URL(request.url);
+  let auth: AuthPayload | undefined;
+  try {
+    auth = requireAuth(request);
+  } catch {
+    auth = undefined;
+  }
+  const parameters = Object.fromEntries(url.searchParams.entries());
+  parameters.projectId = evidence.projectId;
+  return {
+    admission: [evidence],
+    ...(auth ? { auth } : {}),
+    descriptor: {
+      action: "authorization.denied",
+      ...(evidence.resourceId ? { objectId: evidence.resourceId } : {}),
+      objectType: evidence.resourceType,
+      operation: "authorize",
+      projectId: evidence.projectId,
+    },
+    ipAddress:
+      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+      || request.headers.get("x-real-ip")
+      || "unknown",
+    method: request.method.toUpperCase(),
+    parameters: sanitize(parameters) as Record<string, unknown>,
     path: url.pathname,
     requestId: request.headers.get("x-request-id")?.slice(0, 200) || crypto.randomUUID(),
     startedAt: Date.now(),
@@ -331,6 +415,7 @@ function operationVerb(operation: string, outcome: PlatformAuditLogEvent["outcom
     unbind: "unbound",
     update: "updated",
     validate: "validated",
+    view: "viewed",
     verify: "verified",
   } as Record<string, string>)[operation] ?? operation;
 }
@@ -363,6 +448,7 @@ export async function writeAuditResponse(
         select: { role: true },
       })
     : undefined;
+  const admission = decisiveAdmissionEvidence(captured.admission ?? []);
   const outcome: PlatformAuditLogEvent["outcome"] =
     response.status === 401 || response.status === 403
       ? "denied"
@@ -401,8 +487,18 @@ export async function writeAuditResponse(
       ...(actor?.email ? { email: actor.email } : {}),
     },
     authorization: {
-      role: membership?.role || actor?.systemRole || "none",
-      decision: outcome === "denied" ? "denied" : "allowed",
+      role: admission?.roleId || membership?.role || actor?.systemRole || "none",
+      decision: admission?.decision === "APPROVAL_REQUIRED"
+        ? "approval_required"
+        : admission?.decision === "DENY"
+          ? "denied"
+          : admission?.decision === "ALLOW"
+            ? "allowed"
+            : outcome === "denied"
+              ? "denied"
+              : "allowed",
+      ...(admission?.capability ? { capability: admission.capability } : {}),
+      ...(admission?.reason ? { reason: admission.reason } : {}),
     },
     action: captured.descriptor.action,
     verb,
@@ -427,6 +523,21 @@ export async function writeAuditResponse(
       durationMs: Date.now() - captured.startedAt,
       httpStatus: response.status,
       retentionDays: 90,
+      ...(captured.admission?.length
+        ? {
+            admission: captured.admission.map((item) => ({
+              capability: item.capability,
+              decision: item.decision,
+              environment: item.environment,
+              relation: item.relation,
+              resourceType: item.resourceType,
+              ...(item.resourceId ? { resourceId: item.resourceId } : {}),
+              ...(item.roleId ? { roleId: item.roleId } : {}),
+              ...(item.policyId ? { policyId: item.policyId } : {}),
+              reason: item.reason,
+            })),
+          }
+        : {}),
     },
   });
 }

@@ -1,3 +1,4 @@
+import { assignableProjectMembershipRoles } from "@tali/contracts";
 import { z } from "zod";
 import { defineHandler } from "nitro";
 import { unauthorizedResponse } from "../../../../../../auth/auth";
@@ -6,7 +7,7 @@ import { ProjectService } from "../../../../../../projects/project-service";
 
 const inputSchema = z.object({
   email: z.email(),
-  role: z.enum(["admin", "member"]),
+  role: z.enum(assignableProjectMembershipRoles),
 });
 
 export default defineHandler(async (event) => {

@@ -15,6 +15,7 @@ import { InstanceTerminalTab } from "@/components/instances/instance-terminal-ta
 import { ApiError, api } from "@/lib/api";
 import { getAgentPlatformPresentation } from "@/lib/agent-platforms";
 import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
+import { useProjectPermissions } from "@/hooks/use-project-permissions";
 import { useEffect, useRef, useState } from "react";
 
 const tabSearch = z.preprocess(
@@ -33,6 +34,7 @@ function AgentDetail() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const scope = useProjectQueryScope();
+  const permissions = useProjectPermissions();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const activeTab = normalizeInstanceDetailTab(search.tab);
 
@@ -54,10 +56,34 @@ function AgentDetail() {
     retry: 1,
     staleTime: 30_000,
   });
+  const interaction = useQuery({
+    queryKey: scope.key("agent-interaction", agentId),
+    queryFn: () => api.getAgentInteraction(agentId),
+    enabled:
+      permissions.canInteractWithAgents
+      && agent.data?.status === "READY",
+    retry: 1,
+    staleTime: 15_000,
+  });
+  const runtimeLogs = useQuery({
+    queryKey: scope.key("agent-logs", agentId),
+    queryFn: () => api.getAgentLogs(agentId),
+    enabled: permissions.canViewAgentLogs && Boolean(agent.data),
+    retry: 1,
+    staleTime: 5_000,
+    refetchInterval:
+      permissions.canViewAgentLogs
+      && agent.data?.status === "PROVISIONING"
+        ? 5_000
+        : false,
+  });
   const terminalTargets = useQuery({
     queryKey: scope.key("agent-terminal-targets", agentId),
     queryFn: () => api.getTerminalTargets(agentId),
-    enabled: agent.data?.status === "READY" && !search.creating,
+    enabled:
+      permissions.canUseAgentTerminal
+      && agent.data?.status === "READY"
+      && !search.creating,
     retry: 1,
     staleTime: 5_000,
     refetchInterval: activeTab === "terminal" ? 5_000 : false,
@@ -65,7 +91,10 @@ function AgentDetail() {
   const audit = useQuery({
     queryKey: scope.key("agent-audit", agentId),
     queryFn: () => api.getAgentAudit(agentId),
-    enabled: Boolean(agent.data) && !search.creating,
+    enabled:
+      permissions.canViewSensitiveAgentAudit
+      && Boolean(agent.data)
+      && !search.creating,
     retry: 1,
     staleTime: 10_000,
   });
@@ -78,17 +107,36 @@ function AgentDetail() {
   });
   const terminalWasOpen = useRef(false);
   const [terminalNotice, setTerminalNotice] = useState("");
-  const access = agent.data
-    ? getInstanceAccessState(agent.data, terminalTargets.data, {
+  const displayedAgent = agent.data
+    ? {
+        ...agent.data,
+        ...(runtimeLogs.data
+          ? {
+              logs: runtimeLogs.data.logs,
+              ...(runtimeLogs.data.error
+                ? { error: runtimeLogs.data.error }
+                : {}),
+            }
+          : {}),
+        ...(interaction.data?.httpEndpoint
+          ? { httpEndpoint: interaction.data.httpEndpoint }
+          : {}),
+      }
+    : undefined;
+  const access = displayedAgent
+    ? getInstanceAccessState(displayedAgent, terminalTargets.data, {
+        canExecAgent: permissions.canUseAgentTerminal,
         checking:
-          agent.data.status === "READY" && terminalTargets.isPending,
+          permissions.canUseAgentTerminal
+          && displayedAgent.status === "READY"
+          && terminalTargets.isPending,
         ...(terminalTargets.error
           ? {
               unavailableReason:
                 "Terminal availability could not be verified.",
             }
           : {}),
-      })
+      }, permissions.canInteractWithAgents)
     : undefined;
 
   useEffect(() => {
@@ -114,10 +162,11 @@ function AgentDetail() {
   if (agent.isPending) return <InstanceDetailSkeleton />;
   if (agent.error instanceof ApiError && agent.error.status === 404) return <InstanceNotFoundState />;
   if (agent.isError || !agent.data) return <InstanceDetailErrorState onRetry={() => void agent.refetch()} />;
-  if (search.creating) return <AgentCreationExperience agent={agent.data} />;
+  if (search.creating) return <AgentCreationExperience agent={displayedAgent ?? agent.data} />;
 
-  const platform = getAgentPlatformPresentation(agent.data.agentPlatform);
+  const platform = getAgentPlatformPresentation((displayedAgent ?? agent.data).agentPlatform);
   if (!access) return <InstanceDetailErrorState onRetry={() => void agent.refetch()} />;
+  const visibleAgent = displayedAgent ?? agent.data;
   const renderedTab = resolveAvailableInstanceDetailTab(
     activeTab,
     access.terminal,
@@ -125,15 +174,20 @@ function AgentDetail() {
 
   return (
     <div>
-      <InstanceHeader access={access} agent={agent.data} platform={platform} onDelete={() => setDeleteOpen(true)} />
+      <InstanceHeader access={access} agent={visibleAgent} canDelete={permissions.canDeleteAgents} platform={platform} onDelete={() => setDeleteOpen(true)} />
       <InstanceTabs active={renderedTab} agentId={agentId} terminal={access.terminal} />
       {terminalNotice ? <p role="status" className="mt-4 border-l-2 border-amber-500 bg-amber-500/5 px-4 py-3 text-sm">{terminalNotice}</p> : null}
-      {renderedTab === "overview" ? <InstanceOverviewTab access={access} agent={agent.data} platform={platform} auditLoading={audit.isLoading} {...(audit.data ? { auditEvents: audit.data } : {})} {...(modelRouting.data?.name ? { modelRoutingName: modelRouting.data.name } : {})} /> : null}
-      {renderedTab === "configuration" ? <InstanceConfigurationTab agent={agent.data} platform={platform} /> : null}
-      {renderedTab === "capabilities" ? <InstanceCapabilitiesTab agent={agent.data} /> : null}
-      {renderedTab === "terminal" ? <InstanceTerminalTab agent={agent.data} targets={(terminalTargets.data ?? []).filter((target) => target.available)} /> : null}
-      {renderedTab === "auditor-log" ? <InstanceAuditorLogTab agent={agent.data} /> : null}
-      <DeleteInstanceDialog open={deleteOpen} onOpenChange={setDeleteOpen} instanceName={agent.data.name} deleting={remove.isPending} onConfirm={() => remove.mutate()} {...(remove.error instanceof Error ? { error: remove.error.message } : {})} />
+      {renderedTab === "overview" ? <InstanceOverviewTab access={access} agent={visibleAgent} platform={platform} auditLoading={audit.isLoading} {...(audit.data ? { auditEvents: audit.data } : {})} {...(modelRouting.data?.name ? { modelRoutingName: modelRouting.data.name } : {})} /> : null}
+      {renderedTab === "configuration" ? <InstanceConfigurationTab agent={visibleAgent} platform={platform} /> : null}
+      {renderedTab === "capabilities" ? <InstanceCapabilitiesTab agent={visibleAgent} /> : null}
+      {renderedTab === "terminal" ? <InstanceTerminalTab agent={visibleAgent} targets={(terminalTargets.data ?? []).filter((target) => target.available)} /> : null}
+      {renderedTab === "auditor-log" ? (
+        <InstanceAuditorLogTab
+          agent={visibleAgent}
+          includeSandboxAudit={permissions.canViewSensitiveAgentAudit}
+        />
+      ) : null}
+      {permissions.canDeleteAgents ? <DeleteInstanceDialog open={deleteOpen} onOpenChange={setDeleteOpen} instanceName={visibleAgent.name} deleting={remove.isPending} onConfirm={() => remove.mutate()} {...(remove.error instanceof Error ? { error: remove.error.message } : {})} /> : null}
     </div>
   );
 }

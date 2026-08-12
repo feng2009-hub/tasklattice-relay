@@ -291,7 +291,7 @@ function MobileAuditLogList({
 
 function AuditLogsPage() {
   const { currentProject } = useProject();
-  const permissions = useProjectPermissions(currentProject?.role);
+  const permissions = useProjectPermissions();
   const scope = useProjectQueryScope();
   const [filters, setFilters] = useState(defaultAuditLogFilters);
   const [debouncedQuery, setDebouncedQuery] = useState(filters.query);

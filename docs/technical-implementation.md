@@ -8,23 +8,102 @@ Version: 0.2
 
 TaskLattice Relay is an internal AI Service Marketplace and Agent Control Plane.
 
-The platform assumes that AI services already exist and expose runnable endpoints. It integrates those endpoints into a catalog, governs who may use them and how much quota they receive, and manages Agents that can load approved Skills while running.
+The platform assumes that AI services already exist and expose runnable
+endpoints. It registers and validates those endpoints, exposes approved catalog
+offerings through an internal gateway, and manages Agent runtimes that consume
+the resulting access grants and Skill versions.
 
-~~~text
-Existing AI Service Endpoint
-  -> register Endpoint
-  -> publish Service Offering
-  -> request and approve quota
-  -> activate Quota Grant
-  -> access through the internal gateway
+### 1.1 Target end-to-end operating model
 
-Create Agent
-  -> bind active Quota Grants
-  -> start Agent
-  -> bind approved Skill versions
-  -> load Skills into the running Agent
-  -> observe, upgrade, roll back, or unload Skills
-~~~
+The diagram separates the lifecycle stages that the original linear summary
+collapsed together. Solid arrows show the desired-state progression; dashed
+arrows show enforcement or telemetry dependencies rather than object creation.
+
+```mermaid
+flowchart TB
+    subgraph SERVICE["1. Service onboarding"]
+        UPSTREAM["Existing AI Service<br/>Endpoint"]
+        REGISTER["Register endpoint metadata<br/>and secret reference"]
+        VALIDATE["Validate connectivity, TLS,<br/>authentication, and capabilities"]
+        OFFERING["Publish environment-specific<br/>Service Offering"]
+
+        UPSTREAM --> REGISTER --> VALIDATE --> OFFERING
+    end
+
+    subgraph ACCESS["2. Project access and quota"]
+        SELECT["Project selects Offering"]
+        REQUEST["Submit Quota Request"]
+        POLICY["Policy, capacity,<br/>and budget checks"]
+        APPROVAL{"Approval required?"}
+        REVIEW{"Approval decision"}
+        GRANT["Provision and verify<br/>Quota Grant"]
+        ACTIVE["Active Grant"]
+        CLOSED["Reject or request changes"]
+
+        SELECT --> REQUEST --> POLICY --> APPROVAL
+        APPROVAL -->|"Yes"| REVIEW
+        REVIEW -->|"Approved"| GRANT
+        REVIEW -->|"Rejected / changes"| CLOSED
+        APPROVAL -->|"No"| GRANT
+        GRANT --> ACTIVE
+    end
+
+    subgraph AGENT["3. Agent provisioning"]
+        DEFINE["Define Agent ownership,<br/>runtime, policy, and configuration"]
+        BIND["Bind active Grants<br/>and service identity scope"]
+        ADMIT["Validate access, secrets,<br/>policy, and approval requirement"]
+        CREATE["Create and start<br/>Agent Instance"]
+        HEALTH["Verify heartbeat,<br/>routing, and service access"]
+        RUNNING["Running Agent"]
+
+        DEFINE --> BIND --> ADMIT --> CREATE --> HEALTH --> RUNNING
+    end
+
+    subgraph SKILL["4. Skill lifecycle on a running Agent"]
+        VERSION["Approved immutable<br/>Skill Version"]
+        SKILL_BIND["Create desired<br/>Skill Binding"]
+        PREPARE["Resolve package, verify digest,<br/>and prepare configuration"]
+        ACTIVATE["Activate and run<br/>health check"]
+        OBSERVE["Observe loaded version<br/>and runtime health"]
+        OPERATE["Upgrade · roll back<br/>deactivate · unload"]
+
+        VERSION --> SKILL_BIND --> PREPARE --> ACTIVATE --> OBSERVE --> OPERATE
+    end
+
+    subgraph REQUEST_PATH["5. Runtime request path"]
+        IDENTITY["Agent service identity"]
+        GATEWAY["Internal AI Service Gateway<br/>authenticate · authorize · enforce · meter"]
+        ADAPTER["Provider adapter"]
+        TARGET["Registered upstream<br/>AI Service Endpoint"]
+
+        IDENTITY --> GATEWAY --> ADAPTER --> TARGET
+    end
+
+    subgraph FEEDBACK["6. Observability and reconciliation inputs"]
+        TELEMETRY["Usage · cost · latency<br/>errors · runtime health"]
+        AUDIT["Audit and authorization evidence"]
+        RECONCILE["Compare desired and observed state"]
+
+        TELEMETRY --> AUDIT --> RECONCILE
+    end
+
+    OFFERING --> SELECT
+    ACTIVE --> BIND
+    ACTIVE -.->|"enforcement policy"| GATEWAY
+    RUNNING --> IDENTITY
+    RUNNING --> SKILL_BIND
+    GATEWAY -.->|"request facts"| TELEMETRY
+    RUNNING -.->|"runtime state"| TELEMETRY
+    OPERATE -.->|"Skill operation state"| TELEMETRY
+```
+
+This is the target end-to-end operating model, not a claim that every box is
+implemented in the current repository. In particular, Approval Request
+persistence and approved-change execution are not implemented; a governed
+`PROD` mutation currently stops at `APPROVAL_REQUIRED`. Quota Grant and the
+full runtime Skill reconciliation flows in this document are broader target
+architecture. Current Project authorization status is tracked separately in
+[`capability-authorization.md`](./capability-authorization.md).
 
 ## 2. Scope and explicit boundaries
 

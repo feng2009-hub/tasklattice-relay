@@ -42,7 +42,7 @@ function ProjectSettingsPage() {
     refreshProjects,
     selectProject,
   } = useProject();
-  const permissions = useProjectPermissions(project?.role);
+  const permissions = useProjectPermissions();
 
   if (!project) {
     return (
@@ -160,7 +160,7 @@ function ProjectGeneralSettings({
   onDeleted: () => void | Promise<void>;
   project: Project;
 }) {
-  const permissions = useProjectPermissions(project.role);
+  const permissions = useProjectPermissions();
   const remove = useMutation({
     mutationFn: () => deleteProject(project.id),
     onSuccess: () => onDeleted(),
