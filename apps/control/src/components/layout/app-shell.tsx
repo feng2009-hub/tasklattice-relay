@@ -88,13 +88,11 @@ type NavItemDefinition = {
 type NavGroupDefinition = {
   items: NavItemDefinition[];
   label: string;
-  labelTo?: "/$projectId";
 };
 
 export const navGroups: NavGroupDefinition[] = [
   {
     label: "Home",
-    labelTo: "/$projectId",
     items: [
       { icon: Boxes, label: "Instances", to: "/$projectId/instances" },
       { icon: BrainCircuit, label: "Memory", to: "/$projectId/memory" },
@@ -137,11 +135,6 @@ export function itemIsActive(item: NavItemDefinition, pathname: string, projectI
   const normalizedTarget = target.replace(/\/$/, "");
   if (normalizedPathname === normalizedTarget) return true;
   return normalizedPathname.startsWith(`${normalizedTarget}/`);
-}
-
-export function projectHomeIsActive(pathname: string, projectId: string) {
-  const normalizedPathname = pathname.replace(/\/$/, "");
-  return normalizedPathname === `/${encodeURIComponent(projectId)}`;
 }
 
 function NavigationItem({ item, pathname, projectId }: {
@@ -223,30 +216,8 @@ function ProjectSidebar({ logout, pathname, user }: {
         <SidebarContent>
           <nav aria-label="Project navigation" className="flex flex-col py-1">
             {navGroups.map((group) => (
-              <SidebarGroup key={group.label} className={group.labelTo ? "pt-2" : undefined}>
-                {group.labelTo ? (
-                  <SidebarGroupLabel
-                    asChild
-                    className="h-11 px-0 group-data-[collapsible=icon]:hidden"
-                  >
-                    <Link
-                      to={group.labelTo}
-                      params={{ projectId }}
-                      activeOptions={{ exact: true }}
-                      onClick={() => setOpenMobile(false)}
-                      aria-current={projectHomeIsActive(pathname, projectId) ? "page" : undefined}
-                      aria-label="Home overview"
-                      className={cn(
-                        "flex size-full items-center rounded-md px-3 outline-none transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring/35",
-                        projectHomeIsActive(pathname, projectId) && "text-primary",
-                      )}
-                    >
-                      {group.label}
-                    </Link>
-                  </SidebarGroupLabel>
-                ) : (
-                  <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
-                )}
+              <SidebarGroup key={group.label}>
+                <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
                 <SidebarGroupContent>
                   <SidebarMenu>
                     {group.items

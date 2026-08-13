@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { itemIsActive, navGroups, projectHomeIsActive } from "./app-shell";
+import { itemIsActive, navGroups } from "./app-shell";
 
 describe("Project control-plane navigation", () => {
-  it("uses Home as a linked section with Instances and Memory beneath it", () => {
+  it("uses Home as a section label with Instances and Memory beneath it", () => {
     expect(navGroups.map((group) => group.label)).toEqual([
       "Home",
       "Capability toolbox",
@@ -15,15 +15,7 @@ describe("Project control-plane navigation", () => {
       ["Access Policies", "Runtime Policies", "Project Settings"],
       ["Traces", "Audit Logs", "Cost"],
     ]);
-    expect(navGroups[0]?.labelTo).toBe("/$projectId");
     expect(navGroups.flatMap((group) => group.items.map((item) => item.label))).not.toContain("Home");
-  });
-
-  it("keeps the linked Home section title active only on the Project root", () => {
-    expect(projectHomeIsActive("/p-hr", "p-hr")).toBe(true);
-    expect(projectHomeIsActive("/p-hr/", "p-hr")).toBe(true);
-    expect(projectHomeIsActive("/p-hr/instances", "p-hr")).toBe(false);
-    expect(projectHomeIsActive("/p-hr/memory", "p-hr")).toBe(false);
   });
 
   it("gives Instances and Memory their own active states", () => {

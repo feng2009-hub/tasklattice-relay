@@ -211,13 +211,8 @@ function SidebarGroup({ className, ...props }: React.ComponentProps<"section">) 
   return <section data-slot="sidebar-group" className={cn("relative flex w-full min-w-0 flex-col px-2 py-1", className)} {...props} />;
 }
 
-function SidebarGroupLabel({
-  asChild = false,
-  className,
-  ...props
-}: React.ComponentProps<"div"> & { asChild?: boolean }) {
-  const Comp = asChild ? Slot.Root : "div";
-  return <Comp data-slot="sidebar-group-label" className={cn("flex h-6 shrink-0 items-center px-3 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground/80 transition-[margin,opacity] duration-200 group-data-[collapsible=icon]:-mt-6 group-data-[collapsible=icon]:opacity-0", className)} {...props} />;
+function SidebarGroupLabel({ className, ...props }: React.ComponentProps<"div">) {
+  return <div data-slot="sidebar-group-label" className={cn("flex h-6 shrink-0 items-center px-3 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground/80 transition-[margin,opacity] duration-200 group-data-[collapsible=icon]:-mt-6 group-data-[collapsible=icon]:opacity-0", className)} {...props} />;
 }
 
 function SidebarGroupContent({ className, ...props }: React.ComponentProps<"div">) {
