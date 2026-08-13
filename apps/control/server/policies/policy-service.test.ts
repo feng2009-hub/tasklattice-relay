@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { SandboxPolicyCatalog } from "@tali/contracts";
 import { createTestStore } from "../test/store";
 import {
-  FilePolicyCatalogSource,
+  BuiltInPolicyCatalogSource,
   normalizeOpenShellPolicy,
   PolicyService,
   type PolicyCatalogSource,
@@ -34,7 +34,7 @@ const source: PolicyCatalogSource = {
 
 describe("PolicyService", () => {
   it("loads the deployment catalog with unrestricted as the default", () => {
-    const catalog = new FilePolicyCatalogSource().load();
+    const catalog = new BuiltInPolicyCatalogSource().load();
     const policy = catalog.policies.find(
       (item) => item.id === catalog.defaultPolicyId,
     );

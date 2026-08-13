@@ -107,10 +107,8 @@ Admin preset contains `CAP_PROJECT_ROLE_CREATE`, `UPDATE`, and `DELETE`, but
 custom Role persistence and Role CRUD APIs do not exist, so those capabilities
 are registered only.
 
-A personal Project administrator is currently hard-coded to receive the entire
-Developer preset in addition to Admin. This makes the sole user able to operate
-Agents, but it is an implementation exception rather than persisted multi-role
-composition. A team Project Admin does not receive this expansion.
+Every Project membership maps to exactly one builtin role. Project identity does
+not add capabilities or compose another role implicitly.
 
 ### Auditor
 
@@ -292,7 +290,7 @@ includes a policy identifier and is written to audit evidence.
 
 This is a denial boundary, not an approval workflow. The repository currently
 has no Approval Request model, request API, review/comment/decision API, state
-machine, or `CAP_APPROVED_CHANGE_APPLY` worker. New team Projects default to
+machine, or `CAP_APPROVED_CHANGE_APPLY` worker. New Projects default to
 `PROD`, so governed writes cannot complete there until that workflow exists.
 
 For development of other capability paths, use a Project explicitly operating

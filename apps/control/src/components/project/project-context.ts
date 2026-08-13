@@ -23,20 +23,18 @@ export function selectInitialProject(
   urlProjectId: string | null,
   storedProjectId: string | null,
 ): Project {
-  const personalProject =
-    projects.find((project) => project.type === "personal") ??
-    projects[0];
-  if (!personalProject) {
+  const firstProject = projects[0];
+  if (!firstProject) {
     throw new Error("No project available.");
   }
   if (urlProjectId) {
     return (
       projects.find((project) => project.id === urlProjectId) ??
-      personalProject
+      firstProject
     );
   }
   return (
     projects.find((project) => project.id === storedProjectId) ??
-    personalProject
+    firstProject
   );
 }

@@ -54,12 +54,11 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     const projects = await getProjects();
     const selected =
       projects.find((project) => project.id === currentProject?.id) ??
-      projects.find((project) => project.type === "personal") ??
       projects[0] ??
       null;
     setAvailableProjects(projects);
     setCurrentProject(selected);
-    setError(selected ? "" : "No project available.");
+    setError("");
     if (selected) {
       storeProjectId(selected.id);
       replaceProjectInUrl(selected.id);
@@ -78,7 +77,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         if (!loaded.length) {
           setAvailableProjects([]);
           setCurrentProject(null);
-          setError("No project available.");
+          setError("");
           return;
         }
         const projects = loaded;

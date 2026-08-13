@@ -179,8 +179,10 @@ function DisabledNav({ description, icon: Icon, label }: { description: string; 
   );
 }
 
-function ProjectSidebar({ logout, pathname, user }: {
+function ProjectSidebar({ createProjectOpen, logout, onCreateProjectOpenChange, pathname, user }: {
+  createProjectOpen: boolean;
   logout: () => void | Promise<void>;
+  onCreateProjectOpenChange: (open: boolean) => void;
   pathname: string;
   user: AuthUser | null;
 }) {
@@ -190,7 +192,6 @@ function ProjectSidebar({ logout, pathname, user }: {
     refreshProjects,
     selectProject,
   } = useProject();
-  const [createProjectOpen, setCreateProjectOpen] = useState(false);
   const [toastProject, setToastProject] = useState("");
   const projectId = currentProject?.id ?? "individual";
   const permissions = useProjectPermissions();
@@ -205,7 +206,7 @@ function ProjectSidebar({ logout, pathname, user }: {
             collapsed={!isMobile && state === "collapsed"}
             onCreateProject={() => {
               setOpenMobile(false);
-              setCreateProjectOpen(true);
+              onCreateProjectOpenChange(true);
             }}
             onProjectSwitchSuccess={(projectName) => {
               setOpenMobile(false);
@@ -215,7 +216,7 @@ function ProjectSidebar({ logout, pathname, user }: {
         </SidebarHeader>
         <SidebarContent>
           <nav aria-label="Project navigation" className="flex flex-col py-1">
-            {navGroups.map((group) => (
+            {currentProject ? navGroups.map((group) => (
               <SidebarGroup key={group.label}>
                 <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
                 <SidebarGroupContent>
@@ -233,7 +234,7 @@ function ProjectSidebar({ logout, pathname, user }: {
                   </SidebarMenu>
                 </SidebarGroupContent>
               </SidebarGroup>
-            ))}
+            )) : null}
           </nav>
         </SidebarContent>
         <SidebarFooter className="border-t border-sidebar-border p-2">
@@ -258,7 +259,7 @@ function ProjectSidebar({ logout, pathname, user }: {
 
       <CreateProjectSheet
         open={createProjectOpen}
-        onOpenChange={setCreateProjectOpen}
+        onOpenChange={onCreateProjectOpenChange}
         user={user}
         onCreated={async (createdProjectId, projectName) => {
           await refreshProjects();
@@ -309,6 +310,7 @@ export function AppShell() {
     refreshProjects,
   } = useProject();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const [createProjectOpen, setCreateProjectOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
@@ -342,7 +344,9 @@ export function AppShell() {
     <TooltipProvider delayDuration={250}>
       <SidebarProvider open={sidebarOpen} onOpenChange={handleSidebarOpenChange}>
         <ProjectSidebar
+          createProjectOpen={createProjectOpen}
           logout={logout}
+          onCreateProjectOpenChange={setCreateProjectOpen}
           pathname={pathname}
           user={user}
         />
@@ -382,9 +386,14 @@ export function AppShell() {
                 <p className="mt-2 text-sm text-muted-foreground">
                   Create a Project before resources can be loaded.
                 </p>
-                <Button className="mt-5" onClick={() => void refreshProjects()}>
-                  Reload projects
-                </Button>
+                <div className="mt-5 flex justify-center gap-3">
+                  <Button onClick={() => setCreateProjectOpen(true)}>
+                    Create Project
+                  </Button>
+                  <Button variant="outline" onClick={() => void refreshProjects()}>
+                    Reload
+                  </Button>
+                </div>
               </section>
             ) : (
               <div key={currentProject.id}>

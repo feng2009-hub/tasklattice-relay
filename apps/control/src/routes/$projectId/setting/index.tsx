@@ -86,9 +86,9 @@ function ProjectSettingsPage() {
           <ProjectAvatar className="size-10" project={project} />
           <div className="min-w-0">
             <h2 className="truncate font-heading text-lg">{project.name}</h2>
-            <p className="text-xs capitalize text-muted-foreground">
-              {project.type === "personal" ? "Default project" : "Team project"} ·{" "}
-              {project.role}
+            <p className="text-xs text-muted-foreground">
+              {project.memberCount} {project.memberCount === 1 ? "member" : "members"} ·{" "}
+              <span className="capitalize">{project.role}</span>
             </p>
           </div>
         </div>
@@ -185,7 +185,7 @@ function ProjectGeneralSettings({
         <code className="text-xs text-muted-foreground">{project.id}</code>
       </div>
 
-      {permissions.canDeleteProject && project.type !== "personal" ? (
+      {permissions.canDeleteProject ? (
         <div className="flex flex-col justify-between gap-4 p-5 sm:flex-row sm:items-center">
           <div>
             <h3 className="text-sm font-semibold text-destructive">

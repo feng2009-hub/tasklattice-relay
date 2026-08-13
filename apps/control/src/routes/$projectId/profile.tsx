@@ -330,7 +330,7 @@ function MyAccountPage() {
                         </strong>
                         <span className="mt-0.5 block text-xs text-muted-foreground">
                           {projectRoleLabels[project.role]} ·{" "}
-                          {project.type === "personal" ? "Personal" : "Team"}
+                          {project.memberCount} {project.memberCount === 1 ? "member" : "members"}
                         </span>
                       </span>
                       {active ? (

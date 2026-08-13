@@ -28,7 +28,7 @@ async function seedAccessPolicy(store: ProjectStore): Promise<void> {
 }
 
 describe("ProjectStore", () => {
-  it("backfills the personal Project as DEV and defaults new Projects to PROD", async () => {
+  it("preserves the seeded Project environment and defaults new Projects to PROD", async () => {
     const store = createTestStore();
     await expect(
       store.database().project.findUnique({
@@ -40,8 +40,7 @@ describe("ProjectStore", () => {
     await store.database().project.create({
       data: {
         id: "team-project",
-        name: "Team Project",
-        type: "team",
+        name: "General Project",
         createdBy: "local-admin",
       },
     });

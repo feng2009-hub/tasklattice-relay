@@ -1,6 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import {
   sandboxPolicyIdSchema,
   type CreateSandboxPolicyInput,
@@ -10,6 +8,7 @@ import {
 } from "@tali/contracts";
 import { parse, stringify } from "yaml";
 import { z } from "zod";
+import policyCatalogYaml from "../../../../charts/tali/files/policy-catalog.yaml?raw";
 import { ProjectStore } from "../projects/project-store";
 
 const recordSchema = z.record(z.string(), z.unknown());
@@ -113,25 +112,9 @@ export interface PolicyCatalogSource {
   load(): SandboxPolicyCatalog;
 }
 
-export class FilePolicyCatalogSource implements PolicyCatalogSource {
-  constructor(
-    readonly path = fileURLToPath(
-      new URL(
-        "../../../../charts/tali/files/policy-catalog.yaml",
-        import.meta.url,
-      ),
-    ),
-  ) {}
-
+export class BuiltInPolicyCatalogSource implements PolicyCatalogSource {
   load(): SandboxPolicyCatalog {
-    let input: unknown;
-    try {
-      input = parse(readFileSync(this.path, "utf8"));
-    } catch (error) {
-      throw new Error(
-        `Unable to load the built-in Policy catalog at ${this.path}: ${error instanceof Error ? error.message : "unknown error"}`,
-      );
-    }
+    const input = parse(policyCatalogYaml) as unknown;
     const catalog = catalogFileSchema.parse(input);
     const policies = catalog.policies.map((entry): SandboxPolicy => ({
       id: entry.id,

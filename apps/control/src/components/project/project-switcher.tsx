@@ -84,7 +84,7 @@ export function ProjectSwitcher({
                 ? "mx-auto size-11 justify-center px-0"
                 : "w-full gap-2.5",
             )}
-            disabled={!currentProject || isSwitching}
+            disabled={isSwitching}
           >
             <span className="grid size-6 shrink-0 place-items-center text-muted-foreground">
               <FolderKanban className="size-4" />
@@ -159,27 +159,31 @@ export function ProjectSwitcher({
             <Plus className="size-4" />
             New Project
           </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          {permissions.canManageProject ? (
-            <DropdownMenuItem asChild>
-              <Link
-                to="/$projectId/setting"
-                params={{ projectId: currentProject?.id ?? "individual" }}
-                onClick={() => setOpen(false)}
-              >
-                <Settings className="size-4" />
-                Project settings
-              </Link>
-            </DropdownMenuItem>
-          ) : (
-            <DropdownMenuItem disabled>
-              <Settings className="size-4" />
-              <span className="flex min-w-0 flex-1 items-center justify-between gap-3">
-                Project settings
-                <span className="text-xs text-muted-foreground">Admins only</span>
-              </span>
-            </DropdownMenuItem>
-          )}
+          {currentProject ? (
+            <>
+              <DropdownMenuSeparator />
+              {permissions.canManageProject ? (
+                <DropdownMenuItem asChild>
+                  <Link
+                    to="/$projectId/setting"
+                    params={{ projectId: currentProject.id }}
+                    onClick={() => setOpen(false)}
+                  >
+                    <Settings className="size-4" />
+                    Project settings
+                  </Link>
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem disabled>
+                  <Settings className="size-4" />
+                  <span className="flex min-w-0 flex-1 items-center justify-between gap-3">
+                    Project settings
+                    <span className="text-xs text-muted-foreground">Admins only</span>
+                  </span>
+                </DropdownMenuItem>
+              )}
+            </>
+          ) : null}
         </DropdownMenuContent>
     </DropdownMenu>
   );
