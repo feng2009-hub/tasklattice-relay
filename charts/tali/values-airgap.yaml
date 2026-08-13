@@ -19,10 +19,6 @@ images:
     useGlobalRegistry: false
 
 agentSandbox:
-  # Pre-create this namespace and its pull Secret before installation.
-  namespace:
-    create: false
-    name: agent-sandbox-system
   image:
     repository: registry.airgap.example.com/third-party/agent-sandbox-controller
     tag: v0.5.1

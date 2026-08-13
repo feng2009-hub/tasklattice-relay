@@ -143,10 +143,10 @@ kubectl -n tali-sandboxes rollout status deployment/tali-runner --timeout=300s
 kubectl -n tali-sandboxes rollout status deployment/tali-litellm --timeout=300s
 kubectl -n tali-sandboxes rollout status statefulset/tali-postgresql --timeout=300s
 kubectl -n tali-sandboxes rollout status statefulset/tali-openshell --timeout=300s
-kubectl -n agent-sandbox-system rollout status deployment/agent-sandbox-controller --timeout=300s
+kubectl -n tali-sandboxes rollout status deployment/agent-sandbox-controller --timeout=300s
 ```
 
-On OrbStack, open `http://localhost` and sign in with `admin / admin`. The
+On OrbStack, open `http://tali.localhost:38080` and sign in with `admin / admin`. The
 LiteLLM development UI uses `admin / tali-local-admin`.
 
 The development values disable OpenShell TLS and allow unauthenticated gateway
@@ -226,17 +226,14 @@ Instance when testing a new OpenClaw or Hermes image.
 
 ## Kind smoke test
 
-The smoke test builds control, runner, and LiteLLM, loads the images into an
-existing Kind cluster, installs the development Chart, and waits for the static
-control-plane Pods:
+The smoke test installs the Chart into an existing Kind cluster with the
+current repository's published `latest` images. It does not build or load local
+images, but it does wait for the Kubernetes workloads to become ready:
 
 ```sh
 kind create cluster --name tali-ci
 bash scripts/helm-kind-smoke.sh
 ```
-
-OpenClaw and Hermes images are referenced as `:dev` but are not built by this
-smoke test because they are pulled only when an Instance is created.
 
 ## Cleanup
 

@@ -11,7 +11,7 @@ schema_version = 1
 [server]
 # Optional for Local authentication; required when auth.oidc.enabled = true.
 public_url = "https://tali.example.com"
-internal_url = "http://tali-control"
+internal_url = "http://tali-control:38080"
 
 [database]
 url = "postgresql://tali:password@postgresql:5432/tali"

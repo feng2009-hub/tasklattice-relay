@@ -131,7 +131,7 @@ kubectl -n tali rollout status deployment/tali-runner --timeout=300s
 kubectl -n tali rollout status deployment/tali-litellm --timeout=300s
 kubectl -n tali rollout status statefulset/tali-postgresql --timeout=300s
 kubectl -n tali rollout status statefulset/tali-openshell --timeout=300s
-kubectl -n agent-sandbox-system rollout status deployment/agent-sandbox-controller --timeout=300s
+kubectl -n tali rollout status deployment/agent-sandbox-controller --timeout=300s
 kubectl -n tali get pods,services,pvc
 ```
 
@@ -160,11 +160,11 @@ creates its Sandbox rather than running as permanent control-plane Pods.
 ## Access
 
 On a cluster with `LoadBalancer` support, open the external address of the
-`tali-control` Service on port 80. When using the `ClusterIP` overrides,
+`tali-control` Service on port 38080. When using the `ClusterIP` overrides,
 forward the Control Service and open `http://127.0.0.1:18080`:
 
 ```sh
-kubectl -n tali port-forward service/tali-control 18080:80
+kubectl -n tali port-forward service/tali-control 18080:38080
 ```
 
 Keep this second forward running when validating a Sandbox Agent UI through

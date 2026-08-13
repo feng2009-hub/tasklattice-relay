@@ -10,8 +10,8 @@ const routeLabels: Record<string, string> = {
   agents: "Instances",
   cost: "Cost",
   dashboard: "Overview",
-  instances: "Instances",
-  instace: "Instances",
+  instances: "Runtime Instances",
+  instace: "Runtime Instances",
   knowledge: "Knowledge Base",
   memory: "Memory",
   mcp: "MCP Servers",
@@ -48,7 +48,7 @@ function decodePathPart(part: string) {
 export function getHeaderBreadcrumbItems(pathname: string): HeaderBreadcrumbItem[] {
   const parts = pathname.split("/").filter(Boolean);
   const projectId = parts[0];
-  return parts.slice(1).flatMap((part, routeIndex) => {
+  const routeItems = parts.slice(1).flatMap((part, routeIndex) => {
     const index = routeIndex + 1;
     const label =
       routeIndex === 1 && parts[1] === "agent-garden"
@@ -65,6 +65,9 @@ export function getHeaderBreadcrumbItems(pathname: string): HeaderBreadcrumbItem
       label,
     }];
   });
+  return parts[1] === "instances" || parts[1] === "memory"
+    ? [{ href: `/${projectId}`, label: "Home" }, ...routeItems]
+    : routeItems;
 }
 
 export function HeaderBreadcrumb({ pathname }: { pathname: string }) {

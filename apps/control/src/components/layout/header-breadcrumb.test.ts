@@ -8,15 +8,17 @@ describe("getHeaderBreadcrumbItems", () => {
     ]);
   });
 
-  it("labels the OpenClaw Memory destination", () => {
+  it("nests Memory within the Home section", () => {
     expect(getHeaderBreadcrumbItems("/individual/memory")).toEqual([
+      { href: "/individual", label: "Home" },
       { href: "/individual/memory", label: "Memory" },
     ]);
   });
 
   it("keeps the current resource identity for dynamic routes", () => {
     expect(getHeaderBreadcrumbItems("/web3/instances/devops")).toEqual([
-      { href: "/web3/instances", label: "Instances" },
+      { href: "/web3", label: "Home" },
+      { href: "/web3/instances", label: "Runtime Instances" },
       { href: "/web3/instances/devops", label: "devops" },
     ]);
   });

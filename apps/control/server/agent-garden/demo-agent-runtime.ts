@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { AgentGardenEntry } from "@tali/contracts";
 import { exampleStoreAgentDefinitions } from "./example-store-agent-definitions";
 
-const demoServiceOrigin = "http://tali-control";
+const demoServiceOrigin = "http://tali-control:38080";
 
 export interface DemoAgentDefinition {
   id: string;

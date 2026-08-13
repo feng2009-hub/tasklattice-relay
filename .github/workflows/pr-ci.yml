@@ -1,0 +1,281 @@
+name: PR CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: pr-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  changes:
+    name: Detect affected components
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      contracts: ${{ steps.filter.outputs.contracts }}
+      control: ${{ steps.filter.outputs.control }}
+      runner: ${{ steps.filter.outputs.runner }}
+      example_mcp: ${{ steps.filter.outputs.example_mcp }}
+      litellm: ${{ steps.filter.outputs.litellm }}
+      helm: ${{ steps.filter.outputs.helm }}
+      core_images: ${{ steps.filter.outputs.core_images }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - id: filter
+        name: Classify changed paths
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4
+        with:
+          filters: |
+            contracts:
+              - '.github/actions/setup-node-workspace/**'
+              - '.github/workflows/pr-ci.yml'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'tsconfig.base.json'
+              - 'packages/contracts/**'
+            control:
+              - '.github/actions/setup-node-workspace/**'
+              - '.github/workflows/pr-ci.yml'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'tsconfig.base.json'
+              - 'packages/contracts/**'
+              - 'apps/control/**'
+              - 'skills/**'
+              - 'scripts/package-vendor-skills.py'
+            runner:
+              - '.github/actions/setup-node-workspace/**'
+              - '.github/workflows/pr-ci.yml'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'tsconfig.base.json'
+              - 'packages/contracts/**'
+              - 'apps/runner/**'
+            example_mcp:
+              - '.github/actions/setup-node-workspace/**'
+              - '.github/workflows/pr-ci.yml'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'tsconfig.base.json'
+              - 'apps/example-mcp-server/**'
+            litellm:
+              - '.dockerignore'
+              - '.github/workflows/pr-ci.yml'
+              - 'infra/docker/Dockerfile.litellm'
+              - 'infra/litellm/**'
+            helm:
+              - '.github/actions/setup-node-workspace/**'
+              - '.github/workflows/pr-ci.yml'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'charts/tali/**'
+              - 'scripts/prepare-helm-dependencies.sh'
+              - 'scripts/package-control-plane-chart.sh'
+              - 'scripts/validate-helm-*.mjs'
+            core_images:
+              - '.dockerignore'
+              - '.github/workflows/pr-ci.yml'
+              - 'infra/docker/Dockerfile'
+
+  contracts:
+    name: Contracts
+    needs: changes
+    if: needs.changes.outputs.contracts == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: ./.github/actions/setup-node-workspace
+      - name: Typecheck contracts
+        run: npm run typecheck --workspace @tali/contracts
+      - name: Build contracts
+        run: npm run build --workspace @tali/contracts
+
+  control:
+    name: Control
+    needs: changes
+    if: needs.changes.outputs.control == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: ./.github/actions/setup-node-workspace
+      - name: Build shared contracts
+        run: npm run build --workspace @tali/contracts
+      - name: Test control
+        run: npm run test --workspace @tali/control
+      - name: Typecheck control
+        run: npm run typecheck --workspace @tali/control
+      - name: Build control
+        run: npm run build --workspace @tali/control
+
+  runner:
+    name: Runner
+    needs: changes
+    if: needs.changes.outputs.runner == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: ./.github/actions/setup-node-workspace
+      - name: Build shared contracts
+        run: npm run build --workspace @tali/contracts
+      - name: Test runner
+        run: npm run test --workspace @tali/runner
+      - name: Typecheck runner
+        run: npm run typecheck --workspace @tali/runner
+      - name: Build runner
+        run: npm run build --workspace @tali/runner
+
+  example_mcp:
+    name: Example MCP
+    needs: changes
+    if: needs.changes.outputs.example_mcp == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: ./.github/actions/setup-node-workspace
+      - name: Test example MCP server
+        run: npm run test --workspace @tali/example-mcp-server
+      - name: Typecheck example MCP server
+        run: npm run typecheck --workspace @tali/example-mcp-server
+      - name: Build example MCP server
+        run: npm run build --workspace @tali/example-mcp-server
+
+  litellm:
+    name: LiteLLM overlay
+    needs: changes
+    if: needs.changes.outputs.litellm == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Build and verify LiteLLM overlay
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: infra/docker/Dockerfile.litellm
+          target: tasklattice-litellm-builder
+          push: false
+          cache-from: type=gha,scope=pr-litellm-builder
+          cache-to: type=gha,mode=max,scope=pr-litellm-builder
+
+  helm:
+    name: Helm
+    needs: changes
+    if: needs.changes.outputs.helm == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: ./.github/actions/setup-node-workspace
+      - uses: azure/setup-helm@bf6a7d304bc2fdb57e0331155b7ebf2c504acf0a # v4
+        with:
+          version: v3.18.4
+      - name: Prepare chart dependencies
+        run: npm run helm:dependencies
+      - name: Lint chart
+        run: helm lint charts/tali
+      - name: Validate rendered resources
+        run: npm run helm:validate:resources
+      - name: Validate OpenShift compatibility
+        run: npm run helm:validate:openshift
+      - name: Validate air-gapped configuration
+        run: npm run helm:validate:airgap
+      - name: Render default chart
+        run: helm template tali charts/tali --namespace tali --kube-version 1.29.0 > /dev/null
+
+  core_images:
+    name: Core image (${{ matrix.target }})
+    needs: changes
+    if: needs.changes.outputs.core_images == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - control
+          - runner
+          - example-mcp
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: azure/setup-helm@bf6a7d304bc2fdb57e0331155b7ebf2c504acf0a # v4
+        if: matrix.target == 'control'
+        with:
+          version: v3.18.4
+      - name: Package chart for control image
+        if: matrix.target == 'control'
+        run: bash scripts/package-control-plane-chart.sh
+      - name: Build image target
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: infra/docker/Dockerfile
+          target: ${{ matrix.target }}
+          push: false
+          cache-from: type=gha,scope=pr-core-${{ matrix.target }}
+          cache-to: type=gha,mode=max,scope=pr-core-${{ matrix.target }}
+
+  required:
+    name: Required
+    if: always()
+    needs:
+      - changes
+      - contracts
+      - control
+      - runner
+      - example_mcp
+      - litellm
+      - helm
+      - core_images
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every affected component to pass
+        shell: bash
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          CONTRACTS_RESULT: ${{ needs.contracts.result }}
+          CONTROL_RESULT: ${{ needs.control.result }}
+          RUNNER_RESULT: ${{ needs.runner.result }}
+          EXAMPLE_MCP_RESULT: ${{ needs.example_mcp.result }}
+          LITELLM_RESULT: ${{ needs.litellm.result }}
+          HELM_RESULT: ${{ needs.helm.result }}
+          CORE_IMAGES_RESULT: ${{ needs.core_images.result }}
+        run: |
+          set -euo pipefail
+          failed=0
+          for component in \
+            CHANGES \
+            CONTRACTS \
+            CONTROL \
+            RUNNER \
+            EXAMPLE_MCP \
+            LITELLM \
+            HELM \
+            CORE_IMAGES
+          do
+            result_variable="${component}_RESULT"
+            result="${!result_variable}"
+            printf '%-12s %s\n' "${component}" "${result}"
+            case "${result}" in
+              success|skipped) ;;
+              *) failed=1 ;;
+            esac
+          done
+          exit "${failed}"
