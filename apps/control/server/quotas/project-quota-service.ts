@@ -9,6 +9,10 @@ import {
   type LiteLLMInstanceServiceAccountInput,
 } from "../providers/litellm-client";
 import { ProjectStore } from "../projects/project-store";
+import {
+  type BudgetDuration,
+  nextBudgetWindow,
+} from "./budget-window";
 
 type LimitedResource = "instances" | "mcp" | "knowledge-base";
 
@@ -18,15 +22,20 @@ export class ProjectQuotaService {
   constructor(
     readonly store = new ProjectStore(),
     readonly litellm: LiteLLMAdminClient = new LiteLLMClient(),
+    private readonly clock: () => Date = () => new Date(),
   ) {
     this.db = store.database();
   }
 
   async get(): Promise<ProjectQuota> {
-    const quota = await this.ensureRecord();
+    const now = this.clock();
+    const quota = await this.ensureCurrentBudgetWindow(now);
+    const usageWindow = quota.budgetPeriodStartedAt
+      ? { requestStartTime: { gte: quota.budgetPeriodStartedAt, lt: now } }
+      : {};
     const [usage, instances, mcpIntegrations, knowledgeBaseIntegrations] = await Promise.all([
       this.db.modelUsageFactRecord.aggregate({
-        where: { projectId: this.store.projectId },
+        where: { projectId: this.store.projectId, ...usageWindow },
         _sum: { totalCostUsd: true, totalTokens: true },
       }),
       this.db.agentRecord.count({ where: { projectId: this.store.projectId } }),
@@ -37,6 +46,8 @@ export class ProjectQuotaService {
       projectId: quota.projectId,
       hardBudgetUsd: quota.hardBudgetUsd === null ? null : Number(quota.hardBudgetUsd),
       budgetDuration: quota.budgetDuration as ProjectQuota["budgetDuration"],
+      budgetPeriodStartedAt: quota.budgetPeriodStartedAt?.toISOString() ?? null,
+      budgetResetsAt: quota.budgetResetsAt?.toISOString() ?? null,
       tpmLimit: quota.tpmLimit === null ? null : Number(quota.tpmLimit),
       maxInstances: quota.maxInstances,
       maxMcpIntegrations: quota.maxMcpIntegrations,
@@ -57,16 +68,27 @@ export class ProjectQuotaService {
   }
 
   async update(input: UpdateProjectQuotaInput, actor: string): Promise<ProjectQuota> {
+    const current = await this.ensureRecord();
+    const budgetChanged = Number(current.hardBudgetUsd) !== input.hardBudgetUsd
+      || current.budgetDuration !== input.budgetDuration;
+    const window = input.hardBudgetUsd !== null && input.budgetDuration !== null
+      ? nextBudgetWindow(
+          this.clock(),
+          input.budgetDuration,
+          budgetChanged ? null : current.budgetPeriodStartedAt,
+          budgetChanged ? null : current.budgetResetsAt,
+        )
+      : null;
     await this.db.projectQuotaRecord.upsert({
       where: { projectId: this.store.projectId },
       create: {
         projectId: this.store.projectId,
-        ...this.databaseInput(input),
+        ...this.databaseInput(input, window),
         updatedBy: actor,
         syncStatus: "pending",
       },
       update: {
-        ...this.databaseInput(input),
+        ...this.databaseInput(input, window),
         updatedBy: actor,
         syncStatus: "pending",
         lastSyncError: null,
@@ -173,15 +195,42 @@ export class ProjectQuotaService {
     });
   }
 
-  private databaseInput(input: UpdateProjectQuotaInput) {
+  private databaseInput(
+    input: UpdateProjectQuotaInput,
+    window: { startedAt: Date; resetsAt: Date } | null,
+  ) {
     return {
       hardBudgetUsd: input.hardBudgetUsd,
       budgetDuration: input.budgetDuration,
+      budgetPeriodStartedAt: window?.startedAt ?? null,
+      budgetResetsAt: window?.resetsAt ?? null,
       tpmLimit: input.tpmLimit === null ? null : BigInt(input.tpmLimit),
       maxInstances: input.maxInstances,
       maxMcpIntegrations: input.maxMcpIntegrations,
       maxKnowledgeBaseIntegrations: input.maxKnowledgeBaseIntegrations,
     };
+  }
+
+  private async ensureCurrentBudgetWindow(now: Date) {
+    const quota = await this.ensureRecord();
+    if (quota.hardBudgetUsd === null || quota.budgetDuration === null) return quota;
+    const window = nextBudgetWindow(
+      now,
+      quota.budgetDuration as BudgetDuration,
+      quota.budgetPeriodStartedAt,
+      quota.budgetResetsAt,
+    );
+    if (
+      quota.budgetPeriodStartedAt?.getTime() === window.startedAt.getTime()
+      && quota.budgetResetsAt?.getTime() === window.resetsAt.getTime()
+    ) return quota;
+    return this.db.projectQuotaRecord.update({
+      where: { projectId: this.store.projectId },
+      data: {
+        budgetPeriodStartedAt: window.startedAt,
+        budgetResetsAt: window.resetsAt,
+      },
+    });
   }
 
   private async markSyncFailure(error: unknown): Promise<void> {

@@ -51,6 +51,13 @@ const openClawBootstrapScript = (
   return `#!/usr/bin/env bash
 set -euo pipefail
 
+readonly telemetry_env_file=/tmp/tali-run-telemetry.env
+source "$telemetry_env_file"
+rm -f "$telemetry_env_file"
+export TALI_RUN_TELEMETRY_ENDPOINT="$(printf '%s' "$TALI_RUN_TELEMETRY_ENDPOINT_B64" | base64 -d)"
+export TALI_RUN_TELEMETRY_TOKEN="$(printf '%s' "$TALI_RUN_TELEMETRY_TOKEN_B64" | base64 -d)"
+unset TALI_RUN_TELEMETRY_ENDPOINT_B64 TALI_RUN_TELEMETRY_TOKEN_B64
+
 readonly config_file=/sandbox/.openclaw/openclaw.json
 readonly hash_file=/sandbox/.openclaw/.config-hash
 
@@ -73,6 +80,15 @@ provider.models = [{
   name: "inference/" + modelId,
 }];
 config.agents.defaults.model.primary = "inference/" + modelId;
+const plugins = (config.plugins ??= {});
+const pluginLoad = (plugins.load ??= {});
+const pluginPaths = Array.isArray(pluginLoad.paths) ? pluginLoad.paths : [];
+pluginLoad.paths = [...new Set([...pluginPaths, "/usr/local/lib/tali/openclaw-run-telemetry"])];
+const pluginEntries = (plugins.entries ??= {});
+pluginEntries["tali-run-telemetry"] = {
+  enabled: true,
+  hooks: { allowConversationAccess: true },
+};
 if (memory) {
   const workspaceDirectory = "/sandbox/.openclaw/workspace";
   const dailyMemoryDirectory = workspaceDirectory + "/memory";
@@ -148,10 +164,25 @@ const hermesBootstrapScript = (
 ) => `#!/usr/bin/env bash
 set -euo pipefail
 
+readonly telemetry_env_file=/tmp/tali-run-telemetry.env
+source "$telemetry_env_file"
+rm -f "$telemetry_env_file"
+export TALI_RUN_TELEMETRY_ENDPOINT="$(printf '%s' "$TALI_RUN_TELEMETRY_ENDPOINT_B64" | base64 -d)"
+export TALI_RUN_TELEMETRY_TOKEN="$(printf '%s' "$TALI_RUN_TELEMETRY_TOKEN_B64" | base64 -d)"
+unset TALI_RUN_TELEMETRY_ENDPOINT_B64 TALI_RUN_TELEMETRY_TOKEN_B64
+
 readonly hermes_dir=/sandbox/.hermes
 readonly config_file="$hermes_dir/config.yaml"
 readonly hash_file="$hermes_dir/.config-hash"
 readonly config_bootstrap=/usr/local/lib/tali/bootstrap-hermes-config.py
+readonly telemetry_hook_source=/usr/local/lib/tali/hermes-run-telemetry
+readonly telemetry_hook_dir="$hermes_dir/hooks/tali-run-telemetry"
+
+install -d -m 0770 "$telemetry_hook_dir"
+cp "$telemetry_hook_source/HOOK.yaml" "$telemetry_hook_dir/HOOK.yaml"
+cp "$telemetry_hook_source/handler.py" "$telemetry_hook_dir/handler.py"
+chmod 0550 "$telemetry_hook_dir/handler.py"
+chmod 0440 "$telemetry_hook_dir/HOOK.yaml"
 
 # OpenShell provisions the persistent workspace root with a setgid, writable
 # mode so uploaded files can be staged before the workload starts. Hermes

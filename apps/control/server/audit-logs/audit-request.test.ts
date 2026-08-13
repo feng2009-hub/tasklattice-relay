@@ -188,10 +188,9 @@ describe("platform audit request capture", () => {
       actorId: "local-admin",
       capability: "CAP_AGENT_INSTANCE_DELETE",
       decision: "APPROVAL_REQUIRED",
-      environment: "PROD",
-      policyId: "builtin:prod:governed-change",
+      policyId: "builtin:governed-change",
       projectId: "individual",
-      reason: "Agent deletion requires approval in PROD.",
+      reason: "Agent deletion requires approval.",
       relation: "OWNER",
       resourceId: "00000000-0000-4000-8000-000000000001",
       resourceType: "AgentInstance",
@@ -213,7 +212,7 @@ describe("platform audit request capture", () => {
     expect(row).toMatchObject({
       authorizationCapability: "CAP_AGENT_INSTANCE_DELETE",
       authorizationDecision: "approval_required",
-      authorizationReason: "Agent deletion requires approval in PROD.",
+      authorizationReason: "Agent deletion requires approval.",
       authorizationRole: "ROLE_AGENT_DEVELOPER",
       outcome: "denied",
     });
@@ -221,7 +220,7 @@ describe("platform audit request capture", () => {
       admission: [{
         capability: "CAP_AGENT_INSTANCE_DELETE",
         decision: "APPROVAL_REQUIRED",
-        policyId: "builtin:prod:governed-change",
+        policyId: "builtin:governed-change",
         relation: "OWNER",
       }],
     });
@@ -245,7 +244,6 @@ describe("platform audit request capture", () => {
         actorId: "local-admin",
         capability: "CAP_AGENT_INSTANCE_CREATE",
         decision: "ALLOW",
-        environment: "DEV",
         projectId: "individual",
         reason: "Primary route capability allowed.",
         relation: "OWNER",
@@ -256,7 +254,6 @@ describe("platform audit request capture", () => {
         actorId: "local-admin",
         capability: "CAP_AGENT_INSTANCE_MODEL_ROUTING_ASSIGN",
         decision: "ALLOW",
-        environment: "DEV",
         projectId: "individual",
         reason: "Additional binding capability allowed.",
         relation: "OWNER",

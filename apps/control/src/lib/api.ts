@@ -45,6 +45,8 @@ import type {
   ProviderDiscoveryResult,
   PlatformAuditLogListResponse,
   PlatformAuditLogQuery,
+  ProjectOverviewRange,
+  ProjectOverviewResponse,
   RuntimeStatus,
   SandboxPolicy,
   SandboxPolicyCatalog,
@@ -159,6 +161,10 @@ function auditLogSearch(params: PlatformAuditLogQuery): string {
 }
 
 export const api = {
+  getProjectOverview: (range: ProjectOverviewRange, timezone: string) =>
+    request<ProjectOverviewResponse>(
+      `/api/v1/overview?${new URLSearchParams({ range, timezone })}`,
+    ),
   listTraces: () => request<TraceListResponse>("/api/v1/traces"),
   getTrace: (traceId: string) =>
     request<TraceDetail>(`/api/v1/traces/${encodeURIComponent(traceId)}`),

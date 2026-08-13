@@ -1,0 +1,13 @@
+{
+  "id": "tali-run-telemetry",
+  "name": "TaskLattice Run Telemetry",
+  "description": "Reports sanitized top-level Run lifecycle events to TaskLattice Relay.",
+  "activation": {
+    "onStartup": true
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

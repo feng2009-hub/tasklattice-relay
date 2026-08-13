@@ -18,6 +18,10 @@ export interface ProvisionInput {
   systemPrompt: string;
   apiKey?: string;
   instanceId: string;
+  runTelemetry: {
+    endpoint: string;
+    token: string;
+  };
   memory?: RuntimeMemoryConfiguration;
 }
 
@@ -55,6 +59,8 @@ export function onboardCommand(input: ProvisionInput): {
       NEMOCLAW_PREFERRED_API: "completions",
       NEMOCLAW_WEB_SEARCH_PROVIDER: "none",
       ...(apiKey ? { COMPATIBLE_API_KEY: apiKey } : {}),
+      TALI_RUN_TELEMETRY_ENDPOINT: input.runTelemetry.endpoint,
+      TALI_RUN_TELEMETRY_TOKEN: input.runTelemetry.token,
     },
   };
 }

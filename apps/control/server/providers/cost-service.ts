@@ -30,7 +30,6 @@ export interface CostAnalyticsQuery {
   endTime: string;
   timezone: string;
   projectId: string;
-  environmentId: string;
   filters: CostFilters;
 }
 
@@ -78,7 +77,7 @@ const groupLabels: Record<CostGroupBy, string> = {
 };
 const filterKeys: CostFilterKey[] = [
   "instance", "model_endpoint", "provider", "provider_account",
-  "virtual_key", "environment", "project",
+  "virtual_key", "project",
 ];
 
 function finite(value: unknown): number | undefined {
@@ -211,7 +210,7 @@ function factDimension(fact: ModelUsageFact, groupBy: CostGroupBy) {
   if (groupBy === "instance") return {
     id: fact.instanceId ?? "unmapped-instance",
     name: fact.instanceName ?? groupLabels.instance,
-    detail: fact.environmentId,
+    detail: fact.resolvedModel,
   };
   if (groupBy === "model_endpoint") return {
     id: fact.modelEndpointId ?? "unmapped-model-endpoint",
@@ -236,7 +235,6 @@ function filterValue(fact: ModelUsageFact, key: CostFilterKey): string {
   if (key === "provider") return fact.provider;
   if (key === "provider_account") return fact.providerAccountId ?? "unmapped-provider-account";
   if (key === "virtual_key") return fact.virtualKeyId ?? "unmapped-virtual-key";
-  if (key === "environment") return fact.environmentId;
   return fact.projectId;
 }
 
@@ -318,7 +316,6 @@ export class CostService {
   private async refreshMappings(): Promise<void> {
     const analytics = this.analytics();
     const projectId = this.store.projectId;
-    const environmentId = "production";
     for (const agent of await this.store.listAgentsForReporting()) {
       const full = await this.store.get(agent.id);
       const binding = await this.store.getModelRoutingBindingForAgent(agent.id);
@@ -329,7 +326,6 @@ export class CostService {
       await analytics.saveAttribution({
         id: binding ? `binding:${binding.id}` : `agent:${agent.id}:${full?.createdAt ?? "unknown"}`,
         projectId,
-        environmentId,
         instanceId: agent.id,
         instanceName: agent.name,
         ...(virtualKeyId ? { liteLLMVirtualKeyId: virtualKeyId } : {}),
@@ -420,6 +416,25 @@ export class CostService {
     return { source: currency === "USD" ? "unknown-price" : `unknown-fx:${currency}`, version: log.price_version ?? "unknown" };
   }
 
+  private async runCorrelation(instanceId: string | undefined, timestamp: string) {
+    if (!instanceId) return undefined;
+    const at = new Date(timestamp);
+    const candidates = await this.store.database().projectRunRecord.findMany({
+      where: {
+        projectId: this.store.projectId,
+        instanceId,
+        startedAt: { lte: at },
+        OR: [{ endedAt: null }, { endedAt: { gte: at } }],
+      },
+      orderBy: { startedAt: "desc" },
+      take: 2,
+      select: { id: true, traceId: true },
+    });
+    // Concurrent Runs on one Instance are legal. Time containment is used
+    // only when it identifies exactly one Run; ambiguity remains explicit.
+    return candidates.length === 1 ? candidates[0] : undefined;
+  }
+
   private async factFromLog(log: LiteLLMSpendLog): Promise<ModelUsageFact> {
     const timestamp = sourceTimestamp(log);
     const requestId = log.request_id || `generated:${hash(JSON.stringify(log))}`;
@@ -453,6 +468,7 @@ export class CostService {
     const virtualKeyAlias = attribution?.virtualKeyAlias ?? log.virtual_key_alias ??
       (virtualKeyId ? `Virtual key ••••${virtualKeyId.slice(-4)}` : undefined);
     const sourceHash = hash(JSON.stringify(log));
+    const correlation = await this.runCorrelation(attribution?.instanceId, timestamp);
     return {
       eventId: `litellm:${requestId}`,
       requestId,
@@ -461,8 +477,10 @@ export class CostService {
       ...(log.response_end_time ?? log.end_time ? { responseEndTime: new Date(log.response_end_time ?? log.end_time!).toISOString() } : {}),
       usageDate: dateInTimezone(timestamp, "UTC"),
       usageHour: hourInTimezone(timestamp, "UTC"),
-      projectId: attribution?.projectId ?? "default",
-      environmentId: attribution?.environmentId ?? "production",
+      // The upstream query is scoped to this Project's LiteLLM Team. A
+      // missing Instance mapping is a data-quality problem, not permission to
+      // assign the record to a fabricated/default Project.
+      projectId: this.store.projectId,
       ...(attribution?.instanceId ? { instanceId: attribution.instanceId, instanceName: attribution.instanceName } : {}),
       ...(endpoint ? { modelEndpointId: endpoint.modelEndpointId, modelEndpointName: endpoint.modelEndpointName } : {}),
       ...(endpoint?.providerAccountId ?? attribution?.providerAccountId ? {
@@ -475,6 +493,10 @@ export class CostService {
       ...(log.team_id ? { liteLLMTeamId: log.team_id } : {}),
       ...(log.organization_id ? { organizationId: log.organization_id } : {}),
       ...(log.end_user_id ?? log.end_user ? { endUserId: log.end_user_id ?? log.end_user! } : {}),
+      ...(correlation ? {
+        runId: correlation.id,
+        ...(correlation.traceId ? { traceId: correlation.traceId } : {}),
+      } : {}),
       requestedModel: log.requested_model ?? log.model_group ?? log.model ?? "unknown-model",
       resolvedModel: log.resolved_model ?? log.model ?? log.model_group ?? "unknown-model",
       modelGroup: log.model_group ?? log.requested_model ?? "",
@@ -526,13 +548,24 @@ export class CostService {
     await this.refreshMappings();
     const analytics = this.analytics();
     const checkpoint = await analytics.checkpoint();
-    const rangeMs = new Date(endTime).getTime() - new Date(startTime).getTime() + 1;
-    const previousStart = new Date(new Date(startTime).getTime() - rangeMs).toISOString();
+    const quota = await this.store.database().projectQuotaRecord.findUnique({
+      where: { projectId: this.store.projectId },
+      select: { litellmTeamId: true },
+    });
+    if (!quota?.litellmTeamId) {
+      throw new Error(
+        `Project ${this.store.projectId} has no LiteLLM Team; cost ingestion cannot establish ownership.`,
+      );
+    }
     const overlapStart = checkpoint.lastSuccessfulEndTime
       ? new Date(new Date(checkpoint.lastSuccessfulEndTime).getTime() - 172_800_000).toISOString()
-      : previousStart;
-    const syncStart = previousStart < overlapStart ? previousStart : overlapStart;
-    const logs = await this.litellm.listSpendLogs(syncStart.slice(0, 10), endTime.slice(0, 10));
+      : startTime;
+    const syncStart = startTime < overlapStart ? startTime : overlapStart;
+    const logs = await this.litellm.listSpendLogs(
+      syncStart.slice(0, 10),
+      endTime.slice(0, 10),
+      quota.litellmTeamId,
+    );
     const canonical = new Map<string, LiteLLMSpendLog>();
     let duplicateRecords = 0;
     for (const log of logs) {
@@ -555,6 +588,9 @@ export class CostService {
     let lateArrivingRecords = 0;
     for (const log of canonical.values()) {
       try {
+        if (log.team_id !== quota.litellmTeamId) {
+          throw new Error("LiteLLM returned a spend record outside the requested Project Team.");
+        }
         const fact = await this.factFromLog(log);
         if (checkpoint.lastSuccessfulEndTime && fact.requestStartTime < checkpoint.lastSuccessfulEndTime)
           lateArrivingRecords += 1;
@@ -598,13 +634,11 @@ export class CostService {
   private async facts(query: CostAnalyticsQuery, includePrevious = false) {
     const normalized = normalizedQuery(query);
     const previous = previousPeriod(normalized.start, normalized.end);
-    await this.sync(includePrevious ? previous.start : normalized.start, normalized.end);
     const start = includePrevious ? previous.start : normalized.start;
     const all = await this.analytics().listFacts({
       startTime: start,
       endTime: normalized.end,
       projectId: query.projectId,
-      environmentId: query.environmentId,
     });
     return { normalized, previous, all, current: applyFilters(all.filter((fact) => fact.requestStartTime >= normalized.start), query.filters) };
   }
@@ -617,7 +651,6 @@ export class CostService {
       maps.provider.set(fact.provider, fact.provider);
       maps.provider_account.set(filterValue(fact, "provider_account"), fact.providerAccountName ?? groupLabels.provider_account);
       maps.virtual_key.set(filterValue(fact, "virtual_key"), fact.virtualKeyAlias ?? groupLabels.virtual_key);
-      maps.environment.set(fact.environmentId, fact.environmentId);
       maps.project.set(fact.projectId, fact.projectId);
     }
     return Object.fromEntries(filterKeys.map((key) => [
@@ -657,6 +690,7 @@ export class CostService {
       completionTokens: current.reduce((sum, fact) => sum + fact.completionTokens, 0),
       requests: current.length,
       unknownCostRequests: current.filter((fact) => fact.costStatus === "unknown").length,
+      uncorrelatedRunRequests: current.filter((fact) => fact.instanceId && !fact.runId).length,
       ...(highestCostInstance ? { highestCostInstance } : {}),
       ...(highestCostModel ? { highestCostModel } : {}),
       comparison: {
@@ -678,7 +712,6 @@ export class CostService {
           usageDate,
           timezone: query.timezone,
           projectId: fact.projectId,
-          environmentId: fact.environmentId,
           groupType,
           groupId: dimension.id,
           groupName: dimension.name,
@@ -722,12 +755,10 @@ export class CostService {
       startTime: normalized.start,
       endTime: normalized.end,
       projectId: query.projectId,
-      environmentId: query.environmentId,
     });
     const dailyRows = this.dailyRows(unfiltered, normalized);
     await this.analytics().replaceDailyRows({
       projectId: query.projectId,
-      environmentId: query.environmentId,
       timezone: query.timezone,
       from: normalized.from,
       to: normalized.to,
@@ -890,7 +921,6 @@ export class CostService {
       startTime: normalized.start,
       endTime: normalized.end,
       projectId: query.projectId,
-      environmentId: query.environmentId,
     });
     return {
       currency: "USD",
@@ -919,6 +949,7 @@ export class CostService {
       negativeSpendRequests: current.filter((fact) => (fact.totalCostUsd ?? 0) < 0).length,
       unknownCostRequests: current.filter((fact) => fact.costStatus === "unknown").length,
       duplicateRequests: await this.analytics().countDuplicateRequests(),
+      uncorrelatedRunRequests: current.filter((fact) => fact.instanceId && !fact.runId).length,
       lateArrivingRequests: checkpoint.lateArrivingRecords,
       ...(checkpoint.lastSyncAt ? { lastSyncAt: checkpoint.lastSyncAt } : {}),
       ...(checkpoint.syncLagSeconds !== undefined ? { syncLagSeconds: checkpoint.syncLagSeconds } : {}),

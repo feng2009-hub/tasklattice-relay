@@ -1,7 +1,6 @@
 import type {
   AuthorizationDecision,
   BuiltinProjectRoleId,
-  DeploymentEnvironment,
   ProjectCapability,
   ResourceRelation,
 } from "@tali/contracts";
@@ -16,7 +15,6 @@ import {
 export interface AdmissionInput {
   actorId: string;
   capability: ProjectCapability;
-  environment?: DeploymentEnvironment;
   explicitDeny?: boolean;
   projectId: string;
   relation?: ResourceRelation;
@@ -37,63 +35,6 @@ function relationCovered(
   return granted.includes("PROJECT_ANY") || granted.includes(requested);
 }
 
-const defaultApprovalCapabilities = new Set<ProjectCapability>([
-  "CAP_PROJECT_DELETE",
-  "CAP_PROJECT_MEMBER_ROLE_ASSIGN",
-  "CAP_PROJECT_MEMBER_REMOVE",
-  "CAP_PROJECT_ROLE_CREATE",
-  "CAP_PROJECT_ROLE_UPDATE",
-  "CAP_PROJECT_ROLE_DELETE",
-  "CAP_PROJECT_QUOTA_UPDATE",
-  "CAP_AGENT_REGISTRATION_DISCOVER",
-  "CAP_AGENT_REGISTRATION_UPDATE",
-  "CAP_AGENT_REGISTRATION_DELETE",
-  "CAP_AGENT_CONNECTION_GRANT",
-  "CAP_AGENT_CONNECTION_UPDATE",
-  "CAP_AGENT_INSTANCE_CREATE",
-  "CAP_AGENT_INSTANCE_UPDATE",
-  "CAP_AGENT_INSTANCE_START",
-  "CAP_AGENT_INSTANCE_STOP",
-  "CAP_AGENT_INSTANCE_RESTART",
-  "CAP_AGENT_INSTANCE_DELETE",
-  "CAP_AGENT_INSTANCE_OWNER_TRANSFER",
-  "CAP_AGENT_INSTANCE_ACCESS_POLICY_ASSIGN",
-  "CAP_AGENT_INSTANCE_RUNTIME_POLICY_ASSIGN",
-  "CAP_AGENT_INSTANCE_MODEL_ROUTING_ASSIGN",
-  "CAP_AGENT_ASSIGNMENT_ASSIGN",
-  "CAP_AGENT_ASSIGNMENT_UNASSIGN",
-  "CAP_AGENT_MEMORY_CONFIG_UPDATE",
-  "CAP_AGENT_MEMORY_EMBEDDING_ASSIGN",
-  "CAP_AGENT_MEMORY_CONTENT_WRITE",
-  "CAP_AGENT_MEMORY_CONTENT_DELETE",
-  "CAP_AGENT_MEMORY_CONTENT_PURGE",
-  "CAP_AGENT_MEMORY_SESSION_INDEX_MANAGE",
-  "CAP_AGENT_MEMORY_INDEX_REBUILD",
-  "CAP_AGENT_MEMORY_INDEX_PURGE",
-  "CAP_AGENT_MEMORY_IMPORT",
-  "CAP_AGENT_MEMORY_EXPORT",
-  "CAP_AGENT_MEMORY_RETENTION_UPDATE",
-  "CAP_ACCESS_POLICY_CREATE",
-  "CAP_ACCESS_POLICY_UPDATE",
-  "CAP_ACCESS_POLICY_DELETE",
-  "CAP_RUNTIME_POLICY_CREATE",
-  "CAP_RUNTIME_POLICY_UPDATE",
-  "CAP_RUNTIME_POLICY_DELETE",
-  "CAP_PROVIDER_CREATE",
-  "CAP_PROVIDER_UPDATE",
-  "CAP_PROVIDER_DELETE",
-  "CAP_PROVIDER_CREDENTIAL_ROTATE",
-  "CAP_MODEL_CREATE",
-  "CAP_MODEL_UPDATE",
-  "CAP_MODEL_DELETE",
-  "CAP_MODEL_ROUTING_CREATE",
-  "CAP_MODEL_ROUTING_UPDATE",
-  "CAP_MODEL_ROUTING_DELETE",
-  "CAP_APPROVAL_POLICY_UPDATE",
-  "CAP_AUDIT_RETENTION_UPDATE",
-  "CAP_AUDIT_LEGAL_HOLD_MANAGE",
-]);
-
 function result(
   input: AdmissionInput,
   decision: AuthorizationDecision,
@@ -105,7 +46,6 @@ function result(
     actorId: input.actorId,
     capability: input.capability,
     decision,
-    environment: input.environment ?? "DEV",
     projectId: input.projectId,
     reason,
     relation: input.relation ?? "PROJECT_ANY",
@@ -151,9 +91,7 @@ export function evaluateAdmission(input: AdmissionInput): AdmissionResult {
     );
   }
 
-  const environment = input.environment ?? "DEV";
-  const requiresApproval = input.requireApproval
-    ?? (environment === "PROD" && defaultApprovalCapabilities.has(input.capability));
+  const requiresApproval = input.requireApproval ?? false;
   if (requiresApproval) {
     const maySubmit = input.roleIds.some((id) => {
       const definition = builtinRole(id);
@@ -173,9 +111,9 @@ export function evaluateAdmission(input: AdmissionInput): AdmissionResult {
     return result(
       input,
       "APPROVAL_REQUIRED",
-      `${input.capability} requires an approved governed change in ${environment}.`,
+      `${input.capability} requires an approved governed change.`,
       relationRole,
-      `builtin:${environment.toLowerCase()}:governed-change`,
+      "builtin:governed-change",
     );
   }
   return result(
@@ -229,7 +167,6 @@ export class ProjectAdmissionService {
       include: {
         project: {
           select: {
-            authorizationEnvironment: true,
             deletedAt: true,
           },
         },
@@ -239,14 +176,12 @@ export class ProjectAdmissionService {
     const roleIds = membership && !membership.project.deletedAt && membershipRole
       ? [membershipRoleToBuiltinRole[membershipRole]]
       : [];
-    const environment = membership?.project.authorizationEnvironment as DeploymentEnvironment | undefined;
     const evidence = evaluateAdmission({
       actorId,
       capability,
       projectId,
       roleIds,
       ...requirement,
-      ...(environment ? { environment } : {}),
     });
     appendAdmissionEvidence(request, evidence);
     if (evidence.decision !== "ALLOW") {

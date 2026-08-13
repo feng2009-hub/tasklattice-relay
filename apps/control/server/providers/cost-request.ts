@@ -13,7 +13,6 @@ const filterKeySchema = z.enum([
   "provider",
   "provider_account",
   "virtual_key",
-  "environment",
   "project",
 ]);
 const filtersSchema = z.partialRecord(
@@ -26,7 +25,6 @@ const commonSchema = z.object({
   endTime: z.string().min(1),
   timezone: z.string().min(1).default("UTC"),
   projectId: z.string().min(1).optional(),
-  environmentId: z.string().min(1).optional(),
   filters: z.string().default("{}").transform((value, context) => {
     try {
       return filtersSchema.parse(JSON.parse(value));
@@ -45,7 +43,6 @@ function scopedCommon(url: URL): CostAnalyticsQuery {
     endTime: url.searchParams.get("end_time"),
     timezone: url.searchParams.get("timezone") ?? undefined,
     projectId: url.searchParams.get("project_id") ?? undefined,
-    environmentId: url.searchParams.get("environment_id") ?? undefined,
     filters: url.searchParams.get("filters") ?? undefined,
   });
   const projectMatch = url.pathname.match(
@@ -54,19 +51,14 @@ function scopedCommon(url: URL): CostAnalyticsQuery {
   const projectId = projectMatch
     ? decodeURIComponent(projectMatch[1]!)
     : "default";
-  const environmentId = "production";
   if (input.projectId && input.projectId !== projectId) {
     throw new Error("Project access denied.");
-  }
-  if (input.environmentId && input.environmentId !== environmentId) {
-    throw new Error("Environment access denied.");
   }
   return {
     startTime: input.startTime,
     endTime: input.endTime,
     timezone: input.timezone,
     projectId,
-    environmentId,
     filters: input.filters,
   };
 }

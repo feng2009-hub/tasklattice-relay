@@ -63,9 +63,11 @@ Quota is presented in user-facing units such as RPM, TPM, monthly tokens, concur
 
 Requester and approver open the same request detail page. Available actions change by role and current approval step.
 
-### 2.5 Protect production actions
+### 2.5 Protect high-impact actions
 
-UAT and PROD are explicit contexts. Changing the context never mutates an existing resource. PROD actions show stronger confirmation and approval requirements.
+High-impact actions use explicit confirmation and approval policy based on the
+operation and resource. Project has no Environment mode or hidden production
+context.
 
 ### 2.6 Progressive disclosure
 
@@ -146,32 +148,13 @@ Global search covers:
 - Skills;
 - approval request IDs.
 
-Search results are grouped by type and always show environment.
+Search results are grouped by type and always show their owning Project.
 
-### 5.2 Environment context
+### 5.2 Project context
 
-The selector uses two explicit values:
-
-~~~text
-UAT
-PROD
-~~~
-
-Rules:
-
-- current environment is always visible in the header;
-- environment is included in page URLs and breadcrumbs;
-- changing environment reloads data in the new context;
-- unsaved forms prompt before switching;
-- a PROD banner is shown on mutation forms;
-- an item from another environment opens read-only until the user changes context.
-
-Recommended PROD banner:
-
-~~~text
-Production context
-Changes may affect live applications and require approval.
-~~~
+The current Project is always visible in the header and included in page URLs
+and breadcrumbs. Switching Project reloads Project-scoped data, and unsaved
+forms prompt before switching.
 
 ### 5.3 Page header
 
@@ -253,7 +236,7 @@ The activity list combines:
 - Agent runtime changes;
 - Skill load, upgrade, rollback, and unload events.
 
-Each row includes time, resource, environment, action, actor, status, and a detail link.
+Each row includes time, Project, resource, action, actor, status, and a detail link.
 
 ## 7. Browse Services
 
@@ -267,7 +250,6 @@ Columns:
 |---|---|
 | Service | Name, provider icon, short description |
 | Capabilities | Chat, Embedding, Rerank, Image, Audio, or Custom |
-| Environment | UAT or PROD |
 | Availability | Available, Limited, Degraded, Unavailable |
 | Quota | Current project Grant summary or No active quota |
 | Usage | Current window usage when a Grant exists |
@@ -925,12 +907,13 @@ Forms preserve user input after recoverable errors.
 Confirmation is required for:
 
 - revoking a Grant;
-- stopping or deleting a PROD Agent;
+- stopping or deleting an Agent;
 - unloading a required Skill;
 - retrying an operation that can interrupt the Agent;
 - suspending a Service Offering.
 
-Confirmations name the resource and impact. Typing the resource name is reserved for irreversible PROD deletion.
+Confirmations name the resource and impact. Typing the resource name is reserved
+for irreversible deletion.
 
 ## 20. Accessibility and responsive behavior
 

@@ -2,6 +2,7 @@ ARG BASE_IMAGE=tali-nemoclaw-hermes-upstream:local
 FROM ${BASE_IMAGE}
 
 COPY --chmod=0555 scripts/bootstrap-hermes-config.py /usr/local/lib/tali/bootstrap-hermes-config.py
+COPY --chmod=0555 runtime-integrations/hermes-run-telemetry /usr/local/lib/tali/hermes-run-telemetry
 
 # OpenShell's Kubernetes driver executes the named sandbox identity as the
 # provider-wide workload UID/GID. The upstream Hermes base inherits the Node

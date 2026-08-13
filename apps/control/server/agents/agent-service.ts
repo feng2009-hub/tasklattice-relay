@@ -25,6 +25,8 @@ import {
 import { PolicyService } from "../policies/policy-service";
 import { ModelRoutingService } from "../model-routings/model-routing-service";
 import { ProjectQuotaService } from "../quotas/project-quota-service";
+import { getControlConfig } from "../config/control-config";
+import { signRunTelemetryToken } from "../runs/run-telemetry-token";
 
 export function agentSandboxName(name: string, id: string): string {
   const slug =
@@ -167,6 +169,11 @@ export class AgentService {
     );
     const costKeyAlias = `tali-instance-${id}`;
     const serviceAccountId = `tali-instance-${id}`;
+    const controlOrigin = getControlConfig().server.internal_url
+      ?? getControlConfig().server.public_url;
+    if (!controlOrigin) {
+      throw new Error("Control server URL is required for Instance Run telemetry.");
+    }
     const objectPermissions = await this.accessPolicies.permissionsForAgent({
       accessPolicyIds: input.accessPolicyIds,
       mcpServerIds: input.mcpServerIds,
@@ -222,7 +229,6 @@ export class AgentService {
       await this.store.costAnalytics().saveAttribution({
         id: `instance-key:${id}:${instanceKey.tokenId.slice(-12)}`,
         projectId: this.store.projectId,
-        environmentId: "project-default",
         instanceId: id,
         instanceName: input.name,
         liteLLMVirtualKeyId: instanceKey.tokenId,
@@ -254,6 +260,14 @@ export class AgentService {
             systemPrompt: input.systemPrompt,
             apiKey: instanceKey.secret,
             instanceId: id,
+            runTelemetry: {
+              endpoint: `${controlOrigin.replace(/\/$/, "")}/api/internal/run-events`,
+              token: signRunTelemetryToken({
+                projectId: this.store.projectId,
+                instanceId: id,
+                agentPlatform: agent.agentPlatform,
+              }),
+            },
             ...(memory.runtime ? { memory: memory.runtime } : {}),
           }),
         ),

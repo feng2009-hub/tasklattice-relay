@@ -1,7 +1,6 @@
 import type {
   AuthorizationDecision,
   BuiltinProjectRoleId,
-  DeploymentEnvironment,
   ProjectCapability,
   ResourceRelation,
 } from "@tali/contracts";
@@ -10,7 +9,6 @@ export interface AdmissionEvidence {
   actorId: string;
   capability: ProjectCapability;
   decision: AuthorizationDecision;
-  environment: DeploymentEnvironment;
   projectId: string;
   reason: string;
   relation: ResourceRelation;

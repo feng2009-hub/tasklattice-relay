@@ -26,7 +26,6 @@ export const costFilterLabels: Record<CostFilterKey, string> = {
   provider: "Provider",
   provider_account: "Provider account",
   virtual_key: "Virtual key",
-  environment: "Environment",
   project: "Project",
 };
 

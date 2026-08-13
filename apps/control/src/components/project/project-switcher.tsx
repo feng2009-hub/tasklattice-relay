@@ -1,12 +1,10 @@
 import { useState } from "react";
-import { Link } from "@tanstack/react-router";
 import {
   Check,
   ChevronDown,
   FolderKanban,
   LoaderCircle,
   Plus,
-  Settings,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -159,31 +157,6 @@ export function ProjectSwitcher({
             <Plus className="size-4" />
             New Project
           </DropdownMenuItem>
-          {currentProject ? (
-            <>
-              <DropdownMenuSeparator />
-              {permissions.canManageProject ? (
-                <DropdownMenuItem asChild>
-                  <Link
-                    to="/$projectId/setting"
-                    params={{ projectId: currentProject.id }}
-                    onClick={() => setOpen(false)}
-                  >
-                    <Settings className="size-4" />
-                    Project settings
-                  </Link>
-                </DropdownMenuItem>
-              ) : (
-                <DropdownMenuItem disabled>
-                  <Settings className="size-4" />
-                  <span className="flex min-w-0 flex-1 items-center justify-between gap-3">
-                    Project settings
-                    <span className="text-xs text-muted-foreground">Admins only</span>
-                  </span>
-                </DropdownMenuItem>
-              )}
-            </>
-          ) : null}
         </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -518,7 +518,6 @@ export async function writeAuditResponse(
             admission: captured.admission.map((item) => ({
               capability: item.capability,
               decision: item.decision,
-              environment: item.environment,
               relation: item.relation,
               resourceType: item.resourceType,
               ...(item.resourceId ? { resourceId: item.resourceId } : {}),

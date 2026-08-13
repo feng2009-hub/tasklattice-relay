@@ -110,15 +110,14 @@ model LocalCredential {
 }
 
 model Project {
-  id                       String    @id
-  name                     String    @unique(map: "projects_name_key")
-  authorizationEnvironment String    @default("PROD") @map("authorization_environment")
-  avatar                   String?
-  createdBy                String    @map("created_by")
-  createdAt                DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt                DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  deletedAt                DateTime? @map("deleted_at") @db.Timestamptz(6)
-  deletedBy                String?   @map("deleted_by")
+  id        String    @id
+  name      String    @unique(map: "projects_name_key")
+  avatar    String?
+  createdBy String    @map("created_by")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  deletedBy String?   @map("deleted_by")
 
   creator                      User                                     @relation("ProjectCreator", fields: [createdBy], references: [id])
   humanMembers                 ProjectMember[]
@@ -146,6 +145,7 @@ model Project {
   usageObservations            ModelUsageFactObservation[]
   usageDaily                   ModelUsageDailyRecord[]
   costSyncCheckpoints          CostSyncCheckpointRecord[]
+  runs                         ProjectRunRecord[]
   auditLogs                    AuditLogRecord[]
   quota                        ProjectQuotaRecord?
 
@@ -157,6 +157,8 @@ model ProjectQuotaRecord {
   projectId                    String    @id @map("project_id")
   hardBudgetUsd                Decimal?  @map("hard_budget_usd") @db.Decimal(18, 6)
   budgetDuration               String?   @map("budget_duration")
+  budgetPeriodStartedAt        DateTime? @map("budget_period_started_at") @db.Timestamptz(6)
+  budgetResetsAt               DateTime? @map("budget_resets_at") @db.Timestamptz(6)
   tpmLimit                     BigInt?   @map("tpm_limit")
   maxInstances                 Int?      @map("max_instances")
   maxMcpIntegrations           Int?      @map("max_mcp_integrations")
@@ -173,6 +175,35 @@ model ProjectQuotaRecord {
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@map("project_quotas")
+  @@schema("tasklattice")
+}
+
+model ProjectRunRecord {
+  projectId       String    @map("project_id")
+  id              String
+  instanceId      String    @map("instance_id")
+  agentPlatform   String    @map("agent_platform")
+  source          String
+  externalRunId   String    @map("external_run_id")
+  triggerType     String    @map("trigger_type")
+  status          String
+  traceId         String?   @map("trace_id")
+  startedAt       DateTime  @map("started_at") @db.Timestamptz(6)
+  endedAt         DateTime? @map("ended_at") @db.Timestamptz(6)
+  durationMs      Int?      @map("duration_ms")
+  terminalReason  String?   @map("terminal_reason")
+  errorCategory   String?   @map("error_category")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, id])
+  @@unique([projectId, instanceId, source, externalRunId], map: "project_runs_runtime_id_key")
+  @@index([projectId, startedAt], map: "project_runs_project_started_idx")
+  @@index([projectId, status, startedAt], map: "project_runs_project_status_started_idx")
+  @@index([projectId, instanceId, startedAt], map: "project_runs_project_instance_started_idx")
+  @@map("project_runs")
   @@schema("tasklattice")
 }
 
@@ -563,7 +594,6 @@ model AgentSpecializationRecord {
 model CostAttributionMappingRecord {
   projectId           String    @map("project_id")
   id                  String
-  environmentId       String    @map("environment_id")
   instanceId          String    @map("instance_id")
   instanceName        String    @map("instance_name")
   liteLLMVirtualKeyId String?   @map("litellm_virtual_key_id")
@@ -620,7 +650,6 @@ model ModelUsageFactRecord {
   responseEndTime          DateTime? @map("response_end_time") @db.Timestamptz(6)
   usageDate                DateTime  @map("usage_date") @db.Date
   usageHour                Int       @map("usage_hour") @db.SmallInt
-  environmentId            String    @map("environment_id")
   instanceId               String?   @map("instance_id")
   instanceName             String?   @map("instance_name")
   modelEndpointId          String?   @map("model_endpoint_id")
@@ -633,6 +662,8 @@ model ModelUsageFactRecord {
   liteLLMTeamId            String?   @map("litellm_team_id")
   organizationId           String?   @map("organization_id")
   endUserId                String?   @map("end_user_id")
+  runId                    String?   @map("run_id")
+  traceId                  String?   @map("trace_id")
   requestedModel           String    @map("requested_model")
   resolvedModel            String    @map("resolved_model")
   modelGroup               String    @map("model_group")
@@ -672,6 +703,7 @@ model ModelUsageFactRecord {
   @@id([projectId, eventId])
   @@unique([projectId, requestId])
   @@index([projectId, requestStartTime], map: "model_usage_fact_time_idx")
+  @@index([projectId, runId, requestStartTime], map: "model_usage_fact_run_time_idx")
   @@map("model_usage_fact")
   @@schema("tasklattice")
 }
@@ -696,7 +728,6 @@ model ModelUsageDailyRecord {
   projectId          String   @map("project_id")
   usageDate          DateTime @map("usage_date") @db.Date
   timezone           String
-  environmentId      String   @map("environment_id")
   groupType          String   @map("group_type")
   groupId            String   @map("group_id")
   groupName          String   @map("group_name")
@@ -712,7 +743,7 @@ model ModelUsageDailyRecord {
   lastRequestAt      DateTime @map("last_request_at") @db.Timestamptz(6)
   project            Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  @@id([projectId, usageDate, timezone, environmentId, groupType, groupId])
+  @@id([projectId, usageDate, timezone, groupType, groupId])
   @@map("model_usage_daily")
   @@schema("tasklattice")
 }

@@ -120,18 +120,6 @@ function RaiseRequest() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label>Environment</Label>
-                <Select defaultValue="uat">
-                  <SelectTrigger className="h-11" aria-label="Environment">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="uat">UAT</SelectItem>
-                    <SelectItem value="prod">PROD</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
               <div className="space-y-2 sm:col-span-2">
                 <Label>{config.targetLabel}</Label>
                 <Select key={requestType} defaultValue={requestType}>

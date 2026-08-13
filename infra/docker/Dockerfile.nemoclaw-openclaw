@@ -4,3 +4,4 @@ FROM ${BASE_IMAGE}
 # Keep TaskLattice Relay-owned OpenClaw customizations in this wrapper instead of
 # copying the pinned NVIDIA NemoClaw Dockerfile into this repository. The build
 # script produces BASE_IMAGE from upstream first, then publishes this image.
+COPY --chmod=0555 runtime-integrations/openclaw-run-telemetry /usr/local/lib/tali/openclaw-run-telemetry

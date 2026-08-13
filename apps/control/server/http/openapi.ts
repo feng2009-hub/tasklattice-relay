@@ -76,7 +76,6 @@ const costCommonParameters = [
   { name: "start_time", in: "query", required: true, schema: { type: "string" } },
   { name: "end_time", in: "query", required: true, schema: { type: "string" } },
   { name: "timezone", in: "query", schema: { type: "string", default: "UTC" } },
-  { name: "environment_id", in: "query", schema: { type: "string" } },
   { name: "filters", in: "query", description: "JSON object whose values are arrays of business IDs.", schema: { type: "string", default: "{}" } },
 ] as const;
 
@@ -669,6 +668,21 @@ export const openApiDocument = {
         requestBody: { required: true, ...json({ $ref: "#/components/schemas/UpdateProjectQuotaInput" }) },
         responses: {
           "200": { description: "Updated Project quota", ...json({ $ref: "#/components/schemas/ProjectQuota" }) },
+          "400": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
+    "/projects/{projectId}/overview": {
+      parameters: [projectIdParameter],
+      get: {
+        operationId: "getProjectOverview",
+        summary: "Read Project Run, Runtime, spend, budget, workload, and attention metrics",
+        parameters: [
+          { name: "range", in: "query", schema: { type: "string", enum: ["24h", "7d", "30d"], default: "7d" } },
+          { name: "timezone", in: "query", schema: { type: "string", default: "UTC" } },
+        ],
+        responses: {
+          "200": { description: "Project overview metrics", ...json({ $ref: "#/components/schemas/ProjectOverview" }) },
           "400": { $ref: "#/components/responses/Error" },
         },
       },
@@ -1949,9 +1963,11 @@ export const openApiDocument = {
           { $ref: "#/components/schemas/UpdateProjectQuotaInput" },
           {
             type: "object",
-            required: ["projectId", "litellmTeamId", "syncStatus", "lastSyncedAt", "lastSyncError", "revision", "usage"],
+            required: ["projectId", "budgetPeriodStartedAt", "budgetResetsAt", "litellmTeamId", "syncStatus", "lastSyncedAt", "lastSyncError", "revision", "usage"],
             properties: {
               projectId: { type: "string" },
+              budgetPeriodStartedAt: { type: ["string", "null"], format: "date-time" },
+              budgetResetsAt: { type: ["string", "null"], format: "date-time" },
               litellmTeamId: { type: ["string", "null"] },
               syncStatus: { type: "string", enum: ["pending", "synced", "failed"] },
               lastSyncedAt: { type: ["string", "null"], format: "date-time" },
@@ -1971,6 +1987,24 @@ export const openApiDocument = {
             },
           },
         ],
+      },
+      ProjectOverview: {
+        type: "object",
+        required: ["projectId", "range", "timezone", "generatedAt", "freshness", "kpis", "usage", "budget", "runtime", "workload", "attention", "resources"],
+        properties: {
+          projectId: { type: "string" },
+          range: { type: "string", enum: ["24h", "7d", "30d"] },
+          timezone: { type: "string" },
+          generatedAt: { type: "string", format: "date-time" },
+          freshness: { type: "object" },
+          kpis: { type: "object" },
+          usage: { type: "array", items: { type: "object", required: ["bucket", "runs", "tokens", "costUsd"], properties: { bucket: { type: "string" }, runs: { type: "integer" }, tokens: { type: "integer" }, costUsd: { type: "number" } } } },
+          budget: { type: "object" },
+          runtime: { type: "object" },
+          workload: { type: "array", items: { type: "object" } },
+          attention: { type: "array", items: { type: "object" } },
+          resources: { type: "object" },
+        },
       },
       ModelRouting: {
         allOf: [{ $ref: "#/components/schemas/CreateModelRoutingInput" }, { type: "object", required: ["id", "managementMode", "publicModelAlias", "status", "capabilities", "conditions", "configurationHash", "observedGeneration", "validationMessage", "consumers", "createdAt", "updatedAt"], properties: { id: { type: "string", format: "uuid" }, managementMode: { type: "string", const: "LITELLM_MANAGED" }, publicModelAlias: { type: "string" }, status: { type: "string", enum: ["DRAFT", "VALIDATING", "READY", "DEGRADED", "NON_COMPLIANT", "SUSPENDED", "UNSUPPORTED"] }, capabilities: { type: "object", required: ["automaticRouting", "routerType", "sessionAffinity", "adaptiveRouting", "failover", "generalFallback", "contextWindowFallback", "contentPolicyFallback", "retries", "requestAudit"], properties: { automaticRouting: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, routerType: { type: "string", enum: ["COMPLEXITY_ROUTER", "SEMANTIC_ROUTER", "OTHER", "UNKNOWN"] }, complexityTierCount: { type: "integer", minimum: 0 }, semanticRouteCount: { type: "integer", minimum: 0 }, sessionAffinity: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, adaptiveRouting: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, failover: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, generalFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, contextWindowFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, contentPolicyFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, retries: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, requestAudit: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] } } }, conditions: { type: "array", items: { type: "object" } }, configurationHash: { type: "string" }, observedGeneration: { type: "integer", minimum: 1 }, validationMessage: { type: "string" }, consumers: { type: "integer" }, lastSynchronizedAt: { type: "string", format: "date-time" }, createdAt: { type: "string", format: "date-time" }, updatedAt: { type: "string", format: "date-time" } } }],
@@ -2127,9 +2161,9 @@ export const openApiDocument = {
       },
       ModelCostSummary: {
         type: "object",
-        required: ["currency", "totalSpendUsd", "totalTokens", "promptTokens", "completionTokens", "requests", "unknownCostRequests", "comparison"],
+        required: ["currency", "totalSpendUsd", "totalTokens", "promptTokens", "completionTokens", "requests", "unknownCostRequests", "uncorrelatedRunRequests", "comparison"],
         properties: {
-          currency: { type: "string", const: "USD" }, totalSpendUsd: { type: "number" }, totalTokens: { type: "integer" }, promptTokens: { type: "integer" }, completionTokens: { type: "integer" }, requests: { type: "integer" }, unknownCostRequests: { type: "integer" }, highestCostInstance: { type: "object" }, highestCostModel: { type: "object" }, comparison: { type: "object" },
+          currency: { type: "string", const: "USD" }, totalSpendUsd: { type: "number" }, totalTokens: { type: "integer" }, promptTokens: { type: "integer" }, completionTokens: { type: "integer" }, requests: { type: "integer" }, unknownCostRequests: { type: "integer" }, uncorrelatedRunRequests: { type: "integer" }, highestCostInstance: { type: "object" }, highestCostModel: { type: "object" }, comparison: { type: "object" },
         },
       },
       ModelCostActivity: { type: "object", required: ["currency", "granularity", "items", "legend"], properties: { currency: { type: "string", const: "USD" }, granularity: { type: "string" }, items: { type: "array", items: { type: "object" } }, legend: { type: "object" } } },

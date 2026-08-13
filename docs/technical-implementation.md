@@ -99,8 +99,7 @@ flowchart TB
 
 This is the target end-to-end operating model, not a claim that every box is
 implemented in the current repository. In particular, Approval Request
-persistence and approved-change execution are not implemented; a governed
-`PROD` mutation currently stops at `APPROVAL_REQUIRED`. Quota Grant and the
+persistence and approved-change execution are not implemented. Quota Grant and
 full runtime Skill reconciliation flows in this document are broader target
 architecture. Current Project authorization status is tracked separately in
 [`capability-authorization.md`](./capability-authorization.md).
@@ -120,7 +119,7 @@ architecture. Current Project authorization status is tracked separately in
 - Load, activate, deactivate, upgrade, and unload Skills in running Agents.
 - Bind Agent identities to active Quota Grants.
 - Provide audit, usage, performance, health, and cost visibility.
-- Isolate UAT and PROD access, credentials, quotas, and Agent runtimes.
+- Isolate access, credentials, quotas, and Agent runtimes by Project.
 
 ### 2.2 Explicitly out of scope
 
@@ -157,14 +156,15 @@ Every registered Endpoint is treated as an external dependency with its own owne
 |---|---|
 | Requester | Browse services, request quota, create Agents, and request Skill bindings |
 | Service Owner | Register Endpoint metadata and own availability information |
-| Quota Approver | Approve limits, duration, environment, and budget |
+| Quota Approver | Approve limits, duration, and budget |
 | Skill Publisher | Publish Skill packages and permission manifests |
 | Skill Reviewer | Review Skill provenance, dependencies, secrets, network access, and side effects |
 | Agent Operator | Maintain Agent runtime integrations and investigate runtime failures |
 | Platform Administrator | Manage adapters, policies, runtimes, identity, and gateway configuration |
 | Auditor | Read approval, access, runtime, Skill, usage, and cost history |
 
-For PROD, a requester cannot be the final approver of their own request.
+A requester cannot be the final approver of their own request when an approval
+policy applies.
 
 ## 5. High-level architecture
 
@@ -402,7 +402,7 @@ Approvers may grant lower limits than requested. Requested and granted values bo
 | PROVIDER_DELEGATED | Adapter provisions and verifies a provider-side limit |
 | OBSERVE_ONLY | Usage is measured but no hard limit is guaranteed |
 
-OBSERVE_ONLY must be visibly labeled and cannot satisfy a PROD hard-limit requirement.
+OBSERVE_ONLY must be visibly labeled and cannot satisfy an enforced hard-limit requirement.
 
 ### 8.5 Request flow
 
@@ -811,7 +811,7 @@ Reconciliation compares desired/effective gateway policy, desired/observed Agent
 ## 17. Security
 
 - Corporate OIDC for users and workload identity for Agents and services.
-- Project, environment, Offering, Grant, Agent, and Skill attributes in authorization decisions.
+- Project, Offering, Grant, Agent, and Skill attributes in authorization decisions.
 - Upstream credentials remain in the company secret system.
 - Users and Agents receive only internal grant-scoped identities.
 - Skill packages have immutable digests and verified publishers.
@@ -820,7 +820,7 @@ Reconciliation compares desired/effective gateway policy, desired/observed Agent
 - Runtime load is blocked when package digest differs from the approved digest.
 - Offerings declare data-handling classification.
 - Prompt and response bodies are not logged by default.
-- UAT and PROD use separate routes, Grants, Agent identities, secret scopes, and approval policies.
+- Projects use separate Grants, Agent identities, secret scopes, and approval policies.
 
 ## 18. Observability, usage, and cost
 
@@ -930,14 +930,14 @@ Acceptance checks:
 - Administrative Endpoint integration.
 - Service Catalog and Offering pages.
 - Quota request, approval, Grant, enforcement, usage, expiration, and revocation.
-- UAT boundaries.
+- Project isolation boundaries.
 
 ### Phase 2: Agent lifecycle
 
 - Agent Definition and one runtime adapter.
 - Create, start, stop, delete, heartbeat, and reconciliation.
 - Bind active Grants to Agent identities.
-- PROD policy.
+- High-impact operation policy.
 
 ### Phase 3: Skill runtime
 
@@ -986,5 +986,5 @@ tali/
 6. First Agent runtime and its HOT_LOAD capability.
 7. Skill package format, registry, signing, and dependency policy.
 8. Skill approval rules and runtime sandbox boundary.
-9. UAT and PROD runtime isolation.
+9. Project runtime isolation.
 10. Budget behavior when usage or cost telemetry is delayed.

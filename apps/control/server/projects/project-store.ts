@@ -780,7 +780,6 @@ export class ProjectStore {
     await this.costs.saveAttribution({
       id: `binding:${binding.id}`,
       projectId: this.projectId,
-      environmentId: "production",
       instanceId: binding.agentId,
       instanceName: agent?.name ?? binding.agentId,
       liteLLMVirtualKeyId: costKeyIdentifier(binding.liteLLMTokenId),

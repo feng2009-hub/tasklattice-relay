@@ -16,7 +16,6 @@ export interface Project {
   avatar?: string;
   memberCount: number;
   role: ProjectRole;
-  authorizationEnvironment: "DEV" | "UAT" | "PROD";
   effectiveCapabilities: readonly ProjectCapability[];
 }
 

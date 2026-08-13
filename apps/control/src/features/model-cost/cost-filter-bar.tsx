@@ -15,7 +15,6 @@ const filterKeys: CostFilterKey[] = [
   "provider",
   "provider_account",
   "virtual_key",
-  "environment",
   "project",
 ];
 

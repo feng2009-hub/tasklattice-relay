@@ -21,7 +21,6 @@ describe("capability admission evaluator", () => {
     expect(evaluateAdmission({
       actorId: "developer-1",
       capability: "CAP_AGENT_INSTANCE_DELETE",
-      environment: "DEV",
       projectId: "project-1",
       relation: "OWNER",
       resourceType: "AgentInstance",
@@ -105,11 +104,10 @@ describe("capability admission evaluator", () => {
     }).decision).toBe("DENY");
   });
 
-  it("prioritizes explicit deny and requires approval before PROD side effects", () => {
+  it("prioritizes explicit deny and enforces explicit approval policy", () => {
     expect(evaluateAdmission({
       actorId: "developer-1",
       capability: "CAP_AGENT_INSTANCE_DELETE",
-      environment: "PROD",
       explicitDeny: true,
       projectId: "project-1",
       relation: "OWNER",
@@ -119,15 +117,15 @@ describe("capability admission evaluator", () => {
     const approval = evaluateAdmission({
       actorId: "developer-1",
       capability: "CAP_AGENT_INSTANCE_DELETE",
-      environment: "PROD",
       projectId: "project-1",
       relation: "OWNER",
+      requireApproval: true,
       resourceType: "AgentInstance",
       roleIds: ["ROLE_AGENT_DEVELOPER"],
     });
     expect(approval).toMatchObject({
       decision: "APPROVAL_REQUIRED",
-      policyId: "builtin:prod:governed-change",
+      policyId: "builtin:governed-change",
     });
     const response = errorResponse(new CapabilityAdmissionError(approval));
     expect(response.status).toBe(403);
@@ -135,7 +133,7 @@ describe("capability admission evaluator", () => {
       authorization: {
         capability: "CAP_AGENT_INSTANCE_DELETE",
         decision: "APPROVAL_REQUIRED",
-        policyId: "builtin:prod:governed-change",
+        policyId: "builtin:governed-change",
       },
     });
   });
@@ -175,37 +173,6 @@ describe("capability admission evaluator", () => {
       )).resolves.toMatchObject({ decision: "ALLOW" });
       expect(admissionEvidenceForRequest(request)).toHaveLength(1);
     }
-  });
-
-  it("loads the trusted authorization environment from the Project", async () => {
-    database = createTestPrisma();
-    const actorId = "environment-developer";
-    await database.user.create({
-      data: {
-        id: actorId,
-        username: actorId,
-        email: `${actorId}@example.test`,
-        displayName: "Environment Developer",
-      },
-    });
-    await database.projectMember.create({
-      data: { projectId: "individual", userId: actorId, role: "developer" },
-    });
-    await database.project.update({
-      where: { id: "individual" },
-      data: { authorizationEnvironment: "PROD" },
-    });
-    const request = new Request("http://tali.test/api/v1/projects/individual/resource");
-    await expect(new ProjectAdmissionService(database).authorize(
-      request,
-      actorId,
-      "CAP_AGENT_INSTANCE_DELETE",
-      { relation: "OWNER", resourceType: "AgentInstance" },
-    )).rejects.toBeInstanceOf(CapabilityAdmissionError);
-    expect(admissionEvidenceForRequest(request)[0]).toMatchObject({
-      decision: "APPROVAL_REQUIRED",
-      environment: "PROD",
-    });
   });
 
   it("does not infer additional capabilities from Project identity", async () => {

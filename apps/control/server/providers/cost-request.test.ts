@@ -6,7 +6,7 @@ describe("cost request parsing", () => {
     const request = new Request(
       "http://localhost/api/v1/projects/project-a/costs/breakdown" +
       "?start_time=2026-06-01&end_time=2026-06-30&timezone=Asia%2FShanghai" +
-      "&project_id=project-a&environment_id=production&group_by=model_endpoint" +
+      "&project_id=project-a&group_by=model_endpoint" +
       "&page=2&page_size=50&sort=requests&direction=asc&search=gpt" +
       `&filters=${encodeURIComponent(JSON.stringify({ provider: ["OpenAI"] }))}`,
     );
@@ -16,7 +16,6 @@ describe("cost request parsing", () => {
       endTime: "2026-06-30",
       timezone: "Asia/Shanghai",
       projectId: "project-a",
-      environmentId: "production",
       groupBy: "model_endpoint",
       page: 2,
       pageSize: 50,

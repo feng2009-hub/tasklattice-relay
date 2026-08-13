@@ -1,0 +1,13 @@
+{
+  "name": "@tasklattice/openclaw-run-telemetry",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "openclaw": {
+    "extensions": ["./index.mjs"],
+    "compat": {
+      "pluginApi": ">=2026.6.10",
+      "minGatewayVersion": ">=2026.6.10"
+    }
+  }
+}

@@ -205,7 +205,7 @@ export interface LiteLLMAdminClient {
   probeModel(modelName: string, modelType: ModelType): Promise<void>;
   createInstanceKey(input: { agentId: string; alias: string; modelName: string }): Promise<LiteLLMVirtualKey>;
   revokeKey(tokenId: string): Promise<void>;
-  listSpendLogs(from: string, to: string): Promise<LiteLLMSpendLog[]>;
+  listSpendLogs(from: string, to: string, teamId?: string): Promise<LiteLLMSpendLog[]>;
   inspectModelRouting?(modelAlias: string): Promise<LiteLLMModelRoutingInspection>;
   reconcileModelRoutingRoute?(input: LiteLLMModelRoutingRouteInput): Promise<void>;
   deleteModelRoutingRoute?(alias: string, modelRoutingId: string): Promise<void>;
@@ -825,20 +825,33 @@ export class LiteLLMClient implements LiteLLMAdminClient {
     });
   }
 
-  async listSpendLogs(from: string, to: string): Promise<LiteLLMSpendLog[]> {
+  async listSpendLogs(from: string, to: string, teamId?: string): Promise<LiteLLMSpendLog[]> {
     this.assertConfigured();
-    const query = new URLSearchParams({
-      start_date: from,
-      // LiteLLM treats end_date as an exclusive midnight boundary. The Cost
-      // API accepts an inclusive calendar-day range, so request the next day
-      // to include all spend produced on `to`.
-      end_date: nextUtcDate(to),
-      summarize: "false",
-    });
-    const response = await this.request<LiteLLMSpendLog[] | { data?: LiteLLMSpendLog[] }>(
-      `/spend/logs?${query}`,
-    );
-    return Array.isArray(response) ? response : response.data ?? [];
+    const logs: LiteLLMSpendLog[] = [];
+    let page = 1;
+    let totalPages = 1;
+    do {
+      const query = new URLSearchParams({
+        start_date: `${from} 00:00:00`,
+        // The v2 endpoint uses an inclusive timestamp boundary. Query through
+        // the following midnight so every record on the requested end day is
+        // included; replay is harmless because facts are idempotent.
+        end_date: `${nextUtcDate(to)} 00:00:00`,
+        page: String(page),
+        page_size: "100",
+        sort_by: "startTime",
+        sort_order: "asc",
+      });
+      if (teamId) query.set("team_id", teamId);
+      const response = await this.request<{
+        data?: LiteLLMSpendLog[];
+        total_pages?: number;
+      }>(`/spend/logs/v2?${query}`);
+      logs.push(...(response.data ?? []));
+      totalPages = Math.max(1, response.total_pages ?? 1);
+      page += 1;
+    } while (page <= totalPages);
+    return logs;
   }
 
   private assertConfigured(): void {

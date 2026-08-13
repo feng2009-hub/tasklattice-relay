@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { ProjectStore } from "../projects/project-store";
 import { createTestStore } from "../test/store";
+import { RunStore } from "../runs/run-store";
 import type { LiteLLMAdminClient, LiteLLMSpendLog } from "./litellm-client";
 import { CostService, type CostAnalyticsQuery } from "./cost-service";
 
@@ -9,8 +10,7 @@ const query: CostAnalyticsQuery = {
   startTime: "2026-06-01",
   endTime: "2026-06-03",
   timezone: "UTC",
-  projectId: "default",
-  environmentId: "production",
+  projectId: "individual",
   filters: {},
 };
 
@@ -43,8 +43,7 @@ function addAttribution(
 ) {
   store.costAnalytics().saveAttribution({
     id: input.id,
-    projectId: "default",
-    environmentId: "production",
+    projectId: store.projectId,
     instanceId: input.instanceId,
     instanceName: input.instanceName,
     hashedToken: hashedKey(input.key),
@@ -72,6 +71,13 @@ function addEndpoint(store: ProjectStore) {
   });
 }
 
+async function configureTeam(store: ProjectStore) {
+  await store.database().projectQuotaRecord.update({
+    where: { projectId: store.projectId },
+    data: { litellmTeamId: "team-project" },
+  });
+}
+
 function log(
   requestId: string,
   at: string,
@@ -92,6 +98,7 @@ function log(
     total_tokens: promptTokens + completionTokens,
     ...(spend !== undefined ? { spend } : {}),
     status: "success",
+    team_id: "team-project",
   };
 }
 
@@ -106,11 +113,35 @@ describe("CostService", () => {
       validFrom: "2026-01-01T00:00:00.000Z",
     });
     addEndpoint(store);
+    await configureTeam(store);
+    const runs = new RunStore(store.projectId, store.database());
+    const correlatedRun = await runs.ingest({
+      instanceId: "instance-a",
+      source: "openclaw",
+      event: {
+        event: "started",
+        runId: "run-for-request-2",
+        occurredAt: "2026-06-02T11:59:00.000Z",
+        triggerType: "USER",
+        traceId: "trace-request-2",
+      },
+    });
+    await runs.ingest({
+      instanceId: "instance-a",
+      source: "openclaw",
+      event: {
+        event: "finished",
+        runId: "run-for-request-2",
+        occurredAt: "2026-06-02T12:01:00.000Z",
+        status: "SUCCEEDED",
+      },
+    });
     const service = new CostService(store, client([
       log("request-1", "2026-06-01T12:00:00.000Z", "key-a", 1),
       log("request-1", "2026-06-01T12:00:01.000Z", "key-a", 1),
       log("request-2", "2026-06-02T12:00:00.000Z", "key-a", 2, 200, 100),
     ]));
+    await service.sync("2026-05-29T00:00:00.000Z", "2026-06-03T23:59:59.999Z");
 
     const summary = await service.summary(query);
     const ranking = await service.ranking(query, "instance", 5);
@@ -144,6 +175,15 @@ describe("CostService", () => {
     expect(keyRanking.items[0]?.id).toBe(hashedKey("key-a"));
     expect(JSON.stringify(keyRanking)).not.toContain("key-a");
     expect((await service.dataQuality(query)).duplicateRequests).toBe(1);
+    const facts = await store.costAnalytics().listFacts({
+      startTime: "2026-06-01T00:00:00.000Z",
+      endTime: "2026-06-03T23:59:59.999Z",
+      projectId: "individual",
+    });
+    expect(facts.find((fact) => fact.requestId === "request-2")).toMatchObject({
+      runId: correlatedRun.id,
+      traceId: "trace-request-2",
+    });
   });
 
   it("uses equal comparison periods and preserves key-rotation attribution by validity", async () => {
@@ -164,11 +204,13 @@ describe("CostService", () => {
       validFrom: "2026-06-02T00:00:00.000Z",
     });
     addEndpoint(store);
+    await configureTeam(store);
     const service = new CostService(store, client([
       log("prior", "2026-05-30T12:00:00.000Z", "key-old", 2),
       log("old-key", "2026-06-01T12:00:00.000Z", "key-old", 2),
       log("new-key", "2026-06-02T12:00:00.000Z", "key-new", 4),
     ]));
+    await service.sync("2026-05-29T00:00:00.000Z", "2026-06-03T23:59:59.999Z");
 
     const summary = await service.summary(query);
     const ranking = await service.ranking(query, "instance", 5);
@@ -206,11 +248,13 @@ describe("CostService", () => {
       key: "c",
       validFrom: "2026-01-01T00:00:00.000Z",
     });
+    await configureTeam(store);
     const service = new CostService(store, client([
       log("a-1", "2026-06-01T23:30:00.000Z", "a", 9),
       log("b-1", "2026-06-02T01:00:00.000Z", "b", 5),
       log("c-1", "2026-06-03T01:00:00.000Z", "c", 1),
     ]));
+    await service.sync("2026-05-29T00:00:00.000Z", "2026-06-03T23:59:59.999Z");
     const shanghai = { ...query, timezone: "Asia/Shanghai" };
 
     const activity = await service.activity(shanghai, "instance", "daily");
@@ -235,7 +279,9 @@ describe("CostService", () => {
       api_key: "sk-plaintext-must-not-survive",
       nested: { authorization: "Bearer plaintext", safe: "retained" },
     };
+    await configureTeam(store);
     const service = new CostService(store, client([unknown]));
+    await service.sync("2026-05-29T00:00:00.000Z", "2026-06-03T23:59:59.999Z");
 
     const summary = await service.summary(query);
     const quality = await service.dataQuality(query);
@@ -246,8 +292,7 @@ describe("CostService", () => {
     const [fact] = await store.costAnalytics().listFacts({
       startTime: "2026-06-01T00:00:00.000Z",
       endTime: "2026-06-01T23:59:59.999Z",
-      projectId: "default",
-      environmentId: "production",
+      projectId: "individual",
     });
     expect(JSON.stringify(fact?.metadata)).not.toContain("plaintext");
     expect(fact?.metadata).toMatchObject({

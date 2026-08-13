@@ -169,8 +169,9 @@ Instance. In the current builtin presets these mutation capabilities belong to
 Agent Developer and are limited to `OWNER`/`MAINTAINER`; `OWNER` is implemented
 and `MAINTAINER` is not yet persisted. Project Administrators do not implicitly
 receive Agent lifecycle permissions.
-Governed mutations in a `PROD` Project return `APPROVAL_REQUIRED`, and the
-approval workflow is not yet implemented. See
+Project has no Environment dimension. The evaluator supports an explicit
+`APPROVAL_REQUIRED` result, but the Project route adapter does not yet attach
+approval requirements and the approval workflow is not implemented. See
 [`capability-authorization.md`](capability-authorization.md) for the complete
 current boundary.
 

@@ -28,7 +28,6 @@ export interface ProjectView {
   avatar?: string;
   memberCount: number;
   role: ProjectRole;
-  authorizationEnvironment: "DEV" | "UAT" | "PROD";
   effectiveCapabilities: readonly ProjectCapability[];
 }
 
@@ -232,8 +231,6 @@ export class ProjectService {
       ...(project.avatar ? { avatar: project.avatar } : {}),
       memberCount: project._count.humanMembers,
       role: role as ProjectRole,
-      authorizationEnvironment: project.authorizationEnvironment as
-        "DEV" | "UAT" | "PROD",
       effectiveCapabilities: builtinRoleForMembership(role as ProjectRole).capabilities,
     }));
   }
@@ -350,8 +347,6 @@ export class ProjectService {
       name: project.name,
       memberCount: existingUsers.length + 1,
       role: "admin",
-      authorizationEnvironment: project.authorizationEnvironment as
-        "DEV" | "UAT" | "PROD",
       effectiveCapabilities: builtinRoleForMembership("admin").capabilities,
     };
   }
