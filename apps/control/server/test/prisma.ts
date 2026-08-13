@@ -23,6 +23,7 @@ import defaultAccessPolicyMigration from "../../prisma/migrations/20260803000000
 import reconcileSpecializationCapabilitiesMigration from "../../prisma/migrations/20260803010000_reconcile_specialization_capabilities/migration.sql?raw";
 import modelRoutingDomainMigration from "../../prisma/migrations/20260803020000_model_routing_domain/migration.sql?raw";
 import capabilityAdmissionMigration from "../../prisma/migrations/20260812000000_project_capability_admission/migration.sql?raw";
+import removeProjectTypeMigration from "../../prisma/migrations/20260813000000_remove_project_type/migration.sql?raw";
 import { developmentResourceCatalog } from "../catalog/development-resource-catalog";
 import { PrismaClient } from "../generated/prisma/client";
 
@@ -286,6 +287,13 @@ export function createTestPrisma(): PrismaClient {
     CREATE INDEX audit_logs_project_capability_idx
       ON tasklattice.audit_logs(project_id, authorization_capability, occurred_at DESC);
   `);
+  // PostgreSQL drops CHECK constraints that depend on a removed column.
+  // pg-mem removes the column but retains its generated anonymous constraint,
+  // so mirror PostgreSQL's dependency cleanup explicitly for the test schema.
+  memory.public.none(
+    "ALTER TABLE tasklattice.projects DROP CONSTRAINT projects_constraint_1;",
+  );
+  memory.public.none(removeProjectTypeMigration);
   const pg = memory.adapters.createPg();
   const query = pg.Client.prototype.query;
   pg.Client.prototype.query = function (

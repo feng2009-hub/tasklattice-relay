@@ -978,7 +978,7 @@ Confirmations name the resource and impact. Typing the resource name is reserved
 
 ## 22. Open interaction decisions
 
-1. Default project selection and whether users may switch projects globally.
+1. Whether users may switch projects globally.
 2. Whether quota forms use direct numeric input, presets, or both.
 3. Which approval actions require comments.
 4. Whether Agent creation and initial Skill load are one request or sequential requests.

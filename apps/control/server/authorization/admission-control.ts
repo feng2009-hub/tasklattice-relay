@@ -231,24 +231,13 @@ export class ProjectAdmissionService {
           select: {
             authorizationEnvironment: true,
             deletedAt: true,
-            type: true,
           },
         },
       },
     });
     const membershipRole = membership?.role as keyof typeof membershipRoleToBuiltinRole | undefined;
     const roleIds = membership && !membership.project.deletedAt && membershipRole
-      ? [
-          membershipRoleToBuiltinRole[membershipRole],
-          // A personal Project is a single-user workspace. Its administrator
-          // is also the owner/operator of its Agents; without this explicit
-          // composite binding the builtin separation-of-duties preset would
-          // make personal Agent lifecycle management impossible.
-          ...(membershipRole === "admin"
-            && membership.project.type === "personal"
-            ? ["ROLE_AGENT_DEVELOPER" as const]
-            : []),
-        ]
+      ? [membershipRoleToBuiltinRole[membershipRole]]
       : [];
     const environment = membership?.project.authorizationEnvironment as DeploymentEnvironment | undefined;
     const evidence = evaluateAdmission({

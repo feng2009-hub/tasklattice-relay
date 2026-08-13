@@ -6,7 +6,6 @@
   "type": "module",
   "scripts": {
     "db:generate": "prisma generate --config prisma.config.ts",
-    "db:generate-seed": "tsx prisma/generate-seed-migration.ts",
     "db:migrate": "prisma migrate deploy --config prisma.config.ts",
     "db:seed-skills": "node prisma/seed-built-in-skills.mjs",
     "prebuild": "npm run db:generate",

@@ -6,7 +6,6 @@ const projects: Project[] = [
   {
     id: "individual",
     name: "admin",
-    type: "personal",
     memberCount: 1,
     role: "admin",
     effectiveCapabilities: [],
@@ -15,7 +14,6 @@ const projects: Project[] = [
   {
     id: "devops",
     name: "DevOps Team",
-    type: "team",
     memberCount: 8,
     role: "user",
     effectiveCapabilities: [],
@@ -36,15 +34,15 @@ describe("selectInitialProject", () => {
     );
   });
 
-  it("falls back to the personal project when the URL project is invalid", () => {
+  it("falls back to the first available project when the URL project is invalid", () => {
     expect(selectInitialProject(projects, "missing", "devops").id).toBe(
       "individual",
     );
   });
 
-  it("falls back to the personal project when no preference exists", () => {
+  it("falls back to the first available project when no preference exists", () => {
     expect(selectInitialProject([...projects].reverse(), null, null).id).toBe(
-      "individual",
+      "devops",
     );
   });
 

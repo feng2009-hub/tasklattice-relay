@@ -25,7 +25,7 @@ connection limits, monitor both workloads, and back up the whole database.
 `prisma migrate deploy` is the only initialization path. The first migration
 creates the schema and tables. A following idempotent SQL migration inserts:
 
-- the local administrator, default Project, and administrator membership;
+- the local administrator, bootstrap Project, and administrator membership;
 - built-in Skills, MCP servers, Knowledge Base sources, specializations, and
   sandbox policies.
 
@@ -33,6 +33,11 @@ Helm runs migrations in the control Deployment init container before the
 application starts. On the first Local login, runtime initialization copies
 the configured initial Super Administrator bcrypt hash into
 `local_credentials` only when that database credential is missing.
+
+New users do not receive an automatically generated Project. A Project is
+created explicitly or becomes available through membership. New Projects are
+initialized from the built-in resource and sandbox-policy catalogs embedded in
+the Control application.
 
 For local development:
 
@@ -43,13 +48,3 @@ export TALI_CONFIG="$PWD/control.toml"
 npm run db:migrate --workspace @tali/control
 npm run dev --workspace @tali/control
 ```
-
-To regenerate the checked-in SQL seed migration after deliberately changing
-the development catalogs:
-
-```sh
-npm run db:generate-seed --workspace @tali/control
-```
-
-Review the generated SQL before committing it. Existing applied migrations
-must remain immutable; create a new migration for later catalog changes.

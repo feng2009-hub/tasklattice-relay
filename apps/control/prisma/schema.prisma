@@ -112,7 +112,6 @@ model LocalCredential {
 model Project {
   id                       String    @id
   name                     String    @unique(map: "projects_name_key")
-  type                     String
   authorizationEnvironment String    @default("PROD") @map("authorization_environment")
   avatar                   String?
   createdBy                String    @map("created_by")

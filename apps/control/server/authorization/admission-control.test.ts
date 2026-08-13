@@ -208,24 +208,13 @@ describe("capability admission evaluator", () => {
     });
   });
 
-  it("gives only the personal Project administrator an explicit Developer composite binding", async () => {
+  it("does not infer additional capabilities from Project identity", async () => {
     database = createTestPrisma();
     const service = new ProjectAdmissionService(database);
-    await expect(service.authorize(
-      new Request("http://tali.test/api/v1/projects/individual/resource"),
-      "local-admin",
-      "CAP_AGENT_INSTANCE_CREATE",
-      { relation: "OWNER", resourceType: "AgentInstance" },
-    )).resolves.toMatchObject({
-      decision: "ALLOW",
-      roleId: "ROLE_AGENT_DEVELOPER",
-    });
-
     await database.project.create({
       data: {
         id: "team-admin-boundary",
         name: "Team Admin Boundary",
-        type: "team",
         createdBy: "local-admin",
         humanMembers: { create: { userId: "local-admin", role: "admin" } },
       },
@@ -240,35 +229,6 @@ describe("capability admission evaluator", () => {
       { relation: "OWNER", resourceType: "AgentInstance" },
     )).rejects.toBeInstanceOf(CapabilityAdmissionError);
     expect(admissionEvidenceForRequest(request)[0]?.decision).toBe("DENY");
-
-    await database.user.create({
-      data: {
-        id: "sso-personal-admin",
-        username: "sso-personal-admin",
-        email: "sso-personal-admin@example.test",
-        displayName: "SSO Personal Admin",
-      },
-    });
-    await database.project.create({
-      data: {
-        id: "individual-hashed-id",
-        name: "SSO Personal Project",
-        type: "personal",
-        authorizationEnvironment: "DEV",
-        createdBy: "sso-personal-admin",
-        humanMembers: {
-          create: { userId: "sso-personal-admin", role: "admin" },
-        },
-      },
-    });
-    await expect(service.authorize(
-      new Request(
-        "http://tali.test/api/v1/projects/individual-hashed-id/resource",
-      ),
-      "sso-personal-admin",
-      "CAP_AGENT_INSTANCE_CREATE",
-      { relation: "OWNER", resourceType: "AgentInstance" },
-    )).resolves.toMatchObject({ decision: "ALLOW" });
   });
 
   it("does not let a system super-administrator bypass Project membership", async () => {
