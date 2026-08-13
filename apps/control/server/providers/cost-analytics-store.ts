@@ -5,7 +5,6 @@ import type { Prisma } from "../generated/prisma/client";
 export interface CostAttributionMapping {
   id: string;
   projectId: string;
-  environmentId: string;
   instanceId: string;
   instanceName: string;
   liteLLMVirtualKeyId?: string;
@@ -47,7 +46,6 @@ export interface ModelUsageFact {
   usageDate: string;
   usageHour: number;
   projectId: string;
-  environmentId: string;
   instanceId?: string;
   instanceName?: string;
   modelEndpointId?: string;
@@ -103,7 +101,6 @@ export interface ModelUsageDailyRow {
   usageDate: string;
   timezone: string;
   projectId: string;
-  environmentId: string;
   groupType: CostGroupBy;
   groupId: string;
   groupName: string;
@@ -136,7 +133,6 @@ type FactQuery = {
   startTime: string;
   endTime: string;
   projectId: string;
-  environmentId?: string;
 };
 
 function iso(value: Date): string {
@@ -161,7 +157,6 @@ export class CostAnalyticsStore {
       create: defined({
         projectId: this.projectId,
         id: mapping.id,
-        environmentId: mapping.environmentId,
         instanceId: mapping.instanceId,
         instanceName: mapping.instanceName,
         liteLLMVirtualKeyId: mapping.liteLLMVirtualKeyId,
@@ -242,7 +237,6 @@ export class CostAnalyticsStore {
     return {
       id: row.id,
       projectId: row.projectId,
-      environmentId: row.environmentId,
       instanceId: row.instanceId,
       instanceName: row.instanceName,
       ...(row.liteLLMVirtualKeyId ? { liteLLMVirtualKeyId: row.liteLLMVirtualKeyId } : {}),
@@ -315,7 +309,6 @@ export class CostAnalyticsStore {
           responseEndTime: fact.responseEndTime,
           usageDate: new Date(`${fact.usageDate}T00:00:00.000Z`),
           usageHour: fact.usageHour,
-          environmentId: fact.environmentId,
           instanceId: fact.instanceId,
           instanceName: fact.instanceName,
           modelEndpointId: fact.modelEndpointId,
@@ -409,7 +402,6 @@ export class CostAnalyticsStore {
     const rows = await this.db.modelUsageFactRecord.findMany({
       where: {
         projectId: this.projectId,
-        ...(query.environmentId ? { environmentId: query.environmentId } : {}),
         requestStartTime: { gte: new Date(query.startTime), lte: new Date(query.endTime) },
       },
       orderBy: [{ requestStartTime: "asc" }, { eventId: "asc" }],
@@ -423,7 +415,6 @@ export class CostAnalyticsStore {
       usageDate: iso(row.usageDate).slice(0, 10),
       usageHour: row.usageHour,
       projectId: row.projectId,
-      environmentId: row.environmentId,
       ...(row.instanceId ? { instanceId: row.instanceId } : {}),
       ...(row.instanceName ? { instanceName: row.instanceName } : {}),
       ...(row.modelEndpointId ? { modelEndpointId: row.modelEndpointId } : {}),
@@ -478,7 +469,6 @@ export class CostAnalyticsStore {
 
   async replaceDailyRows(input: {
     projectId: string;
-    environmentId: string;
     timezone: string;
     from: string;
     to: string;
@@ -488,7 +478,6 @@ export class CostAnalyticsStore {
       await transaction.modelUsageDailyRecord.deleteMany({
         where: {
           projectId: this.projectId,
-          environmentId: input.environmentId,
           timezone: input.timezone,
           usageDate: {
             gte: new Date(`${input.from}T00:00:00.000Z`),
@@ -502,7 +491,6 @@ export class CostAnalyticsStore {
             projectId: this.projectId,
             usageDate: new Date(`${row.usageDate}T00:00:00.000Z`),
             timezone: row.timezone,
-            environmentId: row.environmentId,
             groupType: row.groupType,
             groupId: row.groupId,
             groupName: row.groupName,
@@ -524,7 +512,6 @@ export class CostAnalyticsStore {
 
   async listDailyRows(input: {
     projectId: string;
-    environmentId: string;
     timezone: string;
     from: string;
     to: string;
@@ -533,7 +520,6 @@ export class CostAnalyticsStore {
     const rows = await this.db.modelUsageDailyRecord.findMany({
       where: {
         projectId: this.projectId,
-        environmentId: input.environmentId,
         timezone: input.timezone,
         groupType: input.groupType,
         usageDate: {
@@ -547,7 +533,6 @@ export class CostAnalyticsStore {
       usageDate: iso(row.usageDate).slice(0, 10),
       timezone: row.timezone,
       projectId: row.projectId,
-      environmentId: row.environmentId,
       groupType: row.groupType as CostGroupBy,
       groupId: row.groupId,
       groupName: row.groupName,

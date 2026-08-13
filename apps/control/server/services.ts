@@ -147,7 +147,6 @@ export async function requireProjectCreateCapability(
     actorId: userId,
     capability: "CAP_PROJECT_CREATE",
     decision: "ALLOW",
-    environment: "DEV",
     projectId: "system",
     reason: "Active authenticated users receive the system Project-create entitlement.",
     relation: "PROJECT_ANY",

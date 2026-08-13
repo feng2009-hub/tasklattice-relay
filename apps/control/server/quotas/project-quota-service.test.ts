@@ -31,7 +31,6 @@ function usageFact(requestId: string, at: string, spend: number): ModelUsageFact
     usageDate: at.slice(0, 10),
     usageHour: new Date(at).getUTCHours(),
     projectId: "individual",
-    environmentId: "production",
     requestedModel: "production-chat",
     resolvedModel: "production-chat",
     modelGroup: "production-chat",

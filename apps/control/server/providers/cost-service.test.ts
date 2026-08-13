@@ -11,7 +11,6 @@ const query: CostAnalyticsQuery = {
   endTime: "2026-06-03",
   timezone: "UTC",
   projectId: "individual",
-  environmentId: "production",
   filters: {},
 };
 
@@ -45,7 +44,6 @@ function addAttribution(
   store.costAnalytics().saveAttribution({
     id: input.id,
     projectId: store.projectId,
-    environmentId: "production",
     instanceId: input.instanceId,
     instanceName: input.instanceName,
     hashedToken: hashedKey(input.key),
@@ -295,7 +293,6 @@ describe("CostService", () => {
       startTime: "2026-06-01T00:00:00.000Z",
       endTime: "2026-06-01T23:59:59.999Z",
       projectId: "individual",
-      environmentId: "production",
     });
     expect(JSON.stringify(fact?.metadata)).not.toContain("plaintext");
     expect(fact?.metadata).toMatchObject({

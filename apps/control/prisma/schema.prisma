@@ -110,16 +110,15 @@ model LocalCredential {
 }
 
 model Project {
-  id                       String    @id
-  name                     String    @unique(map: "projects_name_key")
-  type                     String
-  authorizationEnvironment String    @default("PROD") @map("authorization_environment")
-  avatar                   String?
-  createdBy                String    @map("created_by")
-  createdAt                DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt                DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  deletedAt                DateTime? @map("deleted_at") @db.Timestamptz(6)
-  deletedBy                String?   @map("deleted_by")
+  id        String    @id
+  name      String    @unique(map: "projects_name_key")
+  type      String
+  avatar    String?
+  createdBy String    @map("created_by")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  deletedBy String?   @map("deleted_by")
 
   creator                      User                                     @relation("ProjectCreator", fields: [createdBy], references: [id])
   humanMembers                 ProjectMember[]
@@ -596,7 +595,6 @@ model AgentSpecializationRecord {
 model CostAttributionMappingRecord {
   projectId           String    @map("project_id")
   id                  String
-  environmentId       String    @map("environment_id")
   instanceId          String    @map("instance_id")
   instanceName        String    @map("instance_name")
   liteLLMVirtualKeyId String?   @map("litellm_virtual_key_id")
@@ -653,7 +651,6 @@ model ModelUsageFactRecord {
   responseEndTime          DateTime? @map("response_end_time") @db.Timestamptz(6)
   usageDate                DateTime  @map("usage_date") @db.Date
   usageHour                Int       @map("usage_hour") @db.SmallInt
-  environmentId            String    @map("environment_id")
   instanceId               String?   @map("instance_id")
   instanceName             String?   @map("instance_name")
   modelEndpointId          String?   @map("model_endpoint_id")
@@ -732,7 +729,6 @@ model ModelUsageDailyRecord {
   projectId          String   @map("project_id")
   usageDate          DateTime @map("usage_date") @db.Date
   timezone           String
-  environmentId      String   @map("environment_id")
   groupType          String   @map("group_type")
   groupId            String   @map("group_id")
   groupName          String   @map("group_name")
@@ -748,7 +744,7 @@ model ModelUsageDailyRecord {
   lastRequestAt      DateTime @map("last_request_at") @db.Timestamptz(6)
   project            Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  @@id([projectId, usageDate, timezone, environmentId, groupType, groupId])
+  @@id([projectId, usageDate, timezone, groupType, groupId])
   @@map("model_usage_daily")
   @@schema("tasklattice")
 }

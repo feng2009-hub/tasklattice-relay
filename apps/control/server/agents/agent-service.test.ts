@@ -542,7 +542,7 @@ describe("Instance Access Policy lifecycle", () => {
       .costAttributionMappingRecord.findFirst({
         where: { projectId: setup.store.projectId, instanceId: agent.id },
       });
-    expect(attribution?.environmentId).toBe("project-default");
+    expect(attribution?.instanceId).toBe(agent.id);
 
     await setup.service.destroy(agent.id);
     await vi.waitFor(() =>

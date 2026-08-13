@@ -76,7 +76,6 @@ const costCommonParameters = [
   { name: "start_time", in: "query", required: true, schema: { type: "string" } },
   { name: "end_time", in: "query", required: true, schema: { type: "string" } },
   { name: "timezone", in: "query", schema: { type: "string", default: "UTC" } },
-  { name: "environment_id", in: "query", schema: { type: "string" } },
   { name: "filters", in: "query", description: "JSON object whose values are arrays of business IDs.", schema: { type: "string", default: "{}" } },
 ] as const;
 

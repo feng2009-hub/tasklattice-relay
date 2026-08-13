@@ -31,7 +31,6 @@ function usageFact(input: {
     usageDate: input.at.slice(0, 10),
     usageHour: new Date(input.at).getUTCHours(),
     projectId: "individual",
-    environmentId: "production",
     instanceId,
     instanceName: "Research",
     requestedModel: "tali/research",

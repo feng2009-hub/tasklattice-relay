@@ -1,9 +1,8 @@
 /**
  * Project authorization primitives shared by the Control API and its clients.
  *
- * Capabilities answer only "what action may be attempted". Resource relation,
- * deployment environment, and an approval policy are evaluated separately by
- * the admission layer.
+ * Capabilities answer only "what action may be attempted". Resource relation
+ * and an approval policy are evaluated separately by the admission layer.
  */
 
 export const projectCapabilities = [
@@ -229,9 +228,6 @@ export const resourceRelations = [
 ] as const;
 
 export type ResourceRelation = (typeof resourceRelations)[number];
-
-export const deploymentEnvironments = ["DEV", "UAT", "PROD"] as const;
-export type DeploymentEnvironment = (typeof deploymentEnvironments)[number];
 
 export const authorizationDecisions = [
   "ALLOW",

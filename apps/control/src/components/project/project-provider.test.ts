@@ -10,7 +10,6 @@ const projects: Project[] = [
     memberCount: 1,
     role: "admin",
     effectiveCapabilities: [],
-    authorizationEnvironment: "DEV",
   },
   {
     id: "devops",
@@ -19,7 +18,6 @@ const projects: Project[] = [
     memberCount: 8,
     role: "user",
     effectiveCapabilities: [],
-    authorizationEnvironment: "PROD",
   },
 ];
 

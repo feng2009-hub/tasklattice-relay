@@ -26,6 +26,7 @@ import capabilityAdmissionMigration from "../../prisma/migrations/20260812000000
 import projectRunMetricsMigration from "../../prisma/migrations/20260813000000_project_run_metrics/migration.sql?raw";
 import projectBudgetWindowsMigration from "../../prisma/migrations/20260813010000_project_budget_windows/migration.sql?raw";
 import modelUsageRunCorrelationMigration from "../../prisma/migrations/20260813020000_model_usage_run_correlation/migration.sql?raw";
+import removeBusinessEnvironmentsMigration from "../../prisma/migrations/20260813030000_remove_business_environments/migration.sql?raw";
 import { developmentResourceCatalog } from "../catalog/development-resource-catalog";
 import { PrismaClient } from "../generated/prisma/client";
 
@@ -308,6 +309,17 @@ export function createTestPrisma(): PrismaClient {
     throw new Error("Model usage Run-correlation migration is incomplete.");
   }
   memory.public.none(modelUsageRunCorrelationMigration);
+  if (
+    !removeBusinessEnvironmentsMigration.includes("DROP COLUMN IF EXISTS authorization_environment")
+    || !removeBusinessEnvironmentsMigration.includes("DROP COLUMN IF EXISTS environment_id")
+    || !removeBusinessEnvironmentsMigration.includes("TRUNCATE TABLE tasklattice.model_usage_daily")
+    || !removeBusinessEnvironmentsMigration.includes(
+      "PRIMARY KEY (project_id, usage_date, timezone, group_type, group_id)",
+    )
+  ) {
+    throw new Error("Business Environment removal migration is incomplete.");
+  }
+  memory.public.none(removeBusinessEnvironmentsMigration);
   const pg = memory.adapters.createPg();
   const query = pg.Client.prototype.query;
   pg.Client.prototype.query = function (

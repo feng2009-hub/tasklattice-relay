@@ -53,7 +53,6 @@ describe("CostIngestionService", () => {
     expect(facts[0]).toMatchObject({
       projectId: "individual",
       requestId: "request-1",
-      environmentId: "production",
     });
     expect(Number(facts[0]?.totalCostUsd)).toBe(2.5);
   });

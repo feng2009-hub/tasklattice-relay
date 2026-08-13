@@ -1527,7 +1527,6 @@ export type CostFilterKey =
   | "provider"
   | "provider_account"
   | "virtual_key"
-  | "environment"
   | "project";
 
 export type CostFilters = Partial<Record<CostFilterKey, string[]>>;

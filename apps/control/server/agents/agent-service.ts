@@ -229,7 +229,6 @@ export class AgentService {
       await this.store.costAnalytics().saveAttribution({
         id: `instance-key:${id}:${instanceKey.tokenId.slice(-12)}`,
         projectId: this.store.projectId,
-        environmentId: "production",
         instanceId: id,
         instanceName: input.name,
         liteLLMVirtualKeyId: instanceKey.tokenId,

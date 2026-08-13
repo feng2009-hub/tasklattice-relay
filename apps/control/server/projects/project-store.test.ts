@@ -28,37 +28,6 @@ async function seedAccessPolicy(store: ProjectStore): Promise<void> {
 }
 
 describe("ProjectStore", () => {
-  it("backfills the personal Project as DEV and defaults new Projects to PROD", async () => {
-    const store = createTestStore();
-    await expect(
-      store.database().project.findUnique({
-        where: { id: "individual" },
-        select: { authorizationEnvironment: true },
-      }),
-    ).resolves.toEqual({ authorizationEnvironment: "DEV" });
-
-    await store.database().project.create({
-      data: {
-        id: "team-project",
-        name: "Team Project",
-        type: "team",
-        createdBy: "local-admin",
-      },
-    });
-    await expect(
-      store.database().project.findUnique({
-        where: { id: "team-project" },
-        select: { authorizationEnvironment: true },
-      }),
-    ).resolves.toEqual({ authorizationEnvironment: "PROD" });
-    await expect(
-      store.database().project.update({
-        where: { id: "team-project" },
-        data: { authorizationEnvironment: "INVALID" },
-      }),
-    ).rejects.toThrow();
-  });
-
   it("rejects pre-Model-Routing Instance records", () => {
     const now = new Date().toISOString();
     expect(() =>

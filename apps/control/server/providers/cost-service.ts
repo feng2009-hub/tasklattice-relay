@@ -30,7 +30,6 @@ export interface CostAnalyticsQuery {
   endTime: string;
   timezone: string;
   projectId: string;
-  environmentId: string;
   filters: CostFilters;
 }
 
@@ -78,7 +77,7 @@ const groupLabels: Record<CostGroupBy, string> = {
 };
 const filterKeys: CostFilterKey[] = [
   "instance", "model_endpoint", "provider", "provider_account",
-  "virtual_key", "environment", "project",
+  "virtual_key", "project",
 ];
 
 function finite(value: unknown): number | undefined {
@@ -211,7 +210,7 @@ function factDimension(fact: ModelUsageFact, groupBy: CostGroupBy) {
   if (groupBy === "instance") return {
     id: fact.instanceId ?? "unmapped-instance",
     name: fact.instanceName ?? groupLabels.instance,
-    detail: fact.environmentId,
+    detail: fact.resolvedModel,
   };
   if (groupBy === "model_endpoint") return {
     id: fact.modelEndpointId ?? "unmapped-model-endpoint",
@@ -236,7 +235,6 @@ function filterValue(fact: ModelUsageFact, key: CostFilterKey): string {
   if (key === "provider") return fact.provider;
   if (key === "provider_account") return fact.providerAccountId ?? "unmapped-provider-account";
   if (key === "virtual_key") return fact.virtualKeyId ?? "unmapped-virtual-key";
-  if (key === "environment") return fact.environmentId;
   return fact.projectId;
 }
 
@@ -318,7 +316,6 @@ export class CostService {
   private async refreshMappings(): Promise<void> {
     const analytics = this.analytics();
     const projectId = this.store.projectId;
-    const environmentId = "production";
     for (const agent of await this.store.listAgentsForReporting()) {
       const full = await this.store.get(agent.id);
       const binding = await this.store.getModelRoutingBindingForAgent(agent.id);
@@ -329,7 +326,6 @@ export class CostService {
       await analytics.saveAttribution({
         id: binding ? `binding:${binding.id}` : `agent:${agent.id}:${full?.createdAt ?? "unknown"}`,
         projectId,
-        environmentId,
         instanceId: agent.id,
         instanceName: agent.name,
         ...(virtualKeyId ? { liteLLMVirtualKeyId: virtualKeyId } : {}),
@@ -485,7 +481,6 @@ export class CostService {
       // missing Instance mapping is a data-quality problem, not permission to
       // assign the record to a fabricated/default Project.
       projectId: this.store.projectId,
-      environmentId: attribution?.environmentId ?? "production",
       ...(attribution?.instanceId ? { instanceId: attribution.instanceId, instanceName: attribution.instanceName } : {}),
       ...(endpoint ? { modelEndpointId: endpoint.modelEndpointId, modelEndpointName: endpoint.modelEndpointName } : {}),
       ...(endpoint?.providerAccountId ?? attribution?.providerAccountId ? {
@@ -644,7 +639,6 @@ export class CostService {
       startTime: start,
       endTime: normalized.end,
       projectId: query.projectId,
-      environmentId: query.environmentId,
     });
     return { normalized, previous, all, current: applyFilters(all.filter((fact) => fact.requestStartTime >= normalized.start), query.filters) };
   }
@@ -657,7 +651,6 @@ export class CostService {
       maps.provider.set(fact.provider, fact.provider);
       maps.provider_account.set(filterValue(fact, "provider_account"), fact.providerAccountName ?? groupLabels.provider_account);
       maps.virtual_key.set(filterValue(fact, "virtual_key"), fact.virtualKeyAlias ?? groupLabels.virtual_key);
-      maps.environment.set(fact.environmentId, fact.environmentId);
       maps.project.set(fact.projectId, fact.projectId);
     }
     return Object.fromEntries(filterKeys.map((key) => [
@@ -719,7 +712,6 @@ export class CostService {
           usageDate,
           timezone: query.timezone,
           projectId: fact.projectId,
-          environmentId: fact.environmentId,
           groupType,
           groupId: dimension.id,
           groupName: dimension.name,
@@ -763,12 +755,10 @@ export class CostService {
       startTime: normalized.start,
       endTime: normalized.end,
       projectId: query.projectId,
-      environmentId: query.environmentId,
     });
     const dailyRows = this.dailyRows(unfiltered, normalized);
     await this.analytics().replaceDailyRows({
       projectId: query.projectId,
-      environmentId: query.environmentId,
       timezone: query.timezone,
       from: normalized.from,
       to: normalized.to,
@@ -931,7 +921,6 @@ export class CostService {
       startTime: normalized.start,
       endTime: normalized.end,
       projectId: query.projectId,
-      environmentId: query.environmentId,
     });
     return {
       currency: "USD",
