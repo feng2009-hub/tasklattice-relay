@@ -6,7 +6,6 @@ import { ProjectModelRoutingsSettings } from "@/components/project/project-model
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ProjectAvatar } from "@/components/project/project-item";
 import { ProjectMembers } from "@/components/project/project-members";
 import { ProjectQuotaSettings } from "@/components/project/project-quota-settings";
 import { useProject } from "@/hooks/use-project";
@@ -82,17 +81,6 @@ function ProjectSettingsPage() {
       />
 
       <section className="overflow-hidden rounded-lg border bg-background">
-        <div className="flex min-h-[72px] items-center gap-3 border-b px-4">
-          <ProjectAvatar className="size-10" project={project} />
-          <div className="min-w-0">
-            <h2 className="truncate font-heading text-lg">{project.name}</h2>
-            <p className="text-xs text-muted-foreground">
-              {project.memberCount} {project.memberCount === 1 ? "member" : "members"} ·{" "}
-              <span className="capitalize">{project.role}</span>
-            </p>
-          </div>
-        </div>
-
         <Tabs
           value={section}
           onValueChange={(value) => {
