@@ -308,11 +308,13 @@ routes guarded by `CAP_AGENT_INSTANCE_INTERACT` and
 `CAP_AGENT_INSTANCE_LOG_VIEW`.
 
 OpenClaw interaction URLs currently contain a runtime gateway credential and
-must be treated as bearer credentials. Hermes browser endpoint publication is
-fail closed because its predictable OpenShell service does not provide a
-user-bound authorization boundary. Assigned multi-user interaction requires a
-short-lived, user-bound, revocable proxy or equivalent runtime credential
-before it can be enabled.
+must be treated as bearer credentials. Hermes publishes the predictable
+OpenShell service only through the TaskLattice authentication proxy. The
+dedicated interaction route asks the Runner to issue a five-minute token bound
+to the authenticated user; the proxy accepts it once, removes it from the URL,
+and establishes an HttpOnly, same-site Dashboard session. HTTP streaming and
+WebSocket traffic cross the same boundary. Deleting or restarting the Sandbox
+removes its secret and invalidates every outstanding Hermes token and session.
 
 ## Discovery APIs
 

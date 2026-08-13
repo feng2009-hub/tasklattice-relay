@@ -30,6 +30,7 @@ import {
   openShellArguments,
   openShellBinary,
   openShellTerminalArguments,
+  issueOpenShellWebUiEndpoint,
   provisionOpenShellSandbox,
 } from "./openshell.js";
 
@@ -205,7 +206,9 @@ async function provision(
               ? error.message
               : `Unable to expose the ${input.agentPlatform} browser endpoint.`,
         };
-        state.logs.push(`OpenClaw Web UI unavailable: ${httpEndpoint.reason}`);
+        state.logs.push(
+          `${input.agentPlatform} Web UI unavailable: ${httpEndpoint.reason}`,
+        );
       }
     } else {
       updateProvisioningStage(state, "RUNTIME", "Starting NemoClaw non-interactive onboarding.");
@@ -287,6 +290,54 @@ app.post("/v1/sandboxes", (request, response, next) => {
     });
     provisionTasks.set(input.name, task);
     response.status(202).json(responseState(state));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/v1/sandboxes/:name/interaction", async (request, response, next) => {
+  try {
+    const name = z
+      .string()
+      .regex(/^[a-z][a-z0-9-]{0,61}[a-z0-9]$/)
+      .parse(request.params.name);
+    const agentPlatform = agentPlatformSchema.parse(
+      request.query.agentPlatform ?? "openclaw",
+    );
+    const subject = z.string().min(1).max(200).parse(request.query.subject);
+    const state = await readySandboxState(name, agentPlatform);
+    if (!state)
+      return void response.status(409).json({
+        error: "Web UI access is available only when the Sandbox is ready.",
+      });
+    const platformRuntime = getAgentPlatformRuntime(agentPlatform);
+    if (!isOpenShell) {
+      const httpEndpoint = state.httpEndpoint;
+      return void response.json(
+        httpEndpoint ?? {
+          kind: platformRuntime.endpointKind,
+          status: "UNAVAILABLE",
+          reason: "The active runtime does not publish a Web UI endpoint.",
+        },
+      );
+    }
+    response.setHeader("cache-control", "no-store");
+    try {
+      response.json({
+        kind: platformRuntime.endpointKind,
+        status: "READY",
+        url: await issueOpenShellWebUiEndpoint(name, agentPlatform, subject),
+      });
+    } catch (error) {
+      response.json({
+        kind: platformRuntime.endpointKind,
+        status: "UNAVAILABLE",
+        reason:
+          error instanceof Error
+            ? error.message
+            : `Unable to issue ${agentPlatform} Web UI access.`,
+      });
+    }
   } catch (error) {
     next(error);
   }

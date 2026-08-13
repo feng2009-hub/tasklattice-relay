@@ -25,6 +25,7 @@ export interface AgentPlatformRuntime {
   terminalCommand: string;
   inferenceBinaries: readonly string[];
   endpointKind: HttpEndpoint["kind"];
+  embeddedRunTelemetry: boolean;
   sandboxImage: () => string;
   bootstrapScript: (
     dashboardOrigin: string,
@@ -156,33 +157,26 @@ exec env "NEMOCLAW_DASHBOARD_PORT=${dashboardPort}" /usr/local/bin/nemoclaw-star
 };
 
 const hermesBootstrapScript = (
-  _dashboardOrigin: string,
+  dashboardOrigin: string,
   dashboardPort: string,
   inferenceEndpoint: string,
   model: string,
   _memory?: RuntimeMemoryConfiguration,
-) => `#!/usr/bin/env bash
+) => {
+  const upstreamDashboardPort = dashboardPort === "18790" ? "18791" : "18790";
+  const secureCookie = new URL(dashboardOrigin).protocol === "https:";
+  return `#!/usr/bin/env bash
 set -euo pipefail
-
-readonly telemetry_env_file=/tmp/tali-run-telemetry.env
-source "$telemetry_env_file"
-rm -f "$telemetry_env_file"
-export TALI_RUN_TELEMETRY_ENDPOINT="$(printf '%s' "$TALI_RUN_TELEMETRY_ENDPOINT_B64" | base64 -d)"
-export TALI_RUN_TELEMETRY_TOKEN="$(printf '%s' "$TALI_RUN_TELEMETRY_TOKEN_B64" | base64 -d)"
-unset TALI_RUN_TELEMETRY_ENDPOINT_B64 TALI_RUN_TELEMETRY_TOKEN_B64
 
 readonly hermes_dir=/sandbox/.hermes
 readonly config_file="$hermes_dir/config.yaml"
 readonly hash_file="$hermes_dir/.config-hash"
 readonly config_bootstrap=/usr/local/lib/tali/bootstrap-hermes-config.py
-readonly telemetry_hook_source=/usr/local/lib/tali/hermes-run-telemetry
-readonly telemetry_hook_dir="$hermes_dir/hooks/tali-run-telemetry"
-
-install -d -m 0770 "$telemetry_hook_dir"
-cp "$telemetry_hook_source/HOOK.yaml" "$telemetry_hook_dir/HOOK.yaml"
-cp "$telemetry_hook_source/handler.py" "$telemetry_hook_dir/handler.py"
-chmod 0550 "$telemetry_hook_dir/handler.py"
-chmod 0440 "$telemetry_hook_dir/HOOK.yaml"
+readonly webui_auth_proxy=/usr/local/lib/tali/hermes-webui-auth-proxy.py
+readonly webui_secret_file=/tmp/tali-hermes-webui-secret
+readonly webui_public_port=${dashboardPort}
+readonly webui_upstream_port=${upstreamDashboardPort}
+readonly webui_secure_cookie=${secureCookie ? "1" : "0"}
 
 # OpenShell provisions the persistent workspace root with a setgid, writable
 # mode so uploaded files can be staged before the workload starts. Hermes
@@ -219,8 +213,33 @@ printf '[bootstrap] Hermes identity current=%s account=%s workspace=%s state=%s\
   --model "${model}" \
   --template-endpoint https://inference.local/v1 \
   --template-model deepseek-chat
-exec env "NEMOCLAW_DASHBOARD_PORT=${dashboardPort}" "NEMOCLAW_MODEL_OVERRIDE=${model}" /usr/local/bin/nemoclaw-start
+
+if [ ! -x "$webui_auth_proxy" ]; then
+  echo "Hermes Web UI authentication proxy is unavailable" >&2
+  exit 1
+fi
+umask 077
+/opt/hermes/.venv/bin/python3 -I -c 'import secrets,sys;sys.stdout.write(secrets.token_urlsafe(48))' >"$webui_secret_file"
+chmod 0600 "$webui_secret_file"
+
+webui_proxy_args=(
+  "$webui_auth_proxy"
+  --listen-port "$webui_public_port"
+  --upstream-port "$webui_upstream_port"
+  --secret-file "$webui_secret_file"
+  --parent-pid "$$"
+)
+if [ "$webui_secure_cookie" = "1" ]; then
+  webui_proxy_args+=(--secure-cookie)
+fi
+/opt/hermes/.venv/bin/python3 -I "\${webui_proxy_args[@]}" &
+
+# Preserve NemoClaw's OpenShell-managed process contract: this shell must be
+# replaced by nemoclaw-start so it remains the supervisor's direct child. The
+# proxy watches this stable PID and exits when the runtime is replaced or dies.
+exec env "NEMOCLAW_DASHBOARD_PORT=$webui_upstream_port" "NEMOCLAW_MODEL_OVERRIDE=${model}" /usr/local/bin/nemoclaw-start
 `;
+};
 
 const agentPlatformRuntimeRegistry = {
   openclaw: {
@@ -229,6 +248,7 @@ const agentPlatformRuntimeRegistry = {
     terminalCommand: "exec openclaw tui",
     inferenceBinaries: ["/usr/local/bin/node"],
     endpointKind: "openclaw-webui",
+    embeddedRunTelemetry: true,
     sandboxImage: () =>
       process.env.OPENSHELL_SANDBOX_IMAGE ??
       "ghcr.io/tasklattice/tali-nemoclaw-sandbox:dev",
@@ -252,12 +272,13 @@ const agentPlatformRuntimeRegistry = {
       "/usr/bin/python3.*",
     ],
     endpointKind: "hermes-dashboard",
+    embeddedRunTelemetry: false,
     sandboxImage: () =>
       process.env.OPENSHELL_HERMES_SANDBOX_IMAGE ??
       "ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:dev",
     bootstrapScript: hermesBootstrapScript,
-    healthProbe: () =>
-      "test -x /usr/local/bin/hermes && test -f /sandbox/.hermes/config.yaml && curl -fsS --max-time 3 http://127.0.0.1:8642/health >/dev/null",
+    healthProbe: (dashboardPort) =>
+      `test -x /usr/local/bin/hermes && test -f /sandbox/.hermes/config.yaml && curl -fsS --max-time 3 http://127.0.0.1:8642/health >/dev/null && curl -fsS --max-time 3 http://127.0.0.1:${dashboardPort}/__tali/health >/dev/null`,
     startupLogs: [
       "Hermes Agent instructions uploaded to the sandbox state directory.",
       "NemoClaw supervisor started the Hermes gateway.",

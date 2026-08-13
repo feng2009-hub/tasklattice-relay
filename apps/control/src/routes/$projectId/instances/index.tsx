@@ -107,6 +107,7 @@ function PrimaryInstanceAction({ canInteract, instance }: { canInteract: boolean
     enabled: canInteract && instance.status === "READY",
     retry: 1,
     staleTime: 15_000,
+    refetchInterval: 4 * 60_000,
   });
   const endpoint = interaction.data?.httpEndpoint;
   const endpointReady = endpoint?.status === "READY" && Boolean(endpoint.url);

@@ -1,5 +1,6 @@
 import type {
   AgentPlatformId,
+  HttpEndpoint,
   RunnerHealth,
   RunnerSandbox,
   SandboxAuditEvent,
@@ -38,6 +39,11 @@ export interface CreateSandboxInput {
 export interface RunnerClient {
   createSandbox(input: CreateSandboxInput): Promise<RunnerSandbox>;
   getSandbox(name: string, agentPlatform: AgentPlatformId): Promise<RunnerSandbox>;
+  getSandboxInteraction(
+    name: string,
+    agentPlatform: AgentPlatformId,
+    subject: string,
+  ): Promise<HttpEndpoint>;
   getSandboxAudit(name: string): Promise<SandboxAuditEvent[]>;
   destroySandbox(name: string, agentPlatform: AgentPlatformId): Promise<RunnerSandbox>;
   getHealth(): Promise<RunnerHealth>;
@@ -93,6 +99,17 @@ export class NemoClawRunnerClient implements RunnerClient {
   ): Promise<RunnerSandbox> {
     return this.request<RunnerSandbox>(
       `/v1/sandboxes/${encodeURIComponent(name)}?agentPlatform=${agentPlatform}`,
+    );
+  }
+
+  getSandboxInteraction(
+    name: string,
+    agentPlatform: AgentPlatformId,
+    subject: string,
+  ): Promise<HttpEndpoint> {
+    const query = new URLSearchParams({ agentPlatform, subject });
+    return this.request<HttpEndpoint>(
+      `/v1/sandboxes/${encodeURIComponent(name)}/interaction?${query}`,
     );
   }
 

@@ -130,7 +130,7 @@ export function InstanceOverviewTab({ access, agent, auditEvents, auditLoading, 
               { label: "Data boundary", value: complianceDomainCatalog.find((domain) => domain.id === agent.modelRoutingComplianceDomain)?.label ?? agent.modelRoutingComplianceDomain },
               { label: "Routing", value: <Link to="/$projectId/setting/model-routings/$routingId" params={{ projectId, routingId: agent.modelRoutingId }} className="font-medium text-primary underline underline-offset-4">{modelRoutingName ?? "Managed routing"}</Link> },
               { label: "Endpoint status", value: <EndpointBadge agent={agent} /> },
-              { label: "Endpoint URL", value: <CopyableValue value={agent.httpEndpoint?.url} externalUrl={agent.httpEndpoint?.url} /> },
+              { label: "Endpoint access", value: access.webUI.enabled ? "Protected session" : "Unavailable" },
             ]} />
           </CardContent>
         </Card>

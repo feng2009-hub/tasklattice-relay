@@ -229,6 +229,7 @@ function runnerAdapter(): RunnerClient {
       logs: [],
     })),
     getSandbox: vi.fn(),
+    getSandboxInteraction: vi.fn(),
     getSandboxAudit: vi.fn(),
     destroySandbox: vi.fn(async (name, agentPlatform) => ({
       name,

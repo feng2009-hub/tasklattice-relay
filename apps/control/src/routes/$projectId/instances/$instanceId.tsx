@@ -64,6 +64,7 @@ function AgentDetail() {
       && agent.data?.status === "READY",
     retry: 1,
     staleTime: 15_000,
+    refetchInterval: 4 * 60_000,
   });
   const runtimeLogs = useQuery({
     queryKey: scope.key("agent-logs", agentId),
@@ -107,6 +108,17 @@ function AgentDetail() {
   });
   const terminalWasOpen = useRef(false);
   const [terminalNotice, setTerminalNotice] = useState("");
+  const interactionEndpoint = interaction.data?.httpEndpoint
+    ?? (permissions.canInteractWithAgents
+      && agent.data?.status === "READY"
+      && agent.data.httpEndpoint?.status === "READY"
+      ? {
+          ...agent.data.httpEndpoint,
+          reason: interaction.isError
+            ? "Secure Web UI access could not be issued. Try refreshing this page."
+            : "Preparing secure Web UI access…",
+        }
+      : undefined);
   const displayedAgent = agent.data
     ? {
         ...agent.data,
@@ -118,9 +130,7 @@ function AgentDetail() {
                 : {}),
             }
           : {}),
-        ...(interaction.data?.httpEndpoint
-          ? { httpEndpoint: interaction.data.httpEndpoint }
-          : {}),
+        ...(interactionEndpoint ? { httpEndpoint: interactionEndpoint } : {}),
       }
     : undefined;
   const access = displayedAgent
