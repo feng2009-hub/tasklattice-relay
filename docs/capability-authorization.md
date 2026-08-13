@@ -2,7 +2,7 @@
 
 Status: current implementation snapshot
 
-Last verified: 2026-08-12
+Last verified: 2026-08-13
 
 This document records the authorization behavior that exists in the repository
 today and separates it from the intended four-role model. A registered `CAP_*`
@@ -88,7 +88,7 @@ The role counts below are generated from the current builtin definitions.
 
 | Membership value | Builtin role | CAP count | Grant relations | Current readiness |
 |---|---|---:|---|---|
-| `admin` | `ROLE_PROJECT_ADMIN` | 68 | `PROJECT_ANY` | Partial |
+| `admin` | `ROLE_PROJECT_ADMIN` | 172 | `PROJECT_ANY` | Complete human capability preset; workflow coverage varies |
 | `auditor` | `ROLE_AUDITOR` | 39 | `PROJECT_ANY` | Mostly implemented for read-only metadata |
 | `developer` | `ROLE_AGENT_DEVELOPER` | 69 | `PROJECT_ANY`, `OWNER`, `MAINTAINER`, `SESSION_PARTICIPANT` | Partial |
 | `user` | `ROLE_USER` | 9 | `PROJECT_ANY`, `ASSIGNED`, `SESSION_PARTICIPANT` | Defined but core Agent flow is fail closed |
@@ -96,19 +96,19 @@ The role counts below are generated from the current builtin definitions.
 
 ### Project Administrator
 
-The Admin preset covers Project settings, membership, role and quota
-governance, shared-resource reads, narrow validation operations, approval
-request submission metadata, and operational metadata. It also grants the
-minimal create-and-bind capabilities needed to bootstrap a new Instance. This
-keeps a newly created Project usable while membership persists only one role
-per user.
+The Admin preset grants the complete human Project capability catalog. One
+administrator can therefore close the loop across Project settings,
+membership, Provider connections, model registration, Routing creation and
+reconciliation, Agent lifecycle, policies, runtime operations, and evidence.
+Sensitive capabilities such as Terminal, raw Memory content, and audit export
+are included because this role is the Project's accountable operator.
 
-It intentionally does not include existing-Agent lifecycle mutation such as
-delete or restart, Terminal, raw Memory content, sensitive audit
-content/export, or approval decisions. The
-Admin preset contains `CAP_PROJECT_ROLE_CREATE`, `UPDATE`, and `DELETE`, but
-custom Role persistence and Role CRUD APIs do not exist, so those capabilities
-are registered only.
+`CAP_APPROVED_CHANGE_APPLY` and `CAP_APPROVAL_OVERRIDE` remain service-only and
+are excluded from every human role. A complete grant preset does not imply that
+every registered capability has a backing workflow. For example, the Admin
+preset contains `CAP_PROJECT_ROLE_CREATE`, `UPDATE`, and `DELETE`, but custom
+Role persistence and Role CRUD APIs do not exist, so those capabilities remain
+registered only.
 
 Every Project membership maps to exactly one builtin role. Project identity does
 not add capabilities or compose another role implicitly.
@@ -143,8 +143,8 @@ The following advertised Developer areas are not complete:
 - Most Memory maintenance capabilities have no dedicated API.
 - Approval-required changes cannot complete because there is no approval workflow.
 
-Terminal is deliberately absent from all builtin roles because shell access is
-effectively a sandbox, credential, and Memory super-capability.
+Terminal is deliberately limited to Project Administrator because shell access
+is effectively a sandbox, credential, and Memory super-capability.
 
 ### User
 
@@ -168,9 +168,10 @@ current route consumer.
 
 The target default model contains only Admin, Auditor, Developer, and User.
 Before schema stabilization, `Approver` must either be removed from the default
-role set or become a future optional/custom role. If approval decisions move to
-Admin, the eventual workflow must prohibit self-approval and preserve
-separation of duties.
+role set or become a future optional/custom role. Admin now also has approval
+decision capabilities as part of the complete human capability preset; the
+eventual workflow must still prohibit self-approval and preserve separation of
+duties.
 
 ## Capability composition limitations
 
@@ -243,18 +244,11 @@ complete downstream workflow.
 | Usage | 3 | 1 | 2 |
 | **Total** | **174** | **79** | **95** |
 
-Of the 79 consumed capabilities, 30 are not part of any current builtin role.
-One is the intentionally system-scoped `CAP_PROJECT_CREATE` entitlement. The
-other 29 include two different groups:
-
-- intentionally privileged paths such as Terminal, sensitive audit content,
-  audit export, and Trace content; and
-- management paths with no current operator, including multiple Skill, MCP,
-  Knowledge Source, Access Policy, Runtime Policy, Provider, Model, and Model
-  Routing mutations.
-
-Because custom roles and direct grants do not exist, the latter APIs are
-currently unreachable through the default Project role model.
+All 79 consumed capabilities are now present in at least one builtin role.
+Project Administrator is the closed-loop operator for every implemented
+management path, including Provider, Model, and Model Routing mutations. The
+two service-only capabilities (`CAP_APPROVED_CHANGE_APPLY` and
+`CAP_APPROVAL_OVERRIDE`) have no human grant and no current route consumer.
 
 ## Memory implementation status
 

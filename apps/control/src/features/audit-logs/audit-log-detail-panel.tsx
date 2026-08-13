@@ -159,7 +159,7 @@ export function AuditLogDetailPanel({
         </div>
         <h3
           id={titleId}
-          className="mt-2 font-heading text-lg font-medium text-foreground"
+          className="mt-2 font-sans text-lg font-semibold text-foreground"
         >
           {event.actor.name} {event.verb} {event.object.name}
         </h3>

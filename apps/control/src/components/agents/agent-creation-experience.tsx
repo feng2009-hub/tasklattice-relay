@@ -36,7 +36,7 @@ export function AgentCreationExperience({ agent }: { agent: Agent }) {
         <Spinner className="size-12 text-primary" />
         <span className="absolute grid size-9 place-items-center rounded-full bg-background text-xs font-semibold tabular-nums shadow-sm">{state.progress}%</span>
       </div>
-      <h1 className="mt-6 text-3xl font-semibold tracking-tight">Creating your Agent…</h1>
+      <h1 className="mt-6 font-display text-3xl font-medium tracking-tight">Creating your Agent…</h1>
       <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">We received the request for <strong className="font-medium text-foreground">{agent.name}</strong>. This page updates automatically while its Agent and permissions are prepared.</p>
 
       <div className="mt-10 w-full rounded-lg border bg-card px-5 py-6 text-left shadow-sm sm:px-8">
@@ -99,7 +99,7 @@ function ReadyState({ agent }: { agent: Agent }) {
       <div className="relative grid size-28 place-items-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
         <CheckCircle2 className="size-16" strokeWidth={1.6} />
       </div>
-      <h1 className="mt-7 text-3xl font-semibold tracking-tight">Your Agent is ready!</h1>
+      <h1 className="mt-7 font-display text-3xl font-medium tracking-tight">Your Agent is ready!</h1>
       <p className="mt-2 text-sm text-muted-foreground"><strong className="font-medium text-foreground">{agent.name}</strong> is now up and running.</p>
       <div className="mt-8 flex w-full max-w-xl flex-col justify-center gap-3 sm:flex-row">
         <Button asChild size="lg" className="min-w-48"><Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: agent.id }}>Go to Agent <ArrowRight /></Link></Button>
@@ -119,7 +119,7 @@ function FailedState({ agent }: { agent: Agent }) {
   return (
     <main aria-live="assertive" className="mx-auto flex min-h-[calc(100vh-12rem)] w-full max-w-3xl flex-col items-center justify-center px-4 py-12 text-center">
       <span className="grid size-24 place-items-center rounded-full bg-destructive/10 text-destructive"><AlertTriangle className="size-12" /></span>
-      <h1 className="mt-7 text-3xl font-semibold tracking-tight">We couldn’t create this Agent</h1>
+      <h1 className="mt-7 font-display text-3xl font-medium tracking-tight">We couldn’t create this Agent</h1>
       <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">{agent.error ?? "Provisioning stopped before the runtime became available."}</p>
       <div className="mt-7 flex flex-wrap justify-center gap-3">
         <Button asChild><Link to="/$projectId/instances" params={{ projectId }} search={{ create: "instance" }}><RotateCw /> Try again</Link></Button>

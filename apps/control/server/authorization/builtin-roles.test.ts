@@ -37,25 +37,27 @@ describe("builtin Project roles", () => {
     expect(projectCapabilities).not.toContain("CAP_SECRET_REVEAL" as ProjectCapability);
   });
 
-  it("lets Project Administrator bootstrap Instances without runtime superpowers", () => {
+  it("gives Project Administrator the complete human Project capability set", () => {
     const capabilities = builtinRole("ROLE_PROJECT_ADMIN").capabilities;
+    expect(capabilities).toEqual(
+      projectCapabilities.filter(
+        (capability) => !forbiddenForEveryHumanRole.includes(
+          capability as (typeof forbiddenForEveryHumanRole)[number],
+        ),
+      ),
+    );
     expect(capabilities).toEqual(expect.arrayContaining([
       "CAP_PROJECT_SETTINGS_UPDATE",
       "CAP_PROJECT_MEMBER_INVITE",
       "CAP_PROJECT_MEMBER_ROLE_ASSIGN",
-      "CAP_PROVIDER_VALIDATE",
-      "CAP_AGENT_MEMORY_CONFIG_VIEW",
-      "CAP_AGENT_INSTANCE_CREATE",
-      "CAP_AGENT_INSTANCE_ACCESS_POLICY_ASSIGN",
-      "CAP_AGENT_INSTANCE_MODEL_ROUTING_ASSIGN",
-      "CAP_AGENT_INSTANCE_RUNTIME_POLICY_ASSIGN",
-      "CAP_AGENT_INSTANCE_SKILL_ASSIGN",
-      "CAP_AGENT_INSTANCE_MCP_SERVER_ASSIGN",
-      "CAP_AGENT_INSTANCE_KNOWLEDGE_SOURCE_ASSIGN",
-      "CAP_AGENT_MEMORY_CONFIG_UPDATE",
-      "CAP_AGENT_MEMORY_EMBEDDING_ASSIGN",
-    ]));
-    expect(capabilities).not.toEqual(expect.arrayContaining([
+      "CAP_PROVIDER_CREATE",
+      "CAP_PROVIDER_DISCOVER",
+      "CAP_MODEL_CREATE",
+      "CAP_MODEL_DELETE",
+      "CAP_MODEL_ROUTING_CREATE",
+      "CAP_MODEL_ROUTING_UPDATE",
+      "CAP_MODEL_ROUTING_DELETE",
+      "CAP_MODEL_ROUTING_RECONCILE",
       "CAP_AGENT_INSTANCE_TERMINAL_EXEC",
       "CAP_AGENT_INSTANCE_DELETE",
       "CAP_AGENT_MEMORY_CONTENT_VIEW",

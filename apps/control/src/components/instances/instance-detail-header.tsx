@@ -30,7 +30,7 @@ export function InstanceHeader({ access, agent, canDelete, onDelete, platform }:
           <AgentPlatformIcon platform={platform} className="size-14 bg-[#171717]" imageClassName="size-10" />
           <div className="min-w-0">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <h1 className="truncate text-2xl font-semibold tracking-tight sm:text-3xl">{agent.name}</h1>
+              <h1 className="truncate font-display text-2xl font-medium tracking-tight sm:text-3xl">{agent.name}</h1>
               <InstanceStatusBadge status={agent.status} />
             </div>
             <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">

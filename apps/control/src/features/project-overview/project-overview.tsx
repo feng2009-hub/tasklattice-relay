@@ -195,7 +195,7 @@ export function OverviewKpiGrid({ data }: { data: ProjectOverviewResponse }) {
           className="min-h-32 border-b p-4 last:border-b-0 sm:odd:border-r sm:[&:nth-child(3)]:border-b-0 xl:border-b-0 xl:border-r xl:odd:border-r xl:last:border-r-0"
         >
           <p className="text-xs font-medium text-muted-foreground">{card.label}</p>
-          <p className="mt-3 font-heading text-3xl tabular-nums tracking-tight">{card.value}</p>
+          <p className="mt-3 font-sans text-3xl font-medium tabular-nums tracking-tight">{card.value}</p>
           <div className="mt-3">{card.detail}</div>
         </article>
       ))}
@@ -310,7 +310,7 @@ export function BudgetCard({
         </div>
       </CardHeader>
       <CardContent className="flex flex-1 flex-col justify-center py-6">
-        <p className="font-heading text-3xl tabular-nums tracking-tight">
+        <p className="font-sans text-3xl font-medium tabular-nums tracking-tight">
           {money(budget.usedUsd)} <span className="text-base text-muted-foreground">/ {money(budget.limitUsd)}</span>
         </p>
         <Progress
@@ -376,7 +376,7 @@ export function RuntimeHealthCard({
       <CardContent className="py-5">
         <div className="flex items-end justify-between gap-4">
           <div>
-            <p className="font-heading text-3xl tabular-nums">{data.ready}</p>
+            <p className="font-sans text-3xl font-medium tabular-nums">{data.ready}</p>
             <p className="mt-1 text-xs text-muted-foreground">Ready of {data.total} total</p>
           </div>
           {data.failed > 0 ? (

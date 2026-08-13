@@ -33,7 +33,7 @@ export function SystemPromptViewer({ defaultPrompt, onApply, onOpenChange, open,
     <Sheet open={open} onOpenChange={(next) => { onOpenChange(next); if (!next) setCopied(false); }}>
       <SheetContent side="right" className="w-[min(92vw,38rem)] sm:max-w-[38rem]">
         <SheetHeader className="border-b px-6 py-5 pr-14">
-          <SheetTitle className="font-serif text-xl">{specializationName} system instructions</SheetTitle>
+          <SheetTitle className="text-xl">{specializationName} system instructions</SheetTitle>
           <SheetDescription>Edit these instructions for this Instance only. The Role default and future Instances remain unchanged.</SheetDescription>
         </SheetHeader>
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-6">

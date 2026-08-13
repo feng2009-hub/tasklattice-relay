@@ -307,7 +307,7 @@ export function RegisterModelsDrawer({
     >
       <DrawerContent className="!w-full sm:!w-[min(100vw,44rem)]">
         <DrawerHeader className="relative border-b pr-16">
-          <DrawerTitle className="font-serif text-xl sm:text-2xl">
+          <DrawerTitle className="text-xl sm:text-2xl">
             Register models
           </DrawerTitle>
           <DrawerDescription>

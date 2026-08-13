@@ -82,7 +82,7 @@ export function ProjectQuotaSettings({ project }: { project: Project }) {
       <div className="space-y-5 p-5">
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
           <div>
-            <h3 className="font-heading text-lg">Project quota</h3>
+            <h3 className="font-sans text-lg font-semibold">Project quota</h3>
             <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
               LiteLLM enforces spend and throughput for the Project Team. TALI blocks new resources when a configured capacity is reached.
             </p>
@@ -268,7 +268,7 @@ function UsageCard({
   return (
     <div className="rounded-lg border bg-muted/20 p-4">
       <div className="flex items-center gap-2 text-xs text-muted-foreground"><Icon className="size-4" />{label}</div>
-      <p className="mt-3 font-heading text-2xl">{value}</p>
+      <p className="mt-3 font-sans text-2xl font-medium tabular-nums">{value}</p>
       <p className="mt-1 text-xs text-muted-foreground">{limitLabel ?? (limit === null ? "Unlimited" : `of ${formatNumber(limit)}`)}</p>
       {limit !== null ? <Progress className="mt-3" value={percentage} /> : null}
     </div>

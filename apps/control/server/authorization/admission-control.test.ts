@@ -175,7 +175,7 @@ describe("capability admission evaluator", () => {
     }
   });
 
-  it("does not infer additional capabilities from Project identity", async () => {
+  it("does not infer service-only capabilities from Project identity", async () => {
     database = createTestPrisma();
     const service = new ProjectAdmissionService(database);
     await database.project.create({
@@ -192,8 +192,8 @@ describe("capability admission evaluator", () => {
     await expect(service.authorize(
       request,
       "local-admin",
-      "CAP_AGENT_INSTANCE_TERMINAL_EXEC",
-      { relation: "OWNER", resourceType: "AgentInstance" },
+      "CAP_APPROVAL_OVERRIDE",
+      { relation: "PROJECT_ANY", resourceType: "ApprovalRequest" },
     )).rejects.toBeInstanceOf(CapabilityAdmissionError);
     expect(admissionEvidenceForRequest(request)[0]?.decision).toBe("DENY");
   });

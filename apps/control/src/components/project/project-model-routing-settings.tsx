@@ -90,13 +90,19 @@ export function ProjectModelRoutingsSettings({
   const [successMessage, setSuccessMessage] = useState("");
   const [modelSearch, setModelSearch] = useState("");
   const [modelType, setModelType] = useState<ModelTypeFilter>("all");
-  const canManage = [
-    "CAP_PROVIDER_CREATE",
-    "CAP_MODEL_CREATE",
-    "CAP_MODEL_ROUTING_UPDATE",
-  ].some((capability) => project.effectiveCapabilities.includes(
-    capability as (typeof project.effectiveCapabilities)[number],
-  ));
+  const capabilities = new Set(project.effectiveCapabilities);
+  const canConnectProvider =
+    capabilities.has("CAP_PROVIDER_CREATE")
+    && capabilities.has("CAP_PROVIDER_DISCOVER");
+  const canRegisterModels =
+    capabilities.has("CAP_MODEL_CREATE")
+    && capabilities.has("CAP_PROVIDER_DISCOVER");
+  const canDeleteModels = capabilities.has("CAP_MODEL_DELETE");
+  const canValidateProviders = capabilities.has("CAP_PROVIDER_VALIDATE");
+  const canDeleteProviders = capabilities.has("CAP_PROVIDER_DELETE");
+  const canCreateRouting = capabilities.has("CAP_MODEL_ROUTING_CREATE");
+  const canUpdateRouting = capabilities.has("CAP_MODEL_ROUTING_UPDATE");
+  const canReconcileRouting = capabilities.has("CAP_MODEL_ROUTING_RECONCILE");
   const routings = useQuery({
     queryKey: scope.key("model-routings"),
     queryFn: api.listModelRoutings,
@@ -227,24 +233,25 @@ export function ProjectModelRoutingsSettings({
                 </p>
               </div>
               <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
-                {canManage ? (
+                {canConnectProvider || canRegisterModels ? (
                   <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
-                    <Button
-                      className="h-9"
-                      onClick={() =>
-                        providerAccounts.length
-                          ? openModelRegistration()
-                          : openProviderConnection()
-                      }
-                    >
-                      <Plus />
-                      {providerAccounts.length
-                        ? "Register models"
-                        : "Connect Provider"}
-                    </Button>
-                    {providerAccounts.length ? (
+                    {providerAccounts.length && canRegisterModels ? (
                       <Button
-                        className="h-9"
+                        className="h-11"
+                        onClick={() => openModelRegistration()}
+                      >
+                        <Plus />
+                        Register models
+                      </Button>
+                    ) : canConnectProvider ? (
+                      <Button className="h-11" onClick={openProviderConnection}>
+                        <Plus />
+                        Connect Provider
+                      </Button>
+                    ) : null}
+                    {providerAccounts.length && canConnectProvider ? (
+                      <Button
+                        className="h-11"
                         variant="outline"
                         onClick={openProviderConnection}
                       >
@@ -314,7 +321,7 @@ export function ProjectModelRoutingsSettings({
             ) : models.length ? (
               <ModelTable
                 accounts={providerAccounts}
-                canManage={canManage}
+                canDelete={canDeleteModels}
                 models={visibleModels}
                 total={models.length}
                 usage={modelUsage}
@@ -341,7 +348,7 @@ export function ProjectModelRoutingsSettings({
                     : "Connect a Provider below to discover and register its models."
                 }
                 action={
-                  canManage && providerAccounts.length ? (
+                  canRegisterModels && providerAccounts.length ? (
                     <Button
                       className="mt-4 h-11"
                       onClick={() => openModelRegistration()}
@@ -357,8 +364,12 @@ export function ProjectModelRoutingsSettings({
 
           <ProviderConnectionsManagement
             accounts={providerAccounts}
-            canManage={canManage}
+            canConnect={canConnectProvider}
+            canDelete={canDeleteProviders}
+            canRegisterModels={canRegisterModels}
+            canValidate={canValidateProviders}
             models={models}
+            onConnectProvider={openProviderConnection}
             onRegisterModels={openModelRegistration}
           />
         </div>
@@ -377,9 +388,9 @@ export function ProjectModelRoutingsSettings({
                   Reusable routing configurations that Instances reference directly.
                 </p>
               </div>
-              {canManage ? (
+              {canCreateRouting ? (
                 <Button
-                  className="h-9 self-start sm:self-auto"
+                  className="h-11 self-start sm:self-auto"
                   disabled={!readyChatModels.length}
                   title={
                     readyChatModels.length
@@ -435,7 +446,8 @@ export function ProjectModelRoutingsSettings({
                   </p>
                 ) : null}
                 <RoutingTable
-                  canManage={canManage}
+                  canReconcile={canReconcileRouting}
+                  canUpdate={canUpdateRouting}
                   routings={routingItems}
                   {...(refresh.isPending && refresh.variables
                     ? { refreshingId: refresh.variables }
@@ -460,7 +472,7 @@ export function ProjectModelRoutingsSettings({
                     : "Register a validated text generation model before configuring routing."
                 }
                 action={
-                  canManage ? (
+                  canCreateRouting ? (
                     <Button
                       className="mt-4 h-11"
                       onClick={() => {
@@ -511,7 +523,7 @@ export function ProjectModelRoutingsSettings({
 
 function ModelTable({
   accounts,
-  canManage,
+  canDelete,
   models,
   onRemove,
   removingId,
@@ -519,7 +531,7 @@ function ModelTable({
   usage,
 }: {
   accounts: ProviderAccount[];
-  canManage: boolean;
+  canDelete: boolean;
   models: ModelDeployment[];
   onRemove: (model: ModelDeployment) => void;
   removingId?: string;
@@ -594,7 +606,7 @@ function ModelTable({
                     {useCount} Routing{useCount === 1 ? "" : "s"}
                   </td>
                   <td className="px-2 py-3">
-                    {canManage ? (
+                    {canDelete ? (
                       <Button
                         aria-label={`Remove ${model.displayName}`}
                         disabled={
@@ -649,7 +661,7 @@ function ModelTable({
                 <span className="ml-auto text-xs text-muted-foreground">
                   Used by {useCount} Routing{useCount === 1 ? "" : "s"}
                 </span>
-                {canManage ? (
+                {canDelete ? (
                   <Button
                     aria-label={`Remove ${model.displayName}`}
                     disabled={useCount > 0 || removingId === model.id}
@@ -678,14 +690,16 @@ function ModelTable({
 }
 
 function RoutingTable({
-  canManage,
+  canReconcile,
+  canUpdate,
   onRefresh,
   onSelectDefault,
   routings,
   refreshingId,
   selectingId,
 }: {
-  canManage: boolean;
+  canReconcile: boolean;
+  canUpdate: boolean;
   onRefresh: (routing: ModelRouting) => void;
   onSelectDefault: (routing: ModelRouting) => void;
   routings: ModelRouting[];
@@ -709,7 +723,8 @@ function RoutingTable({
           {routings.map((routing) => (
             <RoutingRow
               key={routing.id}
-              canManage={canManage}
+              canReconcile={canReconcile}
+              canUpdate={canUpdate}
               routing={routing}
               refreshing={refreshingId === routing.id}
               selecting={selectingId === routing.id}
@@ -724,14 +739,16 @@ function RoutingTable({
 }
 
 function RoutingRow({
-  canManage,
+  canReconcile,
+  canUpdate,
   onRefresh,
   onSelectDefault,
   routing,
   refreshing,
   selecting,
 }: {
-  canManage: boolean;
+  canReconcile: boolean;
+  canUpdate: boolean;
   onRefresh: () => void;
   onSelectDefault: () => void;
   routing: ModelRouting;
@@ -744,7 +761,7 @@ function RoutingRow({
     routing.routingPolicy.fallbackModelDeploymentIds.length;
   const retries = routing.routingPolicy.retries;
   const canBecomeDefault =
-    canManage && routing.status === "READY" && !routing.isDefault;
+    canUpdate && routing.status === "READY" && !routing.isDefault;
   return (
     <tr className={cn(routing.isDefault && "bg-primary/[0.025]")}>
       <td className="px-5 py-3">
@@ -806,16 +823,18 @@ function RoutingRow({
       </td>
       <td className="px-5 py-3">
         <div className="flex items-center justify-end gap-1">
-          <Button
-            size="icon"
-            variant="ghost"
-            aria-label={`Refresh ${routing.name}`}
-            disabled={!canManage || refreshing}
-            onClick={onRefresh}
-          >
-            <RefreshCw className={cn(refreshing && "animate-spin")} />
-          </Button>
-          {!routing.isDefault && canManage ? (
+          {canReconcile ? (
+            <Button
+              size="icon"
+              variant="ghost"
+              aria-label={`Refresh ${routing.name}`}
+              disabled={refreshing}
+              onClick={onRefresh}
+            >
+              <RefreshCw className={cn(refreshing && "animate-spin")} />
+            </Button>
+          ) : null}
+          {!routing.isDefault && canUpdate ? (
             <Button
               variant="outline"
               disabled={!canBecomeDefault || selecting}

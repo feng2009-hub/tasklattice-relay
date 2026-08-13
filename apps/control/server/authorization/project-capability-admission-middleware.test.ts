@@ -228,6 +228,35 @@ describe("Project Capability admission middleware", () => {
     )).toBe(true);
   });
 
+  it("lets Project Administrator complete Provider, model, and routing management", async () => {
+    const managementRequests = [
+      ["POST", "/api/v1/projects/individual/providers/discover", "CAP_PROVIDER_DISCOVER"],
+      ["POST", "/api/v1/projects/individual/providers", "CAP_PROVIDER_CREATE"],
+      ["POST", "/api/v1/projects/individual/models", "CAP_MODEL_CREATE"],
+      ["POST", "/api/v1/projects/individual/model-routings", "CAP_MODEL_ROUTING_CREATE"],
+      ["PUT", "/api/v1/projects/individual/model-routings/routing-1", "CAP_MODEL_ROUTING_UPDATE"],
+      ["POST", "/api/v1/projects/individual/model-routings/routing-1/refresh", "CAP_MODEL_ROUTING_RECONCILE"],
+      ["DELETE", "/api/v1/projects/individual/model-routings/routing-1", "CAP_MODEL_ROUTING_DELETE"],
+      ["DELETE", "/api/v1/projects/individual/models/model-1", "CAP_MODEL_DELETE"],
+      ["DELETE", "/api/v1/projects/individual/providers/provider-1", "CAP_PROVIDER_DELETE"],
+    ] as const;
+
+    for (const [method, path, capability] of managementRequests) {
+      const request = authorizedRequest(users.admin, path, {
+        headers: { "content-type": "application/json" },
+        method,
+        ...(method === "DELETE" ? {} : { body: "{}" }),
+      });
+      await expect((await middleware())({ context: {}, req: request }))
+        .resolves.toBeUndefined();
+      expect(admissionEvidenceForRequest(request)[0]).toMatchObject({
+        capability,
+        decision: "ALLOW",
+        roleId: "ROLE_PROJECT_ADMIN",
+      });
+    }
+  });
+
   it("fails closed for an undeclared nested Project route", async () => {
     const request = authorizedRequest(
       users.developer,

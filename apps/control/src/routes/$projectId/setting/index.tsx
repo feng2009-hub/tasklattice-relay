@@ -70,7 +70,7 @@ function ProjectSettingsPage() {
         <ShieldCheck className="size-8 text-muted-foreground" />
         <h1
           id="project-settings-restricted"
-          className="mt-4 font-heading text-2xl"
+          className="mt-4 font-sans text-2xl font-semibold"
         >
           Project settings are restricted
         </h1>

@@ -219,7 +219,7 @@ function MyAccountPage() {
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="truncate font-heading text-xl">
+                    <h2 className="truncate font-display text-xl font-medium">
                       {current.displayName}
                     </h2>
                     <Badge variant="outline">
@@ -432,7 +432,7 @@ function AccessPanel({
     <div id="access-permissions" className="divide-y">
       <section className="p-5">
         <div className="mb-5">
-          <h2 className="font-heading text-lg">Account access</h2>
+          <h2 className="font-sans text-lg font-semibold">Account access</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             System identity and active access for the selected Project.
           </p>
@@ -457,7 +457,7 @@ function AccessPanel({
         <div className="max-w-5xl">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 className="font-heading text-lg">Assigned Project roles</h2>
+              <h2 className="font-sans text-lg font-semibold">Assigned Project roles</h2>
               <p className="mt-1 text-xs text-muted-foreground">
                 One role is active at a time. Switch directly to any role
                 assigned to this Account.
@@ -518,7 +518,7 @@ function AccessPanel({
         <div className="max-w-6xl">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 className="font-heading text-lg">Effective permissions</h2>
+              <h2 className="font-sans text-lg font-semibold">Effective permissions</h2>
               <p className="mt-1 text-xs text-muted-foreground">
                 Granted by the active Project role and grouped by permission
                 domain.
@@ -625,7 +625,7 @@ function PasswordPanel({ provider }: { provider: "local" | "sso" }) {
         <div className="max-w-3xl">
           <div className="flex items-center gap-2">
             <ShieldCheck className="size-4 text-muted-foreground" />
-            <h2 className="font-heading text-lg">Password & security</h2>
+            <h2 className="font-sans text-lg font-semibold">Password & security</h2>
           </div>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
             This is an SSO account. Password and sign-in security are managed by
@@ -648,7 +648,7 @@ function PasswordPanel({ provider }: { provider: "local" | "sso" }) {
       <div className="max-w-3xl">
         <div className="flex items-center gap-2">
           <KeyRound className="size-4 text-muted-foreground" />
-          <h2 className="font-heading text-lg">Reset local password</h2>
+          <h2 className="font-sans text-lg font-semibold">Reset local password</h2>
         </div>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
           Choose at least 12 characters. The password is stored only as a bcrypt

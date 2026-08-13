@@ -17,7 +17,7 @@ export function PageHeader({
     <header className="flex flex-col items-stretch gap-4 border-b pb-5 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
+          <h1 className="font-display text-3xl font-medium tracking-tight">{title}</h1>
           {badge}
         </div>
         {description ? (

@@ -74,7 +74,7 @@ export function EntitySheet({
               {eyebrow}
             </p>
           ) : null}
-          <SheetTitle className="font-serif text-2xl font-medium">{title}</SheetTitle>
+          <SheetTitle className="text-2xl">{title}</SheetTitle>
           <SheetDescription className="max-w-2xl leading-5">
             {description}
           </SheetDescription>

@@ -223,7 +223,7 @@ export function AccessPolicyEditorSheet({
             <div>
               <h2
                 id="permission-details-heading"
-                className="font-serif text-xl font-semibold"
+                className="font-sans text-xl font-semibold"
               >
                 Permission details
               </h2>
@@ -361,7 +361,7 @@ function ServerRules({
               )}
               <span className="min-w-0">
                 <span className="flex flex-wrap items-center gap-2">
-                  <strong className="truncate font-serif text-base">
+                  <strong className="truncate font-sans text-base font-semibold">
                     {server.name}
                   </strong>
                   <Badge variant="outline">{server.tools.length} tools</Badge>

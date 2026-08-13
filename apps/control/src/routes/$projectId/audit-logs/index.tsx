@@ -211,7 +211,7 @@ function RestrictedAuditLogs() {
       aria-labelledby="audit-logs-restricted"
     >
       <ShieldCheck className="size-8 text-muted-foreground" />
-      <h1 id="audit-logs-restricted" className="mt-4 font-heading text-2xl">
+      <h1 id="audit-logs-restricted" className="mt-4 font-sans text-2xl font-semibold">
         Audit Logs are restricted
       </h1>
       <p className="mt-2 text-sm leading-6 text-muted-foreground">

@@ -1,9 +1,24 @@
-import type {
-  BuiltinProjectRoleId,
-  ProjectCapability,
-  ProjectMembershipRole,
-  ResourceRelation,
+import {
+  projectCapabilities,
+  type BuiltinProjectRoleId,
+  type ProjectCapability,
+  type ProjectMembershipRole,
+  type ResourceRelation,
 } from "@tali/contracts";
+
+/*
+ * These capabilities belong to the approval executor, not to a human Project
+ * role. Project Administrator receives every other registered Project
+ * capability so one administrator can complete the full Project lifecycle.
+ */
+const serviceOnlyCapabilities = new Set<ProjectCapability>([
+  "CAP_APPROVED_CHANGE_APPLY",
+  "CAP_APPROVAL_OVERRIDE",
+]);
+
+const projectAdminCapabilities = projectCapabilities.filter(
+  (capability) => !serviceOnlyCapabilities.has(capability),
+);
 
 export interface BuiltinProjectRole {
   id: BuiltinProjectRoleId;
@@ -25,77 +40,6 @@ export interface BuiltinProjectCapabilityGrant {
   capability: ProjectCapability;
   relations: readonly ResourceRelation[];
 }
-
-const projectAdminCapabilities = [
-  "CAP_PROJECT_VIEW",
-  "CAP_PROJECT_SETTINGS_UPDATE",
-  "CAP_PROJECT_DELETE",
-  "CAP_PROJECT_MEMBER_VIEW",
-  "CAP_PROJECT_MEMBER_INVITE",
-  "CAP_PROJECT_MEMBER_ROLE_ASSIGN",
-  "CAP_PROJECT_MEMBER_REMOVE",
-  "CAP_PROJECT_ROLE_VIEW",
-  "CAP_PROJECT_ROLE_CREATE",
-  "CAP_PROJECT_ROLE_UPDATE",
-  "CAP_PROJECT_ROLE_DELETE",
-  "CAP_PROJECT_QUOTA_VIEW",
-  "CAP_PROJECT_QUOTA_UPDATE",
-  "CAP_AGENT_REGISTRATION_VIEW",
-  "CAP_AGENT_CONNECTION_VIEW",
-  "CAP_AGENT_INSTANCE_VIEW",
-  "CAP_AGENT_INSTANCE_CONFIG_VIEW",
-  "CAP_AGENT_INSTANCE_CREATE",
-  "CAP_AGENT_INSTANCE_SKILL_ASSIGN",
-  "CAP_AGENT_INSTANCE_MCP_SERVER_ASSIGN",
-  "CAP_AGENT_INSTANCE_KNOWLEDGE_SOURCE_ASSIGN",
-  "CAP_AGENT_INSTANCE_ACCESS_POLICY_ASSIGN",
-  "CAP_AGENT_INSTANCE_RUNTIME_POLICY_ASSIGN",
-  "CAP_AGENT_INSTANCE_MODEL_ROUTING_ASSIGN",
-  "CAP_AGENT_ASSIGNMENT_VIEW",
-  "CAP_AGENT_ASSIGNMENT_ASSIGN",
-  "CAP_AGENT_ASSIGNMENT_UNASSIGN",
-  "CAP_AGENT_MEMORY_CONFIG_VIEW",
-  "CAP_AGENT_MEMORY_CONFIG_UPDATE",
-  "CAP_AGENT_MEMORY_EMBEDDING_ASSIGN",
-  "CAP_AGENT_MEMORY_INDEX_STATUS_VIEW",
-  "CAP_AGENT_MEMORY_INDEX_VALIDATE",
-  "CAP_AGENT_MEMORY_RETENTION_VIEW",
-  "CAP_SKILL_VIEW",
-  "CAP_SKILL_VERIFY",
-  "CAP_SKILL_ARTIFACT_METADATA_VIEW",
-  "CAP_MCP_SERVER_VIEW",
-  "CAP_MCP_SERVER_TEST",
-  "CAP_MCP_TOOL_VIEW",
-  "CAP_KNOWLEDGE_SOURCE_VIEW",
-  "CAP_AGENT_SPECIALIZATION_VIEW",
-  "CAP_ACCESS_POLICY_VIEW",
-  "CAP_ACCESS_POLICY_VERSION_VIEW",
-  "CAP_RUNTIME_POLICY_VIEW",
-  "CAP_RUNTIME_POLICY_VALIDATE",
-  "CAP_PROVIDER_VIEW",
-  "CAP_PROVIDER_DISCOVER",
-  "CAP_PROVIDER_VALIDATE",
-  "CAP_MODEL_VIEW",
-  "CAP_MODEL_VALIDATE",
-  "CAP_INFERENCE_GATEWAY_VIEW",
-  "CAP_INFERENCE_GATEWAY_VALIDATE",
-  "CAP_MODEL_ROUTING_VIEW",
-  "CAP_MODEL_ROUTING_VALIDATE",
-  "CAP_APPROVAL_REQUEST_VIEW",
-  "CAP_APPROVAL_REQUEST_DRAFT_CREATE",
-  "CAP_APPROVAL_REQUEST_SUBMIT",
-  "CAP_APPROVAL_REQUEST_COMMENT",
-  "CAP_APPROVAL_REQUEST_CANCEL",
-  "CAP_APPROVAL_POLICY_VIEW",
-  "CAP_AUDIT_VIEW",
-  "CAP_AUDIT_DETAIL_VIEW",
-  "CAP_TRACE_VIEW",
-  "CAP_RUNTIME_LOG_VIEW",
-  "CAP_RUNTIME_OPERATION_VIEW",
-  "CAP_COST_VIEW",
-  "CAP_USAGE_VIEW",
-  "CAP_USAGE_DATA_QUALITY_VIEW",
-] as const satisfies readonly ProjectCapability[];
 
 const auditorCapabilities = [
   "CAP_PROJECT_VIEW",
@@ -332,7 +276,7 @@ export const builtinProjectRoles = Object.freeze([
   role({
     id: "ROLE_PROJECT_ADMIN",
     name: "Project Administrator",
-    description: "Configures a Project, its membership, and safe validation operations.",
+    description: "Owns the complete Project lifecycle, including resources, models, routing, runtime operations, and evidence.",
     grants: sameScopeGrants(projectAdminCapabilities, projectAny),
   }),
   role({

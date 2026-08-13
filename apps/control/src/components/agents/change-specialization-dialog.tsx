@@ -25,7 +25,7 @@ export function ChangeSpecializationDialog({ add, fromName, keep, onCancel, onCo
     <Sheet open={open} onOpenChange={(next) => { if (!next) onCancel(); }}>
       <SheetContent side="right" className="w-[min(92vw,34rem)] sm:max-w-[34rem]">
         <SheetHeader className="border-b px-6 py-5 pr-14">
-          <SheetTitle className="font-serif text-xl">Change specialization?</SheetTitle>
+          <SheetTitle className="text-xl">Change specialization?</SheetTitle>
           <SheetDescription>Changing from {fromName} to {toName} will replace capabilities supplied by the current specialization. Manually added capabilities are kept.</SheetDescription>
         </SheetHeader>
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-6">

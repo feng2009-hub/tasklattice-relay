@@ -31,13 +31,21 @@ import { cn } from "@/lib/utils";
 
 export function ProviderConnectionsManagement({
   accounts,
-  canManage,
+  canConnect,
+  canDelete,
+  canRegisterModels,
+  canValidate,
   models,
+  onConnectProvider,
   onRegisterModels,
 }: {
   accounts: ProviderAccount[];
-  canManage: boolean;
+  canConnect: boolean;
+  canDelete: boolean;
+  canRegisterModels: boolean;
+  canValidate: boolean;
   models: ModelDeployment[];
+  onConnectProvider: () => void;
   onRegisterModels: (account: ProviderAccount) => void;
 }) {
   const [actionError, setActionError] = useState("");
@@ -127,7 +135,9 @@ export function ProviderConnectionsManagement({
                       <td className="px-2 py-3">
                         <ProviderActions
                           account={account}
-                          canManage={canManage}
+                          canDelete={canDelete}
+                          canRegisterModels={canRegisterModels}
+                          canValidate={canValidate}
                           onError={setActionError}
                           onRegisterModels={() => onRegisterModels(account)}
                         />
@@ -157,7 +167,9 @@ export function ProviderConnectionsManagement({
                     </span>
                     <ProviderActions
                       account={account}
-                      canManage={canManage}
+                      canDelete={canDelete}
+                      canRegisterModels={canRegisterModels}
+                      canValidate={canValidate}
                       onError={setActionError}
                       onRegisterModels={() => onRegisterModels(account)}
                     />
@@ -187,6 +199,12 @@ export function ProviderConnectionsManagement({
             <p className="mt-1 max-w-md text-xs leading-5 text-muted-foreground">
               Connect a Provider to discover its catalog and register models.
             </p>
+            {canConnect ? (
+              <Button className="mt-4 h-11" onClick={onConnectProvider}>
+                <Plus />
+                Connect Provider
+              </Button>
+            ) : null}
           </div>
         </div>
       )}
@@ -196,12 +214,16 @@ export function ProviderConnectionsManagement({
 
 function ProviderActions({
   account,
-  canManage,
+  canDelete,
+  canRegisterModels,
+  canValidate,
   onError,
   onRegisterModels,
 }: {
   account: ProviderAccount;
-  canManage: boolean;
+  canDelete: boolean;
+  canRegisterModels: boolean;
+  canValidate: boolean;
   onError: (message: string) => void;
   onRegisterModels: () => void;
 }) {
@@ -230,7 +252,7 @@ function ProviderActions({
   });
   const pending = revalidate.isPending || remove.isPending;
 
-  if (!canManage) return null;
+  if (!canDelete && !canRegisterModels && !canValidate) return null;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -244,34 +266,42 @@ function ProviderActions({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onSelect={onRegisterModels}>
-          <Plus />
-          Register models
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          disabled={revalidate.isPending}
-          onSelect={() => revalidate.mutate()}
-        >
-          <RefreshCw />
-          Revalidate connection
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          className="text-destructive focus:text-destructive"
-          disabled={remove.isPending}
-          onSelect={() => {
-            if (
-              window.confirm(
-                `Delete ${account.name} and all of its unused registered models?`,
-              )
-            ) {
-              remove.mutate();
-            }
-          }}
-        >
-          <Trash2 />
-          Delete connection
-        </DropdownMenuItem>
+        {canRegisterModels ? (
+          <DropdownMenuItem onSelect={onRegisterModels}>
+            <Plus />
+            Register models
+          </DropdownMenuItem>
+        ) : null}
+        {canValidate ? (
+          <DropdownMenuItem
+            disabled={revalidate.isPending}
+            onSelect={() => revalidate.mutate()}
+          >
+            <RefreshCw />
+            Revalidate connection
+          </DropdownMenuItem>
+        ) : null}
+        {canDelete ? (
+          <>
+            {canRegisterModels || canValidate ? <DropdownMenuSeparator /> : null}
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              disabled={remove.isPending}
+              onSelect={() => {
+                if (
+                  window.confirm(
+                    `Delete ${account.name} and all of its unused registered models?`,
+                  )
+                ) {
+                  remove.mutate();
+                }
+              }}
+            >
+              <Trash2 />
+              Delete connection
+            </DropdownMenuItem>
+          </>
+        ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
   );
