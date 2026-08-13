@@ -27,6 +27,7 @@ EXPECTED_ADAPTER_ID = "litellm-generic-guardrail"
 EXPECTED_PROTOCOL = "litellm"
 TaskLatticeGuardMode = Literal["pre_call", "post_call"]
 TaskLatticeGuardFallback = Literal["fail_closed", "fail_open"]
+TaskLatticeGuardMessageChoice = Literal["inherit", "yes", "no"]
 DEFAULT_MODE: Tuple[TaskLatticeGuardMode, ...] = ("pre_call", "post_call")
 DEFAULT_DEFAULT_ON = True
 DEFAULT_UNREACHABLE_FALLBACK: TaskLatticeGuardFallback = "fail_closed"
@@ -59,6 +60,33 @@ def validate_default_on(default_on: Any) -> bool:
     if not isinstance(default_on, bool):
         raise TaskLatticeGuardConnectionError("Default On must be true or false")
     return default_on
+
+
+def validate_guardrail_name(value: Any) -> str:
+    if not isinstance(value, str) or not value.strip() or len(value.strip()) > 255:
+        raise TaskLatticeGuardConnectionError(
+            "Guardrail name must be between 1 and 255 characters"
+        )
+    return value.strip()
+
+
+def validate_message_choice(value: Any) -> TaskLatticeGuardMessageChoice:
+    if value not in {"inherit", "yes", "no"}:
+        raise TaskLatticeGuardConnectionError(
+            "Message handling choice must be inherit, yes, or no"
+        )
+    return cast(TaskLatticeGuardMessageChoice, value)
+
+
+def message_choice_from_params(
+    params: Dict[str, Any], field: str
+) -> TaskLatticeGuardMessageChoice:
+    value = params.get(field)
+    if value is True:
+        return "yes"
+    if value is False:
+        return "no"
+    return "inherit"
 
 
 def validate_unreachable_fallback(value: Any) -> TaskLatticeGuardFallback:
@@ -116,29 +144,47 @@ def build_guardrail_record(
     credential_name: str,
     *,
     guardrail_id: Optional[str] = None,
+    guardrail_name: Optional[str] = None,
     mode: Sequence[str] = DEFAULT_MODE,
     default_on: bool = DEFAULT_DEFAULT_ON,
+    skip_system_message_choice: str = "inherit",
+    skip_tool_message_choice: str = "inherit",
     unreachable_fallback: str = DEFAULT_UNREACHABLE_FALLBACK,
     timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
 ) -> Guardrail:
     endpoint = normalize_endpoint(endpoint)
     validated_mode = validate_mode(mode)
     validated_default_on = validate_default_on(default_on)
+    validated_system_choice = validate_message_choice(skip_system_message_choice)
+    validated_tool_choice = validate_message_choice(skip_tool_message_choice)
     validated_fallback = validate_unreachable_fallback(unreachable_fallback)
     validated_timeout = validate_timeout_seconds(timeout_seconds)
     generated_id = guardrail_id or str(uuid.uuid4())
+    litellm_params: Dict[str, Any] = {
+        "guardrail": PROVIDER_ID,
+        "mode": validated_mode,
+        "api_base": endpoint,
+        "credential_name": credential_name,
+        "default_on": validated_default_on,
+        "unreachable_fallback": validated_fallback,
+        "timeout_seconds": validated_timeout,
+    }
+    if validated_system_choice != "inherit":
+        litellm_params["skip_system_message_in_guardrail"] = (
+            validated_system_choice == "yes"
+        )
+    if validated_tool_choice != "inherit":
+        litellm_params["skip_tool_message_in_guardrail"] = (
+            validated_tool_choice == "yes"
+        )
     return Guardrail(
         guardrail_id=generated_id,
-        guardrail_name=f"tasklattice-guard-{generated_id[:8]}",
-        litellm_params={
-            "guardrail": PROVIDER_ID,
-            "mode": validated_mode,
-            "api_base": endpoint,
-            "credential_name": credential_name,
-            "default_on": validated_default_on,
-            "unreachable_fallback": validated_fallback,
-            "timeout_seconds": validated_timeout,
-        },
+        guardrail_name=(
+            validate_guardrail_name(guardrail_name)
+            if guardrail_name is not None
+            else f"tasklattice-guard-{generated_id[:8]}"
+        ),
+        litellm_params=litellm_params,
         guardrail_info={"managed_by": PROVIDER_ID},
     )
 
@@ -151,6 +197,8 @@ def masked_view(
     guardrail_name: Optional[str] = None,
     mode: Sequence[str] = DEFAULT_MODE,
     default_on: bool = DEFAULT_DEFAULT_ON,
+    skip_system_message_choice: str = "inherit",
+    skip_tool_message_choice: str = "inherit",
     unreachable_fallback: str = DEFAULT_UNREACHABLE_FALLBACK,
     timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
 ) -> Dict[str, Any]:
@@ -162,6 +210,12 @@ def masked_view(
         "credential_configured": bool(credential_name),
         "mode": validate_mode(mode),
         "default_on": validate_default_on(default_on),
+        "skip_system_message_choice": validate_message_choice(
+            skip_system_message_choice
+        ),
+        "skip_tool_message_choice": validate_message_choice(
+            skip_tool_message_choice
+        ),
         "unreachable_fallback": validate_unreachable_fallback(
             unreachable_fallback
         ),
@@ -312,11 +366,14 @@ def _guardrail_db_data(record: Guardrail) -> Dict[str, Any]:
 async def create_tasklattice_guard_connection(
     *,
     prisma_client: Any,
+    guardrail_name: str,
     endpoint: str,
     secret: str,
     user_id: Optional[str],
     mode: Sequence[str] = DEFAULT_MODE,
     default_on: bool = DEFAULT_DEFAULT_ON,
+    skip_system_message_choice: str = "inherit",
+    skip_tool_message_choice: str = "inherit",
     unreachable_fallback: str = DEFAULT_UNREACHABLE_FALLBACK,
     timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
 ) -> Dict[str, Any]:
@@ -328,8 +385,11 @@ async def create_tasklattice_guard_connection(
         endpoint,
         credential_name,
         guardrail_id=guardrail_id,
+        guardrail_name=guardrail_name,
         mode=mode,
         default_on=default_on,
+        skip_system_message_choice=skip_system_message_choice,
+        skip_tool_message_choice=skip_tool_message_choice,
         unreachable_fallback=unreachable_fallback,
         timeout_seconds=timeout_seconds,
     )
@@ -367,8 +427,11 @@ async def create_tasklattice_guard_connection(
         guardrail_id,
         endpoint,
         credential_name,
+        guardrail_name=record["guardrail_name"],
         mode=mode,
         default_on=default_on,
+        skip_system_message_choice=skip_system_message_choice,
+        skip_tool_message_choice=skip_tool_message_choice,
         unreachable_fallback=unreachable_fallback,
         timeout_seconds=timeout_seconds,
     )
@@ -392,6 +455,12 @@ async def get_tasklattice_guard_connection(
         guardrail_name=record.get("guardrail_name"),
         mode=mode,
         default_on=default_on,
+        skip_system_message_choice=message_choice_from_params(
+            params, "skip_system_message_in_guardrail"
+        ),
+        skip_tool_message_choice=message_choice_from_params(
+            params, "skip_tool_message_in_guardrail"
+        ),
         unreachable_fallback=unreachable_fallback,
         timeout_seconds=timeout_seconds,
     )
@@ -401,11 +470,14 @@ async def update_tasklattice_guard_connection(
     *,
     prisma_client: Any,
     guardrail_id: str,
+    guardrail_name: Optional[str],
     endpoint: Optional[str],
     secret: Optional[str],
     user_id: Optional[str],
     mode: Optional[Sequence[str]] = None,
     default_on: Optional[bool] = None,
+    skip_system_message_choice: Optional[str] = None,
+    skip_tool_message_choice: Optional[str] = None,
     unreachable_fallback: Optional[str] = None,
     timeout_seconds: Optional[int] = None,
 ) -> Dict[str, Any]:
@@ -430,6 +502,18 @@ async def update_tasklattice_guard_connection(
         if default_on is not None
         else current_default_on
     )
+    next_system_choice = (
+        validate_message_choice(skip_system_message_choice)
+        if skip_system_message_choice is not None
+        else message_choice_from_params(
+            params, "skip_system_message_in_guardrail"
+        )
+    )
+    next_tool_choice = (
+        validate_message_choice(skip_tool_message_choice)
+        if skip_tool_message_choice is not None
+        else message_choice_from_params(params, "skip_tool_message_in_guardrail")
+    )
     next_unreachable_fallback = (
         validate_unreachable_fallback(unreachable_fallback)
         if unreachable_fallback is not None
@@ -452,16 +536,23 @@ async def update_tasklattice_guard_connection(
         next_endpoint,
         credential_name,
         guardrail_id=guardrail_id,
+        guardrail_name=(
+            validate_guardrail_name(guardrail_name)
+            if guardrail_name is not None
+            else current["guardrail_name"]
+        ),
         mode=next_mode,
         default_on=next_default_on,
+        skip_system_message_choice=next_system_choice,
+        skip_tool_message_choice=next_tool_choice,
         unreachable_fallback=next_unreachable_fallback,
         timeout_seconds=next_timeout_seconds,
     )
-    updated["guardrail_name"] = current["guardrail_name"]
     batcher = prisma_client.db.batch_()
     batcher.litellm_guardrailstable.update(
         where={"guardrail_id": guardrail_id},
         data={
+            "guardrail_name": updated["guardrail_name"],
             "litellm_params": safe_dumps(_record_params(updated)),
             "updated_at": datetime.now(timezone.utc),
         },
@@ -493,6 +584,8 @@ async def update_tasklattice_guard_connection(
         guardrail_name=updated["guardrail_name"],
         mode=next_mode,
         default_on=next_default_on,
+        skip_system_message_choice=next_system_choice,
+        skip_tool_message_choice=next_tool_choice,
         unreachable_fallback=next_unreachable_fallback,
         timeout_seconds=next_timeout_seconds,
     )

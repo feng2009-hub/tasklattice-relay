@@ -6,6 +6,7 @@ FROM ${LITELLM_IMAGE} AS tasklattice-litellm-builder
 USER root
 COPY infra/litellm/v1.87.0 /tmp/tasklattice-litellm-overlay
 RUN python /tmp/tasklattice-litellm-overlay/apply-overlay.py --root /app \
+    && python /tmp/tasklattice-litellm-overlay/verify-overlay.py --root /app \
     && cd /app/ui/litellm-dashboard \
     && npm ci --ignore-scripts \
     && npm run build \

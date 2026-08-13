@@ -1,7 +1,8 @@
-"""Admin-only TaskLattice Guard connection endpoints.
+"""Admin-only TaskLattice Guard credential lifecycle endpoints.
 
-These endpoints intentionally bypass LiteLLM's generic Guardrail form while
-preserving its runtime policy controls and credential reference lifecycle.
+The dashboard uses LiteLLM's native schema-driven Guardrail form. These
+provider-specific endpoints only verify the connection and keep the submitted
+secret in LiteLLM Credentials instead of the Guardrail record.
 """
 
 from __future__ import annotations
@@ -27,6 +28,9 @@ router = APIRouter()
 
 
 class CreateTaskLatticeGuardRequest(BaseModel):
+    guardrail_name: str = Field(
+        default="TaskLattice Guard", min_length=1, max_length=255
+    )
     endpoint: str
     secret: SecretStr
     mode: List[Literal["pre_call", "post_call"]] = Field(
@@ -35,11 +39,14 @@ class CreateTaskLatticeGuardRequest(BaseModel):
         max_length=2,
     )
     default_on: bool = True
+    skip_system_message_choice: Literal["inherit", "yes", "no"] = "inherit"
+    skip_tool_message_choice: Literal["inherit", "yes", "no"] = "inherit"
     unreachable_fallback: Literal["fail_closed", "fail_open"] = "fail_closed"
     timeout_seconds: int = Field(default=10, ge=1, le=60, strict=True)
 
 
 class UpdateTaskLatticeGuardRequest(BaseModel):
+    guardrail_name: Optional[str] = Field(default=None, min_length=1, max_length=255)
     endpoint: Optional[str] = None
     secret: Optional[SecretStr] = None
     mode: Optional[List[Literal["pre_call", "post_call"]]] = Field(
@@ -48,6 +55,8 @@ class UpdateTaskLatticeGuardRequest(BaseModel):
         max_length=2,
     )
     default_on: Optional[bool] = None
+    skip_system_message_choice: Optional[Literal["inherit", "yes", "no"]] = None
+    skip_tool_message_choice: Optional[Literal["inherit", "yes", "no"]] = None
     unreachable_fallback: Optional[Literal["fail_closed", "fail_open"]] = None
     timeout_seconds: Optional[int] = Field(
         default=None,
@@ -95,11 +104,14 @@ async def create_tasklattice_guard(
     try:
         return await create_tasklattice_guard_connection(
             prisma_client=_prisma_client(),
+            guardrail_name=request.guardrail_name,
             endpoint=request.endpoint,
             secret=request.secret.get_secret_value(),
             user_id=user_api_key_dict.user_id,
             mode=request.mode,
             default_on=request.default_on,
+            skip_system_message_choice=request.skip_system_message_choice,
+            skip_tool_message_choice=request.skip_tool_message_choice,
             unreachable_fallback=request.unreachable_fallback,
             timeout_seconds=request.timeout_seconds,
         )
@@ -148,6 +160,7 @@ async def update_tasklattice_guard(
         return await update_tasklattice_guard_connection(
             prisma_client=_prisma_client(),
             guardrail_id=guardrail_id,
+            guardrail_name=request.guardrail_name,
             endpoint=request.endpoint,
             secret=(
                 request.secret.get_secret_value()
@@ -157,6 +170,8 @@ async def update_tasklattice_guard(
             user_id=user_api_key_dict.user_id,
             mode=request.mode,
             default_on=request.default_on,
+            skip_system_message_choice=request.skip_system_message_choice,
+            skip_tool_message_choice=request.skip_tool_message_choice,
             unreachable_fallback=request.unreachable_fallback,
             timeout_seconds=request.timeout_seconds,
         )

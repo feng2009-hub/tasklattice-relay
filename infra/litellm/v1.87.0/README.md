@@ -3,9 +3,10 @@
 This version-locked overlay adds `tasklattice_guard` as a first-class LiteLLM
 Guardrail Provider. The runtime reuses LiteLLM's Generic Guardrail API protocol.
 The same branded connection is listed in both the Provider picker and the
-Guardrail Garden Partner catalog. Its Garden page explains the protection and
-connection model before the Create Guardrail action opens the managed setup
-flow.
+Guardrail Garden Partner catalog. The Garden, create modal, and settings page
+reuse LiteLLM's native Guardrail components. Provider-specific fields come from
+`TaskLatticeGuardConfigModel`; the dedicated API is limited to connection
+verification and encrypted credential lifecycle.
 
 ## Provider configuration
 
@@ -35,3 +36,6 @@ configuration control with no runtime effect.
 
 `apply-overlay.py` refuses to patch an unexpected LiteLLM source tree. A LiteLLM
 upgrade therefore requires a new version directory and an explicit review.
+`verify-overlay.py` runs during the image build and rejects a patch that stops
+using the native Provider fields or reintroduces the former bespoke
+TaskLattice create/edit form.

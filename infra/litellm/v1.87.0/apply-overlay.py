@@ -2,7 +2,7 @@
 """Apply the reviewed TaskLattice overlay to LiteLLM 1.87.0.
 
 Every source mutation is anchored to the exact upstream text reviewed for this
-version.  A missing or repeated anchor aborts the image build instead of
+version. A missing or repeated anchor aborts the image build instead of
 silently producing a partially patched, fail-open image.
 """
 
@@ -124,16 +124,17 @@ guardrail_initializer_registry.update(tasklattice_guard_initializers)
         "register dedicated TaskLattice endpoints",
     )
 
+
 def patch_ui(app_root: Path) -> None:
     ui_root = app_root / "ui/litellm-dashboard/src/components"
     helpers = ui_root / "guardrails/guardrail_info_helpers.tsx"
     networking = ui_root / "networking.tsx"
     add_form = ui_root / "guardrails/add_guardrail_form.tsx"
     info_view = ui_root / "guardrails/guardrail_info.tsx"
+    provider_fields = ui_root / "guardrails/guardrail_provider_fields.tsx"
     guardrail_table = ui_root / "guardrails/guardrail_table.tsx"
     garden_data = ui_root / "guardrails/guardrail_garden_data.ts"
     garden_configs = ui_root / "guardrails/guardrail_garden_configs.ts"
-    garden_detail = ui_root / "guardrails/guardrail_garden_detail.tsx"
 
     replace_once(
         helpers,
@@ -141,19 +142,20 @@ def patch_ui(app_root: Path) -> None:
         'export const guardrailLogoMap: Record<string, string> = {\n  "TaskLattice Guard": `${asset_logos_folder}tasklattice_guard.svg`,\n',
         "TaskLattice provider logo",
     )
-
     replace_once(
-        garden_data,
-        '''  providerKey?: string;
-}
+        helpers,
+        '''export const getGuardrailLogoAndName = (guardrailValue: string): { logo: string; displayName: string } => {
 ''',
-        '''  providerKey?: string;
-  overview?: string;
-  details?: Array<{ property: string; value: string }>;
-}
+        '''export const formatGuardrailModes = (mode: unknown): string => {
+  const modes = Array.isArray(mode) ? mode : mode ? [mode] : [];
+  return modes.map(String).join(", ") || "-";
+};
+
+export const getGuardrailLogoAndName = (guardrailValue: string): { logo: string; displayName: string } => {
 ''',
-        "TaskLattice Garden detail metadata",
+        "shared Guardrail mode formatter",
     )
+
     replace_once(
         garden_data,
         '''  {
@@ -187,23 +189,16 @@ def patch_ui(app_root: Path) -> None:
     logo: `${ASSET_PREFIX}tasklattice_guard.svg`,
     tags: ["Input & Output", "Configurable Fallback", "Multi-Gateway"],
     providerKey: "TasklatticeGuard",
-    overview:
-      "TaskLattice Guard connects this LiteLLM gateway to one dedicated Integration. Choose request protection, response protection, or both; set the outage fallback and runtime timeout; then connect with the Integration Endpoint and its matching one-time Secret. LiteLLM verifies and activates the Provider without YAML changes or a restart.",
-    details: [
-      { property: "Provider", value: "TaskLattice Guard" },
-      { property: "Runtime", value: "NVIDIA NeMo Guardrails" },
-      { property: "Protection stages", value: "Before model · after model · configurable" },
-      { property: "Outage behavior", value: "Block request or continue without Guard" },
-      { property: "Runtime timeout", value: "1–60 seconds per selected stage" },
-      { property: "Application", value: "Every request or explicitly selected" },
-      { property: "Connection scope", value: "One Integration per LiteLLM gateway" },
-      { property: "Configuration", value: "Integration Endpoint + Secret" },
-      { property: "Activation", value: "Immediate · no LiteLLM restart" },
-    ],
   },
 ];
 ''',
-        "TaskLattice Partner Guardrail Garden card",
+        "TaskLattice Guardrail Garden card",
+    )
+    replace_once(
+        garden_configs,
+        "  mode: string;\n",
+        "  mode: string | string[];\n",
+        "Guardrail preset multi-mode support",
     )
     replace_once(
         garden_configs,
@@ -214,49 +209,21 @@ def patch_ui(app_root: Path) -> None:
   tasklattice_guard: {
     provider: "TasklatticeGuard",
     guardrailNameSuggestion: "TaskLattice Guard",
-    mode: "pre_call",
+    mode: ["pre_call", "post_call"],
     defaultOn: true,
   },
   presidio: {
 ''',
         "TaskLattice Guardrail Garden preset",
     )
-    replace_once(
-        garden_detail,
-        '''  const detailRows = [
-    { property: "Provider", value: card.category === "litellm" ? "LiteLLM Content Filter" : "Partner Guardrail" },
-    ...(card.subcategory ? [{ property: "Subcategory", value: card.subcategory }] : []),
-    ...(card.category === "litellm" ? [{ property: "Cost", value: "$0 / request" }] : []),
-    ...(card.category === "litellm" ? [{ property: "External Dependencies", value: "None" }] : []),
-    ...(card.category === "litellm" ? [{ property: "Latency", value: card.eval?.latency || "<1ms" }] : []),
-  ];
-''',
-        '''  const detailRows = card.details ?? [
-    { property: "Provider", value: card.category === "litellm" ? "LiteLLM Content Filter" : "Partner Guardrail" },
-    ...(card.subcategory ? [{ property: "Subcategory", value: card.subcategory }] : []),
-    ...(card.category === "litellm" ? [{ property: "Cost", value: "$0 / request" }] : []),
-    ...(card.category === "litellm" ? [{ property: "External Dependencies", value: "None" }] : []),
-    ...(card.category === "litellm" ? [{ property: "Latency", value: card.eval?.latency || "<1ms" }] : []),
-  ];
-''',
-        "TaskLattice Garden detail rows",
-    )
-    replace_once(
-        garden_detail,
-        '''              {card.description}
-''',
-        '''              {card.overview || card.description}
-''',
-        "TaskLattice Garden overview",
-    )
 
     networking_anchor = '''export const createGuardrailCall = async (accessToken: string, guardrailData: any) => {
 '''
-    networking_start = networking.read_text(encoding="utf-8").find(networking_anchor)
+    networking_source = networking.read_text(encoding="utf-8")
+    networking_start = networking_source.find(networking_anchor)
     if networking_start < 0:
         raise RuntimeError("TaskLattice networking: createGuardrailCall anchor missing")
     networking_end_marker = "\n};\n\nexport const uiSpendLogDetailsCall"
-    networking_source = networking.read_text(encoding="utf-8")
     networking_end = networking_source.find(networking_end_marker, networking_start)
     if networking_end < 0:
         raise RuntimeError("TaskLattice networking: end anchor missing")
@@ -265,15 +232,21 @@ def patch_ui(app_root: Path) -> None:
 
 type TaskLatticeGuardMode = "pre_call" | "post_call";
 type TaskLatticeGuardFallback = "fail_closed" | "fail_open";
+type TaskLatticeGuardMessageChoice = "inherit" | "yes" | "no";
 
-export type TaskLatticeGuardInput = {
-  endpoint?: string;
-  secret?: string;
-  mode?: TaskLatticeGuardMode[];
-  unreachable_fallback?: TaskLatticeGuardFallback;
-  timeout_seconds?: number;
-  default_on?: boolean;
+export type TaskLatticeGuardCreateInput = {
+  guardrail_name: string;
+  endpoint: string;
+  secret: string;
+  mode: TaskLatticeGuardMode[];
+  default_on: boolean;
+  skip_system_message_choice: TaskLatticeGuardMessageChoice;
+  skip_tool_message_choice: TaskLatticeGuardMessageChoice;
+  unreachable_fallback: TaskLatticeGuardFallback;
+  timeout_seconds: number;
 };
+
+export type TaskLatticeGuardUpdateInput = Partial<TaskLatticeGuardCreateInput>;
 
 export type TaskLatticeGuardView = {
   guardrail_id: string;
@@ -282,17 +255,19 @@ export type TaskLatticeGuardView = {
   endpoint: string;
   credential_configured: boolean;
   mode: TaskLatticeGuardMode[];
+  default_on: boolean;
+  skip_system_message_choice: TaskLatticeGuardMessageChoice;
+  skip_tool_message_choice: TaskLatticeGuardMessageChoice;
   unreachable_fallback: TaskLatticeGuardFallback;
   timeout_seconds: number;
-  default_on: boolean;
 };
 
 const taskLatticeGuardRequest = async <T,>(
   accessToken: string,
-  method: "POST" | "PATCH" | "GET" | "DELETE",
+  method: "POST" | "PATCH",
   path: string,
-  body?: TaskLatticeGuardInput,
-): Promise<T | null> => {
+  body: TaskLatticeGuardCreateInput | TaskLatticeGuardUpdateInput,
+): Promise<T> => {
   const url = proxyBaseUrl ? `${proxyBaseUrl}${path}` : path;
   const response = await fetch(url, {
     method,
@@ -300,25 +275,25 @@ const taskLatticeGuardRequest = async <T,>(
       [globalLitellmHeaderName]: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
     },
-    ...(body ? { body: JSON.stringify(body) } : {}),
+    body: JSON.stringify(body),
   });
   if (!response.ok) {
     const errorText = await response.text();
     handleError(errorText);
     throw new Error(errorText);
   }
-  return response.status === 204 ? null : (await response.json()) as T;
+  return (await response.json()) as T;
 };
 
 export const createTaskLatticeGuardCall = (
   accessToken: string,
-  input: Required<TaskLatticeGuardInput>,
+  input: TaskLatticeGuardCreateInput,
 ) => taskLatticeGuardRequest<TaskLatticeGuardView>(accessToken, "POST", "/guardrails/tasklattice", input);
 
 export const updateTaskLatticeGuardCall = (
   accessToken: string,
   guardrailId: string,
-  input: TaskLatticeGuardInput,
+  input: TaskLatticeGuardUpdateInput,
 ) => taskLatticeGuardRequest<TaskLatticeGuardView>(
   accessToken,
   "PATCH",
@@ -334,16 +309,65 @@ export const updateTaskLatticeGuardCall = (
     )
 
     replace_once(
-        add_form,
-        'import { Form, Input, Modal, Select, Tag, Typography, Button } from "antd";',
-        'import { Alert, Button, Checkbox, Form, Input, InputNumber, Modal, Radio, Select, Switch, Tag, Typography } from "antd";',
-        "TaskLattice policy form imports",
+        provider_fields,
+        '''  value?: Record<string, any> | null;
+}
+''',
+        '''  value?: Record<string, any> | null;
+  optionalFields?: string[];
+}
+''',
+        "native provider optional edit fields",
     )
+    replace_once(
+        provider_fields,
+        '''  providerParams: providerParamsProp = null,
+  value = null,
+}) => {
+''',
+        '''  providerParams: providerParamsProp = null,
+  value = null,
+  optionalFields = [],
+}) => {
+''',
+        "native provider optional edit field input",
+    )
+    replace_once(
+        provider_fields,
+        '''          rules={field.required ? [{ required: true, message: `${fieldKey} is required` }] : undefined}
+''',
+        '''          rules={field.required && !optionalFields.includes(fullFieldKey)
+            ? [{ required: true, message: `${fieldKey} is required` }]
+            : undefined}
+''',
+        "native provider optional edit validation",
+    )
+
     replace_once(
         add_form,
         'import { createGuardrailCall, getGuardrailProviderSpecificParams, getGuardrailUISettings, modelAvailableCall } from "../networking";',
         'import { createGuardrailCall, createTaskLatticeGuardCall, getGuardrailProviderSpecificParams, getGuardrailUISettings, modelAvailableCall } from "../networking";',
         "TaskLattice create API import",
+    )
+    replace_once(
+        add_form,
+        '''interface GuardrailPreset {
+  provider: string;
+  categoryName?: string;
+  guardrailNameSuggestion: string;
+  mode: string;
+  defaultOn: boolean;
+}
+''',
+        '''interface GuardrailPreset {
+  provider: string;
+  categoryName?: string;
+  guardrailNameSuggestion: string;
+  mode: string | string[];
+  defaultOn: boolean;
+}
+''',
+        "TaskLattice preset modes",
     )
     replace_once(
         add_form,
@@ -381,23 +405,19 @@ export const updateTaskLatticeGuardCall = (
       skip_tool_message_choice: "inherit",
     };
 ''',
-        '''    const isTaskLatticePreset =
-      preset.provider === "TasklatticeGuard" ||
-      guardrail_provider_map[preset.provider] === "tasklattice_guard";
-    const baseValues: Record<string, any> = {
+        '''    const baseValues: Record<string, any> = {
       provider: preset.provider,
       guardrail_name: preset.guardrailNameSuggestion,
-      mode: isTaskLatticePreset ? ["pre_call", "post_call"] : preset.mode,
-      default_on: isTaskLatticePreset ? true : preset.defaultOn,
+      mode: preset.mode,
+      default_on: preset.defaultOn,
       skip_system_message_choice: "inherit",
       skip_tool_message_choice: "inherit",
-      ...(isTaskLatticePreset && {
-        unreachable_fallback: "fail_closed",
-        timeout_seconds: 10,
+      ...(preset.provider === "TasklatticeGuard" && {
+        optional_params: { unreachable_fallback: "fail_closed", timeout_seconds: 10 },
       }),
     };
 ''',
-        "TaskLattice Garden policy defaults",
+        "TaskLattice native preset defaults",
     )
     replace_once(
         add_form,
@@ -414,13 +434,27 @@ export const updateTaskLatticeGuardCall = (
         guardrail_name: "TaskLattice Guard",
         mode: ["pre_call", "post_call"],
         default_on: true,
-        unreachable_fallback: "fail_closed",
-        timeout_seconds: 10,
+        optional_params: { unreachable_fallback: "fail_closed", timeout_seconds: 10 },
       });
     }
     form.setFieldsValue(resetValues);
 ''',
-        "TaskLattice fixed form policy",
+        "TaskLattice native form defaults",
+    )
+    replace_once(
+        add_form,
+        '''          const fieldsToValidate = ["guardrail_name", "provider", "mode", "default_on"];
+
+          if (selectedProvider === "PresidioPII") {
+''',
+        '''          const fieldsToValidate = ["guardrail_name", "provider", "mode", "default_on"];
+
+          if (isTaskLatticeProvider) {
+            fieldsToValidate.push("api_base", "api_key");
+          }
+          if (selectedProvider === "PresidioPII") {
+''',
+        "TaskLattice required native provider fields",
     )
     replace_once(
         add_form,
@@ -429,15 +463,19 @@ export const updateTaskLatticeGuardCall = (
 ''',
         '''      if (guardrailProvider === "tasklattice_guard") {
         if (!accessToken) throw new Error("No access token available");
+        const options = values.optional_params || {};
         await createTaskLatticeGuardCall(accessToken, {
-          endpoint: values.endpoint,
-          secret: values.secret,
+          guardrail_name: values.guardrail_name,
+          endpoint: values.api_base,
+          secret: values.api_key,
           mode: values.mode,
-          unreachable_fallback: values.unreachable_fallback,
-          timeout_seconds: values.timeout_seconds,
           default_on: values.default_on,
+          skip_system_message_choice: values.skip_system_message_choice,
+          skip_tool_message_choice: values.skip_tool_message_choice,
+          unreachable_fallback: options.unreachable_fallback ?? "fail_closed",
+          timeout_seconds: options.timeout_seconds ?? 10,
         });
-        NotificationsManager.success("TaskLattice Guard connected and active");
+        NotificationsManager.success("Guardrail created successfully");
         resetForm();
         onSuccess();
         onClose();
@@ -447,302 +485,17 @@ export const updateTaskLatticeGuardCall = (
       // Prepare the guardrail data with proper typings
       const guardrailData: {
 ''',
-        "TaskLattice dedicated create flow",
+        "TaskLattice dedicated create submission",
     )
     replace_once(
         add_form,
-        '''        <Form.Item
-          name="guardrail_name"
-          label="Guardrail Name"
-          rules={[{ required: true, message: "Please enter a guardrail name" }]}
-        >
-          <Input placeholder="Enter a name for this guardrail" />
-        </Form.Item>
-
+        '''            {guardrailSettings?.supported_modes?.map((mode) => (
 ''',
-        '''        {!isTaskLatticeProvider && (
-          <Form.Item
-            name="guardrail_name"
-            label="Guardrail Name"
-            rules={[{ required: true, message: "Please enter a guardrail name" }]}
-          >
-            <Input placeholder="Enter a name for this guardrail" />
-          </Form.Item>
-        )}
-
+        '''            {guardrailSettings?.supported_modes
+              ?.filter((mode) => !isTaskLatticeProvider || ["pre_call", "post_call"].includes(mode))
+              .map((mode) => (
 ''',
-        "hide TaskLattice guardrail name",
-    )
-    replace_once(
-        add_form,
-        '''        <Form.Item
-          name="mode"
-          label="Mode"
-''',
-        '''        {isTaskLatticeProvider && (
-          <div className="rounded-lg border border-cyan-200 bg-cyan-50 px-4 py-4 mb-5">
-            <div className="flex items-start gap-3">
-              <img
-                src="../ui/assets/logos/tasklattice_guard.svg"
-                alt="TaskLattice Guard"
-                className="h-9 w-9 rounded-md"
-              />
-              <div>
-                <div className="font-medium text-slate-900">Connect TaskLattice Guard</div>
-                <div className="text-sm text-slate-600 mt-1">
-                  Connect one TaskLattice Integration, then choose when LiteLLM evaluates traffic
-                  and what happens if Guard cannot be reached.
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {isTaskLatticeProvider && (
-          <>
-            <Form.Item
-              name="endpoint"
-              label="Endpoint"
-              rules={[
-                { required: true, message: "Enter the TaskLattice Integration Endpoint" },
-                { type: "url", message: "Enter a valid HTTP(S) URL" },
-              ]}
-              extra="Use the base URL ending in /runtime/v1/integrations/{uuid}."
-            >
-              <Input placeholder="https://guard.example/runtime/v1/integrations/..." autoComplete="url" />
-            </Form.Item>
-            <Form.Item
-              name="secret"
-              label="Secret"
-              rules={[{ required: true, message: "Enter the Integration Secret" }]}
-              extra="Stored encrypted in LiteLLM Credentials. It is never displayed again."
-            >
-              <Input.Password placeholder="tali_integration_..." autoComplete="new-password" />
-            </Form.Item>
-
-            <Form.Item
-              name="mode"
-              label="Protection stages"
-              rules={[
-                {
-                  validator: (_, value: string[]) =>
-                    Array.isArray(value) && value.length > 0
-                      ? Promise.resolve()
-                      : Promise.reject(new Error("Select at least one protection stage")),
-                },
-              ]}
-              extra="LiteLLM invokes the same Integration independently at each selected stage."
-            >
-              <Checkbox.Group className="w-full">
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <Checkbox value="pre_call" className="!m-0 flex min-h-20 cursor-pointer items-start gap-3 rounded-lg border border-slate-200 px-4 py-3 hover:border-blue-400 [&_.ant-checkbox]:mt-1">
-                    <span>
-                      <span className="block font-medium text-slate-900">Before model</span>
-                      <span className="mt-1 block text-sm text-slate-600">
-                        Inspect request content before any model call starts.
-                      </span>
-                    </span>
-                  </Checkbox>
-                  <Checkbox value="post_call" className="!m-0 flex min-h-20 cursor-pointer items-start gap-3 rounded-lg border border-slate-200 px-4 py-3 hover:border-blue-400 [&_.ant-checkbox]:mt-1">
-                    <span>
-                      <span className="block font-medium text-slate-900">After model</span>
-                      <span className="mt-1 block text-sm text-slate-600">
-                        Inspect the completed model response before returning it.
-                      </span>
-                    </span>
-                  </Checkbox>
-                </div>
-              </Checkbox.Group>
-            </Form.Item>
-
-            <Form.Item
-              name="unreachable_fallback"
-              label="When Guard is unavailable"
-              rules={[{ required: true, message: "Choose an unavailable behavior" }]}
-              extra="This setting never overrides an explicit policy block returned by TaskLattice Guard."
-            >
-              <Radio.Group className="w-full">
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <Radio value="fail_closed" className="!m-0 flex min-h-20 cursor-pointer items-start gap-3 rounded-lg border border-slate-200 px-4 py-3 hover:border-blue-400 [&_.ant-radio]:mt-1">
-                    <span>
-                      <span className="flex flex-wrap items-center gap-2 font-medium text-slate-900">
-                        Block request <Tag color="green">Recommended</Tag>
-                      </span>
-                      <span className="mt-1 block text-sm text-slate-600">
-                        Preserve protection when Guard is unreachable or times out.
-                      </span>
-                    </span>
-                  </Radio>
-                  <Radio value="fail_open" className="!m-0 flex min-h-20 cursor-pointer items-start gap-3 rounded-lg border border-slate-200 px-4 py-3 hover:border-blue-400 [&_.ant-radio]:mt-1">
-                    <span>
-                      <span className="block font-medium text-slate-900">Continue without Guard</span>
-                      <span className="mt-1 block text-sm text-slate-600">
-                        Prioritize availability during a Guard outage.
-                      </span>
-                    </span>
-                  </Radio>
-                </div>
-              </Radio.Group>
-            </Form.Item>
-
-            <Form.Item noStyle shouldUpdate={(previous, current) =>
-              previous.unreachable_fallback !== current.unreachable_fallback
-            }>
-              {({ getFieldValue }) =>
-                getFieldValue("unreachable_fallback") === "fail_open" ? (
-                  <Alert
-                    className="mb-5"
-                    type="warning"
-                    showIcon
-                    message="Availability-first mode"
-                    description="Only transport errors, timeouts, and HTTP 502/503/504 bypass Guard. Policy blocks, authentication errors, HTTP 4xx/500, and invalid responses still block the request."
-                  />
-                ) : null
-              }
-            </Form.Item>
-
-            <details className="mb-5 rounded-lg border border-slate-200 bg-slate-50">
-              <summary className="flex min-h-11 cursor-pointer items-center px-4 py-3 font-medium text-slate-900">
-                Advanced
-              </summary>
-              <div className="border-t border-slate-200 px-4 py-4">
-                <Form.Item
-                  name="timeout_seconds"
-                  label="Runtime timeout"
-                  rules={[
-                    { required: true, message: "Enter a runtime timeout" },
-                    { type: "number", min: 1, max: 60, message: "Use a value from 1 to 60 seconds" },
-                  ]}
-                  extra="Applied to each selected stage. A timeout follows the unavailable behavior above."
-                >
-                  <InputNumber min={1} max={60} precision={0} addonAfter="seconds" className="w-full" />
-                </Form.Item>
-                <Form.Item
-                  name="default_on"
-                  label="Apply to every request"
-                  valuePropName="checked"
-                  className="mb-0"
-                  extra="Turn off only when callers will explicitly select this named guardrail."
-                >
-                  <Switch />
-                </Form.Item>
-              </div>
-            </details>
-          </>
-        )}
-
-        {!isTaskLatticeProvider && <Form.Item
-          name="mode"
-          label="Mode"
-''',
-        "TaskLattice two-field connection UI",
-    )
-    replace_once(
-        add_form,
-        '''          </Select>
-        </Form.Item>
-
-        <Form.Item
-          name="default_on"
-''',
-        '''          </Select>
-        </Form.Item>}
-
-        {!isTaskLatticeProvider && <Form.Item
-          name="default_on"
-''',
-        "close hidden TaskLattice mode",
-    )
-    replace_once(
-        add_form,
-        '''          </Select>
-        </Form.Item>
-
-        <Form.Item
-          name="skip_system_message_choice"
-''',
-        '''          </Select>
-        </Form.Item>}
-
-        {!isTaskLatticeProvider && <Form.Item
-          name="skip_system_message_choice"
-''',
-        "close hidden TaskLattice default",
-    )
-    replace_once(
-        add_form,
-        '''          </Select>
-        </Form.Item>
-
-        <Form.Item
-          name="skip_tool_message_choice"
-''',
-        '''          </Select>
-        </Form.Item>}
-
-        {!isTaskLatticeProvider && <Form.Item
-          name="skip_tool_message_choice"
-''',
-        "close hidden TaskLattice system toggle",
-    )
-    replace_once(
-        add_form,
-        '''          </Select>
-        </Form.Item>
-
-        {/* Use the GuardrailProviderFields component to render provider-specific fields */}
-''',
-        '''          </Select>
-        </Form.Item>}
-
-        {/* Use the GuardrailProviderFields component to render provider-specific fields */}
-''',
-        "close hidden TaskLattice tool toggle",
-    )
-    replace_once(
-        add_form,
-        '''        {!isToolPermissionProvider && !shouldRenderContentFilterConfigSettings(selectedProvider) && !shouldRenderLLMJudgeFields(selectedProvider) && (
-''',
-        '''        {!isTaskLatticeProvider && !isToolPermissionProvider && !shouldRenderContentFilterConfigSettings(selectedProvider) && !shouldRenderLLMJudgeFields(selectedProvider) && (
-''',
-        "hide generic TaskLattice provider fields",
-    )
-    replace_once(
-        add_form,
-        '''    const totalSteps = shouldRenderContentFilterConfigSettings(selectedProvider) ? 5 : 2;
-''',
-        '''    const totalSteps = isTaskLatticeProvider
-      ? 1
-      : shouldRenderContentFilterConfigSettings(selectedProvider)
-        ? 5
-        : 2;
-''',
-        "single-step TaskLattice button state",
-    )
-    replace_once(
-        add_form,
-        '''  const getStepConfigs = () => {
-    if (shouldRenderContentFilterConfigSettings(selectedProvider)) {
-''',
-        '''  const getStepConfigs = () => {
-    if (isTaskLatticeProvider) {
-      return [{ title: "Connect TaskLattice Guard", optional: false }];
-    }
-    if (shouldRenderContentFilterConfigSettings(selectedProvider)) {
-''',
-        "single-step TaskLattice form",
-    )
-    replace_once(
-        add_form,
-        '''            <Button type="primary" onClick={handleSubmit} loading={loading}>
-              Create Guardrail
-            </Button>
-''',
-        '''            <Button type="primary" onClick={handleSubmit} loading={loading}>
-              {isTaskLatticeProvider ? "Verify & connect" : "Create Guardrail"}
-            </Button>
-''',
-        "TaskLattice connect CTA",
+        "TaskLattice supported mode filter",
     )
 
     replace_once(
@@ -751,7 +504,7 @@ export const updateTaskLatticeGuardCall = (
 } from "@/components/networking";
 ''',
         '''  updateGuardrailCall,
-  type TaskLatticeGuardInput,
+  type TaskLatticeGuardUpdateInput,
   updateTaskLatticeGuardCall,
 } from "@/components/networking";
 ''',
@@ -759,30 +512,14 @@ export const updateTaskLatticeGuardCall = (
     )
     replace_once(
         info_view,
-        'import { Button, Divider, Form, Input, Select, Tooltip } from "antd";',
-        'import { Alert, Button, Checkbox, Divider, Form, Input, InputNumber, Radio, Select, Switch, Tag, Tooltip } from "antd";',
-        "TaskLattice settings form imports",
-    )
-    replace_once(
-        info_view,
-        '''interface ProviderParamsResponse {
-  [provider: string]: { [key: string]: ProviderParam };
-}
+        '''  getGuardrailLogoAndName,
+  guardrail_provider_map,
 ''',
-        '''interface ProviderParamsResponse {
-  [provider: string]: { [key: string]: ProviderParam };
-}
-
-const formatGuardrailModes = (mode: unknown): string => {
-  const modes = Array.isArray(mode) ? mode : mode ? [mode] : [];
-  const labels: Record<string, string> = {
-    pre_call: "Before model",
-    post_call: "After model",
-  };
-  return modes.map((value) => labels[String(value)] || String(value)).join(" · ") || "-";
-};
+        '''  formatGuardrailModes,
+  getGuardrailLogoAndName,
+  guardrail_provider_map,
 ''',
-        "friendly Guardrail mode formatter",
+        "shared mode formatter import",
     )
     replace_once(
         info_view,
@@ -790,9 +527,13 @@ const formatGuardrailModes = (mode: unknown): string => {
       const updateData: any = {
 ''',
         '''      if (guardrailData.litellm_params?.guardrail === "tasklattice_guard") {
-        const updateData: TaskLatticeGuardInput = {};
-        const endpoint = values.endpoint?.trim();
-        const secret = values.secret?.trim();
+        const updateData: TaskLatticeGuardUpdateInput = {};
+        const options = values.optional_params || {};
+        const endpoint = values.api_base?.trim();
+        const secret = values.api_key?.trim();
+        if (values.guardrail_name !== guardrailData.guardrail_name) {
+          updateData.guardrail_name = values.guardrail_name;
+        }
         if (endpoint && endpoint !== guardrailData.litellm_params?.api_base) {
           updateData.endpoint = endpoint;
         }
@@ -800,29 +541,40 @@ const formatGuardrailModes = (mode: unknown): string => {
         if (JSON.stringify(values.mode) !== JSON.stringify(guardrailData.litellm_params?.mode)) {
           updateData.mode = values.mode;
         }
-        if (values.unreachable_fallback !== guardrailData.litellm_params?.unreachable_fallback) {
-          updateData.unreachable_fallback = values.unreachable_fallback;
-        }
-        if (values.timeout_seconds !== guardrailData.litellm_params?.timeout_seconds) {
-          updateData.timeout_seconds = values.timeout_seconds;
-        }
         if (values.default_on !== guardrailData.litellm_params?.default_on) {
           updateData.default_on = values.default_on;
+        }
+        const currentSystemChoice = skipSystemMessageToChoice(
+          guardrailData.litellm_params?.skip_system_message_in_guardrail,
+        );
+        if (values.skip_system_message_choice !== currentSystemChoice) {
+          updateData.skip_system_message_choice = values.skip_system_message_choice;
+        }
+        const currentToolChoice = skipToolMessageToChoice(
+          guardrailData.litellm_params?.skip_tool_message_in_guardrail,
+        );
+        if (values.skip_tool_message_choice !== currentToolChoice) {
+          updateData.skip_tool_message_choice = values.skip_tool_message_choice;
+        }
+        if (options.unreachable_fallback !== guardrailData.litellm_params?.unreachable_fallback) {
+          updateData.unreachable_fallback = options.unreachable_fallback;
+        }
+        if (options.timeout_seconds !== guardrailData.litellm_params?.timeout_seconds) {
+          updateData.timeout_seconds = options.timeout_seconds;
         }
         if (Object.keys(updateData).length === 0) {
           NotificationsManager.info("No changes detected");
           setIsEditing(false);
           return;
         }
-        const connectionChanged = Boolean(updateData.endpoint || updateData.secret);
         await updateTaskLatticeGuardCall(accessToken, guardrailId, updateData);
         NotificationsManager.success(
-          connectionChanged
+          updateData.endpoint || updateData.secret
             ? "TaskLattice Guard connection verified and updated"
-            : "TaskLattice Guard policy updated",
+            : "Guardrail updated successfully",
         );
         await fetchGuardrailInfo();
-        form.setFieldValue("secret", "");
+        form.setFieldValue("api_key", "");
         setIsEditing(false);
         return;
       }
@@ -830,7 +582,7 @@ const formatGuardrailModes = (mode: unknown): string => {
       // Prepare update data object - only include changed fields
       const updateData: any = {
 ''',
-        "TaskLattice dedicated update flow",
+        "TaskLattice dedicated update submission",
     )
     replace_once(
         info_view,
@@ -838,7 +590,7 @@ const formatGuardrailModes = (mode: unknown): string => {
 ''',
         '''                  <Title>{formatGuardrailModes(guardrailData.litellm_params?.mode)}</Title>
 ''',
-        "friendly Guardrail overview modes",
+        "Guardrail overview modes",
     )
     replace_once(
         info_view,
@@ -846,253 +598,87 @@ const formatGuardrailModes = (mode: unknown): string => {
 ''',
         '''                      <div>{formatGuardrailModes(guardrailData.litellm_params?.mode)}</div>
 ''',
-        "friendly Guardrail settings modes",
+        "Guardrail settings modes",
     )
     replace_once(
         info_view,
-        '''                {isEditing ? (
-                  <Form
-''',
-        '''                {isEditing ? (
-                  guardrailData.litellm_params?.guardrail === "tasklattice_guard" ? (
-                    <Form
-                      form={form}
-                      onFinish={handleGuardrailUpdate}
-                      initialValues={{
-                        endpoint: guardrailData.litellm_params?.api_base,
-                        secret: "",
-                        mode: guardrailData.litellm_params?.mode,
-                        unreachable_fallback:
-                          guardrailData.litellm_params?.unreachable_fallback || "fail_closed",
-                        timeout_seconds: guardrailData.litellm_params?.timeout_seconds ?? 10,
-                        default_on: guardrailData.litellm_params?.default_on ?? true,
-                      }}
-                      layout="vertical"
-                    >
-                      <div className="rounded-lg border border-cyan-200 bg-cyan-50 px-4 py-4 mb-5">
-                        <div className="flex items-start gap-3">
-                          <img
-                            src="../ui/assets/logos/tasklattice_guard.svg"
-                            alt="TaskLattice Guard"
-                            className="h-9 w-9 rounded-md"
-                          />
-                          <div>
-                            <div className="font-medium text-slate-900">TaskLattice Guard connection</div>
-                            <div className="text-sm text-slate-600 mt-1">
-                              Connection changes are verified; policy-only changes are applied immediately.
-                              No LiteLLM restart is required.
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      <Form.Item
-                        label="Endpoint"
-                        name="endpoint"
-                        rules={[
-                          { required: true, message: "Enter the TaskLattice Integration Endpoint" },
-                          { type: "url", message: "Enter a valid HTTP(S) URL" },
-                        ]}
-                        extra="Changing the Endpoint requires entering its Secret again."
-                      >
-                        <Input autoComplete="url" />
-                      </Form.Item>
-                      <Form.Item
-                        label="Secret"
-                        name="secret"
-                        dependencies={["endpoint"]}
-                        rules={[
-                          ({ getFieldValue }) => ({
-                            validator: (_, value) => {
-                              const endpointChanged =
-                                getFieldValue("endpoint")?.trim() !== guardrailData.litellm_params?.api_base;
-                              return !endpointChanged || value?.trim()
-                                ? Promise.resolve()
-                                : Promise.reject(new Error("Enter the Secret again when changing the Endpoint"));
-                            },
-                          }),
-                        ]}
-                        extra="Leave blank to keep the encrypted Secret. Enter a new value to rotate it."
-                      >
-                        <Input.Password placeholder="Leave blank to keep the current Secret" autoComplete="new-password" />
-                      </Form.Item>
+        '''                    <Form.Item label="Default On" name="default_on">
+                      <Select>
+                        <Select.Option value={true}>Yes</Select.Option>
+                        <Select.Option value={false}>No</Select.Option>
+                      </Select>
+                    </Form.Item>
 
+''',
+        '''                    <Form.Item label="Default On" name="default_on">
+                      <Select>
+                        <Select.Option value={true}>Yes</Select.Option>
+                        <Select.Option value={false}>No</Select.Option>
+                      </Select>
+                    </Form.Item>
+
+                    {guardrailData.litellm_params?.guardrail === "tasklattice_guard" && (
                       <Form.Item
+                        label="Mode"
                         name="mode"
-                        label="Protection stages"
-                        rules={[
-                          {
-                            validator: (_, value: string[]) =>
-                              Array.isArray(value) && value.length > 0
-                                ? Promise.resolve()
-                                : Promise.reject(new Error("Select at least one protection stage")),
-                          },
-                        ]}
-                        extra="LiteLLM invokes the same Integration independently at each selected stage."
+                        tooltip="How the guardrail should be applied"
+                        rules={[{ required: true, message: "Please select a mode" }]}
                       >
-                        <Checkbox.Group className="w-full">
-                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                            <Checkbox value="pre_call" className="!m-0 flex min-h-20 cursor-pointer items-start gap-3 rounded-lg border border-slate-200 px-4 py-3 hover:border-blue-400 [&_.ant-checkbox]:mt-1">
-                              <span>
-                                <span className="block font-medium text-slate-900">Before model</span>
-                                <span className="mt-1 block text-sm text-slate-600">
-                                  Inspect request content before any model call starts.
-                                </span>
-                              </span>
-                            </Checkbox>
-                            <Checkbox value="post_call" className="!m-0 flex min-h-20 cursor-pointer items-start gap-3 rounded-lg border border-slate-200 px-4 py-3 hover:border-blue-400 [&_.ant-checkbox]:mt-1">
-                              <span>
-                                <span className="block font-medium text-slate-900">After model</span>
-                                <span className="mt-1 block text-sm text-slate-600">
-                                  Inspect the completed model response before returning it.
-                                </span>
-                              </span>
-                            </Checkbox>
-                          </div>
-                        </Checkbox.Group>
+                        <Select mode="multiple">
+                          {guardrailSettings?.supported_modes
+                            ?.filter((mode) => ["pre_call", "post_call"].includes(mode))
+                            .map((mode) => (
+                              <Select.Option key={mode} value={mode}>{mode}</Select.Option>
+                            ))}
+                        </Select>
                       </Form.Item>
+                    )}
 
-                      <Form.Item
-                        name="unreachable_fallback"
-                        label="When Guard is unavailable"
-                        rules={[{ required: true, message: "Choose an unavailable behavior" }]}
-                        extra="This setting never overrides an explicit policy block returned by TaskLattice Guard."
-                      >
-                        <Radio.Group className="w-full">
-                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                            <Radio value="fail_closed" className="!m-0 flex min-h-20 cursor-pointer items-start gap-3 rounded-lg border border-slate-200 px-4 py-3 hover:border-blue-400 [&_.ant-radio]:mt-1">
-                              <span>
-                                <span className="flex flex-wrap items-center gap-2 font-medium text-slate-900">
-                                  Block request <Tag color="green">Recommended</Tag>
-                                </span>
-                                <span className="mt-1 block text-sm text-slate-600">
-                                  Preserve protection when Guard is unreachable or times out.
-                                </span>
-                              </span>
-                            </Radio>
-                            <Radio value="fail_open" className="!m-0 flex min-h-20 cursor-pointer items-start gap-3 rounded-lg border border-slate-200 px-4 py-3 hover:border-blue-400 [&_.ant-radio]:mt-1">
-                              <span>
-                                <span className="block font-medium text-slate-900">Continue without Guard</span>
-                                <span className="mt-1 block text-sm text-slate-600">
-                                  Prioritize availability during a Guard outage.
-                                </span>
-                              </span>
-                            </Radio>
-                          </div>
-                        </Radio.Group>
-                      </Form.Item>
-
-                      <Form.Item noStyle shouldUpdate={(previous, current) =>
-                        previous.unreachable_fallback !== current.unreachable_fallback
-                      }>
-                        {({ getFieldValue }) =>
-                          getFieldValue("unreachable_fallback") === "fail_open" ? (
-                            <Alert
-                              className="mb-5"
-                              type="warning"
-                              showIcon
-                              message="Availability-first mode"
-                              description="Only transport errors, timeouts, and HTTP 502/503/504 bypass Guard. Policy blocks, authentication errors, HTTP 4xx/500, and invalid responses still block the request."
-                            />
-                          ) : null
-                        }
-                      </Form.Item>
-
-                      <details className="mb-5 rounded-lg border border-slate-200 bg-slate-50">
-                        <summary className="flex min-h-11 cursor-pointer items-center px-4 py-3 font-medium text-slate-900">
-                          Advanced
-                        </summary>
-                        <div className="border-t border-slate-200 px-4 py-4">
-                          <Form.Item
-                            name="timeout_seconds"
-                            label="Runtime timeout"
-                            rules={[
-                              { required: true, message: "Enter a runtime timeout" },
-                              { type: "number", min: 1, max: 60, message: "Use a value from 1 to 60 seconds" },
-                            ]}
-                            extra="Applied to each selected stage. A timeout follows the unavailable behavior above."
-                          >
-                            <InputNumber min={1} max={60} precision={0} addonAfter="seconds" className="w-full" />
-                          </Form.Item>
-                          <Form.Item
-                            name="default_on"
-                            label="Apply to every request"
-                            valuePropName="checked"
-                            className="mb-0"
-                            extra="Turn off only when callers will explicitly select this named guardrail."
-                          >
-                            <Switch />
-                          </Form.Item>
-                        </div>
-                      </details>
-                      <div className="flex justify-end gap-2 mt-6">
-                        <Button onClick={() => setIsEditing(false)}>Cancel</Button>
-                        <Form.Item noStyle shouldUpdate={(previous, current) =>
-                          previous.endpoint !== current.endpoint || previous.secret !== current.secret
-                        }>
-                          {({ getFieldValue }) => {
-                            const endpointChanged =
-                              getFieldValue("endpoint")?.trim() !== guardrailData.litellm_params?.api_base;
-                            const secretChanged = Boolean(getFieldValue("secret")?.trim());
-                            return (
-                              <Button type="primary" htmlType="submit">
-                                {endpointChanged || secretChanged ? "Verify & save" : "Save changes"}
-                              </Button>
-                            );
-                          }}
-                        </Form.Item>
-                      </div>
-                    </Form>
-                  ) : (
-                  <Form
 ''',
-        "TaskLattice dedicated settings form",
+        "TaskLattice native mode editor",
     )
     replace_once(
         info_view,
-        '''                  </Form>
-                ) : (
-                  <div className="space-y-4">
+        '''                          value={guardrailData.litellm_params}
+                        />
 ''',
-        '''                  </Form>
-                  )
-                ) : (
-                  <div className="space-y-4">
+        '''                          value={guardrailData.litellm_params}
+                          optionalFields={
+                            guardrailData.litellm_params?.guardrail === "tasklattice_guard" ? ["api_key"] : []
+                          }
+                        />
 ''',
-        "close TaskLattice settings branch",
+        "TaskLattice optional credential rotation",
+    )
+    replace_once(
+        info_view,
+        '''                    <Divider orientation="left">Advanced Settings</Divider>
+                    <Form.Item label="Guardrail Information" name="guardrail_info">
+                      <Input.TextArea rows={5} />
+                    </Form.Item>
+''',
+        '''                    {guardrailData.litellm_params?.guardrail !== "tasklattice_guard" && (
+                      <>
+                        <Divider orientation="left">Advanced Settings</Divider>
+                        <Form.Item label="Guardrail Information" name="guardrail_info">
+                          <Input.TextArea rows={5} />
+                        </Form.Item>
+                      </>
+                    )}
+''',
+        "hide managed TaskLattice metadata",
     )
 
     replace_once(
         guardrail_table,
-        '''interface GuardrailTableProps {
-  guardrailsList: Guardrail[];
-  isLoading: boolean;
-  onDeleteClick: (guardrailId: string, guardrailName: string) => void;
-  accessToken: string | null;
-  onGuardrailUpdated: () => void;
-  isAdmin?: boolean;
-  onGuardrailClick: (id: string) => void;
-}
+        '''  getGuardrailLogoAndName,
+  guardrail_provider_map,
 ''',
-        '''interface GuardrailTableProps {
-  guardrailsList: Guardrail[];
-  isLoading: boolean;
-  onDeleteClick: (guardrailId: string, guardrailName: string) => void;
-  accessToken: string | null;
-  onGuardrailUpdated: () => void;
-  isAdmin?: boolean;
-  onGuardrailClick: (id: string) => void;
-}
-
-const formatGuardrailModes = (mode: unknown): string => {
-  const modes = Array.isArray(mode) ? mode : mode ? [mode] : [];
-  const labels: Record<string, string> = {
-    pre_call: "Before model",
-    post_call: "After model",
-  };
-  return modes.map((value) => labels[String(value)] || String(value)).join(" · ") || "-";
-};
+        '''  formatGuardrailModes,
+  getGuardrailLogoAndName,
+  guardrail_provider_map,
 ''',
-        "Guardrail table mode formatter",
+        "Guardrail table mode formatter import",
     )
     replace_once(
         guardrail_table,
@@ -1100,7 +686,7 @@ const formatGuardrailModes = (mode: unknown): string => {
 ''',
         '''        return <span className="text-xs">{formatGuardrailModes(guardrail.litellm_params.mode)}</span>;
 ''',
-        "friendly Guardrail table modes",
+        "Guardrail table modes",
     )
 
 

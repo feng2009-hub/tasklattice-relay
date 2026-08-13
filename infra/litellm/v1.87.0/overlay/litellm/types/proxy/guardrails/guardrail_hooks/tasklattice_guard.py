@@ -1,33 +1,16 @@
-from typing import List, Literal
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
+from litellm.types.proxy.guardrails.guardrail_hooks.base import GuardrailConfigModel
 
-TaskLatticeGuardMode = Literal["pre_call", "post_call"]
+
 TaskLatticeGuardFallback = Literal["fail_closed", "fail_open"]
 
 
-class TaskLatticeGuardConfigModel(BaseModel):
-    """Configuration accepted by the managed TaskLattice Guard provider."""
+class TaskLatticeGuardOptionalParams(BaseModel):
+    """Policy settings rendered by LiteLLM's native provider form."""
 
-    endpoint: str = Field(
-        description="TaskLattice Integration base URL ending in the Integration UUID",
-        json_schema_extra={"ui_type": "url"},
-    )
-    secret: str = Field(
-        description="One-time TaskLattice Integration credential",
-        json_schema_extra={"ui_type": "password"},
-    )
-    mode: List[TaskLatticeGuardMode] = Field(
-        default_factory=lambda: ["pre_call", "post_call"],
-        min_length=1,
-        max_length=2,
-        description="LiteLLM request stages protected by TaskLattice Guard",
-    )
-    default_on: bool = Field(
-        default=True,
-        description="Apply this guardrail unless a request explicitly opts out",
-    )
     unreachable_fallback: TaskLatticeGuardFallback = Field(
         default="fail_closed",
         description="Behavior when TaskLattice Guard is unreachable",
@@ -38,6 +21,25 @@ class TaskLatticeGuardConfigModel(BaseModel):
         le=60,
         strict=True,
         description="Maximum runtime callback duration for each protected stage",
+    )
+
+
+class TaskLatticeGuardConfigModel(
+    GuardrailConfigModel[TaskLatticeGuardOptionalParams]
+):
+    """Provider fields consumed by LiteLLM's standard Guardrail UI."""
+
+    api_base: str = Field(
+        description="TaskLattice Integration base URL ending in the Integration UUID",
+        json_schema_extra={"ui_type": "url"},
+    )
+    api_key: str = Field(
+        description="TaskLattice Integration secret",
+        json_schema_extra={"ui_type": "password"},
+    )
+    optional_params: Optional[TaskLatticeGuardOptionalParams] = Field(
+        default_factory=TaskLatticeGuardOptionalParams,
+        description="TaskLattice Guard policy settings",
     )
 
     @staticmethod
