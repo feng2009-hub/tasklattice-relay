@@ -109,6 +109,17 @@ export function projectRouteAdmissionPolicy(
   if (tail[0] === "runtime" && tail.length === 1 && method === "GET") {
     return policy("PROJECT", [requirement("CAP_RUNTIME_OPERATION_VIEW", "Runtime")]);
   }
+  if (tail[0] === "overview" && tail.length === 1 && method === "GET") {
+    return policy("PROJECT", [
+      requirement("CAP_USAGE_VIEW", "Usage"),
+      requirement("CAP_COST_VIEW", "Cost"),
+      requirement("CAP_PROJECT_QUOTA_VIEW", "ProjectQuota"),
+      requirement("CAP_AGENT_INSTANCE_CONFIG_VIEW", "AgentInstance"),
+      requirement("CAP_AGENT_MEMORY_CONFIG_VIEW", "AgentMemory"),
+      requirement("CAP_SKILL_VIEW", "Skill"),
+      requirement("CAP_ACCESS_POLICY_VIEW", "AccessPolicy"),
+    ]);
+  }
   if (
     tail[0] === "authorization"
     && tail.length === 2

@@ -16,6 +16,10 @@ export interface CreateSandboxInput {
   systemPrompt: string;
   apiKey?: string;
   instanceId: string;
+  runTelemetry: {
+    endpoint: string;
+    token: string;
+  };
   memory?:
     | {
         mode: "native";

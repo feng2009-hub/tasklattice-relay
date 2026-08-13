@@ -20,6 +20,7 @@ import {
   openShellWebUiTokenArguments,
   parseOpenShellServiceUrl,
   parseOpenShellAuditLog,
+  runTelemetryEnvironmentFile,
   taliLiteLlmProviderProfile,
   taliLiteLlmProviderProfileId,
   tokenizedOpenClawUrl,
@@ -36,6 +37,11 @@ describe("NemoClaw command contract", () => {
       inferenceEndpoint: "http://tali-litellm:4000/v1",
       systemPrompt: "You are a research agent.",
       apiKey: "database-secret-value",
+      instanceId: "11111111-1111-4111-8111-111111111111",
+      runTelemetry: {
+        endpoint: "http://tali-control:8080/api/internal/run-events",
+        token: "test-run-telemetry-token-with-safe-length",
+      },
     });
     expect(command.args).toContain("openclaw");
     expect(command.args.join(" ")).not.toContain("database-secret-value");
@@ -53,6 +59,11 @@ describe("NemoClaw command contract", () => {
       inferenceEndpoint: "http://tali-litellm:4000/v1",
       systemPrompt: "You are a research agent.",
       apiKey: "database-secret-value",
+      instanceId: "22222222-2222-4222-8222-222222222222",
+      runTelemetry: {
+        endpoint: "http://tali-control:8080/api/internal/run-events",
+        token: "test-run-telemetry-token-with-safe-length",
+      },
     });
 
     expect(command.args).toContain("hermes");
@@ -69,6 +80,11 @@ describe("OpenShell Kubernetes command contract", () => {
     inferenceEndpoint: "http://tali-litellm:4000/v1",
     systemPrompt: "You are a research agent.",
     apiKey: "database-secret-value",
+    instanceId: "11111111-1111-4111-8111-111111111111",
+    runTelemetry: {
+      endpoint: "http://tali-control:8080/api/internal/run-events",
+      token: "test-run-telemetry-token-with-safe-length",
+    },
   };
 
   it("passes the virtual key through the Provider environment only", () => {
@@ -117,6 +133,7 @@ describe("OpenShell Kubernetes command contract", () => {
       "/tmp/AGENTS.md",
       "/tmp/tali-nemoclaw-start",
       "/tmp/openshell-policy.yaml",
+      "/tmp/tali-run-telemetry.env",
     );
     expect(args).toContain("ghcr.io/tasklattice/tali-nemoclaw-sandbox:dev");
     expect(args).toContain("tali.ai/managed=true");
@@ -127,6 +144,13 @@ describe("OpenShell Kubernetes command contract", () => {
       "/tmp/tali-nemoclaw-start:/tmp/tali-nemoclaw-start",
     );
     expect(args).toContain("tali-research-a1b2c3d4");
+    expect(args).toContain(
+      "/tmp/tali-run-telemetry.env:/tmp/tali-run-telemetry.env",
+    );
+    expect(args.join(" ")).not.toContain("test-run-telemetry-token-with-safe-length");
+    expect(runTelemetryEnvironmentFile(input)).not.toContain(
+      "test-run-telemetry-token-with-safe-length",
+    );
     expect(args).toContain("--policy");
     expect(args).toContain("/tmp/openshell-policy.yaml");
     expect(args).toContain("1");
@@ -157,6 +181,21 @@ describe("OpenShell Kubernetes command contract", () => {
     );
 
     expect(policy).toBe("version: 1\n");
+  });
+
+  it("allows only the runtime binary to post lifecycle telemetry to Control", () => {
+    const policy = composeOpenShellInferencePolicy(
+      "version: 1\n",
+      "http://tali-litellm:4000/v1",
+      "openclaw",
+      "http://tali-control.tali.svc.cluster.local:38080/api/internal/run-events",
+    );
+
+    expect(policy).toContain("tali_run_telemetry:");
+    expect(policy).toContain("host: tali-control.tali.svc.cluster.local");
+    expect(policy).toContain("port: 38080");
+    expect(policy).toContain("path: /usr/local/bin/node");
+    expect(policy).not.toContain("/usr/bin/curl");
   });
 
   it("reads and parses OpenShell OCSF policy decisions", () => {
@@ -228,6 +267,7 @@ describe("OpenShell Kubernetes command contract", () => {
       "/tmp/SOUL.md",
       "/tmp/tali-nemoclaw-start",
       "/tmp/openshell-policy.yaml",
+      "/tmp/tali-run-telemetry.env",
     );
 
     expect(createArgs).toContain(

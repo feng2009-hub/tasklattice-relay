@@ -30,7 +30,7 @@ describe("Project route capability declarations", () => {
       const pathname = `/api/v1/projects/individual${route ? `/${route}` : ""}`;
       if (!projectRouteAdmissionPolicy(method, pathname)) uncovered.push(file);
     }
-    expect(files).toHaveLength(73);
+    expect(files).toHaveLength(74);
     expect(uncovered).toEqual([]);
   });
 
@@ -121,6 +121,21 @@ describe("Project route capability declarations", () => {
       capability: "CAP_AGENT_INSTANCE_LOG_VIEW",
       resourceType: "AgentInstance",
     }]);
+  });
+
+  it("requires every underlying read capability for the Project overview", () => {
+    expect(projectRouteAdmissionPolicy(
+      "GET",
+      "/api/v1/projects/individual/overview",
+    )?.requirements.map(({ capability }) => capability)).toEqual([
+      "CAP_USAGE_VIEW",
+      "CAP_COST_VIEW",
+      "CAP_PROJECT_QUOTA_VIEW",
+      "CAP_AGENT_INSTANCE_CONFIG_VIEW",
+      "CAP_AGENT_MEMORY_CONFIG_VIEW",
+      "CAP_SKILL_VIEW",
+      "CAP_ACCESS_POLICY_VIEW",
+    ]);
   });
 
   it("adds every side-effecting binding implied by Instance creation", () => {

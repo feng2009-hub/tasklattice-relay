@@ -76,6 +76,10 @@ const createSchema = z.object({
   policyYaml: z.string().min(10).max(64_000),
   apiKey: z.string().min(16).max(512).optional(),
   instanceId: z.string().uuid(),
+  runTelemetry: z.object({
+    endpoint: z.string().url(),
+    token: z.string().min(32).max(2_048),
+  }).strict(),
   memory: runtimeMemorySchema.optional(),
 });
 
@@ -262,6 +266,7 @@ app.post("/v1/sandboxes", (request, response, next) => {
       ...(parsedInput.apiKey ? { apiKey: parsedInput.apiKey } : {}),
       ...(parsedInput.memory ? { memory: parsedInput.memory } : {}),
       instanceId: parsedInput.instanceId,
+      runTelemetry: parsedInput.runTelemetry,
     };
     if (states.has(input.name))
       return void response

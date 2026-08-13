@@ -13,6 +13,7 @@ import { ProviderService } from "./providers/provider-service";
 import { ProjectService, type ProjectRole } from "./projects/project-service";
 import { ProjectQuotaService } from "./quotas/project-quota-service";
 import { AuditLogService } from "./audit-logs/audit-log-service";
+import { ProjectOverviewService } from "./overview/project-overview-service";
 import type {
   ProjectCapability,
   ResourceRelation,
@@ -37,6 +38,7 @@ interface ProjectServices {
   provider: ProviderService;
   quotas: ProjectQuotaService;
   auditLogs: AuditLogService;
+  overview: ProjectOverviewService;
 }
 
 const litellm = new LiteLLMClient();
@@ -55,9 +57,20 @@ function createServices(projectId: string): ProjectServices {
     store,
     litellm,
   );
+  const agent = new AgentService(
+    store,
+    undefined,
+    litellm,
+    policies,
+    catalog,
+    modelRoutings,
+    quotas,
+    accessPolicies,
+  );
   return {
     auditLogs: new AuditLogService(projectId, store.database()),
-    agent: new AgentService(store, undefined, litellm, policies, catalog, modelRoutings, quotas, accessPolicies),
+    agent,
+    overview: new ProjectOverviewService(store, agent),
     agentGarden: new AgentGardenService(
       new AgentGardenStore(projectId, store.database()),
       store,
@@ -186,4 +199,8 @@ export async function getAccessPolicyService(request?: Request): Promise<AccessP
 
 export async function getAuditLogService(request?: Request): Promise<AuditLogService> {
   return (await forRequest(request)).auditLogs;
+}
+
+export async function getProjectOverviewService(request?: Request): Promise<ProjectOverviewService> {
+  return (await forRequest(request)).overview;
 }

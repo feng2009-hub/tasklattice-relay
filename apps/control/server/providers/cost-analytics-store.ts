@@ -60,6 +60,8 @@ export interface ModelUsageFact {
   liteLLMTeamId?: string;
   organizationId?: string;
   endUserId?: string;
+  runId?: string;
+  traceId?: string;
   requestedModel: string;
   resolvedModel: string;
   modelGroup: string;
@@ -297,10 +299,15 @@ export class CostAnalyticsStore {
   }
 
   async insertFact(fact: ModelUsageFact): Promise<boolean> {
+    if (fact.projectId !== this.projectId) {
+      throw new Error(
+        `Refusing to store usage for Project ${fact.projectId} in Project ${this.projectId}.`,
+      );
+    }
     try {
       await this.db.modelUsageFactRecord.create({
         data: defined({
-          projectId: this.projectId,
+          projectId: fact.projectId,
           eventId: fact.eventId,
           requestId: fact.requestId,
           requestStartTime: fact.requestStartTime,
@@ -321,6 +328,8 @@ export class CostAnalyticsStore {
           liteLLMTeamId: fact.liteLLMTeamId,
           organizationId: fact.organizationId,
           endUserId: fact.endUserId,
+          runId: fact.runId,
+          traceId: fact.traceId,
           requestedModel: fact.requestedModel,
           resolvedModel: fact.resolvedModel,
           modelGroup: fact.modelGroup,
@@ -427,6 +436,8 @@ export class CostAnalyticsStore {
       ...(row.liteLLMTeamId ? { liteLLMTeamId: row.liteLLMTeamId } : {}),
       ...(row.organizationId ? { organizationId: row.organizationId } : {}),
       ...(row.endUserId ? { endUserId: row.endUserId } : {}),
+      ...(row.runId ? { runId: row.runId } : {}),
+      ...(row.traceId ? { traceId: row.traceId } : {}),
       requestedModel: row.requestedModel,
       resolvedModel: row.resolvedModel,
       modelGroup: row.modelGroup,

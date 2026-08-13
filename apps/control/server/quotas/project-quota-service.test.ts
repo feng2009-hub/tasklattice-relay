@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { LiteLLMAdminClient } from "../providers/litellm-client";
 import { createTestStore } from "../test/store";
 import { ProjectQuotaService } from "./project-quota-service";
+import type { ModelUsageFact } from "../providers/cost-analytics-store";
 
 function adapter(): LiteLLMAdminClient {
   return {
@@ -19,6 +20,44 @@ function adapter(): LiteLLMAdminClient {
       secret: "sk-instance",
       tokenId: "hashed-instance",
     })),
+  };
+}
+
+function usageFact(requestId: string, at: string, spend: number): ModelUsageFact {
+  return {
+    eventId: `litellm:${requestId}`,
+    requestId,
+    requestStartTime: at,
+    usageDate: at.slice(0, 10),
+    usageHour: new Date(at).getUTCHours(),
+    projectId: "individual",
+    environmentId: "production",
+    requestedModel: "production-chat",
+    resolvedModel: "production-chat",
+    modelGroup: "production-chat",
+    provider: "LiteLLM",
+    callType: "chat",
+    promptTokens: 10,
+    completionTokens: 5,
+    totalTokens: 15,
+    cachedInputTokens: 0,
+    cacheCreationInputTokens: 0,
+    reasoningTokens: 0,
+    totalCostUsd: spend,
+    costStatus: "known",
+    costSource: "litellm:spend",
+    priceVersion: "test",
+    requestCount: 1,
+    successCount: 1,
+    failureCount: 0,
+    retryCount: 0,
+    cacheHit: false,
+    fallbackUsed: false,
+    status: "success",
+    tags: [],
+    metadata: {},
+    sourceRecordHash: requestId,
+    createdAt: at,
   };
 }
 
@@ -47,6 +86,8 @@ describe("ProjectQuotaService", () => {
       syncStatus: "synced",
       litellmTeamId: "team-project",
     });
+    expect(quota.budgetPeriodStartedAt).toBeTruthy();
+    expect(quota.budgetResetsAt).toBeTruthy();
     expect(litellm.updateProjectTeam).toHaveBeenCalledWith("team-project", {
       maxBudget: 250,
       budgetDuration: "30d",
@@ -56,6 +97,37 @@ describe("ProjectQuotaService", () => {
       "team-project",
       expect.objectContaining({ role: "user" }),
     );
+  });
+
+  it("reports budget usage only inside the current reset window", async () => {
+    const store = createTestStore();
+    let current = new Date("2026-08-01T00:00:00.000Z");
+    const service = new ProjectQuotaService(store, adapter(), () => current);
+    await service.update({
+      hardBudgetUsd: 100,
+      budgetDuration: "30d",
+      tpmLimit: null,
+      maxInstances: null,
+      maxMcpIntegrations: null,
+      maxKnowledgeBaseIntegrations: null,
+    }, "admin");
+    await store.costAnalytics().insertFact(usageFact(
+      "before-window",
+      "2026-07-31T23:59:59.000Z",
+      80,
+    ));
+    await store.costAnalytics().insertFact(usageFact(
+      "inside-window",
+      "2026-08-02T00:00:00.000Z",
+      25,
+    ));
+    current = new Date("2026-08-13T00:00:00.000Z");
+
+    const quota = await service.get();
+
+    expect(quota.usage).toMatchObject({ spendUsd: 25, totalTokens: 15 });
+    expect(quota.budgetPeriodStartedAt).toBe("2026-08-01T00:00:00.000Z");
+    expect(quota.budgetResetsAt).toBe("2026-08-31T00:00:00.000Z");
   });
 
   it("treats null as unlimited and zero as blocking new resources", async () => {

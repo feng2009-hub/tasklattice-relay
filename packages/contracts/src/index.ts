@@ -3,6 +3,7 @@ import type { ProjectCapability } from "./authorization.js";
 
 export * from "./traces.js";
 export * from "./authorization.js";
+export * from "./project-overview.js";
 
 export const agentStatuses = [
   "PROVISIONING",
@@ -1632,6 +1633,7 @@ export interface ModelCostSummaryResponse {
   completionTokens: number;
   requests: number;
   unknownCostRequests: number;
+  uncorrelatedRunRequests: number;
   highestCostInstance?: ModelCostObjectSpend;
   highestCostModel?: ModelCostObjectSpend;
   comparison: {
@@ -1743,6 +1745,7 @@ export interface ModelCostDataQualityResponse {
   tokenMismatchRequests: number;
   negativeSpendRequests: number;
   unknownCostRequests: number;
+  uncorrelatedRunRequests: number;
   duplicateRequests: number;
   lateArrivingRequests: number;
   lastSyncAt?: string;
@@ -1891,6 +1894,8 @@ export interface ProjectQuota {
   projectId: string;
   hardBudgetUsd: number | null;
   budgetDuration: "1d" | "7d" | "30d" | null;
+  budgetPeriodStartedAt: string | null;
+  budgetResetsAt: string | null;
   tpmLimit: number | null;
   maxInstances: number | null;
   maxMcpIntegrations: number | null;

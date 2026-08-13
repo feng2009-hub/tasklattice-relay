@@ -388,7 +388,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export function composeOpenShellInferencePolicy(
   policyYaml: string,
   _inferenceEndpoint: string,
-  _agentPlatform: AgentPlatformId,
+  agentPlatform: AgentPlatformId,
+  telemetryEndpoint?: string,
 ): string {
   const document = parse(policyYaml) as unknown;
   if (!isRecord(document) || document.version !== 1)
@@ -401,6 +402,39 @@ export function composeOpenShellInferencePolicy(
   // rule. Keeping the legacy direct rule in a business policy can match first
   // and bypass credential resolution, so remove only TaskLattice Relay's old entry.
   delete networkPolicies.tali_inference_gateway;
+  if (telemetryEndpoint) {
+    const endpoint = new URL(telemetryEndpoint);
+    if (endpoint.protocol !== "http:" && endpoint.protocol !== "https:") {
+      throw new Error("The Run telemetry endpoint must use HTTP or HTTPS.");
+    }
+    const port = endpoint.port
+      ? Number(endpoint.port)
+      : endpoint.protocol === "https:"
+        ? 443
+        : 80;
+    const isKubernetesService =
+      endpoint.hostname === kubernetesServiceDnsSuffix
+      || endpoint.hostname.endsWith(`.${kubernetesServiceDnsSuffix}`);
+    networkPolicies.tali_run_telemetry = {
+      name: "tali-run-telemetry",
+      endpoints: [{
+        host: endpoint.hostname,
+        port,
+        protocol: "rest",
+        enforcement: "enforce",
+        access: "full",
+        ...(isKubernetesService ? { allowed_ips: kubernetesServiceCidrs() } : {}),
+      }],
+      binaries: (agentPlatform === "openclaw"
+        ? ["/usr/local/bin/node"]
+        : [
+            "/opt/hermes/.venv/bin/python",
+            "/opt/hermes/.venv/bin/python3",
+            "/usr/local/bin/python",
+            "/usr/local/bin/python3",
+          ]).map((path) => ({ path })),
+    };
+  }
   if (Object.keys(networkPolicies).length > 0)
     document.network_policies = networkPolicies;
   else
@@ -414,6 +448,7 @@ export function openShellSandboxCreateArguments(
   instructionsFile: string,
   bootstrapFile: string,
   policyFile: string,
+  telemetryFile: string,
 ): string[] {
   const runtime = getAgentPlatformRuntime(input.agentPlatform);
   return openShellArguments([
@@ -441,11 +476,21 @@ export function openShellSandboxCreateArguments(
     `${instructionsFile}:${runtime.instructionsPath}`,
     "--upload",
     `${bootstrapFile}:/tmp/tali-nemoclaw-start`,
+    "--upload",
+    `${telemetryFile}:/tmp/tali-run-telemetry.env`,
     "--no-tty",
     "--",
     "/bin/bash",
     "/tmp/tali-nemoclaw-start",
   ]);
+}
+
+export function runTelemetryEnvironmentFile(input: ProvisionInput): string {
+  return [
+    `TALI_RUN_TELEMETRY_ENDPOINT_B64=${Buffer.from(input.runTelemetry.endpoint, "utf8").toString("base64")}`,
+    `TALI_RUN_TELEMETRY_TOKEN_B64=${Buffer.from(input.runTelemetry.token, "utf8").toString("base64")}`,
+    "",
+  ].join("\n");
 }
 
 export function openShellNemoClawProbeArguments(
@@ -641,6 +686,7 @@ async function createOpenShellNemoClawSandbox(
   instructionsFile: string,
   bootstrapFile: string,
   policyFile: string,
+  telemetryFile: string,
   observer?: ProvisioningObserver,
 ): Promise<string[]> {
   const timeoutMs = Number(process.env.NEMOCLAW_START_TIMEOUT_MS ?? "180000");
@@ -652,6 +698,7 @@ async function createOpenShellNemoClawSandbox(
         instructionsFile,
         bootstrapFile,
         policyFile,
+        telemetryFile,
       ),
       { env: process.env, stdio: ["ignore", "pipe", "pipe"] },
     );
@@ -790,6 +837,7 @@ export async function provisionOpenShellSandbox(
   const instructionsFile = join(temporaryDirectory, "AGENTS.md");
   const bootstrapFile = join(temporaryDirectory, "tali-nemoclaw-start");
   const policyFile = join(temporaryDirectory, "openshell-policy.yaml");
+  const telemetryFile = join(temporaryDirectory, "tali-run-telemetry.env");
   try {
     await writeFile(
       instructionsFile,
@@ -813,15 +861,20 @@ export async function provisionOpenShellSandbox(
         input.policyYaml ?? "version: 1\n",
         input.inferenceEndpoint,
         input.agentPlatform,
+        input.runTelemetry.endpoint,
       ),
       { mode: 0o600 },
     );
+    await writeFile(telemetryFile, runTelemetryEnvironmentFile(input), {
+      mode: 0o600,
+    });
     observer?.onStage?.("POD", "Creating the OpenShell Sandbox and starting its Kubernetes Pod.");
     return await createOpenShellNemoClawSandbox(
       input,
       instructionsFile,
       bootstrapFile,
       policyFile,
+      telemetryFile,
       observer,
     );
   } catch (error) {

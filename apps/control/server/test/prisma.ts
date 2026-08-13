@@ -23,6 +23,9 @@ import defaultAccessPolicyMigration from "../../prisma/migrations/20260803000000
 import reconcileSpecializationCapabilitiesMigration from "../../prisma/migrations/20260803010000_reconcile_specialization_capabilities/migration.sql?raw";
 import modelRoutingDomainMigration from "../../prisma/migrations/20260803020000_model_routing_domain/migration.sql?raw";
 import capabilityAdmissionMigration from "../../prisma/migrations/20260812000000_project_capability_admission/migration.sql?raw";
+import projectRunMetricsMigration from "../../prisma/migrations/20260813000000_project_run_metrics/migration.sql?raw";
+import projectBudgetWindowsMigration from "../../prisma/migrations/20260813010000_project_budget_windows/migration.sql?raw";
+import modelUsageRunCorrelationMigration from "../../prisma/migrations/20260813020000_model_usage_run_correlation/migration.sql?raw";
 import { developmentResourceCatalog } from "../catalog/development-resource-catalog";
 import { PrismaClient } from "../generated/prisma/client";
 
@@ -286,6 +289,25 @@ export function createTestPrisma(): PrismaClient {
     CREATE INDEX audit_logs_project_capability_idx
       ON tasklattice.audit_logs(project_id, authorization_capability, occurred_at DESC);
   `);
+  if (
+    !projectRunMetricsMigration.includes("project_runs_runtime_id_key")
+    || !projectRunMetricsMigration.includes("project_runs_status_check")
+    || !projectRunMetricsMigration.includes("project_runs_terminal_time_check")
+  ) {
+    throw new Error("Project Run metrics migration is incomplete.");
+  }
+  memory.public.none(projectRunMetricsMigration);
+  if (
+    !projectBudgetWindowsMigration.includes("project_quotas_budget_window_check")
+    || !projectBudgetWindowsMigration.includes("budget_period_started_at")
+  ) {
+    throw new Error("Project budget window migration is incomplete.");
+  }
+  memory.public.none(projectBudgetWindowsMigration);
+  if (!modelUsageRunCorrelationMigration.includes("model_usage_fact_run_time_idx")) {
+    throw new Error("Model usage Run-correlation migration is incomplete.");
+  }
+  memory.public.none(modelUsageRunCorrelationMigration);
   const pg = memory.adapters.createPg();
   const query = pg.Client.prototype.query;
   pg.Client.prototype.query = function (
