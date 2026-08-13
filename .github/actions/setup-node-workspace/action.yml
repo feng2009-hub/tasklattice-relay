@@ -1,0 +1,16 @@
+name: Set up Node workspace
+description: Install the repository's Node.js toolchain with the shared npm download cache.
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Node.js
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      with:
+        node-version: 22
+        cache: npm
+        cache-dependency-path: package-lock.json
+
+    - name: Install workspace dependencies
+      shell: bash
+      run: npm ci
