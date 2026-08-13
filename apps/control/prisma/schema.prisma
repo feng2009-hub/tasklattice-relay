@@ -60,7 +60,7 @@ model User {
   username    String     @unique
   email       String     @unique
   displayName String     @map("display_name")
-  city        String?
+  language    String     @default("en-US")
   timezone    String     @default("UTC")
   theme       String     @default("system")
   systemRole  SystemRole @default(user) @map("system_role")
@@ -71,9 +71,28 @@ model User {
   createdProjects Project[]           @relation("ProjectCreator")
   identities      UserIdentity[]
   memberships     ProjectMember[]
+  notifications   UserNotification[]
   invitations     ProjectInvitation[] @relation("InvitationCreator")
 
   @@map("users")
+  @@schema("tasklattice")
+}
+
+model UserNotification {
+  id         String    @id @default(uuid())
+  userId     String    @map("user_id")
+  title      String
+  message    String
+  severity   String    @default("info")
+  actionHref String?   @map("action_href")
+  readAt     DateTime? @map("read_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, readAt])
+  @@map("user_notifications")
   @@schema("tasklattice")
 }
 
@@ -261,9 +280,24 @@ model ProjectMember {
   user               User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   ownedAgents        AgentRecord[]        @relation("AgentRecordOwnerMembership")
   ownedCatalogAgents AgentCatalogRecord[] @relation("AgentCatalogRecordOwnerMembership")
+  roleAssignments    ProjectMemberRoleAssignment[]
 
   @@id([projectId, userId])
   @@map("project_members")
+  @@schema("tasklattice")
+}
+
+model ProjectMemberRoleAssignment {
+  projectId  String      @map("project_id")
+  userId     String      @map("user_id")
+  role       ProjectRole
+  assignedAt DateTime    @default(now()) @map("assigned_at") @db.Timestamptz(6)
+
+  member ProjectMember @relation(fields: [projectId, userId], references: [projectId, userId], onDelete: Cascade, onUpdate: Cascade)
+
+  @@id([projectId, userId, role])
+  @@index([projectId, role])
+  @@map("project_member_role_assignments")
   @@schema("tasklattice")
 }
 

@@ -7,14 +7,16 @@ const projects: Project[] = [
     id: "individual",
     name: "admin",
     memberCount: 1,
-    role: "admin",
+    assignedRoles: ["developer", "admin"],
+    activeRole: "admin",
     effectiveCapabilities: [],
   },
   {
     id: "devops",
     name: "DevOps Team",
     memberCount: 8,
-    role: "user",
+    assignedRoles: ["user"],
+    activeRole: "user",
     effectiveCapabilities: [],
   },
 ];

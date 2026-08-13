@@ -38,7 +38,7 @@ describe("PersonalProfileService", () => {
     });
     await db.user.update({
       where: { id: "local-admin" },
-      data: { city: null, theme: "system", timezone: "UTC" },
+      data: { language: "en-US", theme: "system", timezone: "UTC" },
     });
   });
 
@@ -48,30 +48,25 @@ describe("PersonalProfileService", () => {
     });
     await db.user.update({
       where: { id: "local-admin" },
-      data: { city: null, theme: "system", timezone: "UTC" },
+      data: { language: "en-US", theme: "system", timezone: "UTC" },
     });
   });
 
-  it("stores city on the user instead of the Project", async () => {
+  it("stores personal preferences on the user", async () => {
     await expect(
       service.update(auth(), {
-        city: "Shanghai",
+        language: "zh-CN",
         theme: "dark",
         timezone: "Asia/Shanghai",
       }),
     ).resolves.toMatchObject({
-      city: "Shanghai",
       displayName: "Local Administrator",
+      language: "zh-CN",
       theme: "dark",
       timezone: "Asia/Shanghai",
       username: "admin",
     });
-    await expect(service.get(auth())).resolves.toMatchObject({
-      city: "Shanghai",
-    });
-    await expect(
-      db.project.findUnique({ where: { id: "individual" } }),
-    ).resolves.not.toHaveProperty("city");
+    await expect(service.get(auth())).resolves.not.toHaveProperty("city");
   });
 
   it("resets a local password using only the database hash", async () => {

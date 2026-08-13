@@ -99,6 +99,9 @@ export function projectRouteAdmissionPolicy(
       return policy("PROJECT", [requirement("CAP_PROJECT_MEMBER_REMOVE", "ProjectMember")], tail[1]);
     }
   }
+  if (tail[0] === "role" && method === "PUT" && tail.length === 1) {
+    return policy("PROJECT", [requirement("CAP_PROJECT_VIEW", "ProjectRole")]);
+  }
   if (tail[0] === "quota" && tail.length === 1) {
     return method === "GET"
       ? policy("PROJECT", [requirement("CAP_PROJECT_QUOTA_VIEW", "ProjectQuota")])

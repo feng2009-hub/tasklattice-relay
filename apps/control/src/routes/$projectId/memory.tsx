@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
-  ArrowRight,
   BrainCircuit,
   Database,
   FileText,
@@ -72,17 +71,6 @@ function Memory() {
         title="Memory"
         description="Durable, Instance-isolated context for OpenClaw Agents. Keep native notes or add semantic recall through a validated embedding model."
         badge={<Badge variant="outline">OpenClaw</Badge>}
-        actions={(
-          <Button asChild className="h-11">
-            <Link
-              to="/$projectId/instances"
-              params={{ projectId }}
-              search={{ create: "instance", platform: "openclaw" }}
-            >
-              Configure an Instance <ArrowRight />
-            </Link>
-          </Button>
-        )}
       />
 
       <Card>
@@ -220,8 +208,8 @@ function Memory() {
               <CardDescription className="mt-1">Validated deployments available for Hybrid memory.</CardDescription>
             </div>
             <Button asChild variant="outline" size="sm">
-              <Link to="/$projectId/setting" params={{ projectId }} search={{ section: "model-routings" }}>
-                Manage Model and Routing
+              <Link to="/$projectId/setting" params={{ projectId }} search={{ section: "models" }}>
+                Manage Models
               </Link>
             </Button>
           </div>

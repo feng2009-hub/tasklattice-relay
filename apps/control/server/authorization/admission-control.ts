@@ -9,8 +9,11 @@ import type { PrismaClient } from "../generated/prisma/client";
 import { appendAdmissionEvidence, type AdmissionEvidence } from "./authorization-context";
 import {
   builtinRole,
-  membershipRoleToBuiltinRole,
 } from "./builtin-roles";
+import {
+  activeBuiltinRoleIds,
+  membershipAccessInclude,
+} from "../projects/project-access";
 
 export interface AdmissionInput {
   actorId: string;
@@ -165,6 +168,7 @@ export class ProjectAdmissionService {
     const membership = await this.db.projectMember.findUnique({
       where: { projectId_userId: { projectId, userId: actorId } },
       include: {
+        ...membershipAccessInclude,
         project: {
           select: {
             deletedAt: true,
@@ -172,9 +176,8 @@ export class ProjectAdmissionService {
         },
       },
     });
-    const membershipRole = membership?.role as keyof typeof membershipRoleToBuiltinRole | undefined;
-    const roleIds = membership && !membership.project.deletedAt && membershipRole
-      ? [membershipRoleToBuiltinRole[membershipRole]]
+    const roleIds = membership && !membership.project.deletedAt
+      ? activeBuiltinRoleIds(membership)
       : [];
     const evidence = evaluateAdmission({
       actorId,

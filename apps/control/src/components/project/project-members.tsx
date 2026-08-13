@@ -140,8 +140,13 @@ export function ProjectMembers({ project }: { project: Project }) {
                     {member.email}
                   </span>
                 </span>
-                <span className="hidden text-xs font-medium capitalize text-muted-foreground sm:block">
-                  {projectRoleLabels[member.role]}
+                <span className="hidden max-w-72 flex-wrap justify-end gap-1 sm:flex">
+                  {member.roles.map((role) => (
+                    <Badge key={role} variant="outline" className="text-[10px]">
+                      {projectRoleLabels[role]}
+                      {member.activeRole === role ? " · current" : ""}
+                    </Badge>
+                  ))}
                 </span>
                 {permissions.canRemoveMembers ? (
                   <DropdownMenu>

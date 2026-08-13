@@ -19,7 +19,6 @@ import {
   Info,
   Plus,
   RefreshCw,
-  Route as RouteIcon,
   Search,
   Trash2,
   Workflow,
@@ -42,12 +41,6 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
-import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -59,7 +52,7 @@ import { cn } from "@/lib/utils";
 import type { Project } from "@/types/project";
 
 type ModelTypeFilter = "all" | ModelType;
-type ManagementView = "models" | "routings";
+type ManagementView = "models" | "routing";
 
 const modelTypeLabels: Record<ModelType, string> = {
   llm: "Text generation",
@@ -78,11 +71,17 @@ const capabilityLabels: Record<ModelCapability, string> = {
   multilingual: "Multilingual",
 };
 
-export function ProjectModelRoutingsSettings({ project }: { project: Project }) {
+export function ProjectModelRoutingsSettings({
+  onViewChange,
+  project,
+  view,
+}: {
+  onViewChange: (view: ManagementView) => void;
+  project: Project;
+  view: ManagementView;
+}) {
   const scope = useProjectQueryScope();
   const queryClient = useQueryClient();
-  const [managementView, setManagementView] =
-    useState<ManagementView>("models");
   const [createOpen, setCreateOpen] = useState(false);
   const [registerOpen, setRegisterOpen] = useState(false);
   const [registerAccount, setRegisterAccount] = useState<ProviderAccount>();
@@ -201,94 +200,8 @@ export function ProjectModelRoutingsSettings({ project }: { project: Project }) 
 
   return (
     <div>
-      <header className="border-b p-5">
-        <div>
-          <h3 className="text-sm font-semibold">Model and Routing</h3>
-          <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">
-            Register models first, then configure how Instances route, retry,
-            and fail over between them.
-          </p>
-        </div>
-      </header>
-
-      <Tabs
-        className="gap-0"
-        value={managementView}
-        onValueChange={(value) => setManagementView(value as ManagementView)}
-      >
-        <div className="flex flex-col gap-3 border-b px-5 sm:flex-row sm:items-center sm:justify-between">
-          <TabsList
-            aria-label="Model and Routing management"
-            className="h-12 w-full justify-start gap-1 rounded-none bg-transparent p-0 sm:w-auto"
-          >
-            <TabsTrigger
-              className="h-12 rounded-none border-0 px-2 data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none"
-              value="models"
-            >
-              <Database />
-              Models
-              <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
-                {models.length}
-              </span>
-            </TabsTrigger>
-            <TabsTrigger
-              className="h-12 rounded-none border-0 px-2 data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none"
-              value="routings"
-            >
-              <Workflow />
-              Routing
-              <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
-                {routingItems.length}
-              </span>
-            </TabsTrigger>
-          </TabsList>
-          {canManage ? (
-            <div className="flex flex-wrap gap-2 pb-3 sm:pb-0">
-              {managementView === "models" ? (
-                <>
-                  <Button
-                    className="h-9"
-                    onClick={() =>
-                      providerAccounts.length
-                        ? openModelRegistration()
-                        : openProviderConnection()
-                    }
-                  >
-                    <Plus />
-                    {providerAccounts.length
-                      ? "Register models"
-                      : "Connect Provider"}
-                  </Button>
-                  {providerAccounts.length ? (
-                    <Button
-                      className="h-9"
-                      variant="outline"
-                      onClick={openProviderConnection}
-                    >
-                      Connect Provider
-                    </Button>
-                  ) : null}
-                </>
-              ) : (
-                <Button
-                  className="h-9"
-                  disabled={!readyChatModels.length}
-                  title={
-                    readyChatModels.length
-                      ? undefined
-                      : "Register a validated text generation model first."
-                  }
-                  onClick={() => setCreateOpen(true)}
-                >
-                  <Plus />
-                  Create Routing
-                </Button>
-              )}
-            </div>
-          ) : null}
-        </div>
-
-        <TabsContent className="mt-0 divide-y" value="models">
+      {view === "models" ? (
+        <div className="divide-y">
           <section aria-labelledby="registered-models-title">
             <div className="flex flex-col gap-4 p-5 pb-4 sm:flex-row sm:items-end sm:justify-between">
               <div>
@@ -313,43 +226,71 @@ export function ProjectModelRoutingsSettings({ project }: { project: Project }) 
                   Models available to this Project and its routing configurations.
                 </p>
               </div>
-              {models.length ? (
-                <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-                  <div className="relative sm:w-64">
-                    <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      className="pl-9"
-                      aria-label="Search registered models"
-                      placeholder="Search models…"
-                      value={modelSearch}
-                      onChange={(event) => setModelSearch(event.target.value)}
-                    />
-                  </div>
-                  <Select
-                    value={modelType}
-                    onValueChange={(value) =>
-                      setModelType(value as ModelTypeFilter)
-                    }
-                  >
-                    <SelectTrigger
-                      className="w-full sm:w-44"
-                      aria-label="Filter by model type"
+              <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
+                {canManage ? (
+                  <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
+                    <Button
+                      className="h-9"
+                      onClick={() =>
+                        providerAccounts.length
+                          ? openModelRegistration()
+                          : openProviderConnection()
+                      }
                     >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All model types</SelectItem>
-                      <SelectItem value="llm">Text generation</SelectItem>
-                      <SelectItem value="text-embedding">
-                        Embedding
-                      </SelectItem>
-                      <SelectItem value="speech-to-text">
-                        Speech to text
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              ) : null}
+                      <Plus />
+                      {providerAccounts.length
+                        ? "Register models"
+                        : "Connect Provider"}
+                    </Button>
+                    {providerAccounts.length ? (
+                      <Button
+                        className="h-9"
+                        variant="outline"
+                        onClick={openProviderConnection}
+                      >
+                        Connect Provider
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : null}
+                {models.length ? (
+                  <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                    <div className="relative sm:w-64">
+                      <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        className="pl-9"
+                        aria-label="Search registered models"
+                        placeholder="Search models…"
+                        value={modelSearch}
+                        onChange={(event) => setModelSearch(event.target.value)}
+                      />
+                    </div>
+                    <Select
+                      value={modelType}
+                      onValueChange={(value) =>
+                        setModelType(value as ModelTypeFilter)
+                      }
+                    >
+                      <SelectTrigger
+                        className="w-full sm:w-44"
+                        aria-label="Filter by model type"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All model types</SelectItem>
+                        <SelectItem value="llm">Text generation</SelectItem>
+                        <SelectItem value="text-embedding">
+                          Embedding
+                        </SelectItem>
+                        <SelectItem value="speech-to-text">
+                          Speech to text
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : null}
+              </div>
             </div>
 
             {removeModel.error ? (
@@ -420,21 +361,37 @@ export function ProjectModelRoutingsSettings({ project }: { project: Project }) 
             models={models}
             onRegisterModels={openModelRegistration}
           />
-        </TabsContent>
-
-        <TabsContent className="mt-0" value="routings">
-          <section aria-labelledby="routings-title">
-            <div className="p-5 pb-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <h3 id="routings-title" className="text-sm font-semibold">
-                  Routing
-                </h3>
-                <Badge variant="outline">{routingItems.length}</Badge>
-                <Tip content="Instances reference a stable routing configuration while LiteLLM applies model selection, retries, and fallback policy." />
+        </div>
+      ) : (
+        <section aria-labelledby="routings-title">
+            <div className="flex flex-col gap-4 p-5 pb-4 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 id="routings-title" className="text-sm font-semibold">
+                    Routing
+                  </h3>
+                  <Badge variant="outline">{routingItems.length}</Badge>
+                  <Tip content="Instances reference a stable routing configuration while LiteLLM applies model selection, retries, and fallback policy." />
+                </div>
+                <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">
+                  Reusable routing configurations that Instances reference directly.
+                </p>
               </div>
-              <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">
-                Reusable routing configurations that Instances reference directly.
-              </p>
+              {canManage ? (
+                <Button
+                  className="h-9 self-start sm:self-auto"
+                  disabled={!readyChatModels.length}
+                  title={
+                    readyChatModels.length
+                      ? undefined
+                      : "Register a validated text generation model first."
+                  }
+                  onClick={() => setCreateOpen(true)}
+                >
+                  <Plus />
+                  Create Routing
+                </Button>
+              ) : null}
             </div>
 
             {routings.isPending ? (
@@ -510,7 +467,7 @@ export function ProjectModelRoutingsSettings({ project }: { project: Project }) 
                         if (readyChatModels.length) {
                           setCreateOpen(true);
                         } else {
-                          setManagementView("models");
+                          onViewChange("models");
                         }
                       }}
                     >
@@ -523,9 +480,8 @@ export function ProjectModelRoutingsSettings({ project }: { project: Project }) 
                 }
               />
             )}
-          </section>
-        </TabsContent>
-      </Tabs>
+        </section>
+      )}
 
       <CreateModelRoutingSheet
         open={createOpen}
@@ -538,7 +494,7 @@ export function ProjectModelRoutingsSettings({ project }: { project: Project }) 
           : {})}
         onRegisterModels={() => {
           setCreateOpen(false);
-          setManagementView("models");
+          onViewChange("models");
           openModelRegistration();
         }}
       />

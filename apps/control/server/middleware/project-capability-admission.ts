@@ -10,6 +10,11 @@ import {
   projectRouteAdmissionPolicy,
   type RelationResolver,
 } from "../authorization/route-capabilities";
+import {
+  accessForMembership,
+  membershipAccessInclude,
+  type ProjectRole,
+} from "../projects/project-access";
 
 async function jsonBody(request: Request): Promise<Record<string, unknown>> {
   try {
@@ -32,7 +37,7 @@ async function ownership(
   resolver: RelationResolver,
   resourceId?: string,
 ): Promise<{
-  collectionRole?: "admin" | "auditor" | "developer" | "user" | "approver";
+  collectionRole?: ProjectRole;
   ownedByActor: boolean;
 }> {
   const path = new URL(request.url).pathname;
@@ -42,10 +47,13 @@ async function ownership(
       where: {
         projectId_userId: { projectId: scopedProjectId, userId: actorId },
       },
-      select: { role: true },
+      include: membershipAccessInclude,
     });
+    const collectionRole = membership
+      ? accessForMembership(membership).activeRole
+      : undefined;
     return {
-      ...(membership?.role ? { collectionRole: membership.role } : {}),
+      ...(collectionRole ? { collectionRole } : {}),
       ownedByActor: false,
     };
   }

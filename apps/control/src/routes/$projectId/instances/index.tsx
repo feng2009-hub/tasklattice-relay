@@ -251,7 +251,31 @@ function Instances() {
                 );
               })}
             </>
-          ) : <EmptyState icon={Boxes} title="No matching instances" description="Adjust the search or status filter, or create a new Instance." />}
+          ) : agents.data?.length ? (
+            <EmptyState
+              icon={Boxes}
+              title="No matching instances"
+              description="Adjust the search or status filter."
+            />
+          ) : (
+            <EmptyState
+              icon={Boxes}
+              title="No Instances yet"
+              description="Create an Instance to start running an Agent in this Project."
+              action={permissions.canCreateAgents ? (
+                <Button asChild>
+                  <Link
+                    to="/$projectId/instances"
+                    params={{ projectId }}
+                    search={{ create: "instance" }}
+                  >
+                    <Plus />
+                    Create Instance
+                  </Link>
+                </Button>
+              ) : undefined}
+            />
+          )}
         </CardContent>
       </Card>
       </TooltipProvider>

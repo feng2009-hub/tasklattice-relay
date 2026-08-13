@@ -165,10 +165,12 @@ snapshot read requires both `CAP_AGENT_REGISTRATION_VIEW` and
 `CAP_AGENT_CONNECTION_VIEW`. Registration, discovery, deletion, connection
 grant, and connection revoke require their corresponding `CAP_AGENT_*`
 capabilities and a relation proved from the registered Agent or Coordinator
-Instance. In the current builtin presets these mutation capabilities belong to
-Agent Developer and are limited to `OWNER`/`MAINTAINER`; `OWNER` is implemented
-and `MAINTAINER` is not yet persisted. Project Administrators do not implicitly
-receive Agent lifecycle permissions.
+Instance. In the current builtin presets these Agent Garden mutation
+capabilities belong to Agent Developer and are limited to
+`OWNER`/`MAINTAINER`; `OWNER` is implemented and `MAINTAINER` is not yet
+persisted. Project Administrators receive the create-and-bind capabilities
+needed to bootstrap an Instance, but do not implicitly receive existing-Agent
+lifecycle or Agent Garden mutation permissions.
 Project has no Environment dimension. The evaluator supports an explicit
 `APPROVAL_REQUIRED` result, but the Project route adapter does not yet attach
 approval requirements and the approval workflow is not implemented. See

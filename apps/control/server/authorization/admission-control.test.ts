@@ -192,7 +192,7 @@ describe("capability admission evaluator", () => {
     await expect(service.authorize(
       request,
       "local-admin",
-      "CAP_AGENT_INSTANCE_CREATE",
+      "CAP_AGENT_INSTANCE_TERMINAL_EXEC",
       { relation: "OWNER", resourceType: "AgentInstance" },
     )).rejects.toBeInstanceOf(CapabilityAdmissionError);
     expect(admissionEvidenceForRequest(request)[0]?.decision).toBe("DENY");

@@ -6,9 +6,9 @@ import { prisma } from "../db/prisma";
 import { ProjectService } from "../projects/project-service";
 
 export interface PersonalProfile {
-  city: string;
   displayName: string;
   email: string;
+  language: "en-US" | "zh-CN";
   provider: "local" | "sso";
   systemRole: SystemRole;
   theme: "system" | "light" | "dark";
@@ -26,15 +26,13 @@ export class PersonalProfileService {
     });
     if (!user) throw new Error("Personal profile not found.");
     return {
-      city: user.city ?? "",
       displayName: user.displayName,
       email: user.email,
+      language: user.language === "zh-CN" ? "zh-CN" : "en-US",
       provider: auth.user.provider,
       systemRole: user.systemRole,
       theme:
-        user.theme === "light" || user.theme === "dark"
-          ? user.theme
-          : "system",
+        user.theme === "light" || user.theme === "dark" ? user.theme : "system",
       timezone: user.timezone || "UTC",
       username: user.username,
     };
@@ -43,7 +41,7 @@ export class PersonalProfileService {
   async update(
     auth: AuthPayload,
     input: {
-      city: string;
+      language: "en-US" | "zh-CN";
       theme: "system" | "light" | "dark";
       timezone: string;
     },
@@ -52,7 +50,7 @@ export class PersonalProfileService {
     await this.db.user.update({
       where: { id: auth.sub },
       data: {
-        city: input.city || null,
+        language: input.language,
         theme: input.theme,
         timezone: input.timezone,
       },
@@ -88,7 +86,9 @@ export class PersonalProfileService {
     );
     if (!valid) throw new Error("Invalid current password.");
     if (input.currentPassword === input.newPassword) {
-      throw new Error("New password must be different from the current password.");
+      throw new Error(
+        "New password must be different from the current password.",
+      );
     }
     await this.db.localCredential.update({
       where: { identityId: identity.id },

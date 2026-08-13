@@ -30,8 +30,21 @@ describe("Project route capability declarations", () => {
       const pathname = `/api/v1/projects/individual${route ? `/${route}` : ""}`;
       if (!projectRouteAdmissionPolicy(method, pathname)) uncovered.push(file);
     }
-    expect(files).toHaveLength(74);
+    expect(files).toHaveLength(75);
     expect(uncovered).toEqual([]);
+  });
+
+  it("allows members to switch only among roles assigned to their Account", () => {
+    expect(projectRouteAdmissionPolicy(
+      "PUT",
+      "/api/v1/projects/individual/role",
+    )).toMatchObject({
+      relation: "PROJECT",
+      requirements: [{
+        capability: "CAP_PROJECT_VIEW",
+        resourceType: "ProjectRole",
+      }],
+    });
   });
 
   it("guards the historically membership-only high-risk endpoints", () => {

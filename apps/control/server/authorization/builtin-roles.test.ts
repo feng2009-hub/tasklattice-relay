@@ -37,7 +37,7 @@ describe("builtin Project roles", () => {
     expect(projectCapabilities).not.toContain("CAP_SECRET_REVEAL" as ProjectCapability);
   });
 
-  it("keeps Project Administrator away from runtime superpowers and approval decisions", () => {
+  it("lets Project Administrator bootstrap Instances without runtime superpowers", () => {
     const capabilities = builtinRole("ROLE_PROJECT_ADMIN").capabilities;
     expect(capabilities).toEqual(expect.arrayContaining([
       "CAP_PROJECT_SETTINGS_UPDATE",
@@ -45,10 +45,19 @@ describe("builtin Project roles", () => {
       "CAP_PROJECT_MEMBER_ROLE_ASSIGN",
       "CAP_PROVIDER_VALIDATE",
       "CAP_AGENT_MEMORY_CONFIG_VIEW",
+      "CAP_AGENT_INSTANCE_CREATE",
+      "CAP_AGENT_INSTANCE_ACCESS_POLICY_ASSIGN",
+      "CAP_AGENT_INSTANCE_MODEL_ROUTING_ASSIGN",
+      "CAP_AGENT_INSTANCE_RUNTIME_POLICY_ASSIGN",
+      "CAP_AGENT_INSTANCE_SKILL_ASSIGN",
+      "CAP_AGENT_INSTANCE_MCP_SERVER_ASSIGN",
+      "CAP_AGENT_INSTANCE_KNOWLEDGE_SOURCE_ASSIGN",
+      "CAP_AGENT_MEMORY_CONFIG_UPDATE",
+      "CAP_AGENT_MEMORY_EMBEDDING_ASSIGN",
     ]));
     expect(capabilities).not.toEqual(expect.arrayContaining([
-      "CAP_AGENT_INSTANCE_CREATE",
       "CAP_AGENT_INSTANCE_TERMINAL_EXEC",
+      "CAP_AGENT_INSTANCE_DELETE",
       "CAP_AGENT_MEMORY_CONTENT_VIEW",
       "CAP_AUDIT_EXPORT",
       "CAP_APPROVAL_REQUEST_DECIDE",

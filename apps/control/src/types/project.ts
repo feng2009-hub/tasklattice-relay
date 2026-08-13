@@ -15,7 +15,8 @@ export interface Project {
   name: string;
   avatar?: string;
   memberCount: number;
-  role: ProjectRole;
+  assignedRoles: readonly ProjectRole[];
+  activeRole: ProjectRole;
   effectiveCapabilities: readonly ProjectCapability[];
 }
 
@@ -24,7 +25,8 @@ export interface HumanProjectMember {
   kind: "human";
   name: string;
   email: string;
-  role: ProjectRole;
+  roles: readonly ProjectRole[];
+  activeRole?: ProjectRole;
   status: "active" | "invited";
 }
 

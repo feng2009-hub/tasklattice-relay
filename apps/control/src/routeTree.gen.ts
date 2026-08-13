@@ -16,6 +16,7 @@ import { Route as ProjectIdCostRouteImport } from './routes/$projectId/cost'
 import { Route as ProjectIdKnowledgeBaseRouteImport } from './routes/$projectId/knowledge-base'
 import { Route as ProjectIdMcpServersRouteImport } from './routes/$projectId/mcp-servers'
 import { Route as ProjectIdMemoryRouteImport } from './routes/$projectId/memory'
+import { Route as ProjectIdNotificationsRouteImport } from './routes/$projectId/notifications'
 import { Route as ProjectIdProfileRouteImport } from './routes/$projectId/profile'
 import { Route as ProjectIdRuntimeRouteImport } from './routes/$projectId/runtime'
 import { Route as ProjectIdRuntimePoliciesRouteImport } from './routes/$projectId/runtime-policies'
@@ -67,6 +68,11 @@ const ProjectIdMcpServersRoute = ProjectIdMcpServersRouteImport.update({
 const ProjectIdMemoryRoute = ProjectIdMemoryRouteImport.update({
   id: '/$projectId/memory',
   path: '/$projectId/memory',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProjectIdNotificationsRoute = ProjectIdNotificationsRouteImport.update({
+  id: '/$projectId/notifications',
+  path: '/$projectId/notifications',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProjectIdProfileRoute = ProjectIdProfileRouteImport.update({
@@ -169,6 +175,7 @@ export interface FileRoutesByFullPath {
   '/$projectId/knowledge-base': typeof ProjectIdKnowledgeBaseRoute
   '/$projectId/mcp-servers': typeof ProjectIdMcpServersRoute
   '/$projectId/memory': typeof ProjectIdMemoryRoute
+  '/$projectId/notifications': typeof ProjectIdNotificationsRoute
   '/$projectId/profile': typeof ProjectIdProfileRoute
   '/$projectId/runtime': typeof ProjectIdRuntimeRoute
   '/$projectId/runtime-policies': typeof ProjectIdRuntimePoliciesRoute
@@ -195,6 +202,7 @@ export interface FileRoutesByTo {
   '/$projectId/knowledge-base': typeof ProjectIdKnowledgeBaseRoute
   '/$projectId/mcp-servers': typeof ProjectIdMcpServersRoute
   '/$projectId/memory': typeof ProjectIdMemoryRoute
+  '/$projectId/notifications': typeof ProjectIdNotificationsRoute
   '/$projectId/profile': typeof ProjectIdProfileRoute
   '/$projectId/runtime': typeof ProjectIdRuntimeRoute
   '/$projectId/runtime-policies': typeof ProjectIdRuntimePoliciesRoute
@@ -222,6 +230,7 @@ export interface FileRoutesById {
   '/$projectId/knowledge-base': typeof ProjectIdKnowledgeBaseRoute
   '/$projectId/mcp-servers': typeof ProjectIdMcpServersRoute
   '/$projectId/memory': typeof ProjectIdMemoryRoute
+  '/$projectId/notifications': typeof ProjectIdNotificationsRoute
   '/$projectId/profile': typeof ProjectIdProfileRoute
   '/$projectId/runtime': typeof ProjectIdRuntimeRoute
   '/$projectId/runtime-policies': typeof ProjectIdRuntimePoliciesRoute
@@ -250,6 +259,7 @@ export interface FileRouteTypes {
     | '/$projectId/knowledge-base'
     | '/$projectId/mcp-servers'
     | '/$projectId/memory'
+    | '/$projectId/notifications'
     | '/$projectId/profile'
     | '/$projectId/runtime'
     | '/$projectId/runtime-policies'
@@ -276,6 +286,7 @@ export interface FileRouteTypes {
     | '/$projectId/knowledge-base'
     | '/$projectId/mcp-servers'
     | '/$projectId/memory'
+    | '/$projectId/notifications'
     | '/$projectId/profile'
     | '/$projectId/runtime'
     | '/$projectId/runtime-policies'
@@ -302,6 +313,7 @@ export interface FileRouteTypes {
     | '/$projectId/knowledge-base'
     | '/$projectId/mcp-servers'
     | '/$projectId/memory'
+    | '/$projectId/notifications'
     | '/$projectId/profile'
     | '/$projectId/runtime'
     | '/$projectId/runtime-policies'
@@ -329,6 +341,7 @@ export interface RootRouteChildren {
   ProjectIdKnowledgeBaseRoute: typeof ProjectIdKnowledgeBaseRoute
   ProjectIdMcpServersRoute: typeof ProjectIdMcpServersRoute
   ProjectIdMemoryRoute: typeof ProjectIdMemoryRoute
+  ProjectIdNotificationsRoute: typeof ProjectIdNotificationsRoute
   ProjectIdProfileRoute: typeof ProjectIdProfileRoute
   ProjectIdRuntimeRoute: typeof ProjectIdRuntimeRoute
   ProjectIdRuntimePoliciesRoute: typeof ProjectIdRuntimePoliciesRoute
@@ -398,6 +411,13 @@ declare module '@tanstack/react-router' {
       path: '/$projectId/memory'
       fullPath: '/$projectId/memory'
       preLoaderRoute: typeof ProjectIdMemoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$projectId/notifications': {
+      id: '/$projectId/notifications'
+      path: '/$projectId/notifications'
+      fullPath: '/$projectId/notifications'
+      preLoaderRoute: typeof ProjectIdNotificationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$projectId/profile': {
@@ -529,6 +549,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProjectIdKnowledgeBaseRoute: ProjectIdKnowledgeBaseRoute,
   ProjectIdMcpServersRoute: ProjectIdMcpServersRoute,
   ProjectIdMemoryRoute: ProjectIdMemoryRoute,
+  ProjectIdNotificationsRoute: ProjectIdNotificationsRoute,
   ProjectIdProfileRoute: ProjectIdProfileRoute,
   ProjectIdRuntimeRoute: ProjectIdRuntimeRoute,
   ProjectIdRuntimePoliciesRoute: ProjectIdRuntimePoliciesRoute,

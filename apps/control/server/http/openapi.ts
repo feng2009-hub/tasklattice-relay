@@ -48,7 +48,10 @@ const resourceKind = {
   name: "kind",
   in: "path",
   required: true,
-  schema: { type: "string", enum: ["skills", "mcp-servers", "knowledge-sources"] },
+  schema: {
+    type: "string",
+    enum: ["skills", "mcp-servers", "knowledge-sources"],
+  },
 } as const;
 
 const resourceId = {
@@ -73,10 +76,20 @@ const agentConnectionId = {
 } as const;
 
 const costCommonParameters = [
-  { name: "start_time", in: "query", required: true, schema: { type: "string" } },
+  {
+    name: "start_time",
+    in: "query",
+    required: true,
+    schema: { type: "string" },
+  },
   { name: "end_time", in: "query", required: true, schema: { type: "string" } },
   { name: "timezone", in: "query", schema: { type: "string", default: "UTC" } },
-  { name: "filters", in: "query", description: "JSON object whose values are arrays of business IDs.", schema: { type: "string", default: "{}" } },
+  {
+    name: "filters",
+    in: "query",
+    description: "JSON object whose values are arrays of business IDs.",
+    schema: { type: "string", default: "{}" },
+  },
 ] as const;
 
 const costGroupByParameter = {
@@ -94,7 +107,8 @@ export const openApiDocument = {
   info: {
     title: "TaskLattice Relay API",
     version: "0.1.0",
-    description: "REST API for provisioning NemoClaw Agents and opening short-lived terminal sessions.",
+    description:
+      "REST API for provisioning NemoClaw Agents and opening short-lived terminal sessions.",
   },
   servers: [{ url: "/api/v1" }],
   security: [{ bearerAuth: [] }],
@@ -105,7 +119,10 @@ export const openApiDocument = {
         security: [],
         summary: "Read public authentication capabilities",
         responses: {
-          "200": { description: "Authentication capabilities", ...json({ $ref: "#/components/schemas/AuthConfig" }) },
+          "200": {
+            description: "Authentication capabilities",
+            ...json({ $ref: "#/components/schemas/AuthConfig" }),
+          },
         },
       },
     },
@@ -113,10 +130,17 @@ export const openApiDocument = {
       post: {
         operationId: "localLogin",
         security: [],
-        summary: "Exchange local credentials for a TaskLattice Relay bearer token",
-        requestBody: { required: true, ...json({ $ref: "#/components/schemas/LocalLoginInput" }) },
+        summary:
+          "Exchange local credentials for a TaskLattice Relay bearer token",
+        requestBody: {
+          required: true,
+          ...json({ $ref: "#/components/schemas/LocalLoginInput" }),
+        },
         responses: {
-          "200": { description: "Authenticated session", ...json({ $ref: "#/components/schemas/AuthSession" }) },
+          "200": {
+            description: "Authenticated session",
+            ...json({ $ref: "#/components/schemas/AuthSession" }),
+          },
           "401": { $ref: "#/components/responses/Error" },
         },
       },
@@ -126,7 +150,10 @@ export const openApiDocument = {
         operationId: "getCurrentUser",
         summary: "Resolve the current bearer identity",
         responses: {
-          "200": { description: "Current identity", ...json({ $ref: "#/components/schemas/CurrentUser" }) },
+          "200": {
+            description: "Current identity",
+            ...json({ $ref: "#/components/schemas/CurrentUser" }),
+          },
           "401": { $ref: "#/components/responses/Error" },
         },
       },
@@ -136,7 +163,17 @@ export const openApiDocument = {
         operationId: "logout",
         summary: "Resolve optional provider logout before client token removal",
         responses: {
-          "200": { description: "Logout result", ...json({ type: "object", required: ["message"], properties: { message: { type: "string" }, redirectUrl: { type: "string", format: "uri" } } }) },
+          "200": {
+            description: "Logout result",
+            ...json({
+              type: "object",
+              required: ["message"],
+              properties: {
+                message: { type: "string" },
+                redirectUrl: { type: "string", format: "uri" },
+              },
+            }),
+          },
         },
       },
     },
@@ -145,7 +182,10 @@ export const openApiDocument = {
         operationId: "getPersonalRouting",
         summary: "Read the current user's personal routing",
         responses: {
-          "200": { description: "Personal routing", ...json({ $ref: "#/components/schemas/PersonalRouting" }) },
+          "200": {
+            description: "Personal routing",
+            ...json({ $ref: "#/components/schemas/PersonalRouting" }),
+          },
           "401": { $ref: "#/components/responses/Error" },
         },
       },
@@ -157,16 +197,19 @@ export const openApiDocument = {
           ...json({
             type: "object",
             additionalProperties: false,
-            required: ["city", "theme", "timezone"],
+            required: ["language", "theme", "timezone"],
             properties: {
-              city: { type: "string", maxLength: 120 },
+              language: { type: "string", enum: ["en-US", "zh-CN"] },
               theme: { type: "string", enum: ["system", "light", "dark"] },
               timezone: { type: "string", maxLength: 120 },
             },
           }),
         },
         responses: {
-          "200": { description: "Updated personal routing", ...json({ $ref: "#/components/schemas/PersonalRouting" }) },
+          "200": {
+            description: "Updated personal routing",
+            ...json({ $ref: "#/components/schemas/PersonalRouting" }),
+          },
           "400": { $ref: "#/components/responses/Error" },
           "401": { $ref: "#/components/responses/Error" },
         },
@@ -261,6 +304,19 @@ export const openApiDocument = {
         },
       },
     },
+    "/projects/{projectId}/role": {
+      parameters: [projectIdParameter],
+      put: {
+        operationId: "switchProjectRole",
+        summary:
+          "Switch to another Project role assigned to the current Account",
+        responses: {
+          "200": { description: "Active Project role changed" },
+          "400": { $ref: "#/components/responses/Error" },
+          "403": { $ref: "#/components/responses/Error" },
+        },
+      },
+    },
     "/projects/{projectId}/authorization/capabilities": {
       parameters: [projectIdParameter],
       get: {
@@ -307,9 +363,26 @@ export const openApiDocument = {
                   type: "array",
                   items: {
                     type: "object",
-                    required: ["id", "name", "description", "immutable", "grants", "capabilities", "relations"],
+                    required: [
+                      "id",
+                      "name",
+                      "description",
+                      "immutable",
+                      "grants",
+                      "capabilities",
+                      "relations",
+                    ],
                     properties: {
-                      id: { type: "string", enum: ["ROLE_PROJECT_ADMIN", "ROLE_AUDITOR", "ROLE_AGENT_DEVELOPER", "ROLE_USER", "ROLE_APPROVER"] },
+                      id: {
+                        type: "string",
+                        enum: [
+                          "ROLE_PROJECT_ADMIN",
+                          "ROLE_AUDITOR",
+                          "ROLE_AGENT_DEVELOPER",
+                          "ROLE_USER",
+                          "ROLE_APPROVER",
+                        ],
+                      },
                       name: { type: "string" },
                       description: { type: "string" },
                       immutable: { type: "boolean", const: true },
@@ -319,13 +392,43 @@ export const openApiDocument = {
                           type: "object",
                           required: ["capability", "relations"],
                           properties: {
-                            capability: { type: "string", pattern: "^CAP_[A-Z0-9_]+$" },
-                            relations: { type: "array", items: { type: "string", enum: ["OWNER", "MAINTAINER", "ASSIGNED", "SESSION_PARTICIPANT", "PROJECT_ANY"] } },
+                            capability: {
+                              type: "string",
+                              pattern: "^CAP_[A-Z0-9_]+$",
+                            },
+                            relations: {
+                              type: "array",
+                              items: {
+                                type: "string",
+                                enum: [
+                                  "OWNER",
+                                  "MAINTAINER",
+                                  "ASSIGNED",
+                                  "SESSION_PARTICIPANT",
+                                  "PROJECT_ANY",
+                                ],
+                              },
+                            },
                           },
                         },
                       },
-                      capabilities: { type: "array", items: { type: "string", pattern: "^CAP_[A-Z0-9_]+$" } },
-                      relations: { type: "array", items: { type: "string", enum: ["OWNER", "MAINTAINER", "ASSIGNED", "SESSION_PARTICIPANT", "PROJECT_ANY"] } },
+                      capabilities: {
+                        type: "array",
+                        items: { type: "string", pattern: "^CAP_[A-Z0-9_]+$" },
+                      },
+                      relations: {
+                        type: "array",
+                        items: {
+                          type: "string",
+                          enum: [
+                            "OWNER",
+                            "MAINTAINER",
+                            "ASSIGNED",
+                            "SESSION_PARTICIPANT",
+                            "PROJECT_ANY",
+                          ],
+                        },
+                      },
                     },
                   },
                 },
@@ -341,7 +444,10 @@ export const openApiDocument = {
         operationId: "getResourceCatalog",
         summary: "Read the PostgreSQL-backed resource and Agent Role catalog",
         responses: {
-          "200": { description: "Resource catalog", ...json({ $ref: "#/components/schemas/ResourceCatalog" }) },
+          "200": {
+            description: "Resource catalog",
+            ...json({ $ref: "#/components/schemas/ResourceCatalog" }),
+          },
         },
       },
     },
@@ -350,13 +456,21 @@ export const openApiDocument = {
       post: {
         operationId: "createResource",
         summary: "Create a Skill, MCP server, or Knowledge source",
-        requestBody: { required: true, ...json({ oneOf: [
-          { $ref: "#/components/schemas/SkillDefinitionInput" },
-          { $ref: "#/components/schemas/McpServerDefinitionInput" },
-          { $ref: "#/components/schemas/KnowledgeSourceDefinitionInput" },
-        ] }) },
+        requestBody: {
+          required: true,
+          ...json({
+            oneOf: [
+              { $ref: "#/components/schemas/SkillDefinitionInput" },
+              { $ref: "#/components/schemas/McpServerDefinitionInput" },
+              { $ref: "#/components/schemas/KnowledgeSourceDefinitionInput" },
+            ],
+          }),
+        },
         responses: {
-          "201": { description: "Created resource", ...json({ type: "object" }) },
+          "201": {
+            description: "Created resource",
+            ...json({ type: "object" }),
+          },
           "400": { $ref: "#/components/responses/Error" },
         },
       },
@@ -368,7 +482,10 @@ export const openApiDocument = {
         summary: "Update a persisted resource definition",
         requestBody: { required: true, ...json({ type: "object" }) },
         responses: {
-          "200": { description: "Updated resource", ...json({ type: "object" }) },
+          "200": {
+            description: "Updated resource",
+            ...json({ type: "object" }),
+          },
           "400": { $ref: "#/components/responses/Error" },
         },
       },
@@ -376,7 +493,14 @@ export const openApiDocument = {
         operationId: "deleteResource",
         summary: "Delete a resource that is not assigned to a Role or Instance",
         responses: {
-          "200": { description: "Resource deleted", ...json({ type: "object", required: ["message"], properties: { message: { type: "string" } } }) },
+          "200": {
+            description: "Resource deleted",
+            ...json({
+              type: "object",
+              required: ["message"],
+              properties: { message: { type: "string" } },
+            }),
+          },
           "404": { $ref: "#/components/responses/Error" },
         },
       },
@@ -385,7 +509,8 @@ export const openApiDocument = {
       parameters: [projectIdParameter, resourceId],
       post: {
         operationId: "discoverMcpServerTools",
-        summary: "Connect to an MCP server, run tools/list, and persist the discovered tools",
+        summary:
+          "Connect to an MCP server, run tools/list, and persist the discovered tools",
         responses: {
           "200": {
             description: "Updated MCP server discovery snapshot",
@@ -399,7 +524,8 @@ export const openApiDocument = {
       parameters: [projectIdParameter, resourceId],
       post: {
         operationId: "verifySkillArtifact",
-        summary: "Verify a PostgreSQL-backed Skill archive against its SHA-256 digest",
+        summary:
+          "Verify a PostgreSQL-backed Skill archive against its SHA-256 digest",
         responses: {
           "200": {
             description: "Verified Skill",
@@ -561,15 +687,28 @@ export const openApiDocument = {
         operationId: "listProviderAccounts",
         summary: "List validated Endpoint and credential accounts",
         responses: {
-          "200": { description: "Provider Account collection", ...json({ $ref: "#/components/schemas/ProviderAccountCollection" }) },
+          "200": {
+            description: "Provider Account collection",
+            ...json({ $ref: "#/components/schemas/ProviderAccountCollection" }),
+          },
         },
       },
       post: {
         operationId: "registerProviderAccount",
         summary: "Register a Provider connection and selected LiteLLM models",
-        requestBody: { required: true, ...json({ $ref: "#/components/schemas/CreateProviderConnectionInput" }) },
+        requestBody: {
+          required: true,
+          ...json({
+            $ref: "#/components/schemas/CreateProviderConnectionInput",
+          }),
+        },
         responses: {
-          "201": { description: "Provider connection creation result", ...json({ $ref: "#/components/schemas/ProviderConnectionCreationResult" }) },
+          "201": {
+            description: "Provider connection creation result",
+            ...json({
+              $ref: "#/components/schemas/ProviderConnectionCreationResult",
+            }),
+          },
           "400": { $ref: "#/components/responses/Error" },
         },
       },
@@ -578,10 +717,17 @@ export const openApiDocument = {
       parameters: [projectIdParameter],
       post: {
         operationId: "discoverProviderModels",
-        summary: "Validate a Provider draft and discover models without persisting credentials",
-        requestBody: { required: true, ...json({ $ref: "#/components/schemas/ProviderConnectionDraft" }) },
+        summary:
+          "Validate a Provider draft and discover models without persisting credentials",
+        requestBody: {
+          required: true,
+          ...json({ $ref: "#/components/schemas/ProviderConnectionDraft" }),
+        },
         responses: {
-          "200": { description: "Provider discovery result", ...json({ $ref: "#/components/schemas/ProviderDiscoveryResult" }) },
+          "200": {
+            description: "Provider discovery result",
+            ...json({ $ref: "#/components/schemas/ProviderDiscoveryResult" }),
+          },
           "400": { $ref: "#/components/responses/Error" },
         },
       },
@@ -592,7 +738,10 @@ export const openApiDocument = {
         operationId: "revalidateProviderAccount",
         summary: "Re-run Endpoint, credential, and catalog validation",
         responses: {
-          "200": { description: "Updated validation result", ...json({ $ref: "#/components/schemas/ProviderAccount" }) },
+          "200": {
+            description: "Updated validation result",
+            ...json({ $ref: "#/components/schemas/ProviderAccount" }),
+          },
           "404": { $ref: "#/components/responses/Error" },
         },
       },
@@ -603,7 +752,10 @@ export const openApiDocument = {
         operationId: "discoverProviderAccountModels",
         summary: "Discover models through a stored Provider connection",
         responses: {
-          "200": { description: "Provider discovery result", ...json({ $ref: "#/components/schemas/ProviderDiscoveryResult" }) },
+          "200": {
+            description: "Provider discovery result",
+            ...json({ $ref: "#/components/schemas/ProviderDiscoveryResult" }),
+          },
           "404": { $ref: "#/components/responses/Error" },
         },
       },
@@ -614,7 +766,14 @@ export const openApiDocument = {
         operationId: "deleteProviderAccount",
         summary: "Delete an unused Provider Account and its LiteLLM models",
         responses: {
-          "200": { description: "Provider Account deleted", ...json({ type: "object", required: ["message"], properties: { message: { type: "string" } } }) },
+          "200": {
+            description: "Provider Account deleted",
+            ...json({
+              type: "object",
+              required: ["message"],
+              properties: { message: { type: "string" } },
+            }),
+          },
           "404": { $ref: "#/components/responses/Error" },
         },
       },
@@ -624,22 +783,60 @@ export const openApiDocument = {
       get: {
         operationId: "listModelDeployments",
         summary: "List categorized model deployments",
-        responses: { "200": { description: "Model deployment collection", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/ModelDeployment" } } } }) } },
+        responses: {
+          "200": {
+            description: "Model deployment collection",
+            ...json({
+              type: "object",
+              required: ["data"],
+              properties: {
+                data: {
+                  type: "array",
+                  items: { $ref: "#/components/schemas/ModelDeployment" },
+                },
+              },
+            }),
+          },
+        },
       },
       post: {
         operationId: "registerModelDeployment",
         summary: "Validate a typed model and register it in LiteLLM",
-        requestBody: { required: true, ...json({ $ref: "#/components/schemas/CreateModelDeploymentInput" }) },
-        responses: { "201": { description: "Model validation result", ...json({ $ref: "#/components/schemas/ModelDeployment" }) } },
+        requestBody: {
+          required: true,
+          ...json({ $ref: "#/components/schemas/CreateModelDeploymentInput" }),
+        },
+        responses: {
+          "201": {
+            description: "Model validation result",
+            ...json({ $ref: "#/components/schemas/ModelDeployment" }),
+          },
+        },
       },
     },
     "/projects/{projectId}/models/{modelId}": {
-      parameters: [projectIdParameter, { name: "modelId", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+      parameters: [
+        projectIdParameter,
+        {
+          name: "modelId",
+          in: "path",
+          required: true,
+          schema: { type: "string", format: "uuid" },
+        },
+      ],
       delete: {
         operationId: "deleteModelDeployment",
-        summary: "Remove an unused model deployment from LiteLLM and this Project",
+        summary:
+          "Remove an unused model deployment from LiteLLM and this Project",
         responses: {
-          "200": { description: "Model deployment removed", ...json({ type: "object", required: ["message"], properties: { message: { type: "string" } } }) },
+          "200": {
+            description: "Model deployment removed",
+            ...json({
+              type: "object",
+              required: ["message"],
+              properties: { message: { type: "string" } },
+            }),
+          },
           "404": { $ref: "#/components/responses/Error" },
           "409": { $ref: "#/components/responses/Error" },
         },
@@ -650,24 +847,49 @@ export const openApiDocument = {
       get: {
         operationId: "listInferenceGateways",
         summary: "List configured LiteLLM Gateways without credentials",
-        responses: { "200": { description: "Inference Gateway collection", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/InferenceGateway" } } } }) } },
+        responses: {
+          "200": {
+            description: "Inference Gateway collection",
+            ...json({
+              type: "object",
+              required: ["data"],
+              properties: {
+                data: {
+                  type: "array",
+                  items: { $ref: "#/components/schemas/InferenceGateway" },
+                },
+              },
+            }),
+          },
+        },
       },
     },
     "/projects/{projectId}/quota": {
       parameters: [projectIdParameter],
       get: {
         operationId: "getProjectQuota",
-        summary: "Read Project quota configuration, synchronization state, and usage",
+        summary:
+          "Read Project quota configuration, synchronization state, and usage",
         responses: {
-          "200": { description: "Project quota", ...json({ $ref: "#/components/schemas/ProjectQuota" }) },
+          "200": {
+            description: "Project quota",
+            ...json({ $ref: "#/components/schemas/ProjectQuota" }),
+          },
         },
       },
       put: {
         operationId: "updateProjectQuota",
-        summary: "Update TALI capacity and synchronize spend plus TPM limits to the LiteLLM Team",
-        requestBody: { required: true, ...json({ $ref: "#/components/schemas/UpdateProjectQuotaInput" }) },
+        summary:
+          "Update TALI capacity and synchronize spend plus TPM limits to the LiteLLM Team",
+        requestBody: {
+          required: true,
+          ...json({ $ref: "#/components/schemas/UpdateProjectQuotaInput" }),
+        },
         responses: {
-          "200": { description: "Updated Project quota", ...json({ $ref: "#/components/schemas/ProjectQuota" }) },
+          "200": {
+            description: "Updated Project quota",
+            ...json({ $ref: "#/components/schemas/ProjectQuota" }),
+          },
           "400": { $ref: "#/components/responses/Error" },
         },
       },
@@ -676,13 +898,29 @@ export const openApiDocument = {
       parameters: [projectIdParameter],
       get: {
         operationId: "getProjectOverview",
-        summary: "Read Project Run, Runtime, spend, budget, workload, and attention metrics",
+        summary:
+          "Read Project Run, Runtime, spend, budget, workload, and attention metrics",
         parameters: [
-          { name: "range", in: "query", schema: { type: "string", enum: ["24h", "7d", "30d"], default: "7d" } },
-          { name: "timezone", in: "query", schema: { type: "string", default: "UTC" } },
+          {
+            name: "range",
+            in: "query",
+            schema: {
+              type: "string",
+              enum: ["24h", "7d", "30d"],
+              default: "7d",
+            },
+          },
+          {
+            name: "timezone",
+            in: "query",
+            schema: { type: "string", default: "UTC" },
+          },
         ],
         responses: {
-          "200": { description: "Project overview metrics", ...json({ $ref: "#/components/schemas/ProjectOverview" }) },
+          "200": {
+            description: "Project overview metrics",
+            ...json({ $ref: "#/components/schemas/ProjectOverview" }),
+          },
           "400": { $ref: "#/components/responses/Error" },
         },
       },
@@ -692,32 +930,150 @@ export const openApiDocument = {
       get: {
         operationId: "listModelRoutings",
         summary: "List LiteLLM-managed routing configurations",
-        responses: { "200": { description: "Routing collection", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/ModelRouting" } } } }) } },
+        responses: {
+          "200": {
+            description: "Routing collection",
+            ...json({
+              type: "object",
+              required: ["data"],
+              properties: {
+                data: {
+                  type: "array",
+                  items: { $ref: "#/components/schemas/ModelRouting" },
+                },
+              },
+            }),
+          },
+        },
       },
       post: {
         operationId: "createModelRouting",
         summary: "Create and validate a Routing configuration",
-        requestBody: { required: true, ...json({ $ref: "#/components/schemas/CreateModelRoutingInput" }) },
-        responses: { "201": { description: "Routing", ...json({ $ref: "#/components/schemas/ModelRouting" }) }, "400": { $ref: "#/components/responses/Error" } },
+        requestBody: {
+          required: true,
+          ...json({ $ref: "#/components/schemas/CreateModelRoutingInput" }),
+        },
+        responses: {
+          "201": {
+            description: "Routing",
+            ...json({ $ref: "#/components/schemas/ModelRouting" }),
+          },
+          "400": { $ref: "#/components/responses/Error" },
+        },
       },
     },
     "/projects/{projectId}/model-routings/{routingId}": {
       parameters: [projectIdParameter, routingId],
-      get: { operationId: "getModelRouting", summary: "Read a Routing configuration", responses: { "200": { description: "Routing", ...json({ $ref: "#/components/schemas/ModelRouting" }) }, "404": { $ref: "#/components/responses/Error" } } },
-      put: { operationId: "updateModelRouting", summary: "Update TaskLattice Relay-owned Routing policy", requestBody: { required: true, ...json({ type: "object", additionalProperties: false, properties: { name: { type: "string" }, description: { type: "string" }, isDefault: { type: "boolean" }, keyPolicy: { type: "object" }, auditPolicy: { type: "object" }, routingPolicy: { $ref: "#/components/schemas/ModelRoutingPolicy" }, suspended: { type: "boolean" } } }) }, responses: { "200": { description: "Routing", ...json({ $ref: "#/components/schemas/ModelRouting" }) } } },
-      delete: { operationId: "deleteModelRouting", summary: "Delete Routing without active Consumers", responses: { "200": { description: "Routing deleted", ...json({ type: "object" }) }, "409": { $ref: "#/components/responses/Error" } } },
+      get: {
+        operationId: "getModelRouting",
+        summary: "Read a Routing configuration",
+        responses: {
+          "200": {
+            description: "Routing",
+            ...json({ $ref: "#/components/schemas/ModelRouting" }),
+          },
+          "404": { $ref: "#/components/responses/Error" },
+        },
+      },
+      put: {
+        operationId: "updateModelRouting",
+        summary: "Update TaskLattice Relay-owned Routing policy",
+        requestBody: {
+          required: true,
+          ...json({
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              name: { type: "string" },
+              description: { type: "string" },
+              isDefault: { type: "boolean" },
+              keyPolicy: { type: "object" },
+              auditPolicy: { type: "object" },
+              routingPolicy: {
+                $ref: "#/components/schemas/ModelRoutingPolicy",
+              },
+              suspended: { type: "boolean" },
+            },
+          }),
+        },
+        responses: {
+          "200": {
+            description: "Routing",
+            ...json({ $ref: "#/components/schemas/ModelRouting" }),
+          },
+        },
+      },
+      delete: {
+        operationId: "deleteModelRouting",
+        summary: "Delete Routing without active Consumers",
+        responses: {
+          "200": {
+            description: "Routing deleted",
+            ...json({ type: "object" }),
+          },
+          "409": { $ref: "#/components/responses/Error" },
+        },
+      },
     },
     "/projects/{projectId}/model-routings/{routingId}/refresh": {
       parameters: [projectIdParameter, routingId],
-      post: { operationId: "refreshModelRouting", summary: "Synchronize effective LiteLLM capability and compliance status", responses: { "200": { description: "Synchronized Routing", ...json({ $ref: "#/components/schemas/ModelRouting" }) } } },
+      post: {
+        operationId: "refreshModelRouting",
+        summary:
+          "Synchronize effective LiteLLM capability and compliance status",
+        responses: {
+          "200": {
+            description: "Synchronized Routing",
+            ...json({ $ref: "#/components/schemas/ModelRouting" }),
+          },
+        },
+      },
     },
     "/projects/{projectId}/model-routings/{routingId}/consumers": {
       parameters: [projectIdParameter, routingId],
-      get: { operationId: "listModelRoutingConsumers", summary: "List redacted active Instance bindings", responses: { "200": { description: "Redacted Consumers", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/ModelRoutingConsumer" } } } }) } } },
+      get: {
+        operationId: "listModelRoutingConsumers",
+        summary: "List redacted active Instance bindings",
+        responses: {
+          "200": {
+            description: "Redacted Consumers",
+            ...json({
+              type: "object",
+              required: ["data"],
+              properties: {
+                data: {
+                  type: "array",
+                  items: { $ref: "#/components/schemas/ModelRoutingConsumer" },
+                },
+              },
+            }),
+          },
+        },
+      },
     },
     "/projects/{projectId}/model-routings/{routingId}/audit": {
       parameters: [projectIdParameter, routingId],
-      get: { operationId: "listModelRoutingAudit", summary: "List secret-safe control-plane audit events", responses: { "200": { description: "Audit events", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/ModelRoutingAuditEvent" } } } }) } } },
+      get: {
+        operationId: "listModelRoutingAudit",
+        summary: "List secret-safe control-plane audit events",
+        responses: {
+          "200": {
+            description: "Audit events",
+            ...json({
+              type: "object",
+              required: ["data"],
+              properties: {
+                data: {
+                  type: "array",
+                  items: {
+                    $ref: "#/components/schemas/ModelRoutingAuditEvent",
+                  },
+                },
+              },
+            }),
+          },
+        },
+      },
     },
     "/projects/{projectId}/costs/summary": {
       parameters: [projectIdParameter],
@@ -725,7 +1081,12 @@ export const openApiDocument = {
         operationId: "getCostSummary",
         summary: "Read USD spend, token, request, and prior-period summary",
         parameters: costCommonParameters,
-        responses: { "200": { description: "Cost summary", ...json({ $ref: "#/components/schemas/ModelCostSummary" }) } },
+        responses: {
+          "200": {
+            description: "Cost summary",
+            ...json({ $ref: "#/components/schemas/ModelCostSummary" }),
+          },
+        },
       },
     },
     "/projects/{projectId}/costs/activity": {
@@ -736,9 +1097,22 @@ export const openApiDocument = {
         parameters: [
           ...costCommonParameters,
           costGroupByParameter,
-          { name: "granularity", in: "query", schema: { type: "string", enum: ["daily", "weekly", "cumulative"], default: "daily" } },
+          {
+            name: "granularity",
+            in: "query",
+            schema: {
+              type: "string",
+              enum: ["daily", "weekly", "cumulative"],
+              default: "daily",
+            },
+          },
         ],
-        responses: { "200": { description: "Cost activity", ...json({ $ref: "#/components/schemas/ModelCostActivity" }) } },
+        responses: {
+          "200": {
+            description: "Cost activity",
+            ...json({ $ref: "#/components/schemas/ModelCostActivity" }),
+          },
+        },
       },
     },
     "/projects/{projectId}/costs/insights": {
@@ -747,7 +1121,9 @@ export const openApiDocument = {
         operationId: "getCostInsights",
         summary: "Read derived cost insights",
         parameters: costCommonParameters,
-        responses: { "200": { description: "Cost insights", ...json({ type: "object" }) } },
+        responses: {
+          "200": { description: "Cost insights", ...json({ type: "object" }) },
+        },
       },
     },
     "/projects/{projectId}/costs/ranking": {
@@ -758,9 +1134,18 @@ export const openApiDocument = {
         parameters: [
           ...costCommonParameters,
           costGroupByParameter,
-          { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 100, default: 5 } },
+          {
+            name: "limit",
+            in: "query",
+            schema: { type: "integer", minimum: 1, maximum: 100, default: 5 },
+          },
         ],
-        responses: { "200": { description: "Cost ranking", ...json({ $ref: "#/components/schemas/ModelCostRanking" }) } },
+        responses: {
+          "200": {
+            description: "Cost ranking",
+            ...json({ $ref: "#/components/schemas/ModelCostRanking" }),
+          },
+        },
       },
     },
     "/projects/{projectId}/costs/trend": {
@@ -771,10 +1156,27 @@ export const openApiDocument = {
         parameters: [
           ...costCommonParameters,
           costGroupByParameter,
-          { name: "granularity", in: "query", schema: { type: "string", enum: ["day", "week", "month"], default: "day" } },
-          { name: "top_n", in: "query", schema: { type: "integer", minimum: 1, maximum: 20, default: 5 } },
+          {
+            name: "granularity",
+            in: "query",
+            schema: {
+              type: "string",
+              enum: ["day", "week", "month"],
+              default: "day",
+            },
+          },
+          {
+            name: "top_n",
+            in: "query",
+            schema: { type: "integer", minimum: 1, maximum: 20, default: 5 },
+          },
         ],
-        responses: { "200": { description: "Cost trend", ...json({ $ref: "#/components/schemas/ModelCostTrend" }) } },
+        responses: {
+          "200": {
+            description: "Cost trend",
+            ...json({ $ref: "#/components/schemas/ModelCostTrend" }),
+          },
+        },
       },
     },
     "/projects/{projectId}/costs/breakdown": {
@@ -785,13 +1187,34 @@ export const openApiDocument = {
         parameters: [
           ...costCommonParameters,
           costGroupByParameter,
-          { name: "page", in: "query", schema: { type: "integer", minimum: 1, default: 1 } },
-          { name: "page_size", in: "query", schema: { type: "integer", minimum: 1, maximum: 200, default: 25 } },
-          { name: "sort", in: "query", schema: { type: "string", default: "spend_usd" } },
-          { name: "direction", in: "query", schema: { type: "string", enum: ["asc", "desc"], default: "desc" } },
+          {
+            name: "page",
+            in: "query",
+            schema: { type: "integer", minimum: 1, default: 1 },
+          },
+          {
+            name: "page_size",
+            in: "query",
+            schema: { type: "integer", minimum: 1, maximum: 200, default: 25 },
+          },
+          {
+            name: "sort",
+            in: "query",
+            schema: { type: "string", default: "spend_usd" },
+          },
+          {
+            name: "direction",
+            in: "query",
+            schema: { type: "string", enum: ["asc", "desc"], default: "desc" },
+          },
           { name: "search", in: "query", schema: { type: "string" } },
         ],
-        responses: { "200": { description: "Cost breakdown", ...json({ $ref: "#/components/schemas/ModelCostBreakdown" }) } },
+        responses: {
+          "200": {
+            description: "Cost breakdown",
+            ...json({ $ref: "#/components/schemas/ModelCostBreakdown" }),
+          },
+        },
       },
     },
     "/projects/{projectId}/costs/data-quality": {
@@ -800,7 +1223,12 @@ export const openApiDocument = {
         operationId: "getCostDataQuality",
         summary: "Read internal ingestion and attribution quality diagnostics",
         parameters: costCommonParameters,
-        responses: { "200": { description: "Cost data quality", ...json({ type: "object" }) } },
+        responses: {
+          "200": {
+            description: "Cost data quality",
+            ...json({ type: "object" }),
+          },
+        },
       },
     },
     "/projects/{projectId}/policies": {
@@ -808,14 +1236,25 @@ export const openApiDocument = {
       get: {
         operationId: "listSandboxPolicies",
         summary: "List ConfigMap-managed and custom OpenShell Policies",
-        responses: { "200": { description: "Policy catalog", ...json({ $ref: "#/components/schemas/SandboxPolicyCatalog" }) } },
+        responses: {
+          "200": {
+            description: "Policy catalog",
+            ...json({ $ref: "#/components/schemas/SandboxPolicyCatalog" }),
+          },
+        },
       },
       post: {
         operationId: "createSandboxPolicy",
         summary: "Create a custom OpenShell Policy",
-        requestBody: { required: true, ...json({ $ref: "#/components/schemas/SandboxPolicyInput" }) },
+        requestBody: {
+          required: true,
+          ...json({ $ref: "#/components/schemas/SandboxPolicyInput" }),
+        },
         responses: {
-          "201": { description: "Custom Policy", ...json({ $ref: "#/components/schemas/SandboxPolicy" }) },
+          "201": {
+            description: "Custom Policy",
+            ...json({ $ref: "#/components/schemas/SandboxPolicy" }),
+          },
           "400": { $ref: "#/components/responses/Error" },
         },
       },
@@ -825,9 +1264,15 @@ export const openApiDocument = {
       put: {
         operationId: "updateSandboxPolicy",
         summary: "Update a custom OpenShell Policy",
-        requestBody: { required: true, ...json({ $ref: "#/components/schemas/SandboxPolicyInput" }) },
+        requestBody: {
+          required: true,
+          ...json({ $ref: "#/components/schemas/SandboxPolicyInput" }),
+        },
         responses: {
-          "200": { description: "Updated custom Policy", ...json({ $ref: "#/components/schemas/SandboxPolicy" }) },
+          "200": {
+            description: "Updated custom Policy",
+            ...json({ $ref: "#/components/schemas/SandboxPolicy" }),
+          },
           "400": { $ref: "#/components/responses/Error" },
         },
       },
@@ -835,7 +1280,14 @@ export const openApiDocument = {
         operationId: "deleteSandboxPolicy",
         summary: "Delete an unused custom OpenShell Policy",
         responses: {
-          "200": { description: "Policy deleted", ...json({ type: "object", required: ["message"], properties: { message: { type: "string" } } }) },
+          "200": {
+            description: "Policy deleted",
+            ...json({
+              type: "object",
+              required: ["message"],
+              properties: { message: { type: "string" } },
+            }),
+          },
           "400": { $ref: "#/components/responses/Error" },
         },
       },
@@ -846,7 +1298,10 @@ export const openApiDocument = {
         operationId: "getRuntimeStatus",
         summary: "Read NemoClaw TUI runtime capability",
         responses: {
-          "200": { description: "Runtime capability", ...json({ $ref: "#/components/schemas/RuntimeStatus" }) },
+          "200": {
+            description: "Runtime capability",
+            ...json({ $ref: "#/components/schemas/RuntimeStatus" }),
+          },
           "401": { $ref: "#/components/responses/Error" },
         },
       },
@@ -949,15 +1404,25 @@ export const openApiDocument = {
         operationId: "listAgents",
         summary: "List Agents",
         responses: {
-          "200": { description: "Agent collection", ...json({ $ref: "#/components/schemas/AgentCollection" }) },
+          "200": {
+            description: "Agent collection",
+            ...json({ $ref: "#/components/schemas/AgentCollection" }),
+          },
         },
       },
       post: {
         operationId: "createAgent",
         summary: "Create a NemoClaw Agent",
-        requestBody: { required: true, ...json({ $ref: "#/components/schemas/CreateAgentInput" }) },
+        requestBody: {
+          required: true,
+          ...json({ $ref: "#/components/schemas/CreateAgentInput" }),
+        },
         responses: {
-          "202": { description: "Provisioning accepted", headers: { Location: { schema: { type: "string" } } }, ...json({ $ref: "#/components/schemas/Agent" }) },
+          "202": {
+            description: "Provisioning accepted",
+            headers: { Location: { schema: { type: "string" } } },
+            ...json({ $ref: "#/components/schemas/Agent" }),
+          },
           "400": { $ref: "#/components/responses/Error" },
         },
       },
@@ -968,15 +1433,22 @@ export const openApiDocument = {
         operationId: "getAgent",
         summary: "Read an Agent and reconcile its runtime state",
         responses: {
-          "200": { description: "Agent", ...json({ $ref: "#/components/schemas/Agent" }) },
+          "200": {
+            description: "Agent",
+            ...json({ $ref: "#/components/schemas/Agent" }),
+          },
           "404": { $ref: "#/components/responses/Error" },
         },
       },
       delete: {
         operationId: "deleteAgent",
-        summary: "Queue asynchronous destruction of an Agent and its runtime resources",
+        summary:
+          "Queue asynchronous destruction of an Agent and its runtime resources",
         responses: {
-          "202": { description: "Deletion accepted and runtime cleanup queued", ...json({ $ref: "#/components/schemas/DeleteAgentResult" }) },
+          "202": {
+            description: "Deletion accepted and runtime cleanup queued",
+            ...json({ $ref: "#/components/schemas/DeleteAgentResult" }),
+          },
           "404": { $ref: "#/components/responses/Error" },
         },
       },
@@ -1016,10 +1488,12 @@ export const openApiDocument = {
       parameters: [projectIdParameter, instanceId],
       get: {
         operationId: "getAgentInteractionAccess",
-        summary: "Resolve the browser endpoint after CAP_AGENT_INSTANCE_INTERACT admission",
+        summary:
+          "Resolve the browser endpoint after CAP_AGENT_INSTANCE_INTERACT admission",
         responses: {
           "200": {
-            description: "Sensitive Agent interaction access; never cache this response",
+            description:
+              "Sensitive Agent interaction access; never cache this response",
             ...json({ $ref: "#/components/schemas/AgentInteractionAccess" }),
           },
           "404": { $ref: "#/components/responses/Error" },
@@ -1030,10 +1504,12 @@ export const openApiDocument = {
       parameters: [projectIdParameter, instanceId],
       get: {
         operationId: "getAgentRuntimeLogs",
-        summary: "Read Instance runtime diagnostics after CAP_AGENT_INSTANCE_LOG_VIEW admission",
+        summary:
+          "Read Instance runtime diagnostics after CAP_AGENT_INSTANCE_LOG_VIEW admission",
         responses: {
           "200": {
-            description: "Sensitive Instance runtime diagnostics; never cache this response",
+            description:
+              "Sensitive Instance runtime diagnostics; never cache this response",
             ...json({ $ref: "#/components/schemas/AgentRuntimeLogView" }),
           },
           "404": { $ref: "#/components/responses/Error" },
@@ -1045,9 +1521,15 @@ export const openApiDocument = {
       post: {
         operationId: "createTerminalSession",
         summary: "Create a short-lived, single-use terminal session",
-        requestBody: { required: true, ...json({ $ref: "#/components/schemas/CreateTerminalSessionInput" }) },
+        requestBody: {
+          required: true,
+          ...json({ $ref: "#/components/schemas/CreateTerminalSessionInput" }),
+        },
         responses: {
-          "201": { description: "Terminal session", ...json({ $ref: "#/components/schemas/TerminalSession" }) },
+          "201": {
+            description: "Terminal session",
+            ...json({ $ref: "#/components/schemas/TerminalSession" }),
+          },
           "404": { $ref: "#/components/responses/Error" },
           "409": { $ref: "#/components/responses/Error" },
         },
@@ -1059,7 +1541,19 @@ export const openApiDocument = {
         operationId: "getTerminalTargets",
         summary: "List interactive terminal targets for a running Agent",
         responses: {
-          "200": { description: "Terminal targets", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/TerminalTarget" } } } }) },
+          "200": {
+            description: "Terminal targets",
+            ...json({
+              type: "object",
+              required: ["data"],
+              properties: {
+                data: {
+                  type: "array",
+                  items: { $ref: "#/components/schemas/TerminalTarget" },
+                },
+              },
+            }),
+          },
           "404": { $ref: "#/components/responses/Error" },
         },
       },
@@ -1070,7 +1564,19 @@ export const openApiDocument = {
         operationId: "getAgentAudit",
         summary: "Read recent OpenShell OCSF audit events for an Agent sandbox",
         responses: {
-          "200": { description: "Sandbox audit events", ...json({ type: "object", required: ["data"], properties: { data: { type: "array", items: { $ref: "#/components/schemas/SandboxAuditEvent" } } } }) },
+          "200": {
+            description: "Sandbox audit events",
+            ...json({
+              type: "object",
+              required: ["data"],
+              properties: {
+                data: {
+                  type: "array",
+                  items: { $ref: "#/components/schemas/SandboxAuditEvent" },
+                },
+              },
+            }),
+          },
           "404": { $ref: "#/components/responses/Error" },
         },
       },
@@ -1083,7 +1589,14 @@ export const openApiDocument = {
     schemas: {
       AuthConfig: {
         type: "object",
-        required: ["authRequired", "developmentDefaults", "localEnabled", "mode", "providerName", "ssoEnabled"],
+        required: [
+          "authRequired",
+          "developmentDefaults",
+          "localEnabled",
+          "mode",
+          "providerName",
+          "ssoEnabled",
+        ],
         properties: {
           authRequired: { type: "boolean", const: true },
           developmentDefaults: { type: "boolean" },
@@ -1095,7 +1608,14 @@ export const openApiDocument = {
       },
       AuthUser: {
         type: "object",
-        required: ["displayName", "email", "id", "provider", "systemRole", "username"],
+        required: [
+          "displayName",
+          "email",
+          "id",
+          "provider",
+          "systemRole",
+          "username",
+        ],
         properties: {
           displayName: { type: "string" },
           email: { type: "string" },
@@ -1128,18 +1648,35 @@ export const openApiDocument = {
         type: "object",
         required: ["identity", "user"],
         properties: {
-          identity: { type: "object", required: ["type", "userId", "username"], properties: { type: { type: "string", const: "authenticated" }, userId: { type: "string" }, username: { type: "string" } } },
+          identity: {
+            type: "object",
+            required: ["type", "userId", "username"],
+            properties: {
+              type: { type: "string", const: "authenticated" },
+              userId: { type: "string" },
+              username: { type: "string" },
+            },
+          },
           user: { $ref: "#/components/schemas/AuthUser" },
         },
       },
       PersonalRouting: {
         type: "object",
         additionalProperties: false,
-        required: ["city", "displayName", "email", "provider", "systemRole", "theme", "timezone", "username"],
+        required: [
+          "displayName",
+          "email",
+          "language",
+          "provider",
+          "systemRole",
+          "theme",
+          "timezone",
+          "username",
+        ],
         properties: {
-          city: { type: "string" },
           displayName: { type: "string" },
           email: { type: "string" },
+          language: { type: "string", enum: ["en-US", "zh-CN"] },
           provider: { type: "string", enum: ["local", "sso"] },
           systemRole: { type: "string", enum: ["user", "super_administrator"] },
           theme: { type: "string", enum: ["system", "light", "dark"] },
@@ -1150,13 +1687,24 @@ export const openApiDocument = {
       HumanProjectMember: {
         type: "object",
         additionalProperties: false,
-        required: ["email", "id", "kind", "name", "role", "status"],
+        required: ["email", "id", "kind", "name", "roles", "status"],
         properties: {
+          activeRole: {
+            type: "string",
+            enum: ["admin", "auditor", "developer", "user", "approver"],
+          },
           email: { type: "string", format: "email" },
           id: { type: "string" },
           kind: { type: "string", const: "human" },
           name: { type: "string" },
-          role: { type: "string", enum: ["admin", "auditor", "developer", "user", "approver"] },
+          roles: {
+            type: "array",
+            uniqueItems: true,
+            items: {
+              type: "string",
+              enum: ["admin", "auditor", "developer", "user", "approver"],
+            },
+          },
           status: { type: "string", enum: ["active", "invited"] },
         },
       },
@@ -1166,9 +1714,26 @@ export const openApiDocument = {
       SkillDefinitionInput: {
         type: "object",
         additionalProperties: false,
-        required: ["name", "description", "problemStatement", "useCases", "usageGuide", "author", "category", "trustLevel", "compatibleAgents", "version", "endpoint", "digest", "owner", "permissions", "status"],
+        required: [
+          "name",
+          "description",
+          "problemStatement",
+          "useCases",
+          "usageGuide",
+          "author",
+          "category",
+          "trustLevel",
+          "compatibleAgents",
+          "version",
+          "endpoint",
+          "digest",
+          "owner",
+          "permissions",
+          "status",
+        ],
         properties: {
-          name: { type: "string" }, description: { type: "string" },
+          name: { type: "string" },
+          description: { type: "string" },
           problemStatement: { type: "string" },
           useCases: {
             type: "array",
@@ -1178,17 +1743,38 @@ export const openApiDocument = {
           },
           usageGuide: { type: "string" },
           author: { type: "string" },
-          category: { type: "string", enum: ["Customer Support", "Data", "Developer Tools", "HR", "Knowledge", "Operations", "Research"] },
-          trustLevel: { type: "string", enum: ["BUILT_IN", "TRUSTED_SOURCE", "UNSAFE"] },
+          category: {
+            type: "string",
+            enum: [
+              "Customer Support",
+              "Data",
+              "Developer Tools",
+              "HR",
+              "Knowledge",
+              "Operations",
+              "Research",
+            ],
+          },
+          trustLevel: {
+            type: "string",
+            enum: ["BUILT_IN", "TRUSTED_SOURCE", "UNSAFE"],
+          },
           compatibleAgents: {
             type: "array",
             minItems: 1,
             maxItems: 3,
             uniqueItems: true,
-              items: { type: "string", enum: ["hermes", "openclaw", "claude-code", "openai"] },
+            items: {
+              type: "string",
+              enum: ["hermes", "openclaw", "claude-code", "openai"],
+            },
           },
-          version: { type: "string" }, endpoint: { type: "string", format: "uri" }, digest: { type: "string" }, owner: { type: "string" },
-          permissions: { type: "integer", minimum: 0 }, status: { type: "string", enum: ["PUBLISHED", "DRAFT"] },
+          version: { type: "string" },
+          endpoint: { type: "string", format: "uri" },
+          digest: { type: "string" },
+          owner: { type: "string" },
+          permissions: { type: "integer", minimum: 0 },
+          status: { type: "string", enum: ["PUBLISHED", "DRAFT"] },
         },
       },
       SkillDefinition: {
@@ -1207,7 +1793,22 @@ export const openApiDocument = {
       McpServerDefinitionInput: {
         type: "object",
         additionalProperties: false,
-        required: ["name", "alias", "description", "category", "transport", "args", "environment", "authType", "authReference", "accessGroups", "allowedTools", "extraHeaders", "staticHeaders", "internalNetworkOnly"],
+        required: [
+          "name",
+          "alias",
+          "description",
+          "category",
+          "transport",
+          "args",
+          "environment",
+          "authType",
+          "authReference",
+          "accessGroups",
+          "allowedTools",
+          "extraHeaders",
+          "staticHeaders",
+          "internalNetworkOnly",
+        ],
         properties: {
           templateId: { type: "string" },
           name: { type: "string" },
@@ -1218,7 +1819,10 @@ export const openApiDocument = {
           sourceUrl: { type: "string", format: "uri" },
           endpoint: { type: "string", format: "uri" },
           specPath: { type: "string" },
-          transport: { type: "string", enum: ["http", "sse", "stdio", "openapi"] },
+          transport: {
+            type: "string",
+            enum: ["http", "sse", "stdio", "openapi"],
+          },
           command: { type: "string" },
           args: { type: "array", items: { type: "string" } },
           environment: {
@@ -1226,15 +1830,35 @@ export const openApiDocument = {
             items: {
               type: "object",
               required: ["name", "valueReference"],
-              properties: { name: { type: "string" }, valueReference: { type: "string" } },
+              properties: {
+                name: { type: "string" },
+                valueReference: { type: "string" },
+              },
             },
           },
-          authType: { type: "string", enum: ["none", "bearer_token", "api_key", "basic", "authorization", "oauth2", "aws_sigv4"] },
-          authReference: { type: "string", description: "Secret reference; never a plaintext credential." },
+          authType: {
+            type: "string",
+            enum: [
+              "none",
+              "bearer_token",
+              "api_key",
+              "basic",
+              "authorization",
+              "oauth2",
+              "aws_sigv4",
+            ],
+          },
+          authReference: {
+            type: "string",
+            description: "Secret reference; never a plaintext credential.",
+          },
           oauth: {
             type: "object",
             properties: {
-              flow: { type: "string", enum: ["client_credentials", "authorization_code"] },
+              flow: {
+                type: "string",
+                enum: ["client_credentials", "authorization_code"],
+              },
               authorizationUrl: { type: "string", format: "uri" },
               tokenUrl: { type: "string", format: "uri" },
               registrationUrl: { type: "string", format: "uri" },
@@ -1248,7 +1872,10 @@ export const openApiDocument = {
             items: {
               type: "object",
               required: ["name", "valueReference"],
-              properties: { name: { type: "string" }, valueReference: { type: "string" } },
+              properties: {
+                name: { type: "string" },
+                valueReference: { type: "string" },
+              },
             },
           },
           internalNetworkOnly: { type: "boolean" },
@@ -1283,14 +1910,39 @@ export const openApiDocument = {
           { $ref: "#/components/schemas/McpServerDefinitionInput" },
           {
             type: "object",
-            required: ["id", "litellmServerId", "status", "tools", "lastDiscoveryAttemptAt", "lastDiscoveredAt", "lastDiscoveryError"],
+            required: [
+              "id",
+              "litellmServerId",
+              "status",
+              "tools",
+              "lastDiscoveryAttemptAt",
+              "lastDiscoveredAt",
+              "lastDiscoveryError",
+            ],
             properties: {
               id: { type: "string" },
               litellmServerId: { type: "string" },
-              status: { type: "string", enum: ["HEALTHY", "PERMISSION_REQUIRED", "UNCHECKED", "UNAVAILABLE"] },
-              tools: { type: "array", items: { $ref: "#/components/schemas/McpToolDefinition" } },
-              lastDiscoveryAttemptAt: { type: ["string", "null"], format: "date-time" },
-              lastDiscoveredAt: { type: ["string", "null"], format: "date-time" },
+              status: {
+                type: "string",
+                enum: [
+                  "HEALTHY",
+                  "PERMISSION_REQUIRED",
+                  "UNCHECKED",
+                  "UNAVAILABLE",
+                ],
+              },
+              tools: {
+                type: "array",
+                items: { $ref: "#/components/schemas/McpToolDefinition" },
+              },
+              lastDiscoveryAttemptAt: {
+                type: ["string", "null"],
+                format: "date-time",
+              },
+              lastDiscoveredAt: {
+                type: ["string", "null"],
+                format: "date-time",
+              },
               lastDiscoveryError: { type: ["string", "null"] },
             },
           },
@@ -1299,17 +1951,45 @@ export const openApiDocument = {
       KnowledgeSourceDefinitionInput: {
         type: "object",
         additionalProperties: false,
-        required: ["name", "description", "vectorStoreId", "provider", "credentialReference", "topK"],
+        required: [
+          "name",
+          "description",
+          "vectorStoreId",
+          "provider",
+          "credentialReference",
+          "topK",
+        ],
         properties: {
           name: { type: "string" },
           description: { type: "string" },
           vectorStoreId: { type: "string" },
-          provider: { type: "string", enum: ["openai", "azure", "bedrock", "vertex_ai", "pg_vector", "elasticsearch"] },
+          provider: {
+            type: "string",
+            enum: [
+              "openai",
+              "azure",
+              "bedrock",
+              "vertex_ai",
+              "pg_vector",
+              "elasticsearch",
+            ],
+          },
           apiBase: { type: "string", format: "uri" },
           embeddingModel: { type: "string" },
-          semanticField: { type: "string", description: "Elasticsearch semantic_text field used for vector search." },
-          contentField: { type: "string", description: "Elasticsearch source field returned as result content." },
-          credentialReference: { type: "string", description: "Secret reference; never a plaintext credential." },
+          semanticField: {
+            type: "string",
+            description:
+              "Elasticsearch semantic_text field used for vector search.",
+          },
+          contentField: {
+            type: "string",
+            description:
+              "Elasticsearch source field returned as result content.",
+          },
+          credentialReference: {
+            type: "string",
+            description: "Secret reference; never a plaintext credential.",
+          },
           topK: { type: "integer", minimum: 1, maximum: 50 },
         },
       },
@@ -1329,36 +2009,103 @@ export const openApiDocument = {
       },
       AgentSpecializationDefinition: {
         type: "object",
-        required: ["id", "name", "roleLabel", "description", "icon", "systemPrompt", "defaultSkillIds", "defaultMcpServerIds", "defaultKnowledgeSourceIds"],
+        required: [
+          "id",
+          "name",
+          "roleLabel",
+          "description",
+          "icon",
+          "systemPrompt",
+          "defaultSkillIds",
+          "defaultMcpServerIds",
+          "defaultKnowledgeSourceIds",
+        ],
         properties: {
-          id: { type: "string" }, name: { type: "string" }, roleLabel: { type: "string" }, description: { type: "string" },
-          icon: { type: "string", enum: ["briefcase", "headphones", "settings", "sparkles", "telescope", "users"] }, systemPrompt: { type: "string" },
-          defaultSkillIds: { type: "array", items: { type: "string" } }, defaultMcpServerIds: { type: "array", items: { type: "string" } }, defaultKnowledgeSourceIds: { type: "array", items: { type: "string" } },
+          id: { type: "string" },
+          name: { type: "string" },
+          roleLabel: { type: "string" },
+          description: { type: "string" },
+          icon: {
+            type: "string",
+            enum: [
+              "briefcase",
+              "headphones",
+              "settings",
+              "sparkles",
+              "telescope",
+              "users",
+            ],
+          },
+          systemPrompt: { type: "string" },
+          defaultSkillIds: { type: "array", items: { type: "string" } },
+          defaultMcpServerIds: { type: "array", items: { type: "string" } },
+          defaultKnowledgeSourceIds: {
+            type: "array",
+            items: { type: "string" },
+          },
         },
       },
       ResourceCatalog: {
         type: "object",
-        required: ["skills", "mcpServers", "mcpServerTemplates", "knowledgeSources", "specializations"],
+        required: [
+          "skills",
+          "mcpServers",
+          "mcpServerTemplates",
+          "knowledgeSources",
+          "specializations",
+        ],
         properties: {
-          skills: { type: "array", items: { $ref: "#/components/schemas/SkillDefinition" } },
-          mcpServers: { type: "array", items: { $ref: "#/components/schemas/McpServerDefinition" } },
+          skills: {
+            type: "array",
+            items: { $ref: "#/components/schemas/SkillDefinition" },
+          },
+          mcpServers: {
+            type: "array",
+            items: { $ref: "#/components/schemas/McpServerDefinition" },
+          },
           mcpServerTemplates: {
             type: "array",
             items: {
               type: "object",
-              required: ["id", "name", "description", "category", "logo", "sourceUrl", "transport", "args", "defaultAuthType"],
+              required: [
+                "id",
+                "name",
+                "description",
+                "category",
+                "logo",
+                "sourceUrl",
+                "transport",
+                "args",
+                "defaultAuthType",
+              ],
               properties: {
-                id: { type: "string" }, name: { type: "string" }, description: { type: "string" },
-                category: { type: "string" }, logo: { type: "string" }, sourceUrl: { type: "string", format: "uri" },
-                transport: { type: "string", enum: ["http", "sse", "stdio", "openapi"] },
-                endpointPlaceholder: { type: "string" }, command: { type: "string" },
+                id: { type: "string" },
+                name: { type: "string" },
+                description: { type: "string" },
+                category: { type: "string" },
+                logo: { type: "string" },
+                sourceUrl: { type: "string", format: "uri" },
+                transport: {
+                  type: "string",
+                  enum: ["http", "sse", "stdio", "openapi"],
+                },
+                endpointPlaceholder: { type: "string" },
+                command: { type: "string" },
                 args: { type: "array", items: { type: "string" } },
                 defaultAuthType: { type: "string" },
               },
             },
           },
-          knowledgeSources: { type: "array", items: { $ref: "#/components/schemas/KnowledgeSourceDefinition" } },
-          specializations: { type: "array", items: { $ref: "#/components/schemas/AgentSpecializationDefinition" } },
+          knowledgeSources: {
+            type: "array",
+            items: { $ref: "#/components/schemas/KnowledgeSourceDefinition" },
+          },
+          specializations: {
+            type: "array",
+            items: {
+              $ref: "#/components/schemas/AgentSpecializationDefinition",
+            },
+          },
         },
       },
       AgentGardenUsageCapabilities: {
@@ -1792,7 +2539,27 @@ export const openApiDocument = {
           { $ref: "#/components/schemas/CreateAgentInput" },
           {
             type: "object",
-            required: ["schemaVersion", "id", "policyId", "providerAccountId", "providerName", "model", "modelType", "costKeyAlias", "sandboxName", "status", "createdAt", "updatedAt", "logs", "inferenceMode", "modelRoutingId", "modelRoutingBindingId", "modelRoutingStatus", "modelRoutingComplianceDomain", "modelRoutingKeyFingerprint"],
+            required: [
+              "schemaVersion",
+              "id",
+              "policyId",
+              "providerAccountId",
+              "providerName",
+              "model",
+              "modelType",
+              "costKeyAlias",
+              "sandboxName",
+              "status",
+              "createdAt",
+              "updatedAt",
+              "logs",
+              "inferenceMode",
+              "modelRoutingId",
+              "modelRoutingBindingId",
+              "modelRoutingStatus",
+              "modelRoutingComplianceDomain",
+              "modelRoutingKeyFingerprint",
+            ],
             properties: {
               schemaVersion: { type: "integer", const: 2 },
               id: { type: "string", format: "uuid" },
@@ -1803,20 +2570,55 @@ export const openApiDocument = {
               modelType: { type: "string", const: "llm" },
               costKeyAlias: { type: "string" },
               sandboxName: { type: "string" },
-              status: { type: "string", enum: ["PROVISIONING", "READY", "FAILED", "DESTROYING"] },
+              status: {
+                type: "string",
+                enum: ["PROVISIONING", "READY", "FAILED", "DESTROYING"],
+              },
               createdAt: { type: "string", format: "date-time" },
               updatedAt: { type: "string", format: "date-time" },
               operationId: { type: "string" },
               runtimePhase: { type: "string" },
-              provisioningStage: { type: "string", enum: ["QUEUED", "PROVIDER", "SANDBOX", "POD", "RUNTIME", "ENDPOINT", "READY"] },
+              provisioningStage: {
+                type: "string",
+                enum: [
+                  "QUEUED",
+                  "PROVIDER",
+                  "SANDBOX",
+                  "POD",
+                  "RUNTIME",
+                  "ENDPOINT",
+                  "READY",
+                ],
+              },
               logs: { type: "array", items: { type: "string" } },
               httpEndpoint: { $ref: "#/components/schemas/HttpEndpoint" },
               error: { type: "string" },
               inferenceMode: { type: "string", const: "PLATFORM_MANAGED" },
               modelRoutingId: { type: "string", format: "uuid" },
               modelRoutingBindingId: { type: "string" },
-              modelRoutingStatus: { type: "string", enum: ["DRAFT", "VALIDATING", "READY", "DEGRADED", "NON_COMPLIANT", "SUSPENDED", "UNSUPPORTED"] },
-              modelRoutingComplianceDomain: { type: "string", enum: ["GLOBAL", "CN_MAINLAND", "EU_EEA", "US", "UK", "APAC_EX_CN"] },
+              modelRoutingStatus: {
+                type: "string",
+                enum: [
+                  "DRAFT",
+                  "VALIDATING",
+                  "READY",
+                  "DEGRADED",
+                  "NON_COMPLIANT",
+                  "SUSPENDED",
+                  "UNSUPPORTED",
+                ],
+              },
+              modelRoutingComplianceDomain: {
+                type: "string",
+                enum: [
+                  "GLOBAL",
+                  "CN_MAINLAND",
+                  "EU_EEA",
+                  "US",
+                  "UK",
+                  "APAC_EX_CN",
+                ],
+              },
               modelRoutingKeyFingerprint: { type: "string" },
             },
           },
@@ -1827,7 +2629,10 @@ export const openApiDocument = {
         required: ["instanceId", "status"],
         properties: {
           instanceId: { type: "string", format: "uuid" },
-          status: { type: "string", enum: ["PROVISIONING", "READY", "FAILED", "DESTROYING"] },
+          status: {
+            type: "string",
+            enum: ["PROVISIONING", "READY", "FAILED", "DESTROYING"],
+          },
           httpEndpoint: { $ref: "#/components/schemas/HttpEndpoint" },
         },
       },
@@ -1859,9 +2664,37 @@ export const openApiDocument = {
         required: ["provider", "name", "config", "credentials"],
         properties: {
           name: { type: "string", minLength: 3, maxLength: 48 },
-          provider: { type: "string", enum: ["openai", "anthropic", "gemini", "deepseek", "qwen", "moonshot", "zai", "minimax", "baidu-qianfan", "volcengine", "nvidia-nim", "azure-openai", "aws-bedrock", "vertex-ai", "openrouter", "ollama", "vllm", "huggingface", "custom-openai-compatible", "custom-anthropic-compatible"] },
+          provider: {
+            type: "string",
+            enum: [
+              "openai",
+              "anthropic",
+              "gemini",
+              "deepseek",
+              "qwen",
+              "moonshot",
+              "zai",
+              "minimax",
+              "baidu-qianfan",
+              "volcengine",
+              "nvidia-nim",
+              "azure-openai",
+              "aws-bedrock",
+              "vertex-ai",
+              "openrouter",
+              "ollama",
+              "vllm",
+              "huggingface",
+              "custom-openai-compatible",
+              "custom-anthropic-compatible",
+            ],
+          },
           config: { type: "object", additionalProperties: true },
-          credentials: { type: "object", additionalProperties: true, writeOnly: true },
+          credentials: {
+            type: "object",
+            additionalProperties: true,
+            writeOnly: true,
+          },
         },
       },
       CreateProviderConnectionInput: {
@@ -1870,52 +2703,125 @@ export const openApiDocument = {
         required: ["connection", "models", "complianceDomain"],
         properties: {
           connection: { $ref: "#/components/schemas/ProviderConnectionDraft" },
-          models: { type: "array", minItems: 1, maxItems: 100, items: { $ref: "#/components/schemas/ProviderModelSelection" } },
-          complianceDomain: { type: "string", enum: ["GLOBAL", "CN_MAINLAND", "EU_EEA", "US", "UK", "APAC_EX_CN"] },
+          models: {
+            type: "array",
+            minItems: 1,
+            maxItems: 100,
+            items: { $ref: "#/components/schemas/ProviderModelSelection" },
+          },
+          complianceDomain: {
+            type: "string",
+            enum: ["GLOBAL", "CN_MAINLAND", "EU_EEA", "US", "UK", "APAC_EX_CN"],
+          },
         },
       },
       InferenceGateway: {
         type: "object",
-        required: ["id", "name", "baseUrl", "adminUiUrl", "credentialSource", "status", "validationMessage", "createdAt", "updatedAt"],
-        properties: { id: { type: "string" }, name: { type: "string" }, baseUrl: { type: "string", format: "uri" }, adminUiUrl: { type: "string", format: "uri" }, credentialSource: { type: "string", enum: ["ENVIRONMENT", "SECRET_REFERENCE"] }, status: { type: "string", enum: ["UNKNOWN", "READY", "DEGRADED"] }, validationMessage: { type: "string" }, validatedAt: { type: "string", format: "date-time" }, createdAt: { type: "string", format: "date-time" }, updatedAt: { type: "string", format: "date-time" } },
+        required: [
+          "id",
+          "name",
+          "baseUrl",
+          "adminUiUrl",
+          "credentialSource",
+          "status",
+          "validationMessage",
+          "createdAt",
+          "updatedAt",
+        ],
+        properties: {
+          id: { type: "string" },
+          name: { type: "string" },
+          baseUrl: { type: "string", format: "uri" },
+          adminUiUrl: { type: "string", format: "uri" },
+          credentialSource: {
+            type: "string",
+            enum: ["ENVIRONMENT", "SECRET_REFERENCE"],
+          },
+          status: { type: "string", enum: ["UNKNOWN", "READY", "DEGRADED"] },
+          validationMessage: { type: "string" },
+          validatedAt: { type: "string", format: "date-time" },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+        },
       },
       CreateModelRoutingInput: {
         type: "object",
         additionalProperties: false,
         required: ["name", "gatewayId", "routingPolicy", "complianceDomain"],
-        properties: { name: { type: "string", minLength: 2, maxLength: 64 }, description: { type: "string" }, gatewayId: { type: "string" }, routingPolicy: { $ref: "#/components/schemas/ModelRoutingPolicy" }, complianceDomain: { type: "string", enum: ["GLOBAL", "CN_MAINLAND", "EU_EEA", "US", "UK", "APAC_EX_CN"] }, isDefault: { type: "boolean" }, keyPolicy: { type: "object" }, auditPolicy: { type: "object" } },
+        properties: {
+          name: { type: "string", minLength: 2, maxLength: 64 },
+          description: { type: "string" },
+          gatewayId: { type: "string" },
+          routingPolicy: { $ref: "#/components/schemas/ModelRoutingPolicy" },
+          complianceDomain: {
+            type: "string",
+            enum: ["GLOBAL", "CN_MAINLAND", "EU_EEA", "US", "UK", "APAC_EX_CN"],
+          },
+          isDefault: { type: "boolean" },
+          keyPolicy: { type: "object" },
+          auditPolicy: { type: "object" },
+        },
       },
       ModelRoutingPolicy: {
         oneOf: [
           {
             type: "object",
             additionalProperties: false,
-            required: ["version", "mode", "modelDeploymentId", "fallbackModelDeploymentIds", "retries"],
+            required: [
+              "version",
+              "mode",
+              "modelDeploymentId",
+              "fallbackModelDeploymentIds",
+              "retries",
+            ],
             properties: {
               version: { type: "integer", const: 1 },
               mode: { type: "string", const: "SINGLE" },
               modelDeploymentId: { type: "string", format: "uuid" },
-              fallbackModelDeploymentIds: { type: "array", maxItems: 8, items: { type: "string", format: "uuid" } },
+              fallbackModelDeploymentIds: {
+                type: "array",
+                maxItems: 8,
+                items: { type: "string", format: "uuid" },
+              },
               retries: { type: "integer", minimum: 0, maximum: 10, default: 2 },
             },
           },
           {
             type: "object",
             additionalProperties: false,
-            required: ["version", "mode", "simpleModelDeploymentId", "complexModelDeploymentId", "fallbackModelDeploymentIds", "retries"],
+            required: [
+              "version",
+              "mode",
+              "simpleModelDeploymentId",
+              "complexModelDeploymentId",
+              "fallbackModelDeploymentIds",
+              "retries",
+            ],
             properties: {
               version: { type: "integer", const: 1 },
               mode: { type: "string", const: "COMPLEXITY" },
               simpleModelDeploymentId: { type: "string", format: "uuid" },
               complexModelDeploymentId: { type: "string", format: "uuid" },
-              fallbackModelDeploymentIds: { type: "array", maxItems: 8, items: { type: "string", format: "uuid" } },
+              fallbackModelDeploymentIds: {
+                type: "array",
+                maxItems: 8,
+                items: { type: "string", format: "uuid" },
+              },
               retries: { type: "integer", minimum: 0, maximum: 10, default: 2 },
             },
           },
           {
             type: "object",
             additionalProperties: false,
-            required: ["version", "mode", "defaultModelDeploymentId", "embeddingModelDeploymentId", "routes", "fallbackModelDeploymentIds", "retries"],
+            required: [
+              "version",
+              "mode",
+              "defaultModelDeploymentId",
+              "embeddingModelDeploymentId",
+              "routes",
+              "fallbackModelDeploymentIds",
+              "retries",
+            ],
             properties: {
               version: { type: "integer", const: 1 },
               mode: { type: "string", const: "SEMANTIC" },
@@ -1928,17 +2834,44 @@ export const openApiDocument = {
                 items: {
                   type: "object",
                   additionalProperties: false,
-                  required: ["intent", "description", "modelDeploymentId", "utterances", "scoreThreshold"],
+                  required: [
+                    "intent",
+                    "description",
+                    "modelDeploymentId",
+                    "utterances",
+                    "scoreThreshold",
+                  ],
                   properties: {
-                    intent: { type: "string", pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
-                    description: { type: "string", minLength: 3, maxLength: 240 },
+                    intent: {
+                      type: "string",
+                      pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                    },
+                    description: {
+                      type: "string",
+                      minLength: 3,
+                      maxLength: 240,
+                    },
                     modelDeploymentId: { type: "string", format: "uuid" },
-                    utterances: { type: "array", minItems: 2, maxItems: 50, items: { type: "string" } },
-                    scoreThreshold: { type: "number", minimum: 0, maximum: 1, default: 0.5 },
+                    utterances: {
+                      type: "array",
+                      minItems: 2,
+                      maxItems: 50,
+                      items: { type: "string" },
+                    },
+                    scoreThreshold: {
+                      type: "number",
+                      minimum: 0,
+                      maximum: 1,
+                      default: 0.5,
+                    },
                   },
                 },
               },
-              fallbackModelDeploymentIds: { type: "array", maxItems: 8, items: { type: "string", format: "uuid" } },
+              fallbackModelDeploymentIds: {
+                type: "array",
+                maxItems: 8,
+                items: { type: "string", format: "uuid" },
+              },
               retries: { type: "integer", minimum: 0, maximum: 10, default: 2 },
             },
           },
@@ -1948,14 +2881,27 @@ export const openApiDocument = {
       UpdateProjectQuotaInput: {
         type: "object",
         additionalProperties: false,
-        required: ["hardBudgetUsd", "budgetDuration", "tpmLimit", "maxInstances", "maxMcpIntegrations", "maxKnowledgeBaseIntegrations"],
+        required: [
+          "hardBudgetUsd",
+          "budgetDuration",
+          "tpmLimit",
+          "maxInstances",
+          "maxMcpIntegrations",
+          "maxKnowledgeBaseIntegrations",
+        ],
         properties: {
           hardBudgetUsd: { type: ["number", "null"], minimum: 0 },
-          budgetDuration: { type: ["string", "null"], enum: ["1d", "7d", "30d", null] },
+          budgetDuration: {
+            type: ["string", "null"],
+            enum: ["1d", "7d", "30d", null],
+          },
           tpmLimit: { type: ["integer", "null"], minimum: 0 },
           maxInstances: { type: ["integer", "null"], minimum: 0 },
           maxMcpIntegrations: { type: ["integer", "null"], minimum: 0 },
-          maxKnowledgeBaseIntegrations: { type: ["integer", "null"], minimum: 0 },
+          maxKnowledgeBaseIntegrations: {
+            type: ["integer", "null"],
+            minimum: 0,
+          },
         },
       },
       ProjectQuota: {
@@ -1963,19 +2909,41 @@ export const openApiDocument = {
           { $ref: "#/components/schemas/UpdateProjectQuotaInput" },
           {
             type: "object",
-            required: ["projectId", "budgetPeriodStartedAt", "budgetResetsAt", "litellmTeamId", "syncStatus", "lastSyncedAt", "lastSyncError", "revision", "usage"],
+            required: [
+              "projectId",
+              "budgetPeriodStartedAt",
+              "budgetResetsAt",
+              "litellmTeamId",
+              "syncStatus",
+              "lastSyncedAt",
+              "lastSyncError",
+              "revision",
+              "usage",
+            ],
             properties: {
               projectId: { type: "string" },
-              budgetPeriodStartedAt: { type: ["string", "null"], format: "date-time" },
+              budgetPeriodStartedAt: {
+                type: ["string", "null"],
+                format: "date-time",
+              },
               budgetResetsAt: { type: ["string", "null"], format: "date-time" },
               litellmTeamId: { type: ["string", "null"] },
-              syncStatus: { type: "string", enum: ["pending", "synced", "failed"] },
+              syncStatus: {
+                type: "string",
+                enum: ["pending", "synced", "failed"],
+              },
               lastSyncedAt: { type: ["string", "null"], format: "date-time" },
               lastSyncError: { type: ["string", "null"] },
               revision: { type: "integer", minimum: 1 },
               usage: {
                 type: "object",
-                required: ["spendUsd", "totalTokens", "instances", "mcpIntegrations", "knowledgeBaseIntegrations"],
+                required: [
+                  "spendUsd",
+                  "totalTokens",
+                  "instances",
+                  "mcpIntegrations",
+                  "knowledgeBaseIntegrations",
+                ],
                 properties: {
                   spendUsd: { type: "number", minimum: 0 },
                   totalTokens: { type: "integer", minimum: 0 },
@@ -1990,7 +2958,20 @@ export const openApiDocument = {
       },
       ProjectOverview: {
         type: "object",
-        required: ["projectId", "range", "timezone", "generatedAt", "freshness", "kpis", "usage", "budget", "runtime", "workload", "attention", "resources"],
+        required: [
+          "projectId",
+          "range",
+          "timezone",
+          "generatedAt",
+          "freshness",
+          "kpis",
+          "usage",
+          "budget",
+          "runtime",
+          "workload",
+          "attention",
+          "resources",
+        ],
         properties: {
           projectId: { type: "string" },
           range: { type: "string", enum: ["24h", "7d", "30d"] },
@@ -1998,7 +2979,19 @@ export const openApiDocument = {
           generatedAt: { type: "string", format: "date-time" },
           freshness: { type: "object" },
           kpis: { type: "object" },
-          usage: { type: "array", items: { type: "object", required: ["bucket", "runs", "tokens", "costUsd"], properties: { bucket: { type: "string" }, runs: { type: "integer" }, tokens: { type: "integer" }, costUsd: { type: "number" } } } },
+          usage: {
+            type: "array",
+            items: {
+              type: "object",
+              required: ["bucket", "runs", "tokens", "costUsd"],
+              properties: {
+                bucket: { type: "string" },
+                runs: { type: "integer" },
+                tokens: { type: "integer" },
+                costUsd: { type: "number" },
+              },
+            },
+          },
           budget: { type: "object" },
           runtime: { type: "object" },
           workload: { type: "array", items: { type: "object" } },
@@ -2007,17 +3000,168 @@ export const openApiDocument = {
         },
       },
       ModelRouting: {
-        allOf: [{ $ref: "#/components/schemas/CreateModelRoutingInput" }, { type: "object", required: ["id", "managementMode", "publicModelAlias", "status", "capabilities", "conditions", "configurationHash", "observedGeneration", "validationMessage", "consumers", "createdAt", "updatedAt"], properties: { id: { type: "string", format: "uuid" }, managementMode: { type: "string", const: "LITELLM_MANAGED" }, publicModelAlias: { type: "string" }, status: { type: "string", enum: ["DRAFT", "VALIDATING", "READY", "DEGRADED", "NON_COMPLIANT", "SUSPENDED", "UNSUPPORTED"] }, capabilities: { type: "object", required: ["automaticRouting", "routerType", "sessionAffinity", "adaptiveRouting", "failover", "generalFallback", "contextWindowFallback", "contentPolicyFallback", "retries", "requestAudit"], properties: { automaticRouting: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, routerType: { type: "string", enum: ["COMPLEXITY_ROUTER", "SEMANTIC_ROUTER", "OTHER", "UNKNOWN"] }, complexityTierCount: { type: "integer", minimum: 0 }, semanticRouteCount: { type: "integer", minimum: 0 }, sessionAffinity: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, adaptiveRouting: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, failover: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, generalFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, contextWindowFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, contentPolicyFallback: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, retries: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] }, requestAudit: { type: "string", enum: ["ENABLED", "DISABLED", "UNKNOWN"] } } }, conditions: { type: "array", items: { type: "object" } }, configurationHash: { type: "string" }, observedGeneration: { type: "integer", minimum: 1 }, validationMessage: { type: "string" }, consumers: { type: "integer" }, lastSynchronizedAt: { type: "string", format: "date-time" }, createdAt: { type: "string", format: "date-time" }, updatedAt: { type: "string", format: "date-time" } } }],
+        allOf: [
+          { $ref: "#/components/schemas/CreateModelRoutingInput" },
+          {
+            type: "object",
+            required: [
+              "id",
+              "managementMode",
+              "publicModelAlias",
+              "status",
+              "capabilities",
+              "conditions",
+              "configurationHash",
+              "observedGeneration",
+              "validationMessage",
+              "consumers",
+              "createdAt",
+              "updatedAt",
+            ],
+            properties: {
+              id: { type: "string", format: "uuid" },
+              managementMode: { type: "string", const: "LITELLM_MANAGED" },
+              publicModelAlias: { type: "string" },
+              status: {
+                type: "string",
+                enum: [
+                  "DRAFT",
+                  "VALIDATING",
+                  "READY",
+                  "DEGRADED",
+                  "NON_COMPLIANT",
+                  "SUSPENDED",
+                  "UNSUPPORTED",
+                ],
+              },
+              capabilities: {
+                type: "object",
+                required: [
+                  "automaticRouting",
+                  "routerType",
+                  "sessionAffinity",
+                  "adaptiveRouting",
+                  "failover",
+                  "generalFallback",
+                  "contextWindowFallback",
+                  "contentPolicyFallback",
+                  "retries",
+                  "requestAudit",
+                ],
+                properties: {
+                  automaticRouting: {
+                    type: "string",
+                    enum: ["ENABLED", "DISABLED", "UNKNOWN"],
+                  },
+                  routerType: {
+                    type: "string",
+                    enum: [
+                      "COMPLEXITY_ROUTER",
+                      "SEMANTIC_ROUTER",
+                      "OTHER",
+                      "UNKNOWN",
+                    ],
+                  },
+                  complexityTierCount: { type: "integer", minimum: 0 },
+                  semanticRouteCount: { type: "integer", minimum: 0 },
+                  sessionAffinity: {
+                    type: "string",
+                    enum: ["ENABLED", "DISABLED", "UNKNOWN"],
+                  },
+                  adaptiveRouting: {
+                    type: "string",
+                    enum: ["ENABLED", "DISABLED", "UNKNOWN"],
+                  },
+                  failover: {
+                    type: "string",
+                    enum: ["ENABLED", "DISABLED", "UNKNOWN"],
+                  },
+                  generalFallback: {
+                    type: "string",
+                    enum: ["ENABLED", "DISABLED", "UNKNOWN"],
+                  },
+                  contextWindowFallback: {
+                    type: "string",
+                    enum: ["ENABLED", "DISABLED", "UNKNOWN"],
+                  },
+                  contentPolicyFallback: {
+                    type: "string",
+                    enum: ["ENABLED", "DISABLED", "UNKNOWN"],
+                  },
+                  retries: {
+                    type: "string",
+                    enum: ["ENABLED", "DISABLED", "UNKNOWN"],
+                  },
+                  requestAudit: {
+                    type: "string",
+                    enum: ["ENABLED", "DISABLED", "UNKNOWN"],
+                  },
+                },
+              },
+              conditions: { type: "array", items: { type: "object" } },
+              configurationHash: { type: "string" },
+              observedGeneration: { type: "integer", minimum: 1 },
+              validationMessage: { type: "string" },
+              consumers: { type: "integer" },
+              lastSynchronizedAt: { type: "string", format: "date-time" },
+              createdAt: { type: "string", format: "date-time" },
+              updatedAt: { type: "string", format: "date-time" },
+            },
+          },
+        ],
       },
       ModelRoutingConsumer: {
         type: "object",
-        required: ["id", "modelRoutingId", "agentId", "liteLLMTeamId", "keyAlias", "keyFingerprint", "status", "createdAt"],
-        properties: { id: { type: "string" }, modelRoutingId: { type: "string" }, agentId: { type: "string" }, liteLLMTeamId: { type: "string" }, keyAlias: { type: "string" }, keyFingerprint: { type: "string" }, status: { type: "string", enum: ["ACTIVE", "REVOKED"] }, createdAt: { type: "string", format: "date-time" }, revokedAt: { type: "string", format: "date-time" } },
+        required: [
+          "id",
+          "modelRoutingId",
+          "agentId",
+          "liteLLMTeamId",
+          "keyAlias",
+          "keyFingerprint",
+          "status",
+          "createdAt",
+        ],
+        properties: {
+          id: { type: "string" },
+          modelRoutingId: { type: "string" },
+          agentId: { type: "string" },
+          liteLLMTeamId: { type: "string" },
+          keyAlias: { type: "string" },
+          keyFingerprint: { type: "string" },
+          status: { type: "string", enum: ["ACTIVE", "REVOKED"] },
+          createdAt: { type: "string", format: "date-time" },
+          revokedAt: { type: "string", format: "date-time" },
+        },
       },
       ModelRoutingAuditEvent: {
         type: "object",
-        required: ["eventId", "timestamp", "actor", "type", "modelRoutingId", "configurationHash", "complianceDomain", "result", "reason"],
-        properties: { eventId: { type: "string" }, timestamp: { type: "string", format: "date-time" }, actor: { type: "string" }, type: { type: "string" }, modelRoutingId: { type: "string" }, agentId: { type: "string" }, configurationHash: { type: "string" }, complianceDomain: { type: "string", enum: ["GLOBAL", "CN_MAINLAND", "EU_EEA", "US", "UK", "APAC_EX_CN"] }, result: { type: "string", enum: ["SUCCESS", "FAILED"] }, reason: { type: "string" } },
+        required: [
+          "eventId",
+          "timestamp",
+          "actor",
+          "type",
+          "modelRoutingId",
+          "configurationHash",
+          "complianceDomain",
+          "result",
+          "reason",
+        ],
+        properties: {
+          eventId: { type: "string" },
+          timestamp: { type: "string", format: "date-time" },
+          actor: { type: "string" },
+          type: { type: "string" },
+          modelRoutingId: { type: "string" },
+          agentId: { type: "string" },
+          configurationHash: { type: "string" },
+          complianceDomain: {
+            type: "string",
+            enum: ["GLOBAL", "CN_MAINLAND", "EU_EEA", "US", "UK", "APAC_EX_CN"],
+          },
+          result: { type: "string", enum: ["SUCCESS", "FAILED"] },
+          reason: { type: "string" },
+        },
       },
       ProviderModelSelection: {
         type: "object",
@@ -2025,10 +3169,39 @@ export const openApiDocument = {
         properties: {
           modelId: { type: "string" },
           displayName: { type: "string" },
-          modelType: { type: "string", enum: ["llm", "text-embedding", "speech-to-text"] },
-          capabilities: { type: "array", items: { type: "string", enum: ["reasoning", "vision", "ocr", "document-understanding", "tool-calling", "structured-output", "code", "multilingual"] } },
-          inputModalities: { type: "array", minItems: 1, items: { type: "string", enum: ["text", "image", "audio", "document"] } },
-          outputModalities: { type: "array", minItems: 1, items: { type: "string", enum: ["text", "embedding"] } },
+          modelType: {
+            type: "string",
+            enum: ["llm", "text-embedding", "speech-to-text"],
+          },
+          capabilities: {
+            type: "array",
+            items: {
+              type: "string",
+              enum: [
+                "reasoning",
+                "vision",
+                "ocr",
+                "document-understanding",
+                "tool-calling",
+                "structured-output",
+                "code",
+                "multilingual",
+              ],
+            },
+          },
+          inputModalities: {
+            type: "array",
+            minItems: 1,
+            items: {
+              type: "string",
+              enum: ["text", "image", "audio", "document"],
+            },
+          },
+          outputModalities: {
+            type: "array",
+            minItems: 1,
+            items: { type: "string", enum: ["text", "embedding"] },
+          },
           inputFeePerMillionTokens: { type: "number", minimum: 0 },
           outputFeePerMillionTokens: { type: "number", minimum: 0 },
           feePerAudioMinute: { type: "number", minimum: 0 },
@@ -2068,7 +3241,10 @@ export const openApiDocument = {
         properties: {
           defaultPolicyId: { type: "string" },
           templatePolicyYaml: { type: "string" },
-          data: { type: "array", items: { $ref: "#/components/schemas/SandboxPolicy" } },
+          data: {
+            type: "array",
+            items: { $ref: "#/components/schemas/SandboxPolicy" },
+          },
         },
       },
       CreateModelDeploymentInput: {
@@ -2079,10 +3255,39 @@ export const openApiDocument = {
           providerAccountId: { type: "string" },
           modelId: { type: "string" },
           displayName: { type: "string" },
-          modelType: { type: "string", enum: ["llm", "text-embedding", "speech-to-text"] },
-          capabilities: { type: "array", items: { type: "string", enum: ["reasoning", "vision", "ocr", "document-understanding", "tool-calling", "structured-output", "code", "multilingual"] } },
-          inputModalities: { type: "array", minItems: 1, items: { type: "string", enum: ["text", "image", "audio", "document"] } },
-          outputModalities: { type: "array", minItems: 1, items: { type: "string", enum: ["text", "embedding"] } },
+          modelType: {
+            type: "string",
+            enum: ["llm", "text-embedding", "speech-to-text"],
+          },
+          capabilities: {
+            type: "array",
+            items: {
+              type: "string",
+              enum: [
+                "reasoning",
+                "vision",
+                "ocr",
+                "document-understanding",
+                "tool-calling",
+                "structured-output",
+                "code",
+                "multilingual",
+              ],
+            },
+          },
+          inputModalities: {
+            type: "array",
+            minItems: 1,
+            items: {
+              type: "string",
+              enum: ["text", "image", "audio", "document"],
+            },
+          },
+          outputModalities: {
+            type: "array",
+            minItems: 1,
+            items: { type: "string", enum: ["text", "embedding"] },
+          },
           inputFeePerMillionTokens: { type: "number", minimum: 0 },
           outputFeePerMillionTokens: { type: "number", minimum: 0 },
           feePerAudioMinute: { type: "number", minimum: 0 },
@@ -2090,14 +3295,36 @@ export const openApiDocument = {
       },
       SandboxAuditEvent: {
         type: "object",
-        required: ["id", "timestamp", "source", "category", "severity", "decision", "summary", "raw"],
+        required: [
+          "id",
+          "timestamp",
+          "source",
+          "category",
+          "severity",
+          "decision",
+          "summary",
+          "raw",
+        ],
         properties: {
           id: { type: "string" },
           timestamp: { type: "string", format: "date-time" },
           source: { type: "string", enum: ["gateway", "sandbox", "unknown"] },
           category: { type: "string" },
-          severity: { type: "string", enum: ["INFO", "LOW", "MED", "HIGH", "CRIT", "UNKNOWN"] },
-          decision: { type: "string", enum: ["ALLOWED", "DENIED", "BLOCKED", "APPROVED", "REJECTED", "OBSERVED"] },
+          severity: {
+            type: "string",
+            enum: ["INFO", "LOW", "MED", "HIGH", "CRIT", "UNKNOWN"],
+          },
+          decision: {
+            type: "string",
+            enum: [
+              "ALLOWED",
+              "DENIED",
+              "BLOCKED",
+              "APPROVED",
+              "REJECTED",
+              "OBSERVED",
+            ],
+          },
           summary: { type: "string" },
           policy: { type: "string" },
           raw: { type: "string" },
@@ -2107,14 +3334,34 @@ export const openApiDocument = {
         type: "object",
         required: ["id", "label", "status"],
         properties: {
-          id: { type: "string", enum: ["endpoint", "catalog", "credentials", "inference"] },
+          id: {
+            type: "string",
+            enum: ["endpoint", "catalog", "credentials", "inference"],
+          },
           label: { type: "string" },
           status: { type: "string", enum: ["PASS", "FAIL", "SKIP"] },
         },
       },
       ProviderAccount: {
         type: "object",
-        required: ["id", "name", "providerKind", "presetId", "endpoint", "config", "complianceDomain", "endpointRegion", "crossBorderTransfer", "discoveredModels", "credentialState", "status", "checks", "validationMessage", "createdAt", "updatedAt"],
+        required: [
+          "id",
+          "name",
+          "providerKind",
+          "presetId",
+          "endpoint",
+          "config",
+          "complianceDomain",
+          "endpointRegion",
+          "crossBorderTransfer",
+          "discoveredModels",
+          "credentialState",
+          "status",
+          "checks",
+          "validationMessage",
+          "createdAt",
+          "updatedAt",
+        ],
         properties: {
           id: { type: "string" },
           name: { type: "string" },
@@ -2122,13 +3369,19 @@ export const openApiDocument = {
           presetId: { type: "string" },
           endpoint: { type: "string", format: "uri" },
           config: { type: "object", additionalProperties: true },
-          complianceDomain: { type: "string", enum: ["GLOBAL", "CN_MAINLAND", "EU_EEA", "US", "UK", "APAC_EX_CN"] },
+          complianceDomain: {
+            type: "string",
+            enum: ["GLOBAL", "CN_MAINLAND", "EU_EEA", "US", "UK", "APAC_EX_CN"],
+          },
           endpointRegion: { type: "string" },
           crossBorderTransfer: { type: "boolean", const: false },
           discoveredModels: { type: "array", items: { type: "string" } },
           credentialState: { type: "string", const: "STORED" },
           status: { type: "string", enum: ["VALIDATED", "DEGRADED", "FAILED"] },
-          checks: { type: "array", items: { $ref: "#/components/schemas/ProviderValidationCheck" } },
+          checks: {
+            type: "array",
+            items: { $ref: "#/components/schemas/ProviderValidationCheck" },
+          },
           validationMessage: { type: "string" },
           validationLatencyMs: { type: "integer" },
           validatedAt: { type: "string", format: "date-time" },
@@ -2139,41 +3392,195 @@ export const openApiDocument = {
       ProviderAccountCollection: {
         type: "object",
         required: ["data"],
-        properties: { data: { type: "array", items: { $ref: "#/components/schemas/ProviderAccount" } } },
+        properties: {
+          data: {
+            type: "array",
+            items: { $ref: "#/components/schemas/ProviderAccount" },
+          },
+        },
       },
       ProviderDiscoveryResult: {
         type: "object",
         required: ["providerKind", "mode", "models", "checks", "message"],
-        properties: { providerKind: { type: "string" }, mode: { type: "string", enum: ["remote", "suggested", "manual"] }, models: { type: "array", items: { $ref: "#/components/schemas/ProviderModelSelection" } }, checks: { type: "array", items: { $ref: "#/components/schemas/ProviderValidationCheck" } }, message: { type: "string" }, latencyMs: { type: "integer" } },
+        properties: {
+          providerKind: { type: "string" },
+          mode: { type: "string", enum: ["remote", "suggested", "manual"] },
+          models: {
+            type: "array",
+            items: { $ref: "#/components/schemas/ProviderModelSelection" },
+          },
+          checks: {
+            type: "array",
+            items: { $ref: "#/components/schemas/ProviderValidationCheck" },
+          },
+          message: { type: "string" },
+          latencyMs: { type: "integer" },
+        },
       },
       ProviderConnectionCreationResult: {
         type: "object",
         required: ["account", "models", "failures"],
-        properties: { account: { $ref: "#/components/schemas/ProviderAccount" }, models: { type: "array", items: { $ref: "#/components/schemas/ModelDeployment" } }, failures: { type: "array", items: { type: "object", required: ["model", "message"], properties: { model: { $ref: "#/components/schemas/ProviderModelSelection" }, message: { type: "string" } } } } },
+        properties: {
+          account: { $ref: "#/components/schemas/ProviderAccount" },
+          models: {
+            type: "array",
+            items: { $ref: "#/components/schemas/ModelDeployment" },
+          },
+          failures: {
+            type: "array",
+            items: {
+              type: "object",
+              required: ["model", "message"],
+              properties: {
+                model: { $ref: "#/components/schemas/ProviderModelSelection" },
+                message: { type: "string" },
+              },
+            },
+          },
+        },
       },
       ModelDeployment: {
         allOf: [
           { $ref: "#/components/schemas/CreateModelDeploymentInput" },
-          { type: "object", required: ["id", "capabilities", "inputModalities", "outputModalities", "providerPresetId", "providerName", "endpoint", "complianceDomain", "endpointRegion", "crossBorderTransfer", "litellmModelName", "status", "checks", "validationMessage", "createdAt", "updatedAt"], properties: {
-            id: { type: "string" }, providerPresetId: { type: "string" }, providerName: { type: "string" }, endpoint: { type: "string", format: "uri" }, complianceDomain: { type: "string", enum: ["GLOBAL", "CN_MAINLAND", "EU_EEA", "US", "UK", "APAC_EX_CN"] }, endpointRegion: { type: "string" }, crossBorderTransfer: { type: "boolean", const: false }, litellmModelName: { type: "string" }, status: { type: "string", enum: ["VALIDATED", "DEGRADED", "FAILED"] }, checks: { type: "array", items: { $ref: "#/components/schemas/ProviderValidationCheck" } }, validationMessage: { type: "string" }, validationLatencyMs: { type: "integer" }, validatedAt: { type: "string", format: "date-time" }, createdAt: { type: "string", format: "date-time" }, updatedAt: { type: "string", format: "date-time" },
-          } },
+          {
+            type: "object",
+            required: [
+              "id",
+              "capabilities",
+              "inputModalities",
+              "outputModalities",
+              "providerPresetId",
+              "providerName",
+              "endpoint",
+              "complianceDomain",
+              "endpointRegion",
+              "crossBorderTransfer",
+              "litellmModelName",
+              "status",
+              "checks",
+              "validationMessage",
+              "createdAt",
+              "updatedAt",
+            ],
+            properties: {
+              id: { type: "string" },
+              providerPresetId: { type: "string" },
+              providerName: { type: "string" },
+              endpoint: { type: "string", format: "uri" },
+              complianceDomain: {
+                type: "string",
+                enum: [
+                  "GLOBAL",
+                  "CN_MAINLAND",
+                  "EU_EEA",
+                  "US",
+                  "UK",
+                  "APAC_EX_CN",
+                ],
+              },
+              endpointRegion: { type: "string" },
+              crossBorderTransfer: { type: "boolean", const: false },
+              litellmModelName: { type: "string" },
+              status: {
+                type: "string",
+                enum: ["VALIDATED", "DEGRADED", "FAILED"],
+              },
+              checks: {
+                type: "array",
+                items: { $ref: "#/components/schemas/ProviderValidationCheck" },
+              },
+              validationMessage: { type: "string" },
+              validationLatencyMs: { type: "integer" },
+              validatedAt: { type: "string", format: "date-time" },
+              createdAt: { type: "string", format: "date-time" },
+              updatedAt: { type: "string", format: "date-time" },
+            },
+          },
         ],
       },
       ModelCostSummary: {
         type: "object",
-        required: ["currency", "totalSpendUsd", "totalTokens", "promptTokens", "completionTokens", "requests", "unknownCostRequests", "uncorrelatedRunRequests", "comparison"],
+        required: [
+          "currency",
+          "totalSpendUsd",
+          "totalTokens",
+          "promptTokens",
+          "completionTokens",
+          "requests",
+          "unknownCostRequests",
+          "uncorrelatedRunRequests",
+          "comparison",
+        ],
         properties: {
-          currency: { type: "string", const: "USD" }, totalSpendUsd: { type: "number" }, totalTokens: { type: "integer" }, promptTokens: { type: "integer" }, completionTokens: { type: "integer" }, requests: { type: "integer" }, unknownCostRequests: { type: "integer" }, uncorrelatedRunRequests: { type: "integer" }, highestCostInstance: { type: "object" }, highestCostModel: { type: "object" }, comparison: { type: "object" },
+          currency: { type: "string", const: "USD" },
+          totalSpendUsd: { type: "number" },
+          totalTokens: { type: "integer" },
+          promptTokens: { type: "integer" },
+          completionTokens: { type: "integer" },
+          requests: { type: "integer" },
+          unknownCostRequests: { type: "integer" },
+          uncorrelatedRunRequests: { type: "integer" },
+          highestCostInstance: { type: "object" },
+          highestCostModel: { type: "object" },
+          comparison: { type: "object" },
         },
       },
-      ModelCostActivity: { type: "object", required: ["currency", "granularity", "items", "legend"], properties: { currency: { type: "string", const: "USD" }, granularity: { type: "string" }, items: { type: "array", items: { type: "object" } }, legend: { type: "object" } } },
-      ModelCostRanking: { type: "object", required: ["currency", "items", "totalSpendUsd"], properties: { currency: { type: "string", const: "USD" }, items: { type: "array", items: { type: "object" } }, totalSpendUsd: { type: "number" } } },
-      ModelCostTrend: { type: "object", required: ["currency", "dates", "series"], properties: { currency: { type: "string", const: "USD" }, dates: { type: "array", items: { type: "string" } }, series: { type: "array", items: { type: "object" } } } },
-      ModelCostBreakdown: { type: "object", required: ["currency", "items", "total", "page", "pageSize", "filterOptions"], properties: { currency: { type: "string", const: "USD" }, items: { type: "array", items: { type: "object" } }, total: { type: "integer" }, page: { type: "integer" }, pageSize: { type: "integer" }, filterOptions: { type: "object" } } },
+      ModelCostActivity: {
+        type: "object",
+        required: ["currency", "granularity", "items", "legend"],
+        properties: {
+          currency: { type: "string", const: "USD" },
+          granularity: { type: "string" },
+          items: { type: "array", items: { type: "object" } },
+          legend: { type: "object" },
+        },
+      },
+      ModelCostRanking: {
+        type: "object",
+        required: ["currency", "items", "totalSpendUsd"],
+        properties: {
+          currency: { type: "string", const: "USD" },
+          items: { type: "array", items: { type: "object" } },
+          totalSpendUsd: { type: "number" },
+        },
+      },
+      ModelCostTrend: {
+        type: "object",
+        required: ["currency", "dates", "series"],
+        properties: {
+          currency: { type: "string", const: "USD" },
+          dates: { type: "array", items: { type: "string" } },
+          series: { type: "array", items: { type: "object" } },
+        },
+      },
+      ModelCostBreakdown: {
+        type: "object",
+        required: [
+          "currency",
+          "items",
+          "total",
+          "page",
+          "pageSize",
+          "filterOptions",
+        ],
+        properties: {
+          currency: { type: "string", const: "USD" },
+          items: { type: "array", items: { type: "object" } },
+          total: { type: "integer" },
+          page: { type: "integer" },
+          pageSize: { type: "integer" },
+          filterOptions: { type: "object" },
+        },
+      },
       AgentCollection: {
         type: "object",
         required: ["data"],
-        properties: { data: { type: "array", items: { $ref: "#/components/schemas/Agent" } } },
+        properties: {
+          data: {
+            type: "array",
+            items: { $ref: "#/components/schemas/Agent" },
+          },
+        },
       },
       TerminalSession: {
         type: "object",
@@ -2181,7 +3588,11 @@ export const openApiDocument = {
         properties: {
           id: { type: "string", format: "uuid" },
           expiresAt: { type: "string", format: "date-time" },
-          websocketUrl: { type: "string", description: "Relative WebSocket upgrade path; valid once for five minutes." },
+          websocketUrl: {
+            type: "string",
+            description:
+              "Relative WebSocket upgrade path; valid once for five minutes.",
+          },
         },
       },
       CreateTerminalSessionInput: {
@@ -2213,7 +3624,10 @@ export const openApiDocument = {
             properties: {
               available: { type: "boolean" },
               kind: { type: "string", const: "nemoclaw-tui" },
-              transport: { type: "string", enum: ["nemoclaw", "openshell", "none"] },
+              transport: {
+                type: "string",
+                enum: ["nemoclaw", "openshell", "none"],
+              },
               reason: { type: "string" },
             },
           },
@@ -2228,10 +3642,17 @@ export const openApiDocument = {
           accepted: { type: "boolean", const: true },
         },
       },
-      Error: { type: "object", required: ["error"], properties: { error: { type: "string" } } },
+      Error: {
+        type: "object",
+        required: ["error"],
+        properties: { error: { type: "string" } },
+      },
     },
     responses: {
-      Error: { description: "Request failed", ...json({ $ref: "#/components/schemas/Error" }) },
+      Error: {
+        description: "Request failed",
+        ...json({ $ref: "#/components/schemas/Error" }),
+      },
     },
   },
 } as const;

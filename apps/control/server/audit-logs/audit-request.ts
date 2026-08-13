@@ -13,12 +13,12 @@ const maxBodyBytes = 64 * 1024;
 const sensitiveKey =
   /(?:authorization|cookie|password|passphrase|secret|token|credential|api[-_]?key|private[-_]?key|client[-_]?secret|code[-_]?verifier)/i;
 const operationSegments = new Set([
-  "activate",
   "discover",
   "provision",
   "refresh",
   "rotate-model-credential",
   "suspend",
+  "switch",
   "sync",
   "validate",
   "verify",
@@ -142,6 +142,22 @@ function descriptor(method: string, path: string): AuditDescriptor | undefined {
   if (path === "/api/v1/profile/password" && method === "POST") {
     return { action: "credential.rotate", objectType: "Credential", operation: "rotate" };
   }
+  if (path === "/api/v1/notifications/read-all" && method === "POST") {
+    return {
+      action: "notification.read_all",
+      objectType: "Notification",
+      operation: "update",
+    };
+  }
+  const notificationMatch = path.match(/^\/api\/v1\/notifications\/([^/]+)$/);
+  if (notificationMatch && method === "PATCH") {
+    return {
+      action: "notification.update",
+      objectId: decodeURIComponent(notificationMatch[1]!),
+      objectType: "Notification",
+      operation: "update",
+    };
+  }
   if (/^\/api\/v1\/demo-agents\/[^/]+$/.test(path) && method === "POST") {
     return {
       action: "demo_agent.execute",
@@ -179,6 +195,16 @@ function descriptor(method: string, path: string): AuditDescriptor | undefined {
       ...(tail[1] ? { objectId: tail[1] } : {}),
       objectType: "Instance",
       operation: "update",
+      projectId,
+    };
+  }
+
+  if (tail[0] === "role" && method === "PUT") {
+    return {
+      action: "project_role.switch",
+      objectId: projectId,
+      objectType: "Project Role",
+      operation: "switch",
       projectId,
     };
   }
@@ -397,7 +423,6 @@ function resultSubject(result?: Record<string, unknown>): Record<string, unknown
 function operationVerb(operation: string, outcome: PlatformAuditLogEvent["outcome"]): string {
   if (outcome !== "success") return "attempted";
   return ({
-    activate: "activated",
     bind: "bound",
     create: "created",
     delete: "deleted",
@@ -411,6 +436,7 @@ function operationVerb(operation: string, outcome: PlatformAuditLogEvent["outcom
     rotate: "rotated",
     rotate_model_credential: "rotated",
     suspend: "suspended",
+    switch: "switched",
     sync: "synchronized",
     unbind: "unbound",
     update: "updated",

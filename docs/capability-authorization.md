@@ -88,7 +88,7 @@ The role counts below are generated from the current builtin definitions.
 
 | Membership value | Builtin role | CAP count | Grant relations | Current readiness |
 |---|---|---:|---|---|
-| `admin` | `ROLE_PROJECT_ADMIN` | 59 | `PROJECT_ANY` | Partial |
+| `admin` | `ROLE_PROJECT_ADMIN` | 68 | `PROJECT_ANY` | Partial |
 | `auditor` | `ROLE_AUDITOR` | 39 | `PROJECT_ANY` | Mostly implemented for read-only metadata |
 | `developer` | `ROLE_AGENT_DEVELOPER` | 69 | `PROJECT_ANY`, `OWNER`, `MAINTAINER`, `SESSION_PARTICIPANT` | Partial |
 | `user` | `ROLE_USER` | 9 | `PROJECT_ANY`, `ASSIGNED`, `SESSION_PARTICIPANT` | Defined but core Agent flow is fail closed |
@@ -98,10 +98,14 @@ The role counts below are generated from the current builtin definitions.
 
 The Admin preset covers Project settings, membership, role and quota
 governance, shared-resource reads, narrow validation operations, approval
-request submission metadata, and operational metadata.
+request submission metadata, and operational metadata. It also grants the
+minimal create-and-bind capabilities needed to bootstrap a new Instance. This
+keeps a newly created Project usable while membership persists only one role
+per user.
 
-It intentionally does not include Agent lifecycle mutation, Terminal, raw
-Memory content, sensitive audit content/export, or approval decisions. The
+It intentionally does not include existing-Agent lifecycle mutation such as
+delete or restart, Terminal, raw Memory content, sensitive audit
+content/export, or approval decisions. The
 Admin preset contains `CAP_PROJECT_ROLE_CREATE`, `UPDATE`, and `DELETE`, but
 custom Role persistence and Role CRUD APIs do not exist, so those capabilities
 are registered only.

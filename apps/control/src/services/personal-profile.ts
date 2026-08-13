@@ -1,9 +1,9 @@
 import { getAuthToken } from "@/lib/auth-token";
 
 export interface PersonalProfile {
-  city: string;
   displayName: string;
   email: string;
+  language: AccountLanguage;
   provider: "local" | "sso";
   systemRole: "user" | "super_administrator";
   theme: ThemePreference;
@@ -11,6 +11,7 @@ export interface PersonalProfile {
   username: string;
 }
 
+export type AccountLanguage = "en-US" | "zh-CN";
 export type ThemePreference = "system" | "light" | "dark";
 
 export const personalProfileQueryKey = ["personal-profile"] as const;
@@ -35,7 +36,9 @@ async function profileRequest<T = PersonalProfile>(
   };
   if (!response.ok) {
     throw new Error(
-      payload.message ?? payload.error ?? `Request failed (${response.status}).`,
+      payload.message ??
+        payload.error ??
+        `Request failed (${response.status}).`,
     );
   }
   return payload as T;
@@ -46,7 +49,7 @@ export function getPersonalProfile(): Promise<PersonalProfile> {
 }
 
 export function updatePersonalProfile(input: {
-  city: string;
+  language: AccountLanguage;
   theme: ThemePreference;
   timezone: string;
 }): Promise<PersonalProfile> {

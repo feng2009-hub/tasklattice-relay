@@ -107,7 +107,7 @@ export async function requireProjectRole(
 ): Promise<void> {
   if (isProjectAdmissionComplete(request)) return;
   const context = await projectService.resolve(request);
-  if (!roles.includes(context.role)) {
+  if (!roles.includes(context.activeRole)) {
     throw new Error("You do not have permission to perform this project action.");
   }
 }

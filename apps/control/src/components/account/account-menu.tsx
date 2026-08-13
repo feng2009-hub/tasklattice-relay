@@ -1,5 +1,6 @@
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { ChevronDown, CircleUserRound, LogOut } from "lucide-react";
+import { Bell, ChevronDown, CircleUserRound, LogOut } from "lucide-react";
 
 import type { AuthUser } from "@/components/auth/auth-provider";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -12,6 +13,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import {
+  getNotifications,
+  notificationsQueryKey,
+} from "@/services/notifications";
 
 type AccountMenuProps = {
   collapsed?: boolean;
@@ -59,6 +64,12 @@ export function AccountMenu({
   const displayName = user?.displayName || user?.username || "User";
   const accountLabel =
     user?.provider === "sso" ? "SSO account" : "Local account";
+  const notifications = useQuery({
+    queryKey: notificationsQueryKey,
+    queryFn: getNotifications,
+    staleTime: 30_000,
+  });
+  const unreadCount = notifications.data?.unreadCount ?? 0;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -76,7 +87,9 @@ export function AccountMenu({
           {collapsed ? null : (
             <>
               <span className="min-w-0 flex-1 text-left">
-                <strong className="block truncate text-xs">{displayName}</strong>
+                <strong className="block truncate text-xs">
+                  {displayName}
+                </strong>
                 <span className="block truncate text-[10px] text-muted-foreground">
                   {accountLabel}
                 </span>
@@ -106,7 +119,18 @@ export function AccountMenu({
         <DropdownMenuItem asChild>
           <Link to="/$projectId/profile" params={{ projectId }}>
             <CircleUserRound className="size-4" />
-            My Account
+            Account
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link to="/$projectId/notifications" params={{ projectId }}>
+            <Bell className="size-4" />
+            Notifications
+            {unreadCount ? (
+              <span className="ml-auto min-w-5 rounded-sm bg-primary px-1.5 py-0.5 text-center text-[10px] font-semibold text-primary-foreground">
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </span>
+            ) : null}
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />

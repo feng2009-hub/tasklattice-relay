@@ -28,6 +28,9 @@ import removeProjectTypeMigration from "../../prisma/migrations/20260813000000_r
 import projectBudgetWindowsMigration from "../../prisma/migrations/20260813010000_project_budget_windows/migration.sql?raw";
 import modelUsageRunCorrelationMigration from "../../prisma/migrations/20260813020000_model_usage_run_correlation/migration.sql?raw";
 import removeBusinessEnvironmentsMigration from "../../prisma/migrations/20260813030000_remove_business_environments/migration.sql?raw";
+import accountLanguageAndNotificationsMigration from "../../prisma/migrations/20260813040000_account_language_and_notifications/migration.sql?raw";
+import projectRoleSessionsMigration from "../../prisma/migrations/20260813050000_project_role_sessions/migration.sql?raw";
+import directProjectRoleSwitchingMigration from "../../prisma/migrations/20260813060000_direct_project_role_switching/migration.sql?raw";
 import { developmentResourceCatalog } from "../catalog/development-resource-catalog";
 import { PrismaClient } from "../generated/prisma/client";
 
@@ -328,6 +331,45 @@ export function createTestPrisma(): PrismaClient {
     throw new Error("Business Environment removal migration is incomplete.");
   }
   memory.public.none(removeBusinessEnvironmentsMigration);
+  memory.public.none(accountLanguageAndNotificationsMigration);
+  memory.public.none(projectRoleSessionsMigration);
+  if (
+    !directProjectRoleSwitchingMigration.includes("DROP TABLE tasklattice.project_role_activations")
+    || !directProjectRoleSwitchingMigration.includes("DROP COLUMN mode")
+    || !directProjectRoleSwitchingMigration.includes("DROP TYPE tasklattice.project_role_assignment_mode")
+  ) {
+    throw new Error("Direct Project role switching migration is incomplete.");
+  }
+  // pg-mem cannot resolve a correlated UPDATE against an aliased target row.
+  // Apply the same data transition row-by-row, then run the structural DDL.
+  memory.public.none(`
+    INSERT INTO tasklattice.project_member_role_assignments (
+      project_id, user_id, role, mode
+    )
+    SELECT project_id, user_id, role, 'active'::tasklattice.project_role_assignment_mode
+    FROM tasklattice.project_members
+    ON CONFLICT (project_id, user_id, role) DO NOTHING;
+  `);
+  for (const row of memory.public.many(`
+    SELECT project_id, user_id
+    FROM tasklattice.project_member_role_assignments
+    WHERE role = 'admin' AND mode = 'eligible'
+  `)) {
+    const projectId = String(row.project_id).replaceAll("'", "''");
+    const userId = String(row.user_id).replaceAll("'", "''");
+    memory.public.none(`
+      UPDATE tasklattice.project_members
+      SET role = 'admin'
+      WHERE project_id = '${projectId}' AND user_id = '${userId}';
+    `);
+  }
+  memory.public.none(`
+    DROP TABLE tasklattice.project_role_activations;
+    DROP INDEX tasklattice.project_member_role_assignments_project_role_mode_idx;
+    ALTER TABLE tasklattice.project_member_role_assignments DROP COLUMN mode;
+    CREATE INDEX project_member_role_assignments_project_role_idx
+      ON tasklattice.project_member_role_assignments(project_id, role);
+  `);
   const pg = memory.adapters.createPg();
   const query = pg.Client.prototype.query;
   pg.Client.prototype.query = function (

@@ -9,6 +9,13 @@ import type {
   ProjectRole,
 } from "@/types/project";
 
+export type ProjectAccess = Pick<
+  Project,
+  | "assignedRoles"
+  | "activeRole"
+  | "effectiveCapabilities"
+>;
+
 async function projectRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const token = getAuthToken();
   const response = await fetch(path, {
@@ -77,6 +84,16 @@ export async function removeMember(projectId: string, memberId: string): Promise
   await projectRequest(
     `/api/v1/projects/${encodeURIComponent(projectId)}/members/${encodeURIComponent(memberId)}`,
     { method: "DELETE" },
+  );
+}
+
+export async function switchProjectRole(
+  projectId: string,
+  role: ProjectRole,
+): Promise<ProjectAccess> {
+  return projectRequest<ProjectAccess>(
+    `/api/v1/projects/${encodeURIComponent(projectId)}/role`,
+    { method: "PUT", body: JSON.stringify({ role }) },
   );
 }
 

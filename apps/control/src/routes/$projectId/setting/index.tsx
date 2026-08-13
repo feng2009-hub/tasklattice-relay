@@ -1,6 +1,14 @@
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { Gauge, LockKeyhole, ShieldCheck, Trash2, Users, Workflow } from "lucide-react";
+import {
+  Database,
+  Gauge,
+  LockKeyhole,
+  Route as RouteIcon,
+  ShieldCheck,
+  Trash2,
+  Users,
+} from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { ProjectModelRoutingsSettings } from "@/components/project/project-model-routing-settings";
 import { Button } from "@/components/ui/button";
@@ -17,7 +25,8 @@ export const Route = createFileRoute("/$projectId/setting/")({
   validateSearch: (search): { section?: ProjectSettingsSection } => {
     const section =
       search.section === "members" ||
-      search.section === "model-routings" ||
+      search.section === "models" ||
+      search.section === "routing" ||
       search.section === "quota" ||
       search.section === "settings"
         ? search.section
@@ -30,7 +39,8 @@ export const Route = createFileRoute("/$projectId/setting/")({
 type ProjectSettingsSection =
   | "settings"
   | "members"
-  | "model-routings"
+  | "models"
+  | "routing"
   | "quota";
 
 function ProjectSettingsPage() {
@@ -66,7 +76,7 @@ function ProjectSettingsPage() {
         </h1>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
           Only Project administrators can manage Project identity, members,
-          Model and Routing settings, and quota. Your personal details remain available
+          models, routing, and quota. Your personal details remain available
           from Personal profile in the account menu.
         </p>
       </section>
@@ -77,7 +87,7 @@ function ProjectSettingsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Project settings"
-        description="Manage Project identity, human membership, models, and quota."
+        description="Manage Project identity, human membership, models, routing, and quota."
       />
 
       <section className="overflow-hidden rounded-lg border bg-background">
@@ -102,9 +112,13 @@ function ProjectSettingsPage() {
               <Users />
               Members
             </TabsTrigger>
-            <TabsTrigger value="model-routings" className="h-11">
-              <Workflow />
-              Model and Routing
+            <TabsTrigger value="models" className="h-11">
+              <Database />
+              Models
+            </TabsTrigger>
+            <TabsTrigger value="routing" className="h-11">
+              <RouteIcon />
+              Routing
             </TabsTrigger>
             <TabsTrigger value="quota" className="h-11">
               <Gauge />
@@ -127,11 +141,20 @@ function ProjectSettingsPage() {
           <TabsContent value="members" className="mt-0">
             <ProjectMembers project={project} />
           </TabsContent>
-          <TabsContent value="model-routings" className="mt-0">
-            <ProjectModelRoutingsSettings
-              project={project}
-            />
-          </TabsContent>
+          {section === "models" || section === "routing" ? (
+            <TabsContent value={section} className="mt-0">
+              <ProjectModelRoutingsSettings
+                project={project}
+                view={section}
+                onViewChange={(value) => {
+                  void navigate({
+                    replace: true,
+                    search: { section: value },
+                  });
+                }}
+              />
+            </TabsContent>
+          ) : null}
           <TabsContent value="quota" className="mt-0">
             <ProjectQuotaSettings project={project} />
           </TabsContent>

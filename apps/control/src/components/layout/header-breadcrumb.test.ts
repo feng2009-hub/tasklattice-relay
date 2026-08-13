@@ -30,9 +30,9 @@ describe("getHeaderBreadcrumbItems", () => {
     ]);
   });
 
-  it("distinguishes My Account from Project settings", () => {
+  it("distinguishes Account from Project settings", () => {
     expect(getHeaderBreadcrumbItems("/individual/profile")).toEqual([
-      { href: "/individual/profile", label: "My Account" },
+      { href: "/individual/profile", label: "Account" },
     ]);
     expect(getHeaderBreadcrumbItems("/individual/setting")).toEqual([
       { href: "/individual/setting", label: "Project Settings" },

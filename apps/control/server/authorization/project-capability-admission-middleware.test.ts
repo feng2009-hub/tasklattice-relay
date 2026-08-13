@@ -20,6 +20,14 @@ type AdmissionMiddleware = (event: {
 let database: PrismaClient;
 
 const users = {
+  admin: {
+    displayName: "Project Administrator",
+    email: "administrator@example.test",
+    id: "middleware-admin",
+    provider: "sso",
+    systemRole: "user",
+    username: "middleware-admin",
+  },
   developer: {
     displayName: "Agent Developer",
     email: "developer@example.test",
@@ -75,6 +83,11 @@ beforeEach(async () => {
   });
   await database.projectMember.createMany({
     data: [
+      {
+        projectId: "individual",
+        userId: users.admin.id,
+        role: "admin",
+      },
       {
         projectId: "individual",
         userId: users.developer.id,
@@ -187,6 +200,32 @@ describe("Project Capability admission middleware", () => {
         "CAP_AGENT_INSTANCE_MODEL_ROUTING_ASSIGN",
         "CAP_AGENT_MEMORY_CONFIG_UPDATE",
       ]);
+  });
+
+  it("keeps the default Project Administrator Instance creation path usable", async () => {
+    const request = authorizedRequest(
+      users.admin,
+      "/api/v1/projects/individual/instances/",
+      {
+        body: JSON.stringify({
+          accessPolicyIds: ["default-access"],
+          agentPlatform: "openclaw",
+          knowledgeSourceIds: ["project-docs"],
+          mcpServerIds: ["tools"],
+          memory: { mode: "hybrid" },
+          modelRoutingId: "default-routing",
+          policyId: "runtime-default",
+          skillIds: ["summarize"],
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
+    await expect((await middleware())({ context: {}, req: request }))
+      .resolves.toBeUndefined();
+    expect(admissionEvidenceForRequest(request).every(
+      ({ decision }) => decision === "ALLOW",
+    )).toBe(true);
   });
 
   it("fails closed for an undeclared nested Project route", async () => {

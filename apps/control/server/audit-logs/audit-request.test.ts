@@ -172,7 +172,26 @@ describe("platform audit request capture", () => {
     }
 
     expect(uncovered).toEqual([]);
-    expect(routeFiles).toHaveLength(42);
+    expect(routeFiles).toHaveLength(45);
+  });
+
+  it("records direct Project role switches", async () => {
+    await expect(captureAuditRequest(new Request(
+      "http://tali.local/api/v1/projects/individual/role",
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ role: "admin" }),
+      },
+    ))).resolves.toMatchObject({
+      descriptor: {
+        action: "project_role.switch",
+        objectId: "individual",
+        objectType: "Project Role",
+        operation: "switch",
+        projectId: "individual",
+      },
+    });
   });
 
   it("persists the exact CAP decision instead of inferring it from HTTP status", async () => {

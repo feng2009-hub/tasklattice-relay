@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import type { ProjectCapability, ProjectMembershipRole } from "@tali/contracts";
+import type { ProjectMembershipRole } from "@tali/contracts";
 import { ensureDefaultAccessPolicy } from "../access-policies/default-access-policy";
 import type { AuthPayload, AuthUser } from "../auth/auth";
 import { requireAuth } from "../auth/auth";
@@ -16,19 +16,22 @@ import {
 } from "../providers/litellm-client";
 import { ProjectQuotaService } from "../quotas/project-quota-service";
 import { ProjectStore } from "./project-store";
-import { builtinRoleForMembership } from "../authorization/builtin-roles";
 import { developmentResourceCatalog } from "../catalog/development-resource-catalog";
 import { BuiltInPolicyCatalogSource } from "../policies/policy-service";
+import {
+  accessForMembership,
+  membershipAccessInclude,
+  projectAccessForMember,
+  type ProjectAccessView,
+} from "./project-access";
 
 export type ProjectRole = ProjectMembershipRole;
 
-export interface ProjectView {
+export interface ProjectView extends ProjectAccessView {
   id: string;
   name: string;
   avatar?: string;
   memberCount: number;
-  role: ProjectRole;
-  effectiveCapabilities: readonly ProjectCapability[];
 }
 
 export interface HumanProjectMemberView {
@@ -36,8 +39,13 @@ export interface HumanProjectMemberView {
   kind: "human";
   name: string;
   email: string;
-  role: ProjectRole;
+  roles: readonly ProjectRole[];
+  activeRole?: ProjectRole;
   status: "active" | "invited";
+}
+
+function invitationRoleView(role: ProjectRole): Pick<HumanProjectMemberView, "roles"> {
+  return { roles: [role] };
 }
 
 export type ProjectMemberView = HumanProjectMemberView;
@@ -138,13 +146,41 @@ export class ProjectService {
         FOR UPDATE`,
       projectId,
     );
+    await transaction.$queryRawUnsafe(
+      `SELECT user_id
+         FROM tasklattice.project_member_role_assignments
+        WHERE project_id = $1 AND role = 'admin'
+        ORDER BY user_id
+        FOR UPDATE`,
+      projectId,
+    );
     const actor = await transaction.projectMember.findUnique({
       where: { projectId_userId: { projectId, userId: actorId } },
-      select: { role: true },
+      include: membershipAccessInclude,
     });
-    if (actor?.role !== "admin") {
+    if (!actor || accessForMembership(actor).activeRole !== "admin") {
       throw new Error("You do not have permission to manage this project.");
     }
+  }
+
+  private async administratorCount(
+    transaction: Prisma.TransactionClient,
+    projectId: string,
+  ): Promise<number> {
+    const [permanent, assigned] = await Promise.all([
+      transaction.projectMember.findMany({
+        where: { projectId, role: "admin" },
+        select: { userId: true },
+      }),
+      transaction.projectMemberRoleAssignment.findMany({
+        where: { projectId, role: "admin" },
+        select: { userId: true },
+      }),
+    ]);
+    return new Set([
+      ...permanent.map(({ userId }) => userId),
+      ...assigned.map(({ userId }) => userId),
+    ]).size;
   }
 
   private async acceptPendingInvitations(auth: AuthPayload): Promise<string> {
@@ -162,8 +198,8 @@ export class ProjectService {
       },
     });
     for (const invitation of invitations) {
-      await this.db.$transaction([
-        this.db.projectMember.upsert({
+      await this.db.$transaction(async (transaction) => {
+        await transaction.projectMember.upsert({
           where: {
             projectId_userId: {
               projectId: invitation.projectId,
@@ -175,13 +211,28 @@ export class ProjectService {
             userId: id,
             role: invitation.role,
           },
-          update: { role: invitation.role },
-        }),
-        this.db.projectInvitation.update({
+          update: {},
+        });
+        await transaction.projectMemberRoleAssignment.upsert({
+          where: {
+            projectId_userId_role: {
+              projectId: invitation.projectId,
+              userId: id,
+              role: invitation.role,
+            },
+          },
+          create: {
+            projectId: invitation.projectId,
+            userId: id,
+            role: invitation.role,
+          },
+          update: {},
+        });
+        await transaction.projectInvitation.update({
           where: { id: invitation.id },
           data: { status: "accepted" },
-        }),
-      ]);
+        });
+      });
       await this.syncProjectTeam(invitation.projectId);
     }
     return id;
@@ -215,6 +266,7 @@ export class ProjectService {
         project: { deletedAt: null },
       },
       include: {
+        ...membershipAccessInclude,
         project: {
           include: {
             _count: {
@@ -225,14 +277,16 @@ export class ProjectService {
       },
       orderBy: { joinedAt: "asc" },
     });
-    return memberships.map(({ project, role }) => ({
-      id: project.id,
-      name: project.name,
-      ...(project.avatar ? { avatar: project.avatar } : {}),
-      memberCount: project._count.humanMembers,
-      role: role as ProjectRole,
-      effectiveCapabilities: builtinRoleForMembership(role as ProjectRole).capabilities,
-    }));
+    return memberships.map((membership) => {
+      const { project } = membership;
+      return {
+        id: project.id,
+        name: project.name,
+        ...(project.avatar ? { avatar: project.avatar } : {}),
+        memberCount: project._count.humanMembers,
+        ...accessForMembership(membership),
+      };
+    });
   }
 
   async resolve(
@@ -241,7 +295,7 @@ export class ProjectService {
     auth: AuthPayload;
     userId: string;
     projectId: string;
-    role: ProjectRole;
+    activeRole: ProjectRole;
   }> {
     const { auth, userId: currentUserId } = await this.authenticate(request);
     const match = new URL(request.url).pathname.match(
@@ -252,16 +306,20 @@ export class ProjectService {
     const projectId = decodeURIComponent(match[1]!);
     const membership = await this.db.projectMember.findUnique({
       where: { projectId_userId: { projectId, userId: currentUserId } },
-      include: { project: { select: { deletedAt: true } } },
+      include: {
+        project: { select: { deletedAt: true } },
+        ...membershipAccessInclude,
+      },
     });
     if (!membership || membership.project.deletedAt) {
       throw new Error("Project not found or access denied.");
     }
+    const access = accessForMembership(membership);
     return {
       auth,
       userId: currentUserId,
       projectId,
-      role: membership.role as ProjectRole,
+      activeRole: access.activeRole,
     };
   }
 
@@ -313,10 +371,24 @@ export class ProjectService {
         createdBy: currentUserId,
         humanMembers: {
           create: [
-            { userId: currentUserId, role: "admin" },
+            {
+              userId: currentUserId,
+              role: "admin",
+              roleAssignments: {
+                create: { role: "admin" },
+              },
+            },
             ...normalizedInvitations.flatMap((invitation) => {
               const user = existingUserByEmail.get(invitation.email);
-              return user ? [{ userId: user.id, role: invitation.role }] : [];
+              return user
+                ? [{
+                    userId: user.id,
+                    role: invitation.role,
+                    roleAssignments: {
+                      create: { role: invitation.role },
+                    },
+                  }]
+                : [];
             }),
           ],
         },
@@ -342,12 +414,15 @@ export class ProjectService {
     await ensureDefaultAccessPolicy(this.db, project.id);
     await this.seedProject(project.id);
     await this.syncProjectTeam(project.id);
+    const access = accessForMembership({
+      role: "admin",
+      roleAssignments: [{ role: "admin" }],
+    });
     return {
       id: project.id,
       name: project.name,
       memberCount: existingUsers.length + 1,
-      role: "admin",
-      effectiveCapabilities: builtinRoleForMembership("admin").capabilities,
+      ...access,
     };
   }
 
@@ -391,16 +466,54 @@ export class ProjectService {
   ): Promise<ProjectRole> {
     const membership = await this.db.projectMember.findUnique({
       where: { projectId_userId: { projectId, userId: currentUserId } },
-      include: { project: { select: { deletedAt: true } } },
+      include: {
+        project: { select: { deletedAt: true } },
+        ...membershipAccessInclude,
+      },
     });
+    const access = membership ? accessForMembership(membership) : undefined;
+    const matchedRole = access && roles.includes(access.activeRole)
+      ? access.activeRole
+      : undefined;
     if (
       !membership ||
       membership.project.deletedAt ||
-      !roles.includes(membership.role as ProjectRole)
+      !matchedRole
     ) {
       throw new Error("You do not have permission to manage this project.");
     }
-    return membership.role as ProjectRole;
+    return matchedRole;
+  }
+
+  async switchRole(
+    projectId: string,
+    currentUserId: string,
+    role: ProjectRole,
+  ): Promise<ProjectAccessView> {
+    const membership = await this.db.projectMember.findUnique({
+      where: { projectId_userId: { projectId, userId: currentUserId } },
+      include: {
+        project: { select: { deletedAt: true } },
+        roleAssignments: { select: { role: true } },
+      },
+    });
+    if (!membership || membership.project.deletedAt) {
+      throw new Error("Project not found or access denied.");
+    }
+    const assignedRoles = new Set([
+      membership.role,
+      ...membership.roleAssignments.map((assignment) => assignment.role),
+    ]);
+    if (!assignedRoles.has(role)) {
+      throw new Error("This Project role is not assigned to your Account.");
+    }
+    if (membership.role !== role) {
+      await this.db.projectMember.update({
+        where: { projectId_userId: { projectId, userId: currentUserId } },
+        data: { role },
+      });
+    }
+    return (await projectAccessForMember(this.db, projectId, currentUserId))!;
   }
 
   async rename(
@@ -452,7 +565,10 @@ export class ProjectService {
     const [members, invitations] = await Promise.all([
       this.db.projectMember.findMany({
         where: { projectId },
-        include: { user: true },
+        include: {
+          user: true,
+          ...membershipAccessInclude,
+        },
         orderBy: { joinedAt: "asc" },
       }),
       this.db.projectInvitation.findMany({
@@ -461,20 +577,24 @@ export class ProjectService {
       }),
     ]);
     const result: ProjectMemberView[] = [
-      ...members.map(({ user, role }) => ({
-        id: user.id,
-        kind: "human" as const,
-        name: user.displayName,
-        email: user.email,
-        role: role as ProjectRole,
-        status: "active" as const,
-      })),
+      ...members.map((membership) => {
+        const access = accessForMembership(membership);
+        return {
+          id: membership.user.id,
+          kind: "human" as const,
+          name: membership.user.displayName,
+          email: membership.user.email,
+          roles: access.assignedRoles,
+          activeRole: access.activeRole,
+          status: "active" as const,
+        };
+      }),
       ...invitations.map((invite) => ({
         id: invite.id,
         kind: "human" as const,
         name: invite.email.split("@")[0] || invite.email,
         email: invite.email,
-        role: invite.role as ProjectRole,
+        ...invitationRoleView(invite.role as ProjectRole),
         status: "invited" as const,
       })),
     ];
@@ -498,34 +618,46 @@ export class ProjectService {
       const membership = await withAdministratorMutationLock(projectId, () =>
         this.db.$transaction(async (transaction) => {
           await this.lockAdministrators(transaction, projectId, currentUserId);
-          const currentMembership = await transaction.projectMember.findUnique({
+          await transaction.projectMember.upsert({
             where: { projectId_userId: { projectId, userId: existing.id } },
-            select: { role: true },
+            create: {
+              projectId,
+              userId: existing.id,
+              role,
+            },
+            update: {},
+            include: membershipAccessInclude,
           });
-          if (currentMembership?.role === "admin" && role !== "admin") {
-            const adminCount = await transaction.projectMember.count({
-              where: { projectId, role: "admin" },
-            });
-            if (adminCount <= 1) {
-              throw new Error(
-                "A project must retain at least one administrator.",
-              );
-            }
-          }
-          return transaction.projectMember.upsert({
+          await transaction.projectMemberRoleAssignment.upsert({
+            where: {
+              projectId_userId_role: {
+                projectId,
+                userId: existing.id,
+                role,
+              },
+            },
+            create: {
+              projectId,
+              userId: existing.id,
+              role,
+            },
+            update: {},
+          });
+          return transaction.projectMember.findUniqueOrThrow({
             where: { projectId_userId: { projectId, userId: existing.id } },
-            create: { projectId, userId: existing.id, role },
-            update: { role },
+            include: membershipAccessInclude,
           });
         }),
       );
       await this.syncProjectTeam(projectId);
+      const access = accessForMembership(membership);
       return {
         id: existing.id,
         kind: "human",
         name: existing.displayName,
         email: existing.email,
-        role: membership.role as ProjectRole,
+        roles: access.assignedRoles,
+        activeRole: access.activeRole,
         status: "active",
       };
     }
@@ -580,7 +712,7 @@ export class ProjectService {
       kind: "human",
       name: normalizedEmail.split("@")[0] || normalizedEmail,
       email: normalizedEmail,
-      role,
+      ...invitationRoleView(role),
       status: "invited",
     };
   }
@@ -604,6 +736,11 @@ export class ProjectService {
           if (invitation.count) return true;
           const target = await transaction.projectMember.findUnique({
             where: { projectId_userId: { projectId, userId: memberId } },
+            include: {
+              roleAssignments: {
+                select: { role: true },
+              },
+            },
           });
           if (!target) throw new Error("Project member not found.");
           const [ownedInstances, ownedRegisteredAgents] = await Promise.all([
@@ -619,10 +756,14 @@ export class ProjectService {
               `Transfer the member's ${ownedInstances} Agent Instance(s) and ${ownedRegisteredAgents} registered Agent(s) before removing them.`,
             );
           }
-          if (target.role === "admin") {
-            const adminCount = await transaction.projectMember.count({
-              where: { projectId, role: "admin" },
-            });
+          if (
+            target.role === "admin"
+            || target.roleAssignments.some(({ role }) => role === "admin")
+          ) {
+            const adminCount = await this.administratorCount(
+              transaction,
+              projectId,
+            );
             if (adminCount <= 1) {
               throw new Error(
                 "A project must retain at least one administrator.",

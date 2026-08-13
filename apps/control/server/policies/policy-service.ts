@@ -8,7 +8,7 @@ import {
 } from "@tali/contracts";
 import { parse, stringify } from "yaml";
 import { z } from "zod";
-import policyCatalogYaml from "../../../../charts/tali/files/policy-catalog.yaml?raw";
+import policyCatalogYaml from "./policy-catalog.yaml?raw";
 import { ProjectStore } from "../projects/project-store";
 
 const recordSchema = z.record(z.string(), z.unknown());

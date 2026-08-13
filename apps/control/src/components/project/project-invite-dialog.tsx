@@ -71,7 +71,8 @@ export function ProjectInviteDialog({
         <SheetHeader className="border-b px-6 py-5 pr-16">
           <SheetTitle>Invite member</SheetTitle>
           <SheetDescription>
-            Invite someone to collaborate in {project.name}.
+            Invite someone to collaborate in {project.name}. If they are
+            already a member, this adds the selected role.
           </SheetDescription>
         </SheetHeader>
         <form className="flex min-h-0 flex-1 flex-col" onSubmit={submit}>

@@ -87,4 +87,3 @@ policies:
             - path: /usr/bin/pip
             - path: /usr/local/bin/pip
             - path: /usr/local/bin/uv
-

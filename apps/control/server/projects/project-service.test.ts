@@ -12,6 +12,7 @@ import type {
 } from "../email/smtp-invitation-mailer";
 import type { LiteLLMAdminClient } from "../providers/litellm-client";
 import { createTestPrisma } from "../test/prisma";
+import type { PrismaClient } from "../generated/prisma/client";
 import { ProjectService } from "./project-service";
 
 class RecordingInvitationMailer implements InvitationMailer {
@@ -54,6 +55,14 @@ function auth(
   };
 }
 
+async function switchToAdministrator(
+  db: PrismaClient,
+  projectId: string,
+  userId: string,
+): Promise<void> {
+  await new ProjectService(db).switchRole(projectId, userId, "admin");
+}
+
 describe("ProjectService", () => {
   it("lists the seeded project and copies its metadata into new Projects", async () => {
     const db = createTestPrisma();
@@ -68,9 +77,13 @@ describe("ProjectService", () => {
     const initialProjects = await service.list(local);
     expect(initialProjects).toEqual([
       expect.objectContaining({
+        effectiveCapabilities: expect.arrayContaining([
+          "CAP_AGENT_INSTANCE_CREATE",
+        ]),
         id: "individual",
         name: "admin",
-        role: "admin",
+        activeRole: "admin",
+        assignedRoles: ["admin", "developer"],
       }),
     ]);
     expect(initialProjects[0]).not.toHaveProperty("type");
@@ -78,7 +91,8 @@ describe("ProjectService", () => {
     const team = await service.create(local, "AI Platform", []);
     expect(team).toMatchObject({
       name: "AI Platform",
-      role: "admin",
+      activeRole: "admin",
+      assignedRoles: ["admin"],
     });
     expect(team).not.toHaveProperty("type");
     expect(
@@ -112,6 +126,38 @@ describe("ProjectService", () => {
     }
   });
 
+  it("switches directly between roles assigned to the Account", async () => {
+    const db = createTestPrisma();
+    const service = new ProjectService(db);
+
+    const developer = await service.switchRole(
+      "individual",
+      "local-admin",
+      "developer",
+    );
+    expect(developer.activeRole).toBe("developer");
+    expect(developer.assignedRoles).toEqual(["admin", "developer"]);
+    expect(developer.effectiveCapabilities).not.toContain(
+      "CAP_PROJECT_SETTINGS_UPDATE",
+    );
+
+    const administrator = await service.switchRole(
+      "individual",
+      "local-admin",
+      "admin",
+    );
+    expect(administrator.activeRole).toBe("admin");
+    expect(administrator.effectiveCapabilities).toContain(
+      "CAP_PROJECT_SETTINGS_UPDATE",
+    );
+
+    await expect(service.switchRole(
+      "individual",
+      "local-admin",
+      "auditor",
+    )).rejects.toThrow(/not assigned/i);
+  });
+
   it("creates the initial member set and pending invitations with assigned roles", async () => {
     const db = createTestPrisma();
     const service = new ProjectService(db);
@@ -136,29 +182,32 @@ describe("ProjectService", () => {
       { email: "future-admin@example.com", role: "admin" },
     ]);
     const administratorId = await service.requireUser(administrator);
+    await switchToAdministrator(db, team.id, administratorId);
 
     expect(team).toMatchObject({
       memberCount: 2,
       name: "Agent Operations",
-      role: "admin",
+      activeRole: "admin",
+      assignedRoles: ["admin"],
     });
     expect(await service.members(team.id, administratorId)).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           email: "administrator@tali.local",
           kind: "human",
-          role: "admin",
+          roles: ["admin"],
+          activeRole: "admin",
           status: "active",
         }),
         expect.objectContaining({
           email: "member@example.com",
-          role: "user",
+          roles: ["user"],
           status: "active",
         }),
         expect.objectContaining({
           email: "future-admin@example.com",
           kind: "human",
-          role: "admin",
+          roles: ["admin"],
           status: "invited",
         }),
       ]),
@@ -263,6 +312,7 @@ describe("ProjectService", () => {
       [],
     );
     const administratorId = await service.requireUser(administrator);
+    await switchToAdministrator(db, project.id, administratorId);
 
     await expect(
       service.create(administrator, "security research", []),
@@ -284,6 +334,7 @@ describe("ProjectService", () => {
     await service.syncAuthUser(administrator.user);
     const project = await service.create(administrator, "Retained Project", []);
     const administratorId = await service.requireUser(administrator);
+    await switchToAdministrator(db, project.id, administratorId);
     await new AuditLogService(project.id, db).record({
       projectId: project.id,
       actor: {
@@ -350,7 +401,8 @@ describe("ProjectService", () => {
       expect.objectContaining({
         id: project.id,
         name: "Research",
-        role: "admin",
+        activeRole: "admin",
+        assignedRoles: ["admin"],
       }),
     ]);
   });
@@ -376,6 +428,7 @@ describe("ProjectService", () => {
     const administratorId = await service.requireUser(administrator);
     const memberId = await service.syncAuthUser(member);
     const team = await service.create(administrator, "DevOps", []);
+    await switchToAdministrator(db, team.id, administratorId);
 
     await service.invite(team.id, administratorId, member.email, "user");
     await expect(
@@ -415,6 +468,7 @@ describe("ProjectService", () => {
     await service.syncAuthUser(administrator.user);
     const administratorId = await service.requireUser(administrator);
     const team = await service.create(administrator, "SRE", []);
+    await switchToAdministrator(db, team.id, administratorId);
     await service.invite(
       team.id,
       administratorId,
@@ -431,7 +485,11 @@ describe("ProjectService", () => {
     await service.syncAuthUser(invitedUser.user);
     expect(await service.list(invitedUser)).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ id: team.id, role: "admin" }),
+        expect.objectContaining({
+          id: team.id,
+          activeRole: "admin",
+          assignedRoles: ["admin"],
+        }),
       ]),
     );
     expect(
@@ -464,6 +522,7 @@ describe("ProjectService", () => {
     await service.syncAuthUser(administrator.user);
     const administratorId = await service.requireUser(administrator);
     const team = await service.create(administrator, "Email disabled", []);
+    await switchToAdministrator(db, team.id, administratorId);
 
     await expect(
       service.invite(team.id, administratorId, "new-user@example.com", "user"),
@@ -492,6 +551,7 @@ describe("ProjectService", () => {
     await service.syncAuthUser(administrator.user);
     const administratorId = await service.requireUser(administrator);
     const team = await service.create(administrator, "Retry delivery", []);
+    await switchToAdministrator(db, team.id, administratorId);
 
     await expect(
       service.invite(team.id, administratorId, "retry@example.com", "user"),
@@ -520,13 +580,14 @@ describe("ProjectService", () => {
     await service.syncAuthUser(administrator.user);
     const administratorId = await service.requireUser(administrator);
     const team = await service.create(administrator, "Security", []);
+    await switchToAdministrator(db, team.id, administratorId);
 
     await expect(
       service.removeMember(team.id, administratorId, administratorId),
     ).rejects.toThrow(/at least one administrator/i);
   });
 
-  it("prevents changing the last project administrator to another role", async () => {
+  it("adds roles without replacing the current Project role", async () => {
     const db = createTestPrisma();
     const service = new ProjectService(db);
     const administrator = auth({
@@ -538,13 +599,23 @@ describe("ProjectService", () => {
     await service.syncAuthUser(administrator.user);
     const administratorId = await service.requireUser(administrator);
     const team = await service.create(administrator, "Role Safety", []);
+    await switchToAdministrator(db, team.id, administratorId);
 
-    await expect(service.invite(
+    await service.invite(
       team.id,
       administratorId,
       administrator.user.email,
-      "developer",
-    )).rejects.toThrow(/at least one administrator/i);
+      "auditor",
+    );
+    expect(await service.members(team.id, administratorId)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          email: administrator.user.email,
+          roles: ["admin", "auditor"],
+          activeRole: "admin",
+        }),
+      ]),
+    );
   });
 
   it("serializes concurrent administrator removals and retains one administrator", async () => {
@@ -567,7 +638,9 @@ describe("ProjectService", () => {
     const firstId = await service.requireUser(first);
     const secondId = await service.requireUser(second);
     const team = await service.create(first, "Concurrent Admin Safety", []);
+    await switchToAdministrator(db, team.id, firstId);
     await service.invite(team.id, firstId, second.user.email, "admin");
+    await switchToAdministrator(db, team.id, secondId);
 
     const outcomes = await Promise.allSettled([
       service.removeMember(team.id, firstId, secondId),
@@ -575,7 +648,7 @@ describe("ProjectService", () => {
     ]);
     expect(outcomes.filter(({ status }) => status === "fulfilled")).toHaveLength(1);
     expect(outcomes.filter(({ status }) => status === "rejected")).toHaveLength(1);
-    await expect(db.projectMember.count({
+    await expect(db.projectMemberRoleAssignment.count({
       where: { projectId: team.id, role: "admin" },
     })).resolves.toBe(1);
   });
@@ -601,6 +674,7 @@ describe("ProjectService", () => {
     };
     await service.syncAuthUser(developer);
     const team = await service.create(administrator, "Owned Resource Safety", []);
+    await switchToAdministrator(db, team.id, administratorId);
     await service.invite(team.id, administratorId, developer.email, "developer");
     const now = new Date().toISOString();
     await db.agentRecord.create({
@@ -652,6 +726,7 @@ describe("ProjectService", () => {
       const administratorId = await service.requireUser(administrator);
       const memberId = await service.requireUser(member);
       const team = await service.create(administrator, "Revocation Safety", []);
+      await switchToAdministrator(db, team.id, administratorId);
       await db.projectMember.create({
         data: { projectId: team.id, userId: memberId, role: "user" },
       });

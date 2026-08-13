@@ -870,10 +870,18 @@ export function CreateInstanceSheet({
                         <Link
                           to="/$projectId/setting"
                           params={{ projectId }}
-                          search={{ section: "model-routings" }}
+                          search={{ section: "models" }}
                           className="inline-flex min-h-11 items-center text-xs font-medium underline underline-offset-4"
                         >
-                          Manage Model and Routing
+                          Manage Models
+                        </Link>
+                        <Link
+                          to="/$projectId/setting"
+                          params={{ projectId }}
+                          search={{ section: "routing" }}
+                          className="inline-flex min-h-11 items-center text-xs font-medium underline underline-offset-4"
+                        >
+                          Manage Routing
                         </Link>
                         <Link
                           to="/$projectId/runtime-policies"

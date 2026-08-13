@@ -351,11 +351,13 @@ export function AppShell() {
           user={user}
         />
         <SidebarInset>
-          <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-background/94 px-4 backdrop-blur-md sm:px-6 lg:px-8">
-            <SidebarTrigger />
-            <HeaderBreadcrumb pathname={pathname} />
-            <button disabled className="ml-auto hidden h-9 w-64 cursor-not-allowed items-center gap-2 rounded-md border border-border/70 bg-muted/30 px-3 text-sm text-muted-foreground/45 md:flex"><Search className="size-3.5" />Search project<span className="ml-auto text-[10px] uppercase">Later</span></button>
-          </header>
+          <div className="sticky top-0 z-30 bg-background/94 backdrop-blur-md">
+            <header className="flex h-16 items-center gap-3 border-b px-4 sm:px-6 lg:px-8">
+              <SidebarTrigger />
+              <HeaderBreadcrumb pathname={pathname} />
+              <button disabled className="ml-auto hidden h-9 w-64 cursor-not-allowed items-center gap-2 rounded-md border border-border/70 bg-muted/30 px-3 text-sm text-muted-foreground/45 md:flex"><Search className="size-3.5" />Search project<span className="ml-auto text-[10px] uppercase">Later</span></button>
+            </header>
+          </div>
           <main
             id="main-content"
             className={cn(
