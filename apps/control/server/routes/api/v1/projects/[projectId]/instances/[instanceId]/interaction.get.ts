@@ -6,16 +6,26 @@ import { errorResponse, jsonResponse } from "../../../../../../../http/responses
 import { getAgentService } from "../../../../../../../services";
 
 export default defineHandler(async (event) => {
+  let subject: string;
   try {
-    requireAuth(event.req);
+    subject = requireAuth(event.req).user.id;
   } catch (error) {
     return unauthorizedResponse(error);
   }
   try {
     const id = z.string().uuid().parse(event.context.params?.instanceId);
-    const agent = await (await getAgentService(event.req)).get(id);
+    const service = await getAgentService(event.req);
+    const agent = await service.get(id);
+    const httpEndpoint =
+      agent?.status === "READY" && agent.httpEndpoint?.status === "READY"
+        ? await service.runner.getSandboxInteraction(
+            agent.sandboxName,
+            agent.agentPlatform,
+            subject,
+          )
+        : agent?.httpEndpoint;
     return agent
-      ? jsonResponse(agentInteractionAccess(agent), {
+      ? jsonResponse(agentInteractionAccess(agent, httpEndpoint), {
           headers: { "cache-control": "no-store" },
         })
       : jsonResponse({ error: "Agent not found." }, { status: 404 });

@@ -2,12 +2,13 @@ import type {
   Agent,
   AgentInteractionAccess,
   AgentRuntimeLogView,
+  HttpEndpoint,
 } from "@tali/contracts";
 
 /**
- * Configuration reads must not disclose the browser endpoint. OpenClaw puts
- * its gateway bearer token in the URL fragment, so returning that URL would
- * make CONFIG_VIEW an implicit INTERACT grant.
+ * Configuration reads must not disclose the browser endpoint. Runtime Web UI
+ * URLs may contain a gateway credential or short-lived access token, so
+ * returning one would make CONFIG_VIEW an implicit INTERACT grant.
  */
 export function agentConfigurationView(agent: Agent): Agent {
   const {
@@ -28,11 +29,14 @@ export function agentConfigurationView(agent: Agent): Agent {
 }
 
 /** The only HTTP representation allowed to disclose an interaction URL. */
-export function agentInteractionAccess(agent: Agent): AgentInteractionAccess {
+export function agentInteractionAccess(
+  agent: Agent,
+  httpEndpoint: HttpEndpoint | undefined = agent.httpEndpoint,
+): AgentInteractionAccess {
   return {
     instanceId: agent.id,
     status: agent.status,
-    ...(agent.httpEndpoint ? { httpEndpoint: agent.httpEndpoint } : {}),
+    ...(httpEndpoint ? { httpEndpoint } : {}),
   };
 }
 

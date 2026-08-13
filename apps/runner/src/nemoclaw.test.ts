@@ -8,8 +8,9 @@ import { getAgentPlatformRuntime } from "./agent-platform.js";
 import {
   composeOpenShellInferencePolicy,
   deepSeekProviderCreateCommand,
-  ensureOpenShellWebUiEndpoint,
   isOpenShellProviderAttachedError,
+  openShellHermesWebUiProbeArguments,
+  openShellHermesWebUiSecretArguments,
   openShellNemoClawProbeArguments,
   openShellAuditArguments,
   openShellSandboxCreateArguments,
@@ -24,6 +25,7 @@ import {
   taliLiteLlmProviderProfile,
   taliLiteLlmProviderProfileId,
   tokenizedOpenClawUrl,
+  tokenizedHermesDashboardUrl,
 } from "./openshell.js";
 
 describe("NemoClaw command contract", () => {
@@ -178,6 +180,7 @@ describe("OpenShell Kubernetes command contract", () => {
       "version: 1\n",
       "https://inference.example.com/v1",
       "hermes",
+      "http://tali-control.tali.svc.cluster.local:38080/api/internal/run-events",
     );
 
     expect(policy).toBe("version: 1\n");
@@ -274,6 +277,9 @@ describe("OpenShell Kubernetes command contract", () => {
       "ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:dev",
     );
     expect(createArgs).toContain("/tmp/SOUL.md:/sandbox/.hermes/SOUL.md");
+    expect(createArgs).not.toContain(
+      "/tmp/tali-run-telemetry.env:/tmp/tali-run-telemetry.env",
+    );
     expect(
       openShellNemoClawProbeArguments(
         hermesInput.name,
@@ -309,6 +315,18 @@ describe("OpenShell Kubernetes command contract", () => {
     expect(bootstrap).toContain("chmod 3770 /sandbox/.hermes");
     expect(bootstrap).toContain("[bootstrap] Hermes identity");
     expect(bootstrap).toContain("bootstrap-hermes-config.py");
+    expect(bootstrap).toContain("hermes-webui-auth-proxy.py");
+    expect(bootstrap).not.toContain("TALI_RUN_TELEMETRY_TOKEN");
+    expect(bootstrap).not.toContain("hermes-run-telemetry");
+    expect(bootstrap).toContain("--listen-port \"$webui_public_port\"");
+    expect(bootstrap).toContain('--parent-pid "$$"');
+    expect(bootstrap).toContain('NEMOCLAW_DASHBOARD_PORT=$webui_upstream_port');
+    expect(bootstrap).toContain("readonly webui_upstream_port=18790");
+    expect(bootstrap).toContain(
+      'exec env "NEMOCLAW_DASHBOARD_PORT=$webui_upstream_port"',
+    );
+    expect(bootstrap).not.toContain("hermes_runtime_pid");
+    expect(bootstrap).not.toContain("cleanup_hermes_webui");
     expect(bootstrap).not.toContain("sed -i");
     expect(bootstrap.indexOf("chmod 0770 /sandbox")).toBeLessThan(
       bootstrap.indexOf("/usr/local/bin/nemoclaw-start"),
@@ -413,10 +431,36 @@ describe("OpenShell Kubernetes command contract", () => {
     );
   });
 
-  it("fails Hermes browser exposure closed until it has revocable authentication", async () => {
-    vi.stubEnv("OPENSHELL_BIN", "true");
-    await expect(ensureOpenShellWebUiEndpoint("hermes", "hermes"))
-      .rejects.toThrow(/user-bound, revocable access token/i);
+  it("issues a short-lived user-scoped Hermes dashboard access token", () => {
+    const endpoint = "https://tali-hermes--webui.example.test/";
+    const tokenized = new URL(tokenizedHermesDashboardUrl(
+      endpoint,
+      "a-safe-instance-secret-with-more-than-32-bytes",
+      "local-admin@example.test",
+      Date.parse("2026-08-13T00:00:00.000Z"),
+      "one-time-nonce",
+    ));
+    const token = tokenized.searchParams.get("access_token");
+    expect(token).toBeTruthy();
+    const [encodedPayload, signature] = token!.split(".");
+    const payload = JSON.parse(
+      Buffer.from(encodedPayload!, "base64url").toString("utf8"),
+    );
+    expect(payload).toMatchObject({
+      aud: "tali-hermes-dashboard",
+      exp: 1786579500,
+      iat: 1786579200,
+      jti: "one-time-nonce",
+      typ: "access",
+    });
+    expect(payload.sub).not.toContain("local-admin");
+    expect(signature).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(openShellHermesWebUiSecretArguments(input.name).at(-1)).toContain(
+      "/tmp/tali-hermes-webui-secret",
+    );
+    expect(openShellHermesWebUiProbeArguments(input.name).at(-1)).toContain(
+      "/__tali/health",
+    );
   });
 
   it("round-trips bounded browser terminal resize messages", () => {

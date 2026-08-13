@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { createHmac, randomUUID } from "node:crypto";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -15,6 +16,8 @@ import {
 
 const nemoClawGatewayPort = process.env.NEMOCLAW_DASHBOARD_PORT ?? "18789";
 const nemoClawWebUiService = "webui";
+const hermesWebUiSecretFile = "/tmp/tali-hermes-webui-secret";
+const hermesWebUiTokenTtlSeconds = 5 * 60;
 const kubernetesServiceDnsSuffix = "svc.cluster.local";
 const defaultKubernetesServiceCidrs = [
   "10.0.0.0/8",
@@ -402,7 +405,7 @@ export function composeOpenShellInferencePolicy(
   // rule. Keeping the legacy direct rule in a business policy can match first
   // and bypass credential resolution, so remove only TaskLattice Relay's old entry.
   delete networkPolicies.tali_inference_gateway;
-  if (telemetryEndpoint) {
+  if (telemetryEndpoint && agentPlatform === "openclaw") {
     const endpoint = new URL(telemetryEndpoint);
     if (endpoint.protocol !== "http:" && endpoint.protocol !== "https:") {
       throw new Error("The Run telemetry endpoint must use HTTP or HTTPS.");
@@ -425,14 +428,7 @@ export function composeOpenShellInferencePolicy(
         access: "full",
         ...(isKubernetesService ? { allowed_ips: kubernetesServiceCidrs() } : {}),
       }],
-      binaries: (agentPlatform === "openclaw"
-        ? ["/usr/local/bin/node"]
-        : [
-            "/opt/hermes/.venv/bin/python",
-            "/opt/hermes/.venv/bin/python3",
-            "/usr/local/bin/python",
-            "/usr/local/bin/python3",
-          ]).map((path) => ({ path })),
+      binaries: ["/usr/local/bin/node"].map((path) => ({ path })),
     };
   }
   if (Object.keys(networkPolicies).length > 0)
@@ -448,7 +444,7 @@ export function openShellSandboxCreateArguments(
   instructionsFile: string,
   bootstrapFile: string,
   policyFile: string,
-  telemetryFile: string,
+  telemetryFile?: string,
 ): string[] {
   const runtime = getAgentPlatformRuntime(input.agentPlatform);
   return openShellArguments([
@@ -476,8 +472,9 @@ export function openShellSandboxCreateArguments(
     `${instructionsFile}:${runtime.instructionsPath}`,
     "--upload",
     `${bootstrapFile}:/tmp/tali-nemoclaw-start`,
-    "--upload",
-    `${telemetryFile}:/tmp/tali-run-telemetry.env`,
+    ...(telemetryFile && runtime.embeddedRunTelemetry
+      ? ["--upload", `${telemetryFile}:/tmp/tali-run-telemetry.env`]
+      : []),
     "--no-tty",
     "--",
     "/bin/bash",
@@ -569,6 +566,32 @@ export function openShellWebUiTokenArguments(name: string): string[] {
   ]);
 }
 
+export function openShellHermesWebUiSecretArguments(name: string): string[] {
+  return openShellArguments([
+    "sandbox",
+    "exec",
+    "--name",
+    name,
+    "--",
+    "/bin/sh",
+    "-lc",
+    `test -s ${hermesWebUiSecretFile} && cat ${hermesWebUiSecretFile}`,
+  ]);
+}
+
+export function openShellHermesWebUiProbeArguments(name: string): string[] {
+  return openShellArguments([
+    "sandbox",
+    "exec",
+    "--name",
+    name,
+    "--",
+    "/bin/sh",
+    "-lc",
+    `curl -fsS --max-time 3 http://127.0.0.1:${nemoClawGatewayPort}/__tali/health >/dev/null && test -s ${hermesWebUiSecretFile}`,
+  ]);
+}
+
 export function openShellWebUiOriginProbeArguments(
   name: string,
   endpointUrl: string,
@@ -592,6 +615,39 @@ export function tokenizedOpenClawUrl(endpointUrl: string, token: string): string
   return url.toString();
 }
 
+export function tokenizedHermesDashboardUrl(
+  endpointUrl: string,
+  secret: string,
+  subject: string,
+  now = Date.now(),
+  nonce = randomUUID(),
+): string {
+  const key = secret.trim();
+  if (key.length < 32)
+    throw new Error("Hermes Web UI authentication secret is invalid.");
+  const issuedAt = Math.floor(now / 1_000);
+  const subjectBinding = createHmac("sha256", key)
+    .update(`subject\0${subject}`)
+    .digest("base64url");
+  const payload = Buffer.from(
+    JSON.stringify({
+      aud: "tali-hermes-dashboard",
+      exp: issuedAt + hermesWebUiTokenTtlSeconds,
+      iat: issuedAt,
+      jti: nonce,
+      sub: subjectBinding,
+      typ: "access",
+    }),
+    "utf8",
+  ).toString("base64url");
+  const signature = createHmac("sha256", key)
+    .update(payload)
+    .digest("base64url");
+  const url = new URL(endpointUrl);
+  url.searchParams.set("access_token", `${payload}.${signature}`);
+  return url.toString();
+}
+
 export async function deleteOpenShellWebUiEndpoint(
   name: string,
 ): Promise<void> {
@@ -604,7 +660,7 @@ export async function deleteOpenShellWebUiEndpoint(
     throw new Error(
       result.stderr.trim() ||
         result.stdout.trim() ||
-        "Unable to delete the OpenClaw Web UI endpoint.",
+        "Unable to delete the Web UI endpoint.",
     );
 }
 
@@ -626,16 +682,6 @@ export async function ensureOpenShellWebUiEndpoint(
   name: string,
   agentPlatform: AgentPlatformId,
 ): Promise<string> {
-  if (agentPlatform === "hermes") {
-    // Reconciliation may encounter a service exposed by a pre-CAP release.
-    // Remove that predictable unauthenticated route before reporting Hermes
-    // unavailable so upgrading closes the old interaction bypass as well as
-    // preventing new publication.
-    await deleteOpenShellWebUiEndpoint(name);
-    throw new Error(
-      "Hermes browser interaction is disabled until the routed dashboard supports a user-bound, revocable access token.",
-    );
-  }
   const existing = await runCommand(
     openShellBinary(),
     openShellWebUiServiceArguments(name, "get"),
@@ -655,10 +701,29 @@ export async function ensureOpenShellWebUiEndpoint(
       );
   }
 
-  if (new URL(endpointUrl).origin !== openShellWebUiOrigin(name))
+  if (new URL(endpointUrl).origin !== openShellWebUiOrigin(name)) {
+    if (agentPlatform === "hermes") await deleteOpenShellWebUiEndpoint(name);
     throw new Error(
-      "The OpenShell service URL does not match OPENSHELL_SERVICE_BASE_URL; the OpenClaw Web UI origin was not authorized at sandbox startup.",
+      "The OpenShell service URL does not match OPENSHELL_SERVICE_BASE_URL; the Web UI endpoint was not published.",
     );
+  }
+
+  if (agentPlatform === "hermes") {
+    const proxyProbe = await runCommand(
+      openShellBinary(),
+      openShellHermesWebUiProbeArguments(name),
+    );
+    if (proxyProbe.exitCode !== 0) {
+      // An older Hermes image may still have the unauthenticated Dashboard on
+      // this port. Never leave the predictable route published when the
+      // authentication boundary cannot prove it owns the listener.
+      await deleteOpenShellWebUiEndpoint(name);
+      throw new Error(
+        "The Hermes Dashboard authentication proxy is not ready; the unauthenticated endpoint remains unavailable.",
+      );
+    }
+    return endpointUrl;
+  }
 
   const originProbe = await runCommand(
     openShellBinary(),
@@ -681,12 +746,28 @@ export async function ensureOpenShellWebUiEndpoint(
   return tokenizedOpenClawUrl(endpointUrl, token.stdout);
 }
 
+export async function issueOpenShellWebUiEndpoint(
+  name: string,
+  agentPlatform: AgentPlatformId,
+  subject: string,
+): Promise<string> {
+  const endpointUrl = await ensureOpenShellWebUiEndpoint(name, agentPlatform);
+  if (agentPlatform !== "hermes") return endpointUrl;
+  const secret = await runCommand(
+    openShellBinary(),
+    openShellHermesWebUiSecretArguments(name),
+  );
+  if (secret.exitCode !== 0 || !secret.stdout.trim())
+    throw new Error("Unable to issue Hermes Web UI access.");
+  return tokenizedHermesDashboardUrl(endpointUrl, secret.stdout, subject);
+}
+
 async function createOpenShellNemoClawSandbox(
   input: ProvisionInput,
   instructionsFile: string,
   bootstrapFile: string,
   policyFile: string,
-  telemetryFile: string,
+  telemetryFile: string | undefined,
   observer?: ProvisioningObserver,
 ): Promise<string[]> {
   const timeoutMs = Number(process.env.NEMOCLAW_START_TIMEOUT_MS ?? "180000");
@@ -837,7 +918,9 @@ export async function provisionOpenShellSandbox(
   const instructionsFile = join(temporaryDirectory, "AGENTS.md");
   const bootstrapFile = join(temporaryDirectory, "tali-nemoclaw-start");
   const policyFile = join(temporaryDirectory, "openshell-policy.yaml");
-  const telemetryFile = join(temporaryDirectory, "tali-run-telemetry.env");
+  const telemetryFile = runtime.embeddedRunTelemetry
+    ? join(temporaryDirectory, "tali-run-telemetry.env")
+    : undefined;
   try {
     await writeFile(
       instructionsFile,
@@ -861,13 +944,15 @@ export async function provisionOpenShellSandbox(
         input.policyYaml ?? "version: 1\n",
         input.inferenceEndpoint,
         input.agentPlatform,
-        input.runTelemetry.endpoint,
+        runtime.embeddedRunTelemetry ? input.runTelemetry.endpoint : undefined,
       ),
       { mode: 0o600 },
     );
-    await writeFile(telemetryFile, runTelemetryEnvironmentFile(input), {
-      mode: 0o600,
-    });
+    if (telemetryFile) {
+      await writeFile(telemetryFile, runTelemetryEnvironmentFile(input), {
+        mode: 0o600,
+      });
+    }
     observer?.onStage?.("POD", "Creating the OpenShell Sandbox and starting its Kubernetes Pod.");
     return await createOpenShellNemoClawSandbox(
       input,
