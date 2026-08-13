@@ -432,16 +432,6 @@ export async function writeAuditResponse(
   if (!projectId && captured.descriptor.action === "project.create") {
     projectId = typeof subject?.id === "string" ? subject.id : undefined;
   }
-  if (!projectId && auth) {
-    const personalMembership = await database.projectMember.findFirst({
-      where: {
-        userId: auth.sub,
-        project: { type: "personal" },
-      },
-      select: { projectId: true },
-    });
-    projectId = personalMembership?.projectId;
-  }
   const membership = projectId && auth
     ? await database.projectMember.findUnique({
         where: { projectId_userId: { projectId, userId: auth.sub } },

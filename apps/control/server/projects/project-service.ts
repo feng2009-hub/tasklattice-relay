@@ -17,14 +17,14 @@ import {
 import { ProjectQuotaService } from "../quotas/project-quota-service";
 import { ProjectStore } from "./project-store";
 import { builtinRoleForMembership } from "../authorization/builtin-roles";
+import { developmentResourceCatalog } from "../catalog/development-resource-catalog";
+import { BuiltInPolicyCatalogSource } from "../policies/policy-service";
 
 export type ProjectRole = ProjectMembershipRole;
-export type ProjectType = "personal" | "team";
 
 export interface ProjectView {
   id: string;
   name: string;
-  type: ProjectType;
   avatar?: string;
   memberCount: number;
   role: ProjectRole;
@@ -45,11 +45,6 @@ export type ProjectMemberView = HumanProjectMemberView;
 export interface InitialProjectInvitation {
   email: string;
   role: ProjectRole;
-}
-
-function personalProjectId(userId: string): string {
-  if (userId === "local-admin") return "individual";
-  return `individual-${createHash("sha256").update(userId).digest("hex").slice(0, 12)}`;
 }
 
 function slug(value: string): string {
@@ -110,20 +105,6 @@ async function withAdministratorMutationLock<T>(
   }
 }
 
-function effectiveCapabilitiesForMembership(
-  projectType: ProjectType,
-  role: ProjectRole,
-): readonly ProjectCapability[] {
-  const primary = builtinRoleForMembership(role).capabilities;
-  if (projectType !== "personal" || role !== "admin") return primary;
-  return [
-    ...new Set([
-      ...primary,
-      ...builtinRoleForMembership("developer").capabilities,
-    ]),
-  ];
-}
-
 export class ProjectService {
   constructor(
     private readonly db: PrismaClient = prisma(),
@@ -166,40 +147,13 @@ export class ProjectService {
     }
   }
 
-  async ensureUser(auth: AuthPayload): Promise<string> {
-    const user = await this.db.user.findUnique({
-      where: { id: auth.sub },
+  private async acceptPendingInvitations(auth: AuthPayload): Promise<string> {
+    const id = await this.requireUser(auth);
+    const user = await this.db.user.findUniqueOrThrow({
+      where: { id },
+      select: { email: true },
     });
-    if (!user || user.status !== "active") {
-      throw new Error(
-        "The authenticated TaskLattice Relay user is unavailable.",
-      );
-    }
-    const id = user.id;
     const email = user.email.trim().toLowerCase();
-    const projectId = personalProjectId(id);
-    const personalProjectName = user.username;
-    await this.db.project.upsert({
-      where: { id: projectId },
-      create: {
-        id: projectId,
-        name: personalProjectName,
-        type: "personal",
-        createdBy: id,
-        humanMembers: { create: { userId: id, role: "admin" } },
-      },
-      update: { name: personalProjectName },
-    });
-    await this.db.projectMember.upsert({
-      where: { projectId_userId: { projectId, userId: id } },
-      create: { projectId, userId: id, role: "admin" },
-      update: { role: "admin" },
-    });
-    await this.db.projectQuotaRecord.createMany({
-      data: [{ projectId }],
-      skipDuplicates: true,
-    });
-    await ensureDefaultAccessPolicy(this.db, projectId);
     const invitations = await this.db.projectInvitation.findMany({
       where: {
         email,
@@ -230,10 +184,6 @@ export class ProjectService {
       ]);
       await this.syncProjectTeam(invitation.projectId);
     }
-    if (projectId !== "individual") {
-      const seeded = await this.db.skillRecord.count({ where: { projectId } });
-      if (!seeded) await this.seedProject(projectId);
-    }
     return id;
   }
 
@@ -258,7 +208,7 @@ export class ProjectService {
   }
 
   async list(auth: AuthPayload): Promise<ProjectView[]> {
-    const currentUserId = await this.ensureUser(auth);
+    const currentUserId = await this.acceptPendingInvitations(auth);
     const memberships = await this.db.projectMember.findMany({
       where: {
         userId: currentUserId,
@@ -278,14 +228,10 @@ export class ProjectService {
     return memberships.map(({ project, role }) => ({
       id: project.id,
       name: project.name,
-      type: project.type as ProjectType,
       ...(project.avatar ? { avatar: project.avatar } : {}),
       memberCount: project._count.humanMembers,
       role: role as ProjectRole,
-      effectiveCapabilities: effectiveCapabilitiesForMembership(
-        project.type as ProjectType,
-        role as ProjectRole,
-      ),
+      effectiveCapabilities: builtinRoleForMembership(role as ProjectRole).capabilities,
     }));
   }
 
@@ -324,7 +270,7 @@ export class ProjectService {
     name: string,
     invitations: InitialProjectInvitation[],
   ): Promise<ProjectView> {
-    const currentUserId = await this.ensureUser(auth);
+    const currentUserId = await this.acceptPendingInvitations(auth);
     const projectName = name.trim();
     const duplicate = await this.db.project.findFirst({
       where: { name: { equals: projectName, mode: "insensitive" } },
@@ -364,7 +310,6 @@ export class ProjectService {
       data: {
         id,
         name: projectName,
-        type: "team",
         createdBy: currentUserId,
         humanMembers: {
           create: [
@@ -400,7 +345,6 @@ export class ProjectService {
     return {
       id: project.id,
       name: project.name,
-      type: "team",
       memberCount: existingUsers.length + 1,
       role: "admin",
       effectiveCapabilities: builtinRoleForMembership("admin").capabilities,
@@ -408,38 +352,32 @@ export class ProjectService {
   }
 
   private async seedProject(projectId: string): Promise<void> {
-    const sourceProjectId = "individual";
-    const delegates = [
-      this.db.skillRecord,
-      this.db.knowledgeSourceRecord,
-      this.db.agentSpecializationRecord,
+    const resources = [
+      [this.db.skillRecord, developmentResourceCatalog.skills],
+      [this.db.knowledgeSourceRecord, developmentResourceCatalog.knowledgeSources],
+      [this.db.agentSpecializationRecord, developmentResourceCatalog.specializations],
     ] as const;
-    for (const delegate of delegates) {
-      const records = (await (delegate.findMany as Function)({
-        where: { projectId: sourceProjectId },
-      })) as Array<{ id: string; payload: unknown; sortOrder: number }>;
+    for (const [delegate, records] of resources) {
       if (records.length) {
         await (delegate.createMany as Function)({
-          data: records.map((record) => ({
+          data: records.map((record, sortOrder) => ({
             projectId,
             id: record.id,
-            payload: record.payload,
-            sortOrder: record.sortOrder,
+            payload: JSON.parse(JSON.stringify(record)),
+            sortOrder,
           })),
           skipDuplicates: true,
         });
       }
     }
-    const policies = await this.db.sandboxPolicyRecord.findMany({
-      where: { projectId: sourceProjectId },
-    });
+    const policies = new BuiltInPolicyCatalogSource().load().policies;
     if (policies.length) {
       await this.db.sandboxPolicyRecord.createMany({
         data: policies.map((policy) => ({
           projectId,
           id: policy.id,
-          payload: JSON.parse(JSON.stringify(policy.payload)),
-          createdAt: policy.createdAt,
+          payload: JSON.parse(JSON.stringify(policy)),
+          createdAt: new Date(0),
         })),
         skipDuplicates: true,
       });
@@ -486,8 +424,6 @@ export class ProjectService {
       where: { id: projectId },
     });
     if (!project) throw new Error("Project not found.");
-    if (project.type === "personal")
-      throw new Error("The default project cannot be deleted.");
     const quota = await this.db.projectQuotaRecord.findUnique({
       where: { projectId },
     });
@@ -763,7 +699,7 @@ export class ProjectService {
         systemRole: user.systemRole,
       },
     });
-    return this.ensureUser({
+    return this.acceptPendingInvitations({
       exp: Number.MAX_SAFE_INTEGER,
       iat: 0,
       iss: "tali",

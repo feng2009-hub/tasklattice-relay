@@ -60,10 +60,7 @@ export function ProjectItem({
   tabIndex?: number;
   project: Project;
 }) {
-  const detail =
-    project.type === "personal"
-      ? "Default project"
-      : `${project.memberCount} ${project.memberCount === 1 ? "member" : "members"}`;
+  const detail = `${project.memberCount} ${project.memberCount === 1 ? "member" : "members"}`;
 
   return (
     <button

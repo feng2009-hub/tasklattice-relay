@@ -167,11 +167,11 @@ grant, and connection revoke require their corresponding `CAP_AGENT_*`
 capabilities and a relation proved from the registered Agent or Coordinator
 Instance. In the current builtin presets these mutation capabilities belong to
 Agent Developer and are limited to `OWNER`/`MAINTAINER`; `OWNER` is implemented
-and `MAINTAINER` is not yet persisted. A team Project Administrator does not
-implicitly receive Agent lifecycle permissions. A personal Project
-Administrator currently receives a hard-coded composite Developer binding.
-Governed mutations in a `PROD` Project return `APPROVAL_REQUIRED`, and the
-approval workflow is not yet implemented. See
+and `MAINTAINER` is not yet persisted. Project Administrators do not implicitly
+receive Agent lifecycle permissions.
+Project has no Environment dimension. The evaluator supports an explicit
+`APPROVAL_REQUIRED` result, but the Project route adapter does not yet attach
+approval requirements and the approval workflow is not implemented. See
 [`capability-authorization.md`](capability-authorization.md) for the complete
 current boundary.
 

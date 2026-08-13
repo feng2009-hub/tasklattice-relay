@@ -5,7 +5,7 @@ import { AccessPolicyService } from "./access-policies/access-policy-service";
 import { AccessPolicyStore } from "./access-policies/access-policy-store";
 import { ResourceCatalogService } from "./catalog/resource-catalog-service";
 import { ModelRoutingService } from "./model-routings/model-routing-service";
-import { PolicyService } from "./policies/policy-service";
+import { BuiltInPolicyCatalogSource, PolicyService } from "./policies/policy-service";
 import { ProjectStore } from "./projects/project-store";
 import { CostService } from "./providers/cost-service";
 import { LiteLLMClient } from "./providers/litellm-client";
@@ -48,7 +48,7 @@ const services = new Map<string, ProjectServices>();
 
 function createServices(projectId: string): ProjectServices {
   const store = new ProjectStore(projectId);
-  const policies = new PolicyService(store);
+  const policies = new PolicyService(store, new BuiltInPolicyCatalogSource());
   const modelRoutings = new ModelRoutingService(store, litellm);
   const quotas = new ProjectQuotaService(store, litellm);
   const catalog = new ResourceCatalogService(store, quotas, litellm);

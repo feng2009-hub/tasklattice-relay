@@ -46,7 +46,7 @@ export function useProjectPermissions(): ProjectPermissions {
     {
       // Project creation is a system-scoped entitlement granted to every
       // active authenticated user, independent of the selected Project role.
-      canCreateProject: Boolean(currentProject),
+      canCreateProject: true,
     },
   );
 }

@@ -82,7 +82,7 @@ export function ProjectSwitcher({
                 ? "mx-auto size-11 justify-center px-0"
                 : "w-full gap-2.5",
             )}
-            disabled={!currentProject || isSwitching}
+            disabled={isSwitching}
           >
             <span className="grid size-6 shrink-0 place-items-center text-muted-foreground">
               <FolderKanban className="size-4" />

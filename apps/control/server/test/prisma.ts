@@ -24,6 +24,7 @@ import reconcileSpecializationCapabilitiesMigration from "../../prisma/migration
 import modelRoutingDomainMigration from "../../prisma/migrations/20260803020000_model_routing_domain/migration.sql?raw";
 import capabilityAdmissionMigration from "../../prisma/migrations/20260812000000_project_capability_admission/migration.sql?raw";
 import projectRunMetricsMigration from "../../prisma/migrations/20260813000000_project_run_metrics/migration.sql?raw";
+import removeProjectTypeMigration from "../../prisma/migrations/20260813000000_remove_project_type/migration.sql?raw";
 import projectBudgetWindowsMigration from "../../prisma/migrations/20260813010000_project_budget_windows/migration.sql?raw";
 import modelUsageRunCorrelationMigration from "../../prisma/migrations/20260813020000_model_usage_run_correlation/migration.sql?raw";
 import removeBusinessEnvironmentsMigration from "../../prisma/migrations/20260813030000_remove_business_environments/migration.sql?raw";
@@ -298,6 +299,13 @@ export function createTestPrisma(): PrismaClient {
     throw new Error("Project Run metrics migration is incomplete.");
   }
   memory.public.none(projectRunMetricsMigration);
+  // PostgreSQL drops CHECK constraints that depend on a removed column.
+  // pg-mem removes the column but retains its generated anonymous constraint,
+  // so mirror PostgreSQL's dependency cleanup explicitly for the test schema.
+  memory.public.none(
+    "ALTER TABLE tasklattice.projects DROP CONSTRAINT projects_constraint_1;",
+  );
+  memory.public.none(removeProjectTypeMigration);
   if (
     !projectBudgetWindowsMigration.includes("project_quotas_budget_window_check")
     || !projectBudgetWindowsMigration.includes("budget_period_started_at")

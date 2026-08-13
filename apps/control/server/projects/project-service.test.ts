@@ -55,7 +55,7 @@ function auth(
 }
 
 describe("ProjectService", () => {
-  it("creates the default project and copies SQL-seeded metadata into teams", async () => {
+  it("lists the seeded project and copies its metadata into new Projects", async () => {
     const db = createTestPrisma();
     const service = new ProjectService(db);
     const local = auth({
@@ -65,21 +65,22 @@ describe("ProjectService", () => {
       username: "admin",
     });
 
-    expect(await service.list(local)).toEqual([
+    const initialProjects = await service.list(local);
+    expect(initialProjects).toEqual([
       expect.objectContaining({
         id: "individual",
         name: "admin",
         role: "admin",
-        type: "personal",
       }),
     ]);
+    expect(initialProjects[0]).not.toHaveProperty("type");
 
     const team = await service.create(local, "AI Platform", []);
     expect(team).toMatchObject({
       name: "AI Platform",
       role: "admin",
-      type: "team",
     });
+    expect(team).not.toHaveProperty("type");
     expect(
       await db.skillRecord.count({
         where: { projectId: team.id },
@@ -111,153 +112,6 @@ describe("ProjectService", () => {
     }
   });
 
-  it("initializes the personal Project quota idempotently under concurrent requests", async () => {
-    const db = createTestPrisma();
-    const service = new ProjectService(db);
-    const local = auth({
-      displayName: "Local Administrator",
-      email: "admin@tali.local",
-      provider: "local",
-      username: "admin",
-    });
-    await db.projectQuotaRecord.deleteMany({
-      where: { projectId: "individual" },
-    });
-
-    await Promise.all(
-      Array.from({ length: 4 }, () => service.ensureUser(local)),
-    );
-
-    expect(
-      await db.projectQuotaRecord.count({
-        where: { projectId: "individual" },
-      }),
-    ).toBe(1);
-  });
-
-  it("initializes the default deny-all Access Policy idempotently", async () => {
-    const db = createTestPrisma();
-    const service = new ProjectService(db);
-    const local = auth({
-      displayName: "Local Administrator",
-      email: "admin@tali.local",
-      provider: "local",
-      username: "admin",
-    });
-    await db.accessPolicyRecord.delete({
-      where: {
-        projectId_id: {
-          projectId: "individual",
-          id: DEFAULT_ACCESS_POLICY_ID,
-        },
-      },
-    });
-
-    await Promise.all(
-      Array.from({ length: 4 }, () => service.ensureUser(local)),
-    );
-
-    const policies = await db.accessPolicyRecord.findMany({
-      where: { projectId: "individual", id: DEFAULT_ACCESS_POLICY_ID },
-    });
-    expect(policies).toHaveLength(1);
-    expect(policies[0]?.payload).toMatchObject({
-      name: "Default",
-      status: "ACTIVE",
-      serverRules: [],
-      createdBy: "system:setup",
-    });
-    expect(
-      await db.accessPolicyVersionRecord.count({
-        where: {
-          projectId: "individual",
-          policyId: DEFAULT_ACCESS_POLICY_ID,
-        },
-      }),
-    ).toBe(1);
-  });
-
-  it("seeds a personal Project idempotently under concurrent requests", async () => {
-    const db = createTestPrisma();
-    const service = new ProjectService(db);
-    const user = auth({
-      displayName: "Concurrent SSO User",
-      email: "concurrent-sso@example.com",
-      provider: "sso",
-      username: "concurrent-sso",
-    });
-    await service.syncAuthUser(user.user);
-    const personalProject = (await service.list(user)).find(
-      ({ type }) => type === "personal",
-    )!;
-    await Promise.all([
-      db.skillRecord.deleteMany({
-        where: { projectId: personalProject.id },
-      }),
-      db.mcpServerRecord.deleteMany({
-        where: { projectId: personalProject.id },
-      }),
-      db.knowledgeSourceRecord.deleteMany({
-        where: { projectId: personalProject.id },
-      }),
-      db.agentSpecializationRecord.deleteMany({
-        where: { projectId: personalProject.id },
-      }),
-      db.sandboxPolicyRecord.deleteMany({
-        where: { projectId: personalProject.id },
-      }),
-    ]);
-
-    await Promise.all(
-      Array.from({ length: 4 }, () => service.ensureUser(user)),
-    );
-
-    const [
-      sourceSkills,
-      personalSkills,
-      sourceMcpServers,
-      personalMcpServers,
-      sourceKnowledgeSources,
-      personalKnowledgeSources,
-      sourceSpecializations,
-      personalSpecializations,
-      sourcePolicies,
-      personalPolicies,
-    ] = await Promise.all([
-      db.skillRecord.count({ where: { projectId: "individual" } }),
-      db.skillRecord.count({ where: { projectId: personalProject.id } }),
-      db.mcpServerRecord.count({ where: { projectId: "individual" } }),
-      db.mcpServerRecord.count({ where: { projectId: personalProject.id } }),
-      db.knowledgeSourceRecord.count({ where: { projectId: "individual" } }),
-      db.knowledgeSourceRecord.count({
-        where: { projectId: personalProject.id },
-      }),
-      db.agentSpecializationRecord.count({
-        where: { projectId: "individual" },
-      }),
-      db.agentSpecializationRecord.count({
-        where: { projectId: personalProject.id },
-      }),
-      db.sandboxPolicyRecord.count({ where: { projectId: "individual" } }),
-      db.sandboxPolicyRecord.count({
-        where: { projectId: personalProject.id },
-      }),
-    ]);
-    expect([
-      personalSkills,
-      personalMcpServers,
-      personalKnowledgeSources,
-      personalSpecializations,
-      personalPolicies,
-    ]).toEqual([
-      sourceSkills,
-      sourceMcpServers,
-      sourceKnowledgeSources,
-      sourceSpecializations,
-      sourcePolicies,
-    ]);
-  });
-
   it("creates the initial member set and pending invitations with assigned roles", async () => {
     const db = createTestPrisma();
     const service = new ProjectService(db);
@@ -281,7 +135,7 @@ describe("ProjectService", () => {
       { email: "member@example.com", role: "user" },
       { email: "future-admin@example.com", role: "admin" },
     ]);
-    const administratorId = await service.ensureUser(administrator);
+    const administratorId = await service.requireUser(administrator);
 
     expect(team).toMatchObject({
       memberCount: 2,
@@ -336,8 +190,8 @@ describe("ProjectService", () => {
     });
     await service.syncAuthUser(administrator.user);
     await service.syncAuthUser(auditor.user);
-    const administratorId = await service.ensureUser(administrator);
-    const auditorId = await service.ensureUser(auditor);
+    const administratorId = await service.requireUser(administrator);
+    const auditorId = await service.requireUser(auditor);
     const team = await service.create(administrator, "Redacted Membership", []);
     await db.projectMember.create({
       data: { projectId: team.id, userId: auditorId, role: "auditor" },
@@ -408,7 +262,7 @@ describe("ProjectService", () => {
       "Security Research",
       [],
     );
-    const administratorId = await service.ensureUser(administrator);
+    const administratorId = await service.requireUser(administrator);
 
     await expect(
       service.create(administrator, "security research", []),
@@ -429,7 +283,7 @@ describe("ProjectService", () => {
     });
     await service.syncAuthUser(administrator.user);
     const project = await service.create(administrator, "Retained Project", []);
-    const administratorId = await service.ensureUser(administrator);
+    const administratorId = await service.requireUser(administrator);
     await new AuditLogService(project.id, db).record({
       projectId: project.id,
       actor: {
@@ -475,7 +329,7 @@ describe("ProjectService", () => {
     ).rejects.toThrow(/permission/i);
   });
 
-  it("creates one personal project named after each username", async () => {
+  it("does not create a Project when a user signs in", async () => {
     const db = createTestPrisma();
     const service = new ProjectService(db);
     const alex = auth({
@@ -486,26 +340,19 @@ describe("ProjectService", () => {
     });
     await service.syncAuthUser(alex.user);
 
-    expect(await service.list(alex)).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          name: "alex",
-          role: "admin",
-          type: "personal",
-          effectiveCapabilities: expect.arrayContaining([
-            "CAP_PROJECT_SETTINGS_UPDATE",
-            "CAP_AGENT_INSTANCE_CREATE",
-            "CAP_AGENT_INSTANCE_DELETE",
-          ]),
-        }),
-      ]),
-    );
+    expect(await service.list(alex)).toEqual([]);
+    expect(
+      await db.project.count({ where: { createdBy: alex.user.id } }),
+    ).toBe(0);
 
-    const alexId = await service.ensureUser(alex);
-    const [personalProject] = await service.list(alex);
-    await expect(
-      service.rename(personalProject!.id, alexId, "Renamed"),
-    ).rejects.toThrow(/immutable/i);
+    const project = await service.create(alex, "Research", []);
+    expect(await service.list(alex)).toEqual([
+      expect.objectContaining({
+        id: project.id,
+        name: "Research",
+        role: "admin",
+      }),
+    ]);
   });
 
   it("enforces project roles and keeps records isolated by project", async () => {
@@ -526,7 +373,7 @@ describe("ProjectService", () => {
       systemRole: "user" as const,
       username: "project-user",
     };
-    const administratorId = await service.ensureUser(administrator);
+    const administratorId = await service.requireUser(administrator);
     const memberId = await service.syncAuthUser(member);
     const team = await service.create(administrator, "DevOps", []);
 
@@ -566,7 +413,7 @@ describe("ProjectService", () => {
       username: "administrator",
     });
     await service.syncAuthUser(administrator.user);
-    const administratorId = await service.ensureUser(administrator);
+    const administratorId = await service.requireUser(administrator);
     const team = await service.create(administrator, "SRE", []);
     await service.invite(
       team.id,
@@ -615,7 +462,7 @@ describe("ProjectService", () => {
       username: "administrator",
     });
     await service.syncAuthUser(administrator.user);
-    const administratorId = await service.ensureUser(administrator);
+    const administratorId = await service.requireUser(administrator);
     const team = await service.create(administrator, "Email disabled", []);
 
     await expect(
@@ -643,7 +490,7 @@ describe("ProjectService", () => {
       username: "administrator",
     });
     await service.syncAuthUser(administrator.user);
-    const administratorId = await service.ensureUser(administrator);
+    const administratorId = await service.requireUser(administrator);
     const team = await service.create(administrator, "Retry delivery", []);
 
     await expect(
@@ -671,7 +518,7 @@ describe("ProjectService", () => {
       username: "administrator",
     });
     await service.syncAuthUser(administrator.user);
-    const administratorId = await service.ensureUser(administrator);
+    const administratorId = await service.requireUser(administrator);
     const team = await service.create(administrator, "Security", []);
 
     await expect(
@@ -689,7 +536,7 @@ describe("ProjectService", () => {
       username: "administrator",
     });
     await service.syncAuthUser(administrator.user);
-    const administratorId = await service.ensureUser(administrator);
+    const administratorId = await service.requireUser(administrator);
     const team = await service.create(administrator, "Role Safety", []);
 
     await expect(service.invite(
@@ -717,8 +564,8 @@ describe("ProjectService", () => {
     });
     await service.syncAuthUser(first.user);
     await service.syncAuthUser(second.user);
-    const firstId = await service.ensureUser(first);
-    const secondId = await service.ensureUser(second);
+    const firstId = await service.requireUser(first);
+    const secondId = await service.requireUser(second);
     const team = await service.create(first, "Concurrent Admin Safety", []);
     await service.invite(team.id, firstId, second.user.email, "admin");
 
@@ -743,7 +590,7 @@ describe("ProjectService", () => {
       username: "administrator",
     });
     await service.syncAuthUser(administrator.user);
-    const administratorId = await service.ensureUser(administrator);
+    const administratorId = await service.requireUser(administrator);
     const developer = {
       displayName: "Developer",
       email: "developer-owner@example.com",
@@ -802,8 +649,8 @@ describe("ProjectService", () => {
       });
       await service.syncAuthUser(administrator.user);
       await service.syncAuthUser(member.user);
-      const administratorId = await service.ensureUser(administrator);
-      const memberId = await service.ensureUser(member);
+      const administratorId = await service.requireUser(administrator);
+      const memberId = await service.requireUser(member);
       const team = await service.create(administrator, "Revocation Safety", []);
       await db.projectMember.create({
         data: { projectId: team.id, userId: memberId, role: "user" },

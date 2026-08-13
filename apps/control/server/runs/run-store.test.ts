@@ -65,7 +65,6 @@ describe("RunStore", () => {
       data: {
         id: "project-b",
         name: "Project B",
-        type: "team",
         createdBy: "local-admin",
       },
     });

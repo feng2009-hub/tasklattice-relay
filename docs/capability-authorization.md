@@ -62,7 +62,6 @@ authenticated actor
   + Project membership / builtin role preset
   + required CAP_* action
   + capability-specific resource relation
-  + Project authorization environment
   -> ALLOW | DENY | APPROVAL_REQUIRED
 ```
 
@@ -74,7 +73,7 @@ The implementation layers are:
 - [`apps/control/server/authorization/builtin-roles.ts`](../apps/control/server/authorization/builtin-roles.ts)
   defines immutable builtin role presets and relation grants per capability.
 - [`apps/control/server/authorization/admission-control.ts`](../apps/control/server/authorization/admission-control.ts)
-  evaluates grants, relations, and the Project environment.
+  evaluates grants, relations, and explicit approval requirements.
 - [`apps/control/server/authorization/route-capabilities.ts`](../apps/control/server/authorization/route-capabilities.ts)
   maps current Project routes and conditional request content to required
   capabilities.
@@ -107,10 +106,8 @@ Admin preset contains `CAP_PROJECT_ROLE_CREATE`, `UPDATE`, and `DELETE`, but
 custom Role persistence and Role CRUD APIs do not exist, so those capabilities
 are registered only.
 
-A personal Project administrator is currently hard-coded to receive the entire
-Developer preset in addition to Admin. This makes the sole user able to operate
-Agents, but it is an implementation exception rather than persisted multi-role
-composition. A team Project Admin does not receive this expansion.
+Every Project membership maps to exactly one builtin role. Project identity does
+not add capabilities or compose another role implicitly.
 
 ### Auditor
 
@@ -140,7 +137,7 @@ The following advertised Developer areas are not complete:
 - Agent registration update and connection update have no routes.
 - Assignment and business Session capabilities have no persistence or routes.
 - Most Memory maintenance capabilities have no dedicated API.
-- Governed PROD changes cannot complete because there is no approval workflow.
+- Approval-required changes cannot complete because there is no approval workflow.
 
 Terminal is deliberately absent from all builtin roles because shell access is
 effectively a sandbox, credential, and Memory super-capability.
@@ -179,8 +176,8 @@ members cannot currently compose them in persisted data:
 - `ProjectMember` stores one scalar `ProjectRole` enum value.
 - There is no `Role`, `RoleCapabilityGrant`, or `MemberRoleBinding` model.
 - There is no custom Role CRUD API or ad-hoc/JIT grant path.
-- The evaluator accepts multiple role IDs, but the Project adapter normally
-  derives one ID from membership. Personal Admin is the hard-coded exception.
+- The evaluator accepts multiple role IDs, but the Project adapter derives one
+  ID from membership.
 - Several service methods still contain direct `admin` checks. Middleware
   admission makes the current HTTP path work, but capability-equivalent future
   custom roles would not be a universal authorization source for direct service
@@ -188,8 +185,8 @@ members cannot currently compose them in persisted data:
 
 The `effectiveCapabilities` returned in Project list responses is therefore a
 coarse role-level UI hint. It does not prove the caller's relation to a specific
-resource, account for `DEV | UAT | PROD` approval policy, or prove that an API
-consumer exists. The server always evaluates the concrete request again.
+resource, apply an approval policy, or prove that an API consumer exists. The
+server always evaluates the concrete request again.
 
 ## Resource relation readiness
 
@@ -281,27 +278,24 @@ dedicated Memory configuration endpoint.
 
 ## Approval behavior
 
-The admission layer loads `DEV | UAT | PROD` from the Project's trusted
-`authorization_environment` column. It does not infer authorization from the
-server's `NODE_ENV`.
+Project has no Environment dimension. Admission never infers policy from
+`NODE_ENV`, deployment labels, or a hidden Project property.
 
-In a `PROD` Project, configured governed mutations return
-`APPROVAL_REQUIRED` before the route handler runs. The requester must hold both
-the target mutation capability and `CAP_APPROVAL_REQUEST_SUBMIT`. The result
-includes a policy identifier and is written to audit evidence.
+The evaluator can return `APPROVAL_REQUIRED` only when the caller supplies an
+explicit approval requirement. The requester must hold both the target mutation
+capability and `CAP_APPROVAL_REQUEST_SUBMIT`. The result includes a policy
+identifier and is written to audit evidence. The current Project route adapter
+does not yet attach such a requirement, so this remains an evaluator primitive.
 
 This is a denial boundary, not an approval workflow. The repository currently
 has no Approval Request model, request API, review/comment/decision API, state
-machine, or `CAP_APPROVED_CHANGE_APPLY` worker. New team Projects default to
-`PROD`, so governed writes cannot complete there until that workflow exists.
-
-For development of other capability paths, use a Project explicitly operating
-in `DEV`; do not weaken PROD admission or treat `APPROVAL_REQUIRED` as success.
+machine, or `CAP_APPROVED_CHANGE_APPLY` worker. Do not treat
+`APPROVAL_REQUIRED` as success when a future policy enables it.
 
 ## Audit and sensitive response boundaries
 
 Admission evidence records the capability, role, decision, reason, relation,
-environment, resource, and approval policy where applicable. Mutation audit
+resource, and approval policy where applicable. Mutation audit
 rows store the primary decision fields and retain the full evidence in metadata.
 Denied reads are also audited; ordinary successful high-volume reads are not
 automatically added to the mutation audit stream.

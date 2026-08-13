@@ -1,7 +1,5 @@
 import type { ProjectCapability, ProjectMembershipRole } from "@tali/contracts";
 
-export type ProjectType = "personal" | "team";
-
 export type ProjectRole = ProjectMembershipRole;
 
 export const projectRoleLabels: Record<ProjectRole, string> = {
@@ -15,7 +13,6 @@ export const projectRoleLabels: Record<ProjectRole, string> = {
 export interface Project {
   id: string;
   name: string;
-  type: ProjectType;
   avatar?: string;
   memberCount: number;
   role: ProjectRole;
