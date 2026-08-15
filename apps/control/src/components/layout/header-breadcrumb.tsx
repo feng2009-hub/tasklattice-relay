@@ -6,31 +6,28 @@ const routeLabels: Record<string, string> = {
   "access-policies": "Access Policies",
   "agent-garden": "Agent Garden",
   "audit-logs": "Audit Logs",
-  agent: "Agent",
-  agents: "Instances",
   cost: "Cost",
-  dashboard: "Overview",
   instances: "Runtime Instances",
-  instace: "Runtime Instances",
-  knowledge: "Knowledge Base",
+  "knowledge-base": "Knowledge Base",
   memory: "Memory",
-  mcp: "MCP Servers",
-  new: "Create Instance",
-  policy: "Policy",
-  profile: "Account",
+  "mcp-servers": "MCP Servers",
   notifications: "Notifications",
-  "model-routings": "Routing",
+  profile: "Account",
   requests: "Requests",
-  security: "Security",
-  runtime: "Runtime",
-  sandboxes: "Sandboxes",
+  "requests/new": "Raise Request",
+  runtime: "OpenShell Runtime",
+  "runtime-policies": "Runtime Policies",
   setting: "Project Settings",
-  settings: "Settings",
-  skill: "Skills",
+  "setting/model-routings": "Routing",
   skills: "Skills",
-  tickets: "Ticket List",
   traces: "Traces",
-  projects: "Projects",
+};
+
+const detailLabels: Record<string, string> = {
+  "access-policies": "Policy details",
+  "agent-garden": "Agent details",
+  instances: "Instance details",
+  "setting/model-routings": "Routing details",
 };
 
 export interface HeaderBreadcrumbItem {
@@ -49,26 +46,19 @@ function decodePathPart(part: string) {
 export function getHeaderBreadcrumbItems(pathname: string): HeaderBreadcrumbItem[] {
   const parts = pathname.split("/").filter(Boolean);
   const projectId = parts[0];
-  const routeItems = parts.slice(1).flatMap((part, routeIndex) => {
+  const routeParts = parts.slice(1);
+  return routeParts.map((part, routeIndex) => {
     const index = routeIndex + 1;
-    const label =
-      routeIndex === 1 && parts[1] === "agent-garden"
-        ? "Agent details"
-        :
-      routeIndex === 1 && parts[1] === "access-policies"
-        ? "Policy details"
-        :
-      routeIndex === 1 && parts[1] === "requests" && part === "new"
-        ? "Raise Request"
-        : routeLabels[part] ?? decodePathPart(part);
-    return [{
+    const routeKey = routeParts.slice(0, routeIndex + 1).join("/");
+    const parentKey = routeParts.slice(0, routeIndex).join("/");
+    const label = routeLabels[routeKey]
+      ?? detailLabels[parentKey]
+      ?? decodePathPart(part);
+    return {
       href: `/${[projectId, ...parts.slice(1, index + 1)].join("/")}`,
       label,
-    }];
+    };
   });
-  return parts[1] === "instances" || parts[1] === "memory"
-    ? [{ href: `/${projectId}`, label: "Home" }, ...routeItems]
-    : routeItems;
 }
 
 export function HeaderBreadcrumb({ pathname }: { pathname: string }) {
