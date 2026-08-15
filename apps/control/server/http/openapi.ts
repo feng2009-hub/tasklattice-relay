@@ -2574,6 +2574,16 @@ export const openApiDocument = {
                 type: "string",
                 enum: ["PROVISIONING", "READY", "FAILED", "DESTROYING"],
               },
+              createdBy: {
+                type: "object",
+                required: ["id", "displayName", "username"],
+                properties: {
+                  id: { type: "string" },
+                  displayName: { type: "string" },
+                  username: { type: "string" },
+                },
+                description: "The Project member who created the Instance.",
+              },
               createdAt: { type: "string", format: "date-time" },
               updatedAt: { type: "string", format: "date-time" },
               operationId: { type: "string" },

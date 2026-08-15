@@ -1830,6 +1830,12 @@ export interface PlatformAuditLogListResponse {
   facets: PlatformAuditLogFacets;
 }
 
+export interface AgentCreator {
+  id: string;
+  displayName: string;
+  username: string;
+}
+
 export interface Agent extends Omit<CreateAgentInput, "policyId"> {
   schemaVersion: 2;
   id: string;
@@ -1853,6 +1859,7 @@ export interface Agent extends Omit<CreateAgentInput, "policyId"> {
   serviceAccountId?: string;
   sandboxName: string;
   status: AgentStatus;
+  createdBy?: AgentCreator;
   createdAt: string;
   updatedAt: string;
   operationId?: string;

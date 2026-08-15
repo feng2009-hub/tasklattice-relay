@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type {
   Agent,
+  AgentCreator,
   AgentSpecializationDefinition,
   ResourceKind,
   KnowledgeSourceDefinition,
@@ -48,8 +49,20 @@ function jsonInput(value: unknown): Prisma.InputJsonValue {
 }
 
 function agentPayload(agent: Agent): Prisma.InputJsonValue {
-  const { accessPolicyIds: _accessPolicyIds, ...payload } = agent;
+  const {
+    accessPolicyIds: _accessPolicyIds,
+    createdBy: _createdBy,
+    ...payload
+  } = agent;
   return jsonInput(payload);
+}
+
+function agentCreator(user: AgentCreator): AgentCreator {
+  return {
+    id: user.id,
+    displayName: user.displayName,
+    username: user.username,
+  };
 }
 
 function mcpConnectionPayload(server: McpServerDefinition): Prisma.InputJsonValue {
@@ -69,6 +82,7 @@ function mcpConnectionPayload(server: McpServerDefinition): Prisma.InputJsonValu
 export function parseAgent(
   payload: string | Prisma.JsonValue,
   accessPolicyIds: string[] = [],
+  createdBy?: AgentCreator,
 ): Agent {
   const agent = (typeof payload === "string" ? JSON.parse(payload) : payload) as Partial<Agent>;
   if (
@@ -89,15 +103,23 @@ export function parseAgent(
     !agent.modelRoutingComplianceDomain ||
     !agent.modelRoutingStatus
   ) throw new Error("Stored Instance data is incomplete.");
-  return { ...agent, accessPolicyIds } as Agent;
+  const { createdBy: _storedCreator, ...configuration } = agent;
+  return {
+    ...configuration,
+    accessPolicyIds,
+    ...(createdBy ? { createdBy } : {}),
+  } as Agent;
 }
 
 function parseCurrentAgent(
   payload: Prisma.JsonValue,
   accessPolicyIds: string[],
+  createdBy?: AgentCreator,
 ): Agent | undefined {
   const candidate = payload as Partial<Agent>;
-  return candidate.schemaVersion === 2 ? parseAgent(payload, accessPolicyIds) : undefined;
+  return candidate.schemaVersion === 2
+    ? parseAgent(payload, accessPolicyIds, createdBy)
+    : undefined;
 }
 
 function parseProviderAccount(payload: Prisma.JsonValue): ProviderAccount {
@@ -400,6 +422,13 @@ export class ProjectStore {
       where: { projectId_id: { projectId: this.projectId, id } },
       select: {
         payload: true,
+        ownerMembership: {
+          select: {
+            user: {
+              select: { id: true, displayName: true, username: true },
+            },
+          },
+        },
         accessPolicyBindings: {
           orderBy: { accessPolicyId: "asc" },
           select: { accessPolicyId: true },
@@ -410,6 +439,7 @@ export class ProjectStore {
       ? parseCurrentAgent(
           row.payload,
           row.accessPolicyBindings.map((binding) => binding.accessPolicyId),
+          agentCreator(row.ownerMembership.user),
         )
       : undefined;
   }
@@ -431,6 +461,13 @@ export class ProjectStore {
       orderBy: { createdAt: "desc" },
       select: {
         payload: true,
+        ownerMembership: {
+          select: {
+            user: {
+              select: { id: true, displayName: true, username: true },
+            },
+          },
+        },
         accessPolicyBindings: {
           orderBy: { accessPolicyId: "asc" },
           select: { accessPolicyId: true },
@@ -441,6 +478,7 @@ export class ProjectStore {
       const agent = parseCurrentAgent(
         row.payload,
         row.accessPolicyBindings.map((binding) => binding.accessPolicyId),
+        agentCreator(row.ownerMembership.user),
       );
       return agent ? [agent] : [];
     });
@@ -491,6 +529,13 @@ export class ProjectStore {
         where: { projectId_id: { projectId: this.projectId, id: instanceId } },
         select: {
           payload: true,
+          ownerMembership: {
+            select: {
+              user: {
+                select: { id: true, displayName: true, username: true },
+              },
+            },
+          },
           accessPolicyBindings: {
             orderBy: { accessPolicyId: "asc" },
             select: { accessPolicyId: true },
@@ -500,6 +545,7 @@ export class ProjectStore {
       return parseAgent(
         updated.payload,
         updated.accessPolicyBindings.map((binding) => binding.accessPolicyId),
+        agentCreator(updated.ownerMembership.user),
       );
     });
   }

@@ -105,7 +105,15 @@ describe("ProjectStore", () => {
     await store.replaceAgentAccessPolicies("a", [accessPolicyId]);
     expect((await store.get("a"))?.runtime).toBe("openshell");
     expect((await store.get("a"))?.accessPolicyIds).toEqual([accessPolicyId]);
+    expect((await store.get("a"))?.createdBy).toEqual({
+      id: "local-admin",
+      displayName: "Local Administrator",
+      username: "admin",
+    });
     expect(await store.list()).toHaveLength(1);
+    expect((await store.list())[0]?.createdBy?.displayName).toBe(
+      "Local Administrator",
+    );
     await store.database().user.create({
       data: {
         id: "other-owner",
@@ -123,6 +131,13 @@ describe("ProjectStore", () => {
     });
     await store.save({ ...agent, name: "Research updated" }, "other-owner");
     expect(await store.ownerUserId("a")).toBe("local-admin");
+    expect((await store.get("a"))?.createdBy?.id).toBe("local-admin");
+    expect(
+      await store.database().agentRecord.findUniqueOrThrow({
+        where: { projectId_id: { projectId: store.projectId, id: "a" } },
+        select: { payload: true },
+      }),
+    ).not.toHaveProperty("payload.createdBy");
     await store.saveProviderAccount(
       {
         id: "provider-a",

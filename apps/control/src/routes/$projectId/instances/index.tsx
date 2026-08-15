@@ -14,11 +14,12 @@ import { resolveProvisioningState } from "@/components/agents/provisioning-state
 import { DeleteInstanceDialog } from "@/components/instances/delete-instance-dialog";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -41,6 +42,11 @@ export const Route = createFileRoute("/$projectId/instances/")({
 });
 
 const statusFilters = ["ALL", "PROVISIONING", "READY", "FAILED", "DESTROYING"] as const satisfies readonly (AgentStatus | "ALL")[];
+
+function creatorInitials(displayName: string): string {
+  const parts = displayName.trim().split(/\s+/).filter(Boolean);
+  return (parts.length > 1 ? `${parts[0]![0]}${parts.at(-1)![0]}` : displayName.slice(0, 2)).toUpperCase();
+}
 
 function relativeTime(value: string): string {
   const elapsed = Date.now() - new Date(value).getTime();
@@ -184,7 +190,7 @@ function Instances() {
   const [deletingInstance, setDeletingInstance] = useState<Agent>();
   const agents = useQuery({ queryKey: scope.key("agents"), queryFn: api.listAgents, refetchInterval: 2_000 });
   const filtered = useMemo(() => (agents.data ?? []).filter((agent) => {
-    const matchesQuery = `${agent.name} ${agent.id} ${agent.sandboxName} ${getAgentPlatformPresentation(agent.agentPlatform).name}`.toLowerCase().includes(query.trim().toLowerCase());
+    const matchesQuery = `${agent.name} ${agent.id} ${agent.sandboxName} ${getAgentPlatformPresentation(agent.agentPlatform).name} ${agent.createdBy?.displayName ?? ""} ${agent.createdBy?.username ?? ""}`.toLowerCase().includes(query.trim().toLowerCase());
     return matchesQuery && (status === "ALL" || agent.status === status);
   }), [agents.data, query, status]);
   const remove = useMutation({
@@ -204,19 +210,21 @@ function Instances() {
       <TooltipProvider>
       <Card>
         <CardHeader className="border-b">
-          <div className="flex flex-wrap items-end gap-3">
-            <label className="relative w-full sm:w-72">
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="w-full sm:w-72">
               <span className="sr-only">Search instances</span>
-              <Search className="pointer-events-none absolute bottom-3.5 left-3 size-4 text-muted-foreground" />
-              <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search instances" className="h-11 pl-9" />
+              <InputGroup className="h-11 rounded-md">
+                <InputGroupAddon><Search className="size-4" /></InputGroupAddon>
+                <InputGroupInput value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search instances" />
+              </InputGroup>
             </label>
-            <label className="w-[calc(100%-3.5rem)] sm:w-52">
-              <span className="mb-1 block text-xs text-muted-foreground">Status</span>
-              <Select value={status} onValueChange={(value) => setStatus(value as (typeof statusFilters)[number])}><SelectTrigger className="h-11"><SelectValue /></SelectTrigger><SelectContent>{statusFilters.map((value) => <SelectItem key={value} value={value}>{value === "ALL" ? "All" : value.charAt(0) + value.slice(1).toLowerCase()}</SelectItem>)}</SelectContent></Select>
-            </label>
+            <Select value={status} onValueChange={(value) => setStatus(value as (typeof statusFilters)[number])}>
+              <SelectTrigger size="lg" aria-label="Filter Instances by status" className="w-[calc(100%-3.5rem)] sm:w-44"><SelectValue /></SelectTrigger>
+              <SelectContent>{statusFilters.map((value) => <SelectItem key={value} value={value}>{value === "ALL" ? "All statuses" : value.charAt(0) + value.slice(1).toLowerCase()}</SelectItem>)}</SelectContent>
+            </Select>
             <span className="ml-auto hidden text-xs tabular-nums text-muted-foreground sm:block">{filtered.length} of {(agents.data ?? []).length} Instances</span>
             <ActionTooltip label={agents.isFetching ? "Refreshing Instances" : "Refresh Instances"}>
-              <Button type="button" variant="outline" size="icon" disabled={agents.isFetching} aria-label="Refresh Instances" onClick={() => void agents.refetch()}>
+              <Button type="button" variant="outline" size="icon" className="size-11" disabled={agents.isFetching} aria-label="Refresh Instances" onClick={() => void agents.refetch()}>
                 {agents.isFetching ? <Spinner /> : <RefreshCw className="size-4" />}
               </Button>
             </ActionTooltip>
@@ -225,26 +233,36 @@ function Instances() {
         <CardContent className="px-0">
           {filtered.length ? (
             <>
-              <div className="hidden grid-cols-[minmax(14rem,1.35fr)_minmax(10rem,1fr)_8rem_9rem_3.5rem_3rem] items-center gap-3 border-b bg-muted/20 px-4 py-3 text-xs text-muted-foreground lg:grid">
-                <span>Instance</span><span>Runtime</span><span>Updated</span><span>Status</span><span>Access</span><span className="sr-only">Actions</span>
+              <div className="hidden grid-cols-[minmax(13rem,1.3fr)_minmax(9rem,.9fr)_minmax(9rem,.75fr)_8rem_9rem_3.5rem_3rem] items-center gap-3 border-b bg-muted/20 px-4 py-3 text-xs text-muted-foreground xl:grid">
+                <span>Instance</span><span>Runtime</span><span>Created by</span><span>Updated</span><span>Status</span><span>Access</span><span className="sr-only">Actions</span>
               </div>
               {filtered.map((agent) => {
                 const platform = getAgentPlatformPresentation(agent.agentPlatform);
                 return (
                   <div key={agent.id} className={cn(
-                    "group relative grid min-h-[5.25rem] grid-cols-[minmax(0,1fr)_2.75rem_2.75rem] items-center gap-3 border-b px-4 py-3 text-sm transition-colors last:border-b-0 hover:bg-muted/30 lg:grid-cols-[minmax(14rem,1.35fr)_minmax(10rem,1fr)_8rem_9rem_3.5rem_3rem]",
+                    "group relative grid min-h-[5.25rem] grid-cols-[minmax(0,1fr)_2.75rem_2.75rem] items-center gap-3 border-b px-4 py-3 text-sm transition-colors last:border-b-0 hover:bg-muted/30 xl:grid-cols-[minmax(13rem,1.3fr)_minmax(9rem,.9fr)_minmax(9rem,.75fr)_8rem_9rem_3.5rem_3rem]",
                     search.created === agent.id && "bg-primary/5 shadow-[inset_3px_0_0_var(--primary)]",
                   )}>
                     <Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: agent.id }} aria-label={`View details for ${agent.name}`} className="absolute inset-0 z-0 focus-visible:outline-2 focus-visible:outline-offset-[-2px]" />
-                    <span className="pointer-events-none relative z-10 col-span-3 flex min-w-0 items-center gap-3 lg:col-span-1">
+                    <span className="pointer-events-none relative z-10 col-span-3 flex min-w-0 items-center gap-3 xl:col-span-1">
                       <AgentPlatformIcon platform={platform} className="transition-colors group-hover:border-primary/30 group-hover:bg-primary/5" />
                       <span className="min-w-0">
                         <Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: agent.id }} className="pointer-events-auto block truncate font-medium text-foreground hover:text-primary hover:underline">{agent.name}</Link>
                         <span className="mt-1 block truncate font-mono text-xs text-muted-foreground">{agent.id.slice(0, 8)} · {platform.name}</span>
+                        <span className="mt-1 block truncate text-xs text-muted-foreground xl:hidden">Created by {agent.createdBy?.displayName ?? "Unknown user"}</span>
                       </span>
                     </span>
-                    <span className="pointer-events-none relative z-10 hidden min-w-0 lg:block"><strong className="block truncate text-xs font-medium">{platform.runtimeName}</strong><span className="mt-1 block truncate font-mono text-xs text-muted-foreground">{agent.sandboxName}</span></span>
-                    <span className="pointer-events-none relative z-10 hidden text-xs text-muted-foreground lg:block">{relativeTime(agent.updatedAt)}</span>
+                    <span className="pointer-events-none relative z-10 hidden min-w-0 xl:block"><strong className="block truncate text-xs font-medium">{platform.runtimeName}</strong><span className="mt-1 block truncate font-mono text-xs text-muted-foreground">{agent.sandboxName}</span></span>
+                    <span className="pointer-events-none relative z-10 hidden min-w-0 items-center gap-2 xl:flex">
+                      <Avatar className="size-7 border">
+                        <AvatarFallback className="text-[10px] font-medium">{creatorInitials(agent.createdBy?.displayName ?? "Unknown")}</AvatarFallback>
+                      </Avatar>
+                      <span className="min-w-0">
+                        <strong className="block truncate text-xs font-medium">{agent.createdBy?.displayName ?? "Unknown user"}</strong>
+                        <span className="mt-1 block truncate text-xs text-muted-foreground">{agent.createdBy ? `@${agent.createdBy.username}` : "Creator unavailable"}</span>
+                      </span>
+                    </span>
+                    <span className="pointer-events-none relative z-10 hidden text-xs text-muted-foreground xl:block">{relativeTime(agent.updatedAt)}</span>
                     <span className="relative z-20" onClick={(event) => event.stopPropagation()}><InstanceLifecycleStatus instance={agent} /></span>
                     <span className="relative z-20 justify-self-end lg:justify-self-start" onClick={(event) => event.stopPropagation()}><PrimaryInstanceAction canInteract={permissions.canInteractWithAgents} instance={agent} /></span>
                     <span className="relative z-20 justify-self-end" onClick={(event) => event.stopPropagation()}><InstanceActions canDelete={permissions.canDeleteAgents} canUseTerminal={permissions.canUseAgentTerminal} instance={agent} onDelete={() => setDeletingInstance(agent)} /></span>
