@@ -6,6 +6,8 @@ import type {
 import type {
   HumanProjectMember,
   Project,
+  ProjectDeletionImpact,
+  ProjectDeletionSchedule,
   ProjectRole,
 } from "@/types/project";
 
@@ -63,8 +65,18 @@ export async function renameProject(projectId: string, name: string): Promise<Pr
   );
 }
 
-export async function deleteProject(projectId: string): Promise<void> {
-  await projectRequest(
+export async function getProjectDeletionImpact(
+  projectId: string,
+): Promise<ProjectDeletionImpact> {
+  return projectRequest<ProjectDeletionImpact>(
+    `/api/v1/projects/${encodeURIComponent(projectId)}/deletion-impact`,
+  );
+}
+
+export async function deleteProject(
+  projectId: string,
+): Promise<ProjectDeletionSchedule> {
+  return projectRequest<ProjectDeletionSchedule>(
     `/api/v1/projects/${encodeURIComponent(projectId)}`,
     { method: "DELETE" },
   );

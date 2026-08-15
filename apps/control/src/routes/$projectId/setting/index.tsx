@@ -1,4 +1,4 @@
-import { useMutation } from "@tanstack/react-query";
+import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   Database,
@@ -12,13 +12,12 @@ import {
 import { PageHeader } from "@/components/layout/page-header";
 import { ProjectModelRoutingsSettings } from "@/components/project/project-model-routing-settings";
 import { Button } from "@/components/ui/button";
-import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProjectMembers } from "@/components/project/project-members";
 import { ProjectQuotaSettings } from "@/components/project/project-quota-settings";
+import { DeleteProjectSheet } from "@/components/project/delete-project-sheet";
 import { useProject } from "@/hooks/use-project";
 import { useProjectPermissions } from "@/hooks/use-project-permissions";
-import { deleteProject } from "@/services/project";
 import type { Project } from "@/types/project";
 
 export const Route = createFileRoute("/$projectId/setting/")({
@@ -172,10 +171,7 @@ function ProjectGeneralSettings({
   project: Project;
 }) {
   const permissions = useProjectPermissions();
-  const remove = useMutation({
-    mutationFn: () => deleteProject(project.id),
-    onSuccess: () => onDeleted(),
-  });
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   return (
     <div className="divide-y">
@@ -209,25 +205,17 @@ function ProjectGeneralSettings({
           <Button
             className="h-11"
             variant="destructive"
-            disabled={remove.isPending}
-            onClick={() => {
-              if (
-                window.confirm(
-                  `Delete ${project.name}? This action cannot be undone.`,
-                )
-              ) {
-                remove.mutate();
-              }
-            }}
+            onClick={() => setDeleteOpen(true)}
           >
-            {remove.isPending ? <Spinner /> : <Trash2 />}
+            <Trash2 />
             Delete Project
           </Button>
-          {remove.isError ? (
-            <p className="text-sm text-destructive" role="alert">
-              {remove.error.message}
-            </p>
-          ) : null}
+          <DeleteProjectSheet
+            open={deleteOpen}
+            project={project}
+            onOpenChange={setDeleteOpen}
+            onScheduled={() => onDeleted()}
+          />
         </div>
       ) : null}
     </div>

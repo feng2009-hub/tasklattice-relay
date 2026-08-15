@@ -73,6 +73,19 @@ images:
 
 control:
   replicaCount: 1
+  deletionWorker:
+    enabled: true
+    # Database leases make multiple replicas safe; one is sufficient for the
+    # normal Project deletion volume.
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 25m
+        memory: 96Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+    extraEnv: []
   # Canonical browser URL used for OIDC callbacks. Local authentication and
   # Service exposure do not require it. Set it when auth.oidc or Keycloak is enabled.
   publicUrl: ""

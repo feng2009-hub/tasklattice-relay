@@ -31,6 +31,7 @@ import removeBusinessEnvironmentsMigration from "../../prisma/migrations/2026081
 import accountLanguageAndNotificationsMigration from "../../prisma/migrations/20260813040000_account_language_and_notifications/migration.sql?raw";
 import projectRoleSessionsMigration from "../../prisma/migrations/20260813050000_project_role_sessions/migration.sql?raw";
 import directProjectRoleSwitchingMigration from "../../prisma/migrations/20260813060000_direct_project_role_switching/migration.sql?raw";
+import projectDeletionTasksMigration from "../../prisma/migrations/20260815000000_project_deletion_tasks/migration.sql?raw";
 import { developmentResourceCatalog } from "../catalog/development-resource-catalog";
 import { PrismaClient } from "../generated/prisma/client";
 
@@ -370,6 +371,13 @@ export function createTestPrisma(): PrismaClient {
     CREATE INDEX project_member_role_assignments_project_role_idx
       ON tasklattice.project_member_role_assignments(project_id, role);
   `);
+  if (
+    !projectDeletionTasksMigration.includes("project_deletion_tasks_due_idx")
+    || !projectDeletionTasksMigration.includes("status IN ('scheduled', 'running', 'retry')")
+  ) {
+    throw new Error("Project deletion task migration structure is incomplete.");
+  }
+  memory.public.none(projectDeletionTasksMigration);
   const pg = memory.adapters.createPg();
   const query = pg.Client.prototype.query;
   pg.Client.prototype.query = function (

@@ -85,6 +85,10 @@ export function projectRouteAdmissionPolicy(
     return undefined;
   }
 
+  if (tail[0] === "deletion-impact" && tail.length === 1 && method === "GET") {
+    return policy("PROJECT", [requirement("CAP_PROJECT_DELETE", "Project")]);
+  }
+
   if (tail[0] === "members") {
     if (method === "GET" && tail.length === 1) {
       return policy("PROJECT", [requirement("CAP_PROJECT_MEMBER_VIEW", "ProjectMember")]);

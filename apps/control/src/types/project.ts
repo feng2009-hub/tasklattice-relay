@@ -20,6 +20,43 @@ export interface Project {
   effectiveCapabilities: readonly ProjectCapability[];
 }
 
+export interface ProjectDeletionActiveResource {
+  id: string;
+  kind:
+    | "instance"
+    | "provider"
+    | "model"
+    | "gateway"
+    | "routing"
+    | "mcp-server"
+    | "knowledge-source";
+  kindLabel: string;
+  name: string;
+  status: string;
+}
+
+export interface ProjectDeletionImpact {
+  activeResources: ProjectDeletionActiveResource[];
+  auditLogsRetained: true;
+  delayMinutes: number;
+  projectId: string;
+  projectName: string;
+  resourceCounts: Array<{
+    count: number;
+    kind: string;
+    label: string;
+  }>;
+  totalResourceCount: number;
+}
+
+export interface ProjectDeletionSchedule {
+  delayMinutes: number;
+  projectId: string;
+  requestedAt: string;
+  scheduledFor: string;
+  status: "scheduled";
+}
+
 export interface HumanProjectMember {
   id: string;
   kind: "human";

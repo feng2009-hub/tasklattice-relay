@@ -7,13 +7,16 @@ export default defineHandler(async (event) => {
   const service = new ProjectService();
   try {
     const { userId } = await service.authenticate(event.req);
-    const schedule = await service.delete(
-      decodeURIComponent(event.context.params?.projectId ?? ""),
-      userId,
+    return jsonResponse(
+      await service.deletionImpact(
+        decodeURIComponent(event.context.params?.projectId ?? ""),
+        userId,
+      ),
     );
-    return jsonResponse(schedule, { status: 202 });
   } catch (error) {
-    if (error instanceof Error && error.message.includes("authentication")) return unauthorizedResponse(error);
+    if (error instanceof Error && error.message.includes("authentication")) {
+      return unauthorizedResponse(error);
+    }
     return errorResponse(error);
   }
 });

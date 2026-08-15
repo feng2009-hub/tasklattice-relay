@@ -1,0 +1,100 @@
+{{- if .Values.control.deletionWorker.enabled }}
+{{- $component := "deletion-worker" -}}
+{{- $name := include "tali.componentName" (dict "root" . "component" $component) -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tali.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
+spec:
+  replicas: {{ .Values.control.deletionWorker.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "tali.selectorLabels" (dict "root" . "component" $component) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tali.selectorLabels" (dict "root" . "component" $component) | nindent 8 }}
+      annotations:
+        checksum/control-config: {{ include "tali.controlConfigChecksum" . }}
+        {{- with .Values.global.rolloutRevision }}
+        tali.ai/rollout-revision: {{ . | quote }}
+        {{- end }}
+    spec:
+      terminationGracePeriodSeconds: 600
+      serviceAccountName: {{ include "tali.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: migrate-control-database
+          image: {{ include "tali.image" (dict "root" . "image" .Values.images.control) }}
+          imagePullPolicy: {{ .Values.images.control.pullPolicy }}
+          command:
+            - npm
+            - run
+            - db:migrate
+            - --workspace
+            - "@tali/control"
+          env:
+            - name: TALI_CONFIG
+              value: /etc/tali/control.toml
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            {{- toYaml .Values.control.initResources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: control-config
+              mountPath: /etc/tali
+              readOnly: true
+      containers:
+        - name: deletion-worker
+          image: {{ include "tali.image" (dict "root" . "image" .Values.images.control) }}
+          imagePullPolicy: {{ .Values.images.control.pullPolicy }}
+          command:
+            - node
+            - apps/control/.output/workers/project-deletion-worker.mjs
+          env:
+            - name: TALI_CONFIG
+              value: /etc/tali/control.toml
+            {{- with .Values.control.deletionWorker.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.control.deletionWorker.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: control-config
+              mountPath: /etc/tali
+              readOnly: true
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 32Mi
+        - name: control-config
+          secret:
+            secretName: {{ include "tali.secretName" . }}
+            items:
+              - key: control.toml
+                path: control.toml
+{{- end }}

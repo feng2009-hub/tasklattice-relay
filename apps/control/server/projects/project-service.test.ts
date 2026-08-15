@@ -357,7 +357,40 @@ describe("ProjectService", () => {
       },
     });
 
-    await service.delete(project.id, administratorId);
+    const impact = await service.deletionImpact(project.id, administratorId);
+    expect(impact).toMatchObject({
+      activeResources: expect.any(Array),
+      auditLogsRetained: true,
+      delayMinutes: 10,
+      projectId: project.id,
+      projectName: "Retained Project",
+    });
+    expect(impact.resourceCounts).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "skills", count: expect.any(Number) }),
+      expect.objectContaining({ kind: "access-policies", count: 1 }),
+    ]));
+
+    const schedule = await service.delete(project.id, administratorId);
+
+    expect(schedule).toMatchObject({
+      delayMinutes: 10,
+      projectId: project.id,
+      status: "scheduled",
+    });
+    expect(
+      new Date(schedule.scheduledFor).getTime()
+        - new Date(schedule.requestedAt).getTime(),
+    ).toBe(10 * 60 * 1_000);
+    expect(
+      await db.projectDeletionTask.findUnique({
+        where: { projectId: project.id },
+      }),
+    ).toMatchObject({
+      attempts: 0,
+      nextAttemptAt: new Date(schedule.scheduledFor),
+      scheduledFor: new Date(schedule.scheduledFor),
+      status: "scheduled",
+    });
 
     expect(
       await db.project.findUnique({ where: { id: project.id } }),

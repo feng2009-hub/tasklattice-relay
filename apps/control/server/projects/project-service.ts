@@ -24,6 +24,11 @@ import {
   projectAccessForMember,
   type ProjectAccessView,
 } from "./project-access";
+import {
+  PROJECT_DELETION_GRACE_PERIOD_MINUTES,
+  PROJECT_DELETION_GRACE_PERIOD_MS,
+  type ProjectDeletionSchedule,
+} from "./project-deletion-service";
 
 export type ProjectRole = ProjectMembershipRole;
 
@@ -32,6 +37,35 @@ export interface ProjectView extends ProjectAccessView {
   name: string;
   avatar?: string;
   memberCount: number;
+}
+
+export interface ProjectDeletionActiveResource {
+  id: string;
+  kind:
+    | "instance"
+    | "provider"
+    | "model"
+    | "gateway"
+    | "routing"
+    | "mcp-server"
+    | "knowledge-source";
+  kindLabel: string;
+  name: string;
+  status: string;
+}
+
+export interface ProjectDeletionImpact {
+  activeResources: ProjectDeletionActiveResource[];
+  auditLogsRetained: true;
+  delayMinutes: number;
+  projectId: string;
+  projectName: string;
+  resourceCounts: Array<{
+    count: number;
+    kind: string;
+    label: string;
+  }>;
+  totalResourceCount: number;
 }
 
 export interface HumanProjectMemberView {
@@ -531,27 +565,164 @@ export class ProjectService {
     throw new Error("Project names are immutable after creation.");
   }
 
-  async delete(projectId: string, currentUserId: string): Promise<void> {
+  async deletionImpact(
+    projectId: string,
+    currentUserId: string,
+  ): Promise<ProjectDeletionImpact> {
     await this.requireRole(projectId, currentUserId, ["admin"]);
     const project = await this.db.project.findUnique({
       where: { id: projectId },
-    });
-    if (!project) throw new Error("Project not found.");
-    const quota = await this.db.projectQuotaRecord.findUnique({
-      where: { projectId },
-    });
-    if (quota?.litellmTeamId && getControlConfig().litellm.master_key) {
-      await this.litellm
-        .deleteProjectTeam?.(quota.litellmTeamId)
-        .catch(() => undefined);
-    }
-    await this.db.project.update({
-      where: { id: projectId },
-      data: {
-        deletedAt: new Date(),
-        deletedBy: currentUserId,
+      select: {
+        id: true,
+        name: true,
+        deletedAt: true,
       },
     });
+    if (!project || project.deletedAt) throw new Error("Project not found.");
+    const store = new ProjectStore(projectId, this.db);
+    const [
+      instances,
+      providers,
+      models,
+      gateways,
+      routings,
+      mcpServers,
+      knowledgeSources,
+      accessPolicyCount,
+      skillCount,
+    ] = await Promise.all([
+      store.list(),
+      store.listProviderAccounts(),
+      store.listModelDeployments(),
+      store.listInferenceGateways(),
+      store.listModelRoutings(),
+      store.listMcpServerDefinitions(),
+      store.listKnowledgeSourceDefinitions(),
+      this.db.accessPolicyRecord.count({ where: { projectId } }),
+      this.db.skillRecord.count({ where: { projectId } }),
+    ]);
+    const activeResources: ProjectDeletionActiveResource[] = [
+      ...instances
+        .filter((resource) => resource.status !== "FAILED")
+        .map((resource) => ({
+          id: resource.id,
+          kind: "instance" as const,
+          kindLabel: "Agent Instance",
+          name: resource.name,
+          status: resource.status,
+        })),
+      ...providers
+        .filter((resource) => resource.status !== "FAILED")
+        .map((resource) => ({
+          id: resource.id,
+          kind: "provider" as const,
+          kindLabel: "Provider connection",
+          name: resource.name,
+          status: resource.status,
+        })),
+      ...models
+        .filter((resource) => resource.status !== "FAILED")
+        .map((resource) => ({
+          id: resource.id,
+          kind: "model" as const,
+          kindLabel: "Registered model",
+          name: resource.modelId,
+          status: resource.status,
+        })),
+      ...gateways
+        .filter((resource) => resource.status === "READY" || resource.status === "DEGRADED")
+        .map((resource) => ({
+          id: resource.id,
+          kind: "gateway" as const,
+          kindLabel: "Inference gateway",
+          name: resource.name,
+          status: resource.status,
+        })),
+      ...routings
+        .filter((resource) => ["VALIDATING", "READY", "DEGRADED"].includes(resource.status))
+        .map((resource) => ({
+          id: resource.id,
+          kind: "routing" as const,
+          kindLabel: "Model routing",
+          name: resource.name,
+          status: resource.status,
+        })),
+      ...mcpServers
+        .filter((resource) => resource.status !== "UNAVAILABLE")
+        .map((resource) => ({
+          id: resource.id,
+          kind: "mcp-server" as const,
+          kindLabel: "MCP connection",
+          name: resource.name,
+          status: resource.status,
+        })),
+      ...knowledgeSources
+        .filter((resource) => resource.status === "REGISTERED")
+        .map((resource) => ({
+          id: resource.id,
+          kind: "knowledge-source" as const,
+          kindLabel: "Knowledge source",
+          name: resource.name,
+          status: resource.status,
+        })),
+    ].sort((left, right) =>
+      left.kindLabel.localeCompare(right.kindLabel) || left.name.localeCompare(right.name),
+    );
+    const resourceCounts = [
+      { kind: "instances", label: "Agent Instances", count: instances.length },
+      { kind: "providers", label: "Provider connections", count: providers.length },
+      { kind: "models", label: "Registered models", count: models.length },
+      { kind: "gateways", label: "Inference gateways", count: gateways.length },
+      { kind: "routings", label: "Model routings", count: routings.length },
+      { kind: "mcp-servers", label: "MCP connections", count: mcpServers.length },
+      { kind: "knowledge-sources", label: "Knowledge sources", count: knowledgeSources.length },
+      { kind: "skills", label: "Skills", count: skillCount },
+      { kind: "access-policies", label: "Access Policies", count: accessPolicyCount },
+    ];
+    return {
+      activeResources,
+      auditLogsRetained: true,
+      delayMinutes: PROJECT_DELETION_GRACE_PERIOD_MINUTES,
+      projectId: project.id,
+      projectName: project.name,
+      resourceCounts,
+      totalResourceCount: resourceCounts.reduce((total, item) => total + item.count, 0),
+    };
+  }
+
+  async delete(
+    projectId: string,
+    currentUserId: string,
+  ): Promise<ProjectDeletionSchedule> {
+    await this.requireRole(projectId, currentUserId, ["admin"]);
+    const requestedAt = new Date();
+    const scheduledFor = new Date(
+      requestedAt.getTime() + PROJECT_DELETION_GRACE_PERIOD_MS,
+    );
+    await this.db.$transaction(async (transaction) => {
+      await transaction.project.update({
+        where: { id: projectId },
+        data: {
+          deletedAt: requestedAt,
+          deletedBy: currentUserId,
+        },
+      });
+      await transaction.projectDeletionTask.create({
+        data: {
+          projectId,
+          nextAttemptAt: scheduledFor,
+          scheduledFor,
+          status: "scheduled",
+        },
+      });
+    });
+    return {
+      delayMinutes: PROJECT_DELETION_GRACE_PERIOD_MINUTES,
+      projectId,
+      requestedAt: requestedAt.toISOString(),
+      scheduledFor: scheduledFor.toISOString(),
+      status: "scheduled",
+    };
   }
 
   async members(
