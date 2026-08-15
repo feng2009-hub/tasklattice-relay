@@ -1,10 +1,18 @@
-import type { ProjectCapability } from "@tali/contracts";
+import {
+  projectCapabilities,
+  type ProjectCapability,
+} from "@tali/contracts";
+
+export type PermissionItem = {
+  capability: ProjectCapability;
+  enabled: boolean;
+};
 
 export type PermissionGroup = {
   id: string;
   title: string;
   description: string;
-  items: ProjectCapability[];
+  items: PermissionItem[];
 };
 
 const definitions = [
@@ -75,14 +83,19 @@ const definitions = [
 ] as const;
 
 export function groupProjectCapabilities(
-  capabilities: readonly ProjectCapability[],
+  effectiveCapabilities: readonly ProjectCapability[],
 ): PermissionGroup[] {
-  const remaining = new Set(capabilities);
+  const effective = new Set(effectiveCapabilities);
+  const remaining = new Set(projectCapabilities);
   const groups: PermissionGroup[] = definitions.map((definition) => {
-    const items = capabilities.filter((capability) =>
+    const capabilities = projectCapabilities.filter((capability) =>
       definition.prefixes.some((prefix) => capability.startsWith(prefix)),
     );
-    items.forEach((capability) => remaining.delete(capability));
+    capabilities.forEach((capability) => remaining.delete(capability));
+    const items = capabilities.map((capability) => ({
+      capability,
+      enabled: effective.has(capability),
+    }));
     return { ...definition, items };
   });
 
@@ -91,8 +104,11 @@ export function groupProjectCapabilities(
       id: "other",
       title: "Other",
       description:
-        "Capabilities that are not assigned to a standard permission domain.",
-      items: Array.from(remaining),
+        "Permissions that are not assigned to a standard permission domain.",
+      items: Array.from(remaining, (capability) => ({
+        capability,
+        enabled: effective.has(capability),
+      })),
     });
   }
 

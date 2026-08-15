@@ -7,18 +7,21 @@ import {
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import type { ProjectCapability } from "@tali/contracts";
 import {
   Check,
   ChevronDown,
+  Circle,
   CircleUserRound,
   Clock3,
+  Eye,
+  EyeOff,
   KeyRound,
   Languages,
   Monitor,
   Moon,
   ShieldCheck,
   Sun,
+  X,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -28,11 +31,33 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from "@/components/ui/input-group";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { groupProjectCapabilities } from "@/features/account/permission-groups";
+import {
+  groupProjectCapabilities,
+  type PermissionItem,
+} from "@/features/account/permission-groups";
 import { useProject } from "@/hooks/use-project";
 import { switchProjectRole } from "@/services/project";
 import {
@@ -455,7 +480,7 @@ function AccessPanel({
 
       <section className="p-5">
         <div className="max-w-5xl">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="font-sans text-lg font-semibold">Assigned Project roles</h2>
               <p className="mt-1 text-xs text-muted-foreground">
@@ -516,35 +541,47 @@ function AccessPanel({
 
       <section className="p-5">
         <div className="max-w-6xl">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="font-sans text-lg font-semibold">Effective permissions</h2>
               <p className="mt-1 text-xs text-muted-foreground">
-                Granted by the active Project role and grouped by permission
-                domain.
+                All Project permissions, grouped by domain. Status reflects the
+                active Project role.
               </p>
             </div>
-            <Badge variant="secondary">
-              {project.effectiveCapabilities.length}
+            <Badge variant="secondary" className="whitespace-nowrap">
+              {project.effectiveCapabilities.length} of{" "}
+              {permissionGroups.reduce(
+                (total, group) => total + group.items.length,
+                0,
+              )}{" "}
+              enabled
             </Badge>
           </div>
-          {project.effectiveCapabilities.length ? (
-            <div className="mt-4 space-y-2">
-              {permissionGroups.map((group, index) => (
-                <PermissionGroup
-                  key={group.id}
-                  defaultOpen={index === 0}
-                  description={group.description}
-                  items={group.items}
-                  title={group.title}
-                />
-              ))}
-            </div>
-          ) : (
-            <p className="mt-3 text-sm text-muted-foreground">
-              No Project permissions are assigned to this account.
-            </p>
-          )}
+          <div
+            className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground"
+            aria-label="Permission status legend"
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <Check className="size-3.5 text-emerald-700 dark:text-emerald-300" />
+              Enabled
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <X className="size-3.5 text-destructive" />
+              Disabled
+            </span>
+          </div>
+          <div className="mt-4 space-y-2">
+            {permissionGroups.map((group, index) => (
+              <PermissionGroup
+                key={group.id}
+                defaultOpen={index === 0}
+                description={group.description}
+                items={group.items}
+                title={group.title}
+              />
+            ))}
+          </div>
         </div>
       </section>
     </div>
@@ -559,9 +596,11 @@ function PermissionGroup({
 }: {
   defaultOpen: boolean;
   description: string;
-  items: readonly ProjectCapability[];
+  items: readonly PermissionItem[];
   title: string;
 }) {
+  const enabledCount = items.filter((item) => item.enabled).length;
+
   return (
     <Collapsible
       defaultOpen={defaultOpen}
@@ -580,18 +619,40 @@ function PermissionGroup({
               {description}
             </span>
           </span>
-          <Badge variant="secondary" className="font-mono text-[10px]">
-            {items.length}
+          <Badge
+            variant="secondary"
+            className="font-mono text-[10px] tabular-nums"
+            aria-label={`${enabledCount} of ${items.length} permissions enabled`}
+          >
+            {enabledCount}/{items.length}
           </Badge>
           <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]/permission:rotate-180" />
         </button>
       </CollapsibleTrigger>
       <CollapsibleContent>
         <ul className="grid gap-x-6 gap-y-2 border-t bg-muted/15 px-4 py-4 sm:grid-cols-2 xl:grid-cols-3">
-          {items.map((capability) => (
-            <li key={capability} className="flex min-w-0 items-start gap-2">
-              <Check className="mt-0.5 size-3.5 shrink-0 text-emerald-700 dark:text-emerald-300" />
-              <code className="break-all font-mono text-[11px] leading-5 text-foreground">
+          {items.map(({ capability, enabled }) => (
+            <li
+              key={capability}
+              className="flex min-w-0 items-start gap-2"
+            >
+              {enabled ? (
+                <Check
+                  aria-label="Enabled"
+                  className="mt-0.5 size-3.5 shrink-0 text-emerald-700 dark:text-emerald-300"
+                />
+              ) : (
+                <X
+                  aria-label="Disabled"
+                  className="mt-0.5 size-3.5 shrink-0 text-destructive"
+                />
+              )}
+              <code
+                className={cn(
+                  "break-all font-mono text-[11px] leading-5",
+                  enabled ? "text-foreground" : "text-muted-foreground",
+                )}
+              >
                 {capability}
               </code>
             </li>
@@ -603,9 +664,15 @@ function PermissionGroup({
 }
 
 function PasswordPanel({ provider }: { provider: "local" | "sso" }) {
+  const [open, setOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordVisibility, setPasswordVisibility] = useState({
+    current: false,
+    new: false,
+    confirm: false,
+  });
   const reset = useMutation({
     mutationFn: () =>
       resetLocalPassword({
@@ -616,8 +683,24 @@ function PasswordPanel({ provider }: { provider: "local" | "sso" }) {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
+      setPasswordVisibility({ current: false, new: false, confirm: false });
+      setOpen(false);
     },
   });
+
+  const clearForm = () => {
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setPasswordVisibility({ current: false, new: false, confirm: false });
+    reset.reset();
+  };
+
+  const setSheetOpen = (nextOpen: boolean) => {
+    if (reset.isPending) return;
+    setOpen(nextOpen);
+    if (!nextOpen) clearForm();
+  };
 
   if (provider === "sso") {
     return (
@@ -637,99 +720,244 @@ function PasswordPanel({ provider }: { provider: "local" | "sso" }) {
   }
 
   const matches = newPassword === confirmPassword;
+  const longEnough = newPassword.length >= 12;
+  const changed = currentPassword !== newPassword;
   const valid =
     currentPassword.length > 0 &&
-    newPassword.length >= 12 &&
+    longEnough &&
     matches &&
-    currentPassword !== newPassword;
+    changed;
 
   return (
     <section className="p-5">
-      <div className="max-w-3xl">
-        <div className="flex items-center gap-2">
-          <KeyRound className="size-4 text-muted-foreground" />
-          <h2 className="font-sans text-lg font-semibold">Reset local password</h2>
+      <div className="max-w-4xl">
+        <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <KeyRound className="size-4 text-muted-foreground" />
+              <h2 className="font-sans text-lg font-semibold">Local password</h2>
+            </div>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+              Change the password used to sign in to this local account.
+            </p>
+          </div>
+          <Button
+            className="h-11"
+            type="button"
+            variant="outline"
+            onClick={() => {
+              reset.reset();
+              setOpen(true);
+            }}
+          >
+            <KeyRound />
+            Reset password
+          </Button>
         </div>
-        <p className="mt-2 text-sm leading-6 text-muted-foreground">
-          Choose at least 12 characters. The password is stored only as a bcrypt
-          hash.
-        </p>
-        <form
-          className="mt-6 grid gap-4 sm:grid-cols-2"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (valid) reset.mutate();
-          }}
-        >
-          <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="current-password">Current password</Label>
-            <Input
-              id="current-password"
-              autoComplete="current-password"
-              className="h-11"
-              type="password"
-              value={currentPassword}
-              onChange={(event) => setCurrentPassword(event.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="new-password">New password</Label>
-            <Input
-              id="new-password"
-              autoComplete="new-password"
-              className="h-11"
-              minLength={12}
-              maxLength={128}
-              type="password"
-              value={newPassword}
-              onChange={(event) => setNewPassword(event.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="confirm-password">Confirm new password</Label>
-            <Input
-              id="confirm-password"
-              autoComplete="new-password"
-              aria-invalid={Boolean(confirmPassword) && !matches}
-              className="h-11"
-              minLength={12}
-              maxLength={128}
-              type="password"
-              value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
-            />
-          </div>
-          {confirmPassword && !matches ? (
-            <p className="text-sm text-destructive sm:col-span-2" role="alert">
-              New passwords do not match.
-            </p>
-          ) : null}
-          {reset.error ? (
-            <p className="text-sm text-destructive sm:col-span-2" role="alert">
-              {reset.error.message}
-            </p>
-          ) : null}
-          {reset.isSuccess ? (
-            <p
-              className="text-sm text-emerald-700 dark:text-emerald-300 sm:col-span-2"
-              role="status"
-            >
-              Password reset. Use the new password the next time you sign in.
-            </p>
-          ) : null}
-          <div className="sm:col-span-2">
-            <Button
-              className="h-11"
-              type="submit"
-              variant="outline"
-              disabled={reset.isPending || !valid}
-            >
-              {reset.isPending ? <Spinner /> : <KeyRound />}
-              Reset password
-            </Button>
-          </div>
-        </form>
+        {reset.isSuccess ? (
+          <p
+            className="mt-4 text-sm text-emerald-700 dark:text-emerald-300"
+            role="status"
+          >
+            Password reset. Use the new password the next time you sign in.
+          </p>
+        ) : null}
       </div>
+
+      <Sheet open={open} onOpenChange={setSheetOpen}>
+        <SheetContent
+          side="right"
+          className="w-full gap-0 sm:max-w-md [&>button]:size-11"
+        >
+          <SheetHeader className="shrink-0 gap-1.5 border-b px-5 py-5 pr-14 sm:px-6">
+            <SheetTitle className="text-xl">Reset password</SheetTitle>
+            <SheetDescription className="leading-5">
+              Enter your current password, then choose a new password with at
+              least 12 characters.
+            </SheetDescription>
+          </SheetHeader>
+          <form
+            className="flex min-h-0 flex-1 flex-col"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (valid) reset.mutate();
+            }}
+          >
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6 sm:px-6">
+              <FieldGroup>
+                <Field>
+                  <FieldLabel htmlFor="current-password">
+                    Current password
+                  </FieldLabel>
+                  <InputGroup className="h-11 rounded-md">
+                    <InputGroupInput
+                      id="current-password"
+                      autoComplete="current-password"
+                      autoFocus
+                      maxLength={128}
+                      required
+                      type={passwordVisibility.current ? "text" : "password"}
+                      value={currentPassword}
+                      onChange={(event) => {
+                        if (reset.isError) reset.reset();
+                        setCurrentPassword(event.target.value);
+                      }}
+                    />
+                    <InputGroupAddon align="inline-end">
+                      <InputGroupButton
+                        aria-label={passwordVisibility.current
+                          ? "Hide current password"
+                          : "Show current password"}
+                        size="icon-sm"
+                        onClick={() => setPasswordVisibility((visibility) => ({
+                          ...visibility,
+                          current: !visibility.current,
+                        }))}
+                      >
+                        {passwordVisibility.current ? <EyeOff /> : <Eye />}
+                      </InputGroupButton>
+                    </InputGroupAddon>
+                  </InputGroup>
+                </Field>
+
+                <Field
+                  data-invalid={Boolean(newPassword) && (!longEnough || !changed)}
+                >
+                  <FieldLabel htmlFor="new-password">New password</FieldLabel>
+                  <InputGroup className="h-11 rounded-md">
+                    <InputGroupInput
+                      id="new-password"
+                      autoComplete="new-password"
+                      aria-describedby="new-password-requirements"
+                      aria-invalid={Boolean(newPassword) && (!longEnough || !changed)}
+                      minLength={12}
+                      maxLength={128}
+                      required
+                      type={passwordVisibility.new ? "text" : "password"}
+                      value={newPassword}
+                      onChange={(event) => {
+                        if (reset.isError) reset.reset();
+                        setNewPassword(event.target.value);
+                      }}
+                    />
+                    <InputGroupAddon align="inline-end">
+                      <InputGroupButton
+                        aria-label={passwordVisibility.new
+                          ? "Hide new password"
+                          : "Show new password"}
+                        size="icon-sm"
+                        onClick={() => setPasswordVisibility((visibility) => ({
+                          ...visibility,
+                          new: !visibility.new,
+                        }))}
+                      >
+                        {passwordVisibility.new ? <EyeOff /> : <Eye />}
+                      </InputGroupButton>
+                    </InputGroupAddon>
+                  </InputGroup>
+                  <FieldDescription
+                    id="new-password-requirements"
+                    className="space-y-1.5 text-xs"
+                  >
+                    <span className="block">Password requirements:</span>
+                    <span
+                      className={cn(
+                        "flex items-center gap-1.5",
+                        longEnough && "text-emerald-700 dark:text-emerald-300",
+                      )}
+                    >
+                      {longEnough ? (
+                        <Check className="size-3.5" aria-hidden="true" />
+                      ) : (
+                        <Circle className="size-3.5" aria-hidden="true" />
+                      )}
+                      At least 12 characters
+                    </span>
+                    <span
+                      className={cn(
+                        "flex items-center gap-1.5",
+                        newPassword && changed
+                          ? "text-emerald-700 dark:text-emerald-300"
+                          : undefined,
+                      )}
+                    >
+                      {newPassword && changed ? (
+                        <Check className="size-3.5" aria-hidden="true" />
+                      ) : (
+                        <Circle className="size-3.5" aria-hidden="true" />
+                      )}
+                      Different from current password
+                    </span>
+                  </FieldDescription>
+                </Field>
+
+                <Field data-invalid={Boolean(confirmPassword) && !matches}>
+                  <FieldLabel htmlFor="confirm-password">
+                    Confirm new password
+                  </FieldLabel>
+                  <InputGroup className="h-11 rounded-md">
+                    <InputGroupInput
+                      id="confirm-password"
+                      autoComplete="new-password"
+                      aria-invalid={Boolean(confirmPassword) && !matches}
+                      minLength={12}
+                      maxLength={128}
+                      required
+                      type={passwordVisibility.confirm ? "text" : "password"}
+                      value={confirmPassword}
+                      onChange={(event) => {
+                        if (reset.isError) reset.reset();
+                        setConfirmPassword(event.target.value);
+                      }}
+                    />
+                    <InputGroupAddon align="inline-end">
+                      <InputGroupButton
+                        aria-label={passwordVisibility.confirm
+                          ? "Hide confirmed password"
+                          : "Show confirmed password"}
+                        size="icon-sm"
+                        onClick={() => setPasswordVisibility((visibility) => ({
+                          ...visibility,
+                          confirm: !visibility.confirm,
+                        }))}
+                      >
+                        {passwordVisibility.confirm ? <EyeOff /> : <Eye />}
+                      </InputGroupButton>
+                    </InputGroupAddon>
+                  </InputGroup>
+                  {confirmPassword && !matches ? (
+                    <FieldError>New passwords do not match.</FieldError>
+                  ) : null}
+                </Field>
+              </FieldGroup>
+              {reset.error ? (
+                <FieldError
+                  className="mt-5 border-l-2 border-destructive bg-destructive/5 px-3 py-2"
+                >
+                  {reset.error.message}
+                </FieldError>
+              ) : null}
+            </div>
+            <SheetFooter className="shrink-0 flex-col-reverse items-stretch gap-2 border-t px-5 py-4 sm:flex-row sm:items-center sm:justify-end sm:px-6 [&_[data-slot=button]]:h-11">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={reset.isPending}
+                onClick={() => setSheetOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={reset.isPending || !valid}
+              >
+                {reset.isPending ? <Spinner /> : <KeyRound />}
+                Reset password
+              </Button>
+            </SheetFooter>
+          </form>
+        </SheetContent>
+      </Sheet>
     </section>
   );
 }
