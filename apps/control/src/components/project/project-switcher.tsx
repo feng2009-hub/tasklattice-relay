@@ -17,16 +17,21 @@ import {
 import { useProject } from "@/hooks/use-project";
 import { useProjectPermissions } from "@/hooks/use-project-permissions";
 import { cn } from "@/lib/utils";
+import { getSidebarMessages } from "@/lib/sidebar-i18n";
+import type { AccountLanguage } from "@/services/personal-profile";
 
 export function ProjectSwitcher({
   collapsed = false,
+  language,
   onCreateProject,
   onProjectSwitchSuccess,
 }: {
   collapsed?: boolean;
+  language: AccountLanguage;
   onCreateProject: () => void;
   onProjectSwitchSuccess: (projectName: string) => void;
 }) {
+  const messages = getSidebarMessages(language);
   const {
     availableProjects: projects,
     currentProject,
@@ -48,7 +53,7 @@ export function ProjectSwitcher({
       onProjectSwitchSuccess(projectName);
     } catch (reason) {
       setSwitchError(
-        reason instanceof Error ? reason.message : "Unable to switch projects.",
+        reason instanceof Error ? reason.message : messages.projectSwitcher.switchError,
       );
     }
   };
@@ -56,7 +61,7 @@ export function ProjectSwitcher({
   if (loading && !currentProject) {
     return (
       <div
-        aria-label="Loading project"
+        aria-label={messages.projectSwitcher.loading}
         className={cn(
           "h-11 animate-pulse rounded-sm bg-muted/70",
           collapsed ? "w-11" : "w-full",
@@ -72,8 +77,8 @@ export function ProjectSwitcher({
             type="button"
             aria-label={
               currentProject
-                ? `Current project: ${currentProject.name}. Switch project`
-                : "No project available"
+                ? messages.projectSwitcher.currentProject(currentProject.name)
+                : messages.projectSwitcher.noProject
             }
             className={cn(
               "group flex min-h-11 items-center rounded-sm border border-sidebar-border bg-sidebar px-2.5 text-left outline-none transition-colors",
@@ -90,7 +95,7 @@ export function ProjectSwitcher({
             {collapsed ? null : (
               <>
                 <span className="min-w-0 flex-1 truncate text-sm font-semibold">
-                  {currentProject?.name ?? "No project available"}
+                  {currentProject?.name ?? messages.projectSwitcher.noProject}
                 </span>
                 {isSwitching ? (
                   <LoaderCircle className="size-4 shrink-0 animate-spin text-muted-foreground" />
@@ -107,7 +112,7 @@ export function ProjectSwitcher({
           className="w-72"
         >
           <DropdownMenuLabel className="px-2 pb-1 pt-2 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-            Projects
+            {messages.projectSwitcher.projects}
           </DropdownMenuLabel>
           {projects.map((project) => {
             const current = project.id === currentProject?.id;
@@ -155,7 +160,7 @@ export function ProjectSwitcher({
             }}
           >
             <Plus className="size-4" />
-            New Project
+            {messages.projectSwitcher.newProject}
           </DropdownMenuItem>
         </DropdownMenuContent>
     </DropdownMenu>

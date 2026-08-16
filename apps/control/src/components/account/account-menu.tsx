@@ -13,20 +13,23 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { getSidebarMessages } from "@/lib/sidebar-i18n";
 import {
   getNotifications,
   notificationsQueryKey,
 } from "@/services/notifications";
+import type { AccountLanguage } from "@/services/personal-profile";
 
 type AccountMenuProps = {
   collapsed?: boolean;
+  language: AccountLanguage;
   onLogout: () => void | Promise<void>;
   projectId: string;
   user: AuthUser | null;
 };
 
-function getInitials(user: AuthUser | null) {
-  return (user?.displayName || user?.username || "User")
+function getInitials(user: AuthUser | null, fallbackUser: string) {
+  return (user?.displayName || user?.username || fallbackUser)
     .split(/\s+/)
     .map((part) => part[0])
     .join("")
@@ -36,8 +39,10 @@ function getInitials(user: AuthUser | null) {
 
 function UserAvatar({
   user,
+  fallbackUser,
   size = "default",
 }: {
+  fallbackUser: string;
   user: AuthUser | null;
   size?: "default" | "large";
 }) {
@@ -49,7 +54,7 @@ function UserAvatar({
       )}
     >
       <AvatarFallback className="bg-primary text-[11px] font-bold text-primary-foreground">
-        {getInitials(user)}
+        {getInitials(user, fallbackUser)}
       </AvatarFallback>
     </Avatar>
   );
@@ -57,13 +62,17 @@ function UserAvatar({
 
 export function AccountMenu({
   collapsed = false,
+  language,
   onLogout,
   projectId,
   user,
 }: AccountMenuProps) {
-  const displayName = user?.displayName || user?.username || "User";
+  const messages = getSidebarMessages(language);
+  const displayName = user?.displayName || user?.username || messages.account.user;
   const accountLabel =
-    user?.provider === "sso" ? "SSO account" : "Local account";
+    user?.provider === "sso"
+      ? messages.account.ssoAccount
+      : messages.account.localAccount;
   const notifications = useQuery({
     queryKey: notificationsQueryKey,
     queryFn: getNotifications,
@@ -75,7 +84,7 @@ export function AccountMenu({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          aria-label={`Open account menu for ${displayName}`}
+          aria-label={messages.account.openMenu(displayName)}
           className={cn(
             "group flex items-center rounded-md outline-none transition-colors hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/30 data-[state=open]:bg-accent",
             collapsed
@@ -83,7 +92,7 @@ export function AccountMenu({
               : "h-9 w-full gap-2.5 px-3",
           )}
         >
-          <UserAvatar user={user} />
+          <UserAvatar user={user} fallbackUser={messages.account.user} />
           {collapsed ? null : (
             <>
               <span className="min-w-0 flex-1 text-left">
@@ -105,7 +114,11 @@ export function AccountMenu({
         className="w-64"
       >
         <DropdownMenuLabel className="flex items-center gap-3 py-2 font-normal">
-          <UserAvatar user={user} size="large" />
+          <UserAvatar
+            user={user}
+            fallbackUser={messages.account.user}
+            size="large"
+          />
           <span className="min-w-0">
             <strong className="block truncate text-sm font-semibold">
               {displayName}
@@ -119,13 +132,13 @@ export function AccountMenu({
         <DropdownMenuItem asChild>
           <Link to="/$projectId/profile" params={{ projectId }}>
             <CircleUserRound className="size-4" />
-            Account
+            {messages.account.account}
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link to="/$projectId/notifications" params={{ projectId }}>
             <Bell className="size-4" />
-            Notifications
+            {messages.account.notifications}
             {unreadCount ? (
               <span className="ml-auto min-w-5 rounded-sm bg-primary px-1.5 py-0.5 text-center text-[10px] font-semibold text-primary-foreground">
                 {unreadCount > 99 ? "99+" : unreadCount}
@@ -139,7 +152,7 @@ export function AccountMenu({
           onSelect={() => void onLogout()}
         >
           <LogOut className="size-4" />
-          Sign out
+          {messages.account.signOut}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

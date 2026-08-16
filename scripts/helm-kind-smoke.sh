@@ -9,6 +9,8 @@ release_name="${HELM_RELEASE_NAME:-tali}"
 namespace="${HELM_NAMESPACE:-tali-smoke}"
 image_registry="${IMAGE_REGISTRY:-ghcr.io/tasklattice}"
 image_tag="${IMAGE_TAG:-latest}"
+control_image_tag="${CONTROL_IMAGE_TAG:-$image_tag}"
+control_image_pull_policy="${CONTROL_IMAGE_PULL_POLICY:-Always}"
 helm_timeout="${HELM_TIMEOUT:-15m}"
 
 for command_name in helm kind kubectl; do
@@ -35,8 +37,8 @@ helm upgrade --install "$release_name" "$repository_root/charts/tali" \
   --namespace "$namespace" \
   --create-namespace \
   --set-string "global.imageRegistry=$image_registry" \
-  --set-string "images.control.tag=$image_tag" \
-  --set "images.control.pullPolicy=Always" \
+  --set-string "images.control.tag=$control_image_tag" \
+  --set-string "images.control.pullPolicy=$control_image_pull_policy" \
   --set-string "images.runner.tag=$image_tag" \
   --set "images.runner.pullPolicy=Always" \
   --set-string "images.litellm.tag=$image_tag" \

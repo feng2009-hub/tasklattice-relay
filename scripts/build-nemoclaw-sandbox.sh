@@ -5,6 +5,7 @@ set -euo pipefail
 # Each platform pins its upstream revision and base image independently because
 # OpenClaw and Hermes publish different integration manifests and image lines.
 readonly AGENT_PLATFORM="${NEMOCLAW_AGENT_PLATFORM:-openclaw}"
+readonly BUILD_OUTPUT="${NEMOCLAW_BUILD_OUTPUT:-local}"
 readonly REPOSITORY_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 case "$AGENT_PLATFORM" in
@@ -13,7 +14,7 @@ case "$AGENT_PLATFORM" in
     readonly NEMOCLAW_BASE_IMAGE="${NEMOCLAW_BASE_IMAGE:-ghcr.io/nvidia/nemoclaw/sandbox-base@sha256:132dfea81026fe91581ab97d9034fb61d97b41a9951c7fd59d3d8b3b1b37b246}"
     readonly NEMOCLAW_IMAGE="${NEMOCLAW_IMAGE:-ghcr.io/tasklattice/tali-nemoclaw-sandbox:dev}"
     readonly DOCKERFILE="Dockerfile"
-    readonly UPSTREAM_IMAGE="tali-nemoclaw-openclaw-upstream:${NEMOCLAW_REVISION:0:12}"
+    readonly DEFAULT_UPSTREAM_IMAGE="tali-nemoclaw-openclaw-upstream:${NEMOCLAW_REVISION:0:12}"
     readonly WRAPPER_DOCKERFILE="$REPOSITORY_ROOT/infra/docker/Dockerfile.nemoclaw-openclaw"
     ;;
   hermes)
@@ -21,7 +22,7 @@ case "$AGENT_PLATFORM" in
     readonly NEMOCLAW_BASE_IMAGE="${NEMOCLAW_HERMES_BASE_IMAGE:-ghcr.io/nvidia/nemoclaw/hermes-sandbox-base@sha256:fa05221f5c7bcafea7e263c84e5d06f87e37d1ccb78dc28c113f1a4066aa544c}"
     readonly NEMOCLAW_IMAGE="${NEMOCLAW_HERMES_IMAGE:-ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:dev}"
     readonly DOCKERFILE="agents/hermes/Dockerfile"
-    readonly UPSTREAM_IMAGE="tali-nemoclaw-hermes-upstream:${NEMOCLAW_REVISION:0:12}"
+    readonly DEFAULT_UPSTREAM_IMAGE="tali-nemoclaw-hermes-upstream:${NEMOCLAW_REVISION:0:12}"
     readonly WRAPPER_DOCKERFILE="$REPOSITORY_ROOT/infra/docker/Dockerfile.nemoclaw-hermes"
     ;;
   *)
@@ -29,6 +30,38 @@ case "$AGENT_PLATFORM" in
     exit 2
     ;;
 esac
+
+case "$BUILD_OUTPUT" in
+  local)
+    readonly UPSTREAM_IMAGE="${NEMOCLAW_UPSTREAM_IMAGE:-$DEFAULT_UPSTREAM_IMAGE}"
+    ;;
+  push)
+    if [ -z "${NEMOCLAW_UPSTREAM_IMAGE:-}" ]; then
+      echo "NEMOCLAW_UPSTREAM_IMAGE is required when NEMOCLAW_BUILD_OUTPUT=push." >&2
+      exit 2
+    fi
+    if [ -z "${DOCKER_DEFAULT_PLATFORM:-}" ]; then
+      echo "DOCKER_DEFAULT_PLATFORM is required when NEMOCLAW_BUILD_OUTPUT=push." >&2
+      exit 2
+    fi
+    readonly UPSTREAM_IMAGE="$NEMOCLAW_UPSTREAM_IMAGE"
+    ;;
+  *)
+    echo "Unsupported NEMOCLAW_BUILD_OUTPUT: $BUILD_OUTPUT" >&2
+    exit 2
+    ;;
+esac
+
+build_image() {
+  if [ "$BUILD_OUTPUT" = "push" ]; then
+    docker buildx build \
+      --platform "$DOCKER_DEFAULT_PLATFORM" \
+      --push \
+      "$@"
+  else
+    docker build "$@"
+  fi
+}
 
 build_context="$(mktemp -d "${TMPDIR:-/tmp}/tali-nemoclaw.XXXXXX")"
 trap 'rm -rf "$build_context"' EXIT
@@ -42,17 +75,37 @@ if [ "$AGENT_PLATFORM" = "openclaw" ]; then
 fi
 
 resolved_base_image="$NEMOCLAW_BASE_IMAGE"
-if ! docker image inspect "$resolved_base_image" >/dev/null 2>&1 \
-  && ! docker pull "$resolved_base_image"; then
+if [ "$BUILD_OUTPUT" = "push" ]; then
+  base_image_available() {
+    docker buildx imagetools inspect "$resolved_base_image" >/dev/null 2>&1
+  }
+else
+  base_image_available() {
+    docker image inspect "$resolved_base_image" >/dev/null 2>&1 \
+      || docker pull "$resolved_base_image"
+  }
+fi
+
+if ! base_image_available; then
   if [ "$AGENT_PLATFORM" != "hermes" ]; then
     echo "Unable to resolve sandbox base image: $resolved_base_image" >&2
     exit 1
   fi
 
-  resolved_base_image="tali-nemoclaw-hermes-base:${NEMOCLAW_REVISION:0:12}"
-  if ! docker image inspect "$resolved_base_image" >/dev/null 2>&1; then
-    echo "Hermes base image is unavailable from GHCR; building the pinned local fallback."
-    docker build \
+  if [ "$BUILD_OUTPUT" = "push" ]; then
+    if [ -z "${NEMOCLAW_FALLBACK_BASE_IMAGE:-}" ]; then
+      echo "NEMOCLAW_FALLBACK_BASE_IMAGE is required to publish the Hermes base fallback." >&2
+      exit 2
+    fi
+    resolved_base_image="$NEMOCLAW_FALLBACK_BASE_IMAGE"
+  else
+    resolved_base_image="${NEMOCLAW_FALLBACK_BASE_IMAGE:-tali-nemoclaw-hermes-base:${NEMOCLAW_REVISION:0:12}}"
+  fi
+
+  if [ "$BUILD_OUTPUT" = "push" ] \
+    || ! docker image inspect "$resolved_base_image" >/dev/null 2>&1; then
+    echo "Hermes base image is unavailable from GHCR; building the pinned fallback."
+    build_image \
       --file "$build_context/agents/hermes/Dockerfile.base" \
       --tag "$resolved_base_image" \
       "$build_context"
@@ -72,7 +125,7 @@ else
   )
 fi
 
-docker build \
+build_image \
   --file "$build_context/$DOCKERFILE" \
   --build-arg "BASE_IMAGE=$resolved_base_image" \
   --build-arg NEMOCLAW_MODEL=deepseek-chat \
@@ -87,7 +140,7 @@ docker build \
 
 # Keep the pinned upstream Dockerfiles external while ensuring every published
 # Agent image crosses a TaskLattice Relay-owned customization boundary.
-docker build \
+build_image \
   --file "$WRAPPER_DOCKERFILE" \
   --build-arg "BASE_IMAGE=$UPSTREAM_IMAGE" \
   --tag "$NEMOCLAW_IMAGE" \

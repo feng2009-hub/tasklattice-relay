@@ -39,6 +39,13 @@ requirements and add the configuration bootstrap. The release workflow builds
 both pipelines independently for amd64 and arm64, then combines them into
 multi-architecture manifests.
 
+Local Agent builds keep both stages in the Docker daemon. Release builds use
+Buildx registry output instead: the pinned upstream stage is pushed under an
+architecture-specific `build-upstream-<sha>-<architecture>` tag in the final
+image repository, and the wrapper stage is then pushed directly to its release
+tag. This avoids importing two complete Agent images into the hosted runner's
+local Docker layer store.
+
 Every Agent build pipeline follows the same layering convention:
 
 ```text

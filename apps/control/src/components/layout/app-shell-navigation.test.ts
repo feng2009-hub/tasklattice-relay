@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { itemIsActive, navGroups } from "./app-shell";
+import { getNavGroups, itemIsActive, navGroups } from "./app-shell";
 
 describe("Project control-plane navigation", () => {
   it("uses Home as a section label with Instances and Memory beneath it", () => {
@@ -16,6 +16,22 @@ describe("Project control-plane navigation", () => {
       ["Traces", "Audit Logs", "Cost"],
     ]);
     expect(navGroups.flatMap((group) => group.items.map((item) => item.label))).not.toContain("Home");
+  });
+
+  it("localizes every navigation group and item for Simplified Chinese", () => {
+    const chineseGroups = getNavGroups("zh-CN");
+    expect(chineseGroups.map((group) => group.label)).toEqual([
+      "主页",
+      "能力工具箱",
+      "治理",
+      "运行记录",
+    ]);
+    expect(chineseGroups.map((group) => group.items.map((item) => item.label))).toEqual([
+      ["实例", "记忆"],
+      ["专家智能体", "技能", "MCP 连接", "知识源"],
+      ["访问策略", "运行时策略", "项目设置"],
+      ["追踪记录", "审计日志", "成本"],
+    ]);
   });
 
   it("gives Instances and Memory their own active states", () => {

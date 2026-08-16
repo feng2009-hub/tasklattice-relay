@@ -113,9 +113,13 @@ function Sidebar({
   children,
   className,
   collapsible = "offcanvas",
+  mobileDescription = "Navigate TaskLattice Relay resources.",
+  mobileTitle = "Project navigation",
   ...props
 }: React.ComponentProps<"div"> & {
   collapsible?: "icon" | "none" | "offcanvas";
+  mobileDescription?: string;
+  mobileTitle?: string;
 }) {
   const { isMobile, openMobile, setOpenMobile, state } = useSidebar();
 
@@ -135,8 +139,8 @@ function Sidebar({
           style={{ "--sidebar-width": SIDEBAR_WIDTH_MOBILE } as React.CSSProperties}
         >
           <SheetHeader className="sr-only">
-            <SheetTitle>Project navigation</SheetTitle>
-            <SheetDescription>Navigate TaskLattice Relay resources.</SheetDescription>
+            <SheetTitle>{mobileTitle}</SheetTitle>
+            <SheetDescription>{mobileDescription}</SheetDescription>
           </SheetHeader>
           <div className="flex h-full w-full flex-col">{children}</div>
         </SheetContent>
@@ -166,24 +170,32 @@ function Sidebar({
   );
 }
 
-function SidebarTrigger({ className, ...props }: React.ComponentProps<typeof Button>) {
+function SidebarTrigger({
+  className,
+  label = "Toggle navigation",
+  ...props
+}: React.ComponentProps<typeof Button> & { label?: string }) {
   const { toggleSidebar } = useSidebar();
   return (
     <Button type="button" variant="ghost" size="icon-sm" className={cn(className)} onClick={toggleSidebar} {...props}>
       <PanelLeftIcon className="size-4" />
-      <span className="sr-only">Toggle navigation</span>
+      <span className="sr-only">{label}</span>
     </Button>
   );
 }
 
-function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
+function SidebarRail({
+  className,
+  label = "Toggle navigation",
+  ...props
+}: React.ComponentProps<"button"> & { label?: string }) {
   const { toggleSidebar } = useSidebar();
   return (
     <button
       type="button"
       tabIndex={-1}
-      aria-label="Toggle navigation"
-      title="Toggle navigation"
+      aria-label={label}
+      title={label}
       onClick={toggleSidebar}
       className={cn("absolute inset-y-0 -right-2 z-20 hidden w-4 after:absolute after:inset-y-0 after:left-1/2 after:w-px hover:after:bg-sidebar-border sm:block", className)}
       {...props}

@@ -43,13 +43,20 @@ import {
 import { Button } from "@/components/ui/button";
 import { useProject } from "@/hooks/use-project";
 import { useProjectPermissions } from "@/hooks/use-project-permissions";
+import { usePlatformLanguage } from "@/hooks/use-platform-language";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { applyPlatformPreferences, getPlatformTheme } from "@/lib/platform-preferences";
 import {
+  getSidebarMessages,
+  type SidebarNavigationGroupKey,
+  type SidebarNavigationItemKey,
+} from "@/lib/sidebar-i18n";
+import {
   getPersonalProfile,
   personalProfileQueryKey,
 } from "@/services/personal-profile";
+import type { AccountLanguage } from "@/services/personal-profile";
 import { HeaderBreadcrumb } from "@/components/layout/header-breadcrumb";
 import { CreateProjectSheet } from "@/components/project/create-project-sheet";
 import { ProjectSwitcher } from "@/components/project/project-switcher";
@@ -81,53 +88,72 @@ type ProjectRoute =
 
 type NavItemDefinition = {
   icon: LucideIcon;
+  labelKey: SidebarNavigationItemKey;
   label: string;
   to: ProjectRoute;
 };
 
 type NavGroupDefinition = {
   items: NavItemDefinition[];
+  labelKey: SidebarNavigationGroupKey;
   label: string;
 };
 
-export const navGroups: NavGroupDefinition[] = [
+const navGroupDefinitions: Array<{
+  items: Array<Omit<NavItemDefinition, "label">>;
+  labelKey: SidebarNavigationGroupKey;
+}> = [
   {
-    label: "Home",
+    labelKey: "home",
     items: [
-      { icon: Boxes, label: "Instances", to: "/$projectId/instances" },
-      { icon: BrainCircuit, label: "Memory", to: "/$projectId/memory" },
+      { icon: Boxes, labelKey: "instances", to: "/$projectId/instances" },
+      { icon: BrainCircuit, labelKey: "memory", to: "/$projectId/memory" },
     ],
   },
   {
-    label: "Capability toolbox",
+    labelKey: "capabilityToolbox",
     items: [
-      { icon: Bot, label: "Specialist Agents", to: "/$projectId/agent-garden" },
-      { icon: Sparkles, label: "Skills", to: "/$projectId/skills" },
-      { icon: ServerCog, label: "MCP Connections", to: "/$projectId/mcp-servers" },
-      { icon: Network, label: "Knowledge Sources", to: "/$projectId/knowledge-base" },
+      { icon: Bot, labelKey: "specialistAgents", to: "/$projectId/agent-garden" },
+      { icon: Sparkles, labelKey: "skills", to: "/$projectId/skills" },
+      { icon: ServerCog, labelKey: "mcpConnections", to: "/$projectId/mcp-servers" },
+      { icon: Network, labelKey: "knowledgeSources", to: "/$projectId/knowledge-base" },
     ],
   },
   {
-    label: "Governance",
+    labelKey: "governance",
     items: [
       {
         icon: ShieldCheck,
-        label: "Access Policies",
+        labelKey: "accessPolicies",
         to: "/$projectId/access-policies",
       },
-      { icon: FileLock2, label: "Runtime Policies", to: "/$projectId/runtime-policies" },
-      { icon: Settings, label: "Project Settings", to: "/$projectId/setting" },
+      { icon: FileLock2, labelKey: "runtimePolicies", to: "/$projectId/runtime-policies" },
+      { icon: Settings, labelKey: "projectSettings", to: "/$projectId/setting" },
     ],
   },
   {
-    label: "Evidence",
+    labelKey: "evidence",
     items: [
-      { icon: Waypoints, label: "Traces", to: "/$projectId/traces" },
-      { icon: FileClock, label: "Audit Logs", to: "/$projectId/audit-logs" },
-      { icon: CircleDollarSign, label: "Cost", to: "/$projectId/cost" },
+      { icon: Waypoints, labelKey: "traces", to: "/$projectId/traces" },
+      { icon: FileClock, labelKey: "auditLogs", to: "/$projectId/audit-logs" },
+      { icon: CircleDollarSign, labelKey: "cost", to: "/$projectId/cost" },
     ],
   },
 ];
+
+export function getNavGroups(language: AccountLanguage): NavGroupDefinition[] {
+  const messages = getSidebarMessages(language).navigation;
+  return navGroupDefinitions.map((group) => ({
+    labelKey: group.labelKey,
+    label: messages.groups[group.labelKey],
+    items: group.items.map((item) => ({
+      ...item,
+      label: messages.items[item.labelKey],
+    })),
+  }));
+}
+
+export const navGroups = getNavGroups("en-US");
 
 export function itemIsActive(item: NavItemDefinition, pathname: string, projectId: string) {
   const target = item.to.replace("$projectId", encodeURIComponent(projectId));
@@ -163,7 +189,7 @@ function NavigationItem({ item, pathname, projectId }: {
   );
 }
 
-function DisabledNav({ description, icon: Icon, label }: { description: string; icon: LucideIcon; label: string }) {
+function DisabledNav({ description, icon: Icon, label, plannedLabel }: { description: string; icon: LucideIcon; label: string; plannedLabel: string }) {
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
@@ -173,19 +199,22 @@ function DisabledNav({ description, icon: Icon, label }: { description: string; 
       >
         <Icon />
         <span>{label}</span>
-        <span className="ml-auto bg-muted px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide group-data-[collapsible=icon]:hidden">Later</span>
+        <span className="ml-auto bg-muted px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide group-data-[collapsible=icon]:hidden">{plannedLabel}</span>
       </SidebarMenuButton>
     </SidebarMenuItem>
   );
 }
 
-function ProjectSidebar({ createProjectOpen, logout, onCreateProjectOpenChange, pathname, user }: {
+function ProjectSidebar({ createProjectOpen, language, logout, onCreateProjectOpenChange, pathname, user }: {
   createProjectOpen: boolean;
+  language: AccountLanguage;
   logout: () => void | Promise<void>;
   onCreateProjectOpenChange: (open: boolean) => void;
   pathname: string;
   user: AuthUser | null;
 }) {
+  const messages = getSidebarMessages(language);
+  const localizedNavGroups = getNavGroups(language);
   const { isMobile, setOpenMobile, state } = useSidebar();
   const {
     currentProject,
@@ -197,13 +226,18 @@ function ProjectSidebar({ createProjectOpen, logout, onCreateProjectOpenChange, 
   const permissions = useProjectPermissions();
   return (
     <ToastProvider duration={3_000} swipeDirection="right">
-      <Sidebar collapsible="icon">
+      <Sidebar
+        collapsible="icon"
+        mobileDescription={messages.navigation.description}
+        mobileTitle={messages.navigation.title}
+      >
         <SidebarHeader className="gap-1.5 border-b border-sidebar-border p-2">
-          <Link to="/$projectId" params={{ projectId }} onClick={() => setOpenMobile(false)} className="flex min-h-11 min-w-0 items-center gap-3 px-2 focus-visible:outline-2 group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:size-11 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0" aria-label="TaskLattice Relay home">
+          <Link to="/$projectId" params={{ projectId }} onClick={() => setOpenMobile(false)} className="flex min-h-11 min-w-0 items-center gap-3 px-2 focus-visible:outline-2 group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:size-11 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0" aria-label={messages.brandHome}>
             <BrandLogo compact={!isMobile && state === "collapsed"} />
           </Link>
           <ProjectSwitcher
             collapsed={!isMobile && state === "collapsed"}
+            language={language}
             onCreateProject={() => {
               setOpenMobile(false);
               onCreateProjectOpenChange(true);
@@ -215,9 +249,9 @@ function ProjectSidebar({ createProjectOpen, logout, onCreateProjectOpenChange, 
           />
         </SidebarHeader>
         <SidebarContent>
-          <nav aria-label="Project navigation" className="flex flex-col py-1">
-            {currentProject ? navGroups.map((group) => (
-              <SidebarGroup key={group.label}>
+          <nav aria-label={messages.navigation.title} className="flex flex-col py-1">
+            {currentProject ? localizedNavGroups.map((group) => (
+              <SidebarGroup key={group.labelKey}>
                 <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
                 <SidebarGroupContent>
                   <SidebarMenu>
@@ -240,21 +274,23 @@ function ProjectSidebar({ createProjectOpen, logout, onCreateProjectOpenChange, 
         <SidebarFooter className="border-t border-sidebar-border p-2">
           <SidebarMenu>
             <DisabledNav
-              description="Help and documentation are planned for a later control-plane release."
+              description={messages.help.description}
               icon={CircleHelp}
-              label="Help & documentation"
+              label={messages.help.label}
+              plannedLabel={messages.help.planned}
             />
           </SidebarMenu>
           <div className="mt-1 border-t border-sidebar-border pt-2">
             <AccountMenu
               collapsed={!isMobile && state === "collapsed"}
+              language={language}
               onLogout={logout}
               projectId={projectId}
               user={user}
             />
           </div>
         </SidebarFooter>
-        <SidebarRail />
+        <SidebarRail label={messages.navigation.toggle} />
       </Sidebar>
 
       <CreateProjectSheet
@@ -280,12 +316,12 @@ function ProjectSidebar({ createProjectOpen, logout, onCreateProjectOpenChange, 
             <CheckCircle2 className="size-4" />
           </span>
           <span>
-            <ToastTitle>Project switched</ToastTitle>
+            <ToastTitle>{messages.switchToast.title}</ToastTitle>
             <ToastDescription>
               <strong className="block font-medium text-foreground">
                 {toastProject}
               </strong>
-              Resources updated
+              {messages.switchToast.description}
             </ToastDescription>
           </span>
         </div>
@@ -298,6 +334,8 @@ function ProjectSidebar({ createProjectOpen, logout, onCreateProjectOpenChange, 
 
 export function AppShell() {
   const { logout, user } = useAuth();
+  const language = usePlatformLanguage();
+  const sidebarMessages = getSidebarMessages(language);
   const account = useQuery({
     queryKey: personalProfileQueryKey,
     queryFn: getPersonalProfile,
@@ -345,6 +383,7 @@ export function AppShell() {
       <SidebarProvider open={sidebarOpen} onOpenChange={handleSidebarOpenChange}>
         <ProjectSidebar
           createProjectOpen={createProjectOpen}
+          language={language}
           logout={logout}
           onCreateProjectOpenChange={setCreateProjectOpen}
           pathname={pathname}
@@ -353,9 +392,9 @@ export function AppShell() {
         <SidebarInset>
           <div className="sticky top-0 z-30 bg-background/94 backdrop-blur-md">
             <header className="flex h-16 items-center gap-3 border-b px-4 sm:px-6 lg:px-8">
-              <SidebarTrigger />
+              <SidebarTrigger label={sidebarMessages.navigation.toggle} />
               <HeaderBreadcrumb pathname={pathname} />
-              <button disabled className="ml-auto hidden h-9 w-64 cursor-not-allowed items-center gap-2 rounded-md border border-border/70 bg-muted/30 px-3 text-sm text-muted-foreground/45 md:flex"><Search className="size-3.5" />Search project<span className="ml-auto text-[10px] uppercase">Later</span></button>
+              <button disabled className="ml-auto hidden h-9 w-64 cursor-not-allowed items-center gap-2 rounded-md border border-border/70 bg-muted/30 px-3 text-sm text-muted-foreground/45 md:flex"><Search className="size-3.5" />{sidebarMessages.search.label}<span className="ml-auto text-[10px] uppercase">{sidebarMessages.search.planned}</span></button>
             </header>
           </div>
           <main

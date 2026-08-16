@@ -223,6 +223,7 @@ jobs:
           set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
           registry="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}"
+          short_sha="${GITHUB_SHA::12}"
           if [[ "${NEMOCLAW_AGENT_PLATFORM}" == "openclaw" ]]; then
             image="${registry}/tali-nemoclaw-sandbox"
             export NEMOCLAW_IMAGE="${image}:${version}-${{ matrix.architecture }}"
@@ -230,8 +231,10 @@ jobs:
             image="${registry}/tali-nemoclaw-hermes-sandbox"
             export NEMOCLAW_HERMES_IMAGE="${image}:${version}-${{ matrix.architecture }}"
           fi
+          export NEMOCLAW_BUILD_OUTPUT=push
+          export NEMOCLAW_UPSTREAM_IMAGE="${image}:build-upstream-${short_sha}-${{ matrix.architecture }}"
+          export NEMOCLAW_FALLBACK_BASE_IMAGE="${image}:build-base-${short_sha}-${{ matrix.architecture }}"
           bash scripts/build-nemoclaw-sandbox.sh
-          docker push "${image}:${version}-${{ matrix.architecture }}"
 
   publish-sandbox-manifests:
     needs: publish-sandbox-platforms
