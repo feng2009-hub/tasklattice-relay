@@ -1,12 +1,15 @@
 import { Fragment } from "react";
 import { useProject } from "@/hooks/use-project";
+import { usePlatformLanguage } from "@/hooks/use-platform-language";
 import { cn } from "@/lib/utils";
+import type { AccountLanguage } from "@/services/personal-profile";
 
 const routeLabels: Record<string, string> = {
   "access-policies": "Access Policies",
   "agent-garden": "Agent Garden",
   "audit-logs": "Audit Logs",
   cost: "Cost",
+  help: "Help & documentation",
   instances: "Runtime Instances",
   "knowledge-base": "Knowledge Base",
   memory: "Memory",
@@ -43,7 +46,10 @@ function decodePathPart(part: string) {
   }
 }
 
-export function getHeaderBreadcrumbItems(pathname: string): HeaderBreadcrumbItem[] {
+export function getHeaderBreadcrumbItems(
+  pathname: string,
+  language: AccountLanguage = "en-US",
+): HeaderBreadcrumbItem[] {
   const parts = pathname.split("/").filter(Boolean);
   const projectId = parts[0];
   const routeParts = parts.slice(1);
@@ -51,7 +57,9 @@ export function getHeaderBreadcrumbItems(pathname: string): HeaderBreadcrumbItem
     const index = routeIndex + 1;
     const routeKey = routeParts.slice(0, routeIndex + 1).join("/");
     const parentKey = routeParts.slice(0, routeIndex).join("/");
-    const label = routeLabels[routeKey]
+    const label = routeKey === "help" && language === "zh-CN"
+      ? "帮助与文档"
+      : routeLabels[routeKey]
       ?? detailLabels[parentKey]
       ?? decodePathPart(part);
     return {
@@ -63,7 +71,8 @@ export function getHeaderBreadcrumbItems(pathname: string): HeaderBreadcrumbItem
 
 export function HeaderBreadcrumb({ pathname }: { pathname: string }) {
   const { currentProject: currentProject } = useProject();
-  const items = getHeaderBreadcrumbItems(pathname);
+  const language = usePlatformLanguage();
+  const items = getHeaderBreadcrumbItems(pathname, language);
   const lastIndex = items.length - 1;
 
   return (

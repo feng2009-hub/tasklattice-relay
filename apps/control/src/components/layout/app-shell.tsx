@@ -72,6 +72,7 @@ type ProjectRoute =
   | "/$projectId"
   | "/$projectId/agent-garden"
   | "/$projectId/cost"
+  | "/$projectId/help"
   | "/$projectId/traces"
   | "/$projectId/instances"
   | "/$projectId/requests/new"
@@ -186,22 +187,6 @@ function NavigationItem({ item, pathname, projectId }: {
   );
 }
 
-function DisabledNav({ description, icon: Icon, label, plannedLabel }: { description: string; icon: LucideIcon; label: string; plannedLabel: string }) {
-  return (
-    <SidebarMenuItem>
-      <SidebarMenuButton
-        aria-label={label}
-        disabled
-        tooltip={description}
-      >
-        <Icon />
-        <span>{label}</span>
-        <span className="ml-auto bg-muted px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide group-data-[collapsible=icon]:hidden">{plannedLabel}</span>
-      </SidebarMenuButton>
-    </SidebarMenuItem>
-  );
-}
-
 function ProjectSidebar({ createProjectOpen, language, logout, onCreateProjectOpenChange, pathname, user }: {
   createProjectOpen: boolean;
   language: AccountLanguage;
@@ -221,6 +206,7 @@ function ProjectSidebar({ createProjectOpen, language, logout, onCreateProjectOp
   const [toastProject, setToastProject] = useState("");
   const projectId = currentProject?.id ?? "individual";
   const permissions = useProjectPermissions();
+  const helpActive = pathname.replace(/\/$/, "") === `/${encodeURIComponent(projectId)}/help`;
   return (
     <ToastProvider duration={3_000} swipeDirection="right">
       <Sidebar
@@ -273,12 +259,24 @@ function ProjectSidebar({ createProjectOpen, language, logout, onCreateProjectOp
         </SidebarContent>
         <SidebarFooter className="border-t border-sidebar-border p-2">
           <SidebarMenu>
-            <DisabledNav
-              description={messages.help.description}
-              icon={CircleHelp}
-              label={messages.help.label}
-              plannedLabel={messages.help.planned}
-            />
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={helpActive}
+                tooltip={messages.help.label}
+              >
+                <Link
+                  to="/$projectId/help"
+                  params={{ projectId }}
+                  onClick={() => setOpenMobile(false)}
+                  aria-current={helpActive ? "page" : undefined}
+                  aria-label={messages.help.label}
+                >
+                  <CircleHelp />
+                  <span>{messages.help.label}</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
           </SidebarMenu>
           <div className="mt-1 border-t border-sidebar-border pt-2">
             <AccountMenu

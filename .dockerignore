@@ -9,7 +9,9 @@ node_modules
 **/.output
 **/.tanstack
 coverage
-docs
+docs/*
+!docs/help
+!docs/help/**
 *.log
 .DS_Store
 .env

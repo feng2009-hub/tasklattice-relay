@@ -15,9 +15,16 @@ describe("getHeaderBreadcrumbItems", () => {
     ["traces", "Traces"],
     ["audit-logs", "Audit Logs"],
     ["cost", "Cost"],
+    ["help", "Help & documentation"],
   ])("keeps %s directly beneath the Project", (segment, label) => {
     expect(getHeaderBreadcrumbItems(`/individual/${segment}`)).toEqual([
       { href: `/individual/${segment}`, label },
+    ]);
+  });
+
+  it("localizes the Help breadcrumb in Simplified Chinese", () => {
+    expect(getHeaderBreadcrumbItems("/individual/help", "zh-CN")).toEqual([
+      { href: "/individual/help", label: "帮助与文档" },
     ]);
   });
 

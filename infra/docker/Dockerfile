@@ -32,6 +32,7 @@ RUN --mount=type=cache,target=/root/.npm \
 FROM dependencies AS build
 COPY tsconfig.base.json ./
 COPY apps ./apps
+COPY docs ./docs
 COPY packages ./packages
 COPY skills ./skills
 RUN npm run build --workspace @tali/contracts \

@@ -31,9 +31,7 @@ type SidebarMessages = {
   };
   brandHome: string;
   help: {
-    description: string;
     label: string;
-    planned: string;
   };
   navigation: {
     description: string;
@@ -74,10 +72,7 @@ const sidebarMessages: Record<AccountLanguage, SidebarMessages> = {
     },
     brandHome: "TaskLattice Relay home",
     help: {
-      description:
-        "Help and documentation are planned for a later control-plane release.",
       label: "Help & documentation",
-      planned: "Later",
     },
     navigation: {
       description: "Navigate TaskLattice Relay resources.",
@@ -134,9 +129,7 @@ const sidebarMessages: Record<AccountLanguage, SidebarMessages> = {
     },
     brandHome: "TaskLattice Relay 首页",
     help: {
-      description: "帮助与文档将在后续控制平面版本中提供。",
       label: "帮助与文档",
-      planned: "计划中",
     },
     navigation: {
       description: "浏览 TaskLattice Relay 资源。",

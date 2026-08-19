@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ProjectIdIndexRouteImport } from './routes/$projectId/index'
 import { Route as ProjectIdCostRouteImport } from './routes/$projectId/cost'
+import { Route as ProjectIdHelpRouteImport } from './routes/$projectId/help'
 import { Route as ProjectIdKnowledgeBaseRouteImport } from './routes/$projectId/knowledge-base'
 import { Route as ProjectIdMcpServersRouteImport } from './routes/$projectId/mcp-servers'
 import { Route as ProjectIdMemoryRouteImport } from './routes/$projectId/memory'
@@ -53,6 +54,11 @@ const ProjectIdIndexRoute = ProjectIdIndexRouteImport.update({
 const ProjectIdCostRoute = ProjectIdCostRouteImport.update({
   id: '/$projectId/cost',
   path: '/$projectId/cost',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProjectIdHelpRoute = ProjectIdHelpRouteImport.update({
+  id: '/$projectId/help',
+  path: '/$projectId/help',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProjectIdKnowledgeBaseRoute = ProjectIdKnowledgeBaseRouteImport.update({
@@ -172,6 +178,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/$projectId/cost': typeof ProjectIdCostRoute
+  '/$projectId/help': typeof ProjectIdHelpRoute
   '/$projectId/knowledge-base': typeof ProjectIdKnowledgeBaseRoute
   '/$projectId/mcp-servers': typeof ProjectIdMcpServersRoute
   '/$projectId/memory': typeof ProjectIdMemoryRoute
@@ -199,6 +206,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/$projectId/cost': typeof ProjectIdCostRoute
+  '/$projectId/help': typeof ProjectIdHelpRoute
   '/$projectId/knowledge-base': typeof ProjectIdKnowledgeBaseRoute
   '/$projectId/mcp-servers': typeof ProjectIdMcpServersRoute
   '/$projectId/memory': typeof ProjectIdMemoryRoute
@@ -227,6 +235,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/$projectId/cost': typeof ProjectIdCostRoute
+  '/$projectId/help': typeof ProjectIdHelpRoute
   '/$projectId/knowledge-base': typeof ProjectIdKnowledgeBaseRoute
   '/$projectId/mcp-servers': typeof ProjectIdMcpServersRoute
   '/$projectId/memory': typeof ProjectIdMemoryRoute
@@ -256,6 +265,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/$projectId/cost'
+    | '/$projectId/help'
     | '/$projectId/knowledge-base'
     | '/$projectId/mcp-servers'
     | '/$projectId/memory'
@@ -283,6 +293,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/$projectId/cost'
+    | '/$projectId/help'
     | '/$projectId/knowledge-base'
     | '/$projectId/mcp-servers'
     | '/$projectId/memory'
@@ -310,6 +321,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/$projectId/cost'
+    | '/$projectId/help'
     | '/$projectId/knowledge-base'
     | '/$projectId/mcp-servers'
     | '/$projectId/memory'
@@ -338,6 +350,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LoginRoute: typeof LoginRoute
   ProjectIdCostRoute: typeof ProjectIdCostRoute
+  ProjectIdHelpRoute: typeof ProjectIdHelpRoute
   ProjectIdKnowledgeBaseRoute: typeof ProjectIdKnowledgeBaseRoute
   ProjectIdMcpServersRoute: typeof ProjectIdMcpServersRoute
   ProjectIdMemoryRoute: typeof ProjectIdMemoryRoute
@@ -390,6 +403,13 @@ declare module '@tanstack/react-router' {
       path: '/$projectId/cost'
       fullPath: '/$projectId/cost'
       preLoaderRoute: typeof ProjectIdCostRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$projectId/help': {
+      id: '/$projectId/help'
+      path: '/$projectId/help'
+      fullPath: '/$projectId/help'
+      preLoaderRoute: typeof ProjectIdHelpRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$projectId/knowledge-base': {
@@ -546,6 +566,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LoginRoute: LoginRoute,
   ProjectIdCostRoute: ProjectIdCostRoute,
+  ProjectIdHelpRoute: ProjectIdHelpRoute,
   ProjectIdKnowledgeBaseRoute: ProjectIdKnowledgeBaseRoute,
   ProjectIdMcpServersRoute: ProjectIdMcpServersRoute,
   ProjectIdMemoryRoute: ProjectIdMemoryRoute,
