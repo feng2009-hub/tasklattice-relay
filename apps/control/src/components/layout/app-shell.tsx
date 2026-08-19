@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import {
@@ -13,7 +13,6 @@ import {
   Network,
   Search,
   ServerCog,
-  Settings,
   ShieldCheck,
   Sparkles,
   Waypoints,
@@ -83,7 +82,6 @@ type ProjectRoute =
   | "/$projectId/memory"
   | "/$projectId/mcp-servers"
   | "/$projectId/skills"
-  | "/$projectId/setting"
   | "/$projectId/requests";
 
 type NavItemDefinition = {
@@ -128,7 +126,6 @@ const navGroupDefinitions: Array<{
         to: "/$projectId/access-policies",
       },
       { icon: FileLock2, labelKey: "runtimePolicies", to: "/$projectId/runtime-policies" },
-      { icon: Settings, labelKey: "projectSettings", to: "/$projectId/setting" },
     ],
   },
   {
@@ -246,6 +243,7 @@ function ProjectSidebar({ createProjectOpen, language, logout, onCreateProjectOp
               setOpenMobile(false);
               setToastProject(projectName);
             }}
+            onProjectSettingsOpen={() => setOpenMobile(false)}
           />
         </SidebarHeader>
         <SidebarContent>
@@ -257,13 +255,15 @@ function ProjectSidebar({ createProjectOpen, language, logout, onCreateProjectOp
                   <SidebarMenu>
                     {group.items
                       .filter((item) =>
-                        (item.to !== "/$projectId/audit-logs" || permissions.canViewAuditLogs)
-                        && (item.to !== "/$projectId/setting" || permissions.canManageProject),
+                        item.to !== "/$projectId/audit-logs" || permissions.canViewAuditLogs,
                       )
                       .map((item) => (
-                        <Fragment key={item.to}>
-                          <NavigationItem item={item} pathname={pathname} projectId={projectId} />
-                        </Fragment>
+                        <NavigationItem
+                          key={item.to}
+                          item={item}
+                          pathname={pathname}
+                          projectId={projectId}
+                        />
                       ))}
                   </SidebarMenu>
                 </SidebarGroupContent>

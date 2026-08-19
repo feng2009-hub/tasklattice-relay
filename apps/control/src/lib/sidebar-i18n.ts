@@ -15,7 +15,6 @@ export type SidebarNavigationItemKey =
   | "knowledgeSources"
   | "accessPolicies"
   | "runtimePolicies"
-  | "projectSettings"
   | "traces"
   | "auditLogs"
   | "cost";
@@ -48,6 +47,7 @@ type SidebarMessages = {
     loading: string;
     newProject: string;
     noProject: string;
+    projectSettings: (projectName: string) => string;
     projects: string;
     switchError: string;
   };
@@ -96,7 +96,6 @@ const sidebarMessages: Record<AccountLanguage, SidebarMessages> = {
         knowledgeSources: "Knowledge Sources",
         accessPolicies: "Access Policies",
         runtimePolicies: "Runtime Policies",
-        projectSettings: "Project Settings",
         traces: "Traces",
         auditLogs: "Audit Logs",
         cost: "Cost",
@@ -110,6 +109,7 @@ const sidebarMessages: Record<AccountLanguage, SidebarMessages> = {
       loading: "Loading project",
       newProject: "New Project",
       noProject: "No project available",
+      projectSettings: (projectName) => `Project settings for ${projectName}`,
       projects: "Projects",
       switchError: "Unable to switch projects.",
     },
@@ -155,7 +155,6 @@ const sidebarMessages: Record<AccountLanguage, SidebarMessages> = {
         knowledgeSources: "知识源",
         accessPolicies: "访问策略",
         runtimePolicies: "运行时策略",
-        projectSettings: "项目设置",
         traces: "追踪记录",
         auditLogs: "审计日志",
         cost: "成本",
@@ -168,6 +167,7 @@ const sidebarMessages: Record<AccountLanguage, SidebarMessages> = {
       loading: "正在加载项目",
       newProject: "新建项目",
       noProject: "没有可用项目",
+      projectSettings: (projectName) => `${projectName} 的项目设置`,
       projects: "项目",
       switchError: "无法切换项目。",
     },

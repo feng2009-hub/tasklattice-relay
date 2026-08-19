@@ -1,10 +1,12 @@
 import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import {
   Check,
   ChevronDown,
   FolderKanban,
   LoaderCircle,
   Plus,
+  Settings,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -24,11 +26,13 @@ export function ProjectSwitcher({
   collapsed = false,
   language,
   onCreateProject,
+  onProjectSettingsOpen,
   onProjectSwitchSuccess,
 }: {
   collapsed?: boolean;
   language: AccountLanguage;
   onCreateProject: () => void;
+  onProjectSettingsOpen: () => void;
   onProjectSwitchSuccess: (projectName: string) => void;
 }) {
   const messages = getSidebarMessages(language);
@@ -118,29 +122,59 @@ export function ProjectSwitcher({
             const current = project.id === currentProject?.id;
             const switching = project.id === switchingProjectId;
             return (
-              <DropdownMenuItem
+              <div
                 key={project.id}
+                role="group"
                 className={cn(
-                  "min-h-11",
-                  current && "bg-primary/[0.07] text-primary focus:bg-primary/[0.1] focus:text-primary",
+                  "flex items-stretch rounded-sm",
+                  current && "bg-primary/[0.07] text-primary",
                 )}
-                disabled={current || isSwitching}
-                onSelect={(event) => {
-                  event.preventDefault();
-                  void handleSelect(project.id, project.name);
-                }}
               >
-                <span className="grid size-5 shrink-0 place-items-center">
-                  {switching ? (
-                    <LoaderCircle className="size-4 animate-spin" />
-                  ) : current ? (
-                    <Check className="size-4" />
-                  ) : (
-                    <span className="size-4" aria-hidden="true" />
+                <DropdownMenuItem
+                  className={cn(
+                    "min-w-0 flex-1",
+                    current && [
+                      "bg-transparent text-primary data-disabled:opacity-100 focus:bg-primary/[0.1] focus:text-primary",
+                      permissions.canManageProject && "rounded-r-none",
+                    ],
                   )}
-                </span>
-                <span className="min-w-0 flex-1 truncate">{project.name}</span>
-              </DropdownMenuItem>
+                  disabled={current || isSwitching}
+                  onSelect={(event) => {
+                    event.preventDefault();
+                    void handleSelect(project.id, project.name);
+                  }}
+                >
+                  <span className="grid size-5 shrink-0 place-items-center">
+                    {switching ? (
+                      <LoaderCircle className="size-4 animate-spin" />
+                    ) : current ? (
+                      <Check className="size-4" />
+                    ) : (
+                      <span className="size-4" aria-hidden="true" />
+                    )}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">{project.name}</span>
+                </DropdownMenuItem>
+                {current && permissions.canManageProject ? (
+                  <DropdownMenuItem
+                    asChild
+                    className="w-11 justify-center rounded-l-none border-l border-primary/15 px-0 text-primary focus:bg-primary/[0.1] focus:text-primary"
+                  >
+                    <Link
+                      to="/$projectId/setting"
+                      params={{ projectId: project.id }}
+                      aria-label={messages.projectSwitcher.projectSettings(project.name)}
+                      title={messages.projectSwitcher.projectSettings(project.name)}
+                      onClick={() => {
+                        setOpen(false);
+                        onProjectSettingsOpen();
+                      }}
+                    >
+                      <Settings className="size-4" />
+                    </Link>
+                  </DropdownMenuItem>
+                ) : null}
+              </div>
             );
           })}
           {switchError ? (

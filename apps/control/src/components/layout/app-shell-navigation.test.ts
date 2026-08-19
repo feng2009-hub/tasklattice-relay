@@ -12,7 +12,7 @@ describe("Project control-plane navigation", () => {
     expect(navGroups.map((group) => group.items.map((item) => item.label))).toEqual([
       ["Instances", "Memory"],
       ["Specialist Agents", "Skills", "MCP Connections", "Knowledge Sources"],
-      ["Access Policies", "Runtime Policies", "Project Settings"],
+      ["Access Policies", "Runtime Policies"],
       ["Traces", "Audit Logs", "Cost"],
     ]);
     expect(navGroups.flatMap((group) => group.items.map((item) => item.label))).not.toContain("Home");
@@ -29,7 +29,7 @@ describe("Project control-plane navigation", () => {
     expect(chineseGroups.map((group) => group.items.map((item) => item.label))).toEqual([
       ["实例", "记忆"],
       ["专家智能体", "技能", "MCP 连接", "知识源"],
-      ["访问策略", "运行时策略", "项目设置"],
+      ["访问策略", "运行时策略"],
       ["追踪记录", "审计日志", "成本"],
     ]);
   });
