@@ -23,6 +23,7 @@ import {
   Sun,
   X,
 } from "lucide-react";
+import { AccountAvatar } from "@/components/account/account-avatar";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -239,9 +240,11 @@ function MyAccountPage() {
           <TabsContent value="general" className="mt-0">
             <div className="divide-y">
               <section className="flex min-h-28 flex-col gap-4 p-5 sm:flex-row sm:items-center">
-                <span className="grid size-12 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
-                  <CircleUserRound className="size-6" />
-                </span>
+                <AccountAvatar
+                  identity={current}
+                  motion="always"
+                  className="size-16 shadow-sm"
+                />
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="truncate font-display text-xl font-medium">

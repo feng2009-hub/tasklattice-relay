@@ -2,8 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Bell, ChevronDown, CircleUserRound, LogOut } from "lucide-react";
 
+import { AccountAvatar } from "@/components/account/account-avatar";
 import type { AuthUser } from "@/components/auth/auth-provider";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,35 +28,21 @@ type AccountMenuProps = {
   user: AuthUser | null;
 };
 
-function getInitials(user: AuthUser | null, fallbackUser: string) {
-  return (user?.displayName || user?.username || fallbackUser)
-    .split(/\s+/)
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-}
-
 function UserAvatar({
   user,
-  fallbackUser,
   size = "default",
 }: {
-  fallbackUser: string;
   user: AuthUser | null;
   size?: "default" | "large";
 }) {
   return (
-    <Avatar
+    <AccountAvatar
+      identity={user}
+      motion="always"
       className={cn(
         size === "large" ? "size-10" : "size-7",
-        "ring-1 ring-border",
       )}
-    >
-      <AvatarFallback className="bg-primary text-[11px] font-bold text-primary-foreground">
-        {getInitials(user, fallbackUser)}
-      </AvatarFallback>
-    </Avatar>
+    />
   );
 }
 
@@ -92,7 +78,7 @@ export function AccountMenu({
               : "h-9 w-full gap-2.5 px-3",
           )}
         >
-          <UserAvatar user={user} fallbackUser={messages.account.user} />
+          <UserAvatar user={user} />
           {collapsed ? null : (
             <>
               <span className="min-w-0 flex-1 text-left">
@@ -116,7 +102,6 @@ export function AccountMenu({
         <DropdownMenuLabel className="flex items-center gap-3 py-2 font-normal">
           <UserAvatar
             user={user}
-            fallbackUser={messages.account.user}
             size="large"
           />
           <span className="min-w-0">

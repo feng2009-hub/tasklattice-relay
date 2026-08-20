@@ -8,13 +8,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 import { AlertTriangle, Boxes, Eye, Globe2, Info, MoreHorizontal, Plus, RefreshCw, Search, SquareTerminal, Trash2, X } from "lucide-react";
+import { AccountAvatar } from "@/components/account/account-avatar";
 import { AgentPlatformIcon } from "@/components/agents/agent-platform-icon";
 import { CreateInstanceSheet } from "@/components/agents/create-instance-sheet";
 import { resolveProvisioningState } from "@/components/agents/provisioning-state";
 import { DeleteInstanceDialog } from "@/components/instances/delete-instance-dialog";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -42,11 +42,6 @@ export const Route = createFileRoute("/$projectId/instances/")({
 });
 
 const statusFilters = ["ALL", "PROVISIONING", "READY", "FAILED", "DESTROYING"] as const satisfies readonly (AgentStatus | "ALL")[];
-
-function creatorInitials(displayName: string): string {
-  const parts = displayName.trim().split(/\s+/).filter(Boolean);
-  return (parts.length > 1 ? `${parts[0]![0]}${parts.at(-1)![0]}` : displayName.slice(0, 2)).toUpperCase();
-}
 
 function relativeTime(value: string): string {
   const elapsed = Date.now() - new Date(value).getTime();
@@ -254,9 +249,10 @@ function Instances() {
                     </span>
                     <span className="pointer-events-none relative z-10 hidden min-w-0 xl:block"><strong className="block truncate text-xs font-medium">{platform.runtimeName}</strong><span className="mt-1 block truncate font-mono text-xs text-muted-foreground">{agent.sandboxName}</span></span>
                     <span className="pointer-events-none relative z-10 hidden min-w-0 items-center gap-2 xl:flex">
-                      <Avatar className="size-7 border">
-                        <AvatarFallback className="text-[10px] font-medium">{creatorInitials(agent.createdBy?.displayName ?? "Unknown")}</AvatarFallback>
-                      </Avatar>
+                      <AccountAvatar
+                        identity={agent.createdBy}
+                        className="size-7"
+                      />
                       <span className="min-w-0">
                         <strong className="block truncate text-xs font-medium">{agent.createdBy?.displayName ?? "Unknown user"}</strong>
                         <span className="mt-1 block truncate text-xs text-muted-foreground">{agent.createdBy ? `@${agent.createdBy.username}` : "Creator unavailable"}</span>

@@ -1,9 +1,9 @@
 import { useState, type FormEvent } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { LockKeyhole, Plus, Trash2 } from "lucide-react";
+import { AccountAvatar } from "@/components/account/account-avatar";
 import type { AuthUser } from "@/components/auth/auth-provider";
 import { EntitySheet } from "@/components/shared/entity-sheet";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,15 +25,6 @@ type InitialInvitation = {
 };
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-function initials(user: AuthUser | null) {
-  return (user?.displayName || user?.username || "User")
-    .split(/\s+/)
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-}
 
 export function CreateProjectSheet({
   onCreated,
@@ -195,11 +186,7 @@ export function CreateProjectSheet({
             <Badge variant="secondary">Admin</Badge>
           </div>
           <div className="mt-3 flex min-h-16 items-center gap-3 border-y py-3">
-            <Avatar className="size-9 ring-1 ring-border">
-              <AvatarFallback className="bg-primary text-xs font-semibold text-primary-foreground">
-                {initials(user)}
-              </AvatarFallback>
-            </Avatar>
+            <AccountAvatar identity={user} className="size-9" />
             <span className="min-w-0 flex-1">
               <strong className="block truncate text-sm">
                 {user?.displayName || user?.username || "Current user"}
