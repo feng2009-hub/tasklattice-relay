@@ -4,7 +4,7 @@ Status: experimental local MVP
 
 Pinned versions:
 
-- OpenShell `0.0.82`
+- OpenShell `0.0.106`
 - Agent Sandbox `0.5.1`
 - OpenClaw `2026.6.10`
 - NemoClaw source revision `2adc8481ff3053a5a7be37d130cb183e222934ff`

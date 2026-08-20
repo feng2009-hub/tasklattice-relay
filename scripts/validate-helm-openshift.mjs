@@ -3,21 +3,21 @@
 import { execFileSync } from "node:child_process";
 import { parseAllDocuments } from "yaml";
 
-const releaseName = "tali";
+const releaseName = "tali-relay";
 const releaseNamespace = "tali-openshift-validation";
 const rendered = execFileSync(
   "helm",
   [
     "template",
     releaseName,
-    "charts/tali",
+    "charts/tali-relay",
     "--namespace",
     releaseNamespace,
     "--kube-version",
     "1.29.0",
     "--include-crds",
     "--values",
-    "charts/tali/values-openshift.yaml",
+    "charts/tali-relay/values-openshift.yaml",
     "--set-string",
     "control.publicUrl=https://tali.apps.example.com",
     "--set",

@@ -79,7 +79,7 @@ jobs:
               - '.github/workflows/pr-ci.yml'
               - 'package.json'
               - 'package-lock.json'
-              - 'charts/tali/**'
+              - 'charts/tali-relay/**'
               - 'scripts/prepare-helm-dependencies.sh'
               - 'scripts/package-control-plane-chart.sh'
               - 'scripts/validate-helm-*.mjs'
@@ -188,7 +188,7 @@ jobs:
       - name: Prepare chart dependencies
         run: npm run helm:dependencies
       - name: Lint chart
-        run: helm lint charts/tali
+        run: helm lint charts/tali-relay
       - name: Validate rendered resources
         run: npm run helm:validate:resources
       - name: Validate OpenShift compatibility
@@ -196,7 +196,7 @@ jobs:
       - name: Validate air-gapped configuration
         run: npm run helm:validate:airgap
       - name: Render default chart
-        run: helm template tali charts/tali --namespace tali --kube-version 1.29.0 > /dev/null
+        run: helm template tali-relay charts/tali-relay --namespace tali --kube-version 1.29.0 > /dev/null
 
   core_images:
     name: Core image (${{ matrix.target }})

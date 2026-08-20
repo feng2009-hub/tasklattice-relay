@@ -81,7 +81,7 @@ seven GHCR images in parallel. Each image publishes `X.Y.Z` and
 prerelease tags such as `v0.3.0-rc.1` do not. After a successful build, the
 workflow:
 
-1. Publishes `oci://ghcr.io/<owner>/charts/tali:X.Y.Z`.
+1. Publishes `oci://ghcr.io/<owner>/charts/tali-relay:X.Y.Z`.
 2. Creates a GitHub Release.
 3. Attaches the self-contained `tali-X.Y.Z.tgz` package to the Release.
 
@@ -92,10 +92,13 @@ packages and the chart package matches the deployment environment.
 
 ## Deploy from a GitHub Release
 
+The Chart/package and Helm release name is `tali-relay`. The examples deploy it
+into the product-level `tali` namespace.
+
 ```bash
 VERSION="<release-version>"
-curl -fLO "https://github.com/tasklattice/tasklattice-relay/releases/download/v${VERSION}/tali-${VERSION}.tgz"
-helm upgrade --install tali "./tali-${VERSION}.tgz" \
+curl -fLO "https://github.com/tasklattice/tasklattice-relay/releases/download/v${VERSION}/tali-relay-${VERSION}.tgz"
+helm upgrade --install tali-relay "./tali-relay-${VERSION}.tgz" \
   --namespace tali \
   --create-namespace \
   --wait \
@@ -106,8 +109,8 @@ The chart can also be installed directly from GHCR OCI:
 
 ```bash
 VERSION="<release-version>"
-helm upgrade --install tali \
-  oci://ghcr.io/tasklattice/charts/tali \
+helm upgrade --install tali-relay \
+  oci://ghcr.io/tasklattice/charts/tali-relay \
   --version "${VERSION}" \
   --namespace tali \
   --create-namespace \
@@ -116,7 +119,7 @@ helm upgrade --install tali \
 ```
 
 The default values match the current local validation path: control and
-OpenShell use `LoadBalancer`, local sign-in uses `admin/admin`, and OpenShell
+OpenShell use `LoadBalancer`, local sign-in uses `admin/admin-password`, and OpenShell
 uses plaintext communication inside the cluster while accepting unauthenticated
 clients. These defaults allow a trusted local cluster to start directly, but
 they are not suitable for a shared or public environment. At a minimum,

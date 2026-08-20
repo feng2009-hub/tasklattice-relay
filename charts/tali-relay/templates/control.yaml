@@ -42,13 +42,18 @@ spec:
         - name: migrate-control-database
           image: {{ include "tali.image" (dict "root" . "image" .Values.images.control) }}
           imagePullPolicy: {{ .Values.images.control.pullPolicy }}
+          workingDir: /app/apps/control
           command:
-            - npm
-            - run
-            - db:migrate
-            - --workspace
-            - "@tali/control"
+            - /app/node_modules/.bin/prisma
+            - migrate
+            - deploy
+            - --config
+            - prisma.config.ts
           env:
+            - name: HOME
+              value: /tmp
+            - name: XDG_CACHE_HOME
+              value: /tmp/.cache
             - name: TALI_CONFIG
               value: /etc/tali/control.toml
           securityContext:
@@ -67,13 +72,15 @@ spec:
         - name: seed-built-in-skills
           image: {{ include "tali.image" (dict "root" . "image" .Values.images.control) }}
           imagePullPolicy: {{ .Values.images.control.pullPolicy }}
+          workingDir: /app/apps/control
           command:
-            - npm
-            - run
-            - db:seed-skills
-            - --workspace
-            - "@tali/control"
+            - node
+            - prisma/seed-built-in-skills.mjs
           env:
+            - name: HOME
+              value: /tmp
+            - name: XDG_CACHE_HOME
+              value: /tmp/.cache
             - name: TALI_CONFIG
               value: /etc/tali/control.toml
           securityContext:

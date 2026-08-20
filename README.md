@@ -70,11 +70,14 @@ the separate `tasklattice-guard` project into this same namespace when it is
 used with Relay. Guard remains independently released and is not bundled in
 this repository or Chart.
 
+The published Chart and Helm release are named `tali-relay`. They run in the
+product-level `tali` namespace shared with separately installed TALI components.
+
 ```sh
 VERSION="<latest-release-version>"
 curl --fail --location --remote-name \
-  "https://github.com/tasklattice/tasklattice-relay/releases/download/v${VERSION}/tali-${VERSION}.tgz"
-helm upgrade --install tali "./tali-${VERSION}.tgz" \
+  "https://github.com/tasklattice/tasklattice-relay/releases/download/v${VERSION}/tali-relay-${VERSION}.tgz"
+helm upgrade --install tali-relay "./tali-relay-${VERSION}.tgz" \
   --namespace tali \
   --create-namespace \
   --wait \
@@ -85,8 +88,8 @@ The same Chart is published to GHCR as an OCI artifact:
 
 ```sh
 VERSION="<latest-release-version>"
-helm upgrade --install tali \
-  oci://ghcr.io/tasklattice/charts/tali \
+helm upgrade --install tali-relay \
+  oci://ghcr.io/tasklattice/charts/tali-relay \
   --version "${VERSION}" \
   --namespace tali \
   --create-namespace \
@@ -100,8 +103,8 @@ overrides to either installation command; without them, Helm `--wait` will time
 out:
 
 ```sh
-helm upgrade --install tali \
-  oci://ghcr.io/tasklattice/charts/tali \
+helm upgrade --install tali-relay \
+  oci://ghcr.io/tasklattice/charts/tali-relay \
   --version "${VERSION}" \
   --namespace tali \
   --create-namespace \
@@ -126,11 +129,11 @@ Requirements:
 Verify the installation:
 
 ```sh
-kubectl -n tali rollout status deployment/tali-control --timeout=300s
-kubectl -n tali rollout status deployment/tali-runner --timeout=300s
-kubectl -n tali rollout status deployment/tali-litellm --timeout=300s
-kubectl -n tali rollout status statefulset/tali-postgresql --timeout=300s
-kubectl -n tali rollout status statefulset/tali-openshell --timeout=300s
+kubectl -n tali rollout status deployment/tali-relay-control --timeout=300s
+kubectl -n tali rollout status deployment/tali-relay-runner --timeout=300s
+kubectl -n tali rollout status deployment/tali-relay-litellm --timeout=300s
+kubectl -n tali rollout status statefulset/tali-relay-postgresql --timeout=300s
+kubectl -n tali rollout status statefulset/tali-relay-openshell --timeout=300s
 kubectl -n tali rollout status deployment/agent-sandbox-controller --timeout=300s
 kubectl -n tali get pods,services,pvc
 ```
@@ -150,8 +153,8 @@ resolves to that exact value.
 | OpenClaw sandbox         | `ghcr.io/tasklattice/tali-nemoclaw-sandbox:<release>`          | Default Agent sandbox                              |
 | Hermes sandbox           | `ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:<release>`   | Hermes Agent sandbox                               |
 | LiteLLM PostgreSQL       | `postgres:17-alpine`                                            | LiteLLM configuration and usage data               |
-| OpenShell gateway        | `ghcr.io/nvidia/openshell/gateway:0.0.82`                       | Policy enforcement, audit, exec, and HTTP routing  |
-| OpenShell supervisor     | `ghcr.io/nvidia/openshell/supervisor:0.0.82`                    | Supervisor injected into Agent sandboxes           |
+| OpenShell gateway        | `ghcr.io/nvidia/openshell/gateway:0.0.106`                      | Policy enforcement, audit, exec, and HTTP routing  |
+| OpenShell supervisor     | `ghcr.io/nvidia/openshell/supervisor:0.0.106`                   | Supervisor injected into Agent sandboxes           |
 | Agent Sandbox controller | `registry.k8s.io/agent-sandbox/agent-sandbox-controller:v0.5.1` | Sandbox CR, Pod, and workspace PVC lifecycle       |
 
 The OpenShell supervisor and selected Agent image are pulled when an Instance
@@ -160,18 +163,18 @@ creates its Sandbox rather than running as permanent control-plane Pods.
 ## Access
 
 On a cluster with `LoadBalancer` support, open the external address of the
-`tali-control` Service on port 38080. When using the `ClusterIP` overrides,
+`tali-relay-control` Service on port 38080. When using the `ClusterIP` overrides,
 forward the Control Service and open `http://127.0.0.1:18080`:
 
 ```sh
-kubectl -n tali port-forward service/tali-control 18080:38080
+kubectl -n tali port-forward service/tali-relay-control 18080:38080
 ```
 
 Keep this second forward running when validating a Sandbox Agent UI through
 OpenShell:
 
 ```sh
-kubectl -n tali port-forward service/tali-openshell 8080:8080
+kubectl -n tali port-forward service/tali-relay-openshell 8080:8080
 ```
 
 The checked-in Chart defaults are suitable only for a trusted cluster: local
@@ -183,7 +186,7 @@ preconfigured Keycloak. Do not enable `keycloak.enabled` alone:
 `keycloak.publicUrl` must be reachable from both the browser and the Control
 Pod, and `control.publicUrl` must match the browser-visible TaskLattice Relay origin
 used for the OIDC callback.
-See the [Chart documentation](charts/tali/README.md) for existing
+See the [Chart documentation](charts/tali-relay/README.md) for existing
 Secrets, image pull Secrets, embedded Keycloak examples, and external runtime
 settings.
 

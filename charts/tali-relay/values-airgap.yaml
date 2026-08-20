@@ -28,14 +28,14 @@ agentSandbox:
 openshell:
   image:
     repository: registry.airgap.example.com/third-party/openshell-gateway
-    tag: 0.0.82
+    tag: 0.0.106
   imagePullSecrets:
     - name: airgap-registry
   supervisor:
     image:
       repository: registry.airgap.example.com/third-party/openshell-supervisor
-      tag: 0.0.82
+      tag: 0.0.106
   server:
-    sandboxImage: registry.airgap.example.com/third-party/openshell-sandbox:0.0.82
+    sandboxImage: registry.airgap.example.com/third-party/openshell-sandbox:0.0.106
     sandboxImagePullSecrets:
       - name: airgap-registry

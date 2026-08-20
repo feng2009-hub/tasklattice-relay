@@ -13,8 +13,8 @@ Run the checks relevant to your change. The complete repository validation is:
 npm test
 npm run typecheck
 npm run build
-helm lint charts/tali
-helm lint charts/tali --values charts/tali/values-dev.yaml
+helm lint charts/tali-relay
+helm lint charts/tali-relay --values charts/tali-relay/values-dev.yaml
 ```
 
 Keep generated credentials, `.env`, local databases, and provider keys out of
@@ -131,18 +131,18 @@ The deploy script:
 
 - verifies that all five `:dev` images exist locally;
 - loads them into Kind when the context name starts with `kind-`;
-- installs `charts/tali` with `values-dev.yaml`;
+- installs `charts/tali-relay` with `values-dev.yaml`;
 - changes `global.rolloutRevision` so rebuilt mutable images create new Pods;
 - waits for the complete release to become ready.
 
 Verify the workloads:
 
 ```sh
-kubectl -n tali-sandboxes rollout status deployment/tali-control --timeout=300s
-kubectl -n tali-sandboxes rollout status deployment/tali-runner --timeout=300s
-kubectl -n tali-sandboxes rollout status deployment/tali-litellm --timeout=300s
-kubectl -n tali-sandboxes rollout status statefulset/tali-postgresql --timeout=300s
-kubectl -n tali-sandboxes rollout status statefulset/tali-openshell --timeout=300s
+kubectl -n tali-sandboxes rollout status deployment/tali-relay-control --timeout=300s
+kubectl -n tali-sandboxes rollout status deployment/tali-relay-runner --timeout=300s
+kubectl -n tali-sandboxes rollout status deployment/tali-relay-litellm --timeout=300s
+kubectl -n tali-sandboxes rollout status statefulset/tali-relay-postgresql --timeout=300s
+kubectl -n tali-sandboxes rollout status statefulset/tali-relay-openshell --timeout=300s
 kubectl -n tali-sandboxes rollout status deployment/agent-sandbox-controller --timeout=300s
 ```
 
@@ -175,8 +175,8 @@ Useful runtime inspection commands:
 
 ```sh
 kubectl -n tali-sandboxes get sandboxes,pods,pvc
-kubectl -n tali-sandboxes logs deployment/tali-runner --tail=200
-kubectl -n tali-sandboxes logs statefulset/tali-openshell --tail=200
+kubectl -n tali-sandboxes logs deployment/tali-relay-runner --tail=200
+kubectl -n tali-sandboxes logs statefulset/tali-relay-openshell --tail=200
 ```
 
 ## Host-only API and UI development
@@ -281,6 +281,6 @@ Inspect the Sandbox, runner, and OpenShell gateway:
 
 ```sh
 kubectl -n tali-sandboxes get sandboxes,pods,pvc
-kubectl -n tali-sandboxes logs deployment/tali-runner --tail=200
-kubectl -n tali-sandboxes logs statefulset/tali-openshell --tail=200
+kubectl -n tali-sandboxes logs deployment/tali-relay-runner --tail=200
+kubectl -n tali-sandboxes logs statefulset/tali-relay-openshell --tail=200
 ```

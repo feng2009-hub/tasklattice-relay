@@ -8,7 +8,7 @@ dist/
 .DS_Store
 coverage/
 apps/control/server/generated/
-/charts/tali/charts/*.tgz
+/charts/*/charts/*.tgz
 /.helm-dependencies/
 *.log
 .env

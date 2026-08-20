@@ -89,8 +89,8 @@ export function taliLiteLlmProviderProfile(
           host: endpoint.hostname,
           port,
           protocol: "rest",
-          // OpenShell 0.0.82 does not expand the read-write shorthand for a
-          // provider-composed endpoint before enforcing the tunneled POST.
+          // Use the explicit full method set for this provider-composed
+          // endpoint before enforcing the tunneled POST.
           // The virtual key remains model-scoped; full only affects methods
           // sent to this one exact LiteLLM host and port.
           access: "full",

@@ -86,9 +86,8 @@ control:
         cpu: 250m
         memory: 256Mi
     extraEnv: []
-  # Canonical browser URL used for OIDC callbacks. Local authentication and
-  # Service exposure do not require it. Set it when auth.oidc or Keycloak is enabled.
-  publicUrl: ""
+  # Canonical browser origin used by Better Auth for cookies and callbacks.
+  publicUrl: http://localhost:38080
   smtp:
     # Enables email delivery for invitations to users who do not already have
     # a TaskLattice Relay account. Requires control.publicUrl.
@@ -197,8 +196,8 @@ secrets:
   litellmMasterKey: sk-tali-local
   postgresPassword: tali-local
   databaseUrl: ""
-  jwtSecret: tali-local-development-secret
-  initialSuperAdminPasswordHash: '$2b$12$Zx2mCLJZ0n/iY4Tq.Z3eXu0O.z5SHM.pKJyNNurKX/Z7CD5HHOg.e'
+  authSecret: tali-local-development-auth-secret-32-chars
+  initialSuperAdminPassword: admin-password
   keycloakAdminPassword: admin
   keycloakClientSecret: tali-keycloak-test-client-secret
   keycloakTestUserPassword: password
@@ -211,6 +210,7 @@ auth:
   local:
     enabled: true
     username: admin
+    email: admin@tasklattice.local
   oidc:
     enabled: false
     issuer: ""
@@ -240,61 +240,6 @@ keycloak:
       email: alice@tali.test
       firstName: Alice
       lastName: Operator
-    - id: 3ff7cb62-d951-4ea0-b5ca-cb465594f5e9
-      username: bob
-      email: bob@tali.test
-      firstName: Bob
-      lastName: Auditor
-    - id: b7ebdb4c-caa3-4177-9196-71652156da38
-      username: sso-1
-      email: sso-1@tali.test
-      firstName: SSO
-      lastName: "1"
-    - id: 7cffa5b7-e1e5-4f78-bddb-85a2cd610f5b
-      username: sso-2
-      email: sso-2@tali.test
-      firstName: SSO
-      lastName: "2"
-    - id: fa8f658d-c7ce-4f5c-8bd3-ff0c08e18c7c
-      username: sso-3
-      email: sso-3@tali.test
-      firstName: SSO
-      lastName: "3"
-    - id: b3f4b61d-06f9-467e-8f77-dc6c2ef87b5f
-      username: sso-4
-      email: sso-4@tali.test
-      firstName: SSO
-      lastName: "4"
-    - id: 2681c7d0-e0f3-46e3-817d-566ddc9f42b8
-      username: sso-5
-      email: sso-5@tali.test
-      firstName: SSO
-      lastName: "5"
-    - id: 9702bd2a-f9e4-40f2-aa52-3d0f0bd69cdb
-      username: sso-6
-      email: sso-6@tali.test
-      firstName: SSO
-      lastName: "6"
-    - id: dba7ab69-0b5d-4338-b303-c48c4fbeb333
-      username: sso-7
-      email: sso-7@tali.test
-      firstName: SSO
-      lastName: "7"
-    - id: 3ce07a30-6124-4dbd-8277-d737b6221110
-      username: sso-8
-      email: sso-8@tali.test
-      firstName: SSO
-      lastName: "8"
-    - id: a43c0d28-e4f3-4e59-ad88-d9e9edc80e1e
-      username: sso-9
-      email: sso-9@tali.test
-      firstName: SSO
-      lastName: "9"
-    - id: 1d020297-1cf1-403e-99a1-a902bb1e54ea
-      username: sso-10
-      email: sso-10@tali.test
-      firstName: SSO
-      lastName: "10"
   resources:
     requests:
       cpu: 250m
@@ -358,11 +303,16 @@ agentSandbox:
 # authenticated ingress or configure OpenShell TLS/OIDC for shared clusters.
 openshell:
   enabled: true
+  imagePullSecrets: []
   image:
-    tag: 0.0.82
+    repository: ghcr.io/nvidia/openshell/gateway
+    tag: 0.0.106
+    pullPolicy: IfNotPresent
   supervisor:
     image:
-      tag: 0.0.82
+      repository: ghcr.io/nvidia/openshell/supervisor
+      tag: 0.0.106
+      pullPolicy: IfNotPresent
     sideloadMethod: init-container
   service:
     type: LoadBalancer
@@ -374,7 +324,15 @@ openshell:
       cpu: "1"
       memory: 1Gi
   server:
+    # The upstream base sandbox does not publish a 0.0.106 tag, so its explicit
+    # upstream default remains :latest. Private deployments should mirror and
+    # pin this value together with sandboxImagePullPolicy.
+    sandboxImage: ghcr.io/nvidia/openshell-community/sandboxes/base:latest
+    sandboxImagePullPolicy: Always
+    sandboxImagePullSecrets: []
+    telemetryEnabled: false
     disableTls: true
     auth:
       allowUnauthenticatedUsers: true
     workspaceDefaultStorageSize: 1Gi
+    workspaceStorageClass: ""

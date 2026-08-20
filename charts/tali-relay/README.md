@@ -2,7 +2,9 @@
 
 This chart installs the complete TaskLattice Relay stack: control/UI, OpenShell
 runner, LiteLLM, PostgreSQL, OpenShell, and the Agent Sandbox controller.
-OpenShell 0.0.82 is a version- and checksum-pinned NVIDIA OCI dependency.
+Its Chart, package, and default Helm release name is `tali-relay`; the examples
+use the product-level `tali` Kubernetes namespace.
+OpenShell 0.0.106 is a version- and checksum-pinned NVIDIA OCI dependency.
 Agent Sandbox v0.5.1 is fetched from its checksum-pinned Kubernetes SIGs
 release tag and packaged as a Helm dependency. Their upstream source is not
 copied into this repository, while the released TaskLattice Relay archive remains
@@ -15,7 +17,7 @@ npm run helm:dependencies
 ```
 
 Release builds also package the complete Chart at
-`/opt/tali/helm/tali.tgz` inside the Control Plane image. The
+`/opt/tali/helm/tali-relay.tgz` inside the Control Plane image. The
 image exposes that location through `TALI_HELM_CHART`.
 
 The source Chart uses the development version `0.0.0-dev` and resolves its
@@ -27,18 +29,17 @@ separately released `tasklattice-guard` project must use the same namespace
 when integrated with Relay. It is not a dependency of this Chart and no Guard
 workload is packaged by this repository.
 
-`control.publicUrl` is independent of `control.service.type`. Leave it empty
-for Local authentication without SMTP invitations, including when exposing
-the Control Service through a LoadBalancer, Route, Ingress, or Gateway. Set a
-stable canonical browser URL when enabling `auth.oidc`, the embedded Keycloak,
-or `control.smtp.enabled`; it is used for OIDC callbacks and invitation links.
+`control.publicUrl` is independent of `control.service.type`, but it is always
+required as Better Auth's canonical browser origin. Set it to the exact origin
+users open, including scheme and non-default port; it is also used for OIDC
+callbacks and invitation links.
 
 Install a released chart:
 
 ```bash
 VERSION="<release-version>"
-curl -fLO "https://github.com/tasklattice/tasklattice-relay/releases/download/v${VERSION}/tali-${VERSION}.tgz"
-helm upgrade --install tali "./tali-${VERSION}.tgz" \
+curl -fLO "https://github.com/tasklattice/tasklattice-relay/releases/download/v${VERSION}/tali-relay-${VERSION}.tgz"
+helm upgrade --install tali-relay "./tali-relay-${VERSION}.tgz" \
   --namespace tali \
   --create-namespace \
   --wait \
@@ -49,8 +50,8 @@ The same chart is published as an OCI artifact:
 
 ```bash
 VERSION="<release-version>"
-helm upgrade --install tali \
-  oci://ghcr.io/tasklattice/charts/tali \
+helm upgrade --install tali-relay \
+  oci://ghcr.io/tasklattice/charts/tali-relay \
   --version "${VERSION}" \
   --namespace tali \
   --create-namespace \
@@ -59,7 +60,7 @@ helm upgrade --install tali \
 ```
 
 Defaults preserve the repository's trusted local-cluster setup and use
-`admin/admin`. Before shared or internet-facing use, provide a private values
+`admin/admin-password`. Before shared or internet-facing use, provide a private values
 file that changes every `secrets.*` value and configures OpenShell TLS/OIDC.
 If the Agent Sandbox controller already exists cluster-wide, set
 `agentSandbox.enabled=false`. For private GHCR packages, create a registry
@@ -87,8 +88,8 @@ set `litellm.workers=1` without patching the rendered Deployment. The chart sets
 Full exceptions remain available in the LiteLLM container logs. Increase this
 value only when request-level tracebacks are required for gateway diagnostics.
 
-The dependency preparation step applies the small OpenShell 0.0.82 overlay in
-`patches/openshell-0.0.82-certgen-resources.patch`, which applies the configured
+The dependency preparation step applies the small OpenShell 0.0.106 overlay in
+`patches/openshell-0.0.106-certgen-resources.patch`, which applies the configured
 `openshell.resources` to its pre-install certificate-generation Job. Keep or
 upstream that patch when refreshing the dependency so the hook can run before
 the namespace `LimitRange` exists on a first installation.
@@ -132,7 +133,7 @@ including OpenShell, Agent Sandbox, their CRDs, and the Agent Sandbox upstream
 license:
 
 ```text
-/opt/tali/helm/tali.tgz
+/opt/tali/helm/tali-relay.tgz
 ```
 
 The runtime image intentionally does not include the Helm CLI. Extract the
@@ -143,18 +144,18 @@ disconnected environment without contacting a Helm or OCI repository:
 CONTROL_IMAGE=registry.internal.example.com/tali-control:<version>
 CONTAINER_ID="$(podman create "${CONTROL_IMAGE}")"
 podman cp \
-  "${CONTAINER_ID}:/opt/tali/helm/tali.tgz" \
-  ./tali.tgz
+  "${CONTAINER_ID}:/opt/tali/helm/tali-relay.tgz" \
+  ./tali-relay.tgz
 podman rm "${CONTAINER_ID}"
 
-tar -xzf tali.tgz
-cp tali/values-airgap.yaml ./my-airgap-values.yaml
+tar -xzf tali-relay.tgz
+cp tali-relay/values-airgap.yaml ./my-airgap-values.yaml
 # Replace registry.airgap.example.com and airgap-registry in the copied file.
 
-helm template tali ./tali \
+helm template tali-relay ./tali-relay \
   --namespace tali \
   --include-crds \
-  --values tali/values-openshift.yaml \
+  --values tali-relay/values-openshift.yaml \
   --values ./my-airgap-values.yaml \
   > tali-openshift.yaml
 ```
@@ -215,9 +216,9 @@ APPS_DOMAIN="$(oc get ingresses.config.openshift.io cluster \
 CONTROL_HOST="tali.${APPS_DOMAIN}"
 
 oc new-project "${NAMESPACE}"
-helm upgrade --install tali charts/tali \
+helm upgrade --install tali-relay charts/tali-relay \
   --namespace "${NAMESPACE}" \
-  --values charts/tali/values-openshift.yaml \
+  --values charts/tali-relay/values-openshift.yaml \
   --set-string "control.publicUrl=https://${CONTROL_HOST}" \
   --set-string "openshift.routes.control.host=${CONTROL_HOST}" \
   --wait \
@@ -249,7 +250,7 @@ Keycloak needs a stable URL that is reachable from both the browser and the
 Control pod. For a cluster with a reserved load-balancer address:
 
 ```bash
-helm upgrade --install tali charts/tali \
+helm upgrade --install tali-relay charts/tali-relay \
   --namespace tali \
   --create-namespace \
   --set control.publicUrl=http://192.168.139.2:38080 \
@@ -295,17 +296,17 @@ MCP Server. It exposes three deterministic tools: `echo_message`,
 the cluster, requires HTTP Basic authentication, and is available to LiteLLM at:
 
 ```text
-http://tali-example-mcp:3000/mcp
+http://tali-relay-example-mcp:3000/mcp
 ```
 
 The test credentials are `Username` / `Password`. LiteLLM accepts the Basic
 credential as `username:password` and encodes it when creating the HTTP
-Authorization header, so the Chart creates `tali-example-mcp-auth` with
+Authorization header, so the Chart creates `tali-relay-example-mcp-auth` with
 an `auth-value` containing `Username:Password`. Register it with:
 
 ```text
 auth type: basic
-Secret reference: k8s://<namespace>/tali-example-mcp-auth#auth-value
+Secret reference: k8s://<namespace>/tali-relay-example-mcp-auth#auth-value
 ```
 
 Build and deploy the local example together with Keycloak:

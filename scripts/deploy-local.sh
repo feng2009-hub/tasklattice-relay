@@ -7,7 +7,7 @@ if (( $# > 0 )); then
 fi
 enable_keycloak=false
 enable_example_mcp=false
-release_name="${HELM_RELEASE_NAME:-tali}"
+release_name="${HELM_RELEASE_NAME:-tali-relay}"
 namespace="${HELM_NAMESPACE:-tali}"
 helm_timeout="${HELM_TIMEOUT:-15m}"
 image_registry="ghcr.io/tasklattice"
@@ -114,6 +114,7 @@ if [[ "$kube_context" == kind-* ]]; then
 fi
 
 rollout_revision="dev-$(date -u +%Y%m%d%H%M%S)"
+control_public_url="${CONTROL_PUBLIC_URL:-http://localhost:${control_service_port}}"
 keycloak_helm_args=()
 if [[ "$enable_keycloak" == "true" ]]; then
   keycloak_service_port="${KEYCLOAK_SERVICE_PORT:-8180}"
@@ -148,12 +149,13 @@ if [[ "$enable_keycloak" == "true" ]]; then
     fi
   fi
   keycloak_helm_args+=(
-    --set-string "control.publicUrl=$control_public_url"
     --set keycloak.enabled=true
     --set-string "keycloak.publicUrl=$keycloak_public_url"
     --set "keycloak.service.port=$keycloak_service_port"
   )
 fi
+
+control_helm_args=(--set-string "control.publicUrl=$control_public_url")
 
 example_mcp_helm_args=()
 if [[ "$enable_example_mcp" == "true" ]]; then
@@ -161,17 +163,19 @@ if [[ "$enable_example_mcp" == "true" ]]; then
 fi
 
 bash "$repository_root/scripts/prepare-helm-dependencies.sh"
-helm lint "$repository_root/charts/tali" \
-  --values "$repository_root/charts/tali/values-dev.yaml" \
+helm lint "$repository_root/charts/tali-relay" \
+  --values "$repository_root/charts/tali-relay/values-dev.yaml" \
+  ${control_helm_args[@]+"${control_helm_args[@]}"} \
   ${keycloak_helm_args[@]+"${keycloak_helm_args[@]}"} \
   ${example_mcp_helm_args[@]+"${example_mcp_helm_args[@]}"}
-helm upgrade --install "$release_name" "$repository_root/charts/tali" \
+helm upgrade --install "$release_name" "$repository_root/charts/tali-relay" \
   --kube-context "$kube_context" \
   --namespace "$namespace" \
   --create-namespace \
-  --values "$repository_root/charts/tali/values-dev.yaml" \
+  --values "$repository_root/charts/tali-relay/values-dev.yaml" \
   --set-string "global.rolloutRevision=$rollout_revision" \
   --set "control.service.port=$control_service_port" \
+  ${control_helm_args[@]+"${control_helm_args[@]}"} \
   ${keycloak_helm_args[@]+"${keycloak_helm_args[@]}"} \
   ${example_mcp_helm_args[@]+"${example_mcp_helm_args[@]}"} \
   --wait \

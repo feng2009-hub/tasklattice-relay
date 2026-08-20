@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - ".github/workflows/helm-kind-smoke.yml"
-      - "charts/tali/**"
+      - "charts/tali-relay/**"
       - "scripts/helm-kind-smoke.sh"
       - "scripts/prepare-helm-dependencies.sh"
   push:
@@ -12,7 +12,7 @@ on:
       - main
     paths:
       - ".github/workflows/helm-kind-smoke.yml"
-      - "charts/tali/**"
+      - "charts/tali-relay/**"
       - "scripts/helm-kind-smoke.sh"
       - "scripts/prepare-helm-dependencies.sh"
   workflow_dispatch:

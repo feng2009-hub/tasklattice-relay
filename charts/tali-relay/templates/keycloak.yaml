@@ -36,7 +36,7 @@ data:
           "standardFlowEnabled": true,
           "directAccessGrantsEnabled": false,
           "redirectUris": [
-            {{ printf "%s/auth/sso/callback" (trimSuffix "/" .Values.control.publicUrl) | quote }}
+            {{ printf "%s/api/auth/callback/corporate-sso" (trimSuffix "/" .Values.control.publicUrl) | quote }}
           ],
           "webOrigins": [
             {{ trimSuffix "/" .Values.control.publicUrl | quote }}

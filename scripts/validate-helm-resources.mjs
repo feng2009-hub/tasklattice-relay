@@ -3,9 +3,9 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { parseAllDocuments } from "yaml";
 
-const releaseName = "tali";
+const releaseName = "tali-relay";
 const releaseNamespace = "tali-resource-validation";
-const chartPath = "charts/tali";
+const chartPath = "charts/tali-relay";
 const requiredResources = [
   ["requests", "cpu"],
   ["requests", "memory"],
@@ -58,6 +58,84 @@ const rendered = renderChart([
 
 const objects = parseObjects(rendered);
 
+for (const [deploymentName, expectedInitContainers] of [
+  [
+    `${releaseName}-control`,
+    [
+      [
+        "migrate-control-database",
+        [
+          "/app/node_modules/.bin/prisma",
+          "migrate",
+          "deploy",
+          "--config",
+          "prisma.config.ts",
+        ],
+      ],
+      ["seed-built-in-skills", ["node", "prisma/seed-built-in-skills.mjs"]],
+    ],
+  ],
+  [
+    `${releaseName}-deletion-worker`,
+    [
+      [
+        "migrate-control-database",
+        [
+          "/app/node_modules/.bin/prisma",
+          "migrate",
+          "deploy",
+          "--config",
+          "prisma.config.ts",
+        ],
+      ],
+    ],
+  ],
+]) {
+  const deployment = objects.find(
+    (object) =>
+      object.kind === "Deployment" && object.metadata?.name === deploymentName,
+  );
+  if (!deployment) {
+    throw new Error(`Deployment/${deploymentName} was not rendered.`);
+  }
+
+  for (const [initContainerName, expectedCommand] of expectedInitContainers) {
+    const initContainer = deployment.spec?.template?.spec?.initContainers?.find(
+      (container) => container.name === initContainerName,
+    );
+    if (!initContainer) {
+      throw new Error(
+        `Deployment/${deploymentName} is missing initContainer/${initContainerName}.`,
+      );
+    }
+    if (initContainer.workingDir !== "/app/apps/control") {
+      throw new Error(
+        `Deployment/${deploymentName} initContainer/${initContainerName} must run from /app/apps/control.`,
+      );
+    }
+    if (
+      JSON.stringify(initContainer.command) !== JSON.stringify(expectedCommand)
+    ) {
+      throw new Error(
+        `Deployment/${deploymentName} initContainer/${initContainerName} must run without npm.`,
+      );
+    }
+    for (const [name, value] of [
+      ["HOME", "/tmp"],
+      ["XDG_CACHE_HOME", "/tmp/.cache"],
+    ]) {
+      const actualValue = initContainer.env?.find(
+        (environmentVariable) => environmentVariable.name === name,
+      )?.value;
+      if (actualValue !== value) {
+        throw new Error(
+          `Deployment/${deploymentName} initContainer/${initContainerName} must set ${name}=${value}.`,
+        );
+      }
+    }
+  }
+}
+
 const localObjects = parseObjects(
   renderChart(["--set", "control.service.type=LoadBalancer"]),
 );
@@ -67,9 +145,9 @@ const localSecret = localObjects.find(
     object.metadata?.name === `${releaseName}-secrets`,
 );
 const localControlToml = localSecret?.stringData?.["control.toml"] ?? "";
-if (/^public_url\s*=/m.test(localControlToml)) {
+if (!/^public_url\s*=\s*"http:\/\/localhost:38080"$/m.test(localControlToml)) {
   throw new Error(
-    "Local authentication must not render server.public_url when control.publicUrl is empty.",
+    "Local authentication must render Better Auth's canonical server.public_url.",
   );
 }
 
@@ -80,7 +158,7 @@ const localControlService = localObjects.find(
 );
 if (localControlService?.spec?.type !== "LoadBalancer") {
   throw new Error(
-    "The Control Service must render as LoadBalancer without requiring control.publicUrl.",
+    "The Control Service must render as LoadBalancer with the canonical control.publicUrl.",
   );
 }
 
@@ -136,6 +214,8 @@ for (const [kind, name, annotation, shouldChange] of checksumComparisons) {
 const missingOidcPublicUrlResult = spawnSync(
   "helm",
   templateArguments([
+    "--set-string",
+    "control.publicUrl=",
     "--set",
     "auth.oidc.enabled=true",
     "--set-string",
@@ -148,11 +228,11 @@ const missingOidcPublicUrlResult = spawnSync(
 if (
   missingOidcPublicUrlResult.status === 0 ||
   !missingOidcPublicUrlResult.stderr.includes(
-    "control.publicUrl is required when OIDC authentication",
+    "control.publicUrl is required for Better Auth",
   )
 ) {
   throw new Error(
-    "The Chart must require control.publicUrl when OIDC authentication is enabled.",
+    "The Chart must require control.publicUrl in every authentication mode.",
   );
 }
 

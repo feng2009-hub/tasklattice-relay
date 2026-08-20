@@ -77,8 +77,8 @@ app.kubernetes.io/component: {{ .component }}
 {{- end }}
 
 {{- define "tali.controlConfig" -}}
-{{- if and (or .Values.auth.oidc.enabled .Values.keycloak.enabled) (not .Values.control.publicUrl) -}}
-{{- fail "control.publicUrl is required when OIDC authentication or the embedded Keycloak is enabled" -}}
+{{- if not .Values.control.publicUrl -}}
+{{- fail "control.publicUrl is required for Better Auth" -}}
 {{- end -}}
 {{- if and .Values.control.smtp.enabled (not .Values.control.publicUrl) -}}
 {{- fail "control.publicUrl is required when SMTP invitations are enabled" -}}
@@ -104,13 +104,14 @@ internal_url = {{ printf "http://%s:%v" (include "tali.componentName" (dict "roo
 url = {{ include "tali.databaseUrl" . | quote }}
 
 [auth]
-session_signing_key = {{ required "secrets.jwtSecret is required" .Values.secrets.jwtSecret | quote }}
+secret = {{ required "secrets.authSecret is required" .Values.secrets.authSecret | quote }}
 
 [auth.local]
 enabled = {{ .Values.auth.local.enabled }}
 {{ if .Values.auth.local.enabled }}
 initial_super_admin_username = {{ required "auth.local.username is required when Local authentication is enabled" .Values.auth.local.username | quote }}
-initial_super_admin_password_hash = {{ required "secrets.initialSuperAdminPasswordHash is required when Local authentication is enabled" .Values.secrets.initialSuperAdminPasswordHash | quote }}
+initial_super_admin_email = {{ required "auth.local.email is required when Local authentication is enabled" .Values.auth.local.email | quote }}
+initial_super_admin_password = {{ required "secrets.initialSuperAdminPassword is required when Local authentication is enabled" .Values.secrets.initialSuperAdminPassword | quote }}
 {{ end }}
 
 [auth.oidc]

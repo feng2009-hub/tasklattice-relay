@@ -6,9 +6,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseAllDocuments } from "yaml";
 
-const releaseName = "tali";
+const releaseName = "tali-relay";
 const releaseNamespace = "tali-airgap-validation";
-const chartPath = process.env.TALI_CHART_PATH ?? "charts/tali";
+const chartPath = process.env.TALI_CHART_PATH ?? "charts/tali-relay";
 const expectedRegistry = "registry.airgap.example.com/";
 const expectedPullSecret = "airgap-registry";
 const forbiddenRegistries = [
@@ -18,14 +18,14 @@ const forbiddenRegistries = [
   "registry.k8s.io/",
 ];
 let extractedChartRoot;
-let valuesRoot = "charts/tali";
+let valuesRoot = "charts/tali-relay";
 
 if (chartPath.endsWith(".tgz")) {
   extractedChartRoot = mkdtempSync(
     join(tmpdir(), "tali-airgap-validation-"),
   );
   execFileSync("tar", ["-xzf", chartPath, "-C", extractedChartRoot]);
-  valuesRoot = join(extractedChartRoot, "tali");
+  valuesRoot = join(extractedChartRoot, "tali-relay");
 
   for (const requiredPath of [
     "Chart.lock",
@@ -34,7 +34,7 @@ if (chartPath.endsWith(".tgz")) {
     "charts/agent-sandbox/Chart.yaml",
     "charts/agent-sandbox/LICENSE",
     "charts/agent-sandbox/crds/agents.x-k8s.io_sandboxes.yaml",
-    "charts/helm-chart/Chart.yaml",
+    "charts/openshell/Chart.yaml",
   ]) {
     if (!existsSync(join(valuesRoot, requiredPath))) {
       console.error(
@@ -186,11 +186,11 @@ const gatewayToml = gatewayConfig?.data?.["gateway.toml"] ?? "";
 for (const [label, pattern] of [
   [
     "mirrored default sandbox image",
-    /default_image\s*=\s*"registry\.airgap\.example\.com\/third-party\/openshell-sandbox:0\.0\.82"/,
+    /default_image\s*=\s*"registry\.airgap\.example\.com\/third-party\/openshell-sandbox:0\.0\.106"/,
   ],
   [
     "mirrored supervisor image",
-    /supervisor_image\s*=\s*"registry\.airgap\.example\.com\/third-party\/openshell-supervisor:0\.0\.82"/,
+    /supervisor_image\s*=\s*"registry\.airgap\.example\.com\/third-party\/openshell-supervisor:0\.0\.106"/,
   ],
   [
     "sandbox image pull Secret",

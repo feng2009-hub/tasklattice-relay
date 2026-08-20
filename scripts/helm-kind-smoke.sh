@@ -5,7 +5,7 @@ set -euo pipefail
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cluster_name="${KIND_CLUSTER_NAME:-tali-ci}"
 kube_context="kind-${cluster_name}"
-release_name="${HELM_RELEASE_NAME:-tali}"
+release_name="${HELM_RELEASE_NAME:-tali-relay}"
 namespace="${HELM_NAMESPACE:-tali-smoke}"
 image_registry="${IMAGE_REGISTRY:-ghcr.io/tasklattice}"
 image_tag="${IMAGE_TAG:-latest}"
@@ -32,7 +32,7 @@ fi
 
 bash "$repository_root/scripts/prepare-helm-dependencies.sh"
 
-helm upgrade --install "$release_name" "$repository_root/charts/tali" \
+helm upgrade --install "$release_name" "$repository_root/charts/tali-relay" \
   --kube-context "$kube_context" \
   --namespace "$namespace" \
   --create-namespace \

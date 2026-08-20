@@ -1,10 +1,10 @@
 FROM alpine:3.22 AS openshell-cli
 ARG TARGETARCH
-ARG OPENSHELL_VERSION=0.0.82
+ARG OPENSHELL_VERSION=0.0.106
 RUN apk add --no-cache ca-certificates curl tar \
     && case "${TARGETARCH}" in \
-      amd64) asset="openshell-x86_64-unknown-linux-musl.tar.gz"; checksum="d3d73904bd6e2f81f5913ca2347eb0e772eb45d82fbee9880be3e0c416eaf802" ;; \
-      arm64) asset="openshell-aarch64-unknown-linux-musl.tar.gz"; checksum="f1113a9cfed452860d62658da67f48a657f502e23f1117b38111867ba13521ca" ;; \
+      amd64) asset="openshell-x86_64-unknown-linux-musl.tar.gz"; checksum="d1a885a91b3e5aaa006c36aca95dc78bed0638c1ba1a79b55f1da93211b8a0a0" ;; \
+      arm64) asset="openshell-aarch64-unknown-linux-musl.tar.gz"; checksum="ce981904ae8febd9cd6b3fbceb04e1dcfb48da6042bac08eadf0c2211f83fe55" ;; \
       *) echo "Unsupported architecture: ${TARGETARCH}" >&2; exit 1 ;; \
     esac \
     && curl --fail --location --retry 5 \
@@ -47,7 +47,7 @@ FROM node:22-bookworm-slim AS control
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=8080 \
-    TALI_HELM_CHART=/opt/tali/helm/tali.tgz
+    TALI_HELM_CHART=/opt/tali/helm/tali-relay.tgz
 WORKDIR /app
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates openssl \
@@ -60,7 +60,7 @@ COPY --from=build /app/apps/control/prisma.config.ts ./apps/control/prisma.confi
 COPY --from=build /app/apps/control/server/config ./apps/control/server/config
 COPY --from=build /app/apps/control/.output ./apps/control/.output
 COPY --from=build /app/skills/vendor/dist ./skills/vendor/dist
-COPY dist/control-plane-chart/tali.tgz /opt/tali/helm/tali.tgz
+COPY dist/control-plane-chart/tali-relay.tgz /opt/tali/helm/tali-relay.tgz
 USER 10001
 EXPOSE 8080
 CMD ["node", "apps/control/.output/server/index.mjs"]

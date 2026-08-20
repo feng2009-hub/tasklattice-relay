@@ -10,22 +10,25 @@ for command_name in "${required_commands[@]}"; do
 done
 
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-chart_root="$repository_root/charts/tali"
-openshell_version="0.0.82"
-openshell_archive="$chart_root/charts/helm-chart-${openshell_version}.tgz"
-openshell_sha256="b610de578f6f517c884b5e9815f153fad426ea05ed6687b78fa28515e183b57f"
+chart_root="$repository_root/charts/tali-relay"
+dependency_cache="${TALI_DEPENDENCY_CACHE:-${TMPDIR:-/tmp}/tali-dependencies}"
+dependency_source_root="$repository_root/.helm-dependencies"
+openshell_version="0.0.106"
+openshell_upstream_reference="oci://ghcr.io/nvidia/openshell/helm-chart"
+openshell_archive="$dependency_cache/helm-chart-${openshell_version}.tgz"
+openshell_sha256="0d5648ce488f4993fe32eb4b3c513f53d423cce20c5c3c094d1a977e8b662836"
 patch_file="$chart_root/patches/openshell-${openshell_version}-certgen-resources.patch"
+openshell_chart="$dependency_source_root/openshell"
 agent_sandbox_version="v0.5.1"
 agent_sandbox_patch_file="$chart_root/patches/agent-sandbox-${agent_sandbox_version}-image-pull-secrets.patch"
 agent_sandbox_source_directory="agent-sandbox-0.5.1"
 agent_sandbox_url="https://github.com/kubernetes-sigs/agent-sandbox/archive/refs/tags/${agent_sandbox_version}.tar.gz"
 agent_sandbox_sha256="b6f50dd6844f5c5d5a7b773a13d43a900dcbe3a20a8e02a8ea5731ec95dc0c42"
-dependency_cache="${TALI_DEPENDENCY_CACHE:-${TMPDIR:-/tmp}/tali-dependencies}"
 agent_sandbox_archive="$dependency_cache/agent-sandbox-${agent_sandbox_version}.tar.gz"
 agent_sandbox_download="$agent_sandbox_archive.download.$$"
-dependency_source_root="$repository_root/.helm-dependencies"
 agent_sandbox_chart="$dependency_source_root/agent-sandbox"
 work_dir="$(mktemp -d "${TMPDIR:-/tmp}/tali-helm-dependencies.XXXXXX")"
+openshell_download_directory="$work_dir/openshell-download"
 
 cleanup() {
   rm -f "$agent_sandbox_download"
@@ -33,7 +36,21 @@ cleanup() {
 }
 trap cleanup EXIT
 
-mkdir -p "$dependency_cache" "$dependency_source_root"
+mkdir -p "$dependency_cache" "$dependency_source_root" "$openshell_download_directory"
+if [[ ! -f "$openshell_archive" ]] ||
+  [[ "$(shasum -a 256 "$openshell_archive" | awk '{print $1}')" != "$openshell_sha256" ]]; then
+  helm pull "$openshell_upstream_reference" \
+    --version "$openshell_version" \
+    --destination "$openshell_download_directory"
+  openshell_download="$openshell_download_directory/helm-chart-${openshell_version}.tgz"
+  actual_sha256="$(shasum -a 256 "$openshell_download" | awk '{print $1}')"
+  if [[ "$actual_sha256" != "$openshell_sha256" ]]; then
+    echo "OpenShell Helm chart checksum mismatch: $actual_sha256" >&2
+    exit 1
+  fi
+  mv "$openshell_download" "$openshell_archive"
+fi
+
 if [[ ! -f "$agent_sandbox_archive" ]] ||
   [[ "$(shasum -a 256 "$agent_sandbox_archive" | awk '{print $1}')" != "$agent_sandbox_sha256" ]]; then
   curl -fsSL "$agent_sandbox_url" -o "$agent_sandbox_download"
@@ -53,21 +70,14 @@ patch --directory "$dependency_source_root" --strip 1 < "$agent_sandbox_patch_fi
 find "$agent_sandbox_chart" -type f \
   \( -name "*.orig" -o -name "*.rej" \) -delete
 
-if [[ -f "$chart_root/Chart.lock" ]]; then
-  helm dependency build --skip-refresh "$chart_root"
-else
-  helm dependency update --skip-refresh "$chart_root"
-fi
-
-actual_openshell_sha256="$(shasum -a 256 "$openshell_archive" | awk '{print $1}')"
-if [[ "$actual_openshell_sha256" != "$openshell_sha256" ]]; then
-  echo "OpenShell Helm chart checksum mismatch: $actual_openshell_sha256" >&2
-  exit 1
-fi
-
 tar -xzf "$openshell_archive" -C "$work_dir"
+mv "$work_dir/helm-chart" "$work_dir/openshell"
 patch --directory "$work_dir" --strip 1 < "$patch_file"
-helm package "$work_dir/helm-chart" --destination "$work_dir/packaged" >/dev/null
-cp "$work_dir/packaged/helm-chart-${openshell_version}.tgz" "$openshell_archive"
+rm -rf "$openshell_chart"
+cp -R "$work_dir/openshell" "$openshell_chart"
+find "$openshell_chart" -type f \
+  \( -name "*.orig" -o -name "*.rej" \) -delete
+
+helm dependency update --skip-refresh "$chart_root"
 
 echo "Prepared OpenShell ${openshell_version} and Agent Sandbox ${agent_sandbox_version} as locked Helm dependencies."
