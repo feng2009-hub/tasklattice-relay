@@ -47,7 +47,7 @@ export function AccessPolicyDetail({
   });
   const instances = useQuery({
     queryKey: scope.key("agents"),
-    queryFn: api.listAgents,
+    queryFn: api.listInstances,
   });
   const versions = useQuery({
     queryKey: scope.key("access-policy-versions", policyId),

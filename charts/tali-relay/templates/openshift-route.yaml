@@ -6,10 +6,8 @@ metadata:
   name: {{ include "tali.componentName" (dict "root" . "component" "control") }}
   labels:
     {{- include "tali.componentLabels" (dict "root" . "component" "control") | nindent 4 }}
-  {{- with $route.annotations }}
   annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
+    {{- include "tali.resourceAnnotations" (dict "root" . "wave" "exposure" "annotations" $route.annotations) | nindent 4 }}
 spec:
   {{- with $route.host }}
   host: {{ . | quote }}
@@ -36,10 +34,8 @@ metadata:
   name: {{ include "tali.componentName" (dict "root" . "component" "keycloak") }}
   labels:
     {{- include "tali.componentLabels" (dict "root" . "component" "keycloak") | nindent 4 }}
-  {{- with $route.annotations }}
   annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
+    {{- include "tali.resourceAnnotations" (dict "root" . "wave" "exposure" "annotations" $route.annotations) | nindent 4 }}
 spec:
   {{- with $route.host }}
   host: {{ . | quote }}

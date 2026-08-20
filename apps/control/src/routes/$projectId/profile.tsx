@@ -251,9 +251,7 @@ function MyAccountPage() {
                       {current.displayName}
                     </h2>
                     <Badge variant="outline">
-                      {current.provider === "sso"
-                        ? "SSO account"
-                        : "Local account"}
+                      {current.hasPassword ? "Password account" : "SSO account"}
                     </Badge>
                   </div>
                   <p className="mt-1 truncate text-sm text-muted-foreground">
@@ -388,7 +386,6 @@ function MyAccountPage() {
             {currentProject ? (
               <AccessPanel
                 project={currentProject}
-                systemRole={current.systemRole}
                 onAccessChanged={refreshProjects}
               />
             ) : (
@@ -399,7 +396,7 @@ function MyAccountPage() {
           </TabsContent>
 
           <TabsContent value="security" className="mt-0">
-            <PasswordPanel provider={current.provider} />
+            <PasswordPanel hasPassword={current.hasPassword} />
           </TabsContent>
         </Tabs>
       </section>
@@ -441,11 +438,9 @@ const projectRoleDescriptions = {
 function AccessPanel({
   onAccessChanged,
   project,
-  systemRole,
 }: {
   onAccessChanged: () => Promise<Project[]>;
   project: Project;
-  systemRole: "user" | "super_administrator";
 }) {
   const roleSwitch = useMutation({
     mutationFn: (role: Project["assignedRoles"][number]) =>
@@ -462,16 +457,18 @@ function AccessPanel({
         <div className="mb-5">
           <h2 className="font-sans text-lg font-semibold">Account access</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            System identity and active access for the selected Project.
+            Organizational and business access for the selected Project.
           </p>
         </div>
         <dl className="grid gap-4 text-sm sm:grid-cols-2 lg:max-w-3xl">
           <div>
-            <dt className="text-xs text-muted-foreground">System role</dt>
+            <dt className="text-xs text-muted-foreground">Department role</dt>
             <dd className="mt-1 font-medium">
-              {systemRole === "super_administrator"
-                ? "Super Administrator"
-                : "User"}
+              {project.department.role === "administrator"
+                ? "Department Administrator"
+                : project.department.role === "member"
+                  ? "Department Member"
+                  : "No Department membership"}
             </dd>
           </div>
           <div>
@@ -666,7 +663,7 @@ function PermissionGroup({
   );
 }
 
-function PasswordPanel({ provider }: { provider: "local" | "sso" }) {
+function PasswordPanel({ hasPassword }: { hasPassword: boolean }) {
   const [open, setOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -705,7 +702,7 @@ function PasswordPanel({ provider }: { provider: "local" | "sso" }) {
     if (!nextOpen) clearForm();
   };
 
-  if (provider === "sso") {
+  if (!hasPassword) {
     return (
       <section className="p-5">
         <div className="max-w-3xl">

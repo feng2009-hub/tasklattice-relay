@@ -83,29 +83,23 @@ const controlConfigSchema = z.object({
     url: z.string().trim().min(1),
   }),
   auth: z.object({
-    session_signing_key: z.string().min(24),
+    secret: z.string().min(32),
     local: z.object({
       enabled: z.boolean(),
       initial_super_admin_username: z.string().trim().min(1).optional(),
-      initial_super_admin_password_hash: z.string().trim().min(1).optional(),
+      initial_super_admin_email: z.string().email().optional(),
+      initial_super_admin_password: z.string().min(12).max(128).optional(),
     }).superRefine((value, context) => {
-      const usernameConfigured = Boolean(value.initial_super_admin_username);
-      const passwordConfigured = Boolean(value.initial_super_admin_password_hash);
-      if (usernameConfigured !== passwordConfigured) {
+      const configured = [
+        value.initial_super_admin_username,
+        value.initial_super_admin_email,
+        value.initial_super_admin_password,
+      ].filter(Boolean).length;
+      if (configured !== 0 && configured !== 3) {
         context.addIssue({
           code: "custom",
           message:
-            "initial_super_admin_username and initial_super_admin_password_hash must be configured together.",
-        });
-      }
-      if (
-        value.initial_super_admin_password_hash &&
-        !/^\$2[aby]\$\d{2}\$/.test(value.initial_super_admin_password_hash)
-      ) {
-        context.addIssue({
-          code: "custom",
-          path: ["initial_super_admin_password_hash"],
-          message: "The initial Super Administrator password must be a bcrypt hash.",
+            "initial_super_admin_username, initial_super_admin_email, and initial_super_admin_password must be configured together.",
         });
       }
     }),
@@ -120,6 +114,19 @@ const controlConfigSchema = z.object({
         message: "At least one authentication provider must be enabled.",
       });
     }
+    if (
+      value.local.enabled &&
+      (!value.local.initial_super_admin_username ||
+        !value.local.initial_super_admin_email ||
+        !value.local.initial_super_admin_password)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["local"],
+        message:
+          "Local authentication requires initial_super_admin_username, initial_super_admin_email, and initial_super_admin_password.",
+      });
+    }
   }),
   runner: z.object({
     url: z.string().url(),
@@ -131,11 +138,11 @@ const controlConfigSchema = z.object({
   }),
   smtp: smtpConfigSchema.default(disabledSmtpConfig),
 }).superRefine((value, context) => {
-  if (value.auth.oidc.enabled && !value.server.public_url) {
+  if (!value.server.public_url) {
     context.addIssue({
       code: "custom",
       path: ["server", "public_url"],
-      message: "server.public_url is required when OIDC authentication is enabled.",
+      message: "server.public_url is required for Better Auth.",
     });
   }
   if (value.smtp.enabled && !value.server.public_url) {
@@ -162,12 +169,12 @@ const developmentConfig: ControlConfig = {
     url: "postgresql://tali:development@127.0.0.1:5432/tali",
   },
   auth: {
-    session_signing_key: "tali-local-development-secret",
+    secret: "tali-local-development-secret-32-chars",
     local: {
       enabled: true,
       initial_super_admin_username: "admin",
-      initial_super_admin_password_hash:
-        "$2b$12$Zx2mCLJZ0n/iY4Tq.Z3eXu0O.z5SHM.pKJyNNurKX/Z7CD5HHOg.e",
+      initial_super_admin_email: "admin@tasklattice.local",
+      initial_super_admin_password: "admin-password",
     },
     oidc: {
       enabled: false,

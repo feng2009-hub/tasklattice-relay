@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import type {
-  Agent,
+  Instance as Agent,
   AgentConnection,
   AgentConnectionApprovalMode,
   AgentGardenEntry,

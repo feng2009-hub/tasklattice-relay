@@ -1,12 +1,15 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import {
+  Building2,
   Check,
   ChevronDown,
   FolderKanban,
   LoaderCircle,
   Plus,
   Settings,
+  SlidersHorizontal,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -20,6 +23,7 @@ import { useProject } from "@/hooks/use-project";
 import { useProjectPermissions } from "@/hooks/use-project-permissions";
 import { cn } from "@/lib/utils";
 import { getSidebarMessages } from "@/lib/sidebar-i18n";
+import { getDepartments } from "@/services/department";
 import type { AccountLanguage } from "@/services/personal-profile";
 
 export function ProjectSwitcher({
@@ -45,8 +49,33 @@ export function ProjectSwitcher({
     switchingProjectId,
   } = useProject();
   const permissions = useProjectPermissions();
+  const administeredDepartments = useQuery({
+    queryKey: ["departments"],
+    queryFn: getDepartments,
+    staleTime: 30_000,
+  });
   const [open, setOpen] = useState(false);
   const [switchError, setSwitchError] = useState("");
+  const departmentGroups = Array.from(
+    projects.reduce(
+      (groups, project) => {
+        const current = groups.get(project.department.id) ?? {
+          department: project.department,
+          projects: [],
+        };
+        current.projects.push(project);
+        groups.set(project.department.id, current);
+        return groups;
+      },
+      new Map<
+        string,
+        {
+          department: (typeof projects)[number]["department"];
+          projects: typeof projects;
+        }
+      >(),
+    ),
+  ).map(([, group]) => group);
 
   const handleSelect = async (projectId: string, projectName: string) => {
     if (projectId === currentProject?.id || isSwitching) return;
@@ -57,7 +86,9 @@ export function ProjectSwitcher({
       onProjectSwitchSuccess(projectName);
     } catch (reason) {
       setSwitchError(
-        reason instanceof Error ? reason.message : messages.projectSwitcher.switchError,
+        reason instanceof Error
+          ? reason.message
+          : messages.projectSwitcher.switchError,
       );
     }
   };
@@ -76,127 +107,210 @@ export function ProjectSwitcher({
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
-        <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            aria-label={
-              currentProject
-                ? messages.projectSwitcher.currentProject(currentProject.name)
-                : messages.projectSwitcher.noProject
-            }
-            className={cn(
-              "group flex min-h-11 items-center rounded-sm border border-sidebar-border bg-sidebar px-2.5 text-left outline-none transition-colors",
-              "hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/35 data-[state=open]:border-primary/25 data-[state=open]:bg-primary/[0.06]",
-              collapsed
-                ? "mx-auto size-11 justify-center px-0"
-                : "w-full gap-2.5",
-            )}
-            disabled={isSwitching}
-          >
-            <span className="grid size-6 shrink-0 place-items-center text-muted-foreground">
-              <FolderKanban className="size-4" />
-            </span>
-            {collapsed ? null : (
-              <>
-                <span className="min-w-0 flex-1 truncate text-sm font-semibold">
-                  {currentProject?.name ?? messages.projectSwitcher.noProject}
-                </span>
-                {isSwitching ? (
-                  <LoaderCircle className="size-4 shrink-0 animate-spin text-muted-foreground" />
-                ) : (
-                  <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
-                )}
-              </>
-            )}
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="start"
-          side={collapsed ? "right" : "bottom"}
-          className="w-72"
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={
+            currentProject
+              ? messages.projectSwitcher.currentProject(
+                  `${currentProject.department.name}/${currentProject.name}`,
+                )
+              : messages.projectSwitcher.noProject
+          }
+          className={cn(
+            "group flex min-h-11 items-center rounded-sm border border-sidebar-border bg-sidebar px-2.5 text-left outline-none transition-colors",
+            "hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/35 data-[state=open]:border-primary/25 data-[state=open]:bg-primary/[0.06]",
+            collapsed
+              ? "mx-auto size-11 justify-center px-0"
+              : "w-full gap-2.5",
+          )}
+          disabled={isSwitching}
         >
-          <DropdownMenuLabel className="px-2 pb-1 pt-2 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-            {messages.projectSwitcher.projects}
-          </DropdownMenuLabel>
-          {projects.map((project) => {
-            const current = project.id === currentProject?.id;
-            const switching = project.id === switchingProjectId;
-            return (
-              <div
-                key={project.id}
-                role="group"
-                className={cn(
-                  "flex items-stretch rounded-sm",
-                  current && "bg-primary/[0.07] text-primary",
-                )}
+          <span className="grid size-6 shrink-0 place-items-center text-muted-foreground">
+            <FolderKanban className="size-4" />
+          </span>
+          {collapsed ? null : (
+            <>
+              <span
+                className="flex min-w-0 flex-1 items-center text-sm"
+                title={
+                  currentProject
+                    ? `${currentProject.department.name}/${currentProject.name}`
+                    : undefined
+                }
               >
-                <DropdownMenuItem
-                  className={cn(
-                    "min-w-0 flex-1",
-                    current && [
-                      "bg-transparent text-primary data-disabled:opacity-100 focus:bg-primary/[0.1] focus:text-primary",
-                      permissions.canManageProject && "rounded-r-none",
-                    ],
-                  )}
-                  disabled={current || isSwitching}
-                  onSelect={(event) => {
-                    event.preventDefault();
-                    void handleSelect(project.id, project.name);
-                  }}
-                >
-                  <span className="grid size-5 shrink-0 place-items-center">
-                    {switching ? (
-                      <LoaderCircle className="size-4 animate-spin" />
-                    ) : current ? (
-                      <Check className="size-4" />
-                    ) : (
-                      <span className="size-4" aria-hidden="true" />
-                    )}
+                {currentProject ? (
+                  <>
+                    <span className="max-w-[42%] shrink truncate font-medium text-muted-foreground">
+                      {currentProject.department.name}
+                    </span>
+                    <span
+                      aria-hidden="true"
+                      className="mx-0.5 shrink-0 text-muted-foreground/60"
+                    >
+                      /
+                    </span>
+                    <span className="min-w-0 flex-1 truncate font-semibold text-foreground">
+                      {currentProject.name}
+                    </span>
+                  </>
+                ) : (
+                  <span className="truncate font-semibold">
+                    {messages.projectSwitcher.noProject}
                   </span>
-                  <span className="min-w-0 flex-1 truncate">{project.name}</span>
-                </DropdownMenuItem>
-                {current && permissions.canManageProject ? (
-                  <DropdownMenuItem
-                    asChild
-                    className="w-11 justify-center rounded-l-none border-l border-primary/15 px-0 text-primary focus:bg-primary/[0.1] focus:text-primary"
+                )}
+              </span>
+              {isSwitching ? (
+                <LoaderCircle className="size-4 shrink-0 animate-spin text-muted-foreground" />
+              ) : (
+                <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+              )}
+            </>
+          )}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        side={collapsed ? "right" : "bottom"}
+        className="w-72"
+      >
+        {departmentGroups.map((group, groupIndex) => (
+          <div key={group.department.id}>
+            {groupIndex ? <DropdownMenuSeparator /> : null}
+            <DropdownMenuLabel className="flex items-center gap-2 px-2 pb-1 pt-2 text-xs font-medium text-muted-foreground">
+              <Building2 className="size-3.5" />
+              <span className="min-w-0 flex-1 truncate">
+                {group.department.name}
+              </span>
+              <span className="font-mono text-[10px] tabular-nums">
+                {group.projects.length}
+              </span>
+            </DropdownMenuLabel>
+            {group.projects.map((project, projectIndex) => {
+              const current = project.id === currentProject?.id;
+              const switching = project.id === switchingProjectId;
+              const lastProject = projectIndex === group.projects.length - 1;
+              return (
+                <div
+                  key={project.id}
+                  className={cn(
+                    "relative pl-5 before:pointer-events-none before:absolute before:left-[15px] before:top-0 before:w-px before:bg-border after:pointer-events-none after:absolute after:left-[15px] after:top-1/2 after:h-px after:w-3 after:bg-border",
+                    lastProject ? "before:h-1/2" : "before:h-full",
+                  )}
+                >
+                  <div
+                    role="group"
+                    className={cn(
+                      "flex items-stretch rounded-sm",
+                      current && "bg-primary/[0.07] text-primary",
+                    )}
                   >
-                    <Link
-                      to="/$projectId/setting"
-                      params={{ projectId: project.id }}
-                      aria-label={messages.projectSwitcher.projectSettings(project.name)}
-                      title={messages.projectSwitcher.projectSettings(project.name)}
-                      onClick={() => {
-                        setOpen(false);
-                        onProjectSettingsOpen();
+                    <DropdownMenuItem
+                      className={cn(
+                        "min-w-0 flex-1",
+                        current && [
+                          "bg-transparent text-primary data-disabled:opacity-100 focus:bg-primary/[0.1] focus:text-primary",
+                          permissions.canManageProject && "rounded-r-none",
+                        ],
+                      )}
+                      disabled={current || isSwitching}
+                      onSelect={(event) => {
+                        event.preventDefault();
+                        void handleSelect(project.id, project.name);
                       }}
                     >
-                      <Settings className="size-4" />
-                    </Link>
-                  </DropdownMenuItem>
-                ) : null}
-              </div>
-            );
-          })}
-          {switchError ? (
-            <p
-              className="mx-1 my-1 border-l-2 border-destructive bg-destructive/5 px-2 py-2 text-xs text-destructive"
-              role="alert"
-            >
-              {switchError}
-            </p>
-          ) : null}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            disabled={!permissions.canCreateProject}
-            onSelect={() => {
-              setOpen(false);
-              onCreateProject();
-            }}
+                      <span className="grid size-5 shrink-0 place-items-center">
+                        {switching ? (
+                          <LoaderCircle className="size-4 animate-spin" />
+                        ) : current ? (
+                          <Check className="size-4" />
+                        ) : (
+                          <span className="size-4" aria-hidden="true" />
+                        )}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate">
+                        {project.name}
+                      </span>
+                    </DropdownMenuItem>
+                    {current && permissions.canManageProject ? (
+                      <DropdownMenuItem
+                        asChild
+                        className="w-11 justify-center rounded-l-none border-l border-primary/15 px-0 text-primary focus:bg-primary/[0.1] focus:text-primary"
+                      >
+                        <Link
+                          to="/$projectId/setting"
+                          params={{ projectId: project.id }}
+                          aria-label={messages.projectSwitcher.projectSettings(
+                            project.name,
+                          )}
+                          title={messages.projectSwitcher.projectSettings(
+                            project.name,
+                          )}
+                          onClick={() => {
+                            setOpen(false);
+                            onProjectSettingsOpen();
+                          }}
+                        >
+                          <Settings className="size-4" />
+                        </Link>
+                      </DropdownMenuItem>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ))}
+        {switchError ? (
+          <p
+            className="mx-1 my-1 border-l-2 border-destructive bg-destructive/5 px-2 py-2 text-xs text-destructive"
+            role="alert"
           >
-            <Plus className="size-4" />
-            {messages.projectSwitcher.newProject}
+            {switchError}
+          </p>
+        ) : null}
+        <DropdownMenuSeparator />
+        {currentProject?.department.role === "administrator" ? (
+          <DropdownMenuItem asChild>
+            <Link
+              to="/departments/$departmentId"
+              params={{ departmentId: currentProject.department.id }}
+              onClick={() => {
+                setOpen(false);
+                onProjectSettingsOpen();
+              }}
+            >
+              <SlidersHorizontal className="size-4" />
+              Manage {currentProject.department.name}
+            </Link>
           </DropdownMenuItem>
-        </DropdownMenuContent>
+        ) : null}
+        <DropdownMenuItem
+          disabled={
+            administeredDepartments.isPending ||
+            !administeredDepartments.data?.length
+          }
+          onSelect={() => {
+            setOpen(false);
+            onCreateProject();
+          }}
+        >
+          {administeredDepartments.isPending ? (
+            <LoaderCircle className="size-4 animate-spin" />
+          ) : (
+            <Plus className="size-4" />
+          )}
+          {administeredDepartments.isPending
+            ? "Checking Department access…"
+            : messages.projectSwitcher.newProject}
+        </DropdownMenuItem>
+        {!administeredDepartments.isPending &&
+        !administeredDepartments.data?.length ? (
+          <p className="px-2 pb-1 text-[11px] leading-4 text-muted-foreground">
+            Department Administrator role is required to create Projects.
+          </p>
+        ) : null}
+      </DropdownMenuContent>
     </DropdownMenu>
   );
 }

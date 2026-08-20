@@ -39,8 +39,7 @@ export const Route = createRootRouteWithContext<{
 
 function RootApplication() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const isPublic =
-    pathname === "/" || pathname === "/login" || pathname === "/auth/sso-complete";
+  const isPublic = pathname === "/" || pathname === "/login";
   return (
     <AuthProvider>
       {isPublic ? (

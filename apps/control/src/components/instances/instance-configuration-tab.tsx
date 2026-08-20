@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { complianceDomainCatalog, type Agent } from "@tali/contracts";
+import { complianceDomainCatalog } from "@tali/contracts";
+import type { Instance as Agent } from "@tali/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Eye, ShieldCheck } from "lucide-react";

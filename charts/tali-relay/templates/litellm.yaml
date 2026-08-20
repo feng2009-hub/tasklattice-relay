@@ -6,6 +6,8 @@ metadata:
   name: {{ $name }}
   labels:
     {{- include "tali.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
+  annotations:
+    {{- include "tali.resourceAnnotations" (dict "root" . "wave" "platform") | nindent 4 }}
 spec:
   replicas: {{ .Values.litellm.replicaCount }}
   strategy:
@@ -149,10 +151,8 @@ metadata:
   name: {{ $name }}
   labels:
     {{- include "tali.labels" . | nindent 4 }}
-  {{- with .Values.litellm.service.annotations }}
   annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
+    {{- include "tali.resourceAnnotations" (dict "root" . "wave" "foundation" "annotations" .Values.litellm.service.annotations) | nindent 4 }}
 spec:
   type: {{ .Values.litellm.service.type }}
   selector:

@@ -1,0 +1,20 @@
+import { catalogContracts } from "./catalog.contracts";
+import type { RouteContract } from "./contract";
+import { identityContracts } from "./identity.contracts";
+import { inferenceContracts } from "./inference.contracts";
+import { instanceContracts } from "./instances.contracts";
+
+export const apiContracts: readonly RouteContract[] = Object.freeze([
+  ...identityContracts,
+  ...catalogContracts,
+  ...inferenceContracts,
+  ...instanceContracts,
+]);
+
+const contractIndex = new Map(
+  apiContracts.map((contract) => [`${contract.method.toUpperCase()} ${contract.path}`, contract]),
+);
+
+export function findApiContract(method: string, path: string): RouteContract | undefined {
+  return contractIndex.get(`${method.toUpperCase()} ${path}`);
+}

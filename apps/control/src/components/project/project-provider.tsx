@@ -10,7 +10,6 @@ import { useRouter } from "@tanstack/react-router";
 import {
   getStoredProjectId,
   projectIdFromPathname,
-  projectPath,
   replaceProjectInPath,
   storeProjectId,
 } from "@/lib/project-storage";
@@ -40,9 +39,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     (projectId: string) => {
       if (typeof window === "undefined") return;
       const nextUrl = new URL(window.location.href);
-      nextUrl.pathname = projectIdFromPathname(nextUrl.pathname)
-        ? replaceProjectInPath(nextUrl.pathname, projectId)
-        : projectPath(projectId);
+      if (!projectIdFromPathname(nextUrl.pathname)) return;
+      nextUrl.pathname = replaceProjectInPath(nextUrl.pathname, projectId);
       router.history.replace(
         `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`,
       );
@@ -178,7 +176,6 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       const projectId = projectIdFromUrl();
       if (!currentProject) return;
       if (!projectId) {
-        router.history.replace(projectPath(currentProject.id));
         return;
       }
       if (projectId === currentProject.id) return;

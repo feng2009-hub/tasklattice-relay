@@ -60,7 +60,7 @@ describe("permissionsForCapabilities", () => {
     });
   });
 
-  it("keeps the system-scoped Project create gate explicit", () => {
+  it("keeps the Department-scoped Project create gate explicit", () => {
     expect(
       permissionsForCapabilities([], { canCreateProject: true })
         .canCreateProject,

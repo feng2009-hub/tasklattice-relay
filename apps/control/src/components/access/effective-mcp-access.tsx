@@ -1,6 +1,6 @@
 import type {
   AccessPolicy,
-  Agent,
+  Instance as Agent,
   McpServerDefinition,
 } from "@tali/contracts";
 import { useQuery } from "@tanstack/react-query";

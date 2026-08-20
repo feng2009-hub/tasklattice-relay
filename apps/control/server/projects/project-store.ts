@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type {
-  Agent,
-  AgentCreator,
+  Instance as Agent,
+  InstanceCreator,
   AgentSpecializationDefinition,
   ResourceKind,
   KnowledgeSourceDefinition,
@@ -57,11 +57,13 @@ function agentPayload(agent: Agent): Prisma.InputJsonValue {
   return jsonInput(payload);
 }
 
-function agentCreator(user: AgentCreator): AgentCreator {
+function agentCreator(
+  user: Omit<InstanceCreator, "username"> & { username: string | null },
+): InstanceCreator {
   return {
     id: user.id,
     displayName: user.displayName,
-    username: user.username,
+    username: user.username ?? user.displayName,
   };
 }
 
@@ -82,7 +84,7 @@ function mcpConnectionPayload(server: McpServerDefinition): Prisma.InputJsonValu
 export function parseAgent(
   payload: string | Prisma.JsonValue,
   accessPolicyIds: string[] = [],
-  createdBy?: AgentCreator,
+  createdBy?: InstanceCreator,
 ): Agent {
   const agent = (typeof payload === "string" ? JSON.parse(payload) : payload) as Partial<Agent>;
   if (
@@ -114,7 +116,7 @@ export function parseAgent(
 function parseCurrentAgent(
   payload: Prisma.JsonValue,
   accessPolicyIds: string[],
-  createdBy?: AgentCreator,
+  createdBy?: InstanceCreator,
 ): Agent | undefined {
   const candidate = payload as Partial<Agent>;
   return candidate.schemaVersion === 2

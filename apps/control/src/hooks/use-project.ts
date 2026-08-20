@@ -10,5 +10,5 @@ export function useProject() {
 }
 
 export function useCurrentProjectId() {
-  return useProject().currentProject?.id ?? "individual";
+  return useProject().currentProject?.id ?? "proj1";
 }

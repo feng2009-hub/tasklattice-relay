@@ -51,6 +51,9 @@ export function getHeaderBreadcrumbItems(
   language: AccountLanguage = "en-US",
 ): HeaderBreadcrumbItem[] {
   const parts = pathname.split("/").filter(Boolean);
+  if (parts[0] === "departments" && parts[1]) {
+    return [{ href: pathname, label: "Department settings" }];
+  }
   const projectId = parts[0];
   const routeParts = parts.slice(1);
   return routeParts.map((part, routeIndex) => {
@@ -70,10 +73,17 @@ export function getHeaderBreadcrumbItems(
 }
 
 export function HeaderBreadcrumb({ pathname }: { pathname: string }) {
-  const { currentProject: currentProject } = useProject();
+  const { currentProject } = useProject();
   const language = usePlatformLanguage();
   const items = getHeaderBreadcrumbItems(pathname, language);
   const lastIndex = items.length - 1;
+  const departmentRoute = pathname.startsWith("/departments/");
+  const departmentId = pathname.split("/").filter(Boolean)[1];
+  const rootTitle = departmentRoute
+    ? currentProject?.department.id === departmentId
+      ? currentProject?.department.name ?? departmentId ?? "Department"
+      : departmentId ?? "Department"
+    : currentProject?.name ?? "Project";
 
   return (
     <nav
@@ -82,9 +92,9 @@ export function HeaderBreadcrumb({ pathname }: { pathname: string }) {
     >
       <span
         className="max-w-36 shrink-0 truncate font-medium text-foreground sm:max-w-48"
-        title={currentProject?.name}
+        title={rootTitle}
       >
-        {currentProject?.name ?? "Project"}
+        {rootTitle}
       </span>
       {items.map((item, index) => {
         const current = index === lastIndex;

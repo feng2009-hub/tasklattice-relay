@@ -83,7 +83,7 @@ function AgentGarden() {
   });
   const instances = useQuery({
     queryKey: scope.key("agents"),
-    queryFn: api.listAgents,
+    queryFn: api.listInstances,
   });
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortMode>("recommended");

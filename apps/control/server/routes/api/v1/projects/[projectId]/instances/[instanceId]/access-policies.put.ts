@@ -9,14 +9,14 @@ import {
   jsonResponse,
 } from "../../../../../../../http/responses";
 import {
-  getAgentService,
+  getInstanceService,
   requireProjectRole,
 } from "../../../../../../../services";
 
 export default defineHandler(async (event) => {
   let auth;
   try {
-    auth = requireAuth(event.req);
+    auth = await requireAuth(event.req);
   } catch (error) {
     return unauthorizedResponse(error);
   }
@@ -27,7 +27,7 @@ export default defineHandler(async (event) => {
     );
     return jsonResponse(
       await (
-        await getAgentService(event.req)
+        await getInstanceService(event.req)
       ).updateAccessPolicies(
         decodeURIComponent(event.context.params?.instanceId ?? ""),
         input.accessPolicyIds,

@@ -1,11 +1,14 @@
-import { AgentService } from "./agents/agent-service";
+import { InstanceService } from "./instances/instance-service";
 import { AgentGardenService } from "./agent-garden/agent-garden-service";
 import { AgentGardenStore } from "./agent-garden/agent-garden-store";
 import { AccessPolicyService } from "./access-policies/access-policy-service";
 import { AccessPolicyStore } from "./access-policies/access-policy-store";
 import { ResourceCatalogService } from "./catalog/resource-catalog-service";
 import { ModelRoutingService } from "./model-routings/model-routing-service";
-import { BuiltInPolicyCatalogSource, PolicyService } from "./policies/policy-service";
+import {
+  BuiltInRuntimePolicyCatalogSource,
+  RuntimePolicyService,
+} from "./runtime-policies/runtime-policy-service";
 import { ProjectStore } from "./projects/project-store";
 import { CostService } from "./providers/cost-service";
 import { LiteLLMClient } from "./providers/litellm-client";
@@ -26,15 +29,16 @@ import {
   appendAdmissionEvidence,
   isProjectAdmissionComplete,
 } from "./authorization/authorization-context";
+import { requireDepartmentAdministrator } from "./departments/department-access";
 
 interface ProjectServices {
-  agent: AgentService;
+  instances: InstanceService;
   agentGarden: AgentGardenService;
   accessPolicies: AccessPolicyService;
   cost: CostService;
   catalog: ResourceCatalogService;
   modelRoutings: ModelRoutingService;
-  policies: PolicyService;
+  runtimePolicies: RuntimePolicyService;
   provider: ProviderService;
   quotas: ProjectQuotaService;
   auditLogs: AuditLogService;
@@ -48,7 +52,10 @@ const services = new Map<string, ProjectServices>();
 
 function createServices(projectId: string): ProjectServices {
   const store = new ProjectStore(projectId);
-  const policies = new PolicyService(store, new BuiltInPolicyCatalogSource());
+  const runtimePolicies = new RuntimePolicyService(
+    store,
+    new BuiltInRuntimePolicyCatalogSource(),
+  );
   const modelRoutings = new ModelRoutingService(store, litellm);
   const quotas = new ProjectQuotaService(store, litellm);
   const catalog = new ResourceCatalogService(store, quotas, litellm);
@@ -57,11 +64,11 @@ function createServices(projectId: string): ProjectServices {
     store,
     litellm,
   );
-  const agent = new AgentService(
+  const instances = new InstanceService(
     store,
     undefined,
     litellm,
-    policies,
+    runtimePolicies,
     catalog,
     modelRoutings,
     quotas,
@@ -69,8 +76,8 @@ function createServices(projectId: string): ProjectServices {
   );
   return {
     auditLogs: new AuditLogService(projectId, store.database()),
-    agent,
-    overview: new ProjectOverviewService(store, agent),
+    instances,
+    overview: new ProjectOverviewService(store, instances),
     agentGarden: new AgentGardenService(
       new AgentGardenStore(projectId, store.database()),
       store,
@@ -78,7 +85,7 @@ function createServices(projectId: string): ProjectServices {
     accessPolicies,
     provider: new ProviderService(store, litellm),
     cost: new CostService(store, litellm),
-    policies,
+    runtimePolicies,
     catalog,
     modelRoutings,
     quotas,
@@ -135,31 +142,34 @@ export async function requireProjectCapability(
 }
 
 /**
- * Project creation is a system-scoped entitlement, not a permission inherited
- * from whichever Project happens to be selected in the UI. Every active,
- * authenticated user currently receives it explicitly.
+ * Project creation is authorized by the target Department, not by whichever
+ * Project is selected and not by a platform-level system role.
  */
 export async function requireProjectCreateCapability(
   request: Request,
+  departmentId: string,
 ): Promise<void> {
-  const { userId } = await projectService.authenticate(request);
+  const { auth, userId } = await projectService.authenticate(request);
+  await requireDepartmentAdministrator(auth, departmentId, undefined, {
+    requireActiveDepartment: true,
+  });
   appendAdmissionEvidence(request, {
     actorId: userId,
     capability: "CAP_PROJECT_CREATE",
     decision: "ALLOW",
-    projectId: "system",
-    reason: "Active authenticated users receive the system Project-create entitlement.",
+    projectId: `department:${departmentId}`,
+    reason: "The Department Administrator provisioned a Project in this Department.",
     relation: "PROJECT_ANY",
     resourceType: "Project",
   });
 }
 
-export async function getAgentService(request?: Request): Promise<AgentService> {
-  return (await forRequest(request)).agent;
+export async function getInstanceService(request?: Request): Promise<InstanceService> {
+  return (await forRequest(request)).instances;
 }
 
-export function getAgentServiceForProject(projectId: string): AgentService {
-  return forProject(projectId).agent;
+export function getInstanceServiceForProject(projectId: string): InstanceService {
+  return forProject(projectId).instances;
 }
 
 export async function getAgentGardenService(
@@ -176,8 +186,8 @@ export async function getCostService(request?: Request): Promise<CostService> {
   return (await forRequest(request)).cost;
 }
 
-export async function getPolicyService(request?: Request): Promise<PolicyService> {
-  return (await forRequest(request)).policies;
+export async function getRuntimePolicyService(request?: Request): Promise<RuntimePolicyService> {
+  return (await forRequest(request)).runtimePolicies;
 }
 
 export async function getResourceCatalogService(request?: Request): Promise<ResourceCatalogService> {

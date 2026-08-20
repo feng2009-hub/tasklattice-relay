@@ -81,7 +81,7 @@ function AgentMarketplaceDetail() {
   });
   const instances = useQuery({
     queryKey: scope.key("agents"),
-    queryFn: api.listAgents,
+    queryFn: api.listInstances,
   });
   const [connectOpen, setConnectOpen] = useState(false);
   const [tryOpen, setTryOpen] = useState(false);

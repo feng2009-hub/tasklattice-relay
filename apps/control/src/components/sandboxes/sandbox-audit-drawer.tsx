@@ -1,6 +1,6 @@
 import { useState, type ReactElement } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { Agent, SandboxAuditEvent } from "@tali/contracts";
+import type { Instance as Agent, SandboxAuditEvent } from "@tali/contracts";
 import {
   Download,
   RefreshCw,
@@ -161,7 +161,7 @@ export function SandboxAuditDrawer({
   const ready = sandbox.status === "READY";
   const audit = useQuery({
     queryKey: scope.key("sandbox-audit", sandbox.id),
-    queryFn: () => api.getAgentAudit(sandbox.id),
+    queryFn: () => api.getInstanceAudit(sandbox.id),
     enabled: open && ready,
     retry: 1,
     refetchInterval: open ? 5_000 : false,

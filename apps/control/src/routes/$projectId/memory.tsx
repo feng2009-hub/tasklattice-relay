@@ -51,7 +51,7 @@ function Memory() {
   const scope = useProjectQueryScope();
   const agents = useQuery({
     queryKey: scope.key("agents"),
-    queryFn: api.listAgents,
+    queryFn: api.listInstances,
     refetchInterval: 5_000,
   });
   const modelDeployments = useQuery({

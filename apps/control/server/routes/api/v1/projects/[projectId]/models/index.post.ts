@@ -5,7 +5,7 @@ import { errorResponse, jsonResponse } from "../../../../../../http/responses";
 import { getProviderService, requireProjectRole } from "../../../../../../services";
 
 export default defineHandler(async (event) => {
-  try { requireAuth(event.req); } catch (error) { return unauthorizedResponse(error); }
+  try { await requireAuth(event.req); } catch (error) { return unauthorizedResponse(error); }
   try {
     await requireProjectRole(event.req, ["admin"]);
     const input = createModelDeploymentSchema.parse(await event.req.json());

@@ -45,6 +45,7 @@ if (parseErrors.length > 0) {
 const objects = documents
   .map((document) => document.toJS())
   .filter((object) => object && typeof object === "object");
+const syncWaveAnnotation = "argocd.argoproj.io/sync-wave";
 
 function podTemplateFor(object) {
   switch (object.kind) {
@@ -147,6 +148,20 @@ const controlRoute = objects.find(
 );
 if (!controlRoute) {
   violations.push("The OpenShift profile must render a Route for Control.");
+} else if (controlRoute.metadata?.annotations?.[syncWaveAnnotation] !== "50") {
+  violations.push("The Control Route must use Argo CD sync wave 50.");
+}
+
+const keycloakRoute = objects.find(
+  (object) =>
+    object.apiVersion === "route.openshift.io/v1" &&
+    object.kind === "Route" &&
+    object.metadata?.name === `${releaseName}-keycloak`,
+);
+if (!keycloakRoute) {
+  violations.push("The OpenShift profile must render a Route for Keycloak.");
+} else if (keycloakRoute.metadata?.annotations?.[syncWaveAnnotation] !== "50") {
+  violations.push("The Keycloak Route must use Argo CD sync wave 50.");
 }
 
 const privilegedBinding = objects.find(
@@ -163,6 +178,12 @@ if (!privilegedBinding) {
   violations.push(
     "The OpenShift profile must bind the OpenShell sandbox ServiceAccount to the privileged SCC.",
   );
+} else if (
+  privilegedBinding.metadata?.annotations?.[syncWaveAnnotation] !== "-10"
+) {
+  violations.push(
+    "The OpenShift privileged SCC RoleBinding must use Argo CD sync wave -10.",
+  );
 }
 
 const anyuidBinding = objects.find(
@@ -171,6 +192,11 @@ const anyuidBinding = objects.find(
     object.roleRef?.name === "system:openshift:scc:anyuid",
 );
 const anyuidSubjects = anyuidBinding?.subjects ?? [];
+if (anyuidBinding?.metadata?.annotations?.[syncWaveAnnotation] !== "-10") {
+  violations.push(
+    "The OpenShift anyuid SCC RoleBinding must use Argo CD sync wave -10.",
+  );
+}
 for (const serviceAccount of [
   `${releaseName}-runtime`,
   `${releaseName}-control`,

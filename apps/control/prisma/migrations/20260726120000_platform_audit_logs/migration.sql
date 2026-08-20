@@ -188,7 +188,7 @@ FROM (
       'Runtime Policy update failed validation because two network rules overlapped.',
       'req_01JZ86X0EZ0X7BQ42RYCGQY79C',
       'PUT',
-      '/api/v1/projects/individual/policies/restricted-egress',
+      '/api/v1/projects/individual/runtime-policies/restricted-egress',
       '10.42.0.17',
       'TaskLattice Deploy Bot/1.8',
       '{"dryRun":false}'::jsonb,

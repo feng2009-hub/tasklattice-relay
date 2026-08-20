@@ -2,6 +2,17 @@
 global:
   imageRegistry: ghcr.io/tasklattice
   imagePullSecrets: []
+  # Argo CD applies lower sync waves first and waits for each wave to become
+  # healthy. Dependency charts intentionally stay at Argo CD's default wave 0;
+  # TaskLattice Relay resources are ordered around them from this parent chart.
+  argocd:
+    syncWaves:
+      prerequisites: "-10"
+      foundation: "10"
+      database: "20"
+      platform: "30"
+      application: "40"
+      exposure: "50"
   # Set by local deployment tooling to restart first-party workloads after a
   # mutable :dev image is rebuilt. Released charts leave this empty because
   # their image tag is the immutable Chart appVersion.

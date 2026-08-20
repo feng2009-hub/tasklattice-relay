@@ -1,4 +1,4 @@
-import type { Agent } from "@tali/contracts";
+import type { Instance as Agent } from "@tali/contracts";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { BookOpen, BrainCircuit, Network, Sparkles } from "lucide-react";

@@ -182,6 +182,7 @@ describe("capability admission evaluator", () => {
       data: {
         id: "team-admin-boundary",
         name: "Team Admin Boundary",
+        departmentId: "dep1",
         createdBy: "local-admin",
         humanMembers: { create: { userId: "local-admin", role: "admin" } },
       },

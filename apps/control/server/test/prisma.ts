@@ -7,7 +7,7 @@ import virtualEmployeeMigration from "../../prisma/migrations/20260724000000_vir
 import projectQuotaMigration from "../../prisma/migrations/20260725000000_project_quotas/migration.sql?raw";
 import personalProfileMigration from "../../prisma/migrations/20260725120000_personal_profile/migration.sql?raw";
 import accountPreferencesMigration from "../../prisma/migrations/20260725130000_account_preferences/migration.sql?raw";
-import userIdentitiesMigration from "../../prisma/migrations/20260725140000_user_identities/migration.sql?raw";
+import betterAuthMigration from "../../prisma/migrations/20260725140000_better_auth/migration.sql?raw";
 import resourceCatalogNamesMigration from "../../prisma/migrations/20260725150000_resource_catalog_names/migration.sql?raw";
 import mcpToolDiscoveryMigration from "../../prisma/migrations/20260725160000_mcp_tool_discovery/migration.sql?raw";
 import liteLLMResourceControlPlaneMigration from "../../prisma/migrations/20260725190000_litellm_resource_control_plane/migration.sql?raw";
@@ -32,6 +32,8 @@ import accountLanguageAndNotificationsMigration from "../../prisma/migrations/20
 import projectRoleSessionsMigration from "../../prisma/migrations/20260813050000_project_role_sessions/migration.sql?raw";
 import directProjectRoleSwitchingMigration from "../../prisma/migrations/20260813060000_direct_project_role_switching/migration.sql?raw";
 import projectDeletionTasksMigration from "../../prisma/migrations/20260815000000_project_deletion_tasks/migration.sql?raw";
+import departmentsMigration from "../../prisma/migrations/20260819000000_departments/migration.sql?raw";
+import departmentRolesMigration from "../../prisma/migrations/20260820000000_department_roles/migration.sql?raw";
 import { developmentResourceCatalog } from "../catalog/development-resource-catalog";
 import { PrismaClient } from "../generated/prisma/client";
 
@@ -71,8 +73,8 @@ export function createTestPrisma(): PrismaClient {
   memory.public.none(personalProfileMigration);
   memory.public.none(accountPreferencesMigration);
   memory.public.none(
-    userIdentitiesMigration.replace(
-      /CREATE INDEX user_identities_user_id_idx[\s\S]*?;/,
+    betterAuthMigration.replace(
+      /CREATE INDEX auth_(?:sessions_user_id|accounts_user_id|verifications_identifier)_idx[\s\S]*?;/g,
       "",
     ),
   );
@@ -378,6 +380,17 @@ export function createTestPrisma(): PrismaClient {
     throw new Error("Project deletion task migration structure is incomplete.");
   }
   memory.public.none(projectDeletionTasksMigration);
+  memory.public.none(
+    departmentsMigration
+      .replaceAll("DECIMAL(18, 6)", "NUMERIC")
+      // pg-mem does not apply ON UPDATE CASCADE across the full fixture graph.
+      // Keep the historical test fixture id; PostgreSQL migrates it to proj1.
+      .replace(
+        /-- This repository is pre-release[\s\S]*?-- End local fixture rename\.\s*/,
+        "",
+      ),
+  );
+  memory.public.none(departmentRolesMigration);
   const pg = memory.adapters.createPg();
   const query = pg.Client.prototype.query;
   pg.Client.prototype.query = function (

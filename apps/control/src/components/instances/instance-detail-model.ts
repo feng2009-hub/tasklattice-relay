@@ -1,4 +1,4 @@
-import type { Agent, AgentStatus, TerminalTarget } from "@tali/contracts";
+import type { Instance as Agent, InstanceStatus, TerminalTarget } from "@tali/contracts";
 import { formatPlatformDateTime } from "@/lib/platform-preferences";
 
 export const instanceDetailTabs = ["overview", "configuration", "capabilities", "terminal", "auditor-log"] as const;
@@ -21,7 +21,7 @@ export function resolveAvailableInstanceDetailTab(
 
 export type InstanceDisplayStatus = "creating" | "ready" | "failed" | "deleting";
 
-export function getInstanceDisplayStatus(status: AgentStatus): InstanceDisplayStatus {
+export function getInstanceDisplayStatus(status: InstanceStatus): InstanceDisplayStatus {
   if (status === "READY") return "ready";
   if (status === "FAILED") return "failed";
   if (status === "DESTROYING") return "deleting";

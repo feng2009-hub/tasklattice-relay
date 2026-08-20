@@ -11,8 +11,9 @@ describe("groupProjectCapabilities", () => {
     );
 
     expect(groups.map((group) => group.id)).not.toContain("other");
-    expect(new Set(assigned).size).toBe(projectCapabilities.length);
-    expect(assigned).toHaveLength(projectCapabilities.length);
+    expect(new Set(assigned).size).toBe(projectCapabilities.length - 1);
+    expect(assigned).toHaveLength(projectCapabilities.length - 1);
+    expect(assigned).not.toContain("CAP_PROJECT_CREATE");
     expect(groups.flatMap((group) => group.items).every((item) => item.enabled))
       .toBe(true);
   });
@@ -23,7 +24,7 @@ describe("groupProjectCapabilities", () => {
       (group) => group.items,
     );
 
-    expect(items).toHaveLength(projectCapabilities.length);
+    expect(items).toHaveLength(projectCapabilities.length - 1);
     expect(items.filter((item) => item.enabled).map((item) => item.capability))
       .toEqual(granted);
     expect(items.find((item) => item.capability === "CAP_PROJECT_DELETE"))

@@ -5,7 +5,7 @@ import { ProjectService } from "../../../../projects/project-service";
 
 export default defineHandler(async (event) => {
   let auth;
-  try { auth = requireAuth(event.req); } catch (error) { return unauthorizedResponse(error); }
+  try { auth = await requireAuth(event.req); } catch (error) { return unauthorizedResponse(error); }
   try {
     return jsonResponse(await new ProjectService().list(auth));
   } catch (error) {

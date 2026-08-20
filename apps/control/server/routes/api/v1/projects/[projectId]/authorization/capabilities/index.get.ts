@@ -5,7 +5,7 @@ import { errorResponse, jsonResponse } from "../../../../../../../http/responses
 
 export default defineHandler(async (event) => {
   try {
-    requireAuth(event.req);
+    await requireAuth(event.req);
     return jsonResponse({ data: projectCapabilityCatalog });
   } catch (error) {
     if (error instanceof Error && /authentication/i.test(error.message)) {

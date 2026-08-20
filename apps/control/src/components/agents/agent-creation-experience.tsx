@@ -1,4 +1,4 @@
-import type { Agent } from "@tali/contracts";
+import type { Instance as Agent } from "@tali/contracts";
 import { Link } from "@tanstack/react-router";
 import confetti from "canvas-confetti";
 import { AlertTriangle, ArrowRight, Check, CheckCircle2, ChevronDown, Circle, ExternalLink, RotateCw, TerminalSquare } from "lucide-react";

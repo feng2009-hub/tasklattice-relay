@@ -257,7 +257,7 @@ export function projectRouteAdmissionPolicy(
     }
   }
 
-  if (tail[0] === "policies") {
+  if (tail[0] === "runtime-policies") {
     if (tail.length === 1 && method === "GET") return policy("PROJECT", [requirement("CAP_RUNTIME_POLICY_VIEW", "RuntimePolicy")]);
     if (tail.length === 1 && method === "POST") return policy("PROJECT", [requirement("CAP_RUNTIME_POLICY_CREATE", "RuntimePolicy")]);
     if (tail.length === 2 && tail[1] && method === "PUT") return policy("PROJECT", [requirement("CAP_RUNTIME_POLICY_UPDATE", "RuntimePolicy")], tail[1]);

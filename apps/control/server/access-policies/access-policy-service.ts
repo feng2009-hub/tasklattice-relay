@@ -4,7 +4,7 @@ import type {
   AccessPolicyDecision,
   AccessPolicyServerRule,
   AccessPolicyVersion,
-  Agent,
+  Instance as Agent,
   CreateAccessPolicyInput,
   KnowledgeSourceDefinition,
   McpServerDefinition,

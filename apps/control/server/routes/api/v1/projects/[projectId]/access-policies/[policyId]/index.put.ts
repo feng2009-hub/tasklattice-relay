@@ -6,7 +6,7 @@ import { getAccessPolicyService, requireProjectRole } from "../../../../../../..
 
 export default defineHandler(async (event) => {
   let auth;
-  try { auth = requireAuth(event.req); } catch (error) { return unauthorizedResponse(error); }
+  try { auth = await requireAuth(event.req); } catch (error) { return unauthorizedResponse(error); }
   try {
     await requireProjectRole(event.req, ["admin"]);
     return jsonResponse(await (await getAccessPolicyService(event.req)).update(

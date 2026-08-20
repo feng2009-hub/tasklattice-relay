@@ -1,6 +1,6 @@
-import { useState, type FormEvent } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { LockKeyhole, Plus, Trash2 } from "lucide-react";
+import { useEffect, useState, type FormEvent } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Building2, LockKeyhole, Plus, Trash2 } from "lucide-react";
 import { AccountAvatar } from "@/components/account/account-avatar";
 import type { AuthUser } from "@/components/auth/auth-provider";
 import { EntitySheet } from "@/components/shared/entity-sheet";
@@ -17,6 +17,8 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { createProject } from "@/services/project";
+import { getDepartments } from "@/services/department";
+import { useProject } from "@/hooks/use-project";
 import { projectRoleLabels, type ProjectRole } from "@/types/project";
 
 type InitialInvitation = {
@@ -37,6 +39,8 @@ export function CreateProjectSheet({
   open: boolean;
   user: AuthUser | null;
 }) {
+  const { currentProject } = useProject();
+  const [departmentId, setDepartmentId] = useState("");
   const [name, setName] = useState("");
   const [nameConfirmed, setNameConfirmed] = useState(false);
   const [email, setEmail] = useState("");
@@ -44,11 +48,35 @@ export function CreateProjectSheet({
   const [invitations, setInvitations] = useState<InitialInvitation[]>([]);
   const [inviteError, setInviteError] = useState("");
   const creatorEmail = (
-    user?.email?.trim()
-    || (user?.username ? `${user.username}@tali.local` : "")
+    user?.email?.trim() || (user?.username ? `${user.username}@tali.local` : "")
   ).toLowerCase();
+  const departments = useQuery({
+    queryKey: ["departments"],
+    queryFn: getDepartments,
+    enabled: open,
+    staleTime: 30_000,
+  });
+
+  useEffect(() => {
+    if (!open || !departments.data) return;
+    if (
+      departmentId &&
+      departments.data.some((department) => department.id === departmentId)
+    ) {
+      return;
+    }
+    const currentDepartmentId = currentProject?.department.id;
+    setDepartmentId(
+      departments.data.some(
+        (department) => department.id === currentDepartmentId,
+      )
+        ? (currentDepartmentId ?? "")
+        : (departments.data[0]?.id ?? ""),
+    );
+  }, [currentProject?.department.id, departmentId, departments.data, open]);
 
   const reset = () => {
+    setDepartmentId("");
     setName("");
     setNameConfirmed(false);
     setEmail("");
@@ -59,11 +87,13 @@ export function CreateProjectSheet({
   };
 
   const create = useMutation({
-    mutationFn: () => createProject({
-      confirmImmutableName: true,
-      name: name.trim(),
-      invitations,
-    }),
+    mutationFn: () =>
+      createProject({
+        confirmImmutableName: true,
+        departmentId,
+        name: name.trim(),
+        invitations,
+      }),
     onSuccess: async (project) => {
       await onCreated(project.id, project.name);
       reset();
@@ -82,14 +112,13 @@ export function CreateProjectSheet({
       setInviteError("You are already included as the Project administrator.");
       return;
     }
-    if (invitations.some((invitation) => invitation.email === normalizedEmail)) {
+    if (
+      invitations.some((invitation) => invitation.email === normalizedEmail)
+    ) {
       setInviteError("This email address is already in the invitation list.");
       return;
     }
-    setInvitations((current) => [
-      ...current,
-      { email: normalizedEmail, role },
-    ]);
+    setInvitations((current) => [...current, { email: normalizedEmail, role }]);
     setEmail("");
     setRole("developer");
     setInviteError("");
@@ -115,27 +144,73 @@ export function CreateProjectSheet({
       title="New Project"
       description="Create an isolated Project and invite its initial members."
       width="md"
-      footer={(
+      footer={
         <>
           <Button variant="outline" disabled={create.isPending} onClick={close}>
             Cancel
           </Button>
           <Button
-            disabled={name.trim().length < 2 || !nameConfirmed || create.isPending}
+            disabled={
+              !departmentId ||
+              name.trim().length < 2 ||
+              !nameConfirmed ||
+              create.isPending
+            }
             onClick={() => create.mutate()}
           >
             {create.isPending ? <Spinner /> : <Plus />}
             Create Project
             {invitations.length ? (
               <span className="text-primary-foreground/70">
-                · {invitations.length} {invitations.length === 1 ? "invite" : "invites"}
+                · {invitations.length}{" "}
+                {invitations.length === 1 ? "invite" : "invites"}
               </span>
             ) : null}
           </Button>
         </>
-      )}
+      }
     >
       <div className="space-y-7">
+        <div className="space-y-2">
+          <Label htmlFor="new-project-department">Department</Label>
+          <Select value={departmentId} onValueChange={setDepartmentId}>
+            <SelectTrigger
+              id="new-project-department"
+              size="lg"
+              className="w-full"
+              disabled={departments.isPending || !departments.data?.length}
+            >
+              <Building2 className="size-4 text-muted-foreground" />
+              <SelectValue
+                placeholder={
+                  departments.isPending
+                    ? "Loading Departments…"
+                    : "Select a Department"
+                }
+              />
+            </SelectTrigger>
+            <SelectContent>
+              {departments.data?.map((department) => (
+                <SelectItem key={department.id} value={department.id}>
+                  {department.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs leading-5 text-muted-foreground">
+            The Project inherits its organizational budget boundary from this
+            Department.
+          </p>
+          {departments.error ? (
+            <p
+              className="border-l-2 border-destructive bg-destructive/5 px-3 py-2 text-sm text-destructive"
+              role="alert"
+            >
+              {departments.error.message}
+            </p>
+          ) : null}
+        </div>
+
         <div className="space-y-2">
           <Label htmlFor="new-project-name">Project name</Label>
           <Input
@@ -153,7 +228,8 @@ export function CreateProjectSheet({
           />
           <p className="flex items-start gap-2 text-xs leading-5 text-muted-foreground">
             <LockKeyhole className="mt-0.5 size-4 shrink-0" />
-            Project names are unique and cannot be changed after creation.
+            Project names are unique inside the selected Department and cannot
+            be changed after creation.
           </p>
         </div>
 
@@ -166,9 +242,12 @@ export function CreateProjectSheet({
             onChange={(event) => setNameConfirmed(event.target.checked)}
           />
           <span>
-            <strong className="block font-medium">Confirm the permanent Project name</strong>
+            <strong className="block font-medium">
+              Confirm the permanent Project name
+            </strong>
             <span className="mt-1 block text-xs leading-5 text-muted-foreground">
-              I have reviewed “{name.trim() || "Project name"}” and understand it cannot be renamed later.
+              I have reviewed “{name.trim() || "Project name"}” and understand
+              it cannot be renamed later.
             </span>
           </span>
         </label>
@@ -176,7 +255,10 @@ export function CreateProjectSheet({
         <section aria-labelledby="project-creator-heading">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h3 id="project-creator-heading" className="text-sm font-semibold">
+              <h3
+                id="project-creator-heading"
+                className="text-sm font-semibold"
+              >
                 Creator
               </h3>
               <p className="mt-1 text-xs text-muted-foreground">
@@ -204,7 +286,10 @@ export function CreateProjectSheet({
 
         <section aria-labelledby="project-invitations-heading">
           <div>
-            <h3 id="project-invitations-heading" className="text-sm font-semibold">
+            <h3
+              id="project-invitations-heading"
+              className="text-sm font-semibold"
+            >
               Invite members
             </h3>
             <p className="mt-1 text-xs text-muted-foreground">
@@ -236,16 +321,27 @@ export function CreateProjectSheet({
                 value={role}
                 onValueChange={(value) => setRole(value as ProjectRole)}
               >
-                <SelectTrigger id="project-invite-role" size="lg" className="w-full">
+                <SelectTrigger
+                  id="project-invite-role"
+                  size="lg"
+                  className="w-full"
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {(["developer", "user", "auditor", "admin", "approver"] as const)
-                    .map((roleId) => (
-                      <SelectItem key={roleId} value={roleId}>
-                        {projectRoleLabels[roleId]}
-                      </SelectItem>
-                    ))}
+                  {(
+                    [
+                      "developer",
+                      "user",
+                      "auditor",
+                      "admin",
+                      "approver",
+                    ] as const
+                  ).map((roleId) => (
+                    <SelectItem key={roleId} value={roleId}>
+                      {projectRoleLabels[roleId]}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -293,9 +389,13 @@ export function CreateProjectSheet({
                           size="icon"
                           variant="ghost"
                           aria-label={`Remove ${invitation.email}`}
-                          onClick={() => setInvitations((current) =>
-                            current.filter((item) => item.email !== invitation.email)
-                          )}
+                          onClick={() =>
+                            setInvitations((current) =>
+                              current.filter(
+                                (item) => item.email !== invitation.email,
+                              ),
+                            )
+                          }
                         >
                           <Trash2 />
                         </Button>

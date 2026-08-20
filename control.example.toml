@@ -1,8 +1,7 @@
 schema_version = 1
 
 [server]
-# Required only when OIDC is enabled. Local authentication and Kubernetes
-# Service exposure do not need a canonical browser URL.
+# Canonical browser origin used by Better Auth for cookies and callbacks.
 public_url = "http://192.168.139.2:38080"
 internal_url = "http://tali-control:38080"
 
@@ -10,12 +9,13 @@ internal_url = "http://tali-control:38080"
 url = "postgresql://tali:CHANGE_ME@postgresql:5432/tali"
 
 [auth]
-session_signing_key = "CHANGE_TO_A_LONG_RANDOM_VALUE"
+secret = "CHANGE_TO_AT_LEAST_32_RANDOM_CHARACTERS"
 
 [auth.local]
 enabled = true
 initial_super_admin_username = "admin"
-initial_super_admin_password_hash = "$2b$12$REPLACE_WITH_A_REAL_BCRYPT_HASH"
+initial_super_admin_email = "admin@tasklattice.local"
+initial_super_admin_password = "CHANGE_TO_A_STRONG_PASSWORD"
 
 [auth.oidc]
 enabled = false

@@ -24,7 +24,7 @@ function encode(value: unknown): string {
 }
 
 function signature(value: string): string {
-  return createHmac("sha256", getControlConfig().auth.session_signing_key)
+  return createHmac("sha256", getControlConfig().auth.secret)
     .update(value)
     .digest("base64url");
 }

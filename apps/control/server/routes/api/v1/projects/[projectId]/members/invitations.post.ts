@@ -1,20 +1,14 @@
-import { assignableProjectMembershipRoles } from "@tali/contracts";
-import { z } from "zod";
 import { defineHandler } from "nitro";
+import { projectInvitationInputSchema } from "../../../../../../api-contracts/schemas";
 import { unauthorizedResponse } from "../../../../../../auth/auth";
 import { errorResponse, jsonResponse } from "../../../../../../http/responses";
 import { ProjectService } from "../../../../../../projects/project-service";
-
-const inputSchema = z.object({
-  email: z.email(),
-  role: z.enum(assignableProjectMembershipRoles),
-});
 
 export default defineHandler(async (event) => {
   const service = new ProjectService();
   try {
     const { userId } = await service.authenticate(event.req);
-    const input = inputSchema.parse(await event.req.json());
+    const input = projectInvitationInputSchema.parse(await event.req.json());
     return jsonResponse(await service.invite(
       decodeURIComponent(event.context.params?.projectId ?? ""),
       userId,

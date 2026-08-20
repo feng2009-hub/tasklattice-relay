@@ -30,9 +30,10 @@ creates the schema and tables. A following idempotent SQL migration inserts:
   sandbox policies.
 
 Helm runs migrations in the control Deployment init container before the
-application starts. On the first Local login, runtime initialization copies
-the configured initial Super Administrator bcrypt hash into
-`local_credentials` only when that database credential is missing.
+application starts. Better Auth owns `auth_accounts`, `auth_sessions`, and
+`auth_verifications`. On first startup with Local authentication enabled, the
+configured bootstrap password is hashed into a Better Auth credential account
+only when that credential is missing.
 
 New users do not receive an automatically generated Project. A Project is
 created explicitly or becomes available through membership. New Projects are

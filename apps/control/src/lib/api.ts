@@ -1,9 +1,9 @@
 import type {
   AccessPolicy,
   AccessPolicyVersion,
-  Agent,
-  AgentInteractionAccess,
-  AgentRuntimeLogView,
+  Instance as Agent,
+  InstanceInteractionAccess,
+  InstanceRuntimeLogView,
   AgentConnection,
   AgentGardenEntry,
   AgentGardenSnapshot,
@@ -11,7 +11,7 @@ import type {
   CreateAccessPolicyInput,
   CreateAgentConnectionInput,
   CreateAgentGardenEntryInput,
-  CreateAgentInput,
+  CreateInstanceInput,
   CostQueryParams,
   ModelCostActivityResponse,
   ModelCostBreakdownResponse,
@@ -61,7 +61,6 @@ import type {
   UpdateMcpServerDefinitionInput,
   UpdateSkillDefinitionInput,
 } from "@tali/contracts";
-import { clearAuthToken, getAuthToken } from "./auth-token";
 import { projectIdFromPathname } from "./project-storage";
 
 export class ApiError extends Error {
@@ -81,7 +80,6 @@ export function projectScopedPath(path: string, projectId: string | null): strin
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = getAuthToken();
   const projectId =
     typeof window === "undefined"
       ? null
@@ -90,19 +88,17 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: {
       "content-type": "application/json",
-      ...(token ? { authorization: `Bearer ${token}` } : {}),
       ...init?.headers,
     },
   });
-  const payload = (await response.json()) as T | { error: string };
+  const payload = (await response.json()) as T | { detail?: unknown };
   if (response.status === 401 && typeof window !== "undefined") {
-    clearAuthToken();
     window.location.assign("/login");
   }
   if (!response.ok)
     throw new ApiError(
-      "error" in (payload as object) && typeof (payload as { error?: unknown }).error === "string"
-        ? (payload as { error: string }).error
+      "detail" in (payload as object) && typeof (payload as { detail?: unknown }).detail === "string"
+        ? (payload as { detail: string }).detail
         : `Request failed (${response.status})`,
       response.status,
     );
@@ -113,23 +109,19 @@ async function requestBinary(
   path: string,
   fallbackFileName: string,
 ): Promise<{ blob: Blob; fileName: string }> {
-  const token = getAuthToken();
   const projectId =
     typeof window === "undefined"
       ? null
       : projectIdFromPathname(window.location.pathname);
-  const response = await fetch(projectScopedPath(path, projectId), {
-    headers: token ? { authorization: `Bearer ${token}` } : {},
-  });
+  const response = await fetch(projectScopedPath(path, projectId));
   if (response.status === 401 && typeof window !== "undefined") {
-    clearAuthToken();
     window.location.assign("/login");
   }
   if (!response.ok) {
-    const payload = await response.json().catch(() => null) as { error?: unknown } | null;
+    const payload = await response.json().catch(() => null) as { detail?: unknown } | null;
     throw new ApiError(
-      typeof payload?.error === "string"
-        ? payload.error
+      typeof payload?.detail === "string"
+        ? payload.detail
         : `Download failed (${response.status})`,
       response.status,
     );
@@ -386,40 +378,40 @@ export const api = {
     })}`),
   getCostDataQuality: (params: CostQueryParams) =>
     request<ModelCostDataQualityResponse>(`/api/v1/costs/data-quality?${costSearch(params)}`),
-  listPolicies: async (): Promise<SandboxPolicyCatalog> => {
-    const response = await request<{ defaultPolicyId: string; templatePolicyYaml: string; data: SandboxPolicy[] }>("/api/v1/policies");
+  listRuntimePolicies: async (): Promise<SandboxPolicyCatalog> => {
+    const response = await request<{ defaultPolicyId: string; templatePolicyYaml: string; data: SandboxPolicy[] }>("/api/v1/runtime-policies");
     return {
       defaultPolicyId: response.defaultPolicyId,
       templatePolicyYaml: response.templatePolicyYaml,
       policies: response.data,
     };
   },
-  createPolicy: (input: CreateSandboxPolicyInput) =>
-    request<SandboxPolicy>("/api/v1/policies", {
+  createRuntimePolicy: (input: CreateSandboxPolicyInput) =>
+    request<SandboxPolicy>("/api/v1/runtime-policies", {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  updatePolicy: (id: string, input: CreateSandboxPolicyInput) =>
-    request<SandboxPolicy>(`/api/v1/policies/${encodeURIComponent(id)}`, {
+  updateRuntimePolicy: (id: string, input: CreateSandboxPolicyInput) =>
+    request<SandboxPolicy>(`/api/v1/runtime-policies/${encodeURIComponent(id)}`, {
       method: "PUT",
       body: JSON.stringify(input),
     }),
-  deletePolicy: (id: string) =>
-    request<{ message: string }>(`/api/v1/policies/${encodeURIComponent(id)}`, {
+  deleteRuntimePolicy: (id: string) =>
+    request<{ message: string }>(`/api/v1/runtime-policies/${encodeURIComponent(id)}`, {
       method: "DELETE",
     }),
-  listAgents: async () =>
+  listInstances: async () =>
     (await request<{ data: Agent[] }>("/api/v1/instances")).data,
-  getAgent: (id: string) => request<Agent>(`/api/v1/instances/${id}`),
-  getAgentInteraction: (id: string) =>
-    request<AgentInteractionAccess>(
+  getInstance: (id: string) => request<Agent>(`/api/v1/instances/${id}`),
+  getInstanceInteraction: (id: string) =>
+    request<InstanceInteractionAccess>(
       `/api/v1/instances/${encodeURIComponent(id)}/interaction`,
     ),
-  getAgentLogs: (id: string) =>
-    request<AgentRuntimeLogView>(
+  getInstanceLogs: (id: string) =>
+    request<InstanceRuntimeLogView>(
       `/api/v1/instances/${encodeURIComponent(id)}/logs`,
     ),
-  getAgentAudit: async (id: string) =>
+  getInstanceAudit: async (id: string) =>
     (
       await request<{ data: SandboxAuditEvent[] }>(
         `/api/v1/instances/${id}/audit`,
@@ -432,12 +424,12 @@ export const api = {
         `/api/v1/instances/${id}/terminal-targets`,
       )
     ).data,
-  createAgent: (input: CreateAgentInput) =>
+  createInstance: (input: CreateInstanceInput) =>
     request<Agent>("/api/v1/instances", {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  deleteAgent: (id: string) =>
+  deleteInstance: (id: string) =>
     request<void>(`/api/v1/instances/${id}`, { method: "DELETE" }),
   updateAgentAccessPolicies: (id: string, accessPolicyIds: string[]) =>
     request<Agent>(`/api/v1/instances/${encodeURIComponent(id)}/access-policies`, {

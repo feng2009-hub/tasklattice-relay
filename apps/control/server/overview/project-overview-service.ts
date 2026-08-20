@@ -1,5 +1,5 @@
 import type {
-  Agent,
+  Instance as Agent,
   ProjectOverviewAttentionItem,
   ProjectOverviewRange,
   ProjectOverviewResponse,

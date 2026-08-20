@@ -7,7 +7,7 @@ import {
   defaultAgentPlatformId,
   type AgentMemoryConfiguration,
   type AgentPlatformId,
-  type CreateAgentInput,
+  type CreateInstanceInput,
   type ModelDeployment,
   type ModelRouting,
 } from "@tali/contracts";
@@ -165,8 +165,8 @@ export function CreateInstanceSheet({
     queryFn: api.listModelDeployments,
   });
   const policies = useQuery({
-    queryKey: scope.key("sandbox-policies"),
-    queryFn: api.listPolicies,
+    queryKey: scope.key("runtime-policies"),
+    queryFn: api.listRuntimePolicies,
   });
   const defaultModelRoutings = (modelRoutings.data ?? []).filter(
     (routing) => routing.isDefault,
@@ -188,7 +188,7 @@ export function CreateInstanceSheet({
     .map((id) => mcpServers.find((item) => item.id === id))
     .filter((item) => item && item.status !== "HEALTHY");
   const mutation = useMutation({
-    mutationFn: api.createAgent,
+    mutationFn: api.createInstance,
     onSuccess: (agent) => {
       void navigate({
         to: "/$projectId/instances/$instanceId",
@@ -218,7 +218,7 @@ export function CreateInstanceSheet({
         ...(value.agentPlatform === "openclaw" && memoryEnabled
           ? { memory }
           : {}),
-      } satisfies CreateAgentInput);
+      } satisfies CreateInstanceInput);
     },
   });
 

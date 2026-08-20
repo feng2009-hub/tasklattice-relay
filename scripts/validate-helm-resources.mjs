@@ -58,6 +58,98 @@ const rendered = renderChart([
 
 const objects = parseObjects(rendered);
 
+const syncWaveAnnotation = "argocd.argoproj.io/sync-wave";
+
+function requireObject(kind, name) {
+  const object = objects.find(
+    (candidate) =>
+      candidate.kind === kind && candidate.metadata?.name === name,
+  );
+  if (!object) {
+    throw new Error(`${kind}/${name} was not rendered.`);
+  }
+  return object;
+}
+
+function assertSyncWave(kind, name, expectedWave) {
+  const actualWave = requireObject(kind, name).metadata?.annotations?.[
+    syncWaveAnnotation
+  ];
+  if (actualWave !== expectedWave) {
+    throw new Error(
+      `${kind}/${name} must use Argo CD sync wave ${expectedWave}; got ${actualWave ?? "the default wave"}.`,
+    );
+  }
+}
+
+for (const [kind, name, wave] of [
+  ["LimitRange", `${releaseName}-container-resources`, "-10"],
+  ["ServiceAccount", `${releaseName}-control`, "10"],
+  ["ServiceAccount", `${releaseName}-runtime`, "10"],
+  ["Role", `${releaseName}-control-managed-secrets`, "10"],
+  ["RoleBinding", `${releaseName}-control-managed-secrets`, "10"],
+  ["Secret", `${releaseName}-secrets`, "10"],
+  ["Secret", `${releaseName}-example-mcp-auth`, "10"],
+  ["ConfigMap", `${releaseName}-keycloak-realm`, "10"],
+  ["Service", `${releaseName}-postgresql`, "10"],
+  ["Service", `${releaseName}-litellm`, "10"],
+  ["Service", `${releaseName}-keycloak`, "10"],
+  ["Service", `${releaseName}-control`, "10"],
+  ["Service", `${releaseName}-runner`, "10"],
+  ["Service", `${releaseName}-example-mcp`, "10"],
+  ["StatefulSet", `${releaseName}-postgresql`, "20"],
+  ["Deployment", `${releaseName}-litellm`, "30"],
+  ["Deployment", `${releaseName}-keycloak`, "30"],
+  ["Deployment", `${releaseName}-control`, "40"],
+  ["Deployment", `${releaseName}-deletion-worker`, "40"],
+  ["Deployment", `${releaseName}-runner`, "40"],
+  ["Deployment", `${releaseName}-example-mcp`, "40"],
+]) {
+  assertSyncWave(kind, name, wave);
+}
+
+for (const [kind, name] of [
+  ["StatefulSet", `${releaseName}-openshell`],
+  ["Deployment", "agent-sandbox-controller"],
+]) {
+  const dependencyWave = requireObject(kind, name).metadata?.annotations?.[
+    syncWaveAnnotation
+  ];
+  if (dependencyWave != null) {
+    throw new Error(
+      `${kind}/${name} is dependency-owned and must stay at Argo CD's default sync wave 0.`,
+    );
+  }
+}
+
+for (const object of objects) {
+  if (object.metadata?.annotations?.["argocd.argoproj.io/hook"] != null) {
+    throw new Error(
+      `${object.kind}/${object.metadata?.name} must not replace upstream Helm hook annotations with Argo CD hooks.`,
+    );
+  }
+}
+
+for (const [kind, expectedWeight] of [
+  ["ServiceAccount", "-30"],
+  ["Role", "-30"],
+  ["RoleBinding", "-30"],
+  ["Job", "-20"],
+]) {
+  const annotations = requireObject(
+    kind,
+    `${releaseName}-openshell-certgen`,
+  ).metadata?.annotations;
+  if (
+    annotations?.["helm.sh/hook"] !== "pre-install,pre-upgrade" ||
+    annotations?.["helm.sh/hook-weight"] !== expectedWeight
+  ) {
+    throw new Error(
+      `${kind}/${releaseName}-openshell-certgen must preserve its upstream Helm hook and weight ${expectedWeight}.`,
+    );
+  }
+}
+
 for (const [deploymentName, expectedInitContainers] of [
   [
     `${releaseName}-control`,

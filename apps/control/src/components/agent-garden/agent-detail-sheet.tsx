@@ -1,5 +1,5 @@
 import type {
-  Agent,
+  Instance as Agent,
   AgentConnection,
   AgentGardenEntry,
 } from "@tali/contracts";

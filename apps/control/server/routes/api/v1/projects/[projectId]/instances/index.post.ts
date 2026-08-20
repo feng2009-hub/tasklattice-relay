@@ -1,21 +1,21 @@
-import { createAgentSchema } from "@tali/contracts";
+import { createInstanceSchema } from "@tali/contracts";
 import { defineHandler } from "nitro";
 import { requireAuth, unauthorizedResponse } from "../../../../../../auth/auth";
 import { errorResponse, jsonResponse } from "../../../../../../http/responses";
-import { getAgentService } from "../../../../../../services";
-import { agentConfigurationView } from "../../../../../../agents/agent-http-view";
+import { getInstanceService } from "../../../../../../services";
+import { instanceConfigurationView } from "../../../../../../instances/instance-http-view";
 
 export default defineHandler(async (event) => {
   let actorId: string;
   try {
-    actorId = requireAuth(event.req).sub;
+    actorId = (await requireAuth(event.req)).user.id;
   } catch (error) {
     return unauthorizedResponse(error);
   }
   try {
-    const input = createAgentSchema.parse(await event.req.json());
-    const agent = await (await getAgentService(event.req)).create(input, actorId);
-    return jsonResponse(agentConfigurationView(agent), {
+    const input = createInstanceSchema.parse(await event.req.json());
+    const agent = await (await getInstanceService(event.req)).create(input, actorId);
+    return jsonResponse(instanceConfigurationView(agent), {
       status: 202,
       headers: { location: `/api/v1/projects/${encodeURIComponent(event.context.params?.projectId ?? "")}/instances/${agent.id}` },
     });

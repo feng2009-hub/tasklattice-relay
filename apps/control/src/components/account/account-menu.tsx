@@ -55,10 +55,9 @@ export function AccountMenu({
 }: AccountMenuProps) {
   const messages = getSidebarMessages(language);
   const displayName = user?.displayName || user?.username || messages.account.user;
-  const accountLabel =
-    user?.provider === "sso"
-      ? messages.account.ssoAccount
-      : messages.account.localAccount;
+  const accountLabel = user?.hasPassword
+    ? messages.account.localAccount
+    : messages.account.ssoAccount;
   const notifications = useQuery({
     queryKey: notificationsQueryKey,
     queryFn: getNotifications,

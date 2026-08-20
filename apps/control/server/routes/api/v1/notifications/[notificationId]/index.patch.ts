@@ -1,23 +1,19 @@
 import { defineHandler } from "nitro";
-import { z } from "zod";
 import { requireAuth, unauthorizedResponse } from "../../../../../auth/auth";
+import { notificationInputSchema, notificationParamsSchema } from "../../../../../api-contracts/schemas";
 import { errorResponse, jsonResponse } from "../../../../../http/responses";
 import { NotificationService } from "../../../../../notifications/notification-service";
-
-const inputSchema = z.object({ read: z.boolean() });
 
 export default defineHandler(async (event) => {
   let auth;
   try {
-    auth = requireAuth(event.req);
+    auth = await requireAuth(event.req);
   } catch (error) {
     return unauthorizedResponse(error);
   }
   try {
-    const notificationId = z.string().uuid().parse(
-      event.context.params?.notificationId,
-    );
-    const input = inputSchema.parse(await event.req.json());
+    const { notificationId } = notificationParamsSchema.parse(event.context.params);
+    const input = notificationInputSchema.parse(await event.req.json());
     return jsonResponse(
       await new NotificationService().setRead(
         auth,

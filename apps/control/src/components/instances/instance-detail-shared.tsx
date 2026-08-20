@@ -6,7 +6,7 @@ import { CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { formatAbsoluteTime, formatRelativeTime, getInstanceDisplayStatus, instanceStatusConfig } from "./instance-detail-model";
-import type { Agent } from "@tali/contracts";
+import type { Instance as Agent } from "@tali/contracts";
 
 export function InstanceStatusBadge({ status }: { status: Agent["status"] }) {
   const config = instanceStatusConfig[getInstanceDisplayStatus(status)];

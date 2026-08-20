@@ -5,7 +5,7 @@ import { parseBreakdownQuery } from "../../../../../../providers/cost-request";
 import { getCostService } from "../../../../../../services";
 
 export default defineHandler(async (event) => {
-  try { requireAuth(event.req); } catch (error) { return unauthorizedResponse(error); }
+  try { await requireAuth(event.req); } catch (error) { return unauthorizedResponse(error); }
   try {
     return jsonResponse(await (await getCostService(event.req)).breakdown(parseBreakdownQuery(event.req)));
   } catch (error) {

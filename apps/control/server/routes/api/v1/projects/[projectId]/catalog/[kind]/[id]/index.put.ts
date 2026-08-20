@@ -10,7 +10,7 @@ import { errorResponse, jsonResponse } from "../../../../../../../../http/respon
 import { getResourceCatalogService, requireProjectRole } from "../../../../../../../../services";
 
 export default defineHandler(async (event) => {
-  try { requireAuth(event.req); } catch (error) { return unauthorizedResponse(error); }
+  try { await requireAuth(event.req); } catch (error) { return unauthorizedResponse(error); }
   try {
     await requireProjectRole(event.req, ["admin"]);
     const kind = resourceKindSchema.parse(event.context.params?.kind);

@@ -1,18 +1,14 @@
 import { afterEach, describe, expect, it } from "vitest";
-import type { AuthPayload } from "../auth/auth";
+import type { PlatformPrincipal } from "../auth/auth";
 import { createTestPrisma } from "../test/prisma";
 import { NotificationService } from "./notification-service";
 
-const auth: AuthPayload = {
-  exp: Number.MAX_SAFE_INTEGER,
-  iat: 0,
-  iss: "tali",
-  sub: "local-admin",
+const auth: PlatformPrincipal = {
   user: {
     displayName: "Local Administrator",
     email: "admin@tali.local",
     id: "local-admin",
-    provider: "local",
+    hasPassword: true,
     systemRole: "super_administrator",
     username: "admin",
   },
@@ -30,7 +26,7 @@ describe("NotificationService", () => {
     const notification = await service.create({
       message: "A Runtime Policy needs review.",
       title: "Policy review",
-      userId: auth.sub,
+      userId: auth.user.id,
     });
 
     await expect(service.list(auth)).resolves.toMatchObject({
@@ -49,10 +45,14 @@ describe("NotificationService", () => {
     const notification = await service.create({
       message: "System message",
       title: "Notice",
-      userId: auth.sub,
+      userId: auth.user.id,
     });
     await expect(
-      service.setRead({ ...auth, sub: "missing-user" }, notification.id, true),
+      service.setRead(
+        { user: { ...auth.user, id: "missing-user" } },
+        notification.id,
+        true,
+      ),
     ).rejects.toThrow();
   });
 });

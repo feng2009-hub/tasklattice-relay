@@ -1,4 +1,4 @@
-import type { AgentStatus, ProvisioningStage } from "@tali/contracts";
+import type { InstanceStatus, ProvisioningStage } from "@tali/contracts";
 import { AlertTriangle, ScrollText } from "lucide-react";
 import type { ReactNode } from "react";
 import { ProvisioningLog } from "@/components/agents/provisioning-log";
@@ -18,7 +18,7 @@ export function ProvisioningActivity({
   error?: string;
   logs: string[];
   stage?: ProvisioningStage;
-  status: AgentStatus;
+  status: InstanceStatus;
 }) {
   const state = resolveProvisioningState({
     status,

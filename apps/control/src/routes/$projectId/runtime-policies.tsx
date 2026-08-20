@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { SandboxPolicy } from "@tali/contracts";
 import { AlertTriangle, FileLock2, LockKeyhole, Pencil, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
-import { PolicyEditorDrawer } from "@/components/policies/policy-editor-drawer";
+import { RuntimePolicyEditorDrawer } from "@/components/runtime-policies/runtime-policy-editor-drawer";
 import { EntityDetailList, EntitySheet } from "@/components/shared/entity-sheet";
 import { StatusDot } from "@/components/shared/status-dot";
 import { Badge } from "@/components/ui/badge";
@@ -22,14 +22,14 @@ function PolicyPage() {
   const [selectedId, setSelectedId] = useState("");
   const [detailOpen, setDetailOpen] = useState(false);
   const [editor, setEditor] = useState<{ open: boolean; policy?: SandboxPolicy }>({ open: false });
-  const catalog = useQuery({ queryKey: scope.key("sandbox-policies"), queryFn: api.listPolicies });
+  const catalog = useQuery({ queryKey: scope.key("runtime-policies"), queryFn: api.listRuntimePolicies });
   const selected = catalog.data?.policies.find((policy) => policy.id === selectedId);
   const remove = useMutation({
-    mutationFn: api.deletePolicy,
+    mutationFn: api.deleteRuntimePolicy,
     onSuccess: async () => {
       setDetailOpen(false);
       setSelectedId("");
-      await queryClient.invalidateQueries({ queryKey: scope.key("sandbox-policies") });
+      await queryClient.invalidateQueries({ queryKey: scope.key("runtime-policies") });
     },
   });
 
@@ -162,7 +162,7 @@ function PolicyPage() {
         ) : null}
       </EntitySheet>
 
-      <PolicyEditorDrawer
+      <RuntimePolicyEditorDrawer
         open={editor.open}
         onOpenChange={(open) => setEditor((current) => ({ ...current, open }))}
         policy={editor.policy}

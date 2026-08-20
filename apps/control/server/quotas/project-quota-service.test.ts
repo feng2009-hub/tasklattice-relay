@@ -23,7 +23,11 @@ function adapter(): LiteLLMAdminClient {
   };
 }
 
-function usageFact(requestId: string, at: string, spend: number): ModelUsageFact {
+function usageFact(
+  requestId: string,
+  at: string,
+  spend: number,
+): ModelUsageFact {
   return {
     eventId: `litellm:${requestId}`,
     requestId,
@@ -61,7 +65,7 @@ function usageFact(requestId: string, at: string, spend: number): ModelUsageFact
 }
 
 describe("ProjectQuotaService", () => {
-  it("persists Project limits and synchronizes spend plus TPM to the LiteLLM Team", async () => {
+  it("persists Project limits without synchronizing human users to LiteLLM", async () => {
     const litellm = adapter();
     const service = new ProjectQuotaService(createTestStore(), litellm);
 
@@ -92,34 +96,30 @@ describe("ProjectQuotaService", () => {
       budgetDuration: "30d",
       tpmLimit: 500_000,
     });
-    expect(litellm.addProjectTeamMember).toHaveBeenCalledWith(
-      "team-project",
-      expect.objectContaining({ role: "user" }),
-    );
+    expect(litellm.addProjectTeamMember).not.toHaveBeenCalled();
   });
 
   it("reports budget usage only inside the current reset window", async () => {
     const store = createTestStore();
     let current = new Date("2026-08-01T00:00:00.000Z");
     const service = new ProjectQuotaService(store, adapter(), () => current);
-    await service.update({
-      hardBudgetUsd: 100,
-      budgetDuration: "30d",
-      tpmLimit: null,
-      maxInstances: null,
-      maxMcpIntegrations: null,
-      maxKnowledgeBaseIntegrations: null,
-    }, "admin");
-    await store.costAnalytics().insertFact(usageFact(
-      "before-window",
-      "2026-07-31T23:59:59.000Z",
-      80,
-    ));
-    await store.costAnalytics().insertFact(usageFact(
-      "inside-window",
-      "2026-08-02T00:00:00.000Z",
-      25,
-    ));
+    await service.update(
+      {
+        hardBudgetUsd: 100,
+        budgetDuration: "30d",
+        tpmLimit: null,
+        maxInstances: null,
+        maxMcpIntegrations: null,
+        maxKnowledgeBaseIntegrations: null,
+      },
+      "admin",
+    );
+    await store
+      .costAnalytics()
+      .insertFact(usageFact("before-window", "2026-07-31T23:59:59.000Z", 80));
+    await store
+      .costAnalytics()
+      .insertFact(usageFact("inside-window", "2026-08-02T00:00:00.000Z", 25));
     current = new Date("2026-08-13T00:00:00.000Z");
 
     const quota = await service.get();
@@ -179,5 +179,50 @@ describe("ProjectQuotaService", () => {
         }),
       }),
     );
+  });
+
+  it("prevents child Project allocations from exceeding the Department budget", async () => {
+    const store = createTestStore();
+    const database = store.database();
+    await database.department.update({
+      where: { id: "dep1" },
+      data: { hardBudgetUsd: 100 },
+    });
+    await database.project.create({
+      data: {
+        id: "sibling-project",
+        name: "Sibling Project",
+        departmentId: "dep1",
+        createdBy: "local-admin",
+      },
+    });
+    await database.projectQuotaRecord.create({
+      data: {
+        projectId: "sibling-project",
+        hardBudgetUsd: 30,
+        budgetDuration: "30d",
+        budgetPeriodStartedAt: new Date("2026-08-01T00:00:00.000Z"),
+        budgetResetsAt: new Date("2026-08-31T00:00:00.000Z"),
+      },
+    });
+    const service = new ProjectQuotaService(store, adapter());
+    const quota = {
+      hardBudgetUsd: 80,
+      budgetDuration: "30d" as const,
+      tpmLimit: null,
+      maxInstances: null,
+      maxMcpIntegrations: null,
+      maxKnowledgeBaseIntegrations: null,
+    };
+
+    await expect(service.update(quota, "admin")).rejects.toThrow(
+      "Department's $100.00 limit",
+    );
+    await expect(
+      service.update({ ...quota, hardBudgetUsd: null }, "admin"),
+    ).rejects.toThrow("must have an explicit budget");
+    await expect(
+      service.update({ ...quota, hardBudgetUsd: 70 }, "admin"),
+    ).resolves.toMatchObject({ hardBudgetUsd: 70 });
   });
 });

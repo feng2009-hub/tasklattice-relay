@@ -204,7 +204,7 @@ function ProjectSidebar({ createProjectOpen, language, logout, onCreateProjectOp
     selectProject,
   } = useProject();
   const [toastProject, setToastProject] = useState("");
-  const projectId = currentProject?.id ?? "individual";
+  const projectId = currentProject?.id ?? "proj1";
   const permissions = useProjectPermissions();
   const helpActive = pathname.replace(/\/$/, "") === `/${encodeURIComponent(projectId)}/help`;
   return (
@@ -346,6 +346,7 @@ export function AppShell() {
     refreshProjects,
   } = useProject();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const departmentRoute = pathname.startsWith("/departments/");
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -402,12 +403,12 @@ export function AppShell() {
               sidebarOpen ? "max-w-[1600px]" : "max-w-none",
             )}
           >
-            {projectError ? (
+            {!departmentRoute && projectError ? (
               <div role="status" className="mb-5 border-l-2 border-amber-500 bg-amber-500/5 px-4 py-3 text-sm text-amber-900">
                 {projectError}
               </div>
             ) : null}
-            {projectLoading ? (
+            {!departmentRoute && projectLoading ? (
               <div className="space-y-6" aria-label="Loading project data">
                 <div className="h-20 animate-pulse rounded-md bg-muted/70" />
                 <div className="grid gap-4 md:grid-cols-3">
@@ -417,7 +418,7 @@ export function AppShell() {
                 </div>
                 <div className="h-64 animate-pulse rounded-md bg-muted/50" />
               </div>
-            ) : !currentProject ? (
+            ) : !currentProject && !departmentRoute ? (
               <section className="mx-auto max-w-md py-20 text-center" aria-labelledby="no-project-title">
                 <h1 id="no-project-title" className="text-lg font-semibold">
                   No project available
@@ -435,7 +436,7 @@ export function AppShell() {
                 </div>
               </section>
             ) : (
-              <div key={currentProject.id}>
+              <div key={departmentRoute ? pathname : currentProject?.id}>
                 <Outlet />
               </div>
             )}

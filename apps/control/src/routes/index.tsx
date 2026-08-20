@@ -8,7 +8,7 @@ export const Route = createFileRoute("/")({ component: ControlEntry });
 
 function ControlEntry() {
   const { loading, user } = useAuth();
-  const projectId = getStoredProjectId() ?? "individual";
+  const projectId = getStoredProjectId() ?? "proj1";
 
   if (loading) {
     return (

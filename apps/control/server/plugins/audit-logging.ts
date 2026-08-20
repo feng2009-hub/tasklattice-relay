@@ -30,7 +30,7 @@ export default definePlugin((nitro) => {
     if (!captured) {
       const decisive = decisiveAdmissionEvidence(admission);
       if (!decisive || decisive.decision === "ALLOW") return;
-      captured = captureDeniedAdmissionRequest(event.req, decisive);
+      captured = await captureDeniedAdmissionRequest(event.req, decisive);
     }
     captured.admission = admission;
     const write = writeAuditResponse(captured, response).catch((error) => {

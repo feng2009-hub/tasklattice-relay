@@ -21,11 +21,11 @@ enum ProjectRole {
   @@schema("tasklattice")
 }
 
-enum IdentityType {
-  local
-  oidc
+enum DepartmentRole {
+  administrator
+  member
 
-  @@map("identity_type")
+  @@map("department_role")
   @@schema("tasklattice")
 }
 
@@ -56,25 +56,64 @@ enum McpDiscoveryStatus {
 }
 
 model User {
-  id          String     @id
-  username    String     @unique
-  email       String     @unique
-  displayName String     @map("display_name")
-  language    String     @default("en-US")
-  timezone    String     @default("UTC")
-  theme       String     @default("system")
-  systemRole  SystemRole @default(user) @map("system_role")
-  status      UserStatus @default(active)
-  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id            String     @id
+  username      String?    @unique
+  email         String     @unique
+  emailVerified Boolean    @default(false) @map("email_verified")
+  displayName   String     @map("display_name")
+  image         String?
+  language      String     @default("en-US")
+  timezone      String     @default("UTC")
+  theme         String     @default("system")
+  systemRole    SystemRole @default(user) @map("system_role")
+  status        UserStatus @default(active)
+  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  createdProjects Project[]           @relation("ProjectCreator")
-  identities      UserIdentity[]
-  memberships     ProjectMember[]
-  notifications   UserNotification[]
-  invitations     ProjectInvitation[] @relation("InvitationCreator")
+  createdProjects      Project[]           @relation("ProjectCreator")
+  createdDepartments   Department[]        @relation("DepartmentCreator")
+  departmentMemberships DepartmentMember[]
+  authAccounts         AuthAccount[]
+  authSessions         AuthSession[]
+  memberships          ProjectMember[]
+  notifications        UserNotification[]
+  invitations          ProjectInvitation[] @relation("InvitationCreator")
 
   @@map("users")
+  @@schema("tasklattice")
+}
+
+model Department {
+  id            String    @id
+  name          String    @unique
+  description   String?
+  hardBudgetUsd Decimal?  @map("hard_budget_usd") @db.Decimal(18, 6)
+  status        String    @default("active")
+  createdBy     String    @map("created_by")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  creator  User               @relation("DepartmentCreator", fields: [createdBy], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  members  DepartmentMember[]
+  projects Project[]
+
+  @@map("departments")
+  @@schema("tasklattice")
+}
+
+model DepartmentMember {
+  departmentId String         @map("department_id")
+  userId       String         @map("user_id")
+  role         DepartmentRole @default(member)
+  status       String         @default("active")
+  joinedAt     DateTime       @default(now()) @map("joined_at") @db.Timestamptz(6)
+
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@id([departmentId, userId])
+  @@index([userId, role, status])
+  @@map("department_members")
   @@schema("tasklattice")
 }
 
@@ -96,48 +135,72 @@ model UserNotification {
   @@schema("tasklattice")
 }
 
-model UserIdentity {
-  id        String       @id
-  userId    String       @map("user_id")
-  type      IdentityType
-  issuer    String
-  subject   String
-  username  String?
-  email     String?
-  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+model AuthSession {
+  id        String   @id
+  token     String   @unique
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  credential LocalCredential?
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
-  @@unique([issuer, subject])
-  @@unique([type, username])
   @@index([userId])
-  @@map("user_identities")
+  @@map("auth_sessions")
   @@schema("tasklattice")
 }
 
-model LocalCredential {
-  identityId   String   @id @map("identity_id")
-  passwordHash String   @map("password_hash")
-  changedAt    DateTime @default(now()) @map("changed_at") @db.Timestamptz(6)
+model AuthAccount {
+  id                    String    @id
+  accountId             String    @map("account_id")
+  providerId            String    @map("provider_id")
+  issuer                String
+  userId                String    @map("user_id")
+  accessToken           String?   @map("access_token")
+  refreshToken          String?   @map("refresh_token")
+  idToken               String?   @map("id_token")
+  accessTokenExpiresAt  DateTime? @map("access_token_expires_at") @db.Timestamptz(6)
+  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at") @db.Timestamptz(6)
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  identity UserIdentity @relation(fields: [identityId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
-  @@map("local_credentials")
+  @@unique([issuer, accountId])
+  @@index([userId])
+  @@map("auth_accounts")
+  @@schema("tasklattice")
+}
+
+model AuthVerification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([identifier])
+  @@map("auth_verifications")
   @@schema("tasklattice")
 }
 
 model Project {
-  id        String    @id
-  name      String    @unique(map: "projects_name_key")
-  avatar    String?
-  createdBy String    @map("created_by")
-  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
-  deletedBy String?   @map("deleted_by")
+  id           String    @id
+  name         String
+  avatar       String?
+  departmentId String    @map("department_id")
+  createdBy    String    @map("created_by")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(6)
+  deletedBy    String?   @map("deleted_by")
 
+  department                   Department                               @relation(fields: [departmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   creator                      User                                     @relation("ProjectCreator", fields: [createdBy], references: [id])
   humanMembers                 ProjectMember[]
   invitations                  ProjectInvitation[]
@@ -169,6 +232,8 @@ model Project {
   quota                        ProjectQuotaRecord?
   deletionTask                 ProjectDeletionTask?
 
+  @@unique([departmentId, name], map: "projects_department_name_key")
+  @@index([departmentId, createdAt])
   @@map("projects")
   @@schema("tasklattice")
 }

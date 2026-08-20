@@ -7,6 +7,8 @@ metadata:
   name: {{ $name }}
   labels:
     {{- include "tali.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
+  annotations:
+    {{- include "tali.resourceAnnotations" (dict "root" . "wave" "application") | nindent 4 }}
 spec:
   replicas: {{ .Values.control.deletionWorker.replicaCount }}
   selector:

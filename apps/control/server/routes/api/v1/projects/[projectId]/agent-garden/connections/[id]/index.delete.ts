@@ -6,6 +6,7 @@ import {
 import {
   errorResponse,
   jsonResponse,
+  problemResponse,
 } from "../../../../../../../../http/responses";
 import {
   getAgentGardenService,
@@ -14,7 +15,7 @@ import {
 
 export default defineHandler(async (event) => {
   try {
-    requireAuth(event.req);
+    await requireAuth(event.req);
   } catch (error) {
     return unauthorizedResponse(error);
   }
@@ -25,10 +26,7 @@ export default defineHandler(async (event) => {
       await getAgentGardenService(event.req)
     ).disconnect(id);
     if (!removed) {
-      return jsonResponse(
-        { error: "Agent connection was not found." },
-        { status: 404 },
-      );
+      return problemResponse(404, "Agent connection was not found.");
     }
     return jsonResponse({ message: "Agent disconnected." });
   } catch (error) {

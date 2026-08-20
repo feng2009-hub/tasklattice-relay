@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { z } from "zod";
 import type { AgentGardenEntry } from "@tali/contracts";
+import { demoAgentMessageInputSchema } from "../api-contracts/schemas";
 import { exampleStoreAgentDefinitions } from "./example-store-agent-definitions";
 
 const demoServiceOrigin = "http://tali-control:38080";
@@ -238,28 +238,9 @@ export function demoAgentCard(id: string) {
   };
 }
 
-const demoMessageRequestSchema = z.object({
-  jsonrpc: z.literal("2.0"),
-  id: z.union([z.string(), z.number(), z.null()]),
-  method: z.literal("message/send"),
-  params: z.object({
-    message: z.object({
-      kind: z.literal("message").optional(),
-      messageId: z.string().optional(),
-      role: z.literal("user"),
-      parts: z.array(
-        z.object({
-          kind: z.literal("text"),
-          text: z.string().trim().min(1).max(4_000),
-        }).passthrough(),
-      ).min(1).max(16),
-    }).passthrough(),
-  }).passthrough(),
-}).passthrough();
-
 export function runDemoAgentMessage(id: string, rawInput: unknown) {
   const definition = getDemoAgentDefinition(id);
-  const input = demoMessageRequestSchema.parse(rawInput);
+  const input = demoAgentMessageInputSchema.parse(rawInput);
   const prompt = input.params.message.parts
     .map((part) => part.text)
     .join("\n")

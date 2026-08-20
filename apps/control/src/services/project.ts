@@ -1,4 +1,3 @@
-import { getAuthToken } from "@/lib/auth-token";
 import type {
   ProjectQuota,
   UpdateProjectQuotaInput,
@@ -19,20 +18,18 @@ export type ProjectAccess = Pick<
 >;
 
 async function projectRequest<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = getAuthToken();
   const response = await fetch(path, {
     ...init,
     headers: {
       "content-type": "application/json",
-      ...(token ? { authorization: `Bearer ${token}` } : {}),
       ...init?.headers,
     },
   });
   const text = await response.text();
-  const payload = text ? JSON.parse(text) as T | { error?: string; message?: string } : undefined;
+  const payload = text ? JSON.parse(text) as T | { detail?: string } : undefined;
   if (!response.ok) {
-    const error = payload as { error?: string; message?: string } | undefined;
-    throw new Error(error?.message ?? error?.error ?? `Request failed (${response.status}).`);
+    const problem = payload as { detail?: string } | undefined;
+    throw new Error(problem?.detail ?? `Request failed (${response.status}).`);
   }
   return payload as T;
 }
@@ -49,6 +46,7 @@ export async function getProjectMembers(projectId: string): Promise<HumanProject
 
 export async function createProject(input: {
   confirmImmutableName: true;
+  departmentId: string;
   invitations: Array<{ email: string; role: ProjectRole }>;
   name: string;
 }): Promise<Project> {

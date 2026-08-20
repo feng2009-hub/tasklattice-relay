@@ -20,8 +20,8 @@ describe("projectScopedPath", () => {
   });
 
   it("leaves pre-authentication requests unchanged without a project", () => {
-    expect(projectScopedPath("/api/v1/auth/local", null)).toBe(
-      "/api/v1/auth/local",
+    expect(projectScopedPath("/api/auth/sign-in/username", null)).toBe(
+      "/api/auth/sign-in/username",
     );
   });
 });

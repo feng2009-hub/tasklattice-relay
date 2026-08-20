@@ -3,6 +3,10 @@ import {
   type ProjectCapability,
 } from "@tali/contracts";
 
+const projectRoleCapabilities = projectCapabilities.filter(
+  (capability) => capability !== "CAP_PROJECT_CREATE",
+);
+
 export type PermissionItem = {
   capability: ProjectCapability;
   enabled: boolean;
@@ -86,9 +90,9 @@ export function groupProjectCapabilities(
   effectiveCapabilities: readonly ProjectCapability[],
 ): PermissionGroup[] {
   const effective = new Set(effectiveCapabilities);
-  const remaining = new Set(projectCapabilities);
+  const remaining = new Set(projectRoleCapabilities);
   const groups: PermissionGroup[] = definitions.map((definition) => {
-    const capabilities = projectCapabilities.filter((capability) =>
+    const capabilities = projectRoleCapabilities.filter((capability) =>
       definition.prefixes.some((prefix) => capability.startsWith(prefix)),
     );
     capabilities.forEach((capability) => remaining.delete(capability));

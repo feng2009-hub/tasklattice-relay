@@ -11,6 +11,11 @@ export const projectRoleLabels: Record<ProjectRole, string> = {
 };
 
 export interface Project {
+  department: {
+    id: string;
+    name: string;
+    role: "administrator" | "member" | null;
+  };
   id: string;
   name: string;
   avatar?: string;

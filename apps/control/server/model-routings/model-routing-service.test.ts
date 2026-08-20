@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-  createAgentSchema,
+  createInstanceSchema,
   createModelRoutingSchema,
 } from "@tali/contracts";
 import { createTestStore } from "../test/store";
@@ -147,7 +147,7 @@ async function saveDefaultRoutingModel(
 describe("Model Routing contracts", () => {
   it("keeps model selection out of Instance creation", () => {
     expect(() =>
-      createAgentSchema.parse({
+      createInstanceSchema.parse({
         name: "Research Agent",
         description: "",
         runtime: "openshell",
@@ -162,7 +162,7 @@ describe("Model Routing contracts", () => {
   it("requires one or more directly selected Access Policies", () => {
     const accessPolicyIds = ["2f3d37d9-fd85-49ee-80b3-06861b8c44b1"];
     expect(
-      createAgentSchema.parse({
+      createInstanceSchema.parse({
         name: "Research Agent",
         description: "",
         runtime: "openshell",
@@ -172,7 +172,7 @@ describe("Model Routing contracts", () => {
       }).accessPolicyIds,
     ).toEqual(accessPolicyIds);
     expect(() =>
-      createAgentSchema.parse({
+      createInstanceSchema.parse({
         name: "Research Agent",
         description: "",
         runtime: "openshell",

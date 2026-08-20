@@ -4,7 +4,7 @@ import { getControlConfig } from "../config/control-config";
 const bridgePurpose = "tali:vector-store-bridge:v1";
 
 export function vectorStoreBridgeApiKey(): string {
-  return createHmac("sha256", getControlConfig().auth.session_signing_key)
+  return createHmac("sha256", getControlConfig().auth.secret)
     .update(bridgePurpose)
     .digest("hex");
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type {
-  Agent,
+  Instance as Agent,
   CreateAgentGardenEntryInput,
 } from "@tali/contracts";
 import { createTestStore } from "../test/store";

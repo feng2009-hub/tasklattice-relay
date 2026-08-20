@@ -1,10 +1,8 @@
-import { getAuthToken } from "@/lib/auth-token";
-
 export interface PersonalProfile {
   displayName: string;
   email: string;
   language: AccountLanguage;
-  provider: "local" | "sso";
+  hasPassword: boolean;
   systemRole: "user" | "super_administrator";
   theme: ThemePreference;
   timezone: string;
@@ -20,25 +18,18 @@ async function profileRequest<T = PersonalProfile>(
   path = "/api/v1/profile",
   init?: RequestInit,
 ): Promise<T> {
-  const token = getAuthToken();
   const response = await fetch(path, {
     ...init,
     headers: {
       "content-type": "application/json",
-      ...(token ? { authorization: `Bearer ${token}` } : {}),
       ...init?.headers,
     },
   });
   const text = await response.text();
-  const payload = (text ? JSON.parse(text) : undefined) as T & {
-    error?: string;
-    message?: string;
-  };
+  const payload = (text ? JSON.parse(text) : undefined) as T & { detail?: string };
   if (!response.ok) {
     throw new Error(
-      payload.message ??
-        payload.error ??
-        `Request failed (${response.status}).`,
+      payload.detail ?? `Request failed (${response.status}).`,
     );
   }
   return payload as T;

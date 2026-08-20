@@ -40,7 +40,7 @@ function AgentDetail() {
 
   const agent = useQuery({
     queryKey: scope.key("agent", agentId),
-    queryFn: () => api.getAgent(agentId),
+    queryFn: () => api.getInstance(agentId),
     retry: (failureCount, error) => !(error instanceof ApiError && error.status === 404) && failureCount < 2,
     refetchInterval: (query) => {
       const status = query.state.data?.status;
@@ -58,7 +58,7 @@ function AgentDetail() {
   });
   const interaction = useQuery({
     queryKey: scope.key("agent-interaction", agentId),
-    queryFn: () => api.getAgentInteraction(agentId),
+    queryFn: () => api.getInstanceInteraction(agentId),
     enabled:
       permissions.canInteractWithAgents
       && agent.data?.status === "READY",
@@ -68,7 +68,7 @@ function AgentDetail() {
   });
   const runtimeLogs = useQuery({
     queryKey: scope.key("agent-logs", agentId),
-    queryFn: () => api.getAgentLogs(agentId),
+    queryFn: () => api.getInstanceLogs(agentId),
     enabled: permissions.canViewAgentLogs && Boolean(agent.data),
     retry: 1,
     staleTime: 5_000,
@@ -91,7 +91,7 @@ function AgentDetail() {
   });
   const audit = useQuery({
     queryKey: scope.key("agent-audit", agentId),
-    queryFn: () => api.getAgentAudit(agentId),
+    queryFn: () => api.getInstanceAudit(agentId),
     enabled:
       permissions.canViewSensitiveAgentAudit
       && Boolean(agent.data)
@@ -100,7 +100,7 @@ function AgentDetail() {
     staleTime: 10_000,
   });
   const remove = useMutation({
-    mutationFn: () => api.deleteAgent(agentId),
+    mutationFn: () => api.deleteInstance(agentId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: scope.key("agents") });
       await navigate({ to: "/$projectId/instances", params: { projectId }, replace: true });

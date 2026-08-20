@@ -1,34 +1,34 @@
 import { defineHandler } from "nitro";
-import { z } from "zod";
+import { instanceParamsSchema } from "../../../../../../../api-contracts/schemas";
 import { requireAuth, unauthorizedResponse } from "../../../../../../../auth/auth";
-import { agentInteractionAccess } from "../../../../../../../agents/agent-http-view";
-import { errorResponse, jsonResponse } from "../../../../../../../http/responses";
-import { getAgentService } from "../../../../../../../services";
+import { instanceInteractionAccess } from "../../../../../../../instances/instance-http-view";
+import { errorResponse, jsonResponse, problemResponse } from "../../../../../../../http/responses";
+import { getInstanceService } from "../../../../../../../services";
 
 export default defineHandler(async (event) => {
   let subject: string;
   try {
-    subject = requireAuth(event.req).user.id;
+    subject = (await requireAuth(event.req)).user.id;
   } catch (error) {
     return unauthorizedResponse(error);
   }
   try {
-    const id = z.string().uuid().parse(event.context.params?.instanceId);
-    const service = await getAgentService(event.req);
-    const agent = await service.get(id);
+    const { instanceId: id } = instanceParamsSchema.parse(event.context.params);
+    const service = await getInstanceService(event.req);
+    const instance = await service.get(id);
     const httpEndpoint =
-      agent?.status === "READY" && agent.httpEndpoint?.status === "READY"
+      instance?.status === "READY" && instance.httpEndpoint?.status === "READY"
         ? await service.runner.getSandboxInteraction(
-            agent.sandboxName,
-            agent.agentPlatform,
+            instance.sandboxName,
+            instance.agentPlatform,
             subject,
           )
-        : agent?.httpEndpoint;
-    return agent
-      ? jsonResponse(agentInteractionAccess(agent, httpEndpoint), {
+        : instance?.httpEndpoint;
+    return instance
+      ? jsonResponse(instanceInteractionAccess(instance, httpEndpoint), {
           headers: { "cache-control": "no-store" },
         })
-      : jsonResponse({ error: "Agent not found." }, { status: 404 });
+      : problemResponse(404, "Instance not found.");
   } catch (error) {
     return errorResponse(error);
   }

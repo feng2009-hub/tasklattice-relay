@@ -6,6 +6,7 @@ const projects: Project[] = [
   {
     id: "individual",
     name: "admin",
+    department: { id: "dep1", name: "dep1", role: "administrator" },
     memberCount: 1,
     assignedRoles: ["developer", "admin"],
     activeRole: "admin",
@@ -14,6 +15,7 @@ const projects: Project[] = [
   {
     id: "devops",
     name: "DevOps Team",
+    department: { id: "dep1", name: "dep1", role: "administrator" },
     memberCount: 8,
     assignedRoles: ["user"],
     activeRole: "user",

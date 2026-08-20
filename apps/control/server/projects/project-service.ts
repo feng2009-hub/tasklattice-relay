@@ -1,10 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { ProjectMembershipRole } from "@tali/contracts";
 import { ensureDefaultAccessPolicy } from "../access-policies/default-access-policy";
-import type { AuthPayload, AuthUser } from "../auth/auth";
+import type { PlatformPrincipal } from "../auth/auth";
 import { requireAuth } from "../auth/auth";
 import { getControlConfig } from "../config/control-config";
 import { prisma } from "../db/prisma";
+import { requireDepartmentAdministrator } from "../departments/department-access";
+import type { DepartmentRole } from "../departments/department-service";
 import {
   SmtpInvitationMailer,
   type InvitationMailer,
@@ -14,10 +16,11 @@ import {
   LiteLLMClient,
   type LiteLLMAdminClient,
 } from "../providers/litellm-client";
+import { nextBudgetWindow } from "../quotas/budget-window";
 import { ProjectQuotaService } from "../quotas/project-quota-service";
 import { ProjectStore } from "./project-store";
 import { developmentResourceCatalog } from "../catalog/development-resource-catalog";
-import { BuiltInPolicyCatalogSource } from "../policies/policy-service";
+import { BuiltInRuntimePolicyCatalogSource } from "../runtime-policies/runtime-policy-service";
 import {
   accessForMembership,
   membershipAccessInclude,
@@ -33,6 +36,11 @@ import {
 export type ProjectRole = ProjectMembershipRole;
 
 export interface ProjectView extends ProjectAccessView {
+  department: {
+    id: string;
+    name: string;
+    role: DepartmentRole | null;
+  };
   id: string;
   name: string;
   avatar?: string;
@@ -78,7 +86,9 @@ export interface HumanProjectMemberView {
   status: "active" | "invited";
 }
 
-function invitationRoleView(role: ProjectRole): Pick<HumanProjectMemberView, "roles"> {
+function invitationRoleView(
+  role: ProjectRole,
+): Pick<HumanProjectMemberView, "roles"> {
   return { roles: [role] };
 }
 
@@ -168,7 +178,7 @@ export class ProjectService {
     // in-process mutex also prevents local request races and gives pg-mem an
     // equivalent serialization primitive in unit tests.
     await transaction.$queryRawUnsafe(
-      "SELECT pg_advisory_xact_lock($1::integer, $2::integer)",
+      "SELECT pg_advisory_xact_lock($1::integer, $2::integer)::text AS lock_result",
       administratorAdvisoryLockNamespace,
       administratorAdvisoryLockKey(projectId),
     );
@@ -217,7 +227,7 @@ export class ProjectService {
     ]).size;
   }
 
-  private async acceptPendingInvitations(auth: AuthPayload): Promise<string> {
+  private async acceptPendingInvitations(auth: PlatformPrincipal): Promise<string> {
     const id = await this.requireUser(auth);
     const user = await this.db.user.findUniqueOrThrow({
       where: { id },
@@ -272,9 +282,9 @@ export class ProjectService {
     return id;
   }
 
-  async requireUser(auth: AuthPayload): Promise<string> {
+  async requireUser(auth: PlatformPrincipal): Promise<string> {
     const user = await this.db.user.findUnique({
-      where: { id: auth.sub },
+      where: { id: auth.user.id },
       select: { id: true, status: true },
     });
     if (!user || user.status !== "active") {
@@ -287,12 +297,12 @@ export class ProjectService {
 
   async authenticate(
     request: Request,
-  ): Promise<{ auth: AuthPayload; userId: string }> {
-    const auth = requireAuth(request);
+  ): Promise<{ auth: PlatformPrincipal; userId: string }> {
+    const auth = await requireAuth(request);
     return { auth, userId: await this.requireUser(auth) };
   }
 
-  async list(auth: AuthPayload): Promise<ProjectView[]> {
+  async list(auth: PlatformPrincipal): Promise<ProjectView[]> {
     const currentUserId = await this.acceptPendingInvitations(auth);
     const memberships = await this.db.projectMember.findMany({
       where: {
@@ -303,6 +313,18 @@ export class ProjectService {
         ...membershipAccessInclude,
         project: {
           include: {
+            department: {
+              select: {
+                id: true,
+                name: true,
+                status: true,
+                members: {
+                  where: { userId: currentUserId, status: "active" },
+                  select: { role: true },
+                  take: 1,
+                },
+              },
+            },
             _count: {
               select: { humanMembers: true },
             },
@@ -311,22 +333,28 @@ export class ProjectService {
       },
       orderBy: { joinedAt: "asc" },
     });
-    return memberships.map((membership) => {
-      const { project } = membership;
-      return {
-        id: project.id,
-        name: project.name,
-        ...(project.avatar ? { avatar: project.avatar } : {}),
-        memberCount: project._count.humanMembers,
-        ...accessForMembership(membership),
-      };
-    });
+    return memberships
+      .map((membership) => {
+        const { project } = membership;
+        if (project.department.status !== "active") return null;
+        return {
+          department: {
+            id: project.department.id,
+            name: project.department.name,
+            role: project.department.members[0]?.role ?? null,
+          },
+          id: project.id,
+          name: project.name,
+          ...(project.avatar ? { avatar: project.avatar } : {}),
+          memberCount: project._count.humanMembers,
+          ...accessForMembership(membership),
+        };
+      })
+      .filter((project): project is ProjectView => project !== null);
   }
 
-  async resolve(
-    request: Request,
-  ): Promise<{
-    auth: AuthPayload;
+  async resolve(request: Request): Promise<{
+    auth: PlatformPrincipal;
     userId: string;
     projectId: string;
     activeRole: ProjectRole;
@@ -341,11 +369,20 @@ export class ProjectService {
     const membership = await this.db.projectMember.findUnique({
       where: { projectId_userId: { projectId, userId: currentUserId } },
       include: {
-        project: { select: { deletedAt: true } },
+        project: {
+          select: {
+            deletedAt: true,
+            department: { select: { status: true } },
+          },
+        },
         ...membershipAccessInclude,
       },
     });
-    if (!membership || membership.project.deletedAt) {
+    if (
+      !membership ||
+      membership.project.deletedAt ||
+      membership.project.department.status !== "active"
+    ) {
       throw new Error("Project not found or access denied.");
     }
     const access = accessForMembership(membership);
@@ -358,14 +395,28 @@ export class ProjectService {
   }
 
   async create(
-    auth: AuthPayload,
+    auth: PlatformPrincipal,
+    departmentId: string,
     name: string,
     invitations: InitialProjectInvitation[],
   ): Promise<ProjectView> {
     const currentUserId = await this.acceptPendingInvitations(auth);
+    await requireDepartmentAdministrator(auth, departmentId, this.db, {
+      requireActiveDepartment: true,
+    });
+    const department = await this.db.department.findUnique({
+      where: { id: departmentId },
+      select: { hardBudgetUsd: true, id: true, name: true, status: true },
+    });
+    if (!department || department.status !== "active") {
+      throw new Error("Department not found or unavailable.");
+    }
     const projectName = name.trim();
     const duplicate = await this.db.project.findFirst({
-      where: { name: { equals: projectName, mode: "insensitive" } },
+      where: {
+        departmentId,
+        name: { equals: projectName, mode: "insensitive" },
+      },
       select: { id: true },
     });
     if (duplicate)
@@ -402,6 +453,7 @@ export class ProjectService {
       data: {
         id,
         name: projectName,
+        departmentId,
         createdBy: currentUserId,
         humanMembers: {
           create: [
@@ -415,13 +467,15 @@ export class ProjectService {
             ...normalizedInvitations.flatMap((invitation) => {
               const user = existingUserByEmail.get(invitation.email);
               return user
-                ? [{
-                    userId: user.id,
-                    role: invitation.role,
-                    roleAssignments: {
-                      create: { role: invitation.role },
+                ? [
+                    {
+                      userId: user.id,
+                      role: invitation.role,
+                      roleAssignments: {
+                        create: { role: invitation.role },
+                      },
                     },
-                  }]
+                  ]
                 : [];
             }),
           ],
@@ -442,8 +496,22 @@ export class ProjectService {
         },
       },
     });
+    const initialBudgetWindow =
+      department.hardBudgetUsd === null
+        ? null
+        : nextBudgetWindow(new Date(), "30d", null, null);
     await this.db.projectQuotaRecord.create({
-      data: { projectId: project.id },
+      data: {
+        projectId: project.id,
+        ...(initialBudgetWindow
+          ? {
+              hardBudgetUsd: 0,
+              budgetDuration: "30d",
+              budgetPeriodStartedAt: initialBudgetWindow.startedAt,
+              budgetResetsAt: initialBudgetWindow.resetsAt,
+            }
+          : {}),
+      },
     });
     await ensureDefaultAccessPolicy(this.db, project.id);
     await this.seedProject(project.id);
@@ -453,6 +521,11 @@ export class ProjectService {
       roleAssignments: [{ role: "admin" }],
     });
     return {
+      department: {
+        id: department.id,
+        name: department.name,
+        role: "administrator",
+      },
       id: project.id,
       name: project.name,
       memberCount: existingUsers.length + 1,
@@ -463,8 +536,14 @@ export class ProjectService {
   private async seedProject(projectId: string): Promise<void> {
     const resources = [
       [this.db.skillRecord, developmentResourceCatalog.skills],
-      [this.db.knowledgeSourceRecord, developmentResourceCatalog.knowledgeSources],
-      [this.db.agentSpecializationRecord, developmentResourceCatalog.specializations],
+      [
+        this.db.knowledgeSourceRecord,
+        developmentResourceCatalog.knowledgeSources,
+      ],
+      [
+        this.db.agentSpecializationRecord,
+        developmentResourceCatalog.specializations,
+      ],
     ] as const;
     for (const [delegate, records] of resources) {
       if (records.length) {
@@ -479,7 +558,7 @@ export class ProjectService {
         });
       }
     }
-    const policies = new BuiltInPolicyCatalogSource().load().policies;
+    const policies = new BuiltInRuntimePolicyCatalogSource().load().policies;
     if (policies.length) {
       await this.db.sandboxPolicyRecord.createMany({
         data: policies.map((policy) => ({
@@ -506,14 +585,11 @@ export class ProjectService {
       },
     });
     const access = membership ? accessForMembership(membership) : undefined;
-    const matchedRole = access && roles.includes(access.activeRole)
-      ? access.activeRole
-      : undefined;
-    if (
-      !membership ||
-      membership.project.deletedAt ||
-      !matchedRole
-    ) {
+    const matchedRole =
+      access && roles.includes(access.activeRole)
+        ? access.activeRole
+        : undefined;
+    if (!membership || membership.project.deletedAt || !matchedRole) {
       throw new Error("You do not have permission to manage this project.");
     }
     return matchedRole;
@@ -630,7 +706,10 @@ export class ProjectService {
           status: resource.status,
         })),
       ...gateways
-        .filter((resource) => resource.status === "READY" || resource.status === "DEGRADED")
+        .filter(
+          (resource) =>
+            resource.status === "READY" || resource.status === "DEGRADED",
+        )
         .map((resource) => ({
           id: resource.id,
           kind: "gateway" as const,
@@ -639,7 +718,9 @@ export class ProjectService {
           status: resource.status,
         })),
       ...routings
-        .filter((resource) => ["VALIDATING", "READY", "DEGRADED"].includes(resource.status))
+        .filter((resource) =>
+          ["VALIDATING", "READY", "DEGRADED"].includes(resource.status),
+        )
         .map((resource) => ({
           id: resource.id,
           kind: "routing" as const,
@@ -665,19 +746,37 @@ export class ProjectService {
           name: resource.name,
           status: resource.status,
         })),
-    ].sort((left, right) =>
-      left.kindLabel.localeCompare(right.kindLabel) || left.name.localeCompare(right.name),
+    ].sort(
+      (left, right) =>
+        left.kindLabel.localeCompare(right.kindLabel) ||
+        left.name.localeCompare(right.name),
     );
     const resourceCounts = [
       { kind: "instances", label: "Agent Instances", count: instances.length },
-      { kind: "providers", label: "Provider connections", count: providers.length },
+      {
+        kind: "providers",
+        label: "Provider connections",
+        count: providers.length,
+      },
       { kind: "models", label: "Registered models", count: models.length },
       { kind: "gateways", label: "Inference gateways", count: gateways.length },
       { kind: "routings", label: "Model routings", count: routings.length },
-      { kind: "mcp-servers", label: "MCP connections", count: mcpServers.length },
-      { kind: "knowledge-sources", label: "Knowledge sources", count: knowledgeSources.length },
+      {
+        kind: "mcp-servers",
+        label: "MCP connections",
+        count: mcpServers.length,
+      },
+      {
+        kind: "knowledge-sources",
+        label: "Knowledge sources",
+        count: knowledgeSources.length,
+      },
       { kind: "skills", label: "Skills", count: skillCount },
-      { kind: "access-policies", label: "Access Policies", count: accessPolicyCount },
+      {
+        kind: "access-policies",
+        label: "Access Policies",
+        count: accessPolicyCount,
+      },
     ];
     return {
       activeResources,
@@ -686,7 +785,10 @@ export class ProjectService {
       projectId: project.id,
       projectName: project.name,
       resourceCounts,
-      totalResourceCount: resourceCounts.reduce((total, item) => total + item.count, 0),
+      totalResourceCount: resourceCounts.reduce(
+        (total, item) => total + item.count,
+        0,
+      ),
     };
   }
 
@@ -769,9 +871,7 @@ export class ProjectService {
         status: "invited" as const,
       })),
     ];
-    return viewerRole === "auditor"
-      ? result.map(auditorMemberView)
-      : result;
+    return viewerRole === "auditor" ? result.map(auditorMemberView) : result;
   }
 
   async invite(
@@ -894,12 +994,10 @@ export class ProjectService {
     memberId: string,
   ): Promise<void> {
     await this.requireRole(projectId, currentUserId, ["admin"]);
-    let externallyRevoked = false;
-    try {
-      const removedInvitation = await withAdministratorMutationLock(
-        projectId,
-        () =>
-          this.db.$transaction(async (transaction) => {
+    const removedInvitation = await withAdministratorMutationLock(
+      projectId,
+      () =>
+        this.db.$transaction(async (transaction) => {
           await this.lockAdministrators(transaction, projectId, currentUserId);
           const invitation = await transaction.projectInvitation.deleteMany({
             where: { projectId, id: memberId },
@@ -928,8 +1026,8 @@ export class ProjectService {
             );
           }
           if (
-            target.role === "admin"
-            || target.roleAssignments.some(({ role }) => role === "admin")
+            target.role === "admin" ||
+            target.roleAssignments.some(({ role }) => role === "admin")
           ) {
             const adminCount = await this.administratorCount(
               transaction,
@@ -941,37 +1039,13 @@ export class ProjectService {
               );
             }
           }
-          const quota = await transaction.projectQuotaRecord.findUnique({
-            where: { projectId },
-            select: { litellmTeamId: true },
-          });
-          if (quota?.litellmTeamId && getControlConfig().litellm.master_key) {
-            const revoke = this.litellm.removeProjectTeamMember;
-            if (typeof revoke !== "function") {
-              throw new Error(
-                "LiteLLM member revocation is unavailable; the Project membership was not removed.",
-              );
-            }
-            // Revoke the external quota-team access before committing the
-            // authoritative membership deletion. A failed revocation leaves
-            // the member in place instead of silently retaining external
-            // access for an actor the UI says was removed.
-            await revoke.call(this.litellm, quota.litellmTeamId, memberId);
-            externallyRevoked = true;
-          }
           await transaction.projectMember.delete({
             where: { projectId_userId: { projectId, userId: memberId } },
           });
           return false;
-          }),
-      );
-      if (removedInvitation) return;
-    } catch (error) {
-      // If the external revoke succeeded but the database commit failed, make
-      // a best-effort reconciliation while the membership still exists.
-      if (externallyRevoked) await this.syncProjectTeam(projectId);
-      throw error;
-    }
+        }),
+    );
+    if (removedInvitation) return;
   }
 
   private async syncProjectTeam(projectId: string): Promise<void> {
@@ -984,39 +1058,4 @@ export class ProjectService {
       .catch(() => undefined);
   }
 
-  async syncAuthUser(user: AuthUser): Promise<string> {
-    await this.db.user.upsert({
-      where: { id: user.id },
-      create: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        displayName: user.displayName,
-        systemRole: user.systemRole,
-        status: "active",
-        identities: {
-          create: {
-            id: `identity-${user.id}`,
-            type: user.provider === "local" ? "local" : "oidc",
-            issuer: user.provider === "local" ? "tali:local" : "test:sso",
-            subject: user.username,
-            username: user.username,
-            email: user.email,
-          },
-        },
-      },
-      update: {
-        displayName: user.displayName,
-        email: user.email,
-        systemRole: user.systemRole,
-      },
-    });
-    return this.acceptPendingInvitations({
-      exp: Number.MAX_SAFE_INTEGER,
-      iat: 0,
-      iss: "tali",
-      sub: user.id,
-      user,
-    });
-  }
 }

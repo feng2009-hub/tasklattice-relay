@@ -9,7 +9,7 @@ import { parseAuditLogQuery } from "../../../../../../audit-logs/audit-log-http"
 
 export default defineHandler(async (event) => {
   try {
-    requireAuth(event.req);
+    await requireAuth(event.req);
   } catch (error) {
     return unauthorizedResponse(error);
   }

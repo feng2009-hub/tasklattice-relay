@@ -1,7 +1,7 @@
-import type { AgentStatus } from "@tali/contracts";
+import type { InstanceStatus } from "@tali/contracts";
 import { Badge } from "@/components/ui/badge";
 
-export function AgentStatusBadge({ status }: { status: AgentStatus }) {
+export function AgentStatusBadge({ status }: { status: InstanceStatus }) {
   return (
     <Badge
       variant={

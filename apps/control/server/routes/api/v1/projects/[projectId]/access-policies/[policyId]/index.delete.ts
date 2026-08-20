@@ -4,7 +4,7 @@ import { errorResponse, noContentResponse } from "../../../../../../../http/resp
 import { getAccessPolicyService, requireProjectRole } from "../../../../../../../services";
 
 export default defineHandler(async (event) => {
-  try { requireAuth(event.req); } catch (error) { return unauthorizedResponse(error); }
+  try { await requireAuth(event.req); } catch (error) { return unauthorizedResponse(error); }
   try {
     await requireProjectRole(event.req, ["admin"]);
     await (await getAccessPolicyService(event.req)).delete(

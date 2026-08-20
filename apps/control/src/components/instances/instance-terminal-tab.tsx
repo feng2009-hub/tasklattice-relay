@@ -1,4 +1,4 @@
-import type { Agent, TerminalTarget } from "@tali/contracts";
+import type { Instance as Agent, TerminalTarget } from "@tali/contracts";
 import { AgentTerminalPanel } from "@/components/agents/agent-terminal-panel";
 
 export function InstanceTerminalTab({

@@ -82,6 +82,32 @@ settings such as `control.publicUrl` restarts the Control Deployment but does
 not roll Runner, LiteLLM, or PostgreSQL. Changing a Service type by itself does
 not restart application Pods.
 
+## Argo CD sync order
+
+The parent chart owns the Argo CD sync-wave policy. It does not patch or add
+Argo CD annotations to the OpenShell and Agent Sandbox dependency charts, so
+their regular resources keep Argo CD's default sync wave `0`. OpenShell's
+certificate-generation resources also retain their upstream Helm
+`pre-install,pre-upgrade` hooks and hook weights; Argo CD maps those hooks to
+its `PreSync` phase.
+
+TaskLattice Relay resources are deliberately later than the dependencies:
+
+| Wave | Resources |
+| ---: | --- |
+| `-10` | Namespace `LimitRange` and optional OpenShift SCC RoleBindings required by dependency admission |
+| `0` | OpenShell and Agent Sandbox dependency resources (unmodified default) |
+| `10` | TaskLattice Relay ServiceAccounts, RBAC, Secrets, ConfigMaps, and Services |
+| `20` | PostgreSQL StatefulSet |
+| `30` | LiteLLM and optional Keycloak Deployments |
+| `40` | Control, deletion worker, Runner, and optional example MCP Deployments |
+| `50` | Optional OpenShift Routes |
+
+Argo CD waits for each wave to become healthy before advancing. The values are
+centralized under `global.argocd.syncWaves` and can be adjusted for a cluster's
+policy without editing any dependency chart. Plain Helm and Kubernetes ignore
+the Argo CD annotations.
+
 LiteLLM defaults to two Uvicorn workers. Resource-constrained environments can
 set `litellm.workers=1` without patching the rendered Deployment. The chart sets
 `litellm.maximumTracebackLinesToLog=0` to keep request-level errors concise.

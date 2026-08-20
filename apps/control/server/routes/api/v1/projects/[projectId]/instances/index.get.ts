@@ -1,21 +1,21 @@
 import { defineHandler } from "nitro";
 import { requireAuth, unauthorizedResponse } from "../../../../../../auth/auth";
 import { errorResponse, jsonResponse } from "../../../../../../http/responses";
-import { getAgentService } from "../../../../../../services";
+import { getInstanceService } from "../../../../../../services";
 import { ownerFilterForCapability } from "../../../../../../authorization/authorization-context";
-import { agentConfigurationView } from "../../../../../../agents/agent-http-view";
+import { instanceConfigurationView } from "../../../../../../instances/instance-http-view";
 
 export default defineHandler(async (event) => {
   try {
-    requireAuth(event.req);
+    await requireAuth(event.req);
   } catch (error) {
     return unauthorizedResponse(error);
   }
   try {
     return jsonResponse({
-      data: (await (await getAgentService(event.req)).list(
+      data: (await (await getInstanceService(event.req)).list(
         ownerFilterForCapability(event.req, "CAP_AGENT_INSTANCE_CONFIG_VIEW"),
-      )).map(agentConfigurationView),
+      )).map(instanceConfigurationView),
     });
   } catch (error) {
     return errorResponse(error);

@@ -4,7 +4,7 @@ import { errorResponse, jsonResponse } from "../../../../../../http/responses";
 import { getProviderService } from "../../../../../../services";
 
 export default defineHandler(async (event) => {
-  try { requireAuth(event.req); } catch (error) { return unauthorizedResponse(error); }
+  try { await requireAuth(event.req); } catch (error) { return unauthorizedResponse(error); }
   try {
     const accountId = new URL(event.req.url).searchParams.get("providerAccountId") ?? undefined;
     return jsonResponse({ data: await (await getProviderService(event.req)).listModels(accountId) });

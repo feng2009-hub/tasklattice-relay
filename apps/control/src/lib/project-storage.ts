@@ -2,7 +2,12 @@ export const CURRENT_PROJECT_STORAGE_KEY = "currentProject";
 
 export function projectIdFromPathname(pathname: string): string | null {
   const [projectId] = pathname.split("/").filter(Boolean);
-  if (!projectId || projectId === "login" || projectId === "auth") return null;
+  if (
+    !projectId
+    || projectId === "login"
+    || projectId === "auth"
+    || projectId === "departments"
+  ) return null;
   try {
     return decodeURIComponent(projectId);
   } catch {

@@ -6,7 +6,7 @@ import { getProjectQuotaService, requireProjectRole } from "../../../../../../se
 
 export default defineHandler(async (event) => {
   let actor: string;
-  try { actor = requireAuth(event.req).user.username; } catch (error) { return unauthorizedResponse(error); }
+  try { actor = (await requireAuth(event.req)).user.username; } catch (error) { return unauthorizedResponse(error); }
   try {
     await requireProjectRole(event.req, ["admin"]);
     const input = updateProjectQuotaSchema.parse(await event.req.json());

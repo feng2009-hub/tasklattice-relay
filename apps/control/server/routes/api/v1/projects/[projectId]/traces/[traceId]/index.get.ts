@@ -1,7 +1,7 @@
 import { defineHandler } from "nitro";
-import { z } from "zod";
 import { requireAuth, unauthorizedResponse } from "../../../../../../../auth/auth";
-import { errorResponse, jsonResponse } from "../../../../../../../http/responses";
+import { traceParamsSchema } from "../../../../../../../api-contracts/schemas";
+import { errorResponse, jsonResponse, problemResponse } from "../../../../../../../http/responses";
 import { requireProjectRole } from "../../../../../../../services";
 import { FixtureTraceRepository } from "../../../../../../../traces/fixture-trace-repository";
 
@@ -9,18 +9,18 @@ const repository = new FixtureTraceRepository();
 
 export default defineHandler(async (event) => {
   try {
-    requireAuth(event.req);
+    await requireAuth(event.req);
   } catch (error) {
     return unauthorizedResponse(error);
   }
 
   try {
     await requireProjectRole(event.req, ["admin", "user"]);
-    const traceId = z.string().regex(/^[0-9a-f]{32}$/).parse(event.context.params?.traceId);
+    const { traceId } = traceParamsSchema.parse(event.context.params);
     const trace = await repository.getById(traceId);
     return trace
       ? jsonResponse(trace)
-      : jsonResponse({ error: "Trace not found." }, { status: 404 });
+      : problemResponse(404, "Trace not found.");
   } catch (error) {
     return errorResponse(error);
   }

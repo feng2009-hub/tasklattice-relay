@@ -23,7 +23,7 @@ import { Route as ProjectIdRuntimeRouteImport } from './routes/$projectId/runtim
 import { Route as ProjectIdRuntimePoliciesRouteImport } from './routes/$projectId/runtime-policies'
 import { Route as ProjectIdSkillsRouteImport } from './routes/$projectId/skills'
 import { Route as ProjectIdTracesRouteImport } from './routes/$projectId/traces'
-import { Route as AuthSsoCompleteRouteImport } from './routes/auth/sso-complete'
+import { Route as DepartmentsDepartmentIdRouteImport } from './routes/departments/$departmentId'
 import { Route as ProjectIdAccessPoliciesIndexRouteImport } from './routes/$projectId/access-policies/index'
 import { Route as ProjectIdAccessPoliciesPolicyIdRouteImport } from './routes/$projectId/access-policies/$policyId'
 import { Route as ProjectIdAgentGardenIndexRouteImport } from './routes/$projectId/agent-garden/index'
@@ -107,9 +107,9 @@ const ProjectIdTracesRoute = ProjectIdTracesRouteImport.update({
   path: '/$projectId/traces',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthSsoCompleteRoute = AuthSsoCompleteRouteImport.update({
-  id: '/auth/sso-complete',
-  path: '/auth/sso-complete',
+const DepartmentsDepartmentIdRoute = DepartmentsDepartmentIdRouteImport.update({
+  id: '/departments/$departmentId',
+  path: '/departments/$departmentId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProjectIdAccessPoliciesIndexRoute =
@@ -188,7 +188,7 @@ export interface FileRoutesByFullPath {
   '/$projectId/runtime-policies': typeof ProjectIdRuntimePoliciesRoute
   '/$projectId/skills': typeof ProjectIdSkillsRoute
   '/$projectId/traces': typeof ProjectIdTracesRoute
-  '/auth/sso-complete': typeof AuthSsoCompleteRoute
+  '/departments/$departmentId': typeof DepartmentsDepartmentIdRoute
   '/$projectId/': typeof ProjectIdIndexRoute
   '/$projectId/access-policies/$policyId': typeof ProjectIdAccessPoliciesPolicyIdRoute
   '/$projectId/agent-garden/$agentId': typeof ProjectIdAgentGardenAgentIdRoute
@@ -216,7 +216,7 @@ export interface FileRoutesByTo {
   '/$projectId/runtime-policies': typeof ProjectIdRuntimePoliciesRoute
   '/$projectId/skills': typeof ProjectIdSkillsRoute
   '/$projectId/traces': typeof ProjectIdTracesRoute
-  '/auth/sso-complete': typeof AuthSsoCompleteRoute
+  '/departments/$departmentId': typeof DepartmentsDepartmentIdRoute
   '/$projectId': typeof ProjectIdIndexRoute
   '/$projectId/access-policies/$policyId': typeof ProjectIdAccessPoliciesPolicyIdRoute
   '/$projectId/agent-garden/$agentId': typeof ProjectIdAgentGardenAgentIdRoute
@@ -245,7 +245,7 @@ export interface FileRoutesById {
   '/$projectId/runtime-policies': typeof ProjectIdRuntimePoliciesRoute
   '/$projectId/skills': typeof ProjectIdSkillsRoute
   '/$projectId/traces': typeof ProjectIdTracesRoute
-  '/auth/sso-complete': typeof AuthSsoCompleteRoute
+  '/departments/$departmentId': typeof DepartmentsDepartmentIdRoute
   '/$projectId/': typeof ProjectIdIndexRoute
   '/$projectId/access-policies/$policyId': typeof ProjectIdAccessPoliciesPolicyIdRoute
   '/$projectId/agent-garden/$agentId': typeof ProjectIdAgentGardenAgentIdRoute
@@ -275,7 +275,7 @@ export interface FileRouteTypes {
     | '/$projectId/runtime-policies'
     | '/$projectId/skills'
     | '/$projectId/traces'
-    | '/auth/sso-complete'
+    | '/departments/$departmentId'
     | '/$projectId/'
     | '/$projectId/access-policies/$policyId'
     | '/$projectId/agent-garden/$agentId'
@@ -303,7 +303,7 @@ export interface FileRouteTypes {
     | '/$projectId/runtime-policies'
     | '/$projectId/skills'
     | '/$projectId/traces'
-    | '/auth/sso-complete'
+    | '/departments/$departmentId'
     | '/$projectId'
     | '/$projectId/access-policies/$policyId'
     | '/$projectId/agent-garden/$agentId'
@@ -331,7 +331,7 @@ export interface FileRouteTypes {
     | '/$projectId/runtime-policies'
     | '/$projectId/skills'
     | '/$projectId/traces'
-    | '/auth/sso-complete'
+    | '/departments/$departmentId'
     | '/$projectId/'
     | '/$projectId/access-policies/$policyId'
     | '/$projectId/agent-garden/$agentId'
@@ -360,7 +360,7 @@ export interface RootRouteChildren {
   ProjectIdRuntimePoliciesRoute: typeof ProjectIdRuntimePoliciesRoute
   ProjectIdSkillsRoute: typeof ProjectIdSkillsRoute
   ProjectIdTracesRoute: typeof ProjectIdTracesRoute
-  AuthSsoCompleteRoute: typeof AuthSsoCompleteRoute
+  DepartmentsDepartmentIdRoute: typeof DepartmentsDepartmentIdRoute
   ProjectIdIndexRoute: typeof ProjectIdIndexRoute
   ProjectIdAccessPoliciesPolicyIdRoute: typeof ProjectIdAccessPoliciesPolicyIdRoute
   ProjectIdAgentGardenAgentIdRoute: typeof ProjectIdAgentGardenAgentIdRoute
@@ -475,11 +475,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectIdTracesRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/auth/sso-complete': {
-      id: '/auth/sso-complete'
-      path: '/auth/sso-complete'
-      fullPath: '/auth/sso-complete'
-      preLoaderRoute: typeof AuthSsoCompleteRouteImport
+    '/departments/$departmentId': {
+      id: '/departments/$departmentId'
+      path: '/departments/$departmentId'
+      fullPath: '/departments/$departmentId'
+      preLoaderRoute: typeof DepartmentsDepartmentIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$projectId/access-policies/': {
@@ -576,7 +576,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProjectIdRuntimePoliciesRoute: ProjectIdRuntimePoliciesRoute,
   ProjectIdSkillsRoute: ProjectIdSkillsRoute,
   ProjectIdTracesRoute: ProjectIdTracesRoute,
-  AuthSsoCompleteRoute: AuthSsoCompleteRoute,
+  DepartmentsDepartmentIdRoute: DepartmentsDepartmentIdRoute,
   ProjectIdIndexRoute: ProjectIdIndexRoute,
   ProjectIdAccessPoliciesPolicyIdRoute: ProjectIdAccessPoliciesPolicyIdRoute,
   ProjectIdAgentGardenAgentIdRoute: ProjectIdAgentGardenAgentIdRoute,

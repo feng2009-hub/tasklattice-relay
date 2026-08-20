@@ -5,15 +5,15 @@ const expectNemoClawRuntime = process.env.TALI_EXPECT_NEMOCLAW_RUNTIME === "1";
 const validationUsername =
   process.env.TALI_VALIDATION_USERNAME ?? "admin";
 const validationPassword =
-  process.env.TALI_VALIDATION_PASSWORD ?? "admin";
-let authToken = "";
+  process.env.TALI_VALIDATION_PASSWORD ?? "admin-password";
+let sessionCookie = "";
 
 async function request(path, init) {
   const response = await fetch(`${baseUrl}${path}`, {
     ...init,
     headers: {
       "content-type": "application/json",
-      ...(authToken ? { authorization: `Bearer ${authToken}` } : {}),
+      ...(sessionCookie ? { cookie: sessionCookie } : {}),
       ...init?.headers,
     },
   });
@@ -22,15 +22,27 @@ async function request(path, init) {
   return payload;
 }
 
-const login = await request("/api/v1/auth/local", {
+const loginResponse = await fetch(`${baseUrl}/api/auth/sign-in/username`, {
+  headers: {
+    "content-type": "application/json",
+    origin: baseUrl,
+  },
   method: "POST",
   body: JSON.stringify({
     password: validationPassword,
-    remember: false,
+    rememberMe: false,
     username: validationUsername,
   }),
 });
-authToken = login.token;
+if (!loginResponse.ok) {
+  const payload = await loginResponse.json();
+  throw new Error(payload.message ?? `Login failed (${loginResponse.status}).`);
+}
+sessionCookie = (loginResponse.headers.get("set-cookie") ?? "")
+  .split(/,(?=\s*[^;,]+=)/)
+  .map((cookie) => cookie.split(";", 1)[0]?.trim())
+  .filter(Boolean)
+  .join("; ");
 
 const models = await request("/api/v1/providers/models");
 const validatedModel = models.data.find(
@@ -125,7 +137,7 @@ if (!runtime.terminal.available) {
 
 const destroyed = await request(`/api/v1/agents/${agent.id}`, { method: "DELETE" });
 const deletedResource = await fetch(`${baseUrl}/api/v1/agents/${agent.id}`, {
-  headers: { authorization: `Bearer ${authToken}` },
+  headers: { cookie: sessionCookie },
 });
 const deletedEndpoint = agent.httpEndpoint?.url
   ? await fetch(agent.httpEndpoint.url)

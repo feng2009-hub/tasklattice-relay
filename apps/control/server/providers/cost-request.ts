@@ -1,48 +1,14 @@
-import { z } from "zod";
 import type { CostAnalyticsQuery, CostBreakdownQuery } from "./cost-service";
+import { costCommonQuerySchema, costQuerySchemas } from "../api-contracts/schemas";
 
-const groupBySchema = z.enum([
-  "instance",
-  "model_endpoint",
-  "provider_account",
-  "virtual_key",
-]);
-const filterKeySchema = z.enum([
-  "instance",
-  "model_endpoint",
-  "provider",
-  "provider_account",
-  "virtual_key",
-  "project",
-]);
-const filtersSchema = z.partialRecord(
-  filterKeySchema,
-  z.array(z.string().min(1)).max(100),
-);
-
-const commonSchema = z.object({
-  startTime: z.string().min(1),
-  endTime: z.string().min(1),
-  timezone: z.string().min(1).default("UTC"),
-  projectId: z.string().min(1).optional(),
-  filters: z.string().default("{}").transform((value, context) => {
-    try {
-      return filtersSchema.parse(JSON.parse(value));
-    } catch {
-      context.addIssue({ code: "custom", message: "filters must be a valid JSON object of string arrays." });
-      return z.NEVER;
-    }
-  }),
-});
-
-export const costGroupBySchema = groupBySchema;
+export const costGroupBySchema = costQuerySchemas.ranking.shape.group_by;
 
 function scopedCommon(url: URL): CostAnalyticsQuery {
-  const input = commonSchema.parse({
-    startTime: url.searchParams.get("start_time"),
-    endTime: url.searchParams.get("end_time"),
+  const input = costCommonQuerySchema.parse({
+    start_time: url.searchParams.get("start_time"),
+    end_time: url.searchParams.get("end_time"),
     timezone: url.searchParams.get("timezone") ?? undefined,
-    projectId: url.searchParams.get("project_id") ?? undefined,
+    project_id: url.searchParams.get("project_id") ?? undefined,
     filters: url.searchParams.get("filters") ?? undefined,
   });
   const projectMatch = url.pathname.match(
@@ -51,12 +17,12 @@ function scopedCommon(url: URL): CostAnalyticsQuery {
   const projectId = projectMatch
     ? decodeURIComponent(projectMatch[1]!)
     : "default";
-  if (input.projectId && input.projectId !== projectId) {
+  if (input.project_id && input.project_id !== projectId) {
     throw new Error("Project access denied.");
   }
   return {
-    startTime: input.startTime,
-    endTime: input.endTime,
+    startTime: input.start_time,
+    endTime: input.end_time,
     timezone: input.timezone,
     projectId,
     filters: input.filters,
@@ -69,51 +35,54 @@ export function parseCostQuery(request: Request): CostAnalyticsQuery {
 
 export function parseGroupBy(request: Request) {
   const value = new URL(request.url).searchParams.get("group_by") ?? "instance";
-  return groupBySchema.parse(value);
+  return costQuerySchemas.ranking.shape.group_by.parse(value);
 }
 
 export function parseActivityGranularity(request: Request) {
   const value = new URL(request.url).searchParams.get("granularity") ?? "daily";
-  return z.enum(["daily", "weekly", "cumulative"]).parse(value);
+  return costQuerySchemas.activity.shape.granularity.parse(value);
 }
 
 export function parseTrendGranularity(request: Request) {
   const value = new URL(request.url).searchParams.get("granularity") ?? "day";
-  return z.enum(["day", "week", "month"]).parse(value);
+  return costQuerySchemas.trend.shape.granularity.parse(value);
 }
 
 export function parseLimit(request: Request, name: "limit" | "top_n", fallback: number, maximum: number) {
   const raw = new URL(request.url).searchParams.get(name);
-  return z.coerce.number().int().min(1).max(maximum).default(fallback).parse(raw ?? undefined);
+  const limitSchema = name === "top_n"
+    ? costQuerySchemas.trend.shape.top_n
+    : costQuerySchemas.ranking.shape.limit;
+  const parsed = limitSchema.parse(raw ?? fallback);
+  if (parsed > maximum) throw new Error(`${name} must be at most ${maximum}.`);
+  return parsed;
 }
 
 export function parseBreakdownQuery(request: Request): CostBreakdownQuery {
   const url = new URL(request.url);
   const common = scopedCommon(url);
-  const controls = z.object({
-    groupBy: groupBySchema.default("instance"),
-    page: z.coerce.number().int().min(1).default(1),
-    pageSize: z.coerce.number().int().min(1).max(200).default(25),
-    sort: z.enum([
-      "name",
-      "spend_usd",
-      "prompt_tokens",
-      "completion_tokens",
-      "total_tokens",
-      "requests",
-      "average_cost_per_request",
-      "share",
-      "last_active",
-    ]).default("spend_usd"),
-    direction: z.enum(["asc", "desc"]).default("desc"),
-    search: z.string().max(200).default(""),
+  const controls = costQuerySchemas.breakdown.pick({
+    group_by: true,
+    page: true,
+    page_size: true,
+    sort: true,
+    direction: true,
+    search: true,
   }).parse({
-    groupBy: url.searchParams.get("group_by") ?? undefined,
+    group_by: url.searchParams.get("group_by") ?? undefined,
     page: url.searchParams.get("page") ?? undefined,
-    pageSize: url.searchParams.get("page_size") ?? undefined,
+    page_size: url.searchParams.get("page_size") ?? undefined,
     sort: url.searchParams.get("sort") ?? undefined,
     direction: url.searchParams.get("direction") ?? undefined,
     search: url.searchParams.get("search") ?? undefined,
   });
-  return { ...common, ...controls };
+  return {
+    ...common,
+    groupBy: controls.group_by,
+    page: controls.page,
+    pageSize: controls.page_size,
+    sort: controls.sort,
+    direction: controls.direction,
+    search: controls.search,
+  };
 }

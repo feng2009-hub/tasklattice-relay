@@ -10,7 +10,7 @@ import {
 import { getCostService } from "../../../../../../services";
 
 export default defineHandler(async (event) => {
-  try { requireAuth(event.req); } catch (error) { return unauthorizedResponse(error); }
+  try { await requireAuth(event.req); } catch (error) { return unauthorizedResponse(error); }
   try {
     return jsonResponse(await (await getCostService(event.req)).trend(
       parseCostQuery(event.req),

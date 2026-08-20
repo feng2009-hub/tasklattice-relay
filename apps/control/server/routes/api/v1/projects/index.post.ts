@@ -1,43 +1,24 @@
-import { assignableProjectMembershipRoles } from "@tali/contracts";
-import { z } from "zod";
 import { defineHandler } from "nitro";
+import { createProjectInputSchema } from "../../../../api-contracts/schemas";
 import { requireAuth, unauthorizedResponse } from "../../../../auth/auth";
 import { errorResponse, jsonResponse } from "../../../../http/responses";
 import { ProjectService } from "../../../../projects/project-service";
 import { requireProjectCreateCapability } from "../../../../services";
 
-const inputSchema = z.object({
-  confirmImmutableName: z.literal(true, {
-    error: "Confirm that the Project name cannot be changed after creation.",
-  }),
-  name: z.string().trim().min(2).max(80),
-  invitations: z.array(z.object({
-    email: z.email().transform((email) => email.trim().toLowerCase()),
-    role: z.enum(assignableProjectMembershipRoles),
-  })).max(25),
-}).superRefine(({ invitations }, context) => {
-  const seen = new Set<string>();
-  invitations.forEach(({ email }, index) => {
-    if (seen.has(email)) {
-      context.addIssue({
-        code: "custom",
-        message: "Each invited email address must be unique.",
-        path: ["invitations", index, "email"],
-      });
-    }
-    seen.add(email);
-  });
-});
-
 export default defineHandler(async (event) => {
   let auth;
-  try { auth = requireAuth(event.req); } catch (error) { return unauthorizedResponse(error); }
+  try { auth = await requireAuth(event.req); } catch (error) { return unauthorizedResponse(error); }
   try {
-    await requireProjectCreateCapability(event.req);
+    const input = createProjectInputSchema.parse(await event.req.json());
+    await requireProjectCreateCapability(event.req, input.departmentId);
     const service = new ProjectService();
-    const input = inputSchema.parse(await event.req.json());
     return jsonResponse(
-      await service.create(auth, input.name, input.invitations),
+      await service.create(
+        auth,
+        input.departmentId,
+        input.name,
+        input.invitations,
+      ),
       { status: 201 },
     );
   } catch (error) {

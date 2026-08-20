@@ -1,34 +1,32 @@
-import { z } from "zod";
 import { defineHandler } from "nitro";
+import { changePasswordInputSchema } from "../../../../api-contracts/schemas";
 import { requireAuth, unauthorizedResponse } from "../../../../auth/auth";
-import { errorResponse, noContentResponse } from "../../../../http/responses";
-import { PersonalProfileService } from "../../../../profiles/personal-profile-service";
-
-const inputSchema = z
-  .object({
-    currentPassword: z.string().min(1).max(128),
-    newPassword: z
-      .string()
-      .min(12, "New password must contain at least 12 characters.")
-      .max(128),
-  })
-  .refine(
-    (input) => input.currentPassword !== input.newPassword,
-    "New password must be different from the current password.",
-  );
+import { auth as betterAuth } from "../../../../auth/better-auth";
+import { noContentResponse, problemResponse } from "../../../../http/responses";
 
 export default defineHandler(async (event) => {
   let auth;
   try {
-    auth = requireAuth(event.req);
+    auth = await requireAuth(event.req);
   } catch (error) {
     return unauthorizedResponse(error);
   }
   try {
-    const input = inputSchema.parse(await event.req.json());
-    await new PersonalProfileService().resetPassword(auth, input);
+    const input = changePasswordInputSchema.parse(await event.req.json());
+    if (!auth.user.hasPassword) {
+      return problemResponse(403, "This account does not have a password credential.");
+    }
+    await betterAuth().api.changePassword({
+      headers: event.req.headers,
+      body: {
+        currentPassword: input.currentPassword,
+        newPassword: input.newPassword,
+        revokeOtherSessions: true,
+      },
+    });
     return noContentResponse();
   } catch (error) {
-    return errorResponse(error);
+    const message = error instanceof Error ? error.message : "Password change failed.";
+    return problemResponse(400, message);
   }
 });

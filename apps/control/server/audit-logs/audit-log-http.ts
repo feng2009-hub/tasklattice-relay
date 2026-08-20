@@ -2,20 +2,7 @@ import type {
   PlatformAuditLogEvent,
   PlatformAuditLogQuery,
 } from "@tali/contracts";
-import { z } from "zod";
-
-const querySchema = z.object({
-  query: z.string().trim().max(200).optional(),
-  from: z.iso.datetime({ offset: true }).optional(),
-  to: z.iso.datetime({ offset: true }).optional(),
-  actorId: z.string().trim().max(200).optional(),
-  action: z.string().trim().max(200).optional(),
-  objectType: z.string().trim().max(200).optional(),
-  outcome: z.enum(["success", "failed", "denied"]).optional(),
-  cursor: z.string().trim().max(1_000).optional(),
-  limit: z.coerce.number().int().min(1).max(100).optional(),
-  direction: z.enum(["asc", "desc"]).optional(),
-});
+import { auditQuerySchema } from "../api-contracts/schemas";
 
 function optionalParameter(parameters: URLSearchParams, name: string): string | undefined {
   const value = parameters.get(name)?.trim();
@@ -24,7 +11,7 @@ function optionalParameter(parameters: URLSearchParams, name: string): string | 
 
 export function parseAuditLogQuery(request: Request): PlatformAuditLogQuery {
   const parameters = new URL(request.url).searchParams;
-  const parsed = querySchema.parse({
+  const parsed = auditQuerySchema.parse({
     query: optionalParameter(parameters, "query"),
     from: optionalParameter(parameters, "from"),
     to: optionalParameter(parameters, "to"),
@@ -35,6 +22,7 @@ export function parseAuditLogQuery(request: Request): PlatformAuditLogQuery {
     cursor: optionalParameter(parameters, "cursor"),
     limit: optionalParameter(parameters, "limit"),
     direction: optionalParameter(parameters, "direction"),
+    include_sensitive: optionalParameter(parameters, "include_sensitive"),
   });
   return {
     ...(parsed.query ? { query: parsed.query } : {}),

@@ -1,6 +1,6 @@
 import type { PlatformAuditLogEvent } from "@tali/contracts";
-import type { AuthPayload } from "../auth/auth";
-import { requireAuth, verifyAuthToken } from "../auth/auth";
+import type { PlatformPrincipal } from "../auth/auth";
+import { requireAuth } from "../auth/auth";
 import { prisma } from "../db/prisma";
 import type { PrismaClient } from "../generated/prisma/client";
 import { AuditLogService } from "./audit-log-service";
@@ -34,7 +34,7 @@ interface AuditDescriptor {
 
 export interface CapturedAuditRequest {
   admission?: readonly AdmissionEvidence[];
-  auth?: AuthPayload;
+  auth?: PlatformPrincipal;
   body?: unknown;
   descriptor: AuditDescriptor;
   ipAddress: string;
@@ -127,13 +127,22 @@ function descriptor(method: string, path: string): AuditDescriptor | undefined {
   if (method === "POST" && path === "/api/v1/projects") {
     return { action: "project.create", objectType: "Project", operation: "create" };
   }
-  if (path === "/api/v1/auth/local" && method === "POST") {
+  const departmentMatch = path.match(/^\/api\/v1\/departments\/([^/]+)$/);
+  if (departmentMatch && method === "PATCH") {
+    return {
+      action: "department.update",
+      objectId: decodeURIComponent(departmentMatch[1]!),
+      objectType: "Department",
+      operation: "update",
+    };
+  }
+  if (path === "/api/auth/sign-in/username" && method === "POST") {
     return { action: "auth.login", objectType: "Session", operation: "login" };
   }
-  if (path === "/api/v1/auth/logout" && method === "POST") {
+  if (path === "/api/auth/sign-out" && method === "POST") {
     return { action: "auth.logout", objectType: "Session", operation: "logout" };
   }
-  if (path === "/auth/sso/callback" && method === "GET") {
+  if (path === "/api/auth/callback/corporate-sso" && method === "GET") {
     return { action: "auth.sso_callback", objectType: "Session", operation: "login" };
   }
   if (path === "/api/v1/profile" && method === "PATCH") {
@@ -299,9 +308,9 @@ export async function captureAuditRequest(
   const requestDescriptor = descriptor(method, url.pathname)
     ?? (method === "GET" ? sensitiveReadDescriptor(url) : undefined);
   if (!requestDescriptor) return undefined;
-  let auth: AuthPayload | undefined;
+  let auth: PlatformPrincipal | undefined;
   try {
-    auth = requireAuth(request);
+    auth = await requireAuth(request);
   } catch {
     auth = undefined;
   }
@@ -332,14 +341,14 @@ export async function captureAuditRequest(
  * denied it. Successful high-volume reads remain outside the mutation audit
  * stream, while every denied CAP check is still durable and searchable.
  */
-export function captureDeniedAdmissionRequest(
+export async function captureDeniedAdmissionRequest(
   request: Request,
   evidence: AdmissionEvidence,
-): CapturedAuditRequest {
+): Promise<CapturedAuditRequest> {
   const url = new URL(request.url);
-  let auth: AuthPayload | undefined;
+  let auth: PlatformPrincipal | undefined;
   try {
-    auth = requireAuth(request);
+    auth = await requireAuth(request);
   } catch {
     auth = undefined;
   }
@@ -383,41 +392,33 @@ async function responseJson(response: Response): Promise<Record<string, unknown>
   }
 }
 
-function authFromResponse(
-  captured: CapturedAuditRequest,
-  response: Response,
-  result?: Record<string, unknown>,
-): AuthPayload | undefined {
-  if (captured.auth) return captured.auth;
-  const token = typeof result?.token === "string" ? result.token : undefined;
-  if (token) {
-    try {
-      return verifyAuthToken(token);
-    } catch {
-      return undefined;
-    }
-  }
-  if (captured.descriptor.action === "auth.sso_callback") {
-    try {
-      const location = response.headers.get("location");
-      const signed = location
-        ? new URL(location).hash.slice(1)
-        : "";
-      const callbackToken = new URLSearchParams(signed).get("token");
-      return callbackToken ? verifyAuthToken(callbackToken) : undefined;
-    } catch {
-      return undefined;
-    }
-  }
-  return undefined;
-}
-
 function resultSubject(result?: Record<string, unknown>): Record<string, unknown> | undefined {
   if (!result) return undefined;
-  const nested = result.account;
+  const nested = result.account ?? result.user;
   return nested && typeof nested === "object" && !Array.isArray(nested)
     ? nested as Record<string, unknown>
     : result;
+}
+
+async function principalFromResponseCookie(
+  response: Response,
+): Promise<PlatformPrincipal | undefined> {
+  const setCookie = response.headers.get("set-cookie") ?? "";
+  const cookie = setCookie
+    .split(/,(?=\s*[^;,]+=)/)
+    .map((value) => value.split(";", 1)[0]?.trim())
+    .filter(Boolean)
+    .join("; ");
+  if (!cookie) return undefined;
+  try {
+    return await requireAuth(
+      new Request("http://tasklattice.local/audit-session", {
+        headers: { cookie },
+      }),
+    );
+  } catch {
+    return undefined;
+  }
 }
 
 function operationVerb(operation: string, outcome: PlatformAuditLogEvent["outcome"]): string {
@@ -452,7 +453,7 @@ export async function writeAuditResponse(
   database: PrismaClient = prisma(),
 ): Promise<void> {
   const result = await responseJson(response);
-  const auth = authFromResponse(captured, response, result);
+  const auth = captured.auth ?? (await principalFromResponseCookie(response));
   const subject = resultSubject(result);
   let projectId = captured.descriptor.projectId;
   if (!projectId && captured.descriptor.action === "project.create") {
@@ -460,7 +461,7 @@ export async function writeAuditResponse(
   }
   const membership = projectId && auth
     ? await database.projectMember.findUnique({
-        where: { projectId_userId: { projectId, userId: auth.sub } },
+        where: { projectId_userId: { projectId, userId: auth.user.id } },
         select: { role: true },
       })
     : undefined;

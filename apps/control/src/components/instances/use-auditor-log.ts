@@ -1,4 +1,4 @@
-import type { Agent } from "@tali/contracts";
+import type { Instance as Agent } from "@tali/contracts";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { api } from "@/lib/api";
@@ -14,7 +14,7 @@ export function useAuditorLog(agent: Agent, options: UseAuditorLogOptions) {
   const scope = useProjectQueryScope();
   const query = useQuery({
     queryKey: scope.key("agent-audit", agent.id),
-    queryFn: () => api.getAgentAudit(agent.id),
+    queryFn: () => api.getInstanceAudit(agent.id),
     enabled: options.includeSandboxAudit ?? true,
     retry: 1,
     staleTime: 5_000,

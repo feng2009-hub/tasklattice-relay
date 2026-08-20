@@ -1,24 +1,24 @@
 import { defineHandler } from "nitro";
-import { z } from "zod";
+import { instanceParamsSchema } from "../../../../../../../api-contracts/schemas";
 import { requireAuth, unauthorizedResponse } from "../../../../../../../auth/auth";
-import { errorResponse, jsonResponse } from "../../../../../../../http/responses";
-import { getAgentService } from "../../../../../../../services";
+import { errorResponse, jsonResponse, problemResponse } from "../../../../../../../http/responses";
+import { getInstanceService } from "../../../../../../../services";
 
 export default defineHandler(async (event) => {
   try {
-    requireAuth(event.req);
+    await requireAuth(event.req);
   } catch (error) {
     return unauthorizedResponse(error);
   }
   try {
-    const id = z.string().uuid().parse(event.context.params?.instanceId);
-    const destroyed = await (await getAgentService(event.req)).destroy(id);
+    const { instanceId: id } = instanceParamsSchema.parse(event.context.params);
+    const destroyed = await (await getInstanceService(event.req)).destroy(id);
     return destroyed
       ? jsonResponse(
           { id, status: "DESTROYING", accepted: true },
           { status: 202 },
         )
-      : jsonResponse({ error: "Agent not found." }, { status: 404 });
+      : problemResponse(404, "Instance not found.");
   } catch (error) {
     return errorResponse(error);
   }

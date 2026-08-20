@@ -1,7 +1,6 @@
-import bcrypt from "bcryptjs";
 import type { PrismaClient } from "../generated/prisma/client";
 import type { SystemRole } from "../auth/auth";
-import { verifyLocalPassword, type AuthPayload } from "../auth/auth";
+import type { PlatformPrincipal } from "../auth/auth";
 import { prisma } from "../db/prisma";
 import { ProjectService } from "../projects/project-service";
 
@@ -9,7 +8,7 @@ export interface PersonalProfile {
   displayName: string;
   email: string;
   language: "en-US" | "zh-CN";
-  provider: "local" | "sso";
+  hasPassword: boolean;
   systemRole: SystemRole;
   theme: "system" | "light" | "dark";
   timezone: string;
@@ -19,27 +18,27 @@ export interface PersonalProfile {
 export class PersonalProfileService {
   constructor(private readonly db: PrismaClient = prisma()) {}
 
-  async get(auth: AuthPayload): Promise<PersonalProfile> {
+  async get(auth: PlatformPrincipal): Promise<PersonalProfile> {
     await new ProjectService(this.db).requireUser(auth);
     const user = await this.db.user.findUnique({
-      where: { id: auth.sub },
+      where: { id: auth.user.id },
     });
     if (!user) throw new Error("Personal profile not found.");
     return {
       displayName: user.displayName,
       email: user.email,
       language: user.language === "zh-CN" ? "zh-CN" : "en-US",
-      provider: auth.user.provider,
+      hasPassword: auth.user.hasPassword,
       systemRole: user.systemRole,
       theme:
         user.theme === "light" || user.theme === "dark" ? user.theme : "system",
       timezone: user.timezone || "UTC",
-      username: user.username,
+      username: user.username ?? user.email,
     };
   }
 
   async update(
-    auth: AuthPayload,
+    auth: PlatformPrincipal,
     input: {
       language: "en-US" | "zh-CN";
       theme: "system" | "light" | "dark";
@@ -48,7 +47,7 @@ export class PersonalProfileService {
   ): Promise<PersonalProfile> {
     await new ProjectService(this.db).requireUser(auth);
     await this.db.user.update({
-      where: { id: auth.sub },
+      where: { id: auth.user.id },
       data: {
         language: input.language,
         theme: input.theme,
@@ -58,44 +57,4 @@ export class PersonalProfileService {
     return this.get(auth);
   }
 
-  async resetPassword(
-    auth: AuthPayload,
-    input: { currentPassword: string; newPassword: string },
-  ): Promise<void> {
-    await new ProjectService(this.db).requireUser(auth);
-    const user = await this.db.user.findUnique({
-      where: { id: auth.sub },
-      include: {
-        identities: {
-          where: { type: "local" },
-          include: { credential: true },
-        },
-      },
-    });
-    if (!user) throw new Error("Personal profile not found.");
-    const identity = user.identities[0];
-    if (!identity || auth.user.provider !== "local") {
-      throw new Error("You do not have permission to reset an SSO password.");
-    }
-    if (!identity.credential) {
-      throw new Error("Local account password is not initialized.");
-    }
-    const valid = await verifyLocalPassword(
-      input.currentPassword,
-      identity.credential.passwordHash,
-    );
-    if (!valid) throw new Error("Invalid current password.");
-    if (input.currentPassword === input.newPassword) {
-      throw new Error(
-        "New password must be different from the current password.",
-      );
-    }
-    await this.db.localCredential.update({
-      where: { identityId: identity.id },
-      data: {
-        passwordHash: await bcrypt.hash(input.newPassword, 12),
-        changedAt: new Date(),
-      },
-    });
-  }
 }

@@ -1,4 +1,4 @@
-import type { AgentStatus, ProvisioningStage } from "@tali/contracts";
+import type { InstanceStatus, ProvisioningStage } from "@tali/contracts";
 
 export type ProvisioningStepState = "active" | "complete" | "failed" | "pending";
 
@@ -22,7 +22,7 @@ export function resolveProvisioningState({
   status,
 }: {
   stage?: ProvisioningStage;
-  status: AgentStatus;
+  status: InstanceStatus;
 }) {
   const resolvedStage = status === "READY" ? "READY" : stage ?? "QUEUED";
   const matchedIndex = provisioningStageDefinitions.findIndex((item) => item.id === resolvedStage);

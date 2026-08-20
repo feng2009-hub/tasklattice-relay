@@ -73,14 +73,14 @@ export function TryDemoAgentSheet({
         },
       );
       const payload = await response.json() as {
-        error?: string;
+        detail?: string;
         result?: {
           metadata?: { trace?: string[] };
           parts?: Array<{ kind?: string; text?: string }>;
         };
       };
       if (!response.ok) {
-        throw new Error(payload.error ?? "The demo Agent did not respond.");
+        throw new Error(payload.detail ?? "The demo Agent did not respond.");
       }
       const output = payload.result?.parts?.find(
         (part) => part.kind === "text",

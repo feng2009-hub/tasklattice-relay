@@ -5,7 +5,7 @@ import { errorResponse, jsonResponse } from "../../../../../../http/responses";
 import { getModelRoutingService, requireProjectRole } from "../../../../../../services";
 
 export default defineHandler(async (event) => {
-  try { requireAuth(event.req); } catch (error) { return unauthorizedResponse(error); }
+  try { await requireAuth(event.req); } catch (error) { return unauthorizedResponse(error); }
   try {
     await requireProjectRole(event.req, ["admin"]);
     const profile = await (await getModelRoutingService(event.req)).create(createModelRoutingSchema.parse(await event.req.json()));

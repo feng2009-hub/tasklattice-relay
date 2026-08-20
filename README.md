@@ -178,7 +178,7 @@ kubectl -n tali port-forward service/tali-relay-openshell 8080:8080
 ```
 
 The checked-in Chart defaults are suitable only for a trusted cluster: local
-login is `admin / admin`, and OpenShell permits unauthenticated plaintext
+login is `admin / admin-password`, and OpenShell permits unauthenticated plaintext
 gateway clients. Before shared or internet-facing use, override every
 `secrets.*` value and configure authenticated ingress plus OpenShell TLS/OIDC.
 For an end-to-end SSO test environment, the Chart can deploy an ephemeral,

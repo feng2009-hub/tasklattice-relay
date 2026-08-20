@@ -125,7 +125,7 @@ OpenShell built-in Policies are deployment configuration. The Helm chart stores 
 
 ## REST and terminal protocols
 
-All resource operations use versioned REST endpoints. `POST /agents` returns `202 Accepted` because onboarding may build images and take minutes. `GET /agents/{id}` reconciles observed state. `DELETE /agents/{id}` destroys the NemoClaw sandbox and then removes the control-plane resource. The complete OpenAPI 3.1 contract is available at `/api/v1/openapi.json` for third-party UIs.
+All resource operations use versioned REST endpoints. `POST /instances` returns `202 Accepted` because provisioning may build images and take minutes. `GET /instances/{instanceId}` reconciles observed state. `DELETE /instances/{instanceId}` destroys the NemoClaw sandbox and then removes the control-plane resource. The generated OpenAPI 3.1 contract is available at `/api/v1/openapi.json`; its Zod sources live under `apps/control/server/api-contracts`.
 
 Terminal sessions are created through REST, expire after five minutes if unused,
 and are single-use. Following the proven Volcano Dashboard terminal flow, the

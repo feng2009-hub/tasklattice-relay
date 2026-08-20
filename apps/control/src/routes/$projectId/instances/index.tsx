@@ -1,8 +1,8 @@
 import { useMemo, useState, type ReactElement } from "react";
 import {
   agentPlatformIds,
-  type Agent,
-  type AgentStatus,
+  type Instance as Agent,
+  type InstanceStatus,
 } from "@tali/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
@@ -41,7 +41,7 @@ export const Route = createFileRoute("/$projectId/instances/")({
   component: Instances,
 });
 
-const statusFilters = ["ALL", "PROVISIONING", "READY", "FAILED", "DESTROYING"] as const satisfies readonly (AgentStatus | "ALL")[];
+const statusFilters = ["ALL", "PROVISIONING", "READY", "FAILED", "DESTROYING"] as const satisfies readonly (InstanceStatus | "ALL")[];
 
 function relativeTime(value: string): string {
   const elapsed = Date.now() - new Date(value).getTime();
@@ -104,7 +104,7 @@ function PrimaryInstanceAction({ canInteract, instance }: { canInteract: boolean
   const scope = useProjectQueryScope();
   const interaction = useQuery({
     queryKey: scope.key("agent-interaction", instance.id),
-    queryFn: () => api.getAgentInteraction(instance.id),
+    queryFn: () => api.getInstanceInteraction(instance.id),
     enabled: canInteract && instance.status === "READY",
     retry: 1,
     staleTime: 15_000,
@@ -183,13 +183,13 @@ function Instances() {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<(typeof statusFilters)[number]>("ALL");
   const [deletingInstance, setDeletingInstance] = useState<Agent>();
-  const agents = useQuery({ queryKey: scope.key("agents"), queryFn: api.listAgents, refetchInterval: 2_000 });
+  const agents = useQuery({ queryKey: scope.key("agents"), queryFn: api.listInstances, refetchInterval: 2_000 });
   const filtered = useMemo(() => (agents.data ?? []).filter((agent) => {
     const matchesQuery = `${agent.name} ${agent.id} ${agent.sandboxName} ${getAgentPlatformPresentation(agent.agentPlatform).name} ${agent.createdBy?.displayName ?? ""} ${agent.createdBy?.username ?? ""}`.toLowerCase().includes(query.trim().toLowerCase());
     return matchesQuery && (status === "ALL" || agent.status === status);
   }), [agents.data, query, status]);
   const remove = useMutation({
-    mutationFn: api.deleteAgent,
+    mutationFn: api.deleteInstance,
     onSuccess: async () => {
       setDeletingInstance(undefined);
       await queryClient.invalidateQueries({ queryKey: scope.key("agents") });

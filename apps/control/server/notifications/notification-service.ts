@@ -1,5 +1,5 @@
 import type { PrismaClient, UserNotification } from "../generated/prisma/client";
-import type { AuthPayload } from "../auth/auth";
+import type { PlatformPrincipal } from "../auth/auth";
 import { prisma } from "../db/prisma";
 import { ProjectService } from "../projects/project-service";
 
@@ -35,16 +35,16 @@ function serialize(notification: UserNotification): InAppNotification {
 export class NotificationService {
   constructor(private readonly db: PrismaClient = prisma()) {}
 
-  async list(auth: AuthPayload): Promise<NotificationInbox> {
+  async list(auth: PlatformPrincipal): Promise<NotificationInbox> {
     await new ProjectService(this.db).requireUser(auth);
     const [items, unreadCount] = await Promise.all([
       this.db.userNotification.findMany({
-        where: { userId: auth.sub },
+        where: { userId: auth.user.id },
         orderBy: { createdAt: "desc" },
         take: 50,
       }),
       this.db.userNotification.count({
-        where: { userId: auth.sub, readAt: null },
+        where: { userId: auth.user.id, readAt: null },
       }),
     ]);
     return { items: items.map(serialize), unreadCount };
@@ -70,13 +70,13 @@ export class NotificationService {
   }
 
   async setRead(
-    auth: AuthPayload,
+    auth: PlatformPrincipal,
     notificationId: string,
     read: boolean,
   ): Promise<InAppNotification> {
     await new ProjectService(this.db).requireUser(auth);
     const result = await this.db.userNotification.updateMany({
-      where: { id: notificationId, userId: auth.sub },
+      where: { id: notificationId, userId: auth.user.id },
       data: { readAt: read ? new Date() : null },
     });
     if (!result.count) throw new Error("Notification not found.");
@@ -87,10 +87,10 @@ export class NotificationService {
     );
   }
 
-  async markAllRead(auth: AuthPayload): Promise<{ updatedCount: number }> {
+  async markAllRead(auth: PlatformPrincipal): Promise<{ updatedCount: number }> {
     await new ProjectService(this.db).requireUser(auth);
     const result = await this.db.userNotification.updateMany({
-      where: { userId: auth.sub, readAt: null },
+      where: { userId: auth.user.id, readAt: null },
       data: { readAt: new Date() },
     });
     return { updatedCount: result.count };

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { useAuth } from "@/components/auth/auth-provider";
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { getStoredProjectId, projectPath } from "@/lib/project-storage";
+import { authClient } from "@/lib/auth-client";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
@@ -16,7 +17,7 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const search = Route.useSearch();
-  const { config, error: configError, loading, loginWithToken } = useAuth();
+  const { config, error: configError, loading } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
@@ -26,21 +27,20 @@ function LoginPage() {
   const redirect =
     search.redirect?.startsWith("/") && !search.redirect.startsWith("//")
       ? search.redirect
-      : projectPath(getStoredProjectId() ?? "individual");
+      : projectPath(getStoredProjectId() ?? "proj1");
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSubmitting(true);
     setError("");
     try {
-      const response = await fetch("/api/v1/auth/local", {
-        body: JSON.stringify({ password, remember, username }),
-        headers: { "content-type": "application/json" },
-        method: "POST",
+      const result = await authClient.signIn.username({
+        password,
+        rememberMe: remember,
+        username,
       });
-      const payload = (await response.json()) as { message?: string; token?: string };
-      if (!response.ok || !payload.token) throw new Error(payload.message ?? "Sign in failed.");
-      await loginWithToken(payload.token, remember, redirect);
+      if (result.error) throw new Error(result.error.message ?? "Sign in failed.");
+      window.location.assign(redirect);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Sign in failed.");
     } finally {
@@ -79,8 +79,8 @@ function LoginPage() {
           ) : null}
           {config?.developmentDefaults ? (
             <div className="mt-7 border-l-2 border-primary bg-primary/5 px-4 py-3 text-sm text-foreground">
-              The initial local account is <strong>admin / admin</strong>. Its
-              password is written to the database on first sign-in and can be
+              The initial local account is <strong>admin / admin-password</strong>. Its
+              password is initialized when the control service starts and can be
               reset from My Account.
             </div>
           ) : null}
@@ -125,9 +125,10 @@ function LoginPage() {
               disabled={loading || !config?.ssoEnabled}
               onClick={() => {
                 if (!config?.ssoEnabled) return;
-                window.location.assign(
-                  `/api/v1/auth/sso/start?redirect=${encodeURIComponent(redirect)}`,
-                );
+                void authClient.signIn.social({
+                  provider: "corporate-sso",
+                  callbackURL: redirect,
+                });
               }}
               className="mt-6 flex min-h-12 w-full items-center justify-center gap-2 border border-input bg-background px-6 text-sm font-medium transition-colors hover:border-foreground focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:bg-muted/50 disabled:text-muted-foreground"
             >

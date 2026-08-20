@@ -5,7 +5,7 @@ import { builtinProjectRoles } from "../../../../../../../authorization/builtin-
 
 export default defineHandler(async (event) => {
   try {
-    requireAuth(event.req);
+    await requireAuth(event.req);
     return jsonResponse({ data: builtinProjectRoles });
   } catch (error) {
     if (error instanceof Error && /authentication/i.test(error.message)) {

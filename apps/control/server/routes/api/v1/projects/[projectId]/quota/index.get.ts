@@ -4,7 +4,7 @@ import { errorResponse, jsonResponse } from "../../../../../../http/responses";
 import { getProjectQuotaService, requireProjectRole } from "../../../../../../services";
 
 export default defineHandler(async (event) => {
-  try { requireAuth(event.req); } catch (error) { return unauthorizedResponse(error); }
+  try { await requireAuth(event.req); } catch (error) { return unauthorizedResponse(error); }
   try {
     await requireProjectRole(event.req, ["admin", "user"]);
     return jsonResponse(await (await getProjectQuotaService(event.req)).get());

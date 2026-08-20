@@ -1,128 +1,133 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import bcrypt from "bcryptjs";
+import { verifyPassword } from "better-auth/crypto";
 import {
   developmentControlConfig,
   setControlConfigForTests,
 } from "../config/control-config";
 import { createTestPrisma } from "../test/prisma";
+import { handleAuthMe, publicAuthConfig } from "./auth";
 import {
-  handleAuthMe,
-  handleLocalLogin,
-  handleSsoStart,
-  provisionOidcUser,
-  publicAuthConfig,
-  verifyAuthToken,
-} from "./auth";
+  auth,
+  ensureInitialSuperAdministrator,
+  resetBetterAuthForTests,
+} from "./better-auth";
 
-function localRequest(password: string) {
-  return new Request("http://tali.local/api/v1/auth/local", {
-    body: JSON.stringify({ password, username: "admin" }),
-    headers: { "content-type": "application/json" },
-    method: "POST",
-  });
+function cookieHeader(response: Response): string {
+  return (response.headers.get("set-cookie") ?? "")
+    .split(/,(?=\s*[^;,]+=)/)
+    .map((cookie) => cookie.split(";", 1)[0]?.trim())
+    .filter(Boolean)
+    .join("; ");
 }
 
-describe("TaskLattice Relay authentication", () => {
+function signIn(password: string): Promise<Response> {
+  return auth().handler(
+    new Request("http://tali.local/api/auth/sign-in/username", {
+      body: JSON.stringify({
+        password,
+        rememberMe: true,
+        username: "admin",
+      }),
+      headers: {
+        "content-type": "application/json",
+        origin: "http://tali.local",
+      },
+      method: "POST",
+    }),
+  );
+}
+
+describe("Better Auth platform authentication", () => {
   const db = createTestPrisma();
 
   beforeEach(async () => {
     globalThis.taliPrisma = db;
-    vi.restoreAllMocks();
     vi.stubEnv("TALI_CONFIG", "/test/control.toml");
     const config = developmentControlConfig();
     config.server.public_url = "http://tali.local";
-    config.auth.local.initial_super_admin_password_hash =
-      await bcrypt.hash("bootstrap-password", 4);
+    config.auth.local.initial_super_admin_password = "correct-horse-battery";
     setControlConfigForTests(config);
-    await db.localCredential.upsert({
-      where: { identityId: "identity-local-admin" },
-      create: {
-        identityId: "identity-local-admin",
-        passwordHash: await bcrypt.hash("correct-horse", 4),
-      },
-      update: {
-        passwordHash: await bcrypt.hash("correct-horse", 4),
-      },
-    });
+    resetBetterAuthForTests();
+    await db.authSession.deleteMany();
+    await db.authAccount.deleteMany();
+    await ensureInitialSuperAdministrator();
   });
 
-  afterEach(async () => {
-    await db.localCredential.deleteMany({
-      where: { identityId: "identity-local-admin" },
-    });
-    await db.user.deleteMany({
-      where: { id: { not: "local-admin" } },
-    });
+  afterEach(() => {
+    resetBetterAuthForTests();
     setControlConfigForTests(undefined);
-    vi.restoreAllMocks();
     vi.unstubAllEnvs();
   });
 
-  it("authenticates a configured local user and resolves the bearer identity", async () => {
-    const response = await handleLocalLogin(localRequest("correct-horse"));
-    const body = (await response.json()) as {
-      token: string;
-      user: Record<string, unknown>;
-    };
-
+  it("signs in with a username and resolves the cookie-backed application principal", async () => {
+    const response = await signIn("correct-horse-battery");
     expect(response.status).toBe(200);
-    expect(body.user).toEqual({
-      displayName: "Local Administrator",
-      email: "admin@tasklattice.local",
-      id: "local-admin",
-      provider: "local",
-      systemRole: "super_administrator",
-      username: "admin",
-    });
-    expect(body.user).not.toHaveProperty("password");
-    expect(body.user).not.toHaveProperty("passwordHash");
-    expect(verifyAuthToken(body.token).sub).toBe("local-admin");
-    expect(verifyAuthToken(body.token).user).toEqual(body.user);
+    expect(response.headers.get("set-cookie")).toContain("HttpOnly");
+    expect(response.headers.get("set-cookie")).toContain("SameSite=Lax");
 
     const me = await handleAuthMe(
       new Request("http://tali.local/api/v1/auth/me", {
-        headers: { authorization: `Bearer ${body.token}` },
+        headers: { cookie: cookieHeader(response) },
       }),
     );
+    expect(me.status).toBe(200);
     await expect(me.json()).resolves.toMatchObject({
-      identity: { type: "authenticated", username: "admin" },
-      user: { provider: "local", username: "admin" },
+      identity: { type: "authenticated", userId: "local-admin" },
+      user: {
+        hasPassword: true,
+        id: "local-admin",
+        systemRole: "super_administrator",
+        username: "admin",
+      },
     });
+    await expect(db.authSession.count()).resolves.toBe(1);
   });
 
-  it("rejects invalid local credentials", async () => {
-    const response = await handleLocalLogin(localRequest("wrong"));
-    await expect(response.json()).resolves.toMatchObject({
-      error: "Login failed",
-      message: "Invalid username or password.",
+  it("rejects invalid credentials and does not accept the removed bearer-token protocol", async () => {
+    const invalid = await signIn("incorrect-password");
+    expect(invalid.status).toBe(401);
+
+    const bearerOnly = await handleAuthMe(
+      new Request("http://tali.local/api/v1/auth/me", {
+        headers: { authorization: "Bearer legacy.jwt.token" },
+      }),
+    );
+    expect(bearerOnly.status).toBe(401);
+  });
+
+  it("bootstraps one scrypt credential without rewriting it on restart", async () => {
+    const first = await db.authAccount.findFirstOrThrow({
+      where: { providerId: "credential", userId: "local-admin" },
     });
-    expect(response.status).toBe(401);
-  });
+    expect(first.password).toBeTruthy();
+    await expect(
+      verifyPassword({
+        hash: first.password!,
+        password: "correct-horse-battery",
+      }),
+    ).resolves.toBe(true);
 
-  it("does not accept the bootstrap password after a database hash exists", async () => {
-    const response = await handleLocalLogin(localRequest("bootstrap-password"));
-    expect(response.status).toBe(401);
-  });
-
-  it("does not require a public URL for local authentication", async () => {
     const config = developmentControlConfig();
-    delete config.server.public_url;
-    config.auth.local.initial_super_admin_password_hash =
-      await bcrypt.hash("bootstrap-password", 4);
+    config.server.public_url = "http://tali.local";
+    config.auth.local.initial_super_admin_password = "different-password-value";
     setControlConfigForTests(config);
+    await ensureInitialSuperAdministrator();
 
-    const response = await handleLocalLogin(localRequest("correct-horse"));
-    expect(response.status).toBe(200);
+    const second = await db.authAccount.findUniqueOrThrow({
+      where: { id: first.id },
+    });
+    expect(second.password).toBe(first.password);
   });
 
-  it("publishes local and SSO capabilities without leaking secrets", () => {
+  it("publishes enabled login methods without exposing Better Auth secrets", () => {
     const config = developmentControlConfig();
+    config.server.public_url = "http://tali.local";
     config.auth.oidc = {
       enabled: true,
       display_name: "Example ID",
       issuer: "https://identity.example/realms/agents",
       client_id: "tali",
-      client_secret: "",
+      client_secret: "provider-secret",
     };
     setControlConfigForTests(config);
 
@@ -134,107 +139,15 @@ describe("TaskLattice Relay authentication", () => {
       providerName: "Example ID",
       ssoEnabled: true,
     });
+    expect(JSON.stringify(publicAuthConfig())).not.toContain("provider-secret");
+    expect(JSON.stringify(publicAuthConfig())).not.toContain(config.auth.secret);
   });
 
-  it("requires a canonical public URL when OIDC is enabled", () => {
+  it("requires one canonical public URL for every authentication mode", () => {
     const config = developmentControlConfig();
     delete config.server.public_url;
-    config.auth.oidc = {
-      enabled: true,
-      display_name: "Example ID",
-      issuer: "https://identity.example/realms/agents",
-      client_id: "tali",
-      client_secret: "",
-    };
     setControlConfigForTests(config);
-
-    expect(() => publicAuthConfig()).toThrow(
-      "server.public_url must be configured when OIDC authentication is enabled.",
-    );
-  });
-
-  it("starts OIDC authorization with PKCE, nonce, and a protected state cookie", async () => {
-    const config = developmentControlConfig();
-    config.server.public_url = "http://tali.local";
-    config.auth.oidc = {
-      enabled: true,
-      display_name: "Example ID",
-      issuer: "https://identity.example/realms/agents",
-      client_id: "tali",
-      client_secret: "",
-    };
-    setControlConfigForTests(config);
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(
-        Response.json({
-          authorization_endpoint: "https://identity.example/authorize",
-          jwks_uri: "https://identity.example/jwks",
-          token_endpoint: "https://identity.example/token",
-        }),
-      ),
-    );
-
-    const response = await handleSsoStart(
-      new Request("http://tali.local/api/v1/auth/sso/start"),
-    );
-    const location = new URL(response.headers.get("location") ?? "");
-
-    expect(response.status).toBe(302);
-    expect(location.searchParams.get("client_id")).toBe("tali");
-    expect(location.searchParams.get("code_challenge_method")).toBe("S256");
-    expect(location.searchParams.get("code_challenge")).toBeTruthy();
-    expect(location.searchParams.get("nonce")).toBeTruthy();
-    expect(location.searchParams.get("redirect_uri")).toBe(
-      "http://tali.local/auth/sso/callback",
-    );
-    expect(response.headers.get("set-cookie")).toContain("HttpOnly");
-    expect(response.headers.get("set-cookie")).toContain("SameSite=Lax");
-  });
-
-  it("JIT-provisions one local user for a stable OIDC issuer and subject", async () => {
-    const config = developmentControlConfig();
-    config.auth.oidc = {
-      enabled: true,
-      display_name: "Example ID",
-      issuer: "https://identity.example/realms/agents",
-      client_id: "tali",
-      client_secret: "",
-    };
-    setControlConfigForTests(config);
-
-    const first = await provisionOidcUser({
-      sub: "external-user-42",
-      preferred_username: "alice",
-      email: "alice@example.com",
-      name: "Alice Chen",
-    });
-    const second = await provisionOidcUser({
-      sub: "external-user-42",
-      preferred_username: "alice-renamed",
-      email: "alice@example.com",
-      name: "Alice Renamed",
-    });
-
-    expect(first.id).toBe(second.id);
-    expect(first).toMatchObject({
-      provider: "sso",
-      systemRole: "user",
-      username: "alice",
-    });
-    await expect(
-      db.userIdentity.findUnique({
-        where: {
-          issuer_subject: {
-            issuer: "https://identity.example/realms/agents",
-            subject: "external-user-42",
-          },
-        },
-      }),
-    ).resolves.toMatchObject({
-      type: "oidc",
-      username: "alice-renamed",
-      userId: first.id,
-    });
+    resetBetterAuthForTests();
+    expect(() => auth()).toThrow("server.public_url is required for Better Auth");
   });
 });

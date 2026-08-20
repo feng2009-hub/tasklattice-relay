@@ -6,7 +6,7 @@ import { getProviderService, requireProjectRole } from "../../../../../../servic
 
 export default defineHandler(async (event) => {
   try {
-    requireAuth(event.req);
+    await requireAuth(event.req);
   } catch (error) {
     return unauthorizedResponse(error);
   }

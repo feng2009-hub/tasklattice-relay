@@ -6,6 +6,8 @@ metadata:
   name: {{ $name }}
   labels:
     {{- include "tali.labels" . | nindent 4 }}
+  annotations:
+    {{- include "tali.resourceAnnotations" (dict "root" . "wave" "foundation") | nindent 4 }}
 spec:
   clusterIP: None
   selector:
@@ -20,6 +22,8 @@ metadata:
   name: {{ $name }}
   labels:
     {{- include "tali.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
+  annotations:
+    {{- include "tali.resourceAnnotations" (dict "root" . "wave" "database") | nindent 4 }}
 spec:
   serviceName: {{ $name }}
   replicas: 1

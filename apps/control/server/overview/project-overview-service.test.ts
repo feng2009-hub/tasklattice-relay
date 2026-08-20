@@ -1,4 +1,4 @@
-import type { Agent } from "@tali/contracts";
+import type { Instance as Agent } from "@tali/contracts";
 import { describe, expect, it } from "vitest";
 import type { ModelUsageFact } from "../providers/cost-analytics-store";
 import { ProjectStore } from "../projects/project-store";

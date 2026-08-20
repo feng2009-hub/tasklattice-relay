@@ -6,7 +6,7 @@ import { PersonalProfileService } from "../../../../profiles/personal-profile-se
 export default defineHandler(async (event) => {
   let auth;
   try {
-    auth = requireAuth(event.req);
+    auth = await requireAuth(event.req);
   } catch (error) {
     return unauthorizedResponse(error);
   }

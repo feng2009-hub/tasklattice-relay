@@ -1,6 +1,6 @@
 import { defineHandler } from "nitro";
 import { requireAuth, unauthorizedResponse } from "../../../../../../../auth/auth";
-import { errorResponse, jsonResponse } from "../../../../../../../http/responses";
+import { errorResponse, jsonResponse, problemResponse } from "../../../../../../../http/responses";
 import {
   getProviderService,
   requireProjectRole,
@@ -8,7 +8,7 @@ import {
 
 export default defineHandler(async (event) => {
   try {
-    requireAuth(event.req);
+    await requireAuth(event.req);
   } catch (error) {
     return unauthorizedResponse(error);
   }
@@ -16,20 +16,14 @@ export default defineHandler(async (event) => {
     await requireProjectRole(event.req, ["admin"]);
     const providerId = event.context.params?.providerId;
     if (!providerId) {
-      return jsonResponse(
-        { error: "Provider connection id is required." },
-        { status: 400 },
-      );
+      return problemResponse(400, "Provider connection id is required.");
     }
     const discovery = await (
       await getProviderService(event.req)
     ).discoverAccount(providerId);
     return discovery
       ? jsonResponse(discovery)
-      : jsonResponse(
-          { error: "Provider connection not found." },
-          { status: 404 },
-        );
+      : problemResponse(404, "Provider connection not found.");
   } catch (error) {
     return errorResponse(error);
   }

@@ -7,17 +7,20 @@ import {
 } from "@tali/contracts";
 
 /*
- * These capabilities belong to the approval executor, not to a human Project
- * role. Project Administrator receives every other registered Project
- * capability so one administrator can complete the full Project lifecycle.
+ * These capabilities are not granted by Project membership. Project creation
+ * belongs to the target Department Administrator; approval execution belongs
+ * to the service. Project Administrator receives every other registered
+ * Project capability so one administrator can complete that Project's
+ * lifecycle.
  */
-const serviceOnlyCapabilities = new Set<ProjectCapability>([
+const capabilitiesOutsideProjectRoles = new Set<ProjectCapability>([
+  "CAP_PROJECT_CREATE",
   "CAP_APPROVED_CHANGE_APPLY",
   "CAP_APPROVAL_OVERRIDE",
 ]);
 
 const projectAdminCapabilities = projectCapabilities.filter(
-  (capability) => !serviceOnlyCapabilities.has(capability),
+  (capability) => !capabilitiesOutsideProjectRoles.has(capability),
 );
 
 export interface BuiltinProjectRole {

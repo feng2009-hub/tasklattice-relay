@@ -1,5 +1,4 @@
 import type { AuthUser } from "../auth/auth";
-import { signAuthToken } from "../auth/auth";
 import {
   developmentControlConfig,
   setControlConfigForTests,
@@ -24,7 +23,7 @@ const users = {
     displayName: "Project Administrator",
     email: "administrator@example.test",
     id: "middleware-admin",
-    provider: "sso",
+    hasPassword: false,
     systemRole: "user",
     username: "middleware-admin",
   },
@@ -32,7 +31,7 @@ const users = {
     displayName: "Agent Developer",
     email: "developer@example.test",
     id: "middleware-developer",
-    provider: "sso",
+    hasPassword: false,
     systemRole: "user",
     username: "middleware-developer",
   },
@@ -40,7 +39,7 @@ const users = {
     displayName: "User",
     email: "user@example.test",
     id: "middleware-user",
-    provider: "sso",
+    hasPassword: false,
     systemRole: "user",
     username: "middleware-user",
   },
@@ -54,7 +53,7 @@ function authorizedRequest(
   const request = new Request(`http://tali.test${path}`, {
     ...init,
     headers: {
-      authorization: `Bearer ${signAuthToken(user).token}`,
+      "x-test-user-id": user.id,
       ...init.headers,
     },
   });
@@ -63,6 +62,18 @@ function authorizedRequest(
 }
 
 async function middleware(): Promise<AdmissionMiddleware> {
+  vi.doMock("../auth/auth", async (importOriginal) => {
+    const original = await importOriginal<typeof import("../auth/auth")>();
+    return {
+      ...original,
+      requireAuth: async (request: Request) => {
+        const userId = request.headers.get("x-test-user-id");
+        const user = Object.values(users).find((candidate) => candidate.id === userId);
+        if (!user) throw new Error("Authentication required.");
+        return { user };
+      },
+    };
+  });
   const module = await import("../middleware/project-capability-admission");
   return module.default as unknown as AdmissionMiddleware;
 }
@@ -265,7 +276,8 @@ describe("Project Capability admission middleware", () => {
     const response = await (await middleware())({ context: {}, req: request });
     expect(response?.status).toBe(403);
     await expect(response?.json()).resolves.toMatchObject({
-      error: expect.stringMatching(/no Capability admission policy/i),
+      detail: expect.stringMatching(/no Capability admission policy/i),
+      status: 403,
     });
   });
 });

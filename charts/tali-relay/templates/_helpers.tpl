@@ -38,6 +38,16 @@ app.kubernetes.io/name: {{ include "tali.name" .root }}
 app.kubernetes.io/component: {{ .component }}
 {{- end }}
 
+{{- define "tali.argocdSyncWave" -}}
+{{- index .root.Values.global.argocd.syncWaves .name -}}
+{{- end }}
+
+{{- define "tali.resourceAnnotations" -}}
+{{- $annotations := deepCopy (default (dict) .annotations) -}}
+{{- $_ := set $annotations "argocd.argoproj.io/sync-wave" (include "tali.argocdSyncWave" (dict "root" .root "name" .wave)) -}}
+{{- toYaml $annotations -}}
+{{- end }}
+
 {{- define "tali.image" -}}
 {{- $registry := trimSuffix "/" .root.Values.global.imageRegistry -}}
 {{- $repository := .image.repository -}}

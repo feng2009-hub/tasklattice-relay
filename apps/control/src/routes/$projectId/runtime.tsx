@@ -29,7 +29,7 @@ function OpenShellRuntimePage() {
   const scope = useProjectQueryScope();
   const agents = useQuery({
     queryKey: scope.key("agents"),
-    queryFn: api.listAgents,
+    queryFn: api.listInstances,
     refetchInterval: 2_000,
   });
   const runtime = useQuery({
@@ -39,7 +39,7 @@ function OpenShellRuntimePage() {
     staleTime: 10_000,
     refetchInterval: 30_000,
   });
-  const policies = useQuery({ queryKey: scope.key("sandbox-policies"), queryFn: api.listPolicies });
+  const policies = useQuery({ queryKey: scope.key("runtime-policies"), queryFn: api.listRuntimePolicies });
   const openShellAvailable =
     runtime.data?.terminal.available &&
     runtime.data.terminal.transport === "openshell";

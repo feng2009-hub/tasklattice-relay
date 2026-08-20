@@ -1,24 +1,24 @@
 import { defineHandler } from "nitro";
-import { z } from "zod";
+import { instanceParamsSchema } from "../../../../../../../api-contracts/schemas";
 import { requireAuth, unauthorizedResponse } from "../../../../../../../auth/auth";
-import { agentRuntimeLogView } from "../../../../../../../agents/agent-http-view";
-import { errorResponse, jsonResponse } from "../../../../../../../http/responses";
-import { getAgentService } from "../../../../../../../services";
+import { instanceRuntimeLogView } from "../../../../../../../instances/instance-http-view";
+import { errorResponse, jsonResponse, problemResponse } from "../../../../../../../http/responses";
+import { getInstanceService } from "../../../../../../../services";
 
 export default defineHandler(async (event) => {
   try {
-    requireAuth(event.req);
+    await requireAuth(event.req);
   } catch (error) {
     return unauthorizedResponse(error);
   }
   try {
-    const id = z.string().uuid().parse(event.context.params?.instanceId);
-    const agent = await (await getAgentService(event.req)).get(id);
-    return agent
-      ? jsonResponse(agentRuntimeLogView(agent), {
+    const { instanceId } = instanceParamsSchema.parse(event.context.params);
+    const instance = await (await getInstanceService(event.req)).get(instanceId);
+    return instance
+      ? jsonResponse(instanceRuntimeLogView(instance), {
           headers: { "cache-control": "no-store" },
         })
-      : jsonResponse({ error: "Agent not found." }, { status: 404 });
+      : problemResponse(404, "Instance not found.");
   } catch (error) {
     return errorResponse(error);
   }

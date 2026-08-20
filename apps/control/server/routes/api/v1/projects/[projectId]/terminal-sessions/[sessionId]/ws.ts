@@ -1,14 +1,14 @@
 import { WebSocket } from "ws";
 import { defineWebSocketHandler } from "nitro";
-import type { AgentService } from "../../../../../../../agents/agent-service";
-import { getAgentServiceForProject } from "../../../../../../../services";
+import type { InstanceService } from "../../../../../../../instances/instance-service";
+import { getInstanceServiceForProject } from "../../../../../../../services";
 import {
   consumeTerminalSession,
   type TerminalSessionRecord,
 } from "../../../../../../../terminal/terminal-sessions";
 
 interface TerminalPeerContext {
-  service: AgentService;
+  service: InstanceService;
   session: TerminalSessionRecord;
 }
 
@@ -37,7 +37,7 @@ export default defineWebSocketHandler({
     // after the caller passed Project authorization, so it is the capability
     // for this upgrade. Scope the service exclusively from that token rather
     // than trying to authenticate the WebSocket as a second HTTP request.
-    const service = getAgentServiceForProject(session.projectId);
+    const service = getInstanceServiceForProject(session.projectId);
     const agent = await service.get(session.agentId);
     if (!agent || agent.status !== "READY")
       throw new Response(

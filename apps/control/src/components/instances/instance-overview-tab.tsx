@@ -1,4 +1,5 @@
-import { complianceDomainCatalog, type Agent, type SandboxAuditEvent } from "@tali/contracts";
+import { complianceDomainCatalog, type SandboxAuditEvent } from "@tali/contracts";
+import type { Instance as Agent } from "@tali/contracts";
 import { Link } from "@tanstack/react-router";
 import { AlertTriangle, BookOpen, BrainCircuit, CheckCircle2, ChevronRight, ExternalLink, Globe2, Network, Sparkles, SquareTerminal } from "lucide-react";
 import { resolveProvisioningState } from "@/components/agents/provisioning-state";

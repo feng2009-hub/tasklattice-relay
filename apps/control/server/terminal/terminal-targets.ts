@@ -1,5 +1,5 @@
 import type {
-  Agent,
+  Instance as Agent,
   RuntimeStatus,
   TerminalTarget,
 } from "@tali/contracts";

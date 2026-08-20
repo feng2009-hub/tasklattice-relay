@@ -1,4 +1,4 @@
-import type { Agent } from "@tali/contracts";
+import type { Instance as Agent } from "@tali/contracts";
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft, ExternalLink, FileText, MoreHorizontal, Pencil, RefreshCw, Trash2 } from "lucide-react";
 import { AgentPlatformIcon } from "@/components/agents/agent-platform-icon";

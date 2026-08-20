@@ -14,8 +14,8 @@ export function permissionsForCapabilities(
     canViewAgentLogs: granted.has("CAP_AGENT_INSTANCE_LOG_VIEW"),
     canUseAgentTerminal: granted.has("CAP_AGENT_INSTANCE_TERMINAL_EXEC"),
     canViewSensitiveAgentAudit:
-      granted.has("CAP_AUDIT_DETAIL_VIEW")
-      && granted.has("CAP_AUDIT_SENSITIVE_CONTENT_VIEW"),
+      granted.has("CAP_AUDIT_DETAIL_VIEW") &&
+      granted.has("CAP_AUDIT_SENSITIVE_CONTENT_VIEW"),
     canCreateProject: options.canCreateProject ?? false,
     canDeleteProject: granted.has("CAP_PROJECT_DELETE"),
     canInviteMembers: granted.has("CAP_PROJECT_MEMBER_INVITE"),
@@ -39,14 +39,14 @@ export function permissionsForCapabilities(
 }
 
 export function useProjectPermissions(): ProjectPermissions {
-  const { currentProject } = useProject();
+  const { availableProjects, currentProject } = useProject();
 
   return permissionsForCapabilities(
     currentProject?.effectiveCapabilities ?? [],
     {
-      // Project creation is a system-scoped entitlement granted to every
-      // active authenticated user, independent of the selected Project role.
-      canCreateProject: true,
+      canCreateProject: availableProjects.some(
+        (project) => project.department.role === "administrator",
+      ),
     },
   );
 }

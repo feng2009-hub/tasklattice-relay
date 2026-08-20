@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Agent } from "@tali/contracts";
+import type { Instance as Agent } from "@tali/contracts";
 import { parseAgent, ProjectStore } from "./project-store";
 import { createTestStore } from "../test/store";
 

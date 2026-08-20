@@ -11,6 +11,7 @@ import {
 } from "./builtin-roles";
 
 const forbiddenForEveryHumanRole = [
+  "CAP_PROJECT_CREATE",
   "CAP_APPROVED_CHANGE_APPLY",
   "CAP_APPROVAL_OVERRIDE",
 ] as const satisfies readonly ProjectCapability[];
@@ -37,7 +38,7 @@ describe("builtin Project roles", () => {
     expect(projectCapabilities).not.toContain("CAP_SECRET_REVEAL" as ProjectCapability);
   });
 
-  it("gives Project Administrator the complete human Project capability set", () => {
+  it("gives Project Administrator the complete Project-scoped capability set", () => {
     const capabilities = builtinRole("ROLE_PROJECT_ADMIN").capabilities;
     expect(capabilities).toEqual(
       projectCapabilities.filter(
@@ -64,6 +65,7 @@ describe("builtin Project roles", () => {
       "CAP_AUDIT_EXPORT",
       "CAP_APPROVAL_REQUEST_DECIDE",
     ]));
+    expect(capabilities).not.toContain("CAP_PROJECT_CREATE");
   });
 
   it("makes Auditor metadata-oriented and mutation-free", () => {

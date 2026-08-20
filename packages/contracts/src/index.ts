@@ -5,7 +5,7 @@ export * from "./traces.js";
 export * from "./authorization.js";
 export * from "./project-overview.js";
 
-export const agentStatuses = [
+export const instanceStatuses = [
   "PROVISIONING",
   "READY",
   "FAILED",
@@ -988,7 +988,7 @@ export const createAgentGardenEntrySchema = z.object({
       message: "A Secret reference is required for this authentication type.",
     });
   }
-});
+}).meta({ id: "CreateAgentGardenEntryInput" });
 
 export const agentConnectionApprovalModeIds = [
   "AUTO_READ_ONLY",
@@ -1041,7 +1041,7 @@ const agentAccessPolicyIdsSchema = z
     "Access Policy bindings must be unique.",
   );
 
-export const createAgentSchema = z.object({
+export const createInstanceSchema = z.object({
   name: z.string().trim().min(3).max(64),
   description: z.string().trim().max(300).default(""),
   runtime: z.literal("openshell"),
@@ -1063,7 +1063,7 @@ export const createAgentSchema = z.object({
       message: "Memory is currently available only for OpenClaw Instances.",
     });
   }
-});
+}).meta({ id: "CreateInstanceInput" });
 
 export const updateInstanceAccessPoliciesSchema = z.object({
   accessPolicyIds: agentAccessPolicyIdsSchema,
@@ -1239,7 +1239,7 @@ export const updateModelRoutingSchema = z.object({
   suspended: z.boolean().optional(),
 }).strict();
 
-export type AgentStatus = (typeof agentStatuses)[number];
+export type InstanceStatus = (typeof instanceStatuses)[number];
 export type ProvisioningStage = (typeof provisioningStages)[number];
 export type ProviderKind = (typeof providerKinds)[number];
 export type ModelType = (typeof modelTypes)[number];
@@ -1303,7 +1303,7 @@ export type DiscoverProviderModelsInput = z.infer<typeof discoverProviderModelsS
 export type ProviderModelSelection = z.infer<typeof providerModelSelectionSchema>;
 export type CreateProviderConnectionInput = z.infer<typeof createProviderConnectionSchema>;
 export type CreateModelDeploymentInput = z.infer<typeof createModelDeploymentSchema>;
-export type CreateAgentInput = z.infer<typeof createAgentSchema>;
+export type CreateInstanceInput = z.infer<typeof createInstanceSchema>;
 export type UpdateInstanceAccessPoliciesInput = z.infer<
   typeof updateInstanceAccessPoliciesSchema
 >;
@@ -1830,13 +1830,13 @@ export interface PlatformAuditLogListResponse {
   facets: PlatformAuditLogFacets;
 }
 
-export interface AgentCreator {
+export interface InstanceCreator {
   id: string;
   displayName: string;
   username: string;
 }
 
-export interface Agent extends Omit<CreateAgentInput, "policyId"> {
+export interface Instance extends Omit<CreateInstanceInput, "policyId"> {
   schemaVersion: 2;
   id: string;
   policyId: SandboxPolicyId;
@@ -1858,8 +1858,8 @@ export interface Agent extends Omit<CreateAgentInput, "policyId"> {
   liteLLMTeamId?: string;
   serviceAccountId?: string;
   sandboxName: string;
-  status: AgentStatus;
-  createdBy?: AgentCreator;
+  status: InstanceStatus;
+  createdBy?: InstanceCreator;
   createdAt: string;
   updatedAt: string;
   operationId?: string;
@@ -1873,16 +1873,16 @@ export interface Agent extends Omit<CreateAgentInput, "policyId"> {
 /**
  * Sensitive interaction material returned only after
  * CAP_AGENT_INSTANCE_INTERACT admission. It is deliberately separate from
- * the Agent configuration representation.
+ * the Instance configuration representation.
  */
-export interface AgentInteractionAccess {
+export interface InstanceInteractionAccess {
   instanceId: string;
-  status: AgentStatus;
+  status: InstanceStatus;
   httpEndpoint?: HttpEndpoint;
 }
 
 /** Runtime diagnostics disclosed only by CAP_AGENT_INSTANCE_LOG_VIEW. */
-export interface AgentRuntimeLogView {
+export interface InstanceRuntimeLogView {
   instanceId: string;
   logs: string[];
   error?: string;

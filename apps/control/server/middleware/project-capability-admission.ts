@@ -119,7 +119,7 @@ export default defineMiddleware(async (event) => {
 
   let actorId: string;
   try {
-    actorId = requireAuth(event.req).sub;
+    actorId = (await requireAuth(event.req)).user.id;
   } catch (error) {
     return unauthorizedResponse(error);
   }
