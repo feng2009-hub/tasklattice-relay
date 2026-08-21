@@ -79,7 +79,7 @@ function LoginPage() {
           ) : null}
           {config?.developmentDefaults ? (
             <div className="mt-7 border-l-2 border-primary bg-primary/5 px-4 py-3 text-sm text-foreground">
-              The initial local account is <strong>admin / admin-password</strong>. Its
+              The initial local account is <strong>admin / admin</strong>. Its
               password is initialized when the control service starts and can be
               reset from My Account.
             </div>

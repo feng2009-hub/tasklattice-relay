@@ -5,12 +5,12 @@ import {
   Building2,
   Check,
   ChevronDown,
-  FolderKanban,
   LoaderCircle,
   Plus,
   Settings,
   SlidersHorizontal,
 } from "lucide-react";
+import { ProjectAvatar } from "@/components/project/project-item";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -76,6 +76,7 @@ export function ProjectSwitcher({
       >(),
     ),
   ).map(([, group]) => group);
+  const showDepartmentGroups = departmentGroups.length > 1;
 
   const handleSelect = async (projectId: string, projectName: string) => {
     if (projectId === currentProject?.id || isSwitching) return;
@@ -126,13 +127,20 @@ export function ProjectSwitcher({
           )}
           disabled={isSwitching}
         >
-          <span className="grid size-6 shrink-0 place-items-center text-muted-foreground">
-            <FolderKanban className="size-4" />
-          </span>
+          {currentProject ? (
+            <ProjectAvatar className="size-6" project={currentProject} />
+          ) : (
+            <span
+              aria-hidden="true"
+              className="grid size-6 shrink-0 place-items-center rounded-full bg-muted text-xs font-semibold text-muted-foreground"
+            >
+              P
+            </span>
+          )}
           {collapsed ? null : (
             <>
               <span
-                className="flex min-w-0 flex-1 items-center text-sm"
+                className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground"
                 title={
                   currentProject
                     ? `${currentProject.department.name}/${currentProject.name}`
@@ -140,24 +148,9 @@ export function ProjectSwitcher({
                 }
               >
                 {currentProject ? (
-                  <>
-                    <span className="max-w-[42%] shrink truncate font-medium text-muted-foreground">
-                      {currentProject.department.name}
-                    </span>
-                    <span
-                      aria-hidden="true"
-                      className="mx-0.5 shrink-0 text-muted-foreground/60"
-                    >
-                      /
-                    </span>
-                    <span className="min-w-0 flex-1 truncate font-semibold text-foreground">
-                      {currentProject.name}
-                    </span>
-                  </>
+                  currentProject.name
                 ) : (
-                  <span className="truncate font-semibold">
-                    {messages.projectSwitcher.noProject}
-                  </span>
+                  messages.projectSwitcher.noProject
                 )}
               </span>
               {isSwitching ? (
@@ -176,16 +169,20 @@ export function ProjectSwitcher({
       >
         {departmentGroups.map((group, groupIndex) => (
           <div key={group.department.id}>
-            {groupIndex ? <DropdownMenuSeparator /> : null}
-            <DropdownMenuLabel className="flex items-center gap-2 px-2 pb-1 pt-2 text-xs font-medium text-muted-foreground">
-              <Building2 className="size-3.5" />
-              <span className="min-w-0 flex-1 truncate">
-                {group.department.name}
-              </span>
-              <span className="font-mono text-[10px] tabular-nums">
-                {group.projects.length}
-              </span>
-            </DropdownMenuLabel>
+            {showDepartmentGroups && groupIndex ? (
+              <DropdownMenuSeparator />
+            ) : null}
+            {showDepartmentGroups ? (
+              <DropdownMenuLabel className="flex items-center gap-2 px-2 pb-1 pt-2 text-xs font-medium text-muted-foreground">
+                <Building2 className="size-3.5" />
+                <span className="min-w-0 flex-1 truncate">
+                  {group.department.name}
+                </span>
+                <span className="font-mono text-[10px] tabular-nums">
+                  {group.projects.length}
+                </span>
+              </DropdownMenuLabel>
+            ) : null}
             {group.projects.map((project, projectIndex) => {
               const current = project.id === currentProject?.id;
               const switching = project.id === switchingProjectId;
@@ -194,8 +191,10 @@ export function ProjectSwitcher({
                 <div
                   key={project.id}
                   className={cn(
-                    "relative pl-5 before:pointer-events-none before:absolute before:left-[15px] before:top-0 before:w-px before:bg-border after:pointer-events-none after:absolute after:left-[15px] after:top-1/2 after:h-px after:w-3 after:bg-border",
-                    lastProject ? "before:h-1/2" : "before:h-full",
+                    showDepartmentGroups &&
+                      "relative pl-5 before:pointer-events-none before:absolute before:left-[15px] before:top-0 before:w-px before:bg-border after:pointer-events-none after:absolute after:left-[15px] after:top-1/2 after:h-px after:w-3 after:bg-border",
+                    showDepartmentGroups &&
+                      (lastProject ? "before:h-1/2" : "before:h-full"),
                   )}
                 >
                   <div
@@ -207,7 +206,7 @@ export function ProjectSwitcher({
                   >
                     <DropdownMenuItem
                       className={cn(
-                        "min-w-0 flex-1",
+                        "min-h-11 min-w-0 flex-1",
                         current && [
                           "bg-transparent text-primary data-disabled:opacity-100 focus:bg-primary/[0.1] focus:text-primary",
                           permissions.canManageProject && "rounded-r-none",
@@ -219,23 +218,20 @@ export function ProjectSwitcher({
                         void handleSelect(project.id, project.name);
                       }}
                     >
-                      <span className="grid size-5 shrink-0 place-items-center">
-                        {switching ? (
-                          <LoaderCircle className="size-4 animate-spin" />
-                        ) : current ? (
-                          <Check className="size-4" />
-                        ) : (
-                          <span className="size-4" aria-hidden="true" />
-                        )}
-                      </span>
+                      <ProjectAvatar className="size-6" project={project} />
                       <span className="min-w-0 flex-1 truncate">
                         {project.name}
                       </span>
+                      {switching ? (
+                        <LoaderCircle className="size-4 shrink-0 animate-spin" />
+                      ) : current ? (
+                        <Check className="size-4 shrink-0" />
+                      ) : null}
                     </DropdownMenuItem>
                     {current && permissions.canManageProject ? (
                       <DropdownMenuItem
                         asChild
-                        className="w-11 justify-center rounded-l-none border-l border-primary/15 px-0 text-primary focus:bg-primary/[0.1] focus:text-primary"
+                        className="min-h-11 w-11 justify-center rounded-l-none border-l border-primary/15 px-0 text-primary focus:bg-primary/[0.1] focus:text-primary"
                       >
                         <Link
                           to="/$projectId/setting"

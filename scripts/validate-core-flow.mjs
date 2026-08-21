@@ -5,7 +5,7 @@ const expectNemoClawRuntime = process.env.TALI_EXPECT_NEMOCLAW_RUNTIME === "1";
 const validationUsername =
   process.env.TALI_VALIDATION_USERNAME ?? "admin";
 const validationPassword =
-  process.env.TALI_VALIDATION_PASSWORD ?? "admin-password";
+  process.env.TALI_VALIDATION_PASSWORD ?? "admin";
 let sessionCookie = "";
 
 async function request(path, init) {

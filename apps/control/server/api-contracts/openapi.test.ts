@@ -2,6 +2,7 @@ import { readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
+import { betterAuthSessionCookieName } from "../auth/cookies";
 import { apiContracts } from "./index";
 import { createOpenApiDocument } from "./openapi";
 
@@ -71,6 +72,9 @@ describe("business API contracts", () => {
 
   it("publishes reusable components with resolvable local references", () => {
     const document = createOpenApiDocument();
+    expect(document.components.securitySchemes.sessionCookie.name).toBe(
+      betterAuthSessionCookieName,
+    );
     expect(Object.keys(document.components.schemas).length).toBeGreaterThan(10);
     const references = localReferences(document);
     expect(references.length).toBeGreaterThan(0);

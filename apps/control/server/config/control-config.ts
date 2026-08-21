@@ -88,7 +88,7 @@ const controlConfigSchema = z.object({
       enabled: z.boolean(),
       initial_super_admin_username: z.string().trim().min(1).optional(),
       initial_super_admin_email: z.string().email().optional(),
-      initial_super_admin_password: z.string().min(12).max(128).optional(),
+      initial_super_admin_password: z.string().min(1).max(128).optional(),
     }).superRefine((value, context) => {
       const configured = [
         value.initial_super_admin_username,
@@ -174,7 +174,7 @@ const developmentConfig: ControlConfig = {
       enabled: true,
       initial_super_admin_username: "admin",
       initial_super_admin_email: "admin@tasklattice.local",
-      initial_super_admin_password: "admin-password",
+      initial_super_admin_password: "admin",
     },
     oidc: {
       enabled: false,

@@ -88,7 +88,7 @@ States:
 
 - Loading: keep the form stable and prevent duplicate submission.
 - Invalid credentials: show a persistent, text-labelled recovery message.
-- Development defaults: explicitly warn that `admin / admin-password` is active.
+- Development defaults: explicitly warn that `admin / admin` is active.
 - SSO unavailable: keep local login available and surface the provider error.
 - SSO callback: show a single-purpose completion state, then validate the
   returned TaskLattice Relay session before entering the Project console.

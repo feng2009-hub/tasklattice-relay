@@ -28,15 +28,12 @@ import { ProjectQuotaService } from "../quotas/project-quota-service";
 import { getControlConfig } from "../config/control-config";
 import { signRunTelemetryToken } from "../runs/run-telemetry-token";
 
-export function agentSandboxName(name: string, id: string): string {
-  const slug =
-    name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "")
-      .slice(0, 14)
-      .replace(/-$/, "") || "agent";
-  return `tali-${slug}-${id.slice(0, 8)}`;
+export function agentSandboxName(id: string): string {
+  const compactId = BigInt(`0x${id.replaceAll("-", "")}`)
+    .toString(36)
+    .padStart(25, "0")
+    .slice(-17);
+  return `i-${compactId}`;
 }
 
 export function applyObservedState(
@@ -150,7 +147,7 @@ export class InstanceService {
     const policy = await this.runtimePolicies.resolve(input.policyId);
     const id = randomUUID();
     const now = new Date().toISOString();
-    const sandboxName = agentSandboxName(input.name, id);
+    const sandboxName = agentSandboxName(id);
     await this.accessPolicies.assertActivePolicyIds(input.accessPolicyIds);
     const routing = await this.modelRoutings.resolver.resolve(input.modelRoutingId);
     const gateway = await this.store.getInferenceGateway(routing.gatewayId);

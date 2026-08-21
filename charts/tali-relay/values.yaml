@@ -208,7 +208,7 @@ secrets:
   postgresPassword: tali-local
   databaseUrl: ""
   authSecret: tali-local-development-auth-secret-32-chars
-  initialSuperAdminPassword: admin-password
+  initialSuperAdminPassword: admin
   keycloakAdminPassword: admin
   keycloakClientSecret: tali-keycloak-test-client-secret
   keycloakTestUserPassword: password

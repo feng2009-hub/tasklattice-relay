@@ -5,12 +5,18 @@ import {
   setControlConfigForTests,
 } from "../config/control-config";
 import { createTestPrisma } from "../test/prisma";
-import { handleAuthMe, publicAuthConfig } from "./auth";
+import {
+  applyAuthenticationResponseHeaders,
+  handleAuthMe,
+  publicAuthConfig,
+} from "./auth";
 import {
   auth,
+  authSessionIdleTimeoutSeconds,
   ensureInitialSuperAdministrator,
   resetBetterAuthForTests,
 } from "./better-auth";
+import { betterAuthSessionCookieName } from "./cookies";
 
 function cookieHeader(response: Response): string {
   return (response.headers.get("set-cookie") ?? "")
@@ -64,13 +70,28 @@ describe("Better Auth platform authentication", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("set-cookie")).toContain("HttpOnly");
     expect(response.headers.get("set-cookie")).toContain("SameSite=Lax");
-
-    const me = await handleAuthMe(
-      new Request("http://tali.local/api/v1/auth/me", {
-        headers: { cookie: cookieHeader(response) },
-      }),
+    expect(response.headers.get("set-cookie")).toContain(
+      `${betterAuthSessionCookieName}=`,
     );
+    expect(response.headers.get("set-cookie")).not.toContain(
+      "better-auth.session_token=",
+    );
+    expect(response.headers.get("set-cookie")).toContain(
+      `Max-Age=${authSessionIdleTimeoutSeconds}`,
+    );
+
+    const request = new Request("http://tali.local/api/v1/auth/me", {
+      headers: { cookie: cookieHeader(response) },
+    });
+    const me = await handleAuthMe(request);
+    applyAuthenticationResponseHeaders(request, me);
     expect(me.status).toBe(200);
+    expect(me.headers.get("set-cookie")).toContain(
+      `${betterAuthSessionCookieName}=`,
+    );
+    expect(me.headers.get("set-cookie")).toContain(
+      `Max-Age=${authSessionIdleTimeoutSeconds}`,
+    );
     await expect(me.json()).resolves.toMatchObject({
       identity: { type: "authenticated", userId: "local-admin" },
       user: {
@@ -81,6 +102,33 @@ describe("Better Auth platform authentication", () => {
       },
     });
     await expect(db.authSession.count()).resolves.toBe(1);
+
+    const defaultCookie = cookieHeader(response).replace(
+      `${betterAuthSessionCookieName}=`,
+      "better-auth.session_token=",
+    );
+    const defaultCookieMe = await handleAuthMe(
+      new Request("http://tali.local/api/v1/auth/me", {
+        headers: { cookie: defaultCookie },
+      }),
+    );
+    expect(defaultCookieMe.status).toBe(401);
+  });
+
+  it("bootstraps the canonical admin / admin development credentials", async () => {
+    const config = developmentControlConfig();
+    config.server.public_url = "http://tali.local";
+    expect(config.auth.local.initial_super_admin_username).toBe("admin");
+    expect(config.auth.local.initial_super_admin_password).toBe("admin");
+
+    setControlConfigForTests(config);
+    resetBetterAuthForTests();
+    await db.authSession.deleteMany();
+    await db.authAccount.deleteMany();
+    await ensureInitialSuperAdministrator();
+
+    const response = await signIn("admin");
+    expect(response.status).toBe(200);
   });
 
   it("rejects invalid credentials and does not accept the removed bearer-token protocol", async () => {

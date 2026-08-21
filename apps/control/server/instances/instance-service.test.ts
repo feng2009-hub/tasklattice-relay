@@ -19,21 +19,17 @@ import {
 const accessPolicyId = "11111111-1111-4111-8111-111111111111";
 
 describe("Agent sandbox naming", () => {
-  it("stays within the OpenShell service-routing limit", () => {
-    const name = agentSandboxName(
-      "A Very Long Research Assistant Name",
-      "12345678-1234-4000-8000-123456789abc",
-    );
+  it("derives the runtime identifier only from the Instance UUID", () => {
+    const name = agentSandboxName("12345678-1234-4000-8000-123456789abc");
 
-    expect(name).toBe("tali-a-very-long-re-12345678");
-    expect(name.length).toBeLessThanOrEqual(28);
+    expect(name).toBe("i-3k63vmz25el99oe64");
+    expect(name).toHaveLength(19);
     expect(name).toMatch(/^[a-z][a-z0-9-]+[a-z0-9]$/);
   });
 
-  it("keeps the id suffix when the display name has no slug characters", () => {
-    expect(
-      agentSandboxName("研究助手", "abcdef01-1234-4000-8000-123456789abc"),
-    ).toBe("tali-agent-abcdef01");
+  it("keeps separate UUIDs distinct within the compact identifier", () => {
+    expect(agentSandboxName("abcdef01-1234-4000-8000-123456789abc"))
+      .toBe("i-td6hwjapuayo42xmk");
   });
 });
 

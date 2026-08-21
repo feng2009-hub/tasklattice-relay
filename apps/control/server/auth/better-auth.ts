@@ -6,8 +6,12 @@ import { createLocalAccountIssuer } from "better-auth/db";
 import { genericOAuth, username } from "better-auth/plugins";
 import { getControlConfig } from "../config/control-config";
 import { prisma } from "../db/prisma";
+import { betterAuthCookiePrefix } from "./cookies";
 
 const oidcProviderId = "corporate-sso";
+
+export const authSessionIdleTimeoutSeconds = 30 * 60;
+export const authSessionUpdateAgeSeconds = 0;
 
 function createBetterAuth() {
   const config = getControlConfig();
@@ -20,6 +24,7 @@ function createBetterAuth() {
     basePath: "/api/auth",
     secret: config.auth.secret,
     trustedOrigins: [baseURL],
+    advanced: { cookiePrefix: betterAuthCookiePrefix },
     database: prismaAdapter(prisma(), {
       provider: "postgresql",
       transaction: true,
@@ -68,8 +73,8 @@ function createBetterAuth() {
     },
     session: {
       modelName: "AuthSession",
-      expiresIn: 30 * 24 * 60 * 60,
-      updateAge: 24 * 60 * 60,
+      expiresIn: authSessionIdleTimeoutSeconds,
+      updateAge: authSessionUpdateAgeSeconds,
     },
     account: { modelName: "AuthAccount" },
     verification: { modelName: "AuthVerification" },

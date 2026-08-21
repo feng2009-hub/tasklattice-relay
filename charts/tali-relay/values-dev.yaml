@@ -34,3 +34,5 @@ litellm:
 openshell:
   service:
     type: LoadBalancer
+  server:
+    sandboxImagePullPolicy: IfNotPresent

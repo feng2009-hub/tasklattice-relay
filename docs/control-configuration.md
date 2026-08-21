@@ -74,6 +74,15 @@ its `users`, `auth_accounts`, `auth_sessions`, and `auth_verifications` models
 in the `tasklattice` schema. The same `users.id` is the stable subject consumed
 by TaskLattice Relay authorization.
 
+Dashboard sessions use a 30-minute sliding idle timeout. Every authenticated
+API request refreshes the Better Auth database expiration and browser cookie.
+After 30 minutes without activity the session is invalid and is deleted when it
+is next presented to Better Auth.
+
+Relay namespaces all Better Auth cookies with the `tali-relay` prefix. This is
+required when Relay and another Better Auth application run on different ports
+of the same hostname because browser cookies are not isolated by port.
+
 When Local authentication is enabled, all three initial Super Administrator
 values are required. On first startup, Better Auth creates one `credential`
 account and hashes the plaintext bootstrap password with its native password

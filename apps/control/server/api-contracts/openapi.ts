@@ -1,4 +1,5 @@
 import { z, type ZodType } from "zod";
+import { betterAuthSessionCookieName } from "../auth/cookies";
 import { projectRouteAdmissionPolicy } from "../authorization/route-capabilities";
 import { apiContracts } from "./index";
 import { problemDetailsSchema } from "./schemas";
@@ -236,7 +237,7 @@ export function createOpenApiDocument() {
         sessionCookie: {
           type: "apiKey",
           in: "cookie",
-          name: "better-auth.session_token",
+          name: betterAuthSessionCookieName,
           description: "HttpOnly Better Auth session cookie. The cookie name may be prefixed in secure deployments.",
         },
       },

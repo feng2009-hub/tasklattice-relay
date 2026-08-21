@@ -27,6 +27,6 @@ LiteLLM auth-value Secret reference:
   k8s://{{ .Release.Namespace }}/{{ include "tali.componentName" (dict "root" . "component" "example-mcp") }}-auth#auth-value
 {{- end }}
 
-The default credentials are admin/admin-password and the default OpenShell endpoint is
+The default credentials are admin/admin and the default OpenShell endpoint is
 plaintext and unauthenticated. Change secrets.* and configure trusted ingress,
 TLS, and authentication before exposing this deployment outside a local cluster.

@@ -18,8 +18,28 @@ export interface PlatformPrincipal {
   user: AuthUser;
 }
 
-export async function requireAuth(request: Request): Promise<PlatformPrincipal> {
-  const session = await auth().api.getSession({ headers: request.headers });
+interface AuthenticationRequestContext extends Record<string, unknown> {
+  platformAuthentication?: Promise<PlatformPrincipal>;
+  platformAuthenticationResponseHeaders?: Headers;
+}
+
+type ContextualRequest = Request & { context?: AuthenticationRequestContext };
+
+function authenticationContext(request: Request): AuthenticationRequestContext {
+  const contextualRequest = request as ContextualRequest;
+  return (contextualRequest.context ??= {});
+}
+
+async function resolveAuth(
+  request: Request,
+  context: AuthenticationRequestContext,
+): Promise<PlatformPrincipal> {
+  const result = await auth().api.getSession({
+    headers: request.headers,
+    returnHeaders: true,
+  });
+  context.platformAuthenticationResponseHeaders = result.headers;
+  const session = result.response;
   if (!session) throw new Error("Authentication required.");
 
   const user = await prisma().user.findUnique({
@@ -45,6 +65,24 @@ export async function requireAuth(request: Request): Promise<PlatformPrincipal> 
       username: user.username ?? user.email,
     },
   };
+}
+
+export function requireAuth(request: Request): Promise<PlatformPrincipal> {
+  const context = authenticationContext(request);
+  context.platformAuthentication ??= resolveAuth(request, context);
+  return context.platformAuthentication;
+}
+
+export function applyAuthenticationResponseHeaders(
+  request: Request,
+  response: Response,
+): void {
+  const headers = (request as ContextualRequest).context
+    ?.platformAuthenticationResponseHeaders;
+  if (!headers) return;
+
+  const setCookies = headers.getSetCookie();
+  for (const value of setCookies) response.headers.append("set-cookie", value);
 }
 
 export function unauthorizedResponse(error: unknown): Response {

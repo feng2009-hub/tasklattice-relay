@@ -450,6 +450,11 @@ function AccessPanel({
   const permissionGroups = groupProjectCapabilities(
     project.effectiveCapabilities,
   );
+  const departmentRole = project.department.role === "administrator"
+    ? "Department Administrator"
+    : project.department.role === "member"
+      ? "Department Member"
+      : "No Department membership";
 
   return (
     <div id="access-permissions" className="divide-y">
@@ -461,17 +466,18 @@ function AccessPanel({
           </p>
         </div>
         <dl className="grid gap-4 text-sm sm:grid-cols-2 lg:max-w-3xl">
-          <div>
-            <dt className="text-xs text-muted-foreground">Department role</dt>
-            <dd className="mt-1 font-medium">
-              {project.department.role === "administrator"
-                ? "Department Administrator"
-                : project.department.role === "member"
-                  ? "Department Member"
-                  : "No Department membership"}
+          <div className="min-w-0">
+            <dt className="text-xs text-muted-foreground">Department</dt>
+            <dd className="mt-1 min-w-0">
+              <span className="block truncate font-medium">
+                {project.department.name}
+              </span>
+              <span className="mt-0.5 block text-xs text-muted-foreground">
+                {departmentRole}
+              </span>
             </dd>
           </div>
-          <div>
+          <div className="min-w-0">
             <dt className="text-xs text-muted-foreground">Current Project</dt>
             <dd className="mt-1 truncate font-medium">{project.name}</dd>
           </div>

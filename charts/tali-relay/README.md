@@ -60,7 +60,7 @@ helm upgrade --install tali-relay \
 ```
 
 Defaults preserve the repository's trusted local-cluster setup and use
-`admin/admin-password`. Before shared or internet-facing use, provide a private values
+`admin/admin`. Before shared or internet-facing use, provide a private values
 file that changes every `secrets.*` value and configures OpenShell TLS/OIDC.
 If the Agent Sandbox controller already exists cluster-wide, set
 `agentSandbox.enabled=false`. For private GHCR packages, create a registry
