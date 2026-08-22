@@ -78,6 +78,14 @@ app.kubernetes.io/component: {{ .component }}
 {{- end -}}
 {{- end }}
 
+{{- define "tali.projectRuntimeServiceAccountName" -}}
+{{- include "tali.componentName" (dict "root" . "component" "project-runtime-controller") -}}
+{{- end }}
+
+{{- define "tali.projectRuntimeCleanupServiceAccountName" -}}
+{{- include "tali.componentName" (dict "root" . "component" "project-runtime-cleanup") -}}
+{{- end }}
+
 {{- define "tali.databaseUrl" -}}
 {{- if .Values.secrets.databaseUrl -}}
 {{- .Values.secrets.databaseUrl -}}
@@ -150,6 +158,14 @@ token = {{ required "secrets.runnerToken is required" .Values.secrets.runnerToke
 [litellm]
 url = {{ printf "http://%s:4000" (include "tali.componentName" (dict "root" . "component" "litellm")) | quote }}
 master_key = {{ required "secrets.litellmMasterKey is required" .Values.secrets.litellmMasterKey | quote }}
+
+[runtime_namespaces]
+enabled = {{ .Values.projectRuntimeNamespaces.enabled }}
+cluster_id = {{ .Values.projectRuntimeNamespaces.clusterId | quote }}
+name_prefix = {{ .Values.projectRuntimeNamespaces.namePrefix | quote }}
+reconcile_interval_seconds = {{ .Values.projectRuntimeNamespaces.reconcileIntervalSeconds }}
+resync_interval_seconds = {{ .Values.projectRuntimeNamespaces.resyncIntervalSeconds }}
+deletion_timeout_seconds = {{ .Values.projectRuntimeNamespaces.deletionTimeoutSeconds }}
 
 [smtp]
 enabled = {{ .Values.control.smtp.enabled }}

@@ -32,6 +32,7 @@ import {
   PROJECT_DELETION_GRACE_PERIOD_MS,
   type ProjectDeletionSchedule,
 } from "./project-deletion-service";
+import { projectRuntimeNamespace } from "./project-runtime-target-service";
 
 export type ProjectRole = ProjectMembershipRole;
 
@@ -449,6 +450,7 @@ export class ProjectService {
       existingUsers.map((user) => [user.email, user]),
     );
     const id = `${slug(projectName)}-${randomUUID().slice(0, 8)}`;
+    const runtimeNamespaceConfig = getControlConfig().runtime_namespaces;
     const project = await this.db.project.create({
       data: {
         id,
@@ -493,6 +495,15 @@ export class ProjectService {
                   },
                 ],
           ),
+        },
+        runtimeTarget: {
+          create: {
+            clusterId: runtimeNamespaceConfig.cluster_id,
+            namespace: projectRuntimeNamespace(
+              id,
+              runtimeNamespaceConfig.name_prefix,
+            ),
+          },
         },
       },
     });

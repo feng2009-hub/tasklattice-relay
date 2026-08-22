@@ -14,6 +14,7 @@ import type { LiteLLMAdminClient } from "../providers/litellm-client";
 import { createTestPrisma } from "../test/prisma";
 import type { PrismaClient } from "../generated/prisma/client";
 import { ProjectService } from "./project-service";
+import { projectRuntimeNamespace } from "./project-runtime-target-service";
 
 class RecordingInvitationMailer implements InvitationMailer {
   readonly invitations: ProjectInvitationEmail[] = [];
@@ -135,6 +136,14 @@ describe("ProjectService", () => {
       assignedRoles: ["admin"],
     });
     expect(team).not.toHaveProperty("type");
+    await expect(db.projectRuntimeTarget.findUnique({
+      where: { projectId: team.id },
+    })).resolves.toMatchObject({
+      clusterId: "in-cluster",
+      namespace: projectRuntimeNamespace(team.id),
+      observedGeneration: 0,
+      status: "pending",
+    });
     expect(
       await db.skillRecord.count({
         where: { projectId: team.id },

@@ -133,6 +133,27 @@ control:
       memory: 512Mi
   extraEnv: []
 
+# Reconciles one opaque Kubernetes Namespace for every Relay Project. This is a
+# lightweight database-backed controller; it does not install a custom CRD.
+projectRuntimeNamespaces:
+  enabled: true
+  clusterId: in-cluster
+  # Use a value unique to this Relay installation when the cluster is shared.
+  # Runtime namespaces are named <namePrefix>-<stable project hash>.
+  namePrefix: tali-p
+  reconcileIntervalSeconds: 5
+  resyncIntervalSeconds: 300
+  deletionTimeoutSeconds: 120
+  worker:
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+
 runner:
   replicaCount: 1
   gatewayEndpoint: ""

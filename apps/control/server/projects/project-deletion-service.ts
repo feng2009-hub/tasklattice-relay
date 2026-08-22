@@ -10,6 +10,7 @@ import {
   NemoClawRunnerClient,
   type RunnerClient,
 } from "../runtime/nemoclaw-runner-client";
+import { ProjectRuntimeTargetService } from "./project-runtime-target-service";
 
 export const PROJECT_DELETION_GRACE_PERIOD_MINUTES = 10;
 export const PROJECT_DELETION_GRACE_PERIOD_MS =
@@ -29,6 +30,10 @@ export interface ProjectDeletionSchedule {
 
 interface CleanupOptions {
   externalCleanupEnabled?: boolean;
+}
+
+export interface ProjectRuntimeTargetCleanup {
+  deleteProjectNamespace(projectId: string): Promise<boolean>;
 }
 
 export interface ProjectDeletionTaskClaim {
@@ -102,15 +107,19 @@ async function deleteRemote(operation: (() => Promise<void>) | undefined): Promi
 
 export class ProjectDeletionService {
   private readonly externalCleanupEnabled: boolean;
+  private readonly runtimeTargets: ProjectRuntimeTargetCleanup;
 
   constructor(
     private readonly db: PrismaClient = prisma(),
     private readonly runner: RunnerClient = new NemoClawRunnerClient(),
     private readonly litellm: LiteLLMAdminClient = new LiteLLMClient(),
     options: CleanupOptions = {},
+    runtimeTargets?: ProjectRuntimeTargetCleanup,
   ) {
     this.externalCleanupEnabled =
       options.externalCleanupEnabled ?? Boolean(getControlConfig().litellm.master_key);
+    this.runtimeTargets =
+      runtimeTargets ?? new ProjectRuntimeTargetService(this.db);
   }
 
   async claimNext(
@@ -340,6 +349,11 @@ export class ProjectDeletionService {
           : undefined,
       );
     }
+
+    // Namespace deletion is deliberately last among external cleanup steps.
+    // The database tombstone remains available for retry until Kubernetes
+    // confirms that the Project Runtime Namespace is absent.
+    await this.runtimeTargets.deleteProjectNamespace(projectId);
 
     const deleted = await this.db.$transaction(async (transaction) => {
       // Agent ownership deliberately uses a restrictive membership FK. Remove

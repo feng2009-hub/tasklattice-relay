@@ -25,8 +25,8 @@ spec:
         {{- end }}
     spec:
       terminationGracePeriodSeconds: 600
-      serviceAccountName: {{ include "tali.serviceAccountName" . }}
-      automountServiceAccountToken: false
+      serviceAccountName: {{ if .Values.projectRuntimeNamespaces.enabled }}{{ include "tali.projectRuntimeCleanupServiceAccountName" . }}{{ else }}{{ include "tali.serviceAccountName" . }}{{ end }}
+      automountServiceAccountToken: {{ .Values.projectRuntimeNamespaces.enabled }}
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}

@@ -32,6 +32,15 @@ token = "CHANGE_ME"
 url = "http://tali-litellm:4000"
 master_key = "CHANGE_ME"
 
+[runtime_namespaces]
+enabled = true
+cluster_id = "in-cluster"
+# Must be unique to this Relay installation when sharing a Kubernetes cluster.
+name_prefix = "tali-p"
+reconcile_interval_seconds = 5
+resync_interval_seconds = 300
+deletion_timeout_seconds = 120
+
 [smtp]
 # SMTP is required for sending invitations to users who do not already have a
 # TaskLattice Relay account. server.public_url must be browser-accessible when enabled.
