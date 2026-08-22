@@ -14,7 +14,7 @@ metadata:
   labels:
     {{- include "tali.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
   annotations:
-    {{- include "tali.resourceAnnotations" (dict "root" . "wave" "prerequisites") | nindent 4 }}
+    {{- include "tali.resourceAnnotations" (dict "root" . "wave" "foundation") | nindent 4 }}
 automountServiceAccountToken: true
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -24,7 +24,7 @@ metadata:
   labels:
     {{- include "tali.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
   annotations:
-    {{- include "tali.resourceAnnotations" (dict "root" . "wave" "prerequisites") | nindent 4 }}
+    {{- include "tali.resourceAnnotations" (dict "root" . "wave" "foundation") | nindent 4 }}
 rules:
   - apiGroups: [""]
     resources: ["namespaces"]
@@ -43,7 +43,7 @@ metadata:
   labels:
     {{- include "tali.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
   annotations:
-    {{- include "tali.resourceAnnotations" (dict "root" . "wave" "prerequisites") | nindent 4 }}
+    {{- include "tali.resourceAnnotations" (dict "root" . "wave" "foundation") | nindent 4 }}
 subjects:
   - kind: ServiceAccount
     name: {{ include "tali.projectRuntimeServiceAccountName" . }}
@@ -61,7 +61,7 @@ metadata:
   labels:
     {{- include "tali.componentLabels" (dict "root" . "component" $cleanupComponent) | nindent 4 }}
   annotations:
-    {{- include "tali.resourceAnnotations" (dict "root" . "wave" "prerequisites") | nindent 4 }}
+    {{- include "tali.resourceAnnotations" (dict "root" . "wave" "foundation") | nindent 4 }}
 automountServiceAccountToken: true
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -71,7 +71,7 @@ metadata:
   labels:
     {{- include "tali.componentLabels" (dict "root" . "component" $cleanupComponent) | nindent 4 }}
   annotations:
-    {{- include "tali.resourceAnnotations" (dict "root" . "wave" "prerequisites") | nindent 4 }}
+    {{- include "tali.resourceAnnotations" (dict "root" . "wave" "foundation") | nindent 4 }}
 rules:
   - apiGroups: [""]
     resources: ["namespaces"]
@@ -84,7 +84,7 @@ metadata:
   labels:
     {{- include "tali.componentLabels" (dict "root" . "component" $cleanupComponent) | nindent 4 }}
   annotations:
-    {{- include "tali.resourceAnnotations" (dict "root" . "wave" "prerequisites") | nindent 4 }}
+    {{- include "tali.resourceAnnotations" (dict "root" . "wave" "foundation") | nindent 4 }}
 subjects:
   - kind: ServiceAccount
     name: {{ include "tali.projectRuntimeCleanupServiceAccountName" . }}
