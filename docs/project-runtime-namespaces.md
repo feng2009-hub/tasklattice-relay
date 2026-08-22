@@ -12,8 +12,9 @@ state plus a small reconciler:
 1. Project creation inserts a pending `ProjectRuntimeTarget` in the same
    database transaction.
 2. The Project Runtime Controller claims pending work with a database lease.
-3. It uses Kubernetes server-side apply to reconcile the Namespace baseline,
-   and periodically re-applies it to repair drift or propagate policy changes.
+3. It uses the official TypeScript Kubernetes client and server-side apply to
+   reconcile only the Namespace's Relay-owned labels and annotations, and
+   periodically re-applies them to repair drift.
 4. Project deletion removes external resources first, deletes the Namespace,
    waits for it to disappear, and only then removes the Project tombstone.
 
@@ -34,35 +35,38 @@ product requirement. `ProjectRuntimeTarget` already separates desired state
 from the Kubernetes adapter, so that migration does not require changing the
 Project domain model.
 
-## Namespace identity and baseline
+## Namespace identity and scope
 
 Namespace names use the configured prefix and an opaque deterministic hash of
-the Project ID, for example `tali-p-2d218f...`. A mutable Project display name
-is never used as Kubernetes identity and the raw Project ID is retained in the
-Namespace annotation `tali.io/project-id`.
+the Project ID, for example `acme-relay-p-2d218f...`. The prefix must be unique
+to a Relay installation when multiple installations share one cluster. A
+mutable Project display name is never used as Kubernetes identity and the raw
+Project ID is retained in the Namespace annotation `tali.io/project-id`. The
+opaque identifier uses SHA-256 so name generation also works in FIPS-enabled
+OpenShift environments.
 
-Each managed Namespace contains:
+This phase deliberately creates only the Namespace. It does not inject a
+ServiceAccount, `LimitRange`, `ResourceQuota`, or `NetworkPolicy`. Those objects
+change workload admission, capacity, DNS, ingress, and egress behavior and must
+be introduced later as explicit, independently configurable Project policies.
+This also avoids conflicting with OpenShift `ClusterResourceQuota`, namespace
+defaults, ingress-router rules, and cluster network policy.
 
-- `tali-agent-runtime` ServiceAccount with token automount disabled;
-- a Container `LimitRange`;
-- an optional `ResourceQuota`;
-- optional default-deny ingress and egress `NetworkPolicy`;
-- same-Project traffic, DNS egress, and traffic to/from the Relay platform
-  Namespace when default-deny networking is enabled.
-
-The Project Runtime Controller has cluster-scoped permission only for
-Namespaces and these baseline resource kinds. The deletion worker uses a
-separate identity limited to reading and deleting Namespaces. Runtime workloads
-should use the Namespace-bound ServiceAccount and must not receive either
-controller identity.
+The Project Runtime Controller can only get, create, and patch Namespaces. The
+deletion worker uses a separate identity limited to getting and deleting
+Namespaces. Runtime workloads must not receive either controller identity.
 
 ## Configuration
 
-Helm enables the controller with `projectRuntimeNamespaces.enabled`. Quotas,
-default limits, network policy, reconciliation interval, deletion timeout,
-cluster identifier, and Namespace prefix are configured under
-`projectRuntimeNamespaces` in `values.yaml`. The corresponding Control Plane
-TOML section is `[runtime_namespaces]`.
+Helm enables the controller with `projectRuntimeNamespaces.enabled`.
+Reconciliation interval, deletion timeout, cluster identifier, and Namespace
+prefix are configured under `projectRuntimeNamespaces` in `values.yaml`. The
+corresponding Control Plane TOML section is `[runtime_namespaces]`.
+
+`projectRuntimeNamespaces.namePrefix` defaults to `tali-p`, but a shared
+cluster should set an installation-specific value such as `acme-relay-p`.
+Prefixes are validated as DNS labels and limited to 20 characters so the full
+Namespace name remains within Kubernetes' 63-character limit.
 
 The current adapter is deliberately in-cluster only. A worker refuses to
 reconcile or delete a target whose stored `cluster_id` differs from its own
@@ -79,7 +83,7 @@ later rollout and keeps local development independent from Kubernetes.
 With the pinned OpenShell `0.0.106`, the sandbox Namespace is a static Gateway
 setting (`server.sandboxNamespace`), not an option accepted per sandbox create.
 Consequently, a `ready` Project Runtime Target currently means that the Project
-Namespace baseline exists; it does **not** mean existing OpenClaw or Hermes
+Namespace mapping exists; it does **not** mean existing OpenClaw or Hermes
 sandboxes have moved into it.
 
 Repository-managed A2A Agent Deployments can target the mapped Namespace

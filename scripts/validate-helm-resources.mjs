@@ -301,6 +301,42 @@ if (
   );
 }
 
+const runtimeControllerRole = requireObject(
+  "ClusterRole",
+  runtimeControllerClusterRoleName,
+);
+if (
+  JSON.stringify(runtimeControllerRole.rules) !== JSON.stringify([
+    {
+      apiGroups: [""],
+      resources: ["namespaces"],
+      verbs: ["get", "create", "patch"],
+    },
+  ])
+) {
+  throw new Error(
+    "The Project Runtime Controller must be limited to reconciling Namespace metadata.",
+  );
+}
+
+const runtimeCleanupRole = requireObject(
+  "ClusterRole",
+  runtimeCleanupClusterRoleName,
+);
+if (
+  JSON.stringify(runtimeCleanupRole.rules) !== JSON.stringify([
+    {
+      apiGroups: [""],
+      resources: ["namespaces"],
+      verbs: ["get", "delete"],
+    },
+  ])
+) {
+  throw new Error(
+    "The Project Runtime Cleanup identity must be limited to reading and deleting Namespaces.",
+  );
+}
+
 const localControlService = localObjects.find(
   (object) =>
     object.kind === "Service" &&

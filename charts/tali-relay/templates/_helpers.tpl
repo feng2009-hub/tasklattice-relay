@@ -167,26 +167,6 @@ reconcile_interval_seconds = {{ .Values.projectRuntimeNamespaces.reconcileInterv
 resync_interval_seconds = {{ .Values.projectRuntimeNamespaces.resyncIntervalSeconds }}
 deletion_timeout_seconds = {{ .Values.projectRuntimeNamespaces.deletionTimeoutSeconds }}
 
-[runtime_namespaces.resource_quota]
-enabled = {{ .Values.projectRuntimeNamespaces.resourceQuota.enabled }}
-pods = {{ .Values.projectRuntimeNamespaces.resourceQuota.pods }}
-services = {{ .Values.projectRuntimeNamespaces.resourceQuota.services }}
-persistent_volume_claims = {{ .Values.projectRuntimeNamespaces.resourceQuota.persistentVolumeClaims }}
-requests_cpu = {{ .Values.projectRuntimeNamespaces.resourceQuota.requestsCpu | quote }}
-requests_memory = {{ .Values.projectRuntimeNamespaces.resourceQuota.requestsMemory | quote }}
-requests_storage = {{ .Values.projectRuntimeNamespaces.resourceQuota.requestsStorage | quote }}
-limits_cpu = {{ .Values.projectRuntimeNamespaces.resourceQuota.limitsCpu | quote }}
-limits_memory = {{ .Values.projectRuntimeNamespaces.resourceQuota.limitsMemory | quote }}
-
-[runtime_namespaces.limit_range]
-default_request_cpu = {{ .Values.projectRuntimeNamespaces.limitRange.defaultRequestCpu | quote }}
-default_request_memory = {{ .Values.projectRuntimeNamespaces.limitRange.defaultRequestMemory | quote }}
-default_cpu = {{ .Values.projectRuntimeNamespaces.limitRange.defaultCpu | quote }}
-default_memory = {{ .Values.projectRuntimeNamespaces.limitRange.defaultMemory | quote }}
-
-[runtime_namespaces.network_policy]
-default_deny = {{ .Values.projectRuntimeNamespaces.networkPolicy.defaultDeny }}
-
 [smtp]
 enabled = {{ .Values.control.smtp.enabled }}
 host = {{ .Values.control.smtp.host | quote }}

@@ -402,7 +402,9 @@ export function createTestPrisma(): PrismaClient {
   memory.public.none(departmentRolesMigration);
   if (
     !projectRuntimeTargetsMigration.includes("project_runtime_targets_due_idx")
-    || !projectRuntimeTargetsMigration.includes("'tali-p-' || md5(\"id\")")
+    || !projectRuntimeTargetsMigration.includes(
+      "Existing Projects are backfilled by the runtime-target worker",
+    )
     || !projectRuntimeTargetsMigration.includes("observed_generation")
   ) {
     throw new Error("Project Runtime Target migration structure is incomplete.");

@@ -24,4 +24,12 @@ subjects:
     name: {{ include "openshell.serviceAccountName" .Subcharts.openshell }}
     namespace: {{ .Release.Namespace }}
   {{- end }}
+  {{- if .Values.projectRuntimeNamespaces.enabled }}
+  - kind: ServiceAccount
+    name: {{ include "tali.projectRuntimeServiceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+  - kind: ServiceAccount
+    name: {{ include "tali.projectRuntimeCleanupServiceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+  {{- end }}
 {{- end }}

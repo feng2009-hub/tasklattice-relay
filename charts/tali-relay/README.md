@@ -79,12 +79,15 @@ avoid defining a second default policy.
 
 `projectRuntimeNamespaces.enabled=true` also runs the Project Runtime
 Controller. It maps each Relay Project to an opaque, stable Namespace and
-reconciles a ServiceAccount, ResourceQuota, LimitRange, and default-deny
-NetworkPolicies. The controller and deletion worker therefore require the
-cluster-scoped Namespace/RBAC permissions rendered by this chart. OpenShell
-`0.0.106` still uses a Gateway-wide sandbox Namespace, so these Project
-Namespaces are immediately usable by managed A2A workloads but do not yet move
-existing OpenClaw or Hermes sandboxes. See
+reconciles only Relay-owned labels and annotations on that Namespace. It does
+not install a ServiceAccount, quota, limit range, or network policy into tenant
+Namespaces. Set `projectRuntimeNamespaces.namePrefix` to a value unique to the
+Relay installation when multiple control planes share a cluster. The
+controller and deletion worker require only the cluster-scoped Namespace
+permissions rendered by this chart. OpenShell `0.0.106` still uses a
+Gateway-wide sandbox Namespace, so these Project Namespaces are immediately
+usable by managed A2A workloads but do not yet move existing OpenClaw or Hermes
+sandboxes. See
 [Project Runtime Namespaces](../../docs/project-runtime-namespaces.md).
 
 Workload rollout checksums are component-scoped. Updating Control-only

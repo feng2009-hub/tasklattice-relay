@@ -4,7 +4,7 @@ import {
   setControlConfigForTests,
 } from "../config/control-config";
 import {
-  projectNamespaceResources,
+  projectNamespaceResource,
   type ProjectNamespaceClient,
 } from "../kubernetes/project-namespace-client";
 import { createTestPrisma } from "../test/prisma";
@@ -47,6 +47,11 @@ describe("ProjectRuntimeTargetService", () => {
     expect(first).not.toContain("customer-support");
   });
 
+  it("keeps an installation-specific Namespace prefix", () => {
+    expect(projectRuntimeNamespace("project-a", "acme-relay-p"))
+      .toMatch(/^acme-relay-p-[a-f0-9]{32}$/);
+  });
+
   it("reconciles a pending target and records the observed generation", async () => {
     const config = enabledConfig();
     setControlConfigForTests(config);
@@ -63,7 +68,6 @@ describe("ProjectRuntimeTargetService", () => {
     expect(fake.reconcile).toHaveBeenCalledWith(expect.objectContaining({
       namespace: projectRuntimeNamespace("individual"),
       projectId: "individual",
-      runtimeNamespaces: config.runtime_namespaces,
     }));
     await expect(db.projectRuntimeTarget.findUnique({
       where: { projectId: "individual" },
@@ -107,6 +111,13 @@ describe("ProjectRuntimeTargetService", () => {
     config.runtime_namespaces.cluster_id = "replacement-cluster";
     setControlConfigForTests(config);
     const db = createTestPrisma();
+    await db.projectRuntimeTarget.create({
+      data: {
+        clusterId: "in-cluster",
+        namespace: projectRuntimeNamespace("individual", "tali-p"),
+        projectId: "individual",
+      },
+    });
     const fake = namespaceClient();
     const service = new ProjectRuntimeTargetService(db, fake.client);
 
@@ -124,6 +135,16 @@ describe("ProjectRuntimeTargetService", () => {
     const config = enabledConfig();
     setControlConfigForTests(config);
     const db = createTestPrisma();
+    await db.projectRuntimeTarget.create({
+      data: {
+        clusterId: config.runtime_namespaces.cluster_id,
+        namespace: projectRuntimeNamespace(
+          "individual",
+          config.runtime_namespaces.name_prefix,
+        ),
+        projectId: "individual",
+      },
+    });
     const fake = namespaceClient();
     const service = new ProjectRuntimeTargetService(db, fake.client);
     const firstReconcile = new Date("2099-08-22T00:00:00.000Z");
@@ -148,6 +169,16 @@ describe("ProjectRuntimeTargetService", () => {
     const config = enabledConfig();
     setControlConfigForTests(config);
     const db = createTestPrisma();
+    await db.projectRuntimeTarget.create({
+      data: {
+        clusterId: config.runtime_namespaces.cluster_id,
+        namespace: projectRuntimeNamespace(
+          "individual",
+          config.runtime_namespaces.name_prefix,
+        ),
+        projectId: "individual",
+      },
+    });
     const fake = namespaceClient();
     const service = new ProjectRuntimeTargetService(db, fake.client);
 
@@ -160,44 +191,25 @@ describe("ProjectRuntimeTargetService", () => {
   });
 });
 
-describe("projectNamespaceResources", () => {
-  it("builds the Namespace isolation baseline without a custom resource", () => {
-    const config = enabledConfig();
-    const resources = projectNamespaceResources({
+describe("projectNamespaceResource", () => {
+  it("builds only the owned Namespace mapping", () => {
+    const resource = projectNamespaceResource({
       namespace: "tali-p-0123456789abcdef0123456789abcdef",
-      platformNamespace: "tali",
       projectId: "project-a",
-      runtimeNamespaces: config.runtime_namespaces,
     });
 
-    expect(resources.map(({ kind }) => kind)).toEqual([
-      "Namespace",
-      "ServiceAccount",
-      "LimitRange",
-      "ResourceQuota",
-      "NetworkPolicy",
-      "NetworkPolicy",
-      "NetworkPolicy",
-      "NetworkPolicy",
-    ]);
-    expect(resources).toContainEqual(expect.objectContaining({
-      kind: "NetworkPolicy",
-      metadata: expect.objectContaining({ name: "tali-default-deny" }),
-    }));
-    expect(resources).toContainEqual(expect.objectContaining({
-      kind: "NetworkPolicy",
-      metadata: expect.objectContaining({ name: "tali-allow-project" }),
-    }));
-    expect(resources).toContainEqual(expect.objectContaining({
-      automountServiceAccountToken: false,
-      kind: "ServiceAccount",
-      metadata: expect.objectContaining({ name: "tali-agent-runtime" }),
-    }));
-    expect(resources).toContainEqual(expect.objectContaining({
-      kind: "ResourceQuota",
-      spec: expect.objectContaining({
-        hard: expect.objectContaining({ pods: "50" }),
-      }),
-    }));
+    expect(resource).toMatchObject({
+      apiVersion: "v1",
+      kind: "Namespace",
+      metadata: {
+        annotations: { "tali.io/project-id": "project-a" },
+        labels: {
+          "app.kubernetes.io/managed-by": "tali",
+          "app.kubernetes.io/part-of": "tali",
+          "tali.io/runtime-target": "true",
+        },
+        name: "tali-p-0123456789abcdef0123456789abcdef",
+      },
+    });
   });
 });

@@ -35,9 +35,12 @@ export function projectRuntimeNamespace(
   projectId: string,
   prefix = getControlConfig().runtime_namespaces.name_prefix,
 ): string {
-  // MD5 is used only to produce a deterministic opaque DNS label. It is not a
-  // security primitive. The complete Project ID remains in the database.
-  const identifier = createHash("md5").update(projectId).digest("hex");
+  // SHA-256 stays available in FIPS-enabled OpenShift environments. The hash
+  // is an opaque stable identifier, not a security boundary.
+  const identifier = createHash("sha256")
+    .update(projectId)
+    .digest("hex")
+    .slice(0, 32);
   return `${prefix}-${identifier}`;
 }
 
@@ -57,6 +60,7 @@ export class ProjectRuntimeTargetService {
     referenceTime = new Date(),
   ): Promise<ProjectRuntimeTargetClaim | undefined> {
     if (!this.config.enabled) return undefined;
+    await this.backfillExistingProjects(referenceTime);
     for (let scan = 0; scan < 8; scan += 1) {
       const candidate = await this.db.projectRuntimeTarget.findFirst({
         where: {
@@ -120,6 +124,25 @@ export class ProjectRuntimeTargetService {
     return undefined;
   }
 
+  private async backfillExistingProjects(referenceTime: Date): Promise<void> {
+    const projects = await this.db.project.findMany({
+      where: { deletedAt: null, runtimeTarget: null },
+      orderBy: { createdAt: "asc" },
+      take: 100,
+      select: { id: true },
+    });
+    if (!projects.length) return;
+    await this.db.projectRuntimeTarget.createMany({
+      data: projects.map(({ id }) => ({
+        clusterId: this.config.cluster_id,
+        namespace: projectRuntimeNamespace(id, this.config.name_prefix),
+        nextAttemptAt: referenceTime,
+        projectId: id,
+      })),
+      skipDuplicates: true,
+    });
+  }
+
   async processNext(
     workerId: string,
     referenceTime = new Date(),
@@ -130,9 +153,7 @@ export class ProjectRuntimeTargetService {
       this.assertConfiguredCluster(claim.clusterId);
       await this.namespaces.reconcile({
         namespace: claim.namespace,
-        platformNamespace: process.env.POD_NAMESPACE ?? "tali",
         projectId: claim.projectId,
-        runtimeNamespaces: this.config,
       });
       await this.db.projectRuntimeTarget.updateMany({
         where: {

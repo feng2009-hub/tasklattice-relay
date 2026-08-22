@@ -35,30 +35,11 @@ master_key = "CHANGE_ME"
 [runtime_namespaces]
 enabled = true
 cluster_id = "in-cluster"
+# Must be unique to this Relay installation when sharing a Kubernetes cluster.
 name_prefix = "tali-p"
 reconcile_interval_seconds = 5
 resync_interval_seconds = 300
 deletion_timeout_seconds = 120
-
-[runtime_namespaces.resource_quota]
-enabled = true
-pods = 50
-services = 50
-persistent_volume_claims = 20
-requests_cpu = "8"
-requests_memory = "16Gi"
-requests_storage = "200Gi"
-limits_cpu = "16"
-limits_memory = "32Gi"
-
-[runtime_namespaces.limit_range]
-default_request_cpu = "10m"
-default_request_memory = "32Mi"
-default_cpu = "500m"
-default_memory = "512Mi"
-
-[runtime_namespaces.network_policy]
-default_deny = true
 
 [smtp]
 # SMTP is required for sending invitations to users who do not already have a

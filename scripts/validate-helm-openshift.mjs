@@ -201,6 +201,8 @@ for (const serviceAccount of [
   `${releaseName}-runtime`,
   `${releaseName}-control`,
   `${releaseName}-openshell`,
+  `${releaseName}-project-runtime-controller`,
+  `${releaseName}-project-runtime-cleanup`,
 ]) {
   if (
     !anyuidSubjects.some(

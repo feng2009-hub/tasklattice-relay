@@ -41,16 +41,5 @@ ALTER TABLE "tasklattice"."project_runtime_targets"
   ON DELETE CASCADE
   ON UPDATE CASCADE;
 
--- Existing Projects receive an opaque, deterministic namespace. MD5 is used
--- only as a stable DNS-safe identifier, not as a security primitive.
-INSERT INTO "tasklattice"."project_runtime_targets" (
-  "project_id",
-  "cluster_id",
-  "namespace"
-)
-SELECT
-  "id",
-  'in-cluster',
-  'tali-p-' || md5("id")
-FROM "tasklattice"."projects"
-ON CONFLICT ("project_id") DO NOTHING;
+-- Existing Projects are backfilled by the runtime-target worker so the active
+-- cluster identifier and installation-specific Namespace prefix are honored.
