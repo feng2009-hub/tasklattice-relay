@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool, type Client as PgClient } from "pg";
@@ -34,6 +35,7 @@ import directProjectRoleSwitchingMigration from "../../prisma/migrations/2026081
 import projectDeletionTasksMigration from "../../prisma/migrations/20260815000000_project_deletion_tasks/migration.sql?raw";
 import departmentsMigration from "../../prisma/migrations/20260819000000_departments/migration.sql?raw";
 import departmentRolesMigration from "../../prisma/migrations/20260820000000_department_roles/migration.sql?raw";
+import projectRuntimeTargetsMigration from "../../prisma/migrations/20260822000000_project_runtime_targets/migration.sql?raw";
 import { developmentResourceCatalog } from "../catalog/development-resource-catalog";
 import { PrismaClient } from "../generated/prisma/client";
 
@@ -52,6 +54,13 @@ export function createTestPrisma(): PrismaClient {
     args: [DataType.integer, DataType.integer],
     returns: DataType.integer,
     implementation: () => 1,
+  });
+  memory.public.registerFunction({
+    name: "md5",
+    args: [DataType.text],
+    returns: DataType.text,
+    implementation: (value: string) =>
+      createHash("md5").update(value).digest("hex"),
   });
   // pg-mem models NUMERIC values but does not parse PostgreSQL precision
   // metadata. Production migrations retain Prisma's DECIMAL(65,30).
@@ -391,6 +400,14 @@ export function createTestPrisma(): PrismaClient {
       ),
   );
   memory.public.none(departmentRolesMigration);
+  if (
+    !projectRuntimeTargetsMigration.includes("project_runtime_targets_due_idx")
+    || !projectRuntimeTargetsMigration.includes("'tali-p-' || md5(\"id\")")
+    || !projectRuntimeTargetsMigration.includes("observed_generation")
+  ) {
+    throw new Error("Project Runtime Target migration structure is incomplete.");
+  }
+  memory.public.none(projectRuntimeTargetsMigration);
   const pg = memory.adapters.createPg();
   const query = pg.Client.prototype.query;
   pg.Client.prototype.query = function (

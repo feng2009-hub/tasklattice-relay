@@ -31,6 +31,69 @@ const disabledSmtpConfig = {
   reply_to: "",
 };
 
+const defaultRuntimeNamespacesConfig = {
+  enabled: false,
+  cluster_id: "in-cluster",
+  name_prefix: "tali-p",
+  reconcile_interval_seconds: 5,
+  resync_interval_seconds: 300,
+  deletion_timeout_seconds: 120,
+  resource_quota: {
+    enabled: true,
+    pods: 50,
+    services: 50,
+    persistent_volume_claims: 20,
+    requests_cpu: "8",
+    requests_memory: "16Gi",
+    requests_storage: "200Gi",
+    limits_cpu: "16",
+    limits_memory: "32Gi",
+  },
+  limit_range: {
+    default_request_cpu: "10m",
+    default_request_memory: "32Mi",
+    default_cpu: "500m",
+    default_memory: "512Mi",
+  },
+  network_policy: {
+    default_deny: true,
+  },
+};
+
+const kubernetesQuantitySchema = z.string().trim().min(1).max(32);
+
+const runtimeNamespacesConfigSchema = z.object({
+  enabled: z.boolean(),
+  cluster_id: z.string().trim().min(1).max(120),
+  name_prefix: z.string().trim().min(1).max(20).regex(
+    /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/,
+    "runtime_namespaces.name_prefix must be a DNS label prefix.",
+  ),
+  reconcile_interval_seconds: z.number().int().min(1).max(300),
+  resync_interval_seconds: z.number().int().min(30).max(86_400),
+  deletion_timeout_seconds: z.number().int().min(10).max(1_800),
+  resource_quota: z.object({
+    enabled: z.boolean(),
+    pods: z.number().int().min(1).max(100_000),
+    services: z.number().int().min(1).max(100_000),
+    persistent_volume_claims: z.number().int().min(1).max(100_000),
+    requests_cpu: kubernetesQuantitySchema,
+    requests_memory: kubernetesQuantitySchema,
+    requests_storage: kubernetesQuantitySchema,
+    limits_cpu: kubernetesQuantitySchema,
+    limits_memory: kubernetesQuantitySchema,
+  }),
+  limit_range: z.object({
+    default_request_cpu: kubernetesQuantitySchema,
+    default_request_memory: kubernetesQuantitySchema,
+    default_cpu: kubernetesQuantitySchema,
+    default_memory: kubernetesQuantitySchema,
+  }),
+  network_policy: z.object({
+    default_deny: z.boolean(),
+  }),
+});
+
 const smtpConfigSchema = z.object({
   enabled: z.boolean(),
   host: z.string().trim(),
@@ -136,6 +199,9 @@ const controlConfigSchema = z.object({
     url: z.string().url(),
     master_key: z.string(),
   }),
+  runtime_namespaces: runtimeNamespacesConfigSchema.default(
+    defaultRuntimeNamespacesConfig,
+  ),
   smtp: smtpConfigSchema.default(disabledSmtpConfig),
 }).superRefine((value, context) => {
   if (!value.server.public_url) {
@@ -192,6 +258,7 @@ const developmentConfig: ControlConfig = {
     url: "http://127.0.0.1:4000",
     master_key: "",
   },
+  runtime_namespaces: defaultRuntimeNamespacesConfig,
   smtp: disabledSmtpConfig,
 };
 

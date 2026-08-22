@@ -77,6 +77,16 @@ OpenShift project or Kubernetes namespace already has an equivalent
 administrator-managed `LimitRange`, set `resourceDefaults.enabled=false` to
 avoid defining a second default policy.
 
+`projectRuntimeNamespaces.enabled=true` also runs the Project Runtime
+Controller. It maps each Relay Project to an opaque, stable Namespace and
+reconciles a ServiceAccount, ResourceQuota, LimitRange, and default-deny
+NetworkPolicies. The controller and deletion worker therefore require the
+cluster-scoped Namespace/RBAC permissions rendered by this chart. OpenShell
+`0.0.106` still uses a Gateway-wide sandbox Namespace, so these Project
+Namespaces are immediately usable by managed A2A workloads but do not yet move
+existing OpenClaw or Hermes sandboxes. See
+[Project Runtime Namespaces](../../docs/project-runtime-namespaces.md).
+
 Workload rollout checksums are component-scoped. Updating Control-only
 settings such as `control.publicUrl` restarts the Control Deployment but does
 not roll Runner, LiteLLM, or PostgreSQL. Changing a Service type by itself does
@@ -100,7 +110,7 @@ TaskLattice Relay resources are deliberately later than the dependencies:
 | `10` | TaskLattice Relay ServiceAccounts, RBAC, Secrets, ConfigMaps, and Services |
 | `20` | PostgreSQL StatefulSet |
 | `30` | LiteLLM and optional Keycloak Deployments |
-| `40` | Control, deletion worker, Runner, and optional example MCP Deployments |
+| `40` | Control, Project Runtime Controller, deletion worker, Runner, and optional example MCP Deployments |
 | `50` | Optional OpenShift Routes |
 
 Argo CD waits for each wave to become healthy before advancing. The values are

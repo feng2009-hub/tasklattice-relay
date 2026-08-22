@@ -78,6 +78,14 @@ app.kubernetes.io/component: {{ .component }}
 {{- end -}}
 {{- end }}
 
+{{- define "tali.projectRuntimeServiceAccountName" -}}
+{{- include "tali.componentName" (dict "root" . "component" "project-runtime-controller") -}}
+{{- end }}
+
+{{- define "tali.projectRuntimeCleanupServiceAccountName" -}}
+{{- include "tali.componentName" (dict "root" . "component" "project-runtime-cleanup") -}}
+{{- end }}
+
 {{- define "tali.databaseUrl" -}}
 {{- if .Values.secrets.databaseUrl -}}
 {{- .Values.secrets.databaseUrl -}}
@@ -150,6 +158,34 @@ token = {{ required "secrets.runnerToken is required" .Values.secrets.runnerToke
 [litellm]
 url = {{ printf "http://%s:4000" (include "tali.componentName" (dict "root" . "component" "litellm")) | quote }}
 master_key = {{ required "secrets.litellmMasterKey is required" .Values.secrets.litellmMasterKey | quote }}
+
+[runtime_namespaces]
+enabled = {{ .Values.projectRuntimeNamespaces.enabled }}
+cluster_id = {{ .Values.projectRuntimeNamespaces.clusterId | quote }}
+name_prefix = {{ .Values.projectRuntimeNamespaces.namePrefix | quote }}
+reconcile_interval_seconds = {{ .Values.projectRuntimeNamespaces.reconcileIntervalSeconds }}
+resync_interval_seconds = {{ .Values.projectRuntimeNamespaces.resyncIntervalSeconds }}
+deletion_timeout_seconds = {{ .Values.projectRuntimeNamespaces.deletionTimeoutSeconds }}
+
+[runtime_namespaces.resource_quota]
+enabled = {{ .Values.projectRuntimeNamespaces.resourceQuota.enabled }}
+pods = {{ .Values.projectRuntimeNamespaces.resourceQuota.pods }}
+services = {{ .Values.projectRuntimeNamespaces.resourceQuota.services }}
+persistent_volume_claims = {{ .Values.projectRuntimeNamespaces.resourceQuota.persistentVolumeClaims }}
+requests_cpu = {{ .Values.projectRuntimeNamespaces.resourceQuota.requestsCpu | quote }}
+requests_memory = {{ .Values.projectRuntimeNamespaces.resourceQuota.requestsMemory | quote }}
+requests_storage = {{ .Values.projectRuntimeNamespaces.resourceQuota.requestsStorage | quote }}
+limits_cpu = {{ .Values.projectRuntimeNamespaces.resourceQuota.limitsCpu | quote }}
+limits_memory = {{ .Values.projectRuntimeNamespaces.resourceQuota.limitsMemory | quote }}
+
+[runtime_namespaces.limit_range]
+default_request_cpu = {{ .Values.projectRuntimeNamespaces.limitRange.defaultRequestCpu | quote }}
+default_request_memory = {{ .Values.projectRuntimeNamespaces.limitRange.defaultRequestMemory | quote }}
+default_cpu = {{ .Values.projectRuntimeNamespaces.limitRange.defaultCpu | quote }}
+default_memory = {{ .Values.projectRuntimeNamespaces.limitRange.defaultMemory | quote }}
+
+[runtime_namespaces.network_policy]
+default_deny = {{ .Values.projectRuntimeNamespaces.networkPolicy.defaultDeny }}
 
 [smtp]
 enabled = {{ .Values.control.smtp.enabled }}

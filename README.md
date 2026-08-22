@@ -234,6 +234,7 @@ Additional design documentation:
 
 - [Image release and Helm publishing](docs/image-release-and-helm.md)
 - [OpenShell Kubernetes runtime](docs/openshell-kubernetes-runtime.md)
+- [Project Runtime Namespaces](docs/project-runtime-namespaces.md)
 - [Agent Garden architecture](docs/agent-garden-architecture.md)
 - [Model and Routing](docs/model-routing.md)
 - [MVP core flow](docs/mvp-core-flow.md)

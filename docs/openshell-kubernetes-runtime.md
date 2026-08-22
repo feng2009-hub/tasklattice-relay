@@ -57,6 +57,12 @@ flowchart TD
 
 OpenShell's Kubernetes integration is currently alpha/experimental. Before a
 shared deployment, add authenticated TLS gateway access, a real registry,
-per-tenant namespaces and quotas, NetworkPolicies, external secret management,
-durable runner operation state, startup-command reconciliation after a Sandbox
-Pod recreation, and concurrency-safe inference profiles.
+external secret management, durable runner operation state, startup-command
+reconciliation after a Sandbox Pod recreation, and concurrency-safe inference
+profiles.
+
+Relay now provisions one baseline Namespace, quota, limits, and network policy
+set per Project. However, OpenShell `0.0.106` selects one static sandbox
+Namespace at the Gateway level and cannot place an individual sandbox in a
+Project Namespace. See [Project Runtime Namespaces](project-runtime-namespaces.md)
+for the implemented lifecycle and the remaining runtime-placement boundary.

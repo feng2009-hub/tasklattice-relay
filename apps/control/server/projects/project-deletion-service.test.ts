@@ -5,6 +5,7 @@ import { createTestPrisma } from "../test/prisma";
 import {
   PROJECT_DELETION_GRACE_PERIOD_MS,
   ProjectDeletionService,
+  type ProjectRuntimeTargetCleanup,
 } from "./project-deletion-service";
 
 function deletionDependencies() {
@@ -63,11 +64,15 @@ describe("ProjectDeletionService", () => {
       where: { projectId: "individual" },
       data: { litellmTeamId: "project-team-1" },
     });
+    const deleteProjectNamespace = vi.fn(async () => true);
     const service = new ProjectDeletionService(
       db,
       dependencies.runner,
       dependencies.litellm,
       { externalCleanupEnabled: true },
+      {
+        deleteProjectNamespace,
+      } satisfies ProjectRuntimeTargetCleanup,
     );
 
     const early = await service.processNext(
@@ -115,6 +120,7 @@ describe("ProjectDeletionService", () => {
     );
     expect(dependencies.revokeKey).toHaveBeenCalledWith("instance-key-1");
     expect(dependencies.deleteProjectTeam).toHaveBeenCalledWith("project-team-1");
+    expect(deleteProjectNamespace).toHaveBeenCalledWith("individual");
     await expect(db.project.findUnique({ where: { id: "individual" } }))
       .resolves.toBeNull();
     await expect(db.agentRecord.count({ where: { projectId: "individual" } }))

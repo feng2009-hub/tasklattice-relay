@@ -1,11 +1,24 @@
 #!/usr/bin/env node
 
 import { execFileSync, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { parseAllDocuments } from "yaml";
 
 const releaseName = "tali-relay";
 const releaseNamespace = "tali-resource-validation";
 const chartPath = "charts/tali-relay";
+const runtimeControllerName = `${releaseName}-project-runtime-controller`;
+const runtimeCleanupName = `${releaseName}-project-runtime-cleanup`;
+function scopedClusterRoleName(name) {
+  return `${name.slice(0, 48).replace(/-$/, "")}-${createHash("sha256")
+    .update(`${releaseNamespace}/${name}`)
+    .digest("hex")
+    .slice(0, 12)}`;
+}
+const runtimeControllerClusterRoleName = scopedClusterRoleName(
+  runtimeControllerName,
+);
+const runtimeCleanupClusterRoleName = scopedClusterRoleName(runtimeCleanupName);
 const requiredResources = [
   ["requests", "cpu"],
   ["requests", "memory"],
@@ -86,6 +99,12 @@ for (const [kind, name, wave] of [
   ["LimitRange", `${releaseName}-container-resources`, "-10"],
   ["ServiceAccount", `${releaseName}-control`, "10"],
   ["ServiceAccount", `${releaseName}-runtime`, "10"],
+  ["ServiceAccount", runtimeControllerName, "10"],
+  ["ServiceAccount", runtimeCleanupName, "10"],
+  ["ClusterRole", runtimeControllerClusterRoleName, "10"],
+  ["ClusterRoleBinding", runtimeControllerClusterRoleName, "10"],
+  ["ClusterRole", runtimeCleanupClusterRoleName, "10"],
+  ["ClusterRoleBinding", runtimeCleanupClusterRoleName, "10"],
   ["Role", `${releaseName}-control-managed-secrets`, "10"],
   ["RoleBinding", `${releaseName}-control-managed-secrets`, "10"],
   ["Secret", `${releaseName}-secrets`, "10"],
@@ -101,6 +120,7 @@ for (const [kind, name, wave] of [
   ["Deployment", `${releaseName}-litellm`, "30"],
   ["Deployment", `${releaseName}-keycloak`, "30"],
   ["Deployment", `${releaseName}-control`, "40"],
+  ["Deployment", runtimeControllerName, "40"],
   ["Deployment", `${releaseName}-deletion-worker`, "40"],
   ["Deployment", `${releaseName}-runner`, "40"],
   ["Deployment", `${releaseName}-example-mcp`, "40"],
@@ -165,6 +185,21 @@ for (const [deploymentName, expectedInitContainers] of [
         ],
       ],
       ["seed-built-in-skills", ["node", "prisma/seed-built-in-skills.mjs"]],
+    ],
+  ],
+  [
+    runtimeControllerName,
+    [
+      [
+        "migrate-control-database",
+        [
+          "/app/node_modules/.bin/prisma",
+          "migrate",
+          "deploy",
+          "--config",
+          "prisma.config.ts",
+        ],
+      ],
     ],
   ],
   [
@@ -240,6 +275,29 @@ const localControlToml = localSecret?.stringData?.["control.toml"] ?? "";
 if (!/^public_url\s*=\s*"http:\/\/localhost:38080"$/m.test(localControlToml)) {
   throw new Error(
     "Local authentication must render Better Auth's canonical server.public_url.",
+  );
+}
+if (
+  !/\[runtime_namespaces\][\s\S]*?enabled\s*=\s*true[\s\S]*?resync_interval_seconds\s*=\s*300/.test(
+    localControlToml,
+  )
+) {
+  throw new Error(
+    "Project Runtime Namespace settings must be present in the Control configuration.",
+  );
+}
+
+const deletionWorker = requireObject(
+  "Deployment",
+  `${releaseName}-deletion-worker`,
+);
+if (
+  deletionWorker.spec?.template?.spec?.serviceAccountName !==
+    runtimeCleanupName ||
+  deletionWorker.spec?.template?.spec?.automountServiceAccountToken !== true
+) {
+  throw new Error(
+    "The deletion worker must use the Project Runtime Controller identity when Namespace cleanup is enabled.",
   );
 }
 
