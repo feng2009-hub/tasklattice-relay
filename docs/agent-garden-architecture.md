@@ -3,7 +3,10 @@
 ## Outcome
 
 Agent Garden is the Project-scoped catalog for discovering, onboarding, and
-connecting Agents. It deliberately separates three concepts:
+connecting Agents. A2A 1.0 is the only Project onboarding contract in the
+current phase. LangGraph, Google ADK, LangChain, or another SDK may implement
+an Agent internally, but the framework does not select a Relay adapter and is
+not part of the onboarding API. It deliberately separates three concepts:
 
 - **Agent definition** — a reusable built-in template, a Project-managed
   container, or an existing remote Agent.
@@ -20,9 +23,9 @@ that relationship; the remote Agent is shown as a **Connected Agent**.
 ```mermaid
 flowchart LR
   G["Agent Garden definition"] -->|"Create Instance"| C["OpenClaw / Hermes Coordinator"]
-  R["Callable built-in or Project-registered Agent"] -->|"Publish or discover capabilities"| D["Agent Card / endpoint snapshot"]
+  R["Callable built-in or Project-registered Agent"] -->|"Publish capabilities"| D["A2A 1.0 Agent Card snapshot"]
   C -->|"Explicit connection + policy"| D
-  D -.->|"Future runtime gateway: delegate task"| A["A2A or SDK Agent runtime"]
+  D -.->|"Future runtime gateway: delegate task"| A["A2A Agent runtime"]
 ```
 
 ## Capability model
@@ -32,7 +35,7 @@ single “main/sub” enum.
 
 | Capability | Meaning | OpenClaw / Hermes | Claude Code | Callable A2A |
 | --- | --- | --- | --- | --- |
-| `interactive` | A user can work with it directly | Yes | Yes, coming soon | Optional |
+| `interactive` | A user can work with it directly | Yes | Yes, coming soon | No |
 | `canDelegate` | It may coordinate other Agents | Yes | No | No |
 | `acceptsDelegation` | Another Agent may call it | No | No | Yes |
 
@@ -59,11 +62,11 @@ Guardian, Academic Research, Small Business Loans, Software Bug Assistant,
 Travel Concierge, Time Series Forecasting, LLM Auditor, and Personalized
 Shopping. It also contains GitHub Daily Triage, Pull Request Risk Scanner, and
 Release Notes Composer as A2A demos, plus Support Escalation Router as a
-LangGraph demo exposed through a TaskLattice Relay A2A adapter.
+LangGraph implementation that exposes the same A2A 1.0 contract.
 
 The examples support two separate interactions:
 
-- **Try demo** sends a real JSON-RPC `message/send` request to a lightweight
+- **Try demo** sends a real A2A 1.0 JSON-RPC `SendMessage` request to a lightweight
   in-process endpoint and renders its execution trace and response;
 - **Connect to…** authorizes an OpenClaw or Hermes Coordinator to delegate one
   or more advertised skills.
@@ -84,9 +87,9 @@ label shows Agents matching at least one selected capability. The groups
 mirror the reference experience while using TaskLattice Relay's existing cards,
 typography, spacing, and interaction patterns.
 
-The onboarding wizard reuses the same lightweight, underline-based progress
-component as Instance creation. Completed steps remain clickable, future steps
-stay disabled, and only the current step receives primary emphasis.
+The onboarding wizard reuses the same sidebar creation flow as Instance
+creation. Completed steps remain clickable, future steps stay disabled, and
+only the current step receives primary emphasis.
 
 Catalog cards deep-link to a Marketplace-style detail route at
 `/:projectId/agent-garden/:agentId`. The page keeps selection and activation
@@ -108,37 +111,38 @@ Project onboarding has three source tabs:
 - **Container Image** is the primary implemented path. Control creates a
   Deployment and internal ClusterIP Service in the Project Runtime Namespace,
   waits for readiness, reads the Pod's resolved image ID, reapplies the
-  Deployment with the immutable digest, and validates the A2A Agent Card. The
+  Deployment with the immutable digest, and validates an A2A 1.0 Agent Card.
+  The card must advertise a supported JSON-RPC or HTTP+JSON interface. The
   image's ENTRYPOINT/CMD is used unless command or arguments are explicitly
   supplied. Private registries reference an existing Secret by name.
-- **Existing Agent** connects an already-running A2A Standard, LangGraph,
-  LangFlow, Bedrock AgentCore, Azure AI Foundry, Pydantic AI, Vertex AI Agent
-  Engine, watsonx Orchestrate, or custom endpoint.
+- **Existing Agent** accepts only the canonical URL of a published A2A 1.0
+  Agent Card. Relay selects a supported interface from that card and does not
+  ask for a framework, adapter, usage mode, or separate runtime endpoint.
 - **Git Repository** documents the intended input contract but is not yet
   submit-enabled. Its future builder must produce a provenance-attested OCI
-  image and then enter the same immutable Container Image path.
+  image and then enter the same immutable Container Image and A2A validation
+  path.
 
 Onboarding is a three-step flow: choose the source, configure identity and
-access, then review and validate. Existing Agents select usage explicitly:
-
-- `INTERACTIVE` — opens independently and cannot be connected;
-- `CALLABLE` — accepts delegated tasks;
-- `HYBRID` — supports both.
-
-Managed Container Image Agents are always `CALLABLE` in the current phase and
-remain internal to the cluster. They run without a Kubernetes service-account
-token, drop Linux capabilities, disallow privilege escalation, and use the
-Project namespace's admission policy. Control verifies exact Project and Agent
-ownership annotations before changing or deleting a pre-existing resource.
+access, then review and validate. Every Project-onboarded Agent is `CALLABLE`
+and accepts delegated tasks; interactive workbenches remain a separate
+Instance concern. Managed Container Image Agents remain internal to the
+cluster. They run without a Kubernetes service-account token, drop Linux
+capabilities, disallow privilege escalation, and use the Project namespace's
+admission policy. Control verifies exact Project and Agent ownership
+annotations before changing or deleting a pre-existing resource.
 If deployment or discovery fails, the Project catalog record remains
 `UNAVAILABLE` with the latest error so an administrator can retry the same
 idempotent path or remove both runtime resources and the catalog entry.
 
 ## Discovery and endpoint security
 
-For A2A, Pydantic AI, and compatible LangGraph registrations, discovery reads
-an Agent Card and stores a normalized capability snapshot. Other adapters use
-an endpoint health check until an adapter-specific discovery client is added.
+Discovery always reads an A2A 1.0 Agent Card. A health-only endpoint is not an
+onboardable Agent. The card must contain its required identity, version,
+capability, default media-mode, interface, and skills fields. Relay stores the
+selected interface plus a normalized A2A capability snapshot. The current
+runtime supports `JSONRPC` and `HTTP+JSON` bindings; another binding must be
+implemented explicitly before Relay accepts it.
 
 Discovery applies these controls:
 
@@ -150,6 +154,7 @@ Discovery applies these controls:
 - redirects are not followed;
 - requests time out after seven seconds;
 - Agent Card payloads are limited to one megabyte;
+- only interfaces declaring protocol version `1.0` are selected;
 - discovered skills are copied into the Project snapshot and can be narrowed
   per connection.
 
@@ -173,7 +178,7 @@ catalog Agent.
 | Method | Path suffix | Purpose |
 | --- | --- | --- |
 | `GET` | `/agent-garden` | Read built-in definitions, Project registrations, and connections |
-| `POST` | `/agent-garden/onboard` | Deploy a container image or connect and discover an existing Agent |
+| `POST` | `/agent-garden/onboard` | Deploy an A2A container image or connect through an existing A2A 1.0 Agent Card |
 | `POST` | `/agent-garden/agents/:id/discover` | Refresh its discovery snapshot |
 | `DELETE` | `/agent-garden/agents/:id` | Remove a Project registration |
 | `POST` | `/agent-garden/connections` | Authorize a Coordinator connection |
@@ -202,7 +207,7 @@ endpoints:
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/v1/demo-agents/:id/agent-card` | Read the demo Agent Card |
-| `POST` | `/api/v1/demo-agents/:id` | Send one JSON-RPC `message/send` preview |
+| `POST` | `/api/v1/demo-agents/:id` | Send one A2A 1.0 JSON-RPC `SendMessage` preview |
 
 ## Runtime boundary
 
@@ -218,7 +223,7 @@ Coordinator. That tool will:
 1. authenticate the calling Instance service account;
 2. load only that Instance's active connections;
 3. validate the requested discovered skill and approval mode;
-4. dispatch through the adapter-specific A2A/SDK client;
+4. dispatch through the selected A2A protocol binding;
 5. persist task state and emit an audit event;
 6. return a normalized task result to OpenClaw or Hermes.
 

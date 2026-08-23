@@ -49,4 +49,36 @@ describe("Agent onboarding contract", () => {
       usageMode: "CALLABLE",
     });
   });
+
+  it("accepts only a published A2A Agent Card for an existing Agent", () => {
+    expect(onboardAgentSchema.parse({
+      ...identity,
+      sourceType: "existing-agent",
+      agentCardUrl: "https://agents.example.com/.well-known/agent-card.json",
+    })).toMatchObject({
+      sourceType: "existing-agent",
+      authType: "none",
+      internalNetworkOnly: false,
+    });
+
+    expect(onboardAgentSchema.safeParse({
+      ...identity,
+      sourceType: "existing-agent",
+      agentCardUrl: "https://agents.example.com/.well-known/agent-card.json",
+      integrationType: "langgraph",
+      endpoint: "https://agents.example.com",
+      usageMode: "INTERACTIVE",
+    }).success).toBe(false);
+  });
+
+  it("reports an incomplete Agent Card URL without throwing", () => {
+    const input = {
+      ...identity,
+      sourceType: "existing-agent",
+      agentCardUrl: "",
+    };
+
+    expect(() => onboardAgentSchema.safeParse(input)).not.toThrow();
+    expect(onboardAgentSchema.safeParse(input).success).toBe(false);
+  });
 });

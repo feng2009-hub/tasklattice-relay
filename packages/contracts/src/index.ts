@@ -904,21 +904,9 @@ export const agentGardenBuiltInTypeIds = [
   "claude-code",
 ] as const;
 
-export const agentGardenRegisterableTypeIds = [
-  "a2a",
-  "langgraph",
-  "langflow",
-  "bedrock-agentcore",
-  "azure-ai-foundry",
-  "pydantic-ai",
-  "vertex-ai-agent-engine",
-  "watsonx-orchestrate",
-  "custom",
-] as const;
-
 export const agentGardenIntegrationTypeIds = [
   ...agentGardenBuiltInTypeIds,
-  ...agentGardenRegisterableTypeIds,
+  "a2a",
 ] as const;
 
 export const agentGardenUsageModeIds = [
@@ -940,6 +928,17 @@ export const agentGardenSkillSchema = z.object({
   tags: z.array(z.string().trim().min(1).max(80)).max(32).default([]),
 }).strict();
 
+export const agentGardenA2aProfileSchema = z.object({
+  protocolBinding: z.enum(["JSONRPC", "HTTP+JSON"]),
+  protocolVersion: z.literal("1.0"),
+  tenant: z.string().trim().min(1).max(240).nullable(),
+  streaming: z.boolean(),
+  pushNotifications: z.boolean(),
+  extendedAgentCard: z.boolean(),
+  defaultInputModes: z.array(z.string().trim().min(1).max(200)).max(64),
+  defaultOutputModes: z.array(z.string().trim().min(1).max(200)).max(64),
+}).strict();
+
 export const agentGardenEntrySchema = z.object({
   id: z.string().trim().min(1).max(160),
   name: z.string().trim().min(2).max(160),
@@ -955,6 +954,7 @@ export const agentGardenEntrySchema = z.object({
   usageCapabilities: agentGardenUsageCapabilitiesSchema,
   endpoint: z.string().trim().url().nullable(),
   agentCardUrl: z.string().trim().url().nullable(),
+  a2a: agentGardenA2aProfileSchema.nullable(),
   authType: z.enum(["none", "bearer_token", "api_key"]),
   authReference: optionalMcpSecretReferenceSchema,
   internalNetworkOnly: z.boolean(),
@@ -1052,30 +1052,37 @@ export const onboardGitRepositoryAgentSchema = managedAgentIdentitySchema
     }
   });
 
-export const onboardExistingAgentSchema = z.object({
-  sourceType: z.literal("existing-agent"),
-  name: z.string().trim().min(3).max(160),
-  description: z.string().trim().min(10).max(2_000),
-  integrationType: z.enum(agentGardenRegisterableTypeIds),
-  endpoint: z.string().trim().url(),
-  agentCardUrl: z.string().trim().url().optional(),
-  category: z.string().trim().min(2).max(80),
-  owner: z.string().trim().min(1).max(120),
-  tags: z.array(z.string().trim().min(1).max(80)).max(32).default([]),
-  usageMode: z.enum(agentGardenUsageModeIds).default("CALLABLE"),
-  authType: z.enum(["none", "bearer_token", "api_key"]).default("none"),
-  authReference: optionalMcpSecretReferenceSchema.default(""),
-  internalNetworkOnly: z.boolean().default(false),
-  configuration: z.record(z.string(), z.string()).default({}),
-}).strict().superRefine((value, context) => {
-  if (value.authType !== "none" && !value.authReference) {
-    context.addIssue({
-      code: "custom",
-      path: ["authReference"],
-      message: "A Secret reference is required for this authentication type.",
-    });
-  }
-});
+export const onboardExistingAgentSchema = managedAgentIdentitySchema
+  .extend({
+    sourceType: z.literal("existing-agent"),
+    agentCardUrl: z.string().trim().url(),
+    authType: z.enum(["none", "bearer_token", "api_key"]).default("none"),
+    authReference: optionalMcpSecretReferenceSchema.default(""),
+    internalNetworkOnly: z.boolean().default(false),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    let protocol: string;
+    try {
+      protocol = new URL(value.agentCardUrl).protocol;
+    } catch {
+      return;
+    }
+    if (protocol !== "https:" && protocol !== "http:") {
+      context.addIssue({
+        code: "custom",
+        path: ["agentCardUrl"],
+        message: "Agent Card URL must use HTTP or HTTPS.",
+      });
+    }
+    if (value.authType !== "none" && !value.authReference) {
+      context.addIssue({
+        code: "custom",
+        path: ["authReference"],
+        message: "A Secret reference is required for this authentication type.",
+      });
+    }
+  });
 
 export const onboardAgentSchema = z.discriminatedUnion("sourceType", [
   onboardContainerImageAgentSchema,
@@ -1365,10 +1372,10 @@ export type AccessPolicyDecision = (typeof accessPolicyDecisions)[number];
 export type AccessPolicyToolRule = z.infer<typeof accessPolicyToolRuleSchema>;
 export type AccessPolicyServerRule = z.infer<typeof accessPolicyServerRuleSchema>;
 export type AgentGardenIntegrationType = (typeof agentGardenIntegrationTypeIds)[number];
-export type AgentGardenRegisterableType = (typeof agentGardenRegisterableTypeIds)[number];
 export type AgentGardenUsageMode = (typeof agentGardenUsageModeIds)[number];
 export type AgentGardenUsageCapabilities = z.infer<typeof agentGardenUsageCapabilitiesSchema>;
 export type AgentGardenSkill = z.infer<typeof agentGardenSkillSchema>;
+export type AgentGardenA2aProfile = z.infer<typeof agentGardenA2aProfileSchema>;
 export type AgentGardenEntry = z.infer<typeof agentGardenEntrySchema>;
 export type AgentOnboardSourceType =
   (typeof agentOnboardSourceTypeIds)[number];

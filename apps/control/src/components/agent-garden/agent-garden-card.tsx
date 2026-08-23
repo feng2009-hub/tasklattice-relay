@@ -98,6 +98,11 @@ export function AgentGardenCard({
         >
           {agent.platformLabel}
         </Badge>
+        {agent.a2a ? (
+          <Badge variant="outline">
+            A2A {agent.a2a.protocolVersion}
+          </Badge>
+        ) : null}
         {language ? (
           <Badge variant="secondary" className="font-normal">
             {language}

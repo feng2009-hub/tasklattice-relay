@@ -3,8 +3,6 @@ import { useMutation } from "@tanstack/react-query";
 import {
   onboardAgentSchema,
   type AgentGardenEntry,
-  type AgentGardenRegisterableType,
-  type AgentGardenUsageMode,
   type AgentOnboardSourceType,
   type OnboardAgentInput,
 } from "@tali/contracts";
@@ -35,18 +33,12 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
-import { cn } from "@/lib/utils";
 import { AgentGardenIcon } from "./agent-garden-icon";
-import {
-  agentTypePresentations,
-  registerableAgentTypes,
-  usageModeLabel,
-} from "./agent-garden-presentation";
 
 const steps: readonly CreationStep[] = [
-  { label: "Source", description: "Choose where the Agent runs" },
-  { label: "Details", description: "Set identity and access" },
-  { label: "Review", description: "Onboard and validate" },
+  { label: "Source", description: "Choose how Relay reaches the Agent" },
+  { label: "Details", description: "Set catalog identity and access" },
+  { label: "Review", description: "Validate A2A compatibility" },
 ];
 
 interface IdentityDraft {
@@ -80,11 +72,7 @@ interface ExistingDraft {
   agentCardUrl: string;
   authReference: string;
   authType: "none" | "bearer_token" | "api_key";
-  endpoint: string;
-  integrationType: AgentGardenRegisterableType;
   internalNetworkOnly: boolean;
-  usageMode: AgentGardenUsageMode;
-  configuration: Record<string, string>;
 }
 
 function emptyIdentity(): IdentityDraft {
@@ -122,38 +110,12 @@ function emptyRepository(): RepositoryDraft {
 
 function emptyExisting(): ExistingDraft {
   return {
-    integrationType: "a2a",
-    endpoint: "",
     agentCardUrl: "",
-    usageMode: "CALLABLE",
     authType: "none",
     authReference: "",
     internalNetworkOnly: false,
-    configuration: {},
   };
 }
-
-const usageModes: Array<{
-  description: string;
-  label: string;
-  value: AgentGardenUsageMode;
-}> = [
-  {
-    value: "CALLABLE",
-    label: "Receive delegated tasks",
-    description: "Can be connected to OpenClaw or Hermes as a specialist.",
-  },
-  {
-    value: "INTERACTIVE",
-    label: "Run independently",
-    description: "Opens as its own remote workbench and cannot be connected.",
-  },
-  {
-    value: "HYBRID",
-    label: "Both",
-    description: "Supports its own workbench and delegated task requests.",
-  },
-];
 
 export function RegisterAgentSheet({
   onOpenChange,
@@ -230,12 +192,6 @@ export function RegisterAgentSheet({
       ...identity,
       ...existing,
       sourceType,
-      ...(existing.agentCardUrl
-        ? { agentCardUrl: existing.agentCardUrl }
-        : { agentCardUrl: undefined }),
-      configuration: Object.fromEntries(
-        Object.entries(existing.configuration).filter(([, value]) => value.trim()),
-      ),
     };
   }, [existing, identity, image, repository, sourceType]);
   const parsed = onboardAgentSchema.safeParse(candidate);
@@ -248,7 +204,7 @@ export function RegisterAgentSheet({
         || ([...image.command, ...image.args].some((item) => item.trim())
           && [...image.command, ...image.args].every((item) => item.trim())))
     : sourceType === "existing-agent"
-      ? isHttpUrl(existing.endpoint)
+      ? isHttpUrl(existing.agentCardUrl)
       : false;
 
   const selectSource = (next: string) => {
@@ -293,7 +249,7 @@ export function RegisterAgentSheet({
       }}
       eyebrow="Agent Garden"
       title="Onboard Agent"
-      description="Deploy an A2A container into this Project, build from a repository, or connect an Agent that already runs elsewhere."
+      description="Add an Agent that publishes an A2A 1.0 Agent Card. Relay can deploy its container image or connect to an Agent that already runs elsewhere."
       width="xl"
       bodyClassName="p-0 sm:p-0"
       footer={(
@@ -404,20 +360,20 @@ function SourceStep({
       <div>
         <h3 className="text-sm font-semibold">Choose an onboarding source</h3>
         <p className="mt-1 text-xs leading-5 text-muted-foreground">
-          Container Image is available now. Each managed image runs inside the Project Runtime Namespace.
+          Container Image and Existing Agent are available now. Both must expose a valid A2A 1.0 Agent Card.
         </p>
       </div>
       <TabsList variant="line" className="grid h-auto w-full grid-cols-3" aria-label="Agent onboarding source">
-        <TabsTrigger value="git-repository" className="h-12 px-2"><GitBranch /> <span className="hidden sm:inline">Git Repository</span><span className="sm:hidden">Repo</span></TabsTrigger>
         <TabsTrigger value="container-image" className="h-12 px-2"><Box /> <span className="hidden sm:inline">Container Image</span><span className="sm:hidden">Image</span></TabsTrigger>
         <TabsTrigger value="existing-agent" className="h-12 px-2"><Link2 /> <span className="hidden sm:inline">Existing Agent</span><span className="sm:hidden">Existing</span></TabsTrigger>
+        <TabsTrigger value="git-repository" className="h-12 px-2"><GitBranch /> <span className="hidden sm:inline">Git Repository</span><span className="sm:hidden">Repo</span></TabsTrigger>
       </TabsList>
 
       <TabsContent value="container-image" className="mt-4 space-y-6">
         <p className="border-l-2 border-primary bg-primary/5 px-4 py-3 text-sm leading-6">
-          Relay creates a Deployment and internal Service, waits for readiness, pins the running image digest, then validates its A2A Agent Card.
+          Relay creates a Deployment and internal Service, pins the running image digest, then reads the Agent Card and validates a supported A2A 1.0 interface.
         </p>
-        <FormSection icon={Box} title="Container image" description="Use the image ENTRYPOINT and CMD by default. The registry must be reachable from the cluster.">
+        <FormSection icon={Box} title="A2A container image" description="Use the image ENTRYPOINT and CMD by default. The registry must be reachable from the cluster.">
           <Field id="onboard-image" label="OCI image reference">
             <Input id="onboard-image" className="h-11 font-mono" value={image.image} onChange={(event) => setImage({ ...image, image: event.target.value })} placeholder="ghcr.io/acme/research-agent:v1.4.0" />
           </Field>
@@ -425,13 +381,13 @@ function SourceStep({
             <Field id="onboard-port" label="Container port">
               <Input id="onboard-port" className="h-11 font-mono" type="number" min={1} max={65_535} value={image.containerPort} onChange={(event) => setImage({ ...image, containerPort: Number(event.target.value) })} />
             </Field>
-            <Field id="onboard-card-path" label="Agent Card path">
+            <Field id="onboard-card-path" label="A2A Agent Card path">
               <Input id="onboard-card-path" className="h-11 font-mono" value={image.agentCardPath} onChange={(event) => setImage({ ...image, agentCardPath: event.target.value })} />
             </Field>
           </div>
-          <details className="border px-4 py-3">
+          <details className="min-w-0 max-w-full border px-4 py-3">
             <summary className="cursor-pointer text-sm font-medium">Advanced container settings</summary>
-            <div className="mt-4 space-y-6">
+            <div className="mt-4 min-w-0 space-y-6">
               <Field id="onboard-pull-secret" label="Image pull Secret (optional)">
                 <Input id="onboard-pull-secret" className="h-11 font-mono" value={image.imagePullSecretName} onChange={(event) => setImage({ ...image, imagePullSecretName: event.target.value })} placeholder="registry-credentials" />
                 <p className="text-xs leading-5 text-muted-foreground">References an existing Kubernetes Secret in this Project namespace.</p>
@@ -466,29 +422,15 @@ function SourceStep({
 
       <TabsContent value="existing-agent" className="mt-4 space-y-6">
         <p className="border-l-2 border-primary bg-primary/5 px-4 py-3 text-sm leading-6">
-          Connect an Agent that is already running. Relay stores its endpoint and validates the published Agent Card or adapter health.
+          Connect an Agent that already runs elsewhere. Relay discovers its callable endpoint and skills from the published Agent Card.
         </p>
-        <FormSection icon={Network} title="Existing Agent connection" description="Choose the protocol or platform adapter exposed by the remote Agent.">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field id="onboard-existing-type" label="Protocol or adapter">
-              <select id="onboard-existing-type" className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm" value={existing.integrationType} onChange={(event) => setExisting({ ...existing, integrationType: event.target.value as AgentGardenRegisterableType, configuration: {}, agentCardUrl: ["a2a", "pydantic-ai"].includes(event.target.value) ? existing.agentCardUrl : "" })}>
-                {registerableAgentTypes.map((type) => <option key={type} value={type}>{agentTypePresentations[type].label}</option>)}
-              </select>
-            </Field>
-            <Field id="onboard-existing-endpoint" label="Agent endpoint">
-              <Input id="onboard-existing-endpoint" className="h-11 font-mono" value={existing.endpoint} onChange={(event) => setExisting({ ...existing, endpoint: event.target.value })} placeholder="https://agents.example.com/research" />
-            </Field>
-          </div>
-          {["a2a", "pydantic-ai"].includes(existing.integrationType) ? (
-            <Field id="onboard-existing-card" label="Agent Card URL (optional)">
-              <Input id="onboard-existing-card" className="h-11 font-mono" value={existing.agentCardUrl} onChange={(event) => setExisting({ ...existing, agentCardUrl: event.target.value })} placeholder="Defaults to /.well-known/agent-card.json" />
-            </Field>
-          ) : null}
-          {existing.integrationType === "langgraph" ? (
-            <Field id="onboard-existing-assistant" label="LangGraph Assistant ID">
-              <Input id="onboard-existing-assistant" className="h-11 font-mono" value={existing.configuration.assistantId ?? ""} onChange={(event) => setExisting({ ...existing, configuration: { ...existing.configuration, assistantId: event.target.value } })} placeholder="assistant-id" />
-            </Field>
-          ) : null}
+        <FormSection icon={Network} title="Published Agent Card" description="Provide the canonical card URL; the implementation framework does not change the onboarding contract.">
+          <Field id="onboard-existing-card" label="A2A Agent Card URL">
+            <Input id="onboard-existing-card" className="h-11 font-mono" value={existing.agentCardUrl} onChange={(event) => setExisting({ ...existing, agentCardUrl: event.target.value })} placeholder="https://agents.example.com/.well-known/agent-card.json" />
+            <p className="text-xs leading-5 text-muted-foreground">
+              Relay selects an A2A 1.0 JSON-RPC or HTTP+JSON interface from the card. Health-only endpoints are not accepted.
+            </p>
+          </Field>
         </FormSection>
       </TabsContent>
     </Tabs>
@@ -535,12 +477,12 @@ function DetailsStep({
       </FormSection>
 
       {sourceType === "container-image" ? (
-        <FormSection icon={ShieldCheck} title="Managed runtime policy" description="Image Agents are private Project services and receive delegated A2A tasks.">
+        <FormSection icon={ShieldCheck} title="Managed A2A runtime policy" description="Image Agents are private Project services and receive delegated tasks through A2A.">
           <div className="divide-y border text-sm">
             <PolicyRow label="Network" value="Project Runtime Namespace only" />
             <PolicyRow label="Kubernetes token" value="Not mounted" />
             <PolicyRow label="Usage" value="Receive delegated tasks" />
-            <PolicyRow label="Validation" value="Readiness + A2A Agent Card" />
+            <PolicyRow label="Validation" value="Readiness + A2A 1.0 Agent Card" />
           </div>
         </FormSection>
       ) : null}
@@ -567,14 +509,12 @@ function DetailsStep({
               <span><strong className="block">Internal network only</strong><span className="mt-1 block text-xs leading-5 text-muted-foreground">Allows approved private endpoints that are not publicly reachable.</span></span>
             </label>
           </FormSection>
-          <FormSection icon={ShieldCheck} title="Usage" description="Declare whether this Agent can be opened directly, connected to a Coordinator, or both.">
-            <div className="grid gap-2 sm:grid-cols-3">
-              {usageModes.map((mode) => (
-                <label key={mode.value} className={cn("flex min-h-28 cursor-pointer items-start gap-3 border p-3", existing.usageMode === mode.value ? "border-primary bg-primary/5" : "hover:bg-muted/35")}>
-                  <input type="radio" name="agent-usage-mode" className="mt-1 size-4 accent-primary" checked={existing.usageMode === mode.value} onChange={() => setExisting({ ...existing, usageMode: mode.value })} />
-                  <span><strong className="block text-sm">{mode.label}</strong><span className="mt-1 block text-xs leading-5 text-muted-foreground">{mode.description}</span></span>
-                </label>
-              ))}
+          <FormSection icon={ShieldCheck} title="A2A delegation contract" description="All onboarded Agents are callable specialists; Relay derives capabilities from the Agent Card.">
+            <div className="divide-y border text-sm">
+              <PolicyRow label="Protocol" value="A2A 1.0" />
+              <PolicyRow label="Usage" value="Receive delegated tasks" />
+              <PolicyRow label="Interface" value="JSON-RPC or HTTP+JSON" />
+              <PolicyRow label="Discovery" value="Skills and capabilities from Agent Card" />
             </div>
           </FormSection>
         </>
@@ -606,11 +546,11 @@ function ReviewStep({
   return (
     <section className="space-y-6">
       <div className="flex items-start gap-4 border bg-muted/20 p-4">
-        {isImage ? <Box className="size-11 border p-2 text-primary" /> : <AgentGardenIcon type={existing.integrationType} className="size-12" />}
+        {isImage ? <Box className="size-11 border p-2 text-primary" /> : <AgentGardenIcon type="a2a" className="size-12" />}
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-semibold">{identity.name}</h3>
-            <Badge variant="secondary">{isImage ? "A2A Container" : agentTypePresentations[existing.integrationType].label}</Badge>
+            <Badge variant="secondary">{isImage ? "A2A Container" : "A2A Standard"}</Badge>
           </div>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">{identity.description}</p>
         </div>
@@ -626,17 +566,19 @@ function ReviewStep({
             { label: "Usage", value: "Receive delegated tasks" },
           ]
         : [
-            { label: "Endpoint", value: existing.endpoint, mono: true },
-            { label: "Usage", value: usageModeLabel(existing.usageMode) },
+            { label: "Agent Card", value: existing.agentCardUrl, mono: true },
+            { label: "Protocol", value: "A2A 1.0" },
+            { label: "Interface", value: "Discovered from Agent Card" },
+            { label: "Usage", value: "Receive delegated tasks" },
             { label: "Owner", value: identity.owner },
             { label: "Authentication", value: existing.authType === "none" ? "None" : `${existing.authType} via Secret reference` },
-            { label: "Discovery", value: ["a2a", "pydantic-ai"].includes(existing.integrationType) || Boolean(existing.agentCardUrl) ? "Agent Card" : "Endpoint health probe" },
+            { label: "Discovery", value: "Agent Card + supported interface" },
           ]}
       />
       <p className="border-l-2 border-primary bg-primary/5 px-4 py-3 text-sm leading-6">
         {isImage
           ? "Relay saves the Garden record, deploys the image, pins its immutable digest, and validates the Agent Card. A failure remains visible for diagnosis and retry."
-          : "Relay saves the Project-owned connection, then performs discovery. A failed connection remains visible for diagnosis and retry."}
+          : "Relay saves the Project-owned connection, validates its A2A 1.0 Agent Card, and records the selected interface and skills. A failed connection remains visible for diagnosis and retry."}
       </p>
       {pending ? (
         <div role="status" className="flex items-start gap-3 border px-4 py-3 text-sm">
@@ -651,10 +593,10 @@ function ReviewStep({
 
 function FormSection({ children, description, icon: Icon, title }: { children: ReactNode; description: string; icon: typeof ServerCog; title: string }) {
   return (
-    <section className="space-y-4 border-t pt-6 first:border-t-0 first:pt-0">
+    <section className="min-w-0 space-y-4 border-t pt-6 first:border-t-0 first:pt-0">
       <div className="flex items-start gap-3">
         <span className="flex size-9 shrink-0 items-center justify-center border bg-muted/30"><Icon className="size-4 text-primary" /></span>
-        <div><h3 className="text-sm font-semibold">{title}</h3><p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p></div>
+        <div className="min-w-0"><h3 className="text-sm font-semibold">{title}</h3><p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p></div>
       </div>
       {children}
     </section>
@@ -662,7 +604,7 @@ function FormSection({ children, description, icon: Icon, title }: { children: R
 }
 
 function Field({ children, id, label }: { children: ReactNode; id: string; label: string }) {
-  return <div className="space-y-2"><Label htmlFor={id}>{label}</Label>{children}</div>;
+  return <div className="min-w-0 space-y-2"><Label htmlFor={id}>{label}</Label>{children}</div>;
 }
 
 function PolicyRow({ label, value }: { label: string; value: string }) {
@@ -692,7 +634,7 @@ function StartupOverrideEditor({
   };
 
   return (
-    <fieldset className="space-y-4 border-t pt-5">
+    <fieldset className="min-w-0 space-y-4 border-t pt-5">
       <legend className="sr-only">Container startup override</legend>
       <label className="flex min-h-12 cursor-pointer items-start gap-3 border bg-muted/20 p-3 text-sm">
         <input
@@ -710,9 +652,9 @@ function StartupOverrideEditor({
       </label>
 
       {image.overrideStartup ? (
-        <div className="space-y-6 border-l-2 border-primary/35 pl-4">
+        <div className="min-w-0 space-y-6 border-l-2 border-primary/35 pl-4">
           <p className="text-xs leading-5 text-muted-foreground">
-            Each row is one Kubernetes array item. Spaces inside a row remain part of that single item; blank rows are not accepted.
+            Each row is one Kubernetes array item. Long values wrap visually without splitting the item; blank rows are not accepted.
           </p>
           <StringListEditor
             id="onboard-command"
@@ -734,7 +676,7 @@ function StartupOverrideEditor({
           />
           <div className="space-y-2">
             <p className="text-xs font-medium">Kubernetes preview</p>
-            <pre className="overflow-x-auto border bg-muted/30 px-3 py-2 font-mono text-xs leading-5 text-muted-foreground"><code>{`command: ${image.command.length ? JSON.stringify(image.command) : "<image ENTRYPOINT>"}\nargs:    ${image.args.length ? JSON.stringify(image.args) : "<image CMD>"}`}</code></pre>
+            <pre className="max-w-full overflow-hidden whitespace-pre-wrap break-all border bg-muted/30 px-3 py-2 font-mono text-xs leading-5 text-muted-foreground"><code>{`command: ${image.command.length ? JSON.stringify(image.command) : "<image ENTRYPOINT>"}\nargs:    ${image.args.length ? JSON.stringify(image.args) : "<image CMD>"}`}</code></pre>
           </div>
           {!hasStartupItem || hasBlankStartupItem ? (
             <p role="status" className="border-l-2 border-amber-500 bg-amber-500/5 px-3 py-2 text-xs leading-5">
@@ -771,9 +713,9 @@ function StringListEditor({
   values: string[];
 }) {
   return (
-    <div className="space-y-3">
+    <div className="min-w-0 space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <Label>{label}</Label>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">{kubernetesName}; order is preserved.</p>
         </div>
@@ -782,14 +724,16 @@ function StringListEditor({
         </Button>
       </div>
       {values.length ? (
-        <div className="space-y-2">
+        <div className="min-w-0 space-y-2">
           {values.map((value, index) => (
-            <div key={`${id}-${index}`} className="grid grid-cols-[2rem_minmax(0,1fr)_2.75rem] items-center gap-2">
-              <span aria-hidden="true" className="font-mono text-xs text-muted-foreground">{index + 1}</span>
-              <Input
+            <div key={`${id}-${index}`} className="grid min-w-0 grid-cols-[2rem_minmax(0,1fr)_2.75rem] items-start gap-2">
+              <span aria-hidden="true" className="pt-3 font-mono text-xs text-muted-foreground">{index + 1}</span>
+              <Textarea
                 id={`${id}-${index}`}
                 aria-label={`${label} item ${index + 1}`}
-                className="h-11 font-mono"
+                className="field-sizing-content max-h-36 min-h-11 min-w-0 resize-y overflow-y-auto whitespace-pre-wrap break-all font-mono leading-5"
+                rows={1}
+                wrap="soft"
                 value={value}
                 onChange={(event) => onChange(values.map((item, itemIndex) => itemIndex === index ? event.target.value : item))}
                 placeholder={index === 0 ? placeholder : "Next item"}

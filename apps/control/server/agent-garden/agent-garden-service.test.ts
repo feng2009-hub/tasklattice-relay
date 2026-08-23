@@ -10,6 +10,7 @@ import type { SecretStore } from "../secrets/secret-store";
 import type { AgentDiscoveryClient } from "./agent-discovery";
 import { AgentGardenService } from "./agent-garden-service";
 import { AgentGardenStore } from "./agent-garden-store";
+import { databaseAgentCatalog } from "./database-agent-catalog";
 
 function coordinator(id = "coordinator-a"): Agent {
   const now = new Date().toISOString();
@@ -60,16 +61,24 @@ const githubAgentInput: OnboardExistingAgentInput = {
   sourceType: "existing-agent",
   name: "GitHub Operations",
   description: "Handles repository triage and pull request review tasks.",
-  integrationType: "a2a",
-  endpoint: "https://agents.example.com/github",
+  agentCardUrl: "https://agents.example.com/.well-known/agent-card.json",
   category: "Developer Tools",
   owner: "Developer Experience",
   tags: ["GitHub", "Automation"],
-  usageMode: "CALLABLE",
   authType: "none",
   authReference: "",
   internalNetworkOnly: false,
-  configuration: {},
+};
+
+const a2aProfile = {
+  protocolBinding: "JSONRPC" as const,
+  protocolVersion: "1.0" as const,
+  tenant: null,
+  streaming: false,
+  pushNotifications: false,
+  extendedAgentCard: false,
+  defaultInputModes: ["text/plain"],
+  defaultOutputModes: ["text/plain"],
 };
 
 const imageAgentInput: OnboardContainerImageAgentInput = {
@@ -89,6 +98,37 @@ const imageAgentInput: OnboardContainerImageAgentInput = {
 };
 
 describe("AgentGardenService", () => {
+  it("replaces an older catalog seed before parsing its current schema", async () => {
+    const projectStore = createTestStore();
+    const current = databaseAgentCatalog[0]!;
+    const { a2a: _a2a, ...legacyPayload } = current;
+    await projectStore.database().agentCatalogRecord.create({
+      data: {
+        projectId: projectStore.projectId,
+        id: current.id,
+        payload: {
+          ...legacyPayload,
+          configuration: {
+            ...legacyPayload.configuration,
+            catalogVersion: "older-schema",
+          },
+        },
+      },
+    });
+    const service = new AgentGardenService(
+      new AgentGardenStore(projectStore.projectId, projectStore.database()),
+      projectStore,
+    );
+
+    await expect(service.snapshot()).resolves.toBeDefined();
+    await expect(service.store.getAgent(current.id)).resolves.toMatchObject({
+      a2a: {
+        protocolBinding: "JSONRPC",
+        protocolVersion: "1.0",
+      },
+    });
+  });
+
   it("keeps interactive runtimes out of the delegatable Agent set", async () => {
     const projectStore = createTestStore();
     const service = new AgentGardenService(
@@ -116,10 +156,7 @@ describe("AgentGardenService", () => {
     });
     expect(
       snapshot.agents.filter((agent) => agent.integrationType === "a2a"),
-    ).toHaveLength(15);
-    expect(
-      snapshot.agents.filter((agent) => agent.integrationType === "langgraph"),
-    ).toHaveLength(1);
+    ).toHaveLength(16);
     expect(
       snapshot.agents.some(
         (agent) => agent.id === "openclaw-incident-investigator",
@@ -204,8 +241,9 @@ describe("AgentGardenService", () => {
     await projectStore.save(coordinator(), "local-admin");
     const discovery: AgentDiscoveryClient = {
       discover: vi.fn(async (agent) => ({
-        endpoint: agent.endpoint!,
+        endpoint: "https://agents.example.com/a2a",
         agentCardUrl: "https://agents.example.com/.well-known/agent-card.json",
+        a2a: a2aProfile,
         skills: [
           {
             id: "daily-repository-triage",
@@ -234,7 +272,10 @@ describe("AgentGardenService", () => {
     const agent = await service.onboard(githubAgentInput, "local-admin");
     expect(agent).toMatchObject({
       source: "PROJECT_REGISTERED",
+      integrationType: "a2a",
       status: "READY",
+      endpoint: "https://agents.example.com/a2a",
+      a2a: a2aProfile,
       usageCapabilities: {
         interactive: false,
         canDelegate: false,
@@ -282,40 +323,6 @@ describe("AgentGardenService", () => {
     expect(await service.remove(agent.id)).toBe(true);
   });
 
-  it("rejects an interactive-only registered Agent connection", async () => {
-    const projectStore = createTestStore();
-    await projectStore.save(coordinator(), "local-admin");
-    const discovery: AgentDiscoveryClient = {
-      discover: vi.fn(async (agent) => ({
-        endpoint: agent.endpoint!,
-        agentCardUrl: null,
-        skills: [],
-      })),
-    };
-    const service = new AgentGardenService(
-      new AgentGardenStore(projectStore.projectId, projectStore.database()),
-      projectStore,
-      discovery,
-    );
-    const interactive = await service.onboard(
-      {
-        ...githubAgentInput,
-        name: "Interactive repository workbench",
-        usageMode: "INTERACTIVE",
-      },
-      "local-admin",
-    );
-
-    await expect(
-      service.connect({
-        coordinatorInstanceId: "coordinator-a",
-        connectedAgentId: interactive.id,
-        allowedSkillIds: [],
-        approvalMode: "ALWAYS_ASK",
-      }),
-    ).rejects.toThrow("does not accept delegated tasks");
-  });
-
   it("deploys, discovers, and removes a Container Image Agent", async () => {
     const projectStore = createTestStore();
     await projectStore.database().projectRuntimeTarget.create({
@@ -341,7 +348,8 @@ describe("AgentGardenService", () => {
     const discovery: AgentDiscoveryClient = {
       discover: vi.fn(async (agent) => ({
         endpoint: agent.endpoint!,
-        agentCardUrl: agent.agentCardUrl,
+        agentCardUrl: agent.agentCardUrl!,
+        a2a: a2aProfile,
         skills: [{
           id: "research",
           name: "Research",

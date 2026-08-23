@@ -1,11 +1,5 @@
 import type { AgentGardenIntegrationType } from "@tali/contracts";
 import {
-  siLangflow,
-  siPydantic,
-  type SimpleIcon,
-} from "simple-icons";
-import {
-  Blocks,
   Bot,
   Braces,
   Bug,
@@ -15,7 +9,6 @@ import {
   Headphones,
   Landmark,
   LibraryBig,
-  Orbit,
   Plane,
   ScanSearch,
   ShieldCheck,
@@ -28,8 +21,6 @@ import { cn } from "@/lib/utils";
 
 const icons: Partial<Record<AgentGardenIntegrationType, LucideIcon>> = {
   a2a: Waypoints,
-  "watsonx-orchestrate": Orbit,
-  custom: Blocks,
 };
 
 const catalogIcons: Record<string, LucideIcon> = {
@@ -51,17 +42,6 @@ const brandAssets: Partial<Record<AgentGardenIntegrationType, string>> = {
   hermes: "/assets/brands/hermesagent-lobehub.webp",
   "claude-code": "/assets/providers/anthropic.webp",
   a2a: "/assets/agent-providers/a2a-agent.png",
-  langgraph: "/assets/agent-providers/langgraph.png",
-  "bedrock-agentcore": "/assets/providers/aws.webp",
-  "azure-ai-foundry": "/assets/providers/azure.webp",
-  "vertex-ai-agent-engine": "/assets/agent-providers/google.svg",
-};
-
-const simpleIcons: Partial<
-  Record<AgentGardenIntegrationType, SimpleIcon>
-> = {
-  langflow: siLangflow,
-  "pydantic-ai": siPydantic,
 };
 
 export function AgentGardenIcon({
@@ -77,7 +57,6 @@ export function AgentGardenIcon({
 }) {
   const Icon = catalogIcons[catalogIcon ?? ""] ?? icons[type] ?? Bot;
   const asset = brandAssets[type];
-  const simpleIcon = simpleIcons[type];
   return (
     <span
       aria-hidden="true"
@@ -92,13 +71,6 @@ export function AgentGardenIcon({
           alt=""
           className={cn("size-8 object-contain", iconClassName)}
         />
-      ) : simpleIcon ? (
-        <svg
-          viewBox="0 0 24 24"
-          className={cn("size-5 fill-current text-primary", iconClassName)}
-        >
-          <path d={simpleIcon.path} />
-        </svg>
       ) : (
         <Icon className={cn("size-5 text-primary", iconClassName)} />
       )}

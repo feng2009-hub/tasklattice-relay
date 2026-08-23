@@ -11,12 +11,7 @@ describe("demo Agent runtime", () => {
       demoAgentDefinitions.filter(
         (agent) => agent.integrationType === "a2a",
       ),
-    ).toHaveLength(15);
-    expect(
-      demoAgentDefinitions.filter(
-        (agent) => agent.integrationType === "langgraph",
-      ),
-    ).toHaveLength(1);
+    ).toHaveLength(16);
     expect(
       demoAgentDefinitions.filter(
         (agent) => agent.catalogKind === "EXAMPLE_BLUEPRINT",
@@ -28,7 +23,6 @@ describe("demo Agent runtime", () => {
     const card = demoAgentCard("a2a-github-daily-triage");
     expect(card).toMatchObject({
       name: "GitHub Daily Triage",
-      protocolVersion: "1.0",
       capabilities: { streaming: false },
     });
     expect(card.supportedInterfaces[0]).toMatchObject({
@@ -46,15 +40,13 @@ describe("demo Agent runtime", () => {
       {
         jsonrpc: "2.0",
         id: "preview-1",
-        method: "message/send",
+        method: "SendMessage",
         params: {
           message: {
-            kind: "message",
             messageId: "message-1",
-            role: "user",
+            role: "ROLE_USER",
             parts: [
               {
-                kind: "text",
                 text: "Route an enterprise billing outage.",
               },
             ],
@@ -67,21 +59,23 @@ describe("demo Agent runtime", () => {
       jsonrpc: "2.0",
       id: "preview-1",
       result: {
-        kind: "message",
-        role: "agent",
-        metadata: {
-          demo: true,
-          integrationType: "langgraph",
-          trace: [
-            "Classify",
-            "Policy check",
-            "Approval gate",
-            "Response handoff",
-          ],
+        message: {
+          role: "ROLE_AGENT",
+          metadata: {
+            demo: true,
+            protocol: "A2A 1.0",
+            framework: "LangGraph",
+            trace: [
+              "Classify",
+              "Policy check",
+              "Approval gate",
+              "Response handoff",
+            ],
+          },
         },
       },
     });
-    expect(response.result.parts[0]?.text).toContain(
+    expect(response.result.message.parts[0]?.text).toContain(
       "LangGraph workflow preview",
     );
   });

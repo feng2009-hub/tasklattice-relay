@@ -53,7 +53,7 @@ export function CreationFlow({
       orientation={vertical ? "vertical" : "horizontal"}
       indicators={{ completed: <Check className="size-3.5" /> }}
       className={cn(
-        "min-h-full",
+        "min-h-full min-w-0 max-w-full",
         vertical ? "grid grid-cols-[13.5rem_minmax(0,1fr)]" : "flex flex-col",
       )}
     >

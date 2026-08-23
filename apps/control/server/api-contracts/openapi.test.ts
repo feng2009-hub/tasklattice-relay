@@ -116,7 +116,30 @@ describe("business API contracts", () => {
     expect(document.paths["/projects/{projectId}/runtime-policies"]).toBeDefined();
     expect(document.paths["/projects/{projectId}/policies"]).toBeUndefined();
     expect(document.paths["/projects/{projectId}/agent-garden/onboard"]?.post)
-      .toMatchObject({ operationId: "onboardGardenAgent" });
+      .toMatchObject({
+        operationId: "onboardGardenAgent",
+        summary: "Onboard an A2A Agent into the Project Agent Garden",
+      });
+    const onboardSchema = document.components.schemas.OnboardAgentInput as {
+      oneOf: Array<{
+        properties: Record<string, unknown>;
+      }>;
+    };
+    const existingAgent = onboardSchema.oneOf.find((variant) =>
+      JSON.stringify(variant.properties.sourceType).includes("existing-agent")
+    );
+    expect(Object.keys(existingAgent?.properties ?? {}).sort()).toEqual([
+      "agentCardUrl",
+      "authReference",
+      "authType",
+      "category",
+      "description",
+      "internalNetworkOnly",
+      "name",
+      "owner",
+      "sourceType",
+      "tags",
+    ]);
     expect(document.paths["/projects/{projectId}/agent-garden/agents"])
       .toBeUndefined();
     const deleteProject = document.paths["/projects/{projectId}"]!.delete as {

@@ -64,7 +64,7 @@ export function EntitySheet({
       <SheetContent
         side="right"
         className={cn(
-          "gap-0 bg-background [&>button]:size-11",
+          "gap-0 overflow-hidden bg-background [&>button]:size-11",
           widthClasses[width],
         )}
       >
@@ -82,7 +82,7 @@ export function EntitySheet({
 
         <div
           className={cn(
-            "min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6",
+            "min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-5 py-5 sm:px-6",
             bodyClassName,
           )}
         >

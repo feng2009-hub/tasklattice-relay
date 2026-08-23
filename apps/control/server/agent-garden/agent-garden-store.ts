@@ -77,16 +77,12 @@ export class AgentGardenStore {
     const existing = new Map(
       rows.map((row) => [
         row.id,
-        agentGardenEntrySchema.parse(row.payload),
+        catalogVersion(row.payload),
       ]),
     );
     let saved = 0;
     for (const agent of agents) {
-      const current = existing.get(agent.id);
-      if (
-        current?.configuration.catalogVersion ===
-        agent.configuration.catalogVersion
-      ) {
+      if (existing.get(agent.id) === agent.configuration.catalogVersion) {
         continue;
       }
       await this.saveAgent(agent);
@@ -197,4 +193,20 @@ export class AgentGardenStore {
     });
     return result.count > 0;
   }
+}
+
+function catalogVersion(payload: unknown): string | undefined {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return undefined;
+  }
+  const configuration = (payload as Record<string, unknown>).configuration;
+  if (
+    !configuration
+    || typeof configuration !== "object"
+    || Array.isArray(configuration)
+  ) {
+    return undefined;
+  }
+  const version = (configuration as Record<string, unknown>).catalogVersion;
+  return typeof version === "string" ? version : undefined;
 }

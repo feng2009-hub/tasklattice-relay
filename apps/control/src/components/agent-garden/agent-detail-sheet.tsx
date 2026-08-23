@@ -169,6 +169,11 @@ export function AgentDetailSheet({
                 <Badge variant="outline">
                   {usageModeLabel(agent.usageMode)}
                 </Badge>
+                {agent.a2a ? (
+                  <Badge variant="outline">
+                    A2A {agent.a2a.protocolVersion}
+                  </Badge>
+                ) : null}
                 <StatusDot
                   label={agentStatusLabel(agent.status)}
                   tone={statusTone}
@@ -222,6 +227,22 @@ export function AgentDetailSheet({
                 value: agent.agentCardUrl ?? "Not advertised",
                 mono: Boolean(agent.agentCardUrl),
               },
+              ...(agent.a2a
+                ? [
+                    {
+                      label: "A2A interface",
+                      value: `${agent.a2a.protocolBinding} ${agent.a2a.protocolVersion}`,
+                    },
+                    {
+                      label: "A2A capabilities",
+                      value: [
+                        agent.a2a.streaming ? "Streaming" : null,
+                        agent.a2a.pushNotifications ? "Push notifications" : null,
+                        agent.a2a.extendedAgentCard ? "Extended card" : null,
+                      ].filter(Boolean).join(", ") || "Request / response",
+                    },
+                  ]
+                : []),
               ...(managedContainer
                 ? [
                     {
@@ -309,7 +330,7 @@ export function AgentDetailSheet({
               <div>
                 <h3 className="text-sm font-semibold">Discovered skills</h3>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Skills advertised by the remote Agent or adapter.
+                  Skills advertised by the Agent's A2A Agent Card.
                 </p>
               </div>
               <span className="text-xs tabular-nums text-muted-foreground">
@@ -329,7 +350,7 @@ export function AgentDetailSheet({
               </div>
             ) : (
               <div className="border border-dashed px-4 py-6 text-center text-xs text-muted-foreground">
-                No individual skills were published by this adapter.
+                No individual skills were published in the Agent Card.
               </div>
             )}
           </section>

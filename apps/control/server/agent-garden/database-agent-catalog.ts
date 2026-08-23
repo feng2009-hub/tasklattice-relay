@@ -9,8 +9,8 @@ import {
 } from "./demo-agent-runtime";
 import { marketplaceMetadataFor } from "./marketplace-agent-metadata";
 
-export const agentCatalogSeedVersion = "2026-07-26.3";
-const seededAt = "2026-07-26T00:00:00.000Z";
+export const agentCatalogSeedVersion = "2026-08-23.1";
+const seededAt = "2026-08-23T00:00:00.000Z";
 
 export const databaseAgentCatalog: AgentGardenEntry[] =
   demoAgentDefinitions.map((definition, index) => {
@@ -38,6 +38,16 @@ export const databaseAgentCatalog: AgentGardenEntry[] =
       },
       endpoint: demoAgentEndpoint(definition.id),
       agentCardUrl: demoAgentCardUrl(definition.id),
+      a2a: {
+        protocolBinding: "JSONRPC",
+        protocolVersion: "1.0",
+        tenant: null,
+        streaming: false,
+        pushNotifications: false,
+        extendedAgentCard: false,
+        defaultInputModes: ["text/plain"],
+        defaultOutputModes: ["text/plain"],
+      },
       authType: "none",
       authReference: "",
       internalNetworkOnly: true,
@@ -46,11 +56,7 @@ export const databaseAgentCatalog: AgentGardenEntry[] =
         catalogOrder: String(index),
         catalogVersion: agentCatalogSeedVersion,
         previewMode: "DETERMINISTIC",
-        framework:
-          definition.framework ??
-          (definition.integrationType === "langgraph"
-            ? "LangGraph"
-            : "A2A"),
+        framework: definition.framework ?? "A2A SDK",
         icon: definition.icon ?? "",
         language: definition.language ?? "TypeScript",
         examplePrompt1: definition.examplePrompts[0] ?? "",
@@ -63,10 +69,7 @@ export const databaseAgentCatalog: AgentGardenEntry[] =
         releaseStage: "Preview",
         supportLevel: "TaskLattice Relay sample catalog",
         license: "Sample blueprint",
-        transport:
-          definition.integrationType === "langgraph"
-            ? "TaskLattice Relay A2A demo adapter"
-            : "JSON-RPC",
+        transport: "A2A 1.0 / JSON-RPC",
       },
       skills: definition.skills,
       specializationId: null,

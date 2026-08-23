@@ -37,14 +37,12 @@ export const demoAgentParamsSchema = z.object({ id });
 export const demoAgentMessageInputSchema = z.object({
   jsonrpc: z.literal("2.0"),
   id: z.union([z.string(), z.number(), z.null()]),
-  method: z.literal("message/send"),
+  method: z.literal("SendMessage"),
   params: z.object({
     message: z.object({
-      kind: z.literal("message").optional(),
-      messageId: z.string().optional(),
-      role: z.literal("user"),
+      messageId: z.string().min(1),
+      role: z.literal("ROLE_USER"),
       parts: z.array(z.object({
-        kind: z.literal("text"),
         text: z.string().trim().min(1).max(4_000),
       }).passthrough()).min(1).max(16),
     }).passthrough(),

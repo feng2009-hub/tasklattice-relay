@@ -19,10 +19,7 @@ import {
   type ManagedAgentRuntimeResult,
 } from "../kubernetes/managed-agent-runtime-client";
 import { ProjectStore } from "../projects/project-store";
-import {
-  createSecretStore,
-  type SecretStore,
-} from "../secrets/secret-store";
+import { createSecretStore, type SecretStore } from "../secrets/secret-store";
 import {
   HttpAgentDiscoveryClient,
   type AgentDiscoveryClient,
@@ -30,21 +27,6 @@ import {
 import { AgentGardenStore } from "./agent-garden-store";
 import { builtInAgentCatalog } from "./built-in-agent-catalog";
 import { databaseAgentCatalog } from "./database-agent-catalog";
-
-const integrationLabels: Record<
-  OnboardExistingAgentInput["integrationType"],
-  string
-> = {
-  a2a: "A2A Standard",
-  langgraph: "LangGraph",
-  langflow: "LangFlow",
-  "bedrock-agentcore": "Bedrock AgentCore",
-  "azure-ai-foundry": "Azure AI Foundry",
-  "pydantic-ai": "Pydantic AI",
-  "vertex-ai-agent-engine": "Vertex AI Agent Engine",
-  "watsonx-orchestrate": "watsonx Orchestrate",
-  custom: "Custom / Other",
-};
 
 function resourceId(name: string): string {
   const slug = name
@@ -183,20 +165,21 @@ export class AgentGardenService {
       name: input.name,
       description: input.description,
       source: "PROJECT_REGISTERED",
-      integrationType: input.integrationType,
-      platformLabel: integrationLabels[input.integrationType],
+      integrationType: "a2a",
+      platformLabel: "A2A Standard",
       category: input.category,
       owner: input.owner,
       tags: input.tags,
       status: "UNCHECKED",
-      usageMode: input.usageMode,
-      usageCapabilities: usageCapabilities(input.usageMode),
-      endpoint: input.endpoint,
-      agentCardUrl: input.agentCardUrl ?? null,
+      usageMode: "CALLABLE",
+      usageCapabilities: usageCapabilities("CALLABLE"),
+      endpoint: null,
+      agentCardUrl: input.agentCardUrl,
+      a2a: null,
       authType: input.authType,
       authReference: input.authReference,
       internalNetworkOnly: input.internalNetworkOnly,
-      configuration: input.configuration,
+      configuration: { onboardingSource: EXISTING_AGENT_SOURCE },
       skills: [],
       specializationId: null,
       createdAt: now,
@@ -219,17 +202,7 @@ export class AgentGardenService {
       );
     }
     if (input.sourceType === "existing-agent") {
-      const { configuration } = input;
-      return this.onboardExisting(
-        {
-          ...input,
-          configuration: {
-            ...configuration,
-            onboardingSource: EXISTING_AGENT_SOURCE,
-          },
-        },
-        ownerUserId,
-      );
+      return this.onboardExisting(input, ownerUserId);
     }
 
     const now = new Date().toISOString();
@@ -248,6 +221,7 @@ export class AgentGardenService {
       usageCapabilities: usageCapabilities("CALLABLE"),
       endpoint: null,
       agentCardUrl: null,
+      a2a: null,
       authType: "none",
       authReference: "",
       internalNetworkOnly: true,
@@ -301,6 +275,7 @@ export class AgentGardenService {
         ...checking,
         endpoint: result.endpoint,
         agentCardUrl: result.agentCardUrl,
+        a2a: result.a2a,
         skills: result.skills,
         status: "READY",
         updatedAt: new Date().toISOString(),

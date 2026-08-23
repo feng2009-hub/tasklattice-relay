@@ -8,7 +8,7 @@ type MarketplaceDefinition = {
   description: string;
   examplePrompts: string[];
   id: string;
-  integrationType: "a2a" | "langgraph";
+  integrationType: "a2a";
   name: string;
   platformLabel: string;
   skills: AgentGardenEntry["skills"];
@@ -337,7 +337,7 @@ export function marketplaceMetadataFor(
     outputs: definition.skills.map((skill) => skill.description),
     requirements: [
       "A READY OpenClaw or Hermes Coordinator for delegation",
-      `Network access to the ${definition.integrationType === "a2a" ? "A2A" : "adapter"} endpoint`,
+      "Network access to the advertised A2A endpoint",
       "Applicable Project access and approval policies",
     ],
   };

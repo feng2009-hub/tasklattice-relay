@@ -228,7 +228,7 @@ function AgentGarden() {
     <div className="space-y-6">
       <PageHeader
         title="Agent Garden"
-        description="Discover ready-to-use Agents, deploy an A2A container, or connect an Agent that already runs elsewhere."
+        description="Discover callable A2A Agents, deploy a compatible container image, or connect an Agent through its published A2A 1.0 Agent Card."
         actions={(
           <Button
             className="h-11"

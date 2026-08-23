@@ -1,7 +1,6 @@
 import type {
   AgentGardenEntry,
   AgentGardenIntegrationType,
-  AgentGardenRegisterableType,
 } from "@tali/contracts";
 
 export interface AgentTypePresentation {
@@ -32,61 +31,9 @@ export const agentTypePresentations: Record<
   a2a: {
     label: "A2A Standard",
     shortLabel: "A2A",
-    description: "Discover an Agent Card from a standard A2A endpoint.",
-  },
-  langgraph: {
-    label: "LangGraph",
-    shortLabel: "LangGraph",
-    description: "Connect through the LangGraph Platform API.",
-  },
-  langflow: {
-    label: "LangFlow",
-    shortLabel: "LangFlow",
-    description: "Connect a deployed LangFlow Agent flow.",
-  },
-  "bedrock-agentcore": {
-    label: "Bedrock AgentCore",
-    shortLabel: "Bedrock",
-    description: "Connect an AWS-hosted AgentCore runtime.",
-  },
-  "azure-ai-foundry": {
-    label: "Azure AI Foundry",
-    shortLabel: "Azure AI",
-    description: "Connect a Microsoft Foundry Agent.",
-  },
-  "pydantic-ai": {
-    label: "Pydantic AI",
-    shortLabel: "Pydantic AI",
-    description: "Connect a Pydantic AI Agent over A2A.",
-  },
-  "vertex-ai-agent-engine": {
-    label: "Vertex AI Agent Engine",
-    shortLabel: "Vertex AI",
-    description: "Connect a Vertex AI Reasoning Engine.",
-  },
-  "watsonx-orchestrate": {
-    label: "watsonx Orchestrate",
-    shortLabel: "watsonx",
-    description: "Connect an IBM Cloud or CP4D Agent.",
-  },
-  custom: {
-    label: "Custom / Other",
-    shortLabel: "Custom",
-    description: "Register a generic remote Agent endpoint.",
+    description: "Discover and validate an Agent through an A2A 1.0 Agent Card.",
   },
 };
-
-export const registerableAgentTypes: readonly AgentGardenRegisterableType[] = [
-  "a2a",
-  "langgraph",
-  "langflow",
-  "bedrock-agentcore",
-  "azure-ai-foundry",
-  "pydantic-ai",
-  "vertex-ai-agent-engine",
-  "watsonx-orchestrate",
-  "custom",
-];
 
 export function usageModeLabel(
   mode: "INTERACTIVE" | "CALLABLE" | "HYBRID",

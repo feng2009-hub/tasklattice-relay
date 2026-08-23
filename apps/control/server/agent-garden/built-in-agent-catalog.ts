@@ -7,6 +7,7 @@ const common = {
   source: "BUILT_IN" as const,
   endpoint: null,
   agentCardUrl: null,
+  a2a: null,
   authType: "none" as const,
   authReference: "",
   internalNetworkOnly: false,

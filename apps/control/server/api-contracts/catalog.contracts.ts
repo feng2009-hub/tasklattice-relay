@@ -100,7 +100,9 @@ export const catalogContracts = defineContracts([
   }),
   projectRoute({
     method: "post", path: "/agent-garden/onboard", operationId: "onboardGardenAgent",
-    summary: "Onboard an Agent into the Project Agent Garden", tags: ["Agent Garden"],
+    summary: "Onboard an A2A Agent into the Project Agent Garden",
+    description: "Deploy an A2A-compatible container image or connect an existing Agent through its A2A 1.0 Agent Card. The implementation framework is not part of the onboarding contract.",
+    tags: ["Agent Garden"],
     request: { body: onboardAgentSchema },
     responses: { 201: response("Onboarded Agent", agentGardenEntrySchema) },
   }),

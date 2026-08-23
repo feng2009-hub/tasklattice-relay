@@ -7,7 +7,7 @@ import {
 
 describe("database Agent marketplace catalog", () => {
   it("publishes a complete brief for every callable catalog entry", () => {
-    expect(agentCatalogSeedVersion).toBe("2026-07-26.3");
+    expect(agentCatalogSeedVersion).toBe("2026-08-23.1");
 
     for (const agent of databaseAgentCatalog) {
       const brief = JSON.parse(
@@ -22,6 +22,11 @@ describe("database Agent marketplace catalog", () => {
       expect(JSON.parse(agent.configuration.workflow ?? "[]")).not.toHaveLength(
         0,
       );
+      expect(agent.integrationType).toBe("a2a");
+      expect(agent.a2a).toMatchObject({
+        protocolBinding: "JSONRPC",
+        protocolVersion: "1.0",
+      });
     }
   });
 

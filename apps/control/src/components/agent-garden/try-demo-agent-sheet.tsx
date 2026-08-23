@@ -60,13 +60,12 @@ export function TryDemoAgentSheet({
           body: JSON.stringify({
             jsonrpc: "2.0",
             id: createUuid(),
-            method: "message/send",
+            method: "SendMessage",
             params: {
               message: {
-                kind: "message",
                 messageId: createUuid(),
-                role: "user",
-                parts: [{ kind: "text", text: prompt.trim() }],
+                role: "ROLE_USER",
+                parts: [{ text: prompt.trim() }],
               },
             },
           }),
@@ -75,20 +74,22 @@ export function TryDemoAgentSheet({
       const payload = await response.json() as {
         detail?: string;
         result?: {
-          metadata?: { trace?: string[] };
-          parts?: Array<{ kind?: string; text?: string }>;
+          message?: {
+            metadata?: { trace?: string[] };
+            parts?: Array<{ text?: string }>;
+          };
         };
       };
       if (!response.ok) {
         throw new Error(payload.detail ?? "The demo Agent did not respond.");
       }
-      const output = payload.result?.parts?.find(
-        (part) => part.kind === "text",
+      const output = payload.result?.message?.parts?.find(
+        (part) => typeof part.text === "string",
       )?.text;
       if (!output) throw new Error("The demo Agent returned no text.");
       setResult({
         output,
-        trace: payload.result?.metadata?.trace ?? [],
+        trace: payload.result?.message?.metadata?.trace ?? [],
       });
     } catch (runError) {
       setError(
@@ -175,8 +176,8 @@ export function TryDemoAgentSheet({
                 Task
               </label>
               <p className="mt-1 text-xs text-muted-foreground">
-                This is sent as an A2A JSON-RPC{" "}
-                <code className="font-mono">message/send</code> request.
+                This is sent as an A2A 1.0 JSON-RPC{" "}
+                <code className="font-mono">SendMessage</code> request.
               </p>
             </div>
             <Textarea

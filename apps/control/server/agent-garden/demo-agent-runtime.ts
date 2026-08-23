@@ -9,7 +9,7 @@ export interface DemoAgentDefinition {
   id: string;
   name: string;
   description: string;
-  integrationType: "a2a" | "langgraph";
+  integrationType: "a2a";
   platformLabel: string;
   category: string;
   catalogKind?: "TALI_DEMO" | "EXAMPLE_BLUEPRINT";
@@ -157,8 +157,9 @@ export const demoAgentDefinitions: DemoAgentDefinition[] = [
     name: "Support Escalation Router",
     description:
       "Routes a support case through classification, policy checks, an approval gate, and a response handoff.",
-    integrationType: "langgraph",
-    platformLabel: "LangGraph",
+    integrationType: "a2a",
+    platformLabel: "LangGraph / A2A",
+    framework: "LangGraph",
     category: "Customer Support",
     tags: ["Workflow", "Approval", "Demo"],
     skills: [
@@ -216,7 +217,6 @@ export function demoAgentCard(id: string) {
   return {
     name: definition.name,
     description: definition.description,
-    protocolVersion: "1.0",
     version: "0.1.0-demo",
     supportedInterfaces: [
       {
@@ -249,20 +249,21 @@ export function runDemoAgentMessage(id: string, rawInput: unknown) {
     jsonrpc: "2.0",
     id: input.id,
     result: {
-      kind: "message",
-      messageId: randomUUID(),
-      role: "agent",
-      parts: [
-        {
-          kind: "text",
-          text: definition.response(prompt),
+      message: {
+        messageId: randomUUID(),
+        role: "ROLE_AGENT",
+        parts: [
+          {
+            text: definition.response(prompt),
+          },
+        ],
+        metadata: {
+          demo: true,
+          agentId: definition.id,
+          protocol: "A2A 1.0",
+          framework: definition.framework ?? "A2A SDK",
+          trace: definition.trace,
         },
-      ],
-      metadata: {
-        demo: true,
-        agentId: definition.id,
-        integrationType: definition.integrationType,
-        trace: definition.trace,
       },
     },
   };
