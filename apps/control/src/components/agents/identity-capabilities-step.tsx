@@ -9,7 +9,7 @@ import type {
   SkillDefinition,
 } from "@tali/contracts";
 import { useTranslation } from "react-i18next";
-import { BookOpenText, Boxes, BrainCircuit, Check, ChevronDown, Info, Network, Pencil, Plus, ServerCog, X } from "lucide-react";
+import { BookOpenText, Boxes, BrainCircuit, Check, ChevronDown, CircleHelp, Info, Network, Pencil, Plus, ServerCog, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +21,7 @@ import { MultiSelectCombobox, type MultiSelectOption } from "@/components/ui/mul
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useCurrentProjectId } from "@/hooks/use-project";
 import { SpecializationIcon } from "./specialization-selector";
@@ -150,6 +151,21 @@ export function IdentityCapabilitiesStep({ agentPlatform, customSystemPrompt, em
               <Button type="button" variant="outline" size="sm" onClick={() => setPromptOpen(true)}><Pencil /> Edit instructions</Button>
             </div>
           )}
+
+          <div className="border-t pt-5">
+            <MemoryCapabilityRow
+              agentPlatform={agentPlatform}
+              embeddingModels={embeddingModels}
+              enabled={memoryEnabled}
+              memory={memory}
+              onEnabledChange={onMemoryEnabledChange}
+              onMemoryChange={onMemoryChange}
+              onOpenChange={setMemoryOpen}
+              open={memoryOpen}
+              projectId={projectId}
+              roleLabel={specialization.roleLabel}
+            />
+          </div>
         </CardContent>
       </Card>
 
@@ -166,7 +182,6 @@ export function IdentityCapabilitiesStep({ agentPlatform, customSystemPrompt, em
                 <DropdownMenuItem onSelect={() => setSkillsOpen(true)}><Boxes /> Skills</DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => setMcpOpen(true)}><ServerCog /> MCP Servers</DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => setKnowledgeOpen(true)}><BookOpenText /> Knowledge Bases</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setMemoryOpen(true)}><BrainCircuit /> Memory</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -203,17 +218,6 @@ export function IdentityCapabilitiesStep({ agentPlatform, customSystemPrompt, em
             selectedIds={selectedKnowledgeSourceIds}
             onChange={onKnowledgeSourceIdsChange}
           />
-          <MemoryCapabilityRow
-            agentPlatform={agentPlatform}
-            embeddingModels={embeddingModels}
-            enabled={memoryEnabled}
-            memory={memory}
-            onEnabledChange={onMemoryEnabledChange}
-            onMemoryChange={onMemoryChange}
-            onOpenChange={setMemoryOpen}
-            open={memoryOpen}
-            projectId={projectId}
-          />
         </CardContent>
       </Card>
 
@@ -231,7 +235,7 @@ export function IdentityCapabilitiesStep({ agentPlatform, customSystemPrompt, em
   );
 }
 
-function MemoryCapabilityRow({ agentPlatform, embeddingModels, enabled, memory, onEnabledChange, onMemoryChange, onOpenChange, open, projectId }: {
+function MemoryCapabilityRow({ agentPlatform, embeddingModels, enabled, memory, onEnabledChange, onMemoryChange, onOpenChange, open, projectId, roleLabel }: {
   agentPlatform: AgentPlatformId;
   embeddingModels: readonly ModelDeployment[];
   enabled: boolean;
@@ -241,6 +245,7 @@ function MemoryCapabilityRow({ agentPlatform, embeddingModels, enabled, memory, 
   onOpenChange: (open: boolean) => void;
   open: boolean;
   projectId: string;
+  roleLabel: string;
 }) {
   const supported = agentPlatform === "openclaw";
   const selectMode = (mode: "native" | "hybrid") => {
@@ -264,29 +269,49 @@ function MemoryCapabilityRow({ agentPlatform, embeddingModels, enabled, memory, 
         <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-md bg-primary/10 text-primary"><BrainCircuit className="size-4" /></span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-sm font-semibold">Memory</h3>
+            <div className="flex items-center gap-0.5">
+              <h3 className="text-sm font-semibold">Memory</h3>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label="Memory tips"
+                    className="relative inline-flex size-8 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors after:absolute after:-inset-1.5 after:content-[''] hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                  >
+                    <CircleHelp className="size-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" sideOffset={6} className="max-w-72 leading-5">
+                  Memory belongs to the Agent itself. The selected Role starts with Memory enabled when the workbench supports Relay-managed Memory.
+                </TooltipContent>
+              </Tooltip>
+            </div>
             <Badge variant="outline" className="font-normal">
-              {!supported ? "OpenClaw only" : enabled ? (memory.mode === "hybrid" ? "Hybrid" : "Native") : "Not enabled"}
+              {!supported ? "Workbench managed" : enabled ? `${memory.mode === "hybrid" ? "Hybrid" : "Native"} · default on` : "Off"}
             </Badge>
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">Durable, Instance-isolated context that helps OpenClaw remember decisions and preferences.</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {supported
+              ? `Durable, Instance-isolated context that gives the ${roleLabel} Role continuity across work.`
+              : `The ${roleLabel} Role uses Memory managed by its selected workbench.`}
+          </p>
           {supported && enabled ? <p className="mt-2 text-xs font-medium text-primary">{memory.mode === "hybrid" ? "Curated notes + semantic recall" : "Curated memory + daily notes"}</p> : null}
         </div>
-        <Switch
-          checked={supported && enabled}
-          aria-label="Enable Memory"
-          disabled={!supported}
-          onCheckedChange={(checked) => {
-            onEnabledChange(checked);
-            if (checked) onOpenChange(true);
-          }}
-          className="mt-1"
-        />
-        <CollapsibleTrigger asChild>
-          <Button type="button" size="icon" variant="ghost" aria-label={`${open ? "Collapse" : "Expand"} Memory`} disabled={!supported}>
-            <ChevronDown className={cn("transition-transform", open && "rotate-180")} />
-          </Button>
-        </CollapsibleTrigger>
+        {supported ? (
+          <>
+            <Switch
+              checked={enabled}
+              aria-label="Enable Memory"
+              onCheckedChange={onEnabledChange}
+              className="mt-1"
+            />
+            <CollapsibleTrigger asChild>
+              <Button type="button" size="icon" variant="ghost" aria-label={`${open ? "Collapse" : "Expand"} Memory`}>
+                <ChevronDown className={cn("transition-transform", open && "rotate-180")} />
+              </Button>
+            </CollapsibleTrigger>
+          </>
+        ) : null}
       </div>
       <CollapsibleContent className="border-t bg-muted/10 p-4">
         {!supported ? (

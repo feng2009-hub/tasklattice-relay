@@ -366,6 +366,7 @@ export function CreateInstanceSheet({
     setKnowledgeSourcesTouched(
       nextKnowledgeSources.some((item) => item.source === "manual"),
     );
+    setMemoryEnabled(form.state.values.agentPlatform === "openclaw");
     setSystemPrompt(id === "custom" ? customSystemPrompt : next.systemPrompt);
     setPendingSpecializationId(null);
   };
@@ -926,7 +927,10 @@ export function CreateInstanceSheet({
                             <AgentSelect
                               id="instance-agent"
                               value={field.state.value}
-                              onValueChange={field.handleChange}
+                              onValueChange={(value) => {
+                                field.handleChange(value);
+                                setMemoryEnabled(value === "openclaw");
+                              }}
                             />
                           </div>
                         )}
@@ -1150,45 +1154,136 @@ export function CreateInstanceSheet({
                         <Check className="size-5" /> Review & Approve
                       </CardTitle>
                       <CardDescription>
-                        Evaluate the complete work definition, access boundary,
-                        workbench, and extensions before provisioning.
+                        Confirm the Agent, its extensions, and the safeguards
+                        that govern how it runs before provisioning.
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-6">
-                      <div className="grid gap-5 sm:grid-cols-2">
-                        <ReviewSection title="Work">
-                          <ReviewRow
-                            label="Instance name"
-                            value={values.name}
-                          />
-                          <ReviewRow
+                    <CardContent className="space-y-0">
+                      <ReviewGroup
+                        title="Agent"
+                        description="Identity, Role, and Memory define who this Agent is."
+                      >
+                        <dl className="grid gap-5 sm:grid-cols-3">
+                          <ReviewFact label="Name" value={values.name} />
+                          <ReviewFact
                             label="Role"
                             value={specialization.roleLabel}
                           />
+                          <ReviewFact
+                            label="Memory"
+                            value={
+                              values.agentPlatform !== "openclaw"
+                                ? "Workbench-managed"
+                                : memoryEnabled
+                                  ? memory.mode === "hybrid"
+                                    ? `Hybrid · ${embeddingModels.find((model) => model.id === memory.embeddingModelDeploymentId)?.displayName ?? "Embedding unavailable"}`
+                                    : "Native · curated notes"
+                                  : "Off"
+                            }
+                          />
+                        </dl>
+                        <div className="mt-5 border-t pt-4">
                           <ReviewRow
-                            label="System instructions"
+                            label="Instructions"
                             value={
                               specialization.id === "custom" ||
                               currentSystemPrompt !==
                                 specialization.systemPrompt
-                                ? "Customized for this Instance"
+                                ? "Customized for this Agent"
                                 : `Role default · ${specialization.roleLabel}`
                             }
                           />
-                        </ReviewSection>
-                        <ReviewSection title="Security & Runtime">
-                          <ReviewRow
+                        </div>
+                      </ReviewGroup>
+
+                      <Separator />
+
+                      <ReviewGroup
+                        title="Extensions"
+                        description="Optional capabilities that make this Agent more capable and informed."
+                      >
+                        <div className="grid gap-5 md:grid-cols-3">
+                          <ReviewSection
+                            title={`Skills (${selectedSkills.length})`}
+                          >
+                            {selectedSkills.length ? (
+                              selectedSkills.map((item) => (
+                                <ReviewPill
+                                  key={item.id}
+                                  label={capabilityName(
+                                    item.id,
+                                    skills,
+                                    mcpServers,
+                                    knowledgeSources,
+                                  )}
+                                  source={item.source}
+                                />
+                              ))
+                            ) : (
+                              <EmptyReview label="No Skills selected" />
+                            )}
+                          </ReviewSection>
+                          <ReviewSection
+                            title={`MCP Servers (${selectedMcps.length})`}
+                          >
+                            {selectedMcps.length ? (
+                              selectedMcps.map((item) => (
+                                <ReviewPill
+                                  key={item.id}
+                                  label={capabilityName(
+                                    item.id,
+                                    skills,
+                                    mcpServers,
+                                    knowledgeSources,
+                                  )}
+                                  source={item.source}
+                                />
+                              ))
+                            ) : (
+                              <EmptyReview label="No MCP Servers selected" />
+                            )}
+                          </ReviewSection>
+                          <ReviewSection
+                            title={`Knowledge (${selectedKnowledgeSources.length})`}
+                          >
+                            {selectedKnowledgeSources.length ? (
+                              selectedKnowledgeSources.map((item) => (
+                                <ReviewPill
+                                  key={item.id}
+                                  label={
+                                    knowledgeSources.find(
+                                      (source) => source.id === item.id,
+                                    )?.name ?? item.id
+                                  }
+                                  source={item.source}
+                                />
+                              ))
+                            ) : (
+                              <EmptyReview label="No Knowledge selected" />
+                            )}
+                          </ReviewSection>
+                        </div>
+                      </ReviewGroup>
+
+                      <Separator />
+
+                      <ReviewGroup
+                        title="Security & Runtime"
+                        description="Execution and access boundaries that keep this Agent from doing the wrong thing."
+                      >
+                        <dl className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+                          <ReviewFact
                             label="Agent workbench"
                             value={
                               getAgentPlatformPresentation(values.agentPlatform)
                                 .name
                             }
                           />
-                          <ReviewRow
+                          <ReviewFact
                             label="Runtime Policy"
                             value={policyName(values.policyId)}
                           />
-                          <ReviewRow
+                          <ReviewFact
                             label="Routing"
                             value={
                               modelRoutings.data?.find(
@@ -1197,7 +1292,7 @@ export function CreateInstanceSheet({
                               )?.name ?? "Unavailable"
                             }
                           />
-                          <ReviewRow
+                          <ReviewFact
                             label="Access Policies"
                             value={
                               (accessPolicies.data ?? [])
@@ -1208,96 +1303,21 @@ export function CreateInstanceSheet({
                                 .join(", ") || "Unavailable"
                             }
                           />
-                        </ReviewSection>
+                        </dl>
+                      </ReviewGroup>
+
+                      <div className="pt-2">
+                        <ReviewAssessment
+                          accessPolicyNames={(accessPolicies.data ?? [])
+                            .filter((policy) =>
+                              values.accessPolicyIds.includes(policy.id),
+                            )
+                            .map((policy) => policy.name)}
+                          incompleteMcpNames={incompleteMcps
+                            .map((item) => item?.name)
+                            .filter((name): name is string => Boolean(name))}
+                        />
                       </div>
-                      <Separator />
-                      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-                        <ReviewSection
-                          title={`Skills (${selectedSkills.length})`}
-                        >
-                          {selectedSkills.length ? (
-                            selectedSkills.map((item) => (
-                              <ReviewPill
-                                key={item.id}
-                                label={capabilityName(
-                                  item.id,
-                                  skills,
-                                  mcpServers,
-                                  knowledgeSources,
-                                )}
-                                source={item.source}
-                              />
-                            ))
-                          ) : (
-                            <EmptyReview label="No Skills selected" />
-                          )}
-                        </ReviewSection>
-                        <ReviewSection
-                          title={`MCP Servers (${selectedMcps.length})`}
-                        >
-                          {selectedMcps.length ? (
-                            selectedMcps.map((item) => (
-                              <ReviewPill
-                                key={item.id}
-                                label={capabilityName(
-                                  item.id,
-                                  skills,
-                                  mcpServers,
-                                  knowledgeSources,
-                                )}
-                                source={item.source}
-                              />
-                            ))
-                          ) : (
-                            <EmptyReview label="No MCP Servers selected" />
-                          )}
-                        </ReviewSection>
-                        <ReviewSection
-                          title={`Knowledge (${selectedKnowledgeSources.length})`}
-                        >
-                          {selectedKnowledgeSources.length ? (
-                            selectedKnowledgeSources.map((item) => (
-                              <ReviewPill
-                                key={item.id}
-                                label={
-                                  knowledgeSources.find(
-                                    (source) => source.id === item.id,
-                                  )?.name ?? item.id
-                                }
-                                source={item.source}
-                              />
-                            ))
-                          ) : (
-                            <EmptyReview label="No Knowledge selected" />
-                          )}
-                        </ReviewSection>
-                        <ReviewSection title="Memory">
-                          {values.agentPlatform !== "openclaw" ? (
-                            <EmptyReview label="OpenClaw only" />
-                          ) : memoryEnabled ? (
-                            <ReviewPill
-                              label={
-                                memory.mode === "hybrid"
-                                  ? `Hybrid · ${embeddingModels.find((model) => model.id === memory.embeddingModelDeploymentId)?.displayName ?? "Embedding unavailable"}`
-                                  : "Native · curated notes"
-                              }
-                              source="manual"
-                            />
-                          ) : (
-                            <EmptyReview label="Memory disabled" />
-                          )}
-                        </ReviewSection>
-                      </div>
-                      <ReviewAssessment
-                        accessPolicyNames={(accessPolicies.data ?? [])
-                          .filter((policy) =>
-                            values.accessPolicyIds.includes(policy.id),
-                          )
-                          .map((policy) => policy.name)}
-                        incompleteMcpNames={incompleteMcps
-                          .map((item) => item?.name)
-                          .filter((name): name is string => Boolean(name))}
-                      />
                     </CardContent>
                   </Card>
                 )}
@@ -1331,6 +1351,37 @@ export function CreateInstanceSheet({
   );
 }
 
+function ReviewGroup({
+  children,
+  description,
+  title,
+}: {
+  children: ReactNode;
+  description: string;
+  title: string;
+}) {
+  return (
+    <section className="py-6 first:pt-0">
+      <div className="mb-5">
+        <h3 className="text-base font-semibold">{title}</h3>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">
+          {description}
+        </p>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function ReviewFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="mt-1 break-words text-sm font-semibold">{value}</dd>
+    </div>
+  );
+}
+
 function ReviewSection({
   children,
   title,
@@ -1340,7 +1391,7 @@ function ReviewSection({
 }) {
   return (
     <section>
-      <h3 className="mb-3 text-sm font-semibold">{title}</h3>
+      <h4 className="mb-3 text-sm font-semibold">{title}</h4>
       <div className="space-y-2">{children}</div>
     </section>
   );
@@ -1489,7 +1540,7 @@ function ReviewAssessment({
               : "Ready to create"}
           </h3>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Work definition, Access Policies, Agent workbench, Routing,
+            Agent definition, Access Policies, Agent workbench, Routing,
             and Runtime Policy are complete.
           </p>
           {accessPolicyNames.length ? (

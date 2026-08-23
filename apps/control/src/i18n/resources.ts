@@ -128,8 +128,8 @@ const enUS = {
   createInstance: {
     defineAgent: {
       description:
-        "Name the Instance, then choose the Role and instructions that define how this Agent works.",
-      stepDescription: "Set the Agent's role and extensions",
+        "Name the Instance, choose its Role, and configure the Memory that gives this Agent continuity.",
+      stepDescription: "Set identity, Role, and Memory",
       title: "Define an Agent",
     },
     progressLabel: "Create Instance progress",
@@ -328,8 +328,8 @@ const zhCN = {
   createInstance: {
     defineAgent: {
       description:
-        "为实例命名，并选择角色与指令，定义这个 Agent 的工作方式。",
-      stepDescription: "设置 Agent 的角色与扩展",
+        "为实例命名，选择角色，并配置赋予这个 Agent 连续性的 Memory。",
+      stepDescription: "设置身份、角色与 Memory",
       title: "定义一个 Agent",
     },
     progressLabel: "创建实例进度",
@@ -527,8 +527,8 @@ const zhTW = {
   createInstance: {
     defineAgent: {
       description:
-        "為執行個體命名，接著選擇角色與指令，以定義此 Agent 的運作方式。",
-      stepDescription: "設定 Agent 的角色與擴充功能",
+        "為執行個體命名、選擇角色，並設定讓此 Agent 保有連續性的 Memory。",
+      stepDescription: "設定身分、角色與 Memory",
       title: "定義一個 Agent",
     },
     progressLabel: "建立執行個體進度",
