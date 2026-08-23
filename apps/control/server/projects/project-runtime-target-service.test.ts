@@ -4,6 +4,7 @@ import {
   setControlConfigForTests,
 } from "../config/control-config";
 import {
+  projectNameLabel,
   projectNamespaceResource,
   type ProjectNamespaceClient,
 } from "../kubernetes/project-namespace-client";
@@ -19,9 +20,7 @@ function enabledConfig() {
   return config;
 }
 
-function namespaceClient(input?: {
-  reconcileError?: Error;
-}) {
+function namespaceClient(input?: { reconcileError?: Error }) {
   const reconcile = vi.fn(async () => {
     if (input?.reconcileError) throw input.reconcileError;
   });
@@ -52,34 +51,30 @@ describe("ProjectRuntimeTargetService", () => {
       .toMatch(/^acme-relay-p-[a-f0-9]{32}$/);
   });
 
-  it("reconciles a pending target and records the observed generation", async () => {
-    const config = enabledConfig();
-    setControlConfigForTests(config);
+  it("ensures one Namespace synchronously and records readiness", async () => {
+    setControlConfigForTests(enabledConfig());
     const db = createTestPrisma();
     const fake = namespaceClient();
     const service = new ProjectRuntimeTargetService(db, fake.client);
 
-    const result = await service.processNext(
-      "runtime-worker-a",
-      new Date("2099-08-22T00:00:00.000Z"),
-    );
+    await expect(
+      service.ensureProjectNamespace("individual"),
+    ).resolves.toBe(true);
 
-    expect(result).toMatchObject({ projectId: "individual", status: "ready" });
-    expect(fake.reconcile).toHaveBeenCalledWith(expect.objectContaining({
+    expect(fake.reconcile).toHaveBeenCalledWith({
       namespace: projectRuntimeNamespace("individual"),
       projectId: "individual",
-    }));
+      projectName: "admin",
+    });
     await expect(db.projectRuntimeTarget.findUnique({
       where: { projectId: "individual" },
     })).resolves.toMatchObject({
-      attempts: 0,
-      generation: 1,
       observedGeneration: 1,
       status: "ready",
     });
   });
 
-  it("keeps failed reconciliation work retryable", async () => {
+  it("records a failed synchronous ensure without scheduling retries", async () => {
     setControlConfigForTests(enabledConfig());
     const db = createTestPrisma();
     const fake = namespaceClient({
@@ -87,26 +82,18 @@ describe("ProjectRuntimeTargetService", () => {
     });
     const service = new ProjectRuntimeTargetService(db, fake.client);
 
-    const result = await service.processNext(
-      "runtime-worker-a",
-      new Date("2099-08-22T00:00:00.000Z"),
+    await expect(service.ensureProjectNamespace("individual")).rejects.toThrow(
+      "Kubernetes API unavailable",
     );
-
-    expect(result).toMatchObject({
-      error: "Kubernetes API unavailable",
-      projectId: "individual",
-      status: "retry",
-    });
     await expect(db.projectRuntimeTarget.findUnique({
       where: { projectId: "individual" },
     })).resolves.toMatchObject({
-      attempts: 1,
       lastError: "Kubernetes API unavailable",
       status: "retry",
     });
   });
 
-  it("refuses to reconcile a target assigned to another cluster", async () => {
+  it("refuses a target assigned to another cluster", async () => {
     const config = enabledConfig();
     config.runtime_namespaces.cluster_id = "replacement-cluster";
     setControlConfigForTests(config);
@@ -121,48 +108,26 @@ describe("ProjectRuntimeTargetService", () => {
     const fake = namespaceClient();
     const service = new ProjectRuntimeTargetService(db, fake.client);
 
-    await expect(service.processNext(
-      "runtime-worker-a",
-      new Date("2099-08-22T00:00:00.000Z"),
-    )).resolves.toMatchObject({
-      error: expect.stringContaining("belongs to cluster in-cluster"),
-      status: "retry",
-    });
+    await expect(service.ensureProjectNamespace("individual")).rejects.toThrow(
+      "belongs to cluster in-cluster",
+    );
     expect(fake.reconcile).not.toHaveBeenCalled();
   });
 
-  it("periodically reconciles ready targets to repair drift", async () => {
-    const config = enabledConfig();
-    setControlConfigForTests(config);
+  it("runs a complete manual reconciliation once and exits", async () => {
+    setControlConfigForTests(enabledConfig());
     const db = createTestPrisma();
-    await db.projectRuntimeTarget.create({
-      data: {
-        clusterId: config.runtime_namespaces.cluster_id,
-        namespace: projectRuntimeNamespace(
-          "individual",
-          config.runtime_namespaces.name_prefix,
-        ),
-        projectId: "individual",
-      },
-    });
     const fake = namespaceClient();
     const service = new ProjectRuntimeTargetService(db, fake.client);
-    const firstReconcile = new Date("2099-08-22T00:00:00.000Z");
 
-    await expect(service.processNext("runtime-worker-a", firstReconcile))
-      .resolves.toMatchObject({ status: "ready" });
-    await expect(service.processNext(
-      "runtime-worker-a",
-      new Date(firstReconcile.getTime() + 1_000),
-    )).resolves.toEqual({ status: "idle" });
-    await expect(service.processNext(
-      "runtime-worker-a",
-      new Date(
-        firstReconcile.getTime() +
-          config.runtime_namespaces.resync_interval_seconds * 1_000,
-      ),
-    )).resolves.toMatchObject({ status: "ready" });
-    expect(fake.reconcile).toHaveBeenCalledTimes(2);
+    await expect(service.reconcileAll()).resolves.toEqual({
+      failed: 0,
+      failures: [],
+      ready: 1,
+      skipped: 0,
+      total: 1,
+    });
+    expect(fake.reconcile).toHaveBeenCalledTimes(1);
   });
 
   it("waits for the Project Namespace to disappear during cleanup", async () => {
@@ -182,7 +147,9 @@ describe("ProjectRuntimeTargetService", () => {
     const fake = namespaceClient();
     const service = new ProjectRuntimeTargetService(db, fake.client);
 
-    await expect(service.deleteProjectNamespace("individual")).resolves.toBe(true);
+    await expect(
+      service.deleteProjectNamespace("individual"),
+    ).resolves.toBe(true);
     expect(fake.deleteAndWait).toHaveBeenCalledWith(
       projectRuntimeNamespace("individual"),
       "individual",
@@ -192,24 +159,33 @@ describe("ProjectRuntimeTargetService", () => {
 });
 
 describe("projectNamespaceResource", () => {
-  it("builds only the owned Namespace mapping", () => {
+  it("includes stable ownership and human-readable Project metadata", () => {
     const resource = projectNamespaceResource({
       namespace: "tali-p-0123456789abcdef0123456789abcdef",
       projectId: "project-a",
+      projectName: "Customer Support",
     });
 
     expect(resource).toMatchObject({
       apiVersion: "v1",
       kind: "Namespace",
       metadata: {
-        annotations: { "tali.io/project-id": "project-a" },
+        annotations: {
+          "tali.io/project-id": "project-a",
+          "tali.io/project-name": "Customer Support",
+        },
         labels: {
           "app.kubernetes.io/managed-by": "tali",
           "app.kubernetes.io/part-of": "tali",
+          "tali.io/project-name": "customer-support",
           "tali.io/runtime-target": "true",
         },
         name: "tali-p-0123456789abcdef0123456789abcdef",
       },
     });
+  });
+
+  it("uses a stable label fallback for non-Latin Project names", () => {
+    expect(projectNameLabel("客户支持")).toMatch(/^project-[a-f0-9]{12}$/);
   });
 });

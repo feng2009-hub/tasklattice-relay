@@ -78,10 +78,6 @@ app.kubernetes.io/component: {{ .component }}
 {{- end -}}
 {{- end }}
 
-{{- define "tali.projectRuntimeServiceAccountName" -}}
-{{- include "tali.componentName" (dict "root" . "component" "project-runtime-controller") -}}
-{{- end }}
-
 {{- define "tali.projectRuntimeCleanupServiceAccountName" -}}
 {{- include "tali.componentName" (dict "root" . "component" "project-runtime-cleanup") -}}
 {{- end }}
@@ -163,8 +159,6 @@ master_key = {{ required "secrets.litellmMasterKey is required" .Values.secrets.
 enabled = {{ .Values.projectRuntimeNamespaces.enabled }}
 cluster_id = {{ .Values.projectRuntimeNamespaces.clusterId | quote }}
 name_prefix = {{ .Values.projectRuntimeNamespaces.namePrefix | quote }}
-reconcile_interval_seconds = {{ .Values.projectRuntimeNamespaces.reconcileIntervalSeconds }}
-resync_interval_seconds = {{ .Values.projectRuntimeNamespaces.resyncIntervalSeconds }}
 deletion_timeout_seconds = {{ .Values.projectRuntimeNamespaces.deletionTimeoutSeconds }}
 
 [smtp]

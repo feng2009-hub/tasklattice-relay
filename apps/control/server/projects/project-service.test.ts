@@ -14,7 +14,10 @@ import type { LiteLLMAdminClient } from "../providers/litellm-client";
 import { createTestPrisma } from "../test/prisma";
 import type { PrismaClient } from "../generated/prisma/client";
 import { ProjectService } from "./project-service";
-import { projectRuntimeNamespace } from "./project-runtime-target-service";
+import {
+  projectRuntimeNamespace,
+  type ProjectRuntimeNamespaceProvisioner,
+} from "./project-runtime-target-service";
 
 class RecordingInvitationMailer implements InvitationMailer {
   readonly invitations: ProjectInvitationEmail[] = [];
@@ -195,6 +198,59 @@ describe("ProjectService", () => {
     });
     expect(Number(quota.hardBudgetUsd)).toBe(0);
     expect(quota.budgetDuration).toBe("30d");
+  });
+
+  it("provisions the runtime Namespace before Project creation succeeds", async () => {
+    const db = createTestPrisma();
+    const runtimeNamespaces: ProjectRuntimeNamespaceProvisioner = {
+      ensureProjectNamespace: vi.fn(async () => true),
+    };
+    const service = new ProjectService(
+      db,
+      undefined,
+      undefined,
+      runtimeNamespaces,
+    );
+    const local = auth({
+      displayName: "Local Administrator",
+      email: "admin@tali.local",
+      hasPassword: true,
+      username: "admin",
+    });
+
+    const project = await service.create(local, "dep1", "Runtime Project", []);
+
+    expect(runtimeNamespaces.ensureProjectNamespace).toHaveBeenCalledWith(
+      project.id,
+    );
+  });
+
+  it("removes the database Project when Namespace provisioning fails", async () => {
+    const db = createTestPrisma();
+    const runtimeNamespaces: ProjectRuntimeNamespaceProvisioner = {
+      ensureProjectNamespace: vi.fn(async () => {
+        throw new Error("Kubernetes API unavailable");
+      }),
+    };
+    const service = new ProjectService(
+      db,
+      undefined,
+      undefined,
+      runtimeNamespaces,
+    );
+    const local = auth({
+      displayName: "Local Administrator",
+      email: "admin@tali.local",
+      hasPassword: true,
+      username: "admin",
+    });
+
+    await expect(
+      service.create(local, "dep1", "Failed Runtime Project", []),
+    ).rejects.toThrow("Kubernetes API unavailable");
+    await expect(db.project.findFirst({
+      where: { name: "Failed Runtime Project" },
+    })).resolves.toBeNull();
   });
 
   it("switches directly between roles assigned to the Account", async () => {

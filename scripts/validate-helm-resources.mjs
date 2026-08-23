@@ -7,7 +7,7 @@ import { parseAllDocuments } from "yaml";
 const releaseName = "tali-relay";
 const releaseNamespace = "tali-resource-validation";
 const chartPath = "charts/tali-relay";
-const runtimeControllerName = `${releaseName}-project-runtime-controller`;
+const runtimeControlName = `${releaseName}-project-runtime-control`;
 const runtimeCleanupName = `${releaseName}-project-runtime-cleanup`;
 function scopedClusterRoleName(name) {
   return `${name.slice(0, 48).replace(/-$/, "")}-${createHash("sha256")
@@ -15,8 +15,8 @@ function scopedClusterRoleName(name) {
     .digest("hex")
     .slice(0, 12)}`;
 }
-const runtimeControllerClusterRoleName = scopedClusterRoleName(
-  runtimeControllerName,
+const runtimeControlClusterRoleName = scopedClusterRoleName(
+  runtimeControlName,
 );
 const runtimeCleanupClusterRoleName = scopedClusterRoleName(runtimeCleanupName);
 const requiredResources = [
@@ -71,6 +71,19 @@ const rendered = renderChart([
 
 const objects = parseObjects(rendered);
 
+for (const kind of ["Deployment", "ServiceAccount"]) {
+  if (
+    objects.some(
+      (object) =>
+        object.kind === kind && object.metadata?.name === runtimeControlName,
+    )
+  ) {
+    throw new Error(
+      `${kind}/${runtimeControlName} must not be rendered; Project Namespace creation runs synchronously in Control.`,
+    );
+  }
+}
+
 const syncWaveAnnotation = "argocd.argoproj.io/sync-wave";
 
 function requireObject(kind, name) {
@@ -99,10 +112,9 @@ for (const [kind, name, wave] of [
   ["LimitRange", `${releaseName}-container-resources`, "-10"],
   ["ServiceAccount", `${releaseName}-control`, "10"],
   ["ServiceAccount", `${releaseName}-runtime`, "10"],
-  ["ServiceAccount", runtimeControllerName, "10"],
   ["ServiceAccount", runtimeCleanupName, "10"],
-  ["ClusterRole", runtimeControllerClusterRoleName, "10"],
-  ["ClusterRoleBinding", runtimeControllerClusterRoleName, "10"],
+  ["ClusterRole", runtimeControlClusterRoleName, "10"],
+  ["ClusterRoleBinding", runtimeControlClusterRoleName, "10"],
   ["ClusterRole", runtimeCleanupClusterRoleName, "10"],
   ["ClusterRoleBinding", runtimeCleanupClusterRoleName, "10"],
   ["Role", `${releaseName}-control-managed-secrets`, "10"],
@@ -120,7 +132,6 @@ for (const [kind, name, wave] of [
   ["Deployment", `${releaseName}-litellm`, "30"],
   ["Deployment", `${releaseName}-keycloak`, "30"],
   ["Deployment", `${releaseName}-control`, "40"],
-  ["Deployment", runtimeControllerName, "40"],
   ["Deployment", `${releaseName}-deletion-worker`, "40"],
   ["Deployment", `${releaseName}-runner`, "40"],
   ["Deployment", `${releaseName}-example-mcp`, "40"],
@@ -185,21 +196,6 @@ for (const [deploymentName, expectedInitContainers] of [
         ],
       ],
       ["seed-built-in-skills", ["node", "prisma/seed-built-in-skills.mjs"]],
-    ],
-  ],
-  [
-    runtimeControllerName,
-    [
-      [
-        "migrate-control-database",
-        [
-          "/app/node_modules/.bin/prisma",
-          "migrate",
-          "deploy",
-          "--config",
-          "prisma.config.ts",
-        ],
-      ],
     ],
   ],
   [
@@ -277,11 +273,7 @@ if (!/^public_url\s*=\s*"http:\/\/localhost:38080"$/m.test(localControlToml)) {
     "Local authentication must render Better Auth's canonical server.public_url.",
   );
 }
-if (
-  !/\[runtime_namespaces\][\s\S]*?enabled\s*=\s*true[\s\S]*?resync_interval_seconds\s*=\s*300/.test(
-    localControlToml,
-  )
-) {
+if (!/\[runtime_namespaces\][\s\S]*?enabled\s*=\s*true[\s\S]*?name_prefix\s*=\s*"tali-p"/.test(localControlToml)) {
   throw new Error(
     "Project Runtime Namespace settings must be present in the Control configuration.",
   );
@@ -297,16 +289,16 @@ if (
   deletionWorker.spec?.template?.spec?.automountServiceAccountToken !== true
 ) {
   throw new Error(
-    "The deletion worker must use the Project Runtime Controller identity when Namespace cleanup is enabled.",
+    "The deletion worker must use the Project Runtime Cleanup identity when Namespace cleanup is enabled.",
   );
 }
 
-const runtimeControllerRole = requireObject(
+const runtimeControlRole = requireObject(
   "ClusterRole",
-  runtimeControllerClusterRoleName,
+  runtimeControlClusterRoleName,
 );
 if (
-  JSON.stringify(runtimeControllerRole.rules) !== JSON.stringify([
+  JSON.stringify(runtimeControlRole.rules) !== JSON.stringify([
     {
       apiGroups: [""],
       resources: ["namespaces"],
@@ -315,7 +307,60 @@ if (
   ])
 ) {
   throw new Error(
-    "The Project Runtime Controller must be limited to reconciling Namespace metadata.",
+    "The Control Plane must be limited to ensuring Project Namespace metadata.",
+  );
+}
+
+const runtimeControlBinding = requireObject(
+  "ClusterRoleBinding",
+  runtimeControlClusterRoleName,
+);
+if (
+  !runtimeControlBinding.subjects?.some(
+    (subject) =>
+      subject.kind === "ServiceAccount" &&
+      subject.name === `${releaseName}-control` &&
+      subject.namespace === releaseNamespace,
+  )
+) {
+  throw new Error(
+    "Synchronous Project Namespace provisioning must be bound to the Control ServiceAccount.",
+  );
+}
+
+const runtimeDisabledObjects = parseObjects(
+  renderChart(["--set", "projectRuntimeNamespaces.enabled=false"]),
+);
+for (const [kind, name] of [
+  ["ClusterRole", runtimeControlClusterRoleName],
+  ["ClusterRoleBinding", runtimeControlClusterRoleName],
+  ["ServiceAccount", runtimeCleanupName],
+  ["ClusterRole", runtimeCleanupClusterRoleName],
+  ["ClusterRoleBinding", runtimeCleanupClusterRoleName],
+]) {
+  if (
+    runtimeDisabledObjects.some(
+      (object) => object.kind === kind && object.metadata?.name === name,
+    )
+  ) {
+    throw new Error(
+      `${kind}/${name} must not render when Project Runtime Namespaces are disabled.`,
+    );
+  }
+}
+const runtimeDisabledDeletionWorker = runtimeDisabledObjects.find(
+  (object) =>
+    object.kind === "Deployment" &&
+    object.metadata?.name === `${releaseName}-deletion-worker`,
+);
+if (
+  runtimeDisabledDeletionWorker?.spec?.template?.spec?.serviceAccountName !==
+    `${releaseName}-control` ||
+  runtimeDisabledDeletionWorker?.spec?.template?.spec
+    ?.automountServiceAccountToken !== false
+) {
+  throw new Error(
+    "The deletion worker must not receive Kubernetes credentials when Project Runtime Namespaces are disabled.",
   );
 }
 

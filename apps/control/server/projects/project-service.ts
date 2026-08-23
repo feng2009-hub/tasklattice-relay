@@ -32,7 +32,11 @@ import {
   PROJECT_DELETION_GRACE_PERIOD_MS,
   type ProjectDeletionSchedule,
 } from "./project-deletion-service";
-import { projectRuntimeNamespace } from "./project-runtime-target-service";
+import {
+  projectRuntimeNamespace,
+  ProjectRuntimeTargetService,
+  type ProjectRuntimeNamespaceProvisioner,
+} from "./project-runtime-target-service";
 
 export type ProjectRole = ProjectMembershipRole;
 
@@ -163,6 +167,7 @@ export class ProjectService {
     private readonly db: PrismaClient = prisma(),
     private readonly litellm: LiteLLMAdminClient = new LiteLLMClient(),
     private readonly invitationMailer: InvitationMailer = new SmtpInvitationMailer(),
+    private runtimeNamespaces?: ProjectRuntimeNamespaceProvisioner,
   ) {}
 
   /**
@@ -507,6 +512,22 @@ export class ProjectService {
         },
       },
     });
+    try {
+      this.runtimeNamespaces ??= new ProjectRuntimeTargetService(this.db);
+      await this.runtimeNamespaces.ensureProjectNamespace(project.id);
+    } catch (error) {
+      // Project creation is successful only when its runtime Namespace is
+      // ready. The Namespace operation is idempotent, so an operator can use
+      // the one-shot reconciliation command after a crash between systems.
+      await this.db.project.delete({ where: { id: project.id } }).catch(
+        (cleanupError) =>
+          console.error(
+            "Failed to compensate Project creation after Namespace provisioning failed.",
+            { cleanupError, projectId: project.id },
+          ),
+      );
+      throw error;
+    }
     const initialBudgetWindow =
       department.hardBudgetUsd === null
         ? null

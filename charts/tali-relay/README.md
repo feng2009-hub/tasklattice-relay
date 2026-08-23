@@ -77,17 +77,25 @@ OpenShift project or Kubernetes namespace already has an equivalent
 administrator-managed `LimitRange`, set `resourceDefaults.enabled=false` to
 avoid defining a second default policy.
 
-`projectRuntimeNamespaces.enabled=true` also runs the Project Runtime
-Controller. It maps each Relay Project to an opaque, stable Namespace and
-reconciles only Relay-owned labels and annotations on that Namespace. It does
-not install a ServiceAccount, quota, limit range, or network policy into tenant
-Namespaces. Set `projectRuntimeNamespaces.namePrefix` to a value unique to the
-Relay installation when multiple control planes share a cluster. The
-controller and deletion worker require only the cluster-scoped Namespace
-permissions rendered by this chart. OpenShell `0.0.106` still uses a
-Gateway-wide sandbox Namespace, so these Project Namespaces are immediately
-usable by managed A2A workloads but do not yet move existing OpenClaw or Hermes
-sandboxes. See
+`projectRuntimeNamespaces.enabled=true` makes Project creation synchronously
+ensure an opaque, stable Namespace before the API returns success. The exact
+Project name is stored as an annotation and a DNS-safe form is stored as a
+label. Relay does not install a tenant ServiceAccount, quota, limit range, or
+network policy. Set `projectRuntimeNamespaces.namePrefix` to a value unique to
+the Relay installation when multiple control planes share a cluster. The main
+Control Plane ServiceAccount has get/create/patch access to Namespaces; the
+separate deletion worker has get/delete access. There is no continuously
+running reconciliation Deployment. Operators can repair all mappings with the
+packaged one-shot command:
+
+```bash
+kubectl -n <control-namespace> exec deployment/<release>-control -- \
+  node apps/control/.output/tools/project-runtime-reconcile.mjs
+```
+
+OpenShell `0.0.106` still uses a Gateway-wide sandbox Namespace, so these
+Project Namespaces are immediately usable by managed A2A workloads but do not
+yet move existing OpenClaw or Hermes sandboxes. See
 [Project Runtime Namespaces](../../docs/project-runtime-namespaces.md).
 
 Workload rollout checksums are component-scoped. Updating Control-only
@@ -113,7 +121,7 @@ TaskLattice Relay resources are deliberately later than the dependencies:
 | `10` | TaskLattice Relay ServiceAccounts, RBAC, Secrets, ConfigMaps, and Services |
 | `20` | PostgreSQL StatefulSet |
 | `30` | LiteLLM and optional Keycloak Deployments |
-| `40` | Control, Project Runtime Controller, deletion worker, Runner, and optional example MCP Deployments |
+| `40` | Control, deletion worker, Runner, and optional example MCP Deployments |
 | `50` | Optional OpenShift Routes |
 
 Argo CD waits for each wave to become healthy before advancing. The values are

@@ -35,8 +35,6 @@ const defaultRuntimeNamespacesConfig = {
   enabled: false,
   cluster_id: "in-cluster",
   name_prefix: "tali-p",
-  reconcile_interval_seconds: 5,
-  resync_interval_seconds: 300,
   deletion_timeout_seconds: 120,
 };
 
@@ -47,8 +45,6 @@ const runtimeNamespacesConfigSchema = z.object({
     /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/,
     "runtime_namespaces.name_prefix must be a DNS label prefix.",
   ),
-  reconcile_interval_seconds: z.number().int().min(1).max(300),
-  resync_interval_seconds: z.number().int().min(30).max(86_400),
   deletion_timeout_seconds: z.number().int().min(10).max(1_800),
 });
 

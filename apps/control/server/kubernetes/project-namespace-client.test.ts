@@ -45,6 +45,7 @@ function client(input?: {
 const input = {
   namespace: "acme-relay-p-0123456789abcdef0123456789abcdef",
   projectId: "project-a",
+  projectName: "Customer Support",
 };
 
 describe("KubernetesProjectNamespaceClient", () => {
@@ -62,7 +63,13 @@ describe("KubernetesProjectNamespaceClient", () => {
         apiVersion: "v1",
         kind: "Namespace",
         metadata: expect.objectContaining({
-          annotations: { "tali.io/project-id": "project-a" },
+          annotations: {
+            "tali.io/project-id": "project-a",
+            "tali.io/project-name": "Customer Support",
+          },
+          labels: expect.objectContaining({
+            "tali.io/project-name": "customer-support",
+          }),
           name: input.namespace,
         }),
       }),
@@ -83,7 +90,7 @@ describe("KubernetesProjectNamespaceClient", () => {
       }),
       undefined,
       undefined,
-      "tali-project-runtime-controller",
+      "tali-control-project-runtime",
       false,
       PatchStrategy.ServerSideApply,
     );

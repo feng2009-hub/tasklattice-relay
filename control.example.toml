@@ -37,8 +37,6 @@ enabled = true
 cluster_id = "in-cluster"
 # Must be unique to this Relay installation when sharing a Kubernetes cluster.
 name_prefix = "tali-p"
-reconcile_interval_seconds = 5
-resync_interval_seconds = 300
 deletion_timeout_seconds = 120
 
 [smtp]

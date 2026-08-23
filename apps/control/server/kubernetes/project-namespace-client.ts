@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   CoreV1Api,
   KubeConfig,
@@ -7,11 +8,12 @@ import {
 } from "@kubernetes/client-node";
 import type { ControlConfig } from "../config/control-config";
 
-const FIELD_MANAGER = "tali-project-runtime-controller";
+const FIELD_MANAGER = "tali-control-project-runtime";
 
 export interface ProjectNamespaceInput {
   namespace: string;
   projectId: string;
+  projectName: string;
 }
 
 export interface ProjectNamespaceClient {
@@ -36,10 +38,27 @@ interface KubernetesErrorLike {
   statusCode?: unknown;
 }
 
-function managedLabels(): Record<string, string> {
+export function projectNameLabel(projectName: string): string {
+  const normalized = projectName
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9_.-]+/g, "-")
+    .replace(/^[-_.]+|[-_.]+$/g, "")
+    .slice(0, 63)
+    .replace(/[-_.]+$/g, "");
+  if (normalized) return normalized;
+  return `project-${createHash("sha256")
+    .update(projectName)
+    .digest("hex")
+    .slice(0, 12)}`;
+}
+
+function managedLabels(projectName: string): Record<string, string> {
   return {
     "app.kubernetes.io/managed-by": "tali",
     "app.kubernetes.io/part-of": "tali",
+    "tali.io/project-name": projectNameLabel(projectName),
     "tali.io/runtime-target": "true",
   };
 }
@@ -52,8 +71,11 @@ export function projectNamespaceResource(
     kind: "Namespace",
     metadata: {
       name: input.namespace,
-      labels: managedLabels(),
-      annotations: { "tali.io/project-id": input.projectId },
+      labels: managedLabels(input.projectName),
+      annotations: {
+        "tali.io/project-id": input.projectId,
+        "tali.io/project-name": input.projectName,
+      },
     },
   };
 }

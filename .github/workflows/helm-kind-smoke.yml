@@ -67,6 +67,8 @@ jobs:
             .
           docker run --rm --entrypoint test "${control_image}" \
             -f /app/apps/control/.output/workers/project-deletion-worker.mjs
+          docker run --rm --entrypoint test "${control_image}" \
+            -f /app/apps/control/.output/tools/project-runtime-reconcile.mjs
           kind load docker-image \
             --name "${KIND_CLUSTER_NAME}" \
             "${control_image}"
