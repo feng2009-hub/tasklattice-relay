@@ -186,13 +186,13 @@ export function projectRouteAdmissionPolicy(
         requirement("CAP_AGENT_CONNECTION_VIEW", "AgentConnection"),
       ]);
     }
+    if (tail.length === 2 && tail[1] === "onboard" && method === "POST") {
+      return policy("NEW_OWNER", [
+        requirement("CAP_AGENT_REGISTRATION_CREATE", "AgentRegistration"),
+        requirement("CAP_AGENT_REGISTRATION_DISCOVER", "AgentRegistration"),
+      ]);
+    }
     if (tail[1] === "agents") {
-      if (tail.length === 2 && method === "POST") {
-        return policy("NEW_OWNER", [
-          requirement("CAP_AGENT_REGISTRATION_CREATE", "AgentRegistration"),
-          requirement("CAP_AGENT_REGISTRATION_DISCOVER", "AgentRegistration"),
-        ]);
-      }
       const id = tail[2];
       if (id && tail.length === 4 && tail[3] === "discover" && method === "POST") {
         return policy("REGISTERED_AGENT", [requirement("CAP_AGENT_REGISTRATION_DISCOVER", "AgentRegistration")], id);

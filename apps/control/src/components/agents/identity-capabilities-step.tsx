@@ -8,6 +8,7 @@ import type {
   ModelDeployment,
   SkillDefinition,
 } from "@tali/contracts";
+import { useTranslation } from "react-i18next";
 import { BookOpenText, Boxes, BrainCircuit, Check, ChevronDown, Info, Network, Pencil, Plus, ServerCog, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MultiSelectCombobox, type MultiSelectOption } from "@/components/ui/multi-select-combobox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useCurrentProjectId } from "@/hooks/use-project";
@@ -75,6 +77,7 @@ export function IdentityCapabilitiesStep({ agentPlatform, customSystemPrompt, em
   systemPrompt: string;
 }) {
   const projectId = useCurrentProjectId();
+  const { t } = useTranslation("createInstance");
   const [promptOpen, setPromptOpen] = useState(false);
   const [skillsOpen, setSkillsOpen] = useState(false);
   const [mcpOpen, setMcpOpen] = useState(false);
@@ -105,8 +108,8 @@ export function IdentityCapabilitiesStep({ agentPlatform, customSystemPrompt, em
     <div className="space-y-5">
       <Card>
         <CardHeader className="border-b">
-          <CardTitle>Define Work</CardTitle>
-          <CardDescription>Describe the job, then choose the Role and instructions that shape how this Instance performs it.</CardDescription>
+          <CardTitle>{t("defineAgent.title")}</CardTitle>
+          <CardDescription>{t("defineAgent.description")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(20rem,.8fr)]">
@@ -269,23 +272,16 @@ function MemoryCapabilityRow({ agentPlatform, embeddingModels, enabled, memory, 
           <p className="mt-1 text-xs text-muted-foreground">Durable, Instance-isolated context that helps OpenClaw remember decisions and preferences.</p>
           {supported && enabled ? <p className="mt-2 text-xs font-medium text-primary">{memory.mode === "hybrid" ? "Curated notes + semantic recall" : "Curated memory + daily notes"}</p> : null}
         </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={supported && enabled}
+        <Switch
+          checked={supported && enabled}
           aria-label="Enable Memory"
           disabled={!supported}
-          onClick={() => {
-            onEnabledChange(!enabled);
-            if (!enabled) onOpenChange(true);
+          onCheckedChange={(checked) => {
+            onEnabledChange(checked);
+            if (checked) onOpenChange(true);
           }}
-          className={cn(
-            "relative mt-1 h-6 w-11 shrink-0 rounded-full border transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-40",
-            supported && enabled ? "border-primary bg-primary" : "border-input bg-muted",
-          )}
-        >
-          <span className={cn("absolute top-0.5 size-4 rounded-full bg-background shadow-sm transition-transform", supported && enabled ? "translate-x-5" : "translate-x-1")} />
-        </button>
+          className="mt-1"
+        />
         <CollapsibleTrigger asChild>
           <Button type="button" size="icon" variant="ghost" aria-label={`${open ? "Collapse" : "Expand"} Memory`} disabled={!supported}>
             <ChevronDown className={cn("transition-transform", open && "rotate-180")} />

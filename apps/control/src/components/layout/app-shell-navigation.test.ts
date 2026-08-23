@@ -1,32 +1,35 @@
 import { describe, expect, it } from "vitest";
-import { getNavGroups, itemIsActive, navGroups } from "./app-shell";
+import { createPlatformI18n } from "@/i18n/create-i18n";
+import { itemIsActive, navGroups } from "./app-shell";
 
 describe("Project control-plane navigation", () => {
   it("uses Home as a section label with Instances and Memory beneath it", () => {
-    expect(navGroups.map((group) => group.label)).toEqual([
-      "Home",
-      "Capability toolbox",
-      "Governance",
-      "Evidence",
+    expect(navGroups.map((group) => group.labelKey)).toEqual([
+      "home",
+      "capabilityToolbox",
+      "governance",
+      "evidence",
     ]);
-    expect(navGroups.map((group) => group.items.map((item) => item.label))).toEqual([
-      ["Instances", "Memory"],
-      ["Specialist Agents", "Skills", "MCP Connections", "Knowledge Sources"],
-      ["Access Policies", "Runtime Policies"],
-      ["Traces", "Audit Logs", "Cost"],
+    expect(navGroups.map((group) => group.items.map((item) => item.labelKey))).toEqual([
+      ["instances", "memory"],
+      ["specialistAgents", "skills", "mcpConnections", "knowledgeSources"],
+      ["accessPolicies", "runtimePolicies"],
+      ["traces", "auditLogs", "cost"],
     ]);
-    expect(navGroups.flatMap((group) => group.items.map((item) => item.label))).not.toContain("Home");
+    expect(navGroups.flatMap((group) => group.items.map((item) => item.labelKey))).not.toContain("home");
   });
 
   it("localizes every navigation group and item for Simplified Chinese", () => {
-    const chineseGroups = getNavGroups("zh-CN");
-    expect(chineseGroups.map((group) => group.label)).toEqual([
+    const t = createPlatformI18n("zh-CN").getFixedT("zh-CN", "sidebar");
+    expect(navGroups.map((group) => t(`navigation.groups.${group.labelKey}`))).toEqual([
       "主页",
       "能力工具箱",
       "治理",
       "运行记录",
     ]);
-    expect(chineseGroups.map((group) => group.items.map((item) => item.label))).toEqual([
+    expect(navGroups.map((group) => group.items.map((item) =>
+      t(`navigation.items.${item.labelKey}`),
+    ))).toEqual([
       ["实例", "记忆"],
       ["专家智能体", "技能", "MCP 连接", "知识源"],
       ["访问策略", "运行时策略"],

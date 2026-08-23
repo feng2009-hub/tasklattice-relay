@@ -1,3 +1,4 @@
+import type { i18n } from "i18next";
 import type { QueryClient } from "@tanstack/react-query";
 import {
   HeadContent,
@@ -10,9 +11,12 @@ import { AuthGuard } from "@/components/auth/auth-guard";
 import { AuthProvider } from "@/components/auth/auth-provider";
 import { AppShell } from "@/components/layout/app-shell";
 import { ProjectProvider } from "@/components/project/project-provider";
+import { PlatformI18nProvider } from "@/components/providers/platform-i18n-provider";
+import { getInitialLanguage } from "@/i18n/initial-language";
 import appCss from "../styles.css?url";
 
 export const Route = createRootRouteWithContext<{
+  i18n: i18n;
   queryClient: QueryClient;
 }>()({
   component: RootApplication,
@@ -38,26 +42,29 @@ export const Route = createRootRouteWithContext<{
 });
 
 function RootApplication() {
+  const { i18n: instance } = Route.useRouteContext();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const isPublic = pathname === "/" || pathname === "/login";
   return (
-    <AuthProvider>
-      {isPublic ? (
-        <Outlet />
-      ) : (
-        <AuthGuard>
-          <ProjectProvider>
-            <AppShell />
-          </ProjectProvider>
-        </AuthGuard>
-      )}
-    </AuthProvider>
+    <PlatformI18nProvider instance={instance}>
+      <AuthProvider>
+        {isPublic ? (
+          <Outlet />
+        ) : (
+          <AuthGuard>
+            <ProjectProvider>
+              <AppShell />
+            </ProjectProvider>
+          </AuthGuard>
+        )}
+      </AuthProvider>
+    </PlatformI18nProvider>
   );
 }
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={getInitialLanguage()} suppressHydrationWarning>
       <head>
         <HeadContent />
         <script

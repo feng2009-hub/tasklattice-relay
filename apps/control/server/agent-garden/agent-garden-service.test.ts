@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import type {
   Instance as Agent,
-  CreateAgentGardenEntryInput,
+  OnboardContainerImageAgentInput,
+  OnboardExistingAgentInput,
 } from "@tali/contracts";
 import { createTestStore } from "../test/store";
+import type { ManagedAgentRuntimeClient } from "../kubernetes/managed-agent-runtime-client";
 import type { SecretStore } from "../secrets/secret-store";
 import type { AgentDiscoveryClient } from "./agent-discovery";
 import { AgentGardenService } from "./agent-garden-service";
@@ -54,7 +56,8 @@ function coordinator(id = "coordinator-a"): Agent {
   };
 }
 
-const githubAgentInput: CreateAgentGardenEntryInput = {
+const githubAgentInput: OnboardExistingAgentInput = {
+  sourceType: "existing-agent",
   name: "GitHub Operations",
   description: "Handles repository triage and pull request review tasks.",
   integrationType: "a2a",
@@ -67,6 +70,22 @@ const githubAgentInput: CreateAgentGardenEntryInput = {
   authReference: "",
   internalNetworkOnly: false,
   configuration: {},
+};
+
+const imageAgentInput: OnboardContainerImageAgentInput = {
+  sourceType: "container-image",
+  name: "Research Container",
+  description: "Handles delegated research and source validation tasks.",
+  category: "Research",
+  owner: "Research Platform",
+  tags: ["Research", "A2A"],
+  usageMode: "CALLABLE",
+  image: "ghcr.io/acme/research-agent:v1.4.0",
+  containerPort: 8_080,
+  agentCardPath: "/.well-known/agent-card.json",
+  imagePullSecretName: "",
+  command: [],
+  args: [],
 };
 
 describe("AgentGardenService", () => {
@@ -209,10 +228,10 @@ describe("AgentGardenService", () => {
       secrets,
     );
 
-    await expect(service.register(githubAgentInput)).rejects.toThrow(
+    await expect(service.onboard(githubAgentInput)).rejects.toThrow(
       "owner user is required",
     );
-    const agent = await service.register(githubAgentInput, "local-admin");
+    const agent = await service.onboard(githubAgentInput, "local-admin");
     expect(agent).toMatchObject({
       source: "PROJECT_REGISTERED",
       status: "READY",
@@ -278,7 +297,7 @@ describe("AgentGardenService", () => {
       projectStore,
       discovery,
     );
-    const interactive = await service.register(
+    const interactive = await service.onboard(
       {
         ...githubAgentInput,
         name: "Interactive repository workbench",
@@ -295,5 +314,148 @@ describe("AgentGardenService", () => {
         approvalMode: "ALWAYS_ASK",
       }),
     ).rejects.toThrow("does not accept delegated tasks");
+  });
+
+  it("deploys, discovers, and removes a Container Image Agent", async () => {
+    const projectStore = createTestStore();
+    await projectStore.database().projectRuntimeTarget.create({
+      data: {
+        projectId: projectStore.projectId,
+        clusterId: "in-cluster",
+        namespace: "tali-p-test-agent-garden",
+        status: "ready",
+      },
+    });
+    const runtime: ManagedAgentRuntimeClient = {
+      onboard: vi.fn(async (input) => ({
+        endpoint: `http://managed.${input.namespace}.svc.cluster.local:8080`,
+        agentCardUrl: `http://managed.${input.namespace}.svc.cluster.local:8080/.well-known/agent-card.json`,
+        deploymentName: "tali-a2a-managed",
+        serviceName: "tali-a2a-managed",
+        namespace: input.namespace,
+        imageReference: input.image,
+        imageDigest: "ghcr.io/acme/research-agent@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      })),
+      remove: vi.fn(async () => undefined),
+    };
+    const discovery: AgentDiscoveryClient = {
+      discover: vi.fn(async (agent) => ({
+        endpoint: agent.endpoint!,
+        agentCardUrl: agent.agentCardUrl,
+        skills: [{
+          id: "research",
+          name: "Research",
+          description: "Researches a delegated topic.",
+          tags: ["Research"],
+        }],
+      })),
+    };
+    const secrets: SecretStore = {
+      put: vi.fn(async () => "memory://test/secret"),
+      get: vi.fn(async () => "secret"),
+      delete: vi.fn(async () => undefined),
+    };
+    const service = new AgentGardenService(
+      new AgentGardenStore(projectStore.projectId, projectStore.database()),
+      projectStore,
+      discovery,
+      secrets,
+      runtime,
+    );
+
+    const agent = await service.onboard(imageAgentInput, "local-admin");
+
+    expect(agent).toMatchObject({
+      platformLabel: "A2A Container",
+      status: "READY",
+      internalNetworkOnly: true,
+      usageMode: "CALLABLE",
+      configuration: {
+        onboardingSource: "CONTAINER_IMAGE",
+        imageReference: imageAgentInput.image,
+        imageDigest: expect.stringContaining("@sha256:"),
+        deploymentName: "tali-a2a-managed",
+      },
+    });
+    expect(agent.skills.map((skill) => skill.id)).toEqual(["research"]);
+    expect(runtime.onboard).toHaveBeenCalledWith(expect.objectContaining({
+      agentId: agent.id,
+      image: imageAgentInput.image,
+      projectId: projectStore.projectId,
+    }));
+
+    await service.discover(agent.id);
+    expect(runtime.onboard).toHaveBeenLastCalledWith(expect.objectContaining({
+      image: "ghcr.io/acme/research-agent@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    }));
+
+    await expect(service.remove(agent.id)).resolves.toBe(true);
+    expect(runtime.remove).toHaveBeenCalledWith(expect.objectContaining({
+      agentId: agent.id,
+      projectId: projectStore.projectId,
+    }));
+  });
+
+  it("keeps a failed Container Image onboarding visible for retry", async () => {
+    const projectStore = createTestStore();
+    await projectStore.database().projectRuntimeTarget.create({
+      data: {
+        projectId: projectStore.projectId,
+        clusterId: "in-cluster",
+        namespace: "tali-p-test-agent-garden",
+        status: "ready",
+      },
+    });
+    const runtime: ManagedAgentRuntimeClient = {
+      onboard: vi.fn(async () => {
+        throw new Error("ImagePullBackOff: registry authentication failed");
+      }),
+      remove: vi.fn(async () => undefined),
+    };
+    const discovery: AgentDiscoveryClient = {
+      discover: vi.fn(),
+    };
+    const service = new AgentGardenService(
+      new AgentGardenStore(projectStore.projectId, projectStore.database()),
+      projectStore,
+      discovery,
+      undefined,
+      runtime,
+    );
+
+    const agent = await service.onboard(imageAgentInput, "local-admin");
+
+    expect(agent).toMatchObject({
+      status: "UNAVAILABLE",
+      lastDiscoveryError: "ImagePullBackOff: registry authentication failed",
+    });
+    expect(discovery.discover).not.toHaveBeenCalled();
+    await expect(service.store.getAgent(agent.id)).resolves.toMatchObject({
+      status: "UNAVAILABLE",
+    });
+  });
+
+  it("rejects Repository onboarding until the isolated builder is enabled", async () => {
+    const projectStore = createTestStore();
+    const service = new AgentGardenService(
+      new AgentGardenStore(projectStore.projectId, projectStore.database()),
+      projectStore,
+    );
+
+    await expect(service.onboard({
+      sourceType: "git-repository",
+      name: "Repository Agent",
+      description: "Builds and runs the Agent from a Git repository.",
+      category: "Developer Tools",
+      owner: "Developer Experience",
+      tags: [],
+      usageMode: "CALLABLE",
+      repositoryUrl: "https://github.com/acme/repository-agent",
+      revision: "main",
+      contextDir: ".",
+      dockerfile: "Dockerfile",
+      containerPort: 8_080,
+      agentCardPath: "/.well-known/agent-card.json",
+    }, "local-admin")).rejects.toThrow("not enabled yet");
   });
 });

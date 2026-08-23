@@ -304,10 +304,25 @@ if (
       resources: ["namespaces"],
       verbs: ["get", "create", "patch"],
     },
+    {
+      apiGroups: [""],
+      resources: ["services"],
+      verbs: ["get", "create", "patch", "delete"],
+    },
+    {
+      apiGroups: [""],
+      resources: ["pods"],
+      verbs: ["get", "list"],
+    },
+    {
+      apiGroups: ["apps"],
+      resources: ["deployments"],
+      verbs: ["get", "create", "patch", "delete"],
+    },
   ])
 ) {
   throw new Error(
-    "The Control Plane must be limited to ensuring Project Namespace metadata.",
+    "The Control Plane must be limited to Project Namespace metadata and managed Agent workloads.",
   );
 }
 

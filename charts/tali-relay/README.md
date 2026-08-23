@@ -83,8 +83,10 @@ Project name is stored as an annotation and a DNS-safe form is stored as a
 label. Relay does not install a tenant ServiceAccount, quota, limit range, or
 network policy. Set `projectRuntimeNamespaces.namePrefix` to a value unique to
 the Relay installation when multiple control planes share a cluster. The main
-Control Plane ServiceAccount has get/create/patch access to Namespaces; the
-separate deletion worker has get/delete access. There is no continuously
+Control Plane ServiceAccount can ensure Namespaces and manage Deployments and
+Services carrying matching Relay Project/Agent ownership metadata; it reads
+Pods only to resolve a running image to its immutable digest. The separate
+deletion worker has get/delete access to Namespaces. There is no continuously
 running reconciliation Deployment. Operators can repair all mappings with the
 packaged one-shot command:
 

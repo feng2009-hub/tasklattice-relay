@@ -115,6 +115,10 @@ describe("business API contracts", () => {
     expect(document.paths["/routing"]).toBeUndefined();
     expect(document.paths["/projects/{projectId}/runtime-policies"]).toBeDefined();
     expect(document.paths["/projects/{projectId}/policies"]).toBeUndefined();
+    expect(document.paths["/projects/{projectId}/agent-garden/onboard"]?.post)
+      .toMatchObject({ operationId: "onboardGardenAgent" });
+    expect(document.paths["/projects/{projectId}/agent-garden/agents"])
+      .toBeUndefined();
     const deleteProject = document.paths["/projects/{projectId}"]!.delete as {
       responses: Record<string, unknown>;
     };

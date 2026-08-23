@@ -3,13 +3,21 @@ import {
   agentConnectionSchema,
   agentGardenEntrySchema,
   createAgentConnectionSchema,
-  createAgentGardenEntrySchema,
+  onboardAgentSchema,
+  onboardContainerImageAgentSchema,
   type AgentConnection,
   type AgentGardenEntry,
   type AgentGardenSnapshot,
   type CreateAgentConnectionInput,
-  type CreateAgentGardenEntryInput,
+  type OnboardAgentInput,
+  type OnboardContainerImageAgentInput,
+  type OnboardExistingAgentInput,
 } from "@tali/contracts";
+import {
+  createManagedAgentRuntimeClient,
+  type ManagedAgentRuntimeClient,
+  type ManagedAgentRuntimeResult,
+} from "../kubernetes/managed-agent-runtime-client";
 import { ProjectStore } from "../projects/project-store";
 import {
   createSecretStore,
@@ -24,7 +32,7 @@ import { builtInAgentCatalog } from "./built-in-agent-catalog";
 import { databaseAgentCatalog } from "./database-agent-catalog";
 
 const integrationLabels: Record<
-  CreateAgentGardenEntryInput["integrationType"],
+  OnboardExistingAgentInput["integrationType"],
   string
 > = {
   a2a: "A2A Standard",
@@ -55,12 +63,70 @@ function safeError(error: unknown): string {
 }
 
 function usageCapabilities(
-  mode: CreateAgentGardenEntryInput["usageMode"],
+  mode: AgentGardenEntry["usageMode"],
 ): AgentGardenEntry["usageCapabilities"] {
   return {
     interactive: mode !== "CALLABLE",
     canDelegate: false,
     acceptsDelegation: mode !== "INTERACTIVE",
+  };
+}
+
+const CONTAINER_IMAGE_SOURCE = "CONTAINER_IMAGE";
+const EXISTING_AGENT_SOURCE = "EXISTING_AGENT";
+
+function configurationList(value: string | undefined): string[] {
+  if (!value) return [];
+  const parsed: unknown = JSON.parse(value);
+  if (!Array.isArray(parsed) || !parsed.every((item) => typeof item === "string")) {
+    throw new Error("Stored Agent container command configuration is invalid.");
+  }
+  return parsed;
+}
+
+function containerInputFromAgent(
+  agent: AgentGardenEntry,
+): OnboardContainerImageAgentInput {
+  return onboardContainerImageAgentSchema.parse({
+    sourceType: "container-image",
+    name: agent.name,
+    description: agent.description,
+    category: agent.category,
+    owner: agent.owner,
+    tags: agent.tags,
+    usageMode: "CALLABLE",
+    image:
+      agent.configuration.imageDigest
+      ?? agent.configuration.imageReference,
+    containerPort: Number(agent.configuration.containerPort),
+    agentCardPath: agent.configuration.agentCardPath,
+    imagePullSecretName: agent.configuration.imagePullSecretName ?? "",
+    command: configurationList(agent.configuration.command),
+    args: configurationList(agent.configuration.args),
+  });
+}
+
+function managedConfiguration(
+  input: OnboardContainerImageAgentInput,
+  runtime?: ManagedAgentRuntimeResult,
+  imageReference = input.image,
+): Record<string, string> {
+  return {
+    onboardingSource: CONTAINER_IMAGE_SOURCE,
+    imageReference,
+    containerPort: String(input.containerPort),
+    agentCardPath: input.agentCardPath,
+    imagePullSecretName: input.imagePullSecretName,
+    command: JSON.stringify(input.command),
+    args: JSON.stringify(input.args),
+    ...(runtime
+      ? {
+          imageDigest: runtime.imageDigest,
+          runtimeNamespace: runtime.namespace,
+          deploymentName: runtime.deploymentName,
+          serviceName: runtime.serviceName,
+        }
+      : {}),
   };
 }
 
@@ -73,6 +139,7 @@ export class AgentGardenService {
     ),
     readonly discovery: AgentDiscoveryClient = new HttpAgentDiscoveryClient(),
     readonly secrets: SecretStore = createSecretStore(),
+    readonly runtime: ManagedAgentRuntimeClient = createManagedAgentRuntimeClient(),
   ) {}
 
   async snapshot(ownerUserId?: string): Promise<AgentGardenSnapshot> {
@@ -106,11 +173,10 @@ export class AgentGardenService {
     };
   }
 
-  async register(
-    rawInput: CreateAgentGardenEntryInput,
+  private async onboardExisting(
+    input: OnboardExistingAgentInput,
     ownerUserId?: string,
   ): Promise<AgentGardenEntry> {
-    const input = createAgentGardenEntrySchema.parse(rawInput);
     const now = new Date().toISOString();
     const agent = agentGardenEntrySchema.parse({
       id: resourceId(input.name),
@@ -142,15 +208,91 @@ export class AgentGardenService {
     return this.discover(agent.id);
   }
 
+  async onboard(
+    rawInput: OnboardAgentInput,
+    ownerUserId?: string,
+  ): Promise<AgentGardenEntry> {
+    const input = onboardAgentSchema.parse(rawInput);
+    if (input.sourceType === "git-repository") {
+      throw new Error(
+        "Git Repository onboarding is not enabled yet. Build and publish the repository as an OCI image, then use Container Image onboarding.",
+      );
+    }
+    if (input.sourceType === "existing-agent") {
+      const { configuration } = input;
+      return this.onboardExisting(
+        {
+          ...input,
+          configuration: {
+            ...configuration,
+            onboardingSource: EXISTING_AGENT_SOURCE,
+          },
+        },
+        ownerUserId,
+      );
+    }
+
+    const now = new Date().toISOString();
+    const agent = agentGardenEntrySchema.parse({
+      id: resourceId(input.name),
+      name: input.name,
+      description: input.description,
+      source: "PROJECT_REGISTERED",
+      integrationType: "a2a",
+      platformLabel: "A2A Container",
+      category: input.category,
+      owner: input.owner,
+      tags: input.tags,
+      status: "UNCHECKED",
+      usageMode: "CALLABLE",
+      usageCapabilities: usageCapabilities("CALLABLE"),
+      endpoint: null,
+      agentCardUrl: null,
+      authType: "none",
+      authReference: "",
+      internalNetworkOnly: true,
+      configuration: managedConfiguration(input),
+      skills: [],
+      specializationId: null,
+      createdAt: now,
+      updatedAt: now,
+      lastDiscoveredAt: null,
+      lastDiscoveryError: null,
+    });
+    await this.store.saveAgent(agent, ownerUserId);
+    return this.discover(agent.id);
+  }
+
   async discover(id: string): Promise<AgentGardenEntry> {
     const current = await this.requireProjectRegisteredAgent(id);
-    const checking = await this.store.saveAgent({
+    let checking = await this.store.saveAgent({
       ...current,
       status: "UNCHECKED",
       updatedAt: new Date().toISOString(),
       lastDiscoveryError: null,
     });
     try {
+      if (checking.configuration.onboardingSource === CONTAINER_IMAGE_SOURCE) {
+        const input = containerInputFromAgent(checking);
+        const target = await this.requireRuntimeTarget();
+        const runtime = await this.runtime.onboard({
+          ...input,
+          agentId: checking.id,
+          namespace: target.namespace,
+          projectId: this.store.projectId,
+        });
+        checking = await this.store.saveAgent({
+          ...checking,
+          endpoint: runtime.endpoint,
+          agentCardUrl: runtime.agentCardUrl,
+          configuration: managedConfiguration(
+            input,
+            runtime,
+            checking.configuration.imageReference ?? input.image,
+          ),
+          updatedAt: new Date().toISOString(),
+        });
+      }
       const credential = checking.authReference
         ? await this.secrets.get(checking.authReference)
         : undefined;
@@ -176,11 +318,19 @@ export class AgentGardenService {
   }
 
   async remove(id: string): Promise<boolean> {
-    await this.requireProjectRegisteredAgent(id);
+    const agent = await this.requireProjectRegisteredAgent(id);
     if (await this.store.countConnectionsForAgent(id)) {
       throw new Error(
         "This Agent is connected to a Coordinator. Disconnect it before removal.",
       );
+    }
+    if (agent.configuration.onboardingSource === CONTAINER_IMAGE_SOURCE) {
+      const target = await this.requireRuntimeTarget();
+      await this.runtime.remove({
+        agentId: agent.id,
+        namespace: target.namespace,
+        projectId: this.store.projectId,
+      });
     }
     return this.store.deleteAgent(id);
   }
@@ -245,6 +395,24 @@ export class AgentGardenService {
       throw new Error("Built-in Agents are managed by TaskLattice Relay.");
     }
     return agent;
+  }
+
+  private async requireRuntimeTarget(): Promise<{ namespace: string }> {
+    const target = await this.store.database().projectRuntimeTarget.findUnique({
+      where: { projectId: this.store.projectId },
+      select: { namespace: true, status: true },
+    });
+    if (!target) {
+      throw new Error(
+        "This Project does not have a Runtime Namespace. Reconcile Project runtime targets before onboarding a Container Image.",
+      );
+    }
+    if (target.status !== "ready") {
+      throw new Error(
+        `Project Runtime Namespace is ${target.status}. Reconcile it before onboarding a Container Image.`,
+      );
+    }
+    return target;
   }
 
   private async requireConnectableAgent(

@@ -1,37 +1,37 @@
 import { Fragment } from "react";
+import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
 import { useProject } from "@/hooks/use-project";
-import { usePlatformLanguage } from "@/hooks/use-platform-language";
 import { cn } from "@/lib/utils";
-import type { AccountLanguage } from "@/services/personal-profile";
 
-const routeLabels: Record<string, string> = {
-  "access-policies": "Access Policies",
-  "agent-garden": "Agent Garden",
-  "audit-logs": "Audit Logs",
-  cost: "Cost",
-  help: "Help & documentation",
-  instances: "Runtime Instances",
-  "knowledge-base": "Knowledge Base",
-  memory: "Memory",
-  "mcp-servers": "MCP Servers",
-  notifications: "Notifications",
-  profile: "Account",
-  requests: "Requests",
-  "requests/new": "Raise Request",
-  runtime: "OpenShell Runtime",
-  "runtime-policies": "Runtime Policies",
-  setting: "Project Settings",
-  "setting/model-routings": "Routing",
-  skills: "Skills",
-  traces: "Traces",
-};
+const routeLabelKeys = {
+  "access-policies": "routes.accessPolicies",
+  "agent-garden": "routes.agentGarden",
+  "audit-logs": "routes.auditLogs",
+  cost: "routes.cost",
+  help: "routes.help",
+  instances: "routes.instances",
+  "knowledge-base": "routes.knowledgeBase",
+  memory: "routes.memory",
+  "mcp-servers": "routes.mcpServers",
+  notifications: "routes.notifications",
+  profile: "routes.profile",
+  requests: "routes.requests",
+  "requests/new": "routes.requestsNew",
+  runtime: "routes.runtime",
+  "runtime-policies": "routes.runtimePolicies",
+  setting: "routes.setting",
+  "setting/model-routings": "routes.modelRoutings",
+  skills: "routes.skills",
+  traces: "routes.traces",
+} as const;
 
-const detailLabels: Record<string, string> = {
-  "access-policies": "Policy details",
-  "agent-garden": "Agent details",
-  instances: "Instance details",
-  "setting/model-routings": "Routing details",
-};
+const detailLabelKeys = {
+  "access-policies": "details.accessPolicies",
+  "agent-garden": "details.agentGarden",
+  instances: "details.instances",
+  "setting/model-routings": "details.modelRoutings",
+} as const;
 
 export interface HeaderBreadcrumbItem {
   href: string;
@@ -48,11 +48,11 @@ function decodePathPart(part: string) {
 
 export function getHeaderBreadcrumbItems(
   pathname: string,
-  language: AccountLanguage = "en-US",
+  t: TFunction<"breadcrumbs">,
 ): HeaderBreadcrumbItem[] {
   const parts = pathname.split("/").filter(Boolean);
   if (parts[0] === "departments" && parts[1]) {
-    return [{ href: pathname, label: "Department settings" }];
+    return [{ href: pathname, label: t("departmentSettings") }];
   }
   const projectId = parts[0];
   const routeParts = parts.slice(1);
@@ -60,11 +60,15 @@ export function getHeaderBreadcrumbItems(
     const index = routeIndex + 1;
     const routeKey = routeParts.slice(0, routeIndex + 1).join("/");
     const parentKey = routeParts.slice(0, routeIndex).join("/");
-    const label = routeKey === "help" && language === "zh-CN"
-      ? "帮助与文档"
-      : routeLabels[routeKey]
-      ?? detailLabels[parentKey]
-      ?? decodePathPart(part);
+    const routeLabelKey =
+      routeLabelKeys[routeKey as keyof typeof routeLabelKeys];
+    const detailLabelKey =
+      detailLabelKeys[parentKey as keyof typeof detailLabelKeys];
+    const label = routeLabelKey
+      ? t(routeLabelKey)
+      : detailLabelKey
+        ? t(detailLabelKey)
+        : decodePathPart(part);
     return {
       href: `/${[projectId, ...parts.slice(1, index + 1)].join("/")}`,
       label,
@@ -74,20 +78,22 @@ export function getHeaderBreadcrumbItems(
 
 export function HeaderBreadcrumb({ pathname }: { pathname: string }) {
   const { currentProject } = useProject();
-  const language = usePlatformLanguage();
-  const items = getHeaderBreadcrumbItems(pathname, language);
+  const { t } = useTranslation("breadcrumbs");
+  const items = getHeaderBreadcrumbItems(pathname, t);
   const lastIndex = items.length - 1;
   const departmentRoute = pathname.startsWith("/departments/");
   const departmentId = pathname.split("/").filter(Boolean)[1];
   const rootTitle = departmentRoute
     ? currentProject?.department.id === departmentId
-      ? currentProject?.department.name ?? departmentId ?? "Department"
-      : departmentId ?? "Department"
-    : currentProject?.name ?? "Project";
+      ? currentProject?.department.name ??
+        departmentId ??
+        t("rootDepartment")
+      : departmentId ?? t("rootDepartment")
+    : currentProject?.name ?? t("rootProject");
 
   return (
     <nav
-      aria-label="Breadcrumb"
+      aria-label={t("ariaLabel")}
       className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground"
     >
       <span

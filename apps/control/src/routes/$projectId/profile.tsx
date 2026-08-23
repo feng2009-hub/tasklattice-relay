@@ -60,6 +60,7 @@ import {
   type PermissionItem,
 } from "@/features/account/permission-groups";
 import { useProject } from "@/hooks/use-project";
+import type { SupportedLanguage } from "@/i18n/config";
 import { switchProjectRole } from "@/services/project";
 import {
   applyPlatformPreferences,
@@ -72,7 +73,6 @@ import {
   personalProfileQueryKey,
   resetLocalPassword,
   updatePersonalProfile,
-  type AccountLanguage,
   type ThemePreference,
 } from "@/services/personal-profile";
 
@@ -125,7 +125,7 @@ function MyAccountPage() {
     queryKey: personalProfileQueryKey,
     queryFn: getPersonalProfile,
   });
-  const [language, setLanguage] = useState<AccountLanguage>("en-US");
+  const [language, setLanguage] = useState<SupportedLanguage>("en-US");
   const [theme, setTheme] = useState<ThemePreference>("system");
   const [timezone, setTimezone] = useState(detectedTimezone);
   const [now, setNow] = useState(() => new Date());
@@ -161,7 +161,7 @@ function MyAccountPage() {
     applyPlatformPreferences({ language, theme: nextTheme, timezone });
   };
 
-  const chooseLanguage = (nextLanguage: AccountLanguage) => {
+  const chooseLanguage = (nextLanguage: SupportedLanguage) => {
     setLanguage(nextLanguage);
     applyPlatformPreferences({ language: nextLanguage, theme, timezone });
   };
@@ -321,7 +321,7 @@ function MyAccountPage() {
                       className="flex h-11 w-full rounded-md border border-input bg-background pl-9 pr-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
                       value={language}
                       onChange={(event) =>
-                        chooseLanguage(event.target.value as AccountLanguage)
+                        chooseLanguage(event.target.value as SupportedLanguage)
                       }
                     >
                       <option value="en-US">English (United States)</option>

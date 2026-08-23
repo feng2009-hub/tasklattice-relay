@@ -12,6 +12,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import ReactMarkdown, { type Components } from "react-markdown";
+import { useTranslation } from "react-i18next";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -24,11 +25,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { usePlatformLanguage } from "@/hooks/use-platform-language";
 import { useProject } from "@/hooks/use-project";
+import { defaultLanguage, normalizeLanguage } from "@/i18n/config";
 import {
-  getHelpContent,
   getHelpRoute,
+  getHelpTopics,
   helpTopicIds,
   isHelpTopicId,
   type HelpTopic,
@@ -66,6 +67,7 @@ function TopicLink({
   topic: HelpTopic;
 }) {
   const Icon = topicIcons[topic.id];
+  const { t } = useTranslation("help");
   return (
     <li>
       <Link
@@ -80,7 +82,7 @@ function TopicLink({
         )}
       >
         <Icon className={cn("size-4 shrink-0 text-muted-foreground", active && "text-primary")} />
-        <span>{topic.navTitle}</span>
+        <span>{t(`topics.${topic.id}`)}</span>
       </Link>
     </li>
   );
@@ -164,38 +166,41 @@ function MarkdownDocument({ body, projectId }: { body: string; projectId: string
 }
 
 function HelpPage() {
-  const language = usePlatformLanguage();
-  const content = getHelpContent(language);
+  const { i18n, t } = useTranslation("help");
+  const language =
+    normalizeLanguage(i18n.resolvedLanguage ?? i18n.language) ??
+    defaultLanguage;
+  const topics = getHelpTopics(language);
   const { currentProject } = useProject();
   const { projectId } = Route.useParams();
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
   const roleTopicId = currentProject?.activeRole ?? "user";
   const selectedTopicId = search.topic ?? roleTopicId;
-  const selectedTopic = content.topics[selectedTopicId];
+  const selectedTopic = topics[selectedTopicId];
   const roleTopics = helpTopicIds
-    .map((topicId) => content.topics[topicId])
+    .map((topicId) => topics[topicId])
     .filter((topic) => topic.category === "role");
   const operationsTopics = helpTopicIds
-    .map((topicId) => content.topics[topicId])
+    .map((topicId) => topics[topicId])
     .filter((topic) => topic.category === "operations");
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title={content.title}
-        description={content.description}
+        title={t("title")}
+        description={t("description")}
         badge={
           <Badge variant="outline" className="gap-1.5">
             <BookOpenText />
-            {content.navigation.userGuides} · {content.navigation.operations}
+            {t("navigation.userGuides")} · {t("navigation.operations")}
           </Badge>
         }
       />
 
       <div className="lg:hidden">
         <label className="mb-2 block text-xs font-medium text-muted-foreground" htmlFor="help-topic-select">
-          {content.browse}
+          {t("browse")}
         </label>
         <Select
           value={selectedTopicId}
@@ -208,19 +213,19 @@ function HelpPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
-              <SelectLabel>{content.navigation.userGuides}</SelectLabel>
+              <SelectLabel>{t("navigation.userGuides")}</SelectLabel>
               {roleTopics.map((topic) => (
                 <SelectItem key={topic.id} value={topic.id}>
-                  {topic.navTitle}
+                  {t(`topics.${topic.id}`)}
                 </SelectItem>
               ))}
             </SelectGroup>
             <SelectSeparator />
             <SelectGroup>
-              <SelectLabel>{content.navigation.operations}</SelectLabel>
+              <SelectLabel>{t("navigation.operations")}</SelectLabel>
               {operationsTopics.map((topic) => (
                 <SelectItem key={topic.id} value={topic.id}>
-                  {topic.navTitle}
+                  {t(`topics.${topic.id}`)}
                 </SelectItem>
               ))}
             </SelectGroup>
@@ -231,13 +236,13 @@ function HelpPage() {
       <div className="grid items-start gap-6 lg:grid-cols-[16rem_minmax(0,1fr)]">
         <aside className="hidden lg:block">
           <nav
-            aria-label={content.navigation.title}
+            aria-label={t("navigation.title")}
             className="sticky top-24 rounded-lg border border-border/65 bg-card p-2"
           >
             <div className="px-3 pb-2 pt-1">
-              <h2 className="text-sm font-semibold">{content.navigation.userGuides}</h2>
+              <h2 className="text-sm font-semibold">{t("navigation.userGuides")}</h2>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                {content.navigation.userGuidesDescription}
+                {t("navigation.userGuidesDescription")}
               </p>
             </div>
             <ul className="space-y-0.5">
@@ -252,9 +257,9 @@ function HelpPage() {
             </ul>
             <div className="mx-3 my-3 h-px bg-border" />
             <div className="px-3 pb-2">
-              <h2 className="text-sm font-semibold">{content.navigation.operations}</h2>
+              <h2 className="text-sm font-semibold">{t("navigation.operations")}</h2>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                {content.navigation.operationsDescription}
+                {t("navigation.operationsDescription")}
               </p>
             </div>
             <ul className="space-y-0.5">
@@ -275,15 +280,15 @@ function HelpPage() {
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="secondary">
                 {selectedTopic.category === "role"
-                  ? content.navigation.userGuides
-                  : content.navigation.operations}
+                  ? t("navigation.userGuides")
+                  : t("navigation.operations")}
               </Badge>
               {selectedTopic.id === roleTopicId ? (
-                <Badge variant="outline">{content.currentRole}</Badge>
+                <Badge variant="outline">{t("currentRole")}</Badge>
               ) : null}
               {selectedTopic.preview ? (
                 <Badge variant="outline" className="border-amber-500/35 text-amber-700 dark:text-amber-300">
-                  {content.preview}
+                  {t("preview")}
                 </Badge>
               ) : null}
             </div>

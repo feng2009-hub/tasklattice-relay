@@ -1,7 +1,11 @@
-import type { AccessPolicy, AccessPolicyVersion } from "@tali/contracts";
+import {
+  DEFAULT_ACCESS_POLICY_ID,
+  type AccessPolicy,
+  type AccessPolicyVersion,
+} from "@tali/contracts";
 import type { Prisma, PrismaClient } from "../generated/prisma/client";
 
-export const DEFAULT_ACCESS_POLICY_ID = "00000000-0000-4000-8000-00000000da12";
+export { DEFAULT_ACCESS_POLICY_ID } from "@tali/contracts";
 
 const DEFAULT_ACCESS_POLICY_ACTOR = "system:setup";
 

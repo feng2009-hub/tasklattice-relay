@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
+import { createPlatformI18n } from "@/i18n/create-i18n";
 import { getHeaderBreadcrumbItems } from "./header-breadcrumb";
+
+const englishT = createPlatformI18n("en-US").getFixedT(
+  "en-US",
+  "breadcrumbs",
+);
+const chineseT = createPlatformI18n("zh-CN").getFixedT(
+  "zh-CN",
+  "breadcrumbs",
+);
 
 describe("getHeaderBreadcrumbItems", () => {
   it.each([
@@ -17,36 +27,36 @@ describe("getHeaderBreadcrumbItems", () => {
     ["cost", "Cost"],
     ["help", "Help & documentation"],
   ])("keeps %s directly beneath the Project", (segment, label) => {
-    expect(getHeaderBreadcrumbItems(`/individual/${segment}`)).toEqual([
+    expect(getHeaderBreadcrumbItems(`/individual/${segment}`, englishT)).toEqual([
       { href: `/individual/${segment}`, label },
     ]);
   });
 
   it("localizes the Help breadcrumb in Simplified Chinese", () => {
-    expect(getHeaderBreadcrumbItems("/individual/help", "zh-CN")).toEqual([
+    expect(getHeaderBreadcrumbItems("/individual/help", chineseT)).toEqual([
       { href: "/individual/help", label: "帮助与文档" },
     ]);
   });
 
   it("keeps only the real resource hierarchy for Instance details", () => {
-    expect(getHeaderBreadcrumbItems("/web3/instances/devops")).toEqual([
+    expect(getHeaderBreadcrumbItems("/web3/instances/devops", englishT)).toEqual([
       { href: "/web3/instances", label: "Runtime Instances" },
       { href: "/web3/instances/devops", label: "Instance details" },
     ]);
   });
 
   it("uses canonical request language", () => {
-    expect(getHeaderBreadcrumbItems("/individual/requests/new")).toEqual([
+    expect(getHeaderBreadcrumbItems("/individual/requests/new", englishT)).toEqual([
       { href: "/individual/requests", label: "Requests" },
       { href: "/individual/requests/new", label: "Raise Request" },
     ]);
   });
 
   it("distinguishes Account from Project settings", () => {
-    expect(getHeaderBreadcrumbItems("/individual/profile")).toEqual([
+    expect(getHeaderBreadcrumbItems("/individual/profile", englishT)).toEqual([
       { href: "/individual/profile", label: "Account" },
     ]);
-    expect(getHeaderBreadcrumbItems("/individual/setting")).toEqual([
+    expect(getHeaderBreadcrumbItems("/individual/setting", englishT)).toEqual([
       { href: "/individual/setting", label: "Project Settings" },
     ]);
   });
@@ -55,6 +65,7 @@ describe("getHeaderBreadcrumbItems", () => {
     expect(
       getHeaderBreadcrumbItems(
         "/individual/agent-garden/adk-customer-service",
+        englishT,
       ),
     ).toEqual([
       {
@@ -72,6 +83,7 @@ describe("getHeaderBreadcrumbItems", () => {
     expect(
       getHeaderBreadcrumbItems(
         "/individual/setting/model-routings/routing%2Fprimary",
+        englishT,
       ),
     ).toEqual([
       { href: "/individual/setting", label: "Project Settings" },
@@ -87,7 +99,7 @@ describe("getHeaderBreadcrumbItems", () => {
   });
 
   it("does not mistake a dynamic resource id for a route label", () => {
-    expect(getHeaderBreadcrumbItems("/individual/instances/memory")).toEqual([
+    expect(getHeaderBreadcrumbItems("/individual/instances/memory", englishT)).toEqual([
       { href: "/individual/instances", label: "Runtime Instances" },
       {
         href: "/individual/instances/memory",

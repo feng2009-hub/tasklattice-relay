@@ -18,6 +18,7 @@ import {
   Waypoints,
   type LucideIcon,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import type { AuthUser } from "@/components/auth/auth-provider";
 import { useAuth } from "@/components/auth/auth-provider";
 import { AccountMenu } from "@/components/account/account-menu";
@@ -42,20 +43,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { useProject } from "@/hooks/use-project";
 import { useProjectPermissions } from "@/hooks/use-project-permissions";
-import { usePlatformLanguage } from "@/hooks/use-platform-language";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { applyPlatformPreferences, getPlatformTheme } from "@/lib/platform-preferences";
 import {
-  getSidebarMessages,
-  type SidebarNavigationGroupKey,
-  type SidebarNavigationItemKey,
-} from "@/lib/sidebar-i18n";
-import {
   getPersonalProfile,
   personalProfileQueryKey,
 } from "@/services/personal-profile";
-import type { AccountLanguage } from "@/services/personal-profile";
 import { HeaderBreadcrumb } from "@/components/layout/header-breadcrumb";
 import { CreateProjectSheet } from "@/components/project/create-project-sheet";
 import { ProjectSwitcher } from "@/components/project/project-switcher";
@@ -87,21 +81,27 @@ type ProjectRoute =
 
 type NavItemDefinition = {
   icon: LucideIcon;
-  labelKey: SidebarNavigationItemKey;
-  label: string;
+  labelKey:
+    | "instances"
+    | "memory"
+    | "specialistAgents"
+    | "skills"
+    | "mcpConnections"
+    | "knowledgeSources"
+    | "accessPolicies"
+    | "runtimePolicies"
+    | "traces"
+    | "auditLogs"
+    | "cost";
   to: ProjectRoute;
 };
 
 type NavGroupDefinition = {
   items: NavItemDefinition[];
-  labelKey: SidebarNavigationGroupKey;
-  label: string;
+  labelKey: "home" | "capabilityToolbox" | "governance" | "evidence";
 };
 
-const navGroupDefinitions: Array<{
-  items: Array<Omit<NavItemDefinition, "label">>;
-  labelKey: SidebarNavigationGroupKey;
-}> = [
+export const navGroups: NavGroupDefinition[] = [
   {
     labelKey: "home",
     items: [
@@ -139,20 +139,6 @@ const navGroupDefinitions: Array<{
   },
 ];
 
-export function getNavGroups(language: AccountLanguage): NavGroupDefinition[] {
-  const messages = getSidebarMessages(language).navigation;
-  return navGroupDefinitions.map((group) => ({
-    labelKey: group.labelKey,
-    label: messages.groups[group.labelKey],
-    items: group.items.map((item) => ({
-      ...item,
-      label: messages.items[item.labelKey],
-    })),
-  }));
-}
-
-export const navGroups = getNavGroups("en-US");
-
 export function itemIsActive(item: NavItemDefinition, pathname: string, projectId: string) {
   const target = item.to.replace("$projectId", encodeURIComponent(projectId));
   const normalizedPathname = pathname.replace(/\/$/, "");
@@ -167,36 +153,36 @@ function NavigationItem({ item, pathname, projectId }: {
   projectId: string;
 }) {
   const { setOpenMobile } = useSidebar();
+  const { t } = useTranslation("sidebar");
   const active = itemIsActive(item, pathname, projectId);
+  const label = t(`navigation.items.${item.labelKey}`);
 
   return (
     <SidebarMenuItem>
-      <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
+      <SidebarMenuButton asChild isActive={active} tooltip={label}>
         <Link
           to={item.to}
           params={{ projectId }}
           onClick={() => setOpenMobile(false)}
           aria-current={active ? "page" : undefined}
-          aria-label={item.label}
+          aria-label={label}
         >
           <item.icon className={cn(active && "text-primary")} />
-          <span>{item.label}</span>
+          <span>{label}</span>
         </Link>
       </SidebarMenuButton>
     </SidebarMenuItem>
   );
 }
 
-function ProjectSidebar({ createProjectOpen, language, logout, onCreateProjectOpenChange, pathname, user }: {
+function ProjectSidebar({ createProjectOpen, logout, onCreateProjectOpenChange, pathname, user }: {
   createProjectOpen: boolean;
-  language: AccountLanguage;
   logout: () => void | Promise<void>;
   onCreateProjectOpenChange: (open: boolean) => void;
   pathname: string;
   user: AuthUser | null;
 }) {
-  const messages = getSidebarMessages(language);
-  const localizedNavGroups = getNavGroups(language);
+  const { t } = useTranslation("sidebar");
   const { isMobile, setOpenMobile, state } = useSidebar();
   const {
     currentProject,
@@ -211,16 +197,15 @@ function ProjectSidebar({ createProjectOpen, language, logout, onCreateProjectOp
     <ToastProvider duration={3_000} swipeDirection="right">
       <Sidebar
         collapsible="icon"
-        mobileDescription={messages.navigation.description}
-        mobileTitle={messages.navigation.title}
+        mobileDescription={t("navigation.description")}
+        mobileTitle={t("navigation.title")}
       >
         <SidebarHeader className="gap-1.5 border-b border-sidebar-border p-2">
-          <Link to="/$projectId" params={{ projectId }} onClick={() => setOpenMobile(false)} className="flex min-h-11 min-w-0 items-center gap-3 px-2 focus-visible:outline-2 group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:size-11 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0" aria-label={messages.brandHome}>
+          <Link to="/$projectId" params={{ projectId }} onClick={() => setOpenMobile(false)} className="flex min-h-11 min-w-0 items-center gap-3 px-2 focus-visible:outline-2 group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:size-11 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0" aria-label={t("brandHome")}>
             <BrandLogo compact={!isMobile && state === "collapsed"} />
           </Link>
           <ProjectSwitcher
             collapsed={!isMobile && state === "collapsed"}
-            language={language}
             onCreateProject={() => {
               setOpenMobile(false);
               onCreateProjectOpenChange(true);
@@ -233,10 +218,12 @@ function ProjectSidebar({ createProjectOpen, language, logout, onCreateProjectOp
           />
         </SidebarHeader>
         <SidebarContent>
-          <nav aria-label={messages.navigation.title} className="flex flex-col py-1">
-            {currentProject ? localizedNavGroups.map((group) => (
+          <nav aria-label={t("navigation.title")} className="flex flex-col py-1">
+            {currentProject ? navGroups.map((group) => (
               <SidebarGroup key={group.labelKey}>
-                <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+                <SidebarGroupLabel>
+                  {t(`navigation.groups.${group.labelKey}`)}
+                </SidebarGroupLabel>
                 <SidebarGroupContent>
                   <SidebarMenu>
                     {group.items
@@ -263,17 +250,17 @@ function ProjectSidebar({ createProjectOpen, language, logout, onCreateProjectOp
               <SidebarMenuButton
                 asChild
                 isActive={helpActive}
-                tooltip={messages.help.label}
+                tooltip={t("help.label")}
               >
                 <Link
                   to="/$projectId/help"
                   params={{ projectId }}
                   onClick={() => setOpenMobile(false)}
                   aria-current={helpActive ? "page" : undefined}
-                  aria-label={messages.help.label}
+                  aria-label={t("help.label")}
                 >
                   <CircleHelp />
-                  <span>{messages.help.label}</span>
+                  <span>{t("help.label")}</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
@@ -281,14 +268,13 @@ function ProjectSidebar({ createProjectOpen, language, logout, onCreateProjectOp
           <div className="mt-1 border-t border-sidebar-border pt-2">
             <AccountMenu
               collapsed={!isMobile && state === "collapsed"}
-              language={language}
               onLogout={logout}
               projectId={projectId}
               user={user}
             />
           </div>
         </SidebarFooter>
-        <SidebarRail label={messages.navigation.toggle} />
+        <SidebarRail label={t("navigation.toggle")} />
       </Sidebar>
 
       <CreateProjectSheet
@@ -314,12 +300,12 @@ function ProjectSidebar({ createProjectOpen, language, logout, onCreateProjectOp
             <CheckCircle2 className="size-4" />
           </span>
           <span>
-            <ToastTitle>{messages.switchToast.title}</ToastTitle>
+            <ToastTitle>{t("switchToast.title")}</ToastTitle>
             <ToastDescription>
               <strong className="block font-medium text-foreground">
                 {toastProject}
               </strong>
-              {messages.switchToast.description}
+              {t("switchToast.description")}
             </ToastDescription>
           </span>
         </div>
@@ -332,8 +318,7 @@ function ProjectSidebar({ createProjectOpen, language, logout, onCreateProjectOp
 
 export function AppShell() {
   const { logout, user } = useAuth();
-  const language = usePlatformLanguage();
-  const sidebarMessages = getSidebarMessages(language);
+  const { t } = useTranslation(["sidebar", "common"]);
   const account = useQuery({
     queryKey: personalProfileQueryKey,
     queryFn: getPersonalProfile,
@@ -382,7 +367,6 @@ export function AppShell() {
       <SidebarProvider open={sidebarOpen} onOpenChange={handleSidebarOpenChange}>
         <ProjectSidebar
           createProjectOpen={createProjectOpen}
-          language={language}
           logout={logout}
           onCreateProjectOpenChange={setCreateProjectOpen}
           pathname={pathname}
@@ -391,9 +375,9 @@ export function AppShell() {
         <SidebarInset>
           <div className="sticky top-0 z-30 bg-background/94 backdrop-blur-md">
             <header className="flex h-16 items-center gap-3 border-b px-4 sm:px-6 lg:px-8">
-              <SidebarTrigger label={sidebarMessages.navigation.toggle} />
+              <SidebarTrigger label={t("navigation.toggle")} />
               <HeaderBreadcrumb pathname={pathname} />
-              <button disabled className="ml-auto hidden h-9 w-64 cursor-not-allowed items-center gap-2 rounded-md border border-border/70 bg-muted/30 px-3 text-sm text-muted-foreground/45 md:flex"><Search className="size-3.5" />{sidebarMessages.search.label}<span className="ml-auto text-[10px] uppercase">{sidebarMessages.search.planned}</span></button>
+              <button disabled className="ml-auto hidden h-9 w-64 cursor-not-allowed items-center gap-2 rounded-md border border-border/70 bg-muted/30 px-3 text-sm text-muted-foreground/45 md:flex"><Search className="size-3.5" />{t("search.label")}<span className="ml-auto text-[10px] uppercase">{t("search.planned")}</span></button>
             </header>
           </div>
           <main
@@ -409,7 +393,7 @@ export function AppShell() {
               </div>
             ) : null}
             {!departmentRoute && projectLoading ? (
-              <div className="space-y-6" aria-label="Loading project data">
+              <div className="space-y-6" aria-label={t("projectEmptyState.loading")}>
                 <div className="h-20 animate-pulse rounded-md bg-muted/70" />
                 <div className="grid gap-4 md:grid-cols-3">
                   <div className="h-28 animate-pulse rounded-md bg-muted/60" />
@@ -421,17 +405,17 @@ export function AppShell() {
             ) : !currentProject && !departmentRoute ? (
               <section className="mx-auto max-w-md py-20 text-center" aria-labelledby="no-project-title">
                 <h1 id="no-project-title" className="text-lg font-semibold">
-                  No project available
+                  {t("projectEmptyState.title")}
                 </h1>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Create a Project before resources can be loaded.
+                  {t("projectEmptyState.description")}
                 </p>
                 <div className="mt-5 flex justify-center gap-3">
                   <Button onClick={() => setCreateProjectOpen(true)}>
-                    Create Project
+                    {t("projectEmptyState.create")}
                   </Button>
                   <Button variant="outline" onClick={() => void refreshProjects()}>
-                    Reload
+                    {t("common:actions.reload")}
                   </Button>
                 </div>
               </section>

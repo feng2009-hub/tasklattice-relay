@@ -10,7 +10,6 @@ import type {
   CreateKnowledgeSourceDefinitionInput,
   CreateAccessPolicyInput,
   CreateAgentConnectionInput,
-  CreateAgentGardenEntryInput,
   CreateInstanceInput,
   CostQueryParams,
   ModelCostActivityResponse,
@@ -39,6 +38,7 @@ import type {
   UpdateModelRoutingInput,
   McpServerDefinition,
   ModelDeployment,
+  OnboardAgentInput,
   ProviderAccount,
   ProviderConnectionCreationResult,
   ProviderConnectionDraft,
@@ -214,8 +214,8 @@ export const api = {
   getResourceCatalog: () => request<ResourceCatalog>("/api/v1/catalog"),
   getAgentGarden: () =>
     request<AgentGardenSnapshot>("/api/v1/agent-garden"),
-  registerGardenAgent: (input: CreateAgentGardenEntryInput) =>
-    request<AgentGardenEntry>("/api/v1/agent-garden/agents", {
+  onboardGardenAgent: (input: OnboardAgentInput) =>
+    request<AgentGardenEntry>("/api/v1/agent-garden/onboard", {
       method: "POST",
       body: JSON.stringify(input),
     }),

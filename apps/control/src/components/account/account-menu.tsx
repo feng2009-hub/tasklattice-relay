@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Bell, ChevronDown, CircleUserRound, LogOut } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { AccountAvatar } from "@/components/account/account-avatar";
 import type { AuthUser } from "@/components/auth/auth-provider";
@@ -13,16 +14,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { getSidebarMessages } from "@/lib/sidebar-i18n";
 import {
   getNotifications,
   notificationsQueryKey,
 } from "@/services/notifications";
-import type { AccountLanguage } from "@/services/personal-profile";
 
 type AccountMenuProps = {
   collapsed?: boolean;
-  language: AccountLanguage;
   onLogout: () => void | Promise<void>;
   projectId: string;
   user: AuthUser | null;
@@ -48,16 +46,15 @@ function UserAvatar({
 
 export function AccountMenu({
   collapsed = false,
-  language,
   onLogout,
   projectId,
   user,
 }: AccountMenuProps) {
-  const messages = getSidebarMessages(language);
-  const displayName = user?.displayName || user?.username || messages.account.user;
+  const { t } = useTranslation("sidebar");
+  const displayName = user?.displayName || user?.username || t("account.user");
   const accountLabel = user?.hasPassword
-    ? messages.account.localAccount
-    : messages.account.ssoAccount;
+    ? t("account.localAccount")
+    : t("account.ssoAccount");
   const notifications = useQuery({
     queryKey: notificationsQueryKey,
     queryFn: getNotifications,
@@ -69,7 +66,7 @@ export function AccountMenu({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          aria-label={messages.account.openMenu(displayName)}
+          aria-label={t("account.openMenu", { displayName })}
           className={cn(
             "group flex items-center rounded-md outline-none transition-colors hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/30 data-[state=open]:bg-accent",
             collapsed
@@ -116,13 +113,13 @@ export function AccountMenu({
         <DropdownMenuItem asChild>
           <Link to="/$projectId/profile" params={{ projectId }}>
             <CircleUserRound className="size-4" />
-            {messages.account.account}
+            {t("account.account")}
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link to="/$projectId/notifications" params={{ projectId }}>
             <Bell className="size-4" />
-            {messages.account.notifications}
+            {t("account.notifications")}
             {unreadCount ? (
               <span className="ml-auto min-w-5 rounded-sm bg-primary px-1.5 py-0.5 text-center text-[10px] font-semibold text-primary-foreground">
                 {unreadCount > 99 ? "99+" : unreadCount}
@@ -136,7 +133,7 @@ export function AccountMenu({
           onSelect={() => void onLogout()}
         >
           <LogOut className="size-4" />
-          {messages.account.signOut}
+          {t("account.signOut")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

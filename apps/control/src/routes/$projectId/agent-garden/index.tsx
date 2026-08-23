@@ -228,14 +228,14 @@ function AgentGarden() {
     <div className="space-y-6">
       <PageHeader
         title="Agent Garden"
-        description="Discover ready-to-use Agents for this Project, or register a remote Agent built with another platform."
+        description="Discover ready-to-use Agents, deploy an A2A container, or connect an Agent that already runs elsewhere."
         actions={(
           <Button
             className="h-11"
             disabled={!permissions.canManageResources}
             onClick={() => setRegistrationOpen(true)}
           >
-            <Plus /> Register Agent
+            <Plus /> Onboard Agent
           </Button>
         )}
       />
@@ -409,8 +409,8 @@ function AgentGarden() {
           setDetailId(agent.id);
           void refreshGarden(
             agent.status === "READY"
-              ? `${agent.name} was registered and is ready.`
-              : `${agent.name} was saved, but discovery needs attention.`,
+              ? `${agent.name} was onboarded and is ready.`
+              : `${agent.name} was onboarded, but its runtime needs attention.`,
           );
         }}
       />

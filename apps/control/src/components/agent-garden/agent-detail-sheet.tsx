@@ -57,6 +57,8 @@ export function AgentDetailSheet({
   refreshing: boolean;
 }) {
   const preview = agent ? isPreviewAgent(agent) : false;
+  const managedContainer =
+    agent?.configuration.onboardingSource === "CONTAINER_IMAGE";
   const agentConnections = connections.filter(
     (connection) => connection.connectedAgentId === agent?.id,
   );
@@ -102,7 +104,13 @@ export function AgentDetailSheet({
               onClick={onRefresh}
             >
               <Activity />
-              {refreshing ? "Discovering…" : "Refresh discovery"}
+              {refreshing
+                ? managedContainer
+                  ? "Reconciling runtime…"
+                  : "Discovering…"
+                : managedContainer
+                  ? "Reconcile & validate"
+                  : "Refresh discovery"}
             </Button>
           ) : null}
           {agent?.usageCapabilities.interactive &&
@@ -192,7 +200,9 @@ export function AgentDetailSheet({
                     ? agent.configuration.catalogKind === "EXAMPLE_BLUEPRINT"
                       ? "Database-backed example blueprint"
                       : "TaskLattice Relay built-in"
-                    : "Project registered",
+                    : managedContainer
+                      ? "Project-managed container image"
+                      : "Existing Agent connection",
               },
               {
                 label: "Owner",
@@ -212,6 +222,32 @@ export function AgentDetailSheet({
                 value: agent.agentCardUrl ?? "Not advertised",
                 mono: Boolean(agent.agentCardUrl),
               },
+              ...(managedContainer
+                ? [
+                    {
+                      label: "Image",
+                      value:
+                        agent.configuration.imageDigest
+                        ?? agent.configuration.imageReference
+                        ?? "Pending image resolution",
+                      mono: true,
+                    },
+                    {
+                      label: "Runtime Namespace",
+                      value:
+                        agent.configuration.runtimeNamespace
+                        ?? "Pending deployment",
+                      mono: true,
+                    },
+                    {
+                      label: "Deployment",
+                      value:
+                        agent.configuration.deploymentName
+                        ?? "Pending deployment",
+                      mono: true,
+                    },
+                  ]
+                : []),
               {
                 label: "Last discovered",
                 value: agent.lastDiscoveredAt

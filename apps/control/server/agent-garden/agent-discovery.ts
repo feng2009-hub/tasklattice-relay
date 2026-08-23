@@ -156,10 +156,11 @@ export class HttpAgentDiscoveryClient implements AgentDiscoveryClient {
         throw new Error(`Agent Card discovery failed with HTTP ${response.status}.`);
       }
       const card = agentCardSchema.parse(JSON.parse(await responseText(response)));
-      const endpoint =
-        card.supportedInterfaces?.[0]?.url
-        ?? card.url
-        ?? agent.endpoint;
+      const endpoint = agent.configuration.onboardingSource === "CONTAINER_IMAGE"
+        ? agent.endpoint
+        : card.supportedInterfaces?.[0]?.url
+          ?? card.url
+          ?? agent.endpoint;
       assertEndpointPolicy(endpoint, agent.internalNetworkOnly);
       return {
         endpoint,

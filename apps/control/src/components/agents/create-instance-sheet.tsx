@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import {
   defaultNativeAgentMemoryConfiguration,
   defaultAgentPlatformId,
@@ -22,6 +23,7 @@ import {
   Waypoints,
 } from "lucide-react";
 import { AgentSelect } from "@/components/agents/agent-select";
+import { activeDefaultAccessPolicyId } from "@/components/agents/access-policy-selection";
 import { ChangeSpecializationDialog } from "@/components/agents/change-specialization-dialog";
 import {
   availableCapabilityIds,
@@ -32,15 +34,12 @@ import {
   updateCapabilitySelection,
   type SelectedCapability,
 } from "@/components/agents/capability-selection";
-import {
-  CreateInstanceLayout,
-  type CreateInstanceStep,
-} from "@/components/agents/create-instance-layout";
 import { IdentityCapabilitiesStep } from "@/components/agents/identity-capabilities-step";
 import {
   getSpecialization,
   type SpecializationId,
 } from "@/components/agents/specializations";
+import { CreationFlow } from "@/components/shared/creation-flow";
 import { EntitySheet } from "@/components/shared/entity-sheet";
 import { Button } from "@/components/ui/button";
 import {
@@ -72,15 +71,6 @@ import { api } from "@/lib/api";
 import { getAgentPlatformPresentation } from "@/lib/agent-platforms";
 import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
 import { useCurrentProjectId } from "@/hooks/use-project";
-
-const steps: readonly CreateInstanceStep[] = [
-  { label: "Define Work", description: "Set the job and extensions" },
-  {
-    label: "Security & Runtime",
-    description: "Choose access, execution, and routing",
-  },
-  { label: "Review & Approve", description: "Evaluate and confirm" },
-];
 
 function capabilityName(
   id: string,
@@ -114,6 +104,21 @@ export function CreateInstanceSheet({
   const navigate = useNavigate();
   const projectId = useCurrentProjectId();
   const scope = useProjectQueryScope();
+  const { t } = useTranslation("createInstance");
+  const steps = [
+    {
+      label: t("defineAgent.title"),
+      description: t("defineAgent.stepDescription"),
+    },
+    {
+      label: t("securityRuntime.title"),
+      description: t("securityRuntime.stepDescription"),
+    },
+    {
+      label: t("review.title"),
+      description: t("review.stepDescription"),
+    },
+  ];
   const [step, setStep] = useState(0);
   const [specializationId, setSpecializationId] = useState<SpecializationId>(
     initialSpecializationId,
@@ -173,6 +178,9 @@ export function CreateInstanceSheet({
   );
   const defaultModelRouting =
     defaultModelRoutings.length === 1 ? defaultModelRoutings[0] : undefined;
+  const defaultAccessPolicyId = activeDefaultAccessPolicyId(
+    accessPolicies.data ?? [],
+  );
   const accessPolicyOptions: MultiSelectOption[] = (
     accessPolicies.data ?? []
   ).map((policy) => ({
@@ -237,6 +245,15 @@ export function CreateInstanceSheet({
     if (!policies.data?.defaultPolicyId || form.state.values.policyId) return;
     form.setFieldValue("policyId", policies.data.defaultPolicyId);
   }, [form, policies.data?.defaultPolicyId]);
+
+  useEffect(() => {
+    if (
+      !defaultAccessPolicyId ||
+      form.state.values.accessPolicyIds.length
+    )
+      return;
+    form.setFieldValue("accessPolicyIds", [defaultAccessPolicyId]);
+  }, [defaultAccessPolicyId, form]);
 
   useEffect(() => {
     if (!defaultModelRouting?.id || form.state.values.modelRoutingId) return;
@@ -461,6 +478,7 @@ export function CreateInstanceSheet({
     <>
       <EntitySheet
         {...shellProps}
+        bodyClassName="p-0 sm:p-0"
         footer={
           <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
             {step === 0 ? (
@@ -615,10 +633,12 @@ export function CreateInstanceSheet({
           </div>
         }
       >
-        <CreateInstanceLayout
+        <CreationFlow
           steps={steps}
           currentStep={step}
           onStepChange={setStep}
+          progressLabel={t("progressLabel")}
+          orientation="sidebar"
         >
           <form
             onSubmit={(event) => event.preventDefault()}
@@ -1293,7 +1313,7 @@ export function CreateInstanceSheet({
               </p>
             ) : null}
           </form>
-        </CreateInstanceLayout>
+        </CreationFlow>
       </EntitySheet>
       {pendingSpecialization ? (
         <ChangeSpecializationDialog

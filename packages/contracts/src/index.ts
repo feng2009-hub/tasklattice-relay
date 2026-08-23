@@ -783,6 +783,7 @@ export const updateMcpServerDefinitionSchema = createMcpServerDefinitionSchema;
 
 export const accessPolicyStatuses = ["DRAFT", "ACTIVE"] as const;
 export const accessPolicyDecisions = ["INHERIT", "ALLOW", "DENY"] as const;
+export const DEFAULT_ACCESS_POLICY_ID = "00000000-0000-4000-8000-00000000da12";
 
 export const accessPolicyToolRuleSchema = z.object({
   toolName: z.string().trim().min(1).max(200),
@@ -966,7 +967,93 @@ export const agentGardenEntrySchema = z.object({
   lastDiscoveryError: z.string().max(4_000).nullable(),
 }).strict();
 
-export const createAgentGardenEntrySchema = z.object({
+export const agentOnboardSourceTypeIds = [
+  "container-image",
+  "git-repository",
+  "existing-agent",
+] as const;
+
+const managedAgentIdentitySchema = z.object({
+  name: z.string().trim().min(3).max(160),
+  description: z.string().trim().min(10).max(2_000),
+  category: z.string().trim().min(2).max(80),
+  owner: z.string().trim().min(1).max(120),
+  tags: z.array(z.string().trim().min(1).max(80)).max(32).default([]),
+});
+
+const containerImageReferenceSchema = z.string().trim().min(1).max(500).regex(
+  /^[A-Za-z0-9][A-Za-z0-9._:/@-]*$/,
+  "Enter an OCI image reference without a URL scheme or whitespace.",
+);
+
+const containerCommandSchema = z
+  .array(z.string().min(1).max(500))
+  .max(64)
+  .default([]);
+
+const agentCardPathSchema = z.string().trim().min(1).max(240).startsWith(
+  "/",
+  "Agent Card path must start with /.",
+).refine(
+  (path) => !path.includes("?") && !path.includes("#"),
+  "Agent Card path cannot contain a query string or fragment.",
+);
+
+const imagePullSecretNameSchema = z.union([
+  z.literal(""),
+  z.string().trim().min(1).max(253).regex(
+    /^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/,
+    "Image pull Secret name must be a lowercase Kubernetes resource name.",
+  ),
+]);
+
+export const onboardContainerImageAgentSchema = managedAgentIdentitySchema
+  .extend({
+    sourceType: z.literal("container-image"),
+    image: containerImageReferenceSchema,
+    containerPort: z.number().int().min(1).max(65_535).default(8_080),
+    agentCardPath: agentCardPathSchema.default(
+      "/.well-known/agent-card.json",
+    ),
+    imagePullSecretName: imagePullSecretNameSchema.default(""),
+    command: containerCommandSchema,
+    args: containerCommandSchema,
+    usageMode: z.literal("CALLABLE").default("CALLABLE"),
+  })
+  .strict();
+
+export const onboardGitRepositoryAgentSchema = managedAgentIdentitySchema
+  .extend({
+    sourceType: z.literal("git-repository"),
+    repositoryUrl: z.string().trim().url(),
+    revision: z.string().trim().min(1).max(200).default("main"),
+    contextDir: z.string().trim().min(1).max(240).default("."),
+    dockerfile: z.string().trim().min(1).max(240).default("Dockerfile"),
+    containerPort: z.number().int().min(1).max(65_535).default(8_080),
+    agentCardPath: agentCardPathSchema.default(
+      "/.well-known/agent-card.json",
+    ),
+    usageMode: z.literal("CALLABLE").default("CALLABLE"),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    let protocol: string;
+    try {
+      protocol = new URL(value.repositoryUrl).protocol;
+    } catch {
+      return;
+    }
+    if (protocol !== "https:" && protocol !== "http:") {
+      context.addIssue({
+        code: "custom",
+        path: ["repositoryUrl"],
+        message: "Git repository URL must use HTTP or HTTPS.",
+      });
+    }
+  });
+
+export const onboardExistingAgentSchema = z.object({
+  sourceType: z.literal("existing-agent"),
   name: z.string().trim().min(3).max(160),
   description: z.string().trim().min(10).max(2_000),
   integrationType: z.enum(agentGardenRegisterableTypeIds),
@@ -988,7 +1075,13 @@ export const createAgentGardenEntrySchema = z.object({
       message: "A Secret reference is required for this authentication type.",
     });
   }
-}).meta({ id: "CreateAgentGardenEntryInput" });
+});
+
+export const onboardAgentSchema = z.discriminatedUnion("sourceType", [
+  onboardContainerImageAgentSchema,
+  onboardGitRepositoryAgentSchema,
+  onboardExistingAgentSchema,
+]).meta({ id: "OnboardAgentInput" });
 
 export const agentConnectionApprovalModeIds = [
   "AUTO_READ_ONLY",
@@ -1277,7 +1370,18 @@ export type AgentGardenUsageMode = (typeof agentGardenUsageModeIds)[number];
 export type AgentGardenUsageCapabilities = z.infer<typeof agentGardenUsageCapabilitiesSchema>;
 export type AgentGardenSkill = z.infer<typeof agentGardenSkillSchema>;
 export type AgentGardenEntry = z.infer<typeof agentGardenEntrySchema>;
-export type CreateAgentGardenEntryInput = z.infer<typeof createAgentGardenEntrySchema>;
+export type AgentOnboardSourceType =
+  (typeof agentOnboardSourceTypeIds)[number];
+export type OnboardContainerImageAgentInput = z.infer<
+  typeof onboardContainerImageAgentSchema
+>;
+export type OnboardGitRepositoryAgentInput = z.infer<
+  typeof onboardGitRepositoryAgentSchema
+>;
+export type OnboardExistingAgentInput = z.infer<
+  typeof onboardExistingAgentSchema
+>;
+export type OnboardAgentInput = z.infer<typeof onboardAgentSchema>;
 
 export interface AgentMarketplaceBrief {
   tagline: string;

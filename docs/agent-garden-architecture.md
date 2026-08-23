@@ -2,11 +2,11 @@
 
 ## Outcome
 
-Agent Garden is the Project-scoped catalog for discovering, registering, and
+Agent Garden is the Project-scoped catalog for discovering, onboarding, and
 connecting Agents. It deliberately separates three concepts:
 
-- **Agent definition** — a reusable built-in template or a Project-registered
-  remote Agent.
+- **Agent definition** — a reusable built-in template, a Project-managed
+  container, or an existing remote Agent.
 - **Agent Instance** — a running OpenClaw or Hermes runtime created from a
   built-in definition.
 - **Agent connection** — an explicit authorization for one Coordinator
@@ -84,7 +84,7 @@ label shows Agents matching at least one selected capability. The groups
 mirror the reference experience while using TaskLattice Relay's existing cards,
 typography, spacing, and interaction patterns.
 
-The registration wizard reuses the same lightweight, underline-based progress
+The onboarding wizard reuses the same lightweight, underline-based progress
 component as Instance creation. Completed steps remain clickable, future steps
 stay disabled, and only the current step receives primary emphasis.
 
@@ -103,17 +103,36 @@ The richer brief is stored as versioned catalog metadata rather than embedded
 only in the UI, so every Project sees the same marketplace description and
 future seed versions can update it idempotently.
 
-Project registration supports A2A Standard, LangGraph, LangFlow, Bedrock
-AgentCore, Azure AI Foundry, Pydantic AI, Vertex AI Agent Engine, watsonx
-Orchestrate, and Custom / Other.
+Project onboarding has three source tabs:
 
-Registration is a three-step flow: choose an adapter, configure identity and
-connection details, then review and discover. The usage mode is selected
-explicitly:
+- **Container Image** is the primary implemented path. Control creates a
+  Deployment and internal ClusterIP Service in the Project Runtime Namespace,
+  waits for readiness, reads the Pod's resolved image ID, reapplies the
+  Deployment with the immutable digest, and validates the A2A Agent Card. The
+  image's ENTRYPOINT/CMD is used unless command or arguments are explicitly
+  supplied. Private registries reference an existing Secret by name.
+- **Existing Agent** connects an already-running A2A Standard, LangGraph,
+  LangFlow, Bedrock AgentCore, Azure AI Foundry, Pydantic AI, Vertex AI Agent
+  Engine, watsonx Orchestrate, or custom endpoint.
+- **Git Repository** documents the intended input contract but is not yet
+  submit-enabled. Its future builder must produce a provenance-attested OCI
+  image and then enter the same immutable Container Image path.
+
+Onboarding is a three-step flow: choose the source, configure identity and
+access, then review and validate. Existing Agents select usage explicitly:
 
 - `INTERACTIVE` — opens independently and cannot be connected;
 - `CALLABLE` — accepts delegated tasks;
 - `HYBRID` — supports both.
+
+Managed Container Image Agents are always `CALLABLE` in the current phase and
+remain internal to the cluster. They run without a Kubernetes service-account
+token, drop Linux capabilities, disallow privilege escalation, and use the
+Project namespace's admission policy. Control verifies exact Project and Agent
+ownership annotations before changing or deleting a pre-existing resource.
+If deployment or discovery fails, the Project catalog record remains
+`UNAVAILABLE` with the latest error so an administrator can retry the same
+idempotent path or remove both runtime resources and the catalog entry.
 
 ## Discovery and endpoint security
 
@@ -154,7 +173,7 @@ catalog Agent.
 | Method | Path suffix | Purpose |
 | --- | --- | --- |
 | `GET` | `/agent-garden` | Read built-in definitions, Project registrations, and connections |
-| `POST` | `/agent-garden/agents` | Register and immediately discover a remote Agent |
+| `POST` | `/agent-garden/onboard` | Deploy a container image or connect and discover an existing Agent |
 | `POST` | `/agent-garden/agents/:id/discover` | Refresh its discovery snapshot |
 | `DELETE` | `/agent-garden/agents/:id` | Remove a Project registration |
 | `POST` | `/agent-garden/connections` | Authorize a Coordinator connection |
@@ -187,10 +206,11 @@ endpoints:
 
 ## Runtime boundary
 
-The current implementation delivers the Agent Garden **control plane**:
-catalog, filters, registration, discovery, capability enforcement, and desired
-connection state. A connection means “authorized and available for runtime
-reconciliation”; it does not claim that a task has already run.
+The current implementation delivers the Agent Garden catalog and real
+Container Image onboarding lifecycle: deployment, internal service creation,
+digest pinning, Agent Card discovery, refresh, and removal. It also stores
+capability-enforced desired connection state. A Coordinator connection means
+“authorized for delegation”; it does not claim that a task has already run.
 
 The runtime phase should expose one TaskLattice Relay delegation tool inside each
 Coordinator. That tool will:

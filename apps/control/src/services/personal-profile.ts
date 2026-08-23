@@ -1,7 +1,9 @@
+import type { SupportedLanguage } from "@/i18n/config";
+
 export interface PersonalProfile {
   displayName: string;
   email: string;
-  language: AccountLanguage;
+  language: SupportedLanguage;
   hasPassword: boolean;
   systemRole: "user" | "super_administrator";
   theme: ThemePreference;
@@ -9,7 +11,6 @@ export interface PersonalProfile {
   username: string;
 }
 
-export type AccountLanguage = "en-US" | "zh-CN";
 export type ThemePreference = "system" | "light" | "dark";
 
 export const personalProfileQueryKey = ["personal-profile"] as const;
@@ -40,7 +41,7 @@ export function getPersonalProfile(): Promise<PersonalProfile> {
 }
 
 export function updatePersonalProfile(input: {
-  language: AccountLanguage;
+  language: SupportedLanguage;
   theme: ThemePreference;
   timezone: string;
 }): Promise<PersonalProfile> {

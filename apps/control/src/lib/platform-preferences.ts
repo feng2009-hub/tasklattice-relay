@@ -1,9 +1,11 @@
-import type {
-  AccountLanguage,
-  ThemePreference,
-} from "@/services/personal-profile";
+import type { ThemePreference } from "@/services/personal-profile";
+import {
+  defaultLanguage,
+  LANGUAGE_COOKIE_NAME,
+  normalizeLanguage,
+  type SupportedLanguage,
+} from "@/i18n/config";
 
-const languageKey = "tali.account.language";
 const themeKey = "tali.account.theme";
 const timezoneKey = "tali.account.timezone";
 export const PREFERENCES_CHANGED_EVENT = "tali:preferences-changed";
@@ -19,11 +21,13 @@ export function getPlatformTheme(): ThemePreference {
   return value === "light" || value === "dark" ? value : "system";
 }
 
-export function getPlatformLanguage(): AccountLanguage {
-  if (typeof window === "undefined") return "en-US";
-  return window.localStorage.getItem(languageKey) === "zh-CN"
-    ? "zh-CN"
-    : "en-US";
+export function getPlatformLanguage(): SupportedLanguage {
+  if (typeof window === "undefined") return defaultLanguage;
+  return (
+    normalizeLanguage(window.localStorage.getItem(LANGUAGE_COOKIE_NAME)) ??
+    normalizeLanguage(document.documentElement.lang) ??
+    defaultLanguage
+  );
 }
 
 export function getPlatformTimezone(): string {
@@ -31,13 +35,28 @@ export function getPlatformTimezone(): string {
   return window.localStorage.getItem(timezoneKey) || detectedTimezone();
 }
 
+function persistPlatformLanguage(language: SupportedLanguage): void {
+  window.localStorage.setItem(LANGUAGE_COOKIE_NAME, language);
+  const secure = window.location.protocol === "https:" ? "; Secure" : "";
+  document.cookie = `${LANGUAGE_COOKIE_NAME}=${encodeURIComponent(language)}; Path=/; Max-Age=31536000; SameSite=Lax${secure}`;
+  document.documentElement.lang = language;
+}
+
+export function applyPlatformLanguage(language: SupportedLanguage): void {
+  if (typeof window === "undefined") return;
+  persistPlatformLanguage(language);
+  window.dispatchEvent(
+    new CustomEvent(PREFERENCES_CHANGED_EVENT, { detail: { language } }),
+  );
+}
+
 export function applyPlatformPreferences(input: {
-  language: AccountLanguage;
+  language: SupportedLanguage;
   theme: ThemePreference;
   timezone: string;
 }): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(languageKey, input.language);
+  persistPlatformLanguage(input.language);
   window.localStorage.setItem(themeKey, input.theme);
   window.localStorage.setItem(timezoneKey, input.timezone);
   const dark =
@@ -45,7 +64,6 @@ export function applyPlatformPreferences(input: {
     (input.theme === "system" &&
       window.matchMedia("(prefers-color-scheme: dark)").matches);
   document.documentElement.classList.toggle("dark", dark);
-  document.documentElement.lang = input.language;
   document.documentElement.style.colorScheme = dark ? "dark" : "light";
   window.dispatchEvent(
     new CustomEvent(PREFERENCES_CHANGED_EVENT, { detail: input }),

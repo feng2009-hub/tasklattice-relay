@@ -1,4 +1,4 @@
-import { createAgentGardenEntrySchema } from "@tali/contracts";
+import { onboardAgentSchema } from "@tali/contracts";
 import { defineHandler } from "nitro";
 import {
   requireAuth,
@@ -22,10 +22,10 @@ export default defineHandler(async (event) => {
   }
   try {
     await requireProjectRole(event.req, ["admin"]);
-    const input = createAgentGardenEntrySchema.parse(await event.req.json());
+    const input = onboardAgentSchema.parse(await event.req.json());
     const created = await (
       await getAgentGardenService(event.req)
-    ).register(input, actorId);
+    ).onboard(input, actorId);
     return jsonResponse(created, {
       status: 201,
       headers: {

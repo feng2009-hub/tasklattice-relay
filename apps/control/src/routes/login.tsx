@@ -1,9 +1,11 @@
 import { useState, type FormEvent } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Eye, EyeOff, KeyRound, LoaderCircle, LockKeyhole, UserRound } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { z } from "zod";
 import { useAuth } from "@/components/auth/auth-provider";
 import { BrandLogo } from "@/components/brand/brand-logo";
+import { LanguageSwitcher } from "@/components/i18n/language-switcher";
 import { getStoredProjectId, projectPath } from "@/lib/project-storage";
 import { authClient } from "@/lib/auth-client";
 
@@ -16,6 +18,7 @@ export const Route = createFileRoute("/login")({
 });
 
 function LoginPage() {
+  const { t } = useTranslation("login");
   const search = Route.useSearch();
   const { config, error: configError, loading } = useAuth();
   const [username, setUsername] = useState("");
@@ -39,10 +42,10 @@ function LoginPage() {
         rememberMe: remember,
         username,
       });
-      if (result.error) throw new Error(result.error.message ?? "Sign in failed.");
+      if (result.error) throw new Error(result.error.message ?? t("errorTitle"));
       window.location.assign(redirect);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Sign in failed.");
+      setError(reason instanceof Error ? reason.message : t("errorTitle"));
     } finally {
       setSubmitting(false);
     }
@@ -55,68 +58,70 @@ function LoginPage() {
           <BrandLogo />
         </Link>
         <div className="relative z-10 max-w-xl pb-8">
-          <p className="font-mono text-xs uppercase tracking-[0.08em] text-primary">Authenticated operations</p>
-          <h1 className="mt-7 font-display text-6xl font-medium leading-[0.98] tracking-[-0.035em]">A clear boundary<br />before the work.</h1>
-          <p className="mt-7 max-w-md text-base leading-7 text-muted-foreground">Local operators and your OIDC identity provider enter the same inspectable Project context.</p>
+          <p className="font-mono text-xs uppercase tracking-[0.08em] text-primary">{t("hero.kicker")}</p>
+          <h1 className="mt-7 font-display text-6xl font-medium leading-[0.98] tracking-[-0.035em]">{t("hero.titleFirst")}<br />{t("hero.titleSecond")}</h1>
+          <p className="mt-7 max-w-md text-base leading-7 text-muted-foreground">{t("hero.description")}</p>
         </div>
-        <div className="relative z-10 flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground"><LockKeyhole className="size-4" />Session-protected control plane</div>
+        <div className="relative z-10 flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground"><LockKeyhole className="size-4" />{t("hero.sessionProtected")}</div>
       </section>
 
-      <section className="flex min-h-svh items-center justify-center px-5 py-12 sm:px-8 lg:px-16">
+      <section className="relative flex min-h-svh items-center justify-center px-5 py-12 sm:px-8 lg:px-16">
+        <div className="absolute right-5 top-5 sm:right-8 sm:top-8">
+          <LanguageSwitcher />
+        </div>
         <div className="w-full max-w-md">
           <Link to="/" className="mb-14 flex min-h-11 items-center gap-3 text-sm font-semibold lg:hidden">
             <BrandLogo />
           </Link>
-          <p className="font-mono text-xs uppercase tracking-[0.08em] text-primary">Project access</p>
-          <h2 className="mt-4 font-display text-4xl font-medium tracking-[-0.025em]">Welcome back</h2>
-          <p className="mt-3 text-sm leading-6 text-muted-foreground">Sign in to create and operate isolated agents.</p>
+          <p className="font-mono text-xs uppercase tracking-[0.08em] text-primary">{t("panel.kicker")}</p>
+          <h2 className="mt-4 font-display text-4xl font-medium tracking-[-0.025em]">{t("panel.title")}</h2>
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">{t("panel.description")}</p>
 
           {error || configError ? (
             <div role="alert" className="mt-7 border-l-2 border-destructive bg-destructive/5 px-4 py-3 text-sm text-destructive">
-              <strong className="block font-semibold">Sign in failed</strong>
+              <strong className="block font-semibold">{t("errorTitle")}</strong>
               <span className="mt-1 block">{error || configError}</span>
             </div>
           ) : null}
           {config?.developmentDefaults ? (
             <div className="mt-7 border-l-2 border-primary bg-primary/5 px-4 py-3 text-sm text-foreground">
-              The initial local account is <strong>admin / admin</strong>. Its
-              password is initialized when the control service starts and can be
-              reset from My Account.
+              {t("developmentAccount.before")} <strong>admin / admin</strong>.{" "}
+              {t("developmentAccount.after")}
             </div>
           ) : null}
 
           <form onSubmit={submit} className="mt-8 space-y-5">
             <label className="block text-sm font-medium">
-              Username
+              {t("form.username")}
               <span className="mt-2 flex min-h-12 items-center gap-3 border border-input bg-background px-4 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15">
                 <UserRound className="size-4 text-muted-foreground" />
-                <input value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" className="h-11 min-w-0 flex-1 bg-transparent text-sm outline-none" placeholder="Enter your username" required />
+                <input value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" className="h-11 min-w-0 flex-1 bg-transparent text-sm outline-none" placeholder={t("form.usernamePlaceholder")} required />
               </span>
             </label>
             <label className="block text-sm font-medium">
-              Password
+              {t("form.password")}
               <span className="mt-2 flex min-h-12 items-center gap-3 border border-input bg-background px-4 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15">
                 <KeyRound className="size-4 text-muted-foreground" />
-                <input value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" className="h-11 min-w-0 flex-1 bg-transparent text-sm outline-none" placeholder="Enter your password" required type={showPassword ? "text" : "password"} />
-                <button type="button" onClick={() => setShowPassword((value) => !value)} className="grid size-11 place-items-center text-muted-foreground hover:bg-muted focus-visible:outline-2" aria-label={showPassword ? "Hide password" : "Show password"}>
+                <input value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" className="h-11 min-w-0 flex-1 bg-transparent text-sm outline-none" placeholder={t("form.passwordPlaceholder")} required type={showPassword ? "text" : "password"} />
+                <button type="button" onClick={() => setShowPassword((value) => !value)} className="grid size-11 place-items-center text-muted-foreground hover:bg-muted focus-visible:outline-2" aria-label={showPassword ? t("form.hidePassword") : t("form.showPassword")}>
                   {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                 </button>
               </span>
             </label>
             <label className="flex min-h-11 items-center gap-3 text-sm text-muted-foreground">
               <input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} className="size-4 accent-[#4339ff]" />
-              Keep me signed in on this device
+              {t("form.keepSignedIn")}
             </label>
             <button disabled={submitting || loading} type="submit" className="flex min-h-12 w-full items-center justify-center gap-2 bg-primary px-6 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60">
               {submitting ? <LoaderCircle className="size-4 animate-spin" /> : null}
-              {submitting ? "Signing in…" : "Sign in"}
+              {submitting ? t("form.signingIn") : t("form.signIn")}
             </button>
           </form>
 
           <div className="mt-8">
             <div className="flex items-center gap-4 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
               <span className="h-px flex-1 bg-border" />
-              or
+              {t("separator")}
               <span className="h-px flex-1 bg-border" />
             </div>
             <button
@@ -133,18 +138,18 @@ function LoginPage() {
               className="mt-6 flex min-h-12 w-full items-center justify-center gap-2 border border-input bg-background px-6 text-sm font-medium transition-colors hover:border-foreground focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:bg-muted/50 disabled:text-muted-foreground"
             >
               <LockKeyhole className="size-4" />
-              SSO login
+              {t("sso.login")}
             </button>
             <p
               id="sso-login-description"
               className="mt-3 text-center text-xs leading-5 text-muted-foreground"
             >
               {config?.ssoEnabled
-                ? `Continue with ${config.providerName}.`
-                : "SSO is not configured for this deployment."}
+                ? t("sso.continue", { providerName: config.providerName })
+                : t("sso.unavailable")}
             </p>
           </div>
-          <p className="mt-10 text-center text-xs leading-5 text-muted-foreground">Access is limited to configured operators. Authentication events may be audited.</p>
+          <p className="mt-10 text-center text-xs leading-5 text-muted-foreground">{t("footer")}</p>
         </div>
       </section>
     </main>

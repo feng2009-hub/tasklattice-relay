@@ -37,6 +37,10 @@ import {
   providerUiRegistry,
 } from "./provider-ui-registry";
 import type { ProviderConfigurator } from "./configurators/types";
+import {
+  CreationFlow,
+  type CreationStep,
+} from "@/components/shared/creation-flow";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -92,6 +96,12 @@ const validationStatusLabels = {
 
 type Step = "source" | "models" | "complete";
 type ConnectionMode = "existing" | "new";
+
+const registrationSteps: readonly CreationStep[] = [
+  { label: "Provider", description: "Choose connection and boundary" },
+  { label: "Review models", description: "Select discovered deployments" },
+  { label: "Complete", description: "Review registration results" },
+];
 
 interface RegistrationSummary {
   connectionName: string;
@@ -296,6 +306,12 @@ export function RegisterModelsDrawer({
         providerSupportsComplianceDomain(provider.id, complianceDomain)
       ).length
     : 0;
+  const currentWizardStep = step === "source" ? 0 : step === "models" ? 1 : 2;
+
+  const changeWizardStep = (next: number) => {
+    if (next === 0) setStep("source");
+    if (next === 1 && discovery) setStep("models");
+  };
 
   return (
     <Drawer
@@ -327,10 +343,16 @@ export function RegisterModelsDrawer({
           </DrawerClose>
         </DrawerHeader>
 
-        <WizardSteps step={step} />
-
-        <div className="min-h-0 flex-1 overflow-y-auto p-5">
-          {step === "source" ? (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <CreationFlow
+            steps={registrationSteps}
+            currentStep={currentWizardStep}
+            onStepChange={changeWizardStep}
+            progressLabel="Register models progress"
+            orientation="sidebar"
+            canNavigateBack={step !== "complete"}
+          >
+            {step === "source" ? (
             <div className="space-y-6">
               {!initialAccount && availableAccounts.length ? (
                 <div
@@ -572,18 +594,19 @@ export function RegisterModelsDrawer({
           ) : step === "complete" && summary ? (
             <SummaryStep summary={summary} />
           ) : null}
-          {register.error ? (
-            <RegistrationError error={register.error} />
-          ) : register.isPending ? (
-            <div
-              role="status"
-              className="mt-4 flex items-start gap-2 border bg-muted/30 px-3 py-2 text-xs leading-5 text-muted-foreground"
-            >
-              <Spinner className="mt-0.5" />
-              Registering models and waiting for LiteLLM workers to synchronize.
-              This can take up to 40 seconds.
-            </div>
-          ) : null}
+            {register.error ? (
+              <RegistrationError error={register.error} />
+            ) : register.isPending ? (
+              <div
+                role="status"
+                className="mt-4 flex items-start gap-2 border bg-muted/30 px-3 py-2 text-xs leading-5 text-muted-foreground"
+              >
+                <Spinner className="mt-0.5" />
+                Registering models and waiting for LiteLLM workers to synchronize.
+                This can take up to 40 seconds.
+              </div>
+            ) : null}
+          </CreationFlow>
         </div>
 
         <DrawerFooter>
@@ -725,35 +748,6 @@ function SourceChoice({
         {description}
       </span>
     </button>
-  );
-}
-
-function WizardSteps({ step }: { step: Step }) {
-  const active = step === "source" ? 0 : step === "models" ? 1 : 2;
-  return (
-    <ol className="grid grid-cols-3 border-b px-5 py-4 text-xs">
-      {["Provider", "Review models", "Complete"].map((label, index) => (
-        <li
-          key={label}
-          className={cn(
-            "flex items-center gap-2 text-muted-foreground",
-            index <= active && "text-foreground",
-          )}
-        >
-          <span
-            className={cn(
-              "grid size-7 place-items-center rounded-full border font-mono",
-              index <= active
-                && "border-primary bg-primary text-primary-foreground",
-            )}
-          >
-            {index < active ? <Check className="size-4" /> : index + 1}
-          </span>
-          <strong className="hidden sm:inline">{label}</strong>
-          {index < 2 ? <span className="ml-auto h-px flex-1 bg-border" /> : null}
-        </li>
-      ))}
-    </ol>
   );
 }
 

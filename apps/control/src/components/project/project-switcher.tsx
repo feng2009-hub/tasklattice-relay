@@ -1,45 +1,45 @@
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import {
   Building2,
   Check,
-  ChevronDown,
+  ChevronsUpDown,
   LoaderCircle,
   Plus,
+  Search,
   Settings,
   SlidersHorizontal,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { ProjectAvatar } from "@/components/project/project-item";
+import { Input } from "@/components/ui/input";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { useProject } from "@/hooks/use-project";
 import { useProjectPermissions } from "@/hooks/use-project-permissions";
+import { defaultLanguage, normalizeLanguage } from "@/i18n/config";
 import { cn } from "@/lib/utils";
-import { getSidebarMessages } from "@/lib/sidebar-i18n";
 import { getDepartments } from "@/services/department";
-import type { AccountLanguage } from "@/services/personal-profile";
 
 export function ProjectSwitcher({
   collapsed = false,
-  language,
   onCreateProject,
   onProjectSettingsOpen,
   onProjectSwitchSuccess,
 }: {
   collapsed?: boolean;
-  language: AccountLanguage;
   onCreateProject: () => void;
   onProjectSettingsOpen: () => void;
   onProjectSwitchSuccess: (projectName: string) => void;
 }) {
-  const messages = getSidebarMessages(language);
+  const { i18n, t } = useTranslation("sidebar");
+  const language =
+    normalizeLanguage(i18n.resolvedLanguage ?? i18n.language) ??
+    defaultLanguage;
   const {
     availableProjects: projects,
     currentProject,
@@ -54,29 +54,73 @@ export function ProjectSwitcher({
     queryFn: getDepartments,
     staleTime: 30_000,
   });
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const [switchError, setSwitchError] = useState("");
-  const departmentGroups = Array.from(
-    projects.reduce(
-      (groups, project) => {
-        const current = groups.get(project.department.id) ?? {
-          department: project.department,
-          projects: [],
-        };
-        current.projects.push(project);
-        groups.set(project.department.id, current);
-        return groups;
-      },
-      new Map<
-        string,
-        {
-          department: (typeof projects)[number]["department"];
-          projects: typeof projects;
-        }
-      >(),
-    ),
-  ).map(([, group]) => group);
-  const showDepartmentGroups = departmentGroups.length > 1;
+
+  const departmentGroups = useMemo(() => {
+    const groups = Array.from(
+      projects.reduce(
+        (groupMap, project) => {
+          const group = groupMap.get(project.department.id) ?? {
+            department: project.department,
+            projects: [],
+          };
+          group.projects.push(project);
+          groupMap.set(project.department.id, group);
+          return groupMap;
+        },
+        new Map<
+          string,
+          {
+            department: (typeof projects)[number]["department"];
+            projects: typeof projects;
+          }
+        >(),
+      ),
+    ).map(([, group]) => ({
+      ...group,
+      projects: [...group.projects].sort((left, right) => {
+        if (left.id === currentProject?.id) return -1;
+        if (right.id === currentProject?.id) return 1;
+        return left.name.localeCompare(right.name, language);
+      }),
+    }));
+
+    return groups.sort((left, right) => {
+      if (left.department.id === currentProject?.department.id) return -1;
+      if (right.department.id === currentProject?.department.id) return 1;
+      return left.department.name.localeCompare(
+        right.department.name,
+        language,
+      );
+    });
+  }, [currentProject?.department.id, currentProject?.id, language, projects]);
+
+  const filteredDepartmentGroups = useMemo(() => {
+    const normalizedQuery = query.trim().toLocaleLowerCase(language);
+    if (!normalizedQuery) return departmentGroups;
+
+    return departmentGroups
+      .map((group) => ({
+        ...group,
+        projects: group.projects.filter((project) =>
+          `${project.name} ${project.department.name}`
+            .toLocaleLowerCase(language)
+            .includes(normalizedQuery),
+        ),
+      }))
+      .filter((group) => group.projects.length > 0);
+  }, [departmentGroups, language, query]);
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    setOpen(nextOpen);
+    if (!nextOpen) {
+      setQuery("");
+      setSwitchError("");
+    }
+  };
 
   const handleSelect = async (projectId: string, projectName: string) => {
     if (projectId === currentProject?.id || isSwitching) return;
@@ -84,12 +128,13 @@ export function ProjectSwitcher({
     try {
       await selectProject(projectId);
       setOpen(false);
+      setQuery("");
       onProjectSwitchSuccess(projectName);
     } catch (reason) {
       setSwitchError(
         reason instanceof Error
           ? reason.message
-          : messages.projectSwitcher.switchError,
+          : t("projectSwitcher.switchError"),
       );
     }
   };
@@ -97,216 +142,280 @@ export function ProjectSwitcher({
   if (loading && !currentProject) {
     return (
       <div
-        aria-label={messages.projectSwitcher.loading}
+        aria-label={t("projectSwitcher.loading")}
         className={cn(
-          "h-11 animate-pulse rounded-sm bg-muted/70",
-          collapsed ? "w-11" : "w-full",
+          "h-12 animate-pulse rounded-md bg-muted/70",
+          collapsed ? "w-12" : "w-full",
         )}
       />
     );
   }
 
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
-      <DropdownMenuTrigger asChild>
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      <PopoverTrigger asChild>
         <button
           type="button"
           aria-label={
             currentProject
-              ? messages.projectSwitcher.currentProject(
-                  `${currentProject.department.name}/${currentProject.name}`,
-                )
-              : messages.projectSwitcher.noProject
+              ? t("projectSwitcher.currentProject", {
+                  projectName: `${currentProject.department.name}/${currentProject.name}`,
+                })
+              : t("projectSwitcher.noProject")
           }
           className={cn(
-            "group flex min-h-11 items-center rounded-sm border border-sidebar-border bg-sidebar px-2.5 text-left outline-none transition-colors",
-            "hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/35 data-[state=open]:border-primary/25 data-[state=open]:bg-primary/[0.06]",
+            "group flex min-h-12 items-center rounded-md border border-sidebar-border bg-sidebar text-left shadow-xs outline-none transition-colors",
+            "hover:border-sidebar-ring/40 hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring/40 data-[state=open]:border-primary/30 data-[state=open]:bg-primary/[0.055]",
             collapsed
-              ? "mx-auto size-11 justify-center px-0"
-              : "w-full gap-2.5",
+              ? "mx-auto size-12 justify-center px-0"
+              : "w-full gap-2.5 px-2.5",
           )}
           disabled={isSwitching}
         >
           {currentProject ? (
-            <ProjectAvatar className="size-6" project={currentProject} />
+            <ProjectAvatar
+              className="size-7 ring-1 ring-sidebar-border"
+              project={currentProject}
+            />
           ) : (
             <span
               aria-hidden="true"
-              className="grid size-6 shrink-0 place-items-center rounded-full bg-muted text-xs font-semibold text-muted-foreground"
+              className="grid size-7 shrink-0 place-items-center rounded-full bg-muted text-xs font-semibold text-muted-foreground"
             >
               P
             </span>
           )}
           {collapsed ? null : (
             <>
-              <span
-                className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground"
-                title={
-                  currentProject
-                    ? `${currentProject.department.name}/${currentProject.name}`
-                    : undefined
-                }
-              >
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold leading-5 text-foreground">
+                  {currentProject
+                    ? currentProject.name
+                    : t("projectSwitcher.noProject")}
+                </span>
                 {currentProject ? (
-                  currentProject.name
-                ) : (
-                  messages.projectSwitcher.noProject
-                )}
+                  <span className="block truncate text-[11px] leading-4 text-muted-foreground">
+                    {currentProject.department.name}
+                  </span>
+                ) : null}
               </span>
               {isSwitching ? (
                 <LoaderCircle className="size-4 shrink-0 animate-spin text-muted-foreground" />
               ) : (
-                <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+                <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" />
               )}
             </>
           )}
         </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
+      </PopoverTrigger>
+
+      <PopoverContent
         align="start"
         side={collapsed ? "right" : "bottom"}
-        className="w-72"
+        className="w-80 max-w-[calc(100vw-1rem)] overflow-hidden p-0 shadow-lg"
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          searchInputRef.current?.focus();
+        }}
       >
-        {departmentGroups.map((group, groupIndex) => (
-          <div key={group.department.id}>
-            {showDepartmentGroups && groupIndex ? (
-              <DropdownMenuSeparator />
-            ) : null}
-            {showDepartmentGroups ? (
-              <DropdownMenuLabel className="flex items-center gap-2 px-2 pb-1 pt-2 text-xs font-medium text-muted-foreground">
-                <Building2 className="size-3.5" />
-                <span className="min-w-0 flex-1 truncate">
-                  {group.department.name}
-                </span>
-                <span className="font-mono text-[10px] tabular-nums">
-                  {group.projects.length}
-                </span>
-              </DropdownMenuLabel>
-            ) : null}
-            {group.projects.map((project, projectIndex) => {
-              const current = project.id === currentProject?.id;
-              const switching = project.id === switchingProjectId;
-              const lastProject = projectIndex === group.projects.length - 1;
-              return (
-                <div
-                  key={project.id}
-                  className={cn(
-                    showDepartmentGroups &&
-                      "relative pl-5 before:pointer-events-none before:absolute before:left-[15px] before:top-0 before:w-px before:bg-border after:pointer-events-none after:absolute after:left-[15px] after:top-1/2 after:h-px after:w-3 after:bg-border",
-                    showDepartmentGroups &&
-                      (lastProject ? "before:h-1/2" : "before:h-full"),
-                  )}
-                >
-                  <div
-                    role="group"
-                    className={cn(
-                      "flex items-stretch rounded-sm",
-                      current && "bg-primary/[0.07] text-primary",
-                    )}
-                  >
-                    <DropdownMenuItem
-                      className={cn(
-                        "min-h-11 min-w-0 flex-1",
-                        current && [
-                          "bg-transparent text-primary data-disabled:opacity-100 focus:bg-primary/[0.1] focus:text-primary",
-                          permissions.canManageProject && "rounded-r-none",
-                        ],
-                      )}
-                      disabled={current || isSwitching}
-                      onSelect={(event) => {
-                        event.preventDefault();
-                        void handleSelect(project.id, project.name);
-                      }}
-                    >
-                      <ProjectAvatar className="size-6" project={project} />
-                      <span className="min-w-0 flex-1 truncate">
-                        {project.name}
-                      </span>
-                      {switching ? (
-                        <LoaderCircle className="size-4 shrink-0 animate-spin" />
-                      ) : current ? (
-                        <Check className="size-4 shrink-0" />
-                      ) : null}
-                    </DropdownMenuItem>
-                    {current && permissions.canManageProject ? (
-                      <DropdownMenuItem
-                        asChild
-                        className="min-h-11 w-11 justify-center rounded-l-none border-l border-primary/15 px-0 text-primary focus:bg-primary/[0.1] focus:text-primary"
-                      >
-                        <Link
-                          to="/$projectId/setting"
-                          params={{ projectId: project.id }}
-                          aria-label={messages.projectSwitcher.projectSettings(
-                            project.name,
-                          )}
-                          title={messages.projectSwitcher.projectSettings(
-                            project.name,
-                          )}
-                          onClick={() => {
-                            setOpen(false);
-                            onProjectSettingsOpen();
-                          }}
-                        >
-                          <Settings className="size-4" />
-                        </Link>
-                      </DropdownMenuItem>
-                    ) : null}
-                  </div>
-                </div>
-              );
-            })}
+        <div className="border-b p-3">
+          <label className="sr-only" htmlFor="project-switcher-search">
+            {t("projectSwitcher.searchPlaceholder")}
+          </label>
+          <div className="relative">
+            <Search
+              aria-hidden="true"
+              className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+            />
+            <Input
+              ref={searchInputRef}
+              id="project-switcher-search"
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={t("projectSwitcher.searchPlaceholder")}
+              className="h-10 bg-background pl-9 pr-3 shadow-none"
+            />
           </div>
-        ))}
+        </div>
+
+        <div
+          aria-label={t("projectSwitcher.projects")}
+          className="max-h-80 overflow-y-auto overscroll-contain p-2"
+        >
+          {filteredDepartmentGroups.length ? (
+            filteredDepartmentGroups.map((group, groupIndex) => (
+              <section
+                key={group.department.id}
+                aria-labelledby={`project-group-${group.department.id}`}
+                className={cn(groupIndex > 0 && "mt-2 border-t pt-2")}
+              >
+                <div className="flex min-h-8 items-center gap-2 px-2 text-xs font-medium text-muted-foreground">
+                  <Building2 className="size-3.5" aria-hidden="true" />
+                  <h3
+                    id={`project-group-${group.department.id}`}
+                    className="min-w-0 flex-1 truncate font-medium"
+                  >
+                    {group.department.name}
+                  </h3>
+                  <span className="font-mono text-[10px] tabular-nums">
+                    {t("projectSwitcher.projectCount", {
+                      count: group.projects.length,
+                    })}
+                  </span>
+                </div>
+
+                <ul className="space-y-0.5">
+                  {group.projects.map((project) => {
+                    const current = project.id === currentProject?.id;
+                    const switching = project.id === switchingProjectId;
+                    return (
+                      <li key={project.id}>
+                        <div
+                          className={cn(
+                            "group/project flex min-h-12 items-stretch rounded-md transition-colors",
+                            current
+                              ? "bg-primary/[0.07] text-primary"
+                              : "hover:bg-muted/65",
+                          )}
+                        >
+                          <button
+                            type="button"
+                            aria-pressed={current}
+                            aria-disabled={current || isSwitching}
+                            className={cn(
+                              "flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/35",
+                              current &&
+                                permissions.canManageProject &&
+                                "rounded-r-none",
+                              isSwitching && "cursor-wait",
+                            )}
+                            onClick={() => {
+                              void handleSelect(project.id, project.name);
+                            }}
+                          >
+                            <ProjectAvatar
+                              className="size-7"
+                              project={project}
+                            />
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-medium text-foreground">
+                                {project.name}
+                              </span>
+                              <span className="block truncate text-[11px] leading-4 text-muted-foreground">
+                                {t("projectSwitcher.members", {
+                                  count: project.memberCount,
+                                })}
+                              </span>
+                            </span>
+                            {switching ? (
+                              <LoaderCircle className="size-4 shrink-0 animate-spin text-muted-foreground" />
+                            ) : current ? (
+                              <Check
+                                aria-label={t("projectSwitcher.current")}
+                                className="size-4 shrink-0 text-primary"
+                              />
+                            ) : null}
+                          </button>
+
+                          {current && permissions.canManageProject ? (
+                            <Link
+                              to="/$projectId/setting"
+                              params={{ projectId: project.id }}
+                              aria-label={t("projectSwitcher.projectSettings", {
+                                projectName: project.name,
+                              })}
+                              title={t("projectSwitcher.projectSettings", {
+                                projectName: project.name,
+                              })}
+                              className="grid w-11 shrink-0 place-items-center rounded-r-md border-l border-primary/15 text-primary outline-none transition-colors hover:bg-primary/[0.08] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/35"
+                              onClick={() => {
+                                setOpen(false);
+                                onProjectSettingsOpen();
+                              }}
+                            >
+                              <Settings className="size-4" />
+                            </Link>
+                          ) : null}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            ))
+          ) : (
+            <div className="px-4 py-8 text-center">
+              <Search
+                aria-hidden="true"
+                className="mx-auto size-5 text-muted-foreground/60"
+              />
+              <p className="mt-2 text-sm font-medium text-foreground">
+                {t("projectSwitcher.noMatches", { query: query.trim() })}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {t("projectSwitcher.tryAnotherSearch")}
+              </p>
+            </div>
+          )}
+        </div>
+
         {switchError ? (
           <p
-            className="mx-1 my-1 border-l-2 border-destructive bg-destructive/5 px-2 py-2 text-xs text-destructive"
+            className="mx-3 mb-2 border-l-2 border-destructive bg-destructive/5 px-2.5 py-2 text-xs text-destructive"
             role="alert"
           >
             {switchError}
           </p>
         ) : null}
-        <DropdownMenuSeparator />
-        {currentProject?.department.role === "administrator" ? (
-          <DropdownMenuItem asChild>
+
+        <div className="border-t p-2">
+          {currentProject?.department.role === "administrator" ? (
             <Link
               to="/departments/$departmentId"
               params={{ departmentId: currentProject.department.id }}
+              className="flex min-h-11 items-center gap-2 rounded-md px-2 text-sm text-muted-foreground outline-none transition-colors hover:bg-muted/65 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/35"
               onClick={() => {
                 setOpen(false);
                 onProjectSettingsOpen();
               }}
             >
               <SlidersHorizontal className="size-4" />
-              Manage {currentProject.department.name}
+              {t("projectSwitcher.manageDepartment", {
+                departmentName: currentProject.department.name,
+              })}
             </Link>
-          </DropdownMenuItem>
-        ) : null}
-        <DropdownMenuItem
-          disabled={
-            administeredDepartments.isPending ||
-            !administeredDepartments.data?.length
-          }
-          onSelect={() => {
-            setOpen(false);
-            onCreateProject();
-          }}
-        >
-          {administeredDepartments.isPending ? (
-            <LoaderCircle className="size-4 animate-spin" />
-          ) : (
-            <Plus className="size-4" />
-          )}
-          {administeredDepartments.isPending
-            ? "Checking Department access…"
-            : messages.projectSwitcher.newProject}
-        </DropdownMenuItem>
-        {!administeredDepartments.isPending &&
-        !administeredDepartments.data?.length ? (
-          <p className="px-2 pb-1 text-[11px] leading-4 text-muted-foreground">
-            Department Administrator role is required to create Projects.
-          </p>
-        ) : null}
-      </DropdownMenuContent>
-    </DropdownMenu>
+          ) : null}
+
+          <button
+            type="button"
+            className="flex min-h-11 w-full items-center gap-2 rounded-md px-2 text-left text-sm font-medium text-foreground outline-none transition-colors hover:bg-muted/65 focus-visible:ring-2 focus-visible:ring-ring/35 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={
+              administeredDepartments.isPending ||
+              !administeredDepartments.data?.length
+            }
+            onClick={() => {
+              setOpen(false);
+              onCreateProject();
+            }}
+          >
+            {administeredDepartments.isPending ? (
+              <LoaderCircle className="size-4 animate-spin" />
+            ) : (
+              <Plus className="size-4" />
+            )}
+            {administeredDepartments.isPending
+              ? t("projectSwitcher.checkingAccess")
+              : t("projectSwitcher.newProject")}
+          </button>
+          {!administeredDepartments.isPending &&
+          !administeredDepartments.data?.length ? (
+            <p className="px-2 pb-1 text-[11px] leading-4 text-muted-foreground">
+              {t("projectSwitcher.createRequiresAdmin")}
+            </p>
+          ) : null}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
