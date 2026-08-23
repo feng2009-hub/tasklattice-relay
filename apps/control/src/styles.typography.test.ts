@@ -18,4 +18,12 @@ describe("Control Plane typography contract", () => {
   it("uses the technical font for native code elements", () => {
     expect(styles).toMatch(/code,\s*kbd,\s*samp,\s*pre\s*{\s*@apply font-mono;/);
   });
+
+  it("uses Traditional Chinese fonts for zh-TW documents", () => {
+    expect(styles).toContain(':root:lang(zh-TW)');
+    expect(styles).toContain('"Noto Sans TC"');
+    expect(styles).toContain('"Noto Serif TC"');
+    expect(styles).toMatch(/:root:lang\(zh-TW\) body,/);
+    expect(styles).toMatch(/:root:lang\(zh-TW\) \.font-display/);
+  });
 });

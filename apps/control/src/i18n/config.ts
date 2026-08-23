@@ -1,4 +1,4 @@
-export const supportedLanguages = ["en-US", "zh-CN"] as const;
+export const supportedLanguages = ["en-US", "zh-CN", "zh-TW"] as const;
 
 export type SupportedLanguage = (typeof supportedLanguages)[number];
 
@@ -10,6 +10,18 @@ export function normalizeLanguage(
 ): SupportedLanguage | null {
   if (!value) return null;
   const normalized = value.trim().replaceAll("_", "-").toLowerCase();
+  if (
+    normalized === "zh-tw" ||
+    normalized.startsWith("zh-tw-") ||
+    normalized === "zh-hk" ||
+    normalized.startsWith("zh-hk-") ||
+    normalized === "zh-mo" ||
+    normalized.startsWith("zh-mo-") ||
+    normalized === "zh-hant" ||
+    normalized.startsWith("zh-hant-")
+  ) {
+    return "zh-TW";
+  }
   if (normalized === "zh" || normalized.startsWith("zh-")) return "zh-CN";
   if (normalized === "en" || normalized.startsWith("en-")) return "en-US";
   return null;
@@ -48,4 +60,3 @@ export function resolveAcceptLanguage(
       )[0]?.language ?? null
   );
 }
-

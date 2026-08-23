@@ -7,7 +7,7 @@ import {
 } from "./help-content";
 
 describe("help content", () => {
-  it.each(["en-US", "zh-CN"] as const)(
+  it.each(["en-US", "zh-CN", "zh-TW"] as const)(
     "provides complete %s documentation for every topic",
     (language) => {
       const topics = getHelpTopics(language);

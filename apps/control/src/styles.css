@@ -10,6 +10,8 @@
 @import "@fontsource/chivo-mono/latin-500.css";
 @import "@fontsource-variable/noto-sans-sc/wght.css";
 @import "@fontsource-variable/noto-serif-sc/wght.css";
+@import "@fontsource-variable/noto-sans-tc/wght.css";
+@import "@fontsource-variable/noto-serif-tc/wght.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -61,6 +63,20 @@
   --radius-2xl: calc(var(--radius-large) + 0.125rem);
   --radius-3xl: calc(var(--radius-large) + 0.25rem);
   --radius-4xl: calc(var(--radius-large) + 0.375rem);
+}
+
+:root:lang(zh-TW) {
+  --font-display: "Noto Serif TC", "Source Han Serif TC", "Songti TC", serif;
+  --font-sans: "Hanken Grotesk", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+}
+
+:root:lang(zh-TW) body,
+:root:lang(zh-TW) .font-sans {
+  font-family: "Hanken Grotesk", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+}
+
+:root:lang(zh-TW) .font-display {
+  font-family: "Noto Serif TC", "Source Han Serif TC", "Songti TC", serif;
 }
 
 :root {

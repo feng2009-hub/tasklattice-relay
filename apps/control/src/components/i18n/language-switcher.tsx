@@ -29,7 +29,8 @@ export function LanguageSwitcher() {
     >
       <SelectTrigger
         aria-label={t("language.label")}
-        className="h-11 min-w-36 bg-background/90"
+        size="lg"
+        className="min-w-36 bg-background/90"
       >
         <Languages className="size-4 text-muted-foreground" />
         <SelectValue />
@@ -37,6 +38,7 @@ export function LanguageSwitcher() {
       <SelectContent align="end">
         <SelectItem value="en-US">{t("language.english")}</SelectItem>
         <SelectItem value="zh-CN">{t("language.simplifiedChinese")}</SelectItem>
+        <SelectItem value="zh-TW">{t("language.traditionalChinese")}</SelectItem>
       </SelectContent>
     </Select>
   );

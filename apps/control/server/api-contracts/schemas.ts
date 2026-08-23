@@ -102,7 +102,7 @@ export const currentUserSchema = z.object({
 }).meta({ id: "CurrentUser" });
 
 export const profileInputSchema = z.object({
-  language: z.enum(["en-US", "zh-CN"]),
+  language: z.enum(["en-US", "zh-CN", "zh-TW"]),
   theme: z.enum(["system", "light", "dark"]),
   timezone: z.string().trim().min(1).max(120).refine((timezone) => {
     try {

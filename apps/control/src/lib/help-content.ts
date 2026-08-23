@@ -12,6 +12,13 @@ import developerZh from "../../../../docs/help/zh-CN/roles/developer.md?raw";
 import userZh from "../../../../docs/help/zh-CN/roles/user.md?raw";
 import maintenanceZh from "../../../../docs/help/zh-CN/operations/maintenance.md?raw";
 import troubleshootingZh from "../../../../docs/help/zh-CN/operations/troubleshooting.md?raw";
+import adminZhTW from "../../../../docs/help/zh-TW/roles/admin.md?raw";
+import approverZhTW from "../../../../docs/help/zh-TW/roles/approver.md?raw";
+import auditorZhTW from "../../../../docs/help/zh-TW/roles/auditor.md?raw";
+import developerZhTW from "../../../../docs/help/zh-TW/roles/developer.md?raw";
+import userZhTW from "../../../../docs/help/zh-TW/roles/user.md?raw";
+import maintenanceZhTW from "../../../../docs/help/zh-TW/operations/maintenance.md?raw";
+import troubleshootingZhTW from "../../../../docs/help/zh-TW/operations/troubleshooting.md?raw";
 import type { SupportedLanguage } from "@/i18n/config";
 
 export const helpTopicIds = [
@@ -101,6 +108,15 @@ const topicBodies: Record<
     maintenance: maintenanceZh,
     troubleshooting: troubleshootingZh,
     user: userZh,
+  },
+  "zh-TW": {
+    admin: adminZhTW,
+    approver: approverZhTW,
+    auditor: auditorZhTW,
+    developer: developerZhTW,
+    maintenance: maintenanceZhTW,
+    troubleshooting: troubleshootingZhTW,
+    user: userZhTW,
   },
 };
 

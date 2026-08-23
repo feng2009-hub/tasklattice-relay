@@ -7,7 +7,7 @@ import { ProjectService } from "../projects/project-service";
 export interface PersonalProfile {
   displayName: string;
   email: string;
-  language: "en-US" | "zh-CN";
+  language: "en-US" | "zh-CN" | "zh-TW";
   hasPassword: boolean;
   systemRole: SystemRole;
   theme: "system" | "light" | "dark";
@@ -27,7 +27,10 @@ export class PersonalProfileService {
     return {
       displayName: user.displayName,
       email: user.email,
-      language: user.language === "zh-CN" ? "zh-CN" : "en-US",
+      language:
+        user.language === "zh-CN" || user.language === "zh-TW"
+          ? user.language
+          : "en-US",
       hasPassword: auth.user.hasPassword,
       systemRole: user.systemRole,
       theme:
@@ -40,7 +43,7 @@ export class PersonalProfileService {
   async update(
     auth: PlatformPrincipal,
     input: {
-      language: "en-US" | "zh-CN";
+      language: "en-US" | "zh-CN" | "zh-TW";
       theme: "system" | "light" | "dark";
       timezone: string;
     },

@@ -37,15 +37,15 @@ describe("PersonalProfileService", () => {
   it("stores personal preferences on the user", async () => {
     await expect(
       service.update(auth(), {
-        language: "zh-CN",
+        language: "zh-TW",
         theme: "dark",
-        timezone: "Asia/Shanghai",
+        timezone: "Asia/Taipei",
       }),
     ).resolves.toMatchObject({
       displayName: "Local Administrator",
-      language: "zh-CN",
+      language: "zh-TW",
       theme: "dark",
-      timezone: "Asia/Shanghai",
+      timezone: "Asia/Taipei",
       username: "admin",
     });
     await expect(service.get(auth())).resolves.not.toHaveProperty("city");

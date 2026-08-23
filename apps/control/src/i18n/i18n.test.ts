@@ -21,6 +21,8 @@ function resourceKeys(
 describe("platform i18n", () => {
   it("normalizes supported browser language variants", () => {
     expect(normalizeLanguage("zh-Hans-CN")).toBe("zh-CN");
+    expect(normalizeLanguage("zh-Hant-TW")).toBe("zh-TW");
+    expect(normalizeLanguage("zh_HK")).toBe("zh-TW");
     expect(normalizeLanguage("en_GB")).toBe("en-US");
     expect(normalizeLanguage("ja-JP")).toBeNull();
   });
@@ -30,12 +32,16 @@ describe("platform i18n", () => {
       "zh-CN",
     );
     expect(resolveAcceptLanguage("zh-CN;q=0.4, en-US;q=0.9")).toBe("en-US");
+    expect(resolveAcceptLanguage("zh-Hant;q=0.9, zh-CN;q=0.8")).toBe(
+      "zh-TW",
+    );
     expect(resolveAcceptLanguage("ja-JP, ko-KR;q=0.8")).toBeNull();
   });
 
   it("creates isolated language instances with typed namespaces", () => {
     const english = createPlatformI18n("en-US");
     const chinese = createPlatformI18n("zh-CN");
+    const traditionalChinese = createPlatformI18n("zh-TW");
 
     expect(english).not.toBe(chinese);
     expect(english.t("defineAgent.title", { ns: "createInstance" })).toBe(
@@ -44,12 +50,15 @@ describe("platform i18n", () => {
     expect(chinese.t("defineAgent.title", { ns: "createInstance" })).toBe(
       "定义一个 Agent",
     );
+    expect(
+      traditionalChinese.t("defineAgent.title", { ns: "createInstance" }),
+    ).toBe("定義一個 Agent");
   });
 
   it("keeps every supported language resource structurally complete", () => {
-    expect(resourceKeys(i18nResources["zh-CN"]).sort()).toEqual(
-      resourceKeys(i18nResources["en-US"]).sort(),
-    );
+    const englishKeys = resourceKeys(i18nResources["en-US"]).sort();
+    expect(resourceKeys(i18nResources["zh-CN"]).sort()).toEqual(englishKeys);
+    expect(resourceKeys(i18nResources["zh-TW"]).sort()).toEqual(englishKeys);
   });
 
   it("interpolates values through the shared sidebar namespace", () => {

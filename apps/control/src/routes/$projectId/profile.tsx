@@ -326,6 +326,7 @@ function MyAccountPage() {
                     >
                       <option value="en-US">English (United States)</option>
                       <option value="zh-CN">简体中文</option>
+                      <option value="zh-TW">繁體中文</option>
                     </select>
                   </div>
                 </PreferenceRow>
