@@ -58,6 +58,8 @@ spec:
                   key: runner-token
             - name: OPENSHELL_GATEWAY_ENDPOINT
               value: {{ default (printf "http://%s.%s.svc.cluster.local:8080" (include "tali.componentName" (dict "root" . "component" "openshell")) .Release.Namespace) .Values.runner.gatewayEndpoint | quote }}
+            - name: OPENSHELL_WORKSPACE
+              value: {{ .Values.runner.workspace | quote }}
             - name: OPENSHELL_SERVICE_BASE_URL
               value: {{ .Values.runner.serviceBaseUrl | quote }}
             - name: OPENSHELL_SANDBOX_IMAGE

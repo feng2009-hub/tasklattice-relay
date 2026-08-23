@@ -146,6 +146,8 @@ projectRuntimeNamespaces:
 runner:
   replicaCount: 1
   gatewayEndpoint: ""
+  # Must match the OpenShell CLI workspace used for sandbox and service calls.
+  workspace: default
   serviceBaseUrl: http://openshell.localhost:8080
   kubernetesServiceCidrs: 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
   sandbox:

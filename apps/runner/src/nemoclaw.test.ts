@@ -9,6 +9,8 @@ import {
   composeOpenShellInferencePolicy,
   deepSeekProviderCreateCommand,
   isOpenShellProviderAttachedError,
+  openShellLiteLlmProfileApplyArguments,
+  openShellLiteLlmProfileExportArguments,
   openShellHermesWebUiProbeArguments,
   openShellHermesWebUiSecretArguments,
   openShellNemoClawProbeArguments,
@@ -16,9 +18,11 @@ import {
   openShellSandboxCreateArguments,
   openShellTerminalArguments,
   openShellWebUiOrigin,
+  openShellWebUiOriginEnsureArguments,
   openShellWebUiOriginProbeArguments,
   openShellWebUiServiceArguments,
   openShellWebUiTokenArguments,
+  openShellWorkspace,
   parseOpenShellServiceUrl,
   parseOpenShellAuditLog,
   runTelemetryEnvironmentFile,
@@ -96,6 +100,25 @@ describe("OpenShell Kubernetes command contract", () => {
     expect(command.args).toContain("OPENAI_API_KEY");
     expect(command.args).toContain("OPENAI_BASE_URL=http://tali-litellm:4000/v1");
     expect(command.env.OPENAI_API_KEY).toBe("database-secret-value");
+  });
+
+  it("keeps the shared LiteLLM Provider profile in platform scope", () => {
+    expect(openShellLiteLlmProfileExportArguments().slice(-5)).toEqual([
+      "provider",
+      "profile",
+      "export",
+      "--global",
+      taliLiteLlmProviderProfileId,
+    ]);
+    expect(
+      openShellLiteLlmProfileApplyArguments("/tmp/tali-litellm.yaml"),
+    ).toContain("--global");
+    expect(
+      openShellLiteLlmProfileApplyArguments(
+        "/tmp/tali-litellm.yaml",
+        1,
+      ),
+    ).toContain("--global");
   });
 
   it("recognizes the transient Provider attachment conflict during deletion", () => {
@@ -403,20 +426,23 @@ describe("OpenShell Kubernetes command contract", () => {
   it("extracts the browser endpoint from colored OpenShell output", () => {
     expect(
       parseOpenShellServiceUrl(
-        "URL: \u001b[36mhttp://sandbox--webui.openshell.localhost:8080/\u001b[39m\n",
+        "URL: \u001b[36mhttp://default--sandbox--webui.openshell.localhost:8080/\u001b[39m\n",
       ),
-    ).toBe("http://sandbox--webui.openshell.localhost:8080/");
+    ).toBe("http://default--sandbox--webui.openshell.localhost:8080/");
     expect(parseOpenShellServiceUrl("service endpoint not found")).toBeUndefined();
   });
 
   it("authorizes the routed origin and bootstraps dashboard authentication", () => {
     const endpoint =
-      "http://tali-research-a1b2c3d4--webui.openshell.localhost:8080/";
+      "http://default--tali-research-a1b2c3d4--webui.openshell.localhost:8080/";
     expect(openShellWebUiOrigin("tali-research-a1b2c3d4")).toBe(
-      "http://tali-research-a1b2c3d4--webui.openshell.localhost:8080",
+      "http://default--tali-research-a1b2c3d4--webui.openshell.localhost:8080",
+    );
+    expect(openShellWebUiOriginEnsureArguments(input.name, endpoint)).toContain(
+      "http://default--tali-research-a1b2c3d4--webui.openshell.localhost:8080",
     );
     expect(openShellWebUiOriginProbeArguments(input.name, endpoint)).toContain(
-      "http://tali-research-a1b2c3d4--webui.openshell.localhost:8080",
+      "http://default--tali-research-a1b2c3d4--webui.openshell.localhost:8080",
     );
     expect(openShellWebUiTokenArguments(input.name).slice(-6)).toEqual([
       "--name",
@@ -429,6 +455,18 @@ describe("OpenShell Kubernetes command contract", () => {
     expect(tokenizedOpenClawUrl(endpoint, "secret value\n")).toBe(
       `${endpoint}#token=secret+value`,
     );
+  });
+
+  it("uses and validates the OpenShell workspace in routed origins", () => {
+    vi.stubEnv("OPENSHELL_WORKSPACE", "team-a");
+    expect(openShellWorkspace()).toBe("team-a");
+    expect(openShellWebUiOrigin("sandbox-a")).toBe(
+      "http://team-a--sandbox-a--webui.openshell.localhost:8080",
+    );
+
+    vi.stubEnv("OPENSHELL_WORKSPACE", "team--a");
+    expect(() => openShellWorkspace()).toThrow("OPENSHELL_WORKSPACE");
+    vi.unstubAllEnvs();
   });
 
   it("issues a short-lived user-scoped Hermes dashboard access token", () => {

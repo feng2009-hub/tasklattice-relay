@@ -229,6 +229,42 @@ export function deepSeekProviderCreateCommand(input: ProvisionInput): {
   };
 }
 
+export function openShellLiteLlmProfileExportArguments(): string[] {
+  return openShellArguments([
+    "provider",
+    "profile",
+    "export",
+    "--global",
+    taliLiteLlmProviderProfileId,
+  ]);
+}
+
+export function openShellLiteLlmProfileApplyArguments(
+  profileFile: string,
+  resourceVersion?: number,
+): string[] {
+  return openShellArguments(
+    resourceVersion !== undefined
+      ? [
+          "provider",
+          "profile",
+          "update",
+          "--global",
+          taliLiteLlmProviderProfileId,
+          "--file",
+          profileFile,
+        ]
+      : [
+          "provider",
+          "profile",
+          "import",
+          "--global",
+          "--file",
+          profileFile,
+        ],
+  );
+}
+
 async function ensureLiteLlmProviderProfile(
   inferenceEndpoint: string,
 ): Promise<void> {
@@ -239,12 +275,7 @@ async function ensureLiteLlmProviderProfile(
   try {
     const existing = await runCommand(
       openShellBinary(),
-      openShellArguments([
-        "provider",
-        "profile",
-        "export",
-        taliLiteLlmProviderProfileId,
-      ]),
+      openShellLiteLlmProfileExportArguments(),
     );
     let resourceVersion: number | undefined;
     const desiredProfile = parse(
@@ -259,6 +290,10 @@ async function ensureLiteLlmProviderProfile(
       resourceVersion = exported.resource_version as number;
       const currentProfile = { ...exported };
       delete currentProfile.resource_version;
+      // OpenShell 0.0.106 adds read-only resolution metadata to exports.
+      // Neither field belongs in an imported profile document.
+      delete currentProfile.source;
+      delete currentProfile.scope;
       if (isDeepStrictEqual(currentProfile, desiredProfile)) return;
     }
     await writeFile(
@@ -287,19 +322,9 @@ async function ensureLiteLlmProviderProfile(
             "OpenShell rejected the TaskLattice Relay LiteLLM Provider profile.",
         );
     }
-    const profileCommand = resourceVersion !== undefined
-      ? [
-          "provider",
-          "profile",
-          "update",
-          taliLiteLlmProviderProfileId,
-          "--file",
-          profileFile,
-        ]
-      : ["provider", "profile", "import", "--file", profileFile];
     let applied = await runCommand(
       openShellBinary(),
-      openShellArguments(profileCommand),
+      openShellLiteLlmProfileApplyArguments(profileFile, resourceVersion),
     );
     if (applied.exitCode !== 0 && existing.exitCode !== 0) {
       // A concurrent Instance may have imported the shared profile after the
@@ -544,12 +569,25 @@ export function openShellWebUiServiceArguments(
   ]);
 }
 
+export function openShellWorkspace(): string {
+  const workspace = process.env.OPENSHELL_WORKSPACE?.trim() || "default";
+  if (
+    workspace.length > 19 ||
+    !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(workspace) ||
+    workspace.includes("--")
+  )
+    throw new Error(
+      "OPENSHELL_WORKSPACE must be a DNS-1123 label without consecutive hyphens and no longer than 19 characters.",
+    );
+  return workspace;
+}
+
 export function openShellWebUiOrigin(name: string): string {
   const base = new URL(
     process.env.OPENSHELL_SERVICE_BASE_URL ??
       "http://openshell.localhost:8080",
   );
-  base.hostname = `${name}--${nemoClawWebUiService}.${base.hostname}`;
+  base.hostname = `${openShellWorkspace()}--${name}--${nemoClawWebUiService}.${base.hostname}`;
   return base.origin;
 }
 
@@ -605,6 +643,23 @@ export function openShellWebUiOriginProbeArguments(
     "node",
     "-e",
     'const c=require("/sandbox/.openclaw/openclaw.json");if(!c.gateway?.controlUi?.allowedOrigins?.includes(process.argv[1]))process.exit(1)',
+    new URL(endpointUrl).origin,
+  ]);
+}
+
+export function openShellWebUiOriginEnsureArguments(
+  name: string,
+  endpointUrl: string,
+): string[] {
+  return openShellArguments([
+    "sandbox",
+    "exec",
+    "--name",
+    name,
+    "--",
+    "node",
+    "-e",
+    'const fs=require("node:fs");const p="/sandbox/.openclaw/openclaw.json";const c=JSON.parse(fs.readFileSync(p,"utf8"));const u=(c.gateway??={}).controlUi??={};const a=Array.isArray(u.allowedOrigins)?u.allowedOrigins:[];const o=process.argv[1];if(!a.includes(o)){u.allowedOrigins=[...new Set([...a,o])];const t=`${p}.tali-${process.pid}.tmp`;try{fs.writeFileSync(t,JSON.stringify(c,null,2)+"\\n",{mode:0o660});fs.chmodSync(t,0o660);fs.renameSync(t,p)}finally{if(fs.existsSync(t))fs.unlinkSync(t)}}',
     new URL(endpointUrl).origin,
   ]);
 }
@@ -701,10 +756,11 @@ export async function ensureOpenShellWebUiEndpoint(
       );
   }
 
-  if (new URL(endpointUrl).origin !== openShellWebUiOrigin(name)) {
+  const expectedOrigin = openShellWebUiOrigin(name);
+  if (new URL(endpointUrl).origin !== expectedOrigin) {
     if (agentPlatform === "hermes") await deleteOpenShellWebUiEndpoint(name);
     throw new Error(
-      "The OpenShell service URL does not match OPENSHELL_SERVICE_BASE_URL; the Web UI endpoint was not published.",
+      "The OpenShell service URL does not match OPENSHELL_SERVICE_BASE_URL and OPENSHELL_WORKSPACE; Web UI access was not issued.",
     );
   }
 
@@ -724,6 +780,19 @@ export async function ensureOpenShellWebUiEndpoint(
     }
     return endpointUrl;
   }
+
+  // Instances created before OpenShell added the workspace route prefix retain
+  // the former origin in OpenClaw. Migrate only after the gateway-returned URL
+  // has passed the exact trusted-origin check above.
+  const originEnsure = await runCommand(
+    openShellBinary(),
+    openShellWebUiOriginEnsureArguments(name, endpointUrl),
+  );
+  if (originEnsure.exitCode !== 0)
+    throw new Error(
+      originEnsure.stderr.trim() ||
+        "The OpenClaw gateway Web UI origin allowlist could not be updated.",
+    );
 
   const originProbe = await runCommand(
     openShellBinary(),

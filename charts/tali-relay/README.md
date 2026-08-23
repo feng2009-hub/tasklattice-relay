@@ -149,6 +149,8 @@ When `secrets.existingSecret` is used it must contain `control.toml`,
 `control.toml` contains the Control Plane database, Local/OIDC authentication,
 SMTP credentials, Runner, and LiteLLM settings. Set `runner.gatewayEndpoint`
 when `openshell.enabled=false` and the gateway is managed outside this release.
+Set `runner.workspace` to the same OpenShell workspace used by that gateway;
+service routes include this value as their first hostname segment.
 
 To deliver Project invitations through SMTP, add the following to a private
 values file. Port 587 uses STARTTLS; use `secure: true` for implicit TLS,
