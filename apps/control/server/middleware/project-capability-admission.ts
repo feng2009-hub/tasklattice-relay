@@ -11,7 +11,8 @@ import {
   type RelationResolver,
 } from "../authorization/route-capabilities";
 import {
-  accessForMembership,
+  activeRoleForMembership,
+  membershipHasAccess,
   membershipAccessInclude,
   type ProjectRole,
 } from "../projects/project-access";
@@ -49,8 +50,8 @@ async function ownership(
       },
       include: membershipAccessInclude,
     });
-    const collectionRole = membership
-      ? accessForMembership(membership).activeRole
+    const collectionRole = membership && membershipHasAccess(membership)
+      ? activeRoleForMembership(membership)
       : undefined;
     return {
       ...(collectionRole ? { collectionRole } : {}),

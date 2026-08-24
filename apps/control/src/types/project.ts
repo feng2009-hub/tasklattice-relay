@@ -7,7 +7,7 @@ export const projectRoleLabels: Record<ProjectRole, string> = {
   auditor: "Auditor",
   developer: "Agent Developer",
   user: "User",
-  approver: "Approver",
+  reviewer: "Reviewer",
 };
 
 export interface Project {

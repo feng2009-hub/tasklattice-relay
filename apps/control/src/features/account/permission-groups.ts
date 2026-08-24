@@ -1,5 +1,6 @@
 import {
   projectCapabilities,
+  type AuthorizationCapability,
   type ProjectCapability,
 } from "@tali/contracts";
 
@@ -8,7 +9,7 @@ const projectRoleCapabilities = projectCapabilities.filter(
 );
 
 export type PermissionItem = {
-  capability: ProjectCapability;
+  capability: AuthorizationCapability;
   enabled: boolean;
 };
 

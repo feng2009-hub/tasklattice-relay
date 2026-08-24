@@ -194,7 +194,7 @@ const enUS = {
     title: "Help & documentation",
     topics: {
       admin: "Administrator",
-      approver: "Approver",
+      reviewer: "Reviewer",
       auditor: "Auditor",
       developer: "Developer",
       maintenance: "Daily maintenance",
@@ -396,7 +396,7 @@ const zhCN = {
     title: "帮助与文档",
     topics: {
       admin: "管理员",
-      approver: "审批者",
+      reviewer: "审批者",
       auditor: "审计员",
       developer: "开发者",
       maintenance: "日常维护",
@@ -599,7 +599,7 @@ const zhTW = {
     title: "說明與文件",
     topics: {
       admin: "管理員",
-      approver: "核准者",
+      reviewer: "核准者",
       auditor: "稽核員",
       developer: "開發人員",
       maintenance: "日常維護",

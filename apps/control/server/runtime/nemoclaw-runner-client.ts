@@ -18,6 +18,10 @@ export interface CreateSandboxInput {
   apiKey?: string;
   instanceId: string;
   sandboxImage?: string;
+  sandboxResources?: {
+    cpu?: string;
+    memory?: string;
+  };
   runTelemetry: {
     endpoint: string;
     token: string;

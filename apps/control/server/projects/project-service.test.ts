@@ -27,7 +27,7 @@ class RecordingInvitationMailer implements InvitationMailer {
     private readonly deliveryError?: Error,
   ) {}
 
-  assertConfigured(): void {
+  async assertConfigured(): Promise<void> {
     if (!this.configured)
       throw new Error("SMTP invitation delivery is not configured.");
   }
@@ -107,6 +107,41 @@ async function syncAuthUser(
 }
 
 describe("ProjectService", () => {
+  it("creates a Project with a normalized name and requested immutable ID", async () => {
+    const db = createTestPrisma();
+    const service = new ProjectService(db);
+    const local = auth({
+      displayName: "Local Administrator",
+      email: "admin@tali.local",
+      hasPassword: true,
+      username: "admin",
+    });
+
+    const project = await service.create(
+      local,
+      "dep1",
+      "  Agent\tPlatform  ",
+      [],
+      "department",
+      "agent-platform",
+    );
+
+    expect(project).toMatchObject({
+      id: "agent-platform",
+      name: "Agent Platform",
+    });
+    await expect(
+      service.create(
+        local,
+        "dep1",
+        "Another Project",
+        [],
+        "department",
+        "Agent_Platform",
+      ),
+    ).rejects.toThrow("Project ID");
+  });
+
   it("lists the seeded project and copies its metadata into new Projects", async () => {
     const db = createTestPrisma();
     const service = new ProjectService(db);

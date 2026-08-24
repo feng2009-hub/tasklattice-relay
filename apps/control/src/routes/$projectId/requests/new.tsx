@@ -38,7 +38,7 @@ const requestConfig: Record<
   }
 > = {
   quota: {
-    owner: "Platform Quota Approvers",
+    owner: "Platform Quota Reviewers",
     reviewStep: "Quota approval",
     target: "deepseek-chat · api.deepseek.internal",
     targetLabel: "Model quota",

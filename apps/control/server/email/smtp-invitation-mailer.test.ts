@@ -1,6 +1,6 @@
 import { createServer, type Server } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
-import { developmentControlConfig } from "../config/control-config";
+import type { PlatformEmailRuntimeSettings } from "../platform/platform-settings-service";
 import { SmtpInvitationMailer } from "./smtp-invitation-mailer";
 
 const servers: Server[] = [];
@@ -25,17 +25,21 @@ describe("SmtpInvitationMailer", () => {
     const address = server.address();
     if (!address || typeof address === "string") throw new Error("SMTP test server did not bind a TCP port.");
 
-    const smtp = {
-      ...developmentControlConfig().smtp,
+    const smtp: PlatformEmailRuntimeSettings = {
+      configurationError: null,
       enabled: true,
       host: "127.0.0.1",
       port: address.port,
-      from_address: "invites@tali.test",
-      from_name: "TaskLattice Relay",
-      reply_to: "operator@tali.test",
+      secure: false,
+      username: "",
+      password: "",
+      passwordConfigured: false,
+      fromAddress: "invites@tali.test",
+      fromName: "TaskLattice Relay",
+      replyTo: "operator@tali.test",
     };
     const mailer = new SmtpInvitationMailer(
-      smtp,
+      async () => smtp,
       "https://tali.example.com",
     );
 
@@ -56,10 +60,22 @@ describe("SmtpInvitationMailer", () => {
 
   it("rejects delivery when SMTP is disabled", async () => {
     const mailer = new SmtpInvitationMailer(
-      developmentControlConfig().smtp,
+      async () => ({
+        configurationError: null,
+        enabled: false,
+        fromAddress: "",
+        fromName: "TaskLattice Relay",
+        host: "",
+        password: "",
+        passwordConfigured: false,
+        port: 587,
+        replyTo: "",
+        secure: false,
+        username: "",
+      }),
       "https://tali.example.com",
     );
-    expect(() => mailer.assertConfigured()).toThrow(/not configured/i);
+    await expect(mailer.assertConfigured()).rejects.toThrow(/not enabled/i);
   });
 });
 

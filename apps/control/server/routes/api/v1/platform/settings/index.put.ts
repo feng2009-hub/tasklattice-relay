@@ -16,7 +16,10 @@ export default defineHandler(async (event) => {
     return unauthorizedResponse(error);
   }
   try {
-    const principal = await requirePlatformAdministrator(event.req);
+    const principal = await requirePlatformAdministrator(
+      event.req,
+      "CAP_PLATFORM_SETTINGS_UPDATE",
+    );
     const input = updatePlatformSettingsSchema.parse(await event.req.json());
     const health = await new NemoClawRunnerClient().getHealth().catch(() => undefined);
     return jsonResponse(

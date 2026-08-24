@@ -15,7 +15,7 @@ export default defineHandler(async (event) => {
     return unauthorizedResponse(error);
   }
   try {
-    await requirePlatformAdministrator(event.req);
+    await requirePlatformAdministrator(event.req, "CAP_PLATFORM_SETTINGS_VIEW");
     const health = await new NemoClawRunnerClient().getHealth().catch(() => undefined);
     return jsonResponse(await new PlatformSettingsService().get(health));
   } catch (error) {

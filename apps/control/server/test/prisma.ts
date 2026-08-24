@@ -38,6 +38,11 @@ import departmentRolesMigration from "../../prisma/migrations/20260820000000_dep
 import projectRuntimeTargetsMigration from "../../prisma/migrations/20260822000000_project_runtime_targets/migration.sql?raw";
 import managedA2aInstancesMigration from "../../prisma/migrations/20260823000000_managed_a2a_instances/migration.sql?raw";
 import platformSettingsMigration from "../../prisma/migrations/20260824000000_platform_settings/migration.sql?raw";
+import platformAuthSettingsMigration from "../../prisma/migrations/20260824010000_platform_auth_settings/migration.sql?raw";
+import platformEmailAndRuntimePolicyMigration from "../../prisma/migrations/20260824020000_platform_email_and_runtime_policy/migration.sql?raw";
+import platformSandboxDefaultsMigration from "../../prisma/migrations/20260824030000_platform_sandbox_defaults/migration.sql?raw";
+import ssoRoleBindingsMigration from "../../prisma/migrations/20260824040000_sso_role_bindings/migration.sql?raw";
+import builtinRoleCatalogMigration from "../../prisma/migrations/20260824050000_builtin_role_catalog/migration.sql?raw";
 import { developmentResourceCatalog } from "../catalog/development-resource-catalog";
 import { PrismaClient } from "../generated/prisma/client";
 
@@ -66,18 +71,19 @@ export function createTestPrisma(): PrismaClient {
   });
   // pg-mem models NUMERIC values but does not parse PostgreSQL precision
   // metadata. Production migrations retain Prisma's DECIMAL(65,30).
+  const testInitialMigration = migration.replace("'approver'", "'reviewer'");
   if (
-    !migration.includes(
-      "ENUM ('admin', 'auditor', 'developer', 'user', 'approver')",
+    !testInitialMigration.includes(
+      "ENUM ('admin', 'auditor', 'developer', 'user', 'reviewer')",
     )
-    || migration.includes("'member'")
-    || migration.includes("'end_user'")
-    || !migration.includes("owner_user_id TEXT NOT NULL")
-    || !migration.includes("agents_owner_membership_fkey")
+    || testInitialMigration.includes("'member'")
+    || testInitialMigration.includes("'end_user'")
+    || !testInitialMigration.includes("owner_user_id TEXT NOT NULL")
+    || !testInitialMigration.includes("agents_owner_membership_fkey")
   ) {
     throw new Error("Initial Project role and Agent ownership schema is incomplete.");
   }
-  memory.public.none(migration.replaceAll("DECIMAL(65,30)", "NUMERIC"));
+  memory.public.none(testInitialMigration.replaceAll("DECIMAL(65,30)", "NUMERIC"));
   memory.public.none(seedMigration);
   memory.public.none(virtualEmployeeMigration.replaceAll("DECIMAL(18,6)", "NUMERIC"));
   memory.public.none(projectQuotaMigration.replaceAll("DECIMAL(18,6)", "NUMERIC"));
@@ -430,6 +436,32 @@ export function createTestPrisma(): PrismaClient {
         "",
       )
       .replaceAll("DECIMAL(18, 6)", "NUMERIC"),
+  );
+  memory.public.none(platformAuthSettingsMigration);
+  memory.public.none(platformEmailAndRuntimePolicyMigration);
+  memory.public.none(platformSandboxDefaultsMigration);
+  memory.public.none(
+    ssoRoleBindingsMigration
+      .replaceAll("ROLE_APPROVER", "ROLE_REVIEWER")
+      .replace(
+        /,\n  CONSTRAINT "external_role_bindings_subject_path_check" CHECK \([\s\S]*?\n  \),\n  CONSTRAINT "external_role_bindings_scope_check"/,
+        ',\n  CONSTRAINT "external_role_bindings_scope_check"',
+      )
+      .replace(
+        /CREATE UNIQUE INDEX "external_role_bindings_unique_mapping_idx"[\s\S]*?;\s*/,
+        "",
+      ),
+  );
+  memory.public.none(
+    builtinRoleCatalogMigration
+      .replace(
+        /ALTER TYPE "tasklattice"\."project_role"[\s\S]*?;\s*/,
+        "",
+      )
+      .replace(
+        /,\n  CONSTRAINT "role_capability_grants_relations_array_check"[\s\S]*?CHECK \(jsonb_typeof\("relations"\) = 'array'\)\n/,
+        "\n",
+      ),
   );
   const pg = memory.adapters.createPg();
   const query = pg.Client.prototype.query;

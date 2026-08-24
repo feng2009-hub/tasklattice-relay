@@ -98,12 +98,45 @@ States:
 - My Account: open from the account menu and contain user-owned details,
   accessible Projects, account type, theme, local time zone, and local-account
   password reset independently of the current Project.
-- Sign out: live only in the account menu and clear local credentials even if
-  provider logout is unavailable.
+- Sign out: live only in the account menu. Local accounts clear the Relay
+  session directly. OIDC accounts first clear the Relay session and then use
+  the Provider's token-revocation and RP-Initiated Logout endpoints. Relay also
+  removes its cached access, refresh, and ID tokens, and the browser can choose
+  another SSO account on its next sign-in. If Provider logout is unavailable,
+  local session deletion still succeeds.
 
 Production requires an explicit signing secret and local password/hash. OIDC
 uses discovery, Authorization Code, PKCE, nonce, signed state storage, issuer,
 audience, expiry, and provider signing-key validation.
+
+## Platform people administration
+
+The Platform People page is an operational data table, not a collection of
+free-form profile rows. TanStack Query owns the server query lifecycle and
+TanStack Table owns column structure. Search, Department filter, Project
+filter, page, and page size are explicit query inputs; pagination is performed
+by the Control API.
+
+The table exposes Platform Administrator, Department Administrator, and
+Project Administrator as three independent scopes. A person may hold any
+combination of them. Department and Project membership cells show the exact
+resource name and effective Role; status remains a separate column. Fixed
+column definitions, semantic table markup, stable loading data, an empty state,
+and retry affordance prevent the alignment drift of free-form grid rows.
+
+## Platform Role catalog
+
+Roles & Capabilities is a read-only operational catalog, not a Role creation
+screen. It presents two groups: Administration and Project business roles.
+Administration contains Platform Administrator, Department Administrator, and
+Project Administrator with their scope displayed explicitly. Project business
+roles contain Agent Developer, User, Auditor, and Reviewer.
+
+Each expandable row shows the stable Role ID, scope, catalog revision, enabled
+CAP count, resource relations when applicable, and enabled/disabled state for
+every Capability registered in that scope. The page reads the same persisted
+catalog as runtime admission. It must not display an Add Role action until a
+custom-Role lifecycle, validation model, and safe migration contract exist.
 
 ## Component and accessibility rules
 

@@ -15,7 +15,7 @@ enum ProjectRole {
   auditor
   developer
   user
-  approver
+  reviewer
 
   @@map("project_role")
   @@schema("tasklattice")
@@ -45,6 +45,40 @@ enum UserStatus {
   @@schema("tasklattice")
 }
 
+enum ExternalIdentitySubjectType {
+  GROUP
+  CLIENT
+
+  @@map("external_identity_subject_type")
+  @@schema("tasklattice")
+}
+
+enum ExternalRoleScope {
+  PLATFORM
+  DEPARTMENT
+  PROJECT
+
+  @@map("external_role_scope")
+  @@schema("tasklattice")
+}
+
+enum AuthorizationScope {
+  PLATFORM
+  DEPARTMENT
+  PROJECT
+
+  @@map("authorization_scope")
+  @@schema("tasklattice")
+}
+
+enum AuthorizationRoleFamily {
+  ADMINISTRATION
+  PROJECT_BUSINESS
+
+  @@map("authorization_role_family")
+  @@schema("tasklattice")
+}
+
 enum McpDiscoveryStatus {
   HEALTHY
   PERMISSION_REQUIRED
@@ -66,6 +100,7 @@ model User {
   timezone      String     @default("UTC")
   theme         String     @default("system")
   systemRole    SystemRole @default(user) @map("system_role")
+  externalPlatformAdministrator Boolean @default(false) @map("external_platform_administrator")
   status        UserStatus @default(active)
   createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -78,22 +113,142 @@ model User {
   memberships           ProjectMember[]
   notifications         UserNotification[]
   invitations           ProjectInvitation[] @relation("InvitationCreator")
+  externalRoleGrants    ExternalRoleGrant[]
 
   @@map("users")
   @@schema("tasklattice")
 }
 
 model PlatformSettingsRecord {
-  id                   String   @id @default("platform")
-  openclawSandboxImage String?  @map("openclaw_sandbox_image")
-  hermesSandboxImage   String?  @map("hermes_sandbox_image")
-  enabledProviderKinds Json?    @map("enabled_provider_kinds")
-  revision             Int      @default(1)
-  updatedBy            String?  @map("updated_by")
-  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                        String   @id @default("platform")
+  openclawSandboxImage      String?  @map("openclaw_sandbox_image")
+  hermesSandboxImage        String?  @map("hermes_sandbox_image")
+  sandboxCpu                String?  @map("sandbox_cpu")
+  sandboxMemory             String?  @map("sandbox_memory")
+  enabledProviderKinds      Json?    @map("enabled_provider_kinds")
+  oidcEnabled               Boolean  @default(false) @map("oidc_enabled")
+  oidcDisplayName           String   @default("SSO") @map("oidc_display_name")
+  oidcIssuer                String   @default("") @map("oidc_issuer")
+  oidcClientId              String   @default("") @map("oidc_client_id")
+  oidcGroupClaim            String   @default("groups") @map("oidc_group_claim")
+  oidcClientSecretEncrypted String?  @map("oidc_client_secret_encrypted")
+  smtpEnabled               Boolean  @default(false) @map("smtp_enabled")
+  smtpHost                  String   @default("") @map("smtp_host")
+  smtpPort                  Int      @default(587) @map("smtp_port")
+  smtpSecure                Boolean  @default(false) @map("smtp_secure")
+  smtpUsername              String   @default("") @map("smtp_username")
+  smtpPasswordEncrypted     String?  @map("smtp_password_encrypted")
+  smtpFromAddress           String   @default("") @map("smtp_from_address")
+  smtpFromName              String   @default("TaskLattice Relay") @map("smtp_from_name")
+  smtpReplyTo               String   @default("") @map("smtp_reply_to")
+  runtimeNamespaceDeletionTimeoutSeconds Int @default(120) @map("runtime_namespace_deletion_timeout_seconds")
+  revision                  Int      @default(1)
+  updatedBy                 String?  @map("updated_by")
+  createdAt                 DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@map("platform_settings")
+  @@schema("tasklattice")
+}
+
+model ExternalRoleBinding {
+  id           String                      @id @default(uuid())
+  providerId   String                      @default("corporate-sso") @map("provider_id")
+  subjectType  ExternalIdentitySubjectType @default(GROUP) @map("subject_type")
+  subjectValue String                      @map("subject_value")
+  scope        ExternalRoleScope
+  departmentId String?                     @map("department_id")
+  projectId    String?                     @map("project_id")
+  roleId       String                      @map("role_id")
+  enabled      Boolean                     @default(true)
+  createdBy    String?                     @map("created_by")
+  createdAt    DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime                    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  department Department?        @relation(fields: [departmentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  project    Project?           @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  grants     ExternalRoleGrant[]
+
+  @@index([providerId, subjectType, subjectValue, enabled])
+  @@index([scope, departmentId, projectId, roleId])
+  @@map("external_role_bindings")
+  @@schema("tasklattice")
+}
+
+model ExternalRoleGrant {
+  bindingId String   @map("binding_id")
+  userId    String   @map("user_id")
+  lastSeenAt DateTime @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  binding ExternalRoleBinding @relation(fields: [bindingId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  user    User                @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@id([bindingId, userId])
+  @@index([userId, lastSeenAt])
+  @@map("external_role_grants")
+  @@schema("tasklattice")
+}
+
+model RoleCatalogState {
+  id        String   @id @default("builtin")
+  revision  Int
+  syncedAt  DateTime @default(now()) @map("synced_at") @db.Timestamptz(6)
+
+  @@map("role_catalog_state")
+  @@schema("tasklattice")
+}
+
+model CapabilityDefinition {
+  id               String             @id
+  scope            AuthorizationScope
+  sideEffect       Boolean            @default(false) @map("side_effect")
+  sensitiveContent Boolean            @default(false) @map("sensitive_content")
+  systemManaged    Boolean            @default(true) @map("system_managed")
+  sortOrder        Int                @default(0) @map("sort_order")
+  createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  roleGrants RoleCapabilityGrant[]
+
+  @@index([scope, sortOrder])
+  @@map("capability_definitions")
+  @@schema("tasklattice")
+}
+
+model RoleDefinition {
+  id            String             @id
+  scope         AuthorizationScope
+  family        AuthorizationRoleFamily
+  name          String
+  description   String
+  builtin       Boolean            @default(true)
+  assignable    Boolean            @default(true)
+  systemManaged Boolean            @default(true) @map("system_managed")
+  sortOrder     Int                @default(0) @map("sort_order")
+  revision      Int                @default(1)
+  createdAt     DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  grants RoleCapabilityGrant[]
+
+  @@index([family, sortOrder])
+  @@index([scope, sortOrder])
+  @@map("role_definitions")
+  @@schema("tasklattice")
+}
+
+model RoleCapabilityGrant {
+  roleId       String @map("role_id")
+  capabilityId String @map("capability_id")
+  relations    Json
+
+  role       RoleDefinition       @relation(fields: [roleId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  capability CapabilityDefinition @relation(fields: [capabilityId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@id([roleId, capabilityId])
+  @@index([capabilityId])
+  @@map("role_capability_grants")
   @@schema("tasklattice")
 }
 
@@ -110,6 +265,7 @@ model Department {
   creator  User               @relation("DepartmentCreator", fields: [createdBy], references: [id], onDelete: Restrict, onUpdate: Cascade)
   members  DepartmentMember[]
   projects Project[]
+  externalRoleBindings ExternalRoleBinding[]
 
   @@map("departments")
   @@schema("tasklattice")
@@ -120,6 +276,8 @@ model DepartmentMember {
   userId       String         @map("user_id")
   role         DepartmentRole @default(member)
   status       String         @default("active")
+  manualAccess Boolean        @default(true) @map("manual_access")
+  externalAccessActive Boolean @default(false) @map("external_access_active")
   joinedAt     DateTime       @default(now()) @map("joined_at") @db.Timestamptz(6)
 
   department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
@@ -247,6 +405,7 @@ model Project {
   quota                        ProjectQuotaRecord?
   deletionTask                 ProjectDeletionTask?
   runtimeTarget                ProjectRuntimeTarget?
+  externalRoleBindings         ExternalRoleBinding[]
 
   @@unique([departmentId, name], map: "projects_department_name_key")
   @@index([departmentId, createdAt])
@@ -400,6 +559,8 @@ model ProjectMember {
   projectId String      @map("project_id")
   userId    String      @map("user_id")
   role      ProjectRole
+  manualAccess Boolean @default(true) @map("manual_access")
+  externalAccessActive Boolean @default(false) @map("external_access_active")
   joinedAt  DateTime    @default(now()) @map("joined_at") @db.Timestamptz(6)
 
   project                  Project                       @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -418,6 +579,8 @@ model ProjectMemberRoleAssignment {
   projectId  String      @map("project_id")
   userId     String      @map("user_id")
   role       ProjectRole
+  manualAssignment Boolean @default(true) @map("manual_assignment")
+  externalAssignmentActive Boolean @default(false) @map("external_assignment_active")
   assignedAt DateTime    @default(now()) @map("assigned_at") @db.Timestamptz(6)
 
   member ProjectMember @relation(fields: [projectId, userId], references: [projectId, userId], onDelete: Cascade, onUpdate: Cascade)

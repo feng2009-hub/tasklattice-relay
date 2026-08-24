@@ -16,7 +16,7 @@ export default defineHandler(async (event) => {
     if (!auth.user.hasPassword) {
       return problemResponse(403, "This account does not have a password credential.");
     }
-    await betterAuth().api.changePassword({
+    await (await betterAuth()).api.changePassword({
       headers: event.req.headers,
       body: {
         currentPassword: input.currentPassword,

@@ -61,7 +61,7 @@ export const Route = createFileRoute("/$projectId/help")({
 const topicIcons: Record<HelpTopicId, LucideIcon> = {
   admin: ShieldCheck,
   developer: Code2,
-  approver: BadgeCheck,
+  reviewer: BadgeCheck,
   auditor: ScrollText,
   user: UserRound,
   maintenance: Wrench,

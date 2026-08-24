@@ -14,7 +14,7 @@ export default defineHandler(async (event) => {
     return unauthorizedResponse(error);
   }
   try {
-    await requirePlatformAdministrator(event.req);
+    await requirePlatformAdministrator(event.req, "CAP_PLATFORM_DEPARTMENT_VIEW");
     return jsonResponse(await new PlatformOrganizationService().get());
   } catch (error) {
     return errorResponse(error);

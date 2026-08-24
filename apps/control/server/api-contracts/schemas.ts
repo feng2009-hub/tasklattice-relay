@@ -1,5 +1,8 @@
 import {
   assignableProjectMembershipRoles,
+  departmentNameSchema,
+  projectIdSchema,
+  projectNameSchema,
   projectCapabilities,
   projectMembershipRoles,
   projectOverviewRanges,
@@ -138,7 +141,8 @@ export const createProjectInputSchema = z.object({
     error: "Confirm that the Project name cannot be changed after creation.",
   }),
   departmentId: id.max(80),
-  name: z.string().trim().min(2).max(80),
+  id: projectIdSchema,
+  name: projectNameSchema,
   invitations: z.array(projectInvitationInputSchema).max(25),
 }).superRefine(({ invitations }, context) => {
   const seen = new Set<string>();
@@ -156,7 +160,7 @@ export const createProjectInputSchema = z.object({
 }).meta({ id: "CreateProjectInput" });
 
 export const updateProjectInputSchema = z.object({
-  name: z.string().trim().min(2).max(80),
+  name: projectNameSchema,
 }).meta({ id: "UpdateProjectInput" });
 
 export const projectRoleInputSchema = z.object({
@@ -221,7 +225,7 @@ export const projectDeletionImpactSchema = z.object({
 export const updateDepartmentInputSchema = z.object({
   description: z.string().trim().max(500).nullable(),
   hardBudgetUsd: money.max(1_000_000_000).nullable(),
-  name: z.string().trim().min(2).max(80),
+  name: departmentNameSchema,
 }).meta({ id: "UpdateDepartmentInput" });
 
 export const departmentSummarySchema = z.object({

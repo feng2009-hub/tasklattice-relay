@@ -21,7 +21,7 @@ decision, and whether the change has actually taken effect.
 ### Target users
 
 - Requester: Creates, saves, and tracks requests they initiated.
-- Approver: Reviews requests and makes decisions in a future release; the
+- Reviewer: Reviews requests and makes decisions in a future release; the
   current prototype does not provide approval actions.
 - Auditor / Operator: Uses the history to understand decisions and operational
   outcomes; the current prototype displays preview information only.
@@ -39,7 +39,7 @@ decision, and whether the change has actually taken effect.
 
 - The current prototype does not perform real approvals, deployments, or
   resource changes.
-- The current prototype does not provide an approver inbox, comments,
+- The current prototype does not provide an reviewer inbox, comments,
   reassignment, withdrawal, or resubmission.
 - Ticket List does not replace the global Audit; it explains only the request's
   own state flow.
@@ -66,7 +66,7 @@ decision, and whether the change has actually taken effect.
 - Never indicate that a change has taken effect based only on an approval
   decision.
 - Never describe a preview action without a connected API as a real success.
-- Never show the Requester executable actions that belong only to the Approver.
+- Never show the Requester executable actions that belong only to the Reviewer.
 - Never expose credentials, tokens, or raw sensitive configuration in a request
   summary.
 
@@ -256,7 +256,7 @@ The `Approval` group contains:
 - Own scope only: Pending / History displays only requests initiated by the
   current user.
 - Auditor: Read-only access to history and state flows.
-- Approver: A future release displays role-specific actions in the same Request
+- Reviewer: A future release displays role-specific actions in the same Request
   Detail; the current prototype does not fabricate them.
 
 ## L6 Acceptance Criteria

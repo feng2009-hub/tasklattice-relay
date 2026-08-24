@@ -2,6 +2,10 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import {
+  departmentNameSchema,
+  scopedEntityNameLimits,
+} from "@tali/contracts";
+import {
   ArrowUpRight,
   Building2,
   CircleDollarSign,
@@ -54,6 +58,7 @@ function DepartmentManagementPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [hardBudgetUsd, setHardBudgetUsd] = useState("");
+  const validatedName = departmentNameSchema.safeParse(name);
 
   useEffect(() => {
     if (!department.data) return;
@@ -140,7 +145,7 @@ function DepartmentManagementPage() {
           <Button
             disabled={
               !dirty ||
-              name.trim().length < 2 ||
+              !validatedName.success ||
               budgetInvalid ||
               save.isPending
             }
@@ -207,12 +212,22 @@ function DepartmentManagementPage() {
                 id="department-name"
                 className="h-11"
                 value={name}
-                maxLength={80}
+                maxLength={scopedEntityNameLimits.max}
+                aria-invalid={Boolean(name) && !validatedName.success}
                 onChange={(event) => {
                   setName(event.target.value);
                   save.reset();
                 }}
               />
+              <p className="text-xs leading-5 text-muted-foreground">
+                {scopedEntityNameLimits.min}–{scopedEntityNameLimits.max} characters.
+                Slashes, backslashes, and control characters are not allowed.
+              </p>
+              {name && !validatedName.success ? (
+                <p className="text-xs text-destructive" role="alert">
+                  {validatedName.error.issues[0]?.message}
+                </p>
+              ) : null}
             </div>
             <div className="grid gap-2">
               <Label htmlFor="department-description">Description</Label>

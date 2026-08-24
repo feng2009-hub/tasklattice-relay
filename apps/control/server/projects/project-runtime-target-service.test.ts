@@ -144,6 +144,12 @@ describe("ProjectRuntimeTargetService", () => {
         projectId: "individual",
       },
     });
+    await db.platformSettingsRecord.create({
+      data: {
+        id: "platform",
+        runtimeNamespaceDeletionTimeoutSeconds: 37,
+      },
+    });
     const fake = namespaceClient();
     const service = new ProjectRuntimeTargetService(db, fake.client);
 
@@ -153,7 +159,7 @@ describe("ProjectRuntimeTargetService", () => {
     expect(fake.deleteAndWait).toHaveBeenCalledWith(
       projectRuntimeNamespace("individual"),
       "individual",
-      config.runtime_namespaces.deletion_timeout_seconds * 1_000,
+      37_000,
     );
   });
 });

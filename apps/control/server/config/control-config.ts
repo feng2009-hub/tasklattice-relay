@@ -3,39 +3,10 @@ import { resolve } from "node:path";
 import { parse } from "smol-toml";
 import { z } from "zod";
 
-const enabledOidcSchema = z.object({
-  enabled: z.literal(true),
-  display_name: z.string().trim().min(1).default("SSO"),
-  issuer: z.string().url(),
-  client_id: z.string().trim().min(1),
-  client_secret: z.string().default(""),
-});
-
-const disabledOidcSchema = z.object({
-  enabled: z.literal(false),
-  display_name: z.string().trim().min(1).default("SSO"),
-  issuer: z.string().default(""),
-  client_id: z.string().default(""),
-  client_secret: z.string().default(""),
-});
-
-const disabledSmtpConfig = {
-  enabled: false as const,
-  host: "",
-  port: 587,
-  secure: false,
-  username: "",
-  password: "",
-  from_address: "",
-  from_name: "TaskLattice Relay",
-  reply_to: "",
-};
-
 const defaultRuntimeNamespacesConfig = {
   enabled: false,
   cluster_id: "in-cluster",
   name_prefix: "tali-p",
-  deletion_timeout_seconds: 120,
 };
 
 const runtimeNamespacesConfigSchema = z.object({
@@ -45,49 +16,6 @@ const runtimeNamespacesConfigSchema = z.object({
     /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/,
     "runtime_namespaces.name_prefix must be a DNS label prefix.",
   ),
-  deletion_timeout_seconds: z.number().int().min(10).max(1_800),
-});
-
-const smtpConfigSchema = z.object({
-  enabled: z.boolean(),
-  host: z.string().trim(),
-  port: z.number().int().min(1).max(65_535),
-  secure: z.boolean(),
-  username: z.string(),
-  password: z.string(),
-  from_address: z.string().trim(),
-  from_name: z.string().trim().min(1),
-  reply_to: z.string().trim(),
-}).superRefine((value, context) => {
-  if (!value.enabled) return;
-  if (!value.host) {
-    context.addIssue({
-      code: "custom",
-      path: ["host"],
-      message: "smtp.host is required when SMTP invitations are enabled.",
-    });
-  }
-  if (!z.email().safeParse(value.from_address).success) {
-    context.addIssue({
-      code: "custom",
-      path: ["from_address"],
-      message: "smtp.from_address must be a valid email address.",
-    });
-  }
-  if (value.reply_to && !z.email().safeParse(value.reply_to).success) {
-    context.addIssue({
-      code: "custom",
-      path: ["reply_to"],
-      message: "smtp.reply_to must be a valid email address when configured.",
-    });
-  }
-  if (Boolean(value.username) !== Boolean(value.password)) {
-    context.addIssue({
-      code: "custom",
-      path: [value.username ? "password" : "username"],
-      message: "smtp.username and smtp.password must be configured together.",
-    });
-  }
 });
 
 const localAuthConfigSchema = z.object({
@@ -151,17 +79,7 @@ const controlConfigSchema = z.object({
   auth: z.object({
     secret: z.string().min(32),
     local: localAuthConfigSchema,
-    oidc: z.discriminatedUnion("enabled", [
-      enabledOidcSchema,
-      disabledOidcSchema,
-    ]),
   }).superRefine((value, context) => {
-    if (!value.local.enabled && !value.oidc.enabled) {
-      context.addIssue({
-        code: "custom",
-        message: "At least one authentication provider must be enabled.",
-      });
-    }
     if (
       value.local.enabled &&
       (!value.local.initial_platform_administrator_username ||
@@ -187,20 +105,12 @@ const controlConfigSchema = z.object({
   runtime_namespaces: runtimeNamespacesConfigSchema.default(
     defaultRuntimeNamespacesConfig,
   ),
-  smtp: smtpConfigSchema.default(disabledSmtpConfig),
 }).superRefine((value, context) => {
   if (!value.server.public_url) {
     context.addIssue({
       code: "custom",
       path: ["server", "public_url"],
       message: "server.public_url is required for Better Auth.",
-    });
-  }
-  if (value.smtp.enabled && !value.server.public_url) {
-    context.addIssue({
-      code: "custom",
-      path: ["server", "public_url"],
-      message: "server.public_url is required when SMTP invitations are enabled.",
     });
   }
 });
@@ -227,13 +137,6 @@ const developmentConfig: ControlConfig = {
       initial_platform_administrator_email: "admin@tasklattice.local",
       initial_platform_administrator_password: "admin",
     },
-    oidc: {
-      enabled: false,
-      display_name: "SSO",
-      issuer: "",
-      client_id: "",
-      client_secret: "",
-    },
   },
   runner: {
     url: "http://127.0.0.1:9090",
@@ -244,7 +147,6 @@ const developmentConfig: ControlConfig = {
     master_key: "",
   },
   runtime_namespaces: defaultRuntimeNamespacesConfig,
-  smtp: disabledSmtpConfig,
 };
 
 export function getControlConfig(): ControlConfig {

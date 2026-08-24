@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { getControlConfig } from "../config/control-config";
 import { prisma } from "../db/prisma";
 import type { PrismaClient } from "../generated/prisma/client";
+import { PlatformSettingsService } from "../platform/platform-settings-service";
 import {
   createProjectNamespaceClient,
   type ProjectNamespaceClient,
@@ -179,10 +180,13 @@ export class ProjectRuntimeTargetService
       data: { lastError: null, status: "deleting" },
     });
     try {
+      const deletionTimeoutSeconds = await new PlatformSettingsService(
+        this.db,
+      ).runtimeNamespaceDeletionTimeoutSeconds();
       await this.namespaces.deleteAndWait(
         target.namespace,
         projectId,
-        this.config.deletion_timeout_seconds * 1_000,
+        deletionTimeoutSeconds * 1_000,
       );
       return true;
     } catch (error) {

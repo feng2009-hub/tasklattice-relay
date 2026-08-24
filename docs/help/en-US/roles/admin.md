@@ -5,7 +5,7 @@ Set the Project boundary, enable the team, and remain accountable for resources,
 ## Establish the Project
 
 1. **Confirm identity and Project scope.** Use the Project switcher before every administrative change. Project names and IDs are durable ownership boundaries, not display-only labels. [Open Project overview](/__project__).
-2. **Invite members and assign the narrowest role.** In Project Settings, add people as Administrator, Developer, Approver, Auditor, or User. Keep at least one administrator and review stale memberships regularly. [Open Project Settings](/__project__/setting).
+2. **Invite members and assign the narrowest role.** In Project Settings, add people as Administrator, Developer, Reviewer, Auditor, or User. Keep at least one administrator and review stale memberships regularly. [Open Project Settings](/__project__/setting).
 3. **Connect models and set routing.** Register provider accounts, validate models, choose a default routing configuration, and set a Project budget before production use. [Open models and routing](/__project__/setting).
 
 ## Enable safe Agent delivery

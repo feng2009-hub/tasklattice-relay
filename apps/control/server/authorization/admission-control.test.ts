@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { PrismaClient } from "../generated/prisma/client";
 import { createTestPrisma } from "../test/prisma";
 import { errorResponse } from "../http/responses";
@@ -8,17 +8,27 @@ import {
   evaluateAdmission,
 } from "./admission-control";
 import { admissionEvidenceForRequest } from "./authorization-context";
+import { RoleCatalogService } from "./role-catalog";
 
-let database: PrismaClient | undefined;
+let database: PrismaClient;
+let roleDefinitions: Awaited<ReturnType<RoleCatalogService["catalog"]>>["roles"];
+
+beforeEach(async () => {
+  database = createTestPrisma();
+  roleDefinitions = (await new RoleCatalogService(database).catalog()).roles;
+});
 
 afterEach(async () => {
   await database?.$disconnect();
-  database = undefined;
 });
+
+function admit(input: Parameters<typeof evaluateAdmission>[0]) {
+  return evaluateAdmission(input, roleDefinitions);
+}
 
 describe("capability admission evaluator", () => {
   it("allows a matching capability and resource relation", () => {
-    expect(evaluateAdmission({
+    expect(admit({
       actorId: "developer-1",
       capability: "CAP_AGENT_INSTANCE_DELETE",
       projectId: "project-1",
@@ -33,7 +43,7 @@ describe("capability admission evaluator", () => {
   });
 
   it("uses capability-level scopes and treats PROJECT_ANY as a grant wildcard", () => {
-    expect(evaluateAdmission({
+    expect(admit({
       actorId: "developer-1",
       capability: "CAP_PROJECT_QUOTA_VIEW",
       projectId: "project-1",
@@ -41,7 +51,7 @@ describe("capability admission evaluator", () => {
       resourceType: "ProjectQuota",
       roleIds: ["ROLE_AGENT_DEVELOPER"],
     }).decision).toBe("ALLOW");
-    expect(evaluateAdmission({
+    expect(admit({
       actorId: "developer-1",
       capability: "CAP_AGENT_INSTANCE_DELETE",
       projectId: "project-1",
@@ -49,7 +59,7 @@ describe("capability admission evaluator", () => {
       resourceType: "AgentInstance",
       roleIds: ["ROLE_AGENT_DEVELOPER"],
     }).decision).toBe("DENY");
-    expect(evaluateAdmission({
+    expect(admit({
       actorId: "admin-1",
       capability: "CAP_AGENT_INSTANCE_CONFIG_VIEW",
       projectId: "project-1",
@@ -60,7 +70,7 @@ describe("capability admission evaluator", () => {
   });
 
   it("fails closed when a capability or relation is missing", () => {
-    expect(evaluateAdmission({
+    expect(admit({
       actorId: "user-1",
       capability: "CAP_AGENT_INSTANCE_DELETE",
       projectId: "project-1",
@@ -68,7 +78,7 @@ describe("capability admission evaluator", () => {
       resourceType: "AgentInstance",
       roleIds: ["ROLE_USER"],
     }).decision).toBe("DENY");
-    expect(evaluateAdmission({
+    expect(admit({
       actorId: "developer-1",
       capability: "CAP_AGENT_INSTANCE_DELETE",
       projectId: "project-1",
@@ -76,7 +86,7 @@ describe("capability admission evaluator", () => {
       resourceType: "AgentInstance",
       roleIds: ["ROLE_AGENT_DEVELOPER"],
     })).toMatchObject({ decision: "DENY", roleId: "ROLE_AGENT_DEVELOPER" });
-    expect(evaluateAdmission({
+    expect(admit({
       actorId: "orphan",
       capability: "CAP_PROJECT_VIEW",
       projectId: "project-1",
@@ -92,12 +102,12 @@ describe("capability admission evaluator", () => {
       relation: "PROJECT_ANY" as const,
       roleIds: ["ROLE_AUDITOR"] as const,
     };
-    expect(evaluateAdmission({
+    expect(admit({
       ...common,
       capability: "CAP_AUDIT_DETAIL_VIEW",
       resourceType: "AgentInstance",
     }).decision).toBe("ALLOW");
-    expect(evaluateAdmission({
+    expect(admit({
       ...common,
       capability: "CAP_AUDIT_SENSITIVE_CONTENT_VIEW",
       resourceType: "AgentInstanceAudit",
@@ -105,7 +115,7 @@ describe("capability admission evaluator", () => {
   });
 
   it("prioritizes explicit deny and enforces explicit approval policy", () => {
-    expect(evaluateAdmission({
+    expect(admit({
       actorId: "developer-1",
       capability: "CAP_AGENT_INSTANCE_DELETE",
       explicitDeny: true,
@@ -114,7 +124,7 @@ describe("capability admission evaluator", () => {
       resourceType: "AgentInstance",
       roleIds: ["ROLE_AGENT_DEVELOPER"],
     }).decision).toBe("DENY");
-    const approval = evaluateAdmission({
+    const approval = admit({
       actorId: "developer-1",
       capability: "CAP_AGENT_INSTANCE_DELETE",
       projectId: "project-1",
@@ -139,13 +149,12 @@ describe("capability admission evaluator", () => {
   });
 
   it("resolves every builtin membership role and records request-scoped evidence", async () => {
-    database = createTestPrisma();
     const roles = [
       ["admin", "CAP_PROVIDER_VALIDATE", "PROJECT_ANY"],
       ["auditor", "CAP_AUDIT_DETAIL_VIEW", "PROJECT_ANY"],
       ["developer", "CAP_AGENT_INSTANCE_CREATE", "OWNER"],
       ["user", "CAP_AGENT_INSTANCE_INTERACT", "ASSIGNED"],
-      ["approver", "CAP_APPROVAL_REQUEST_DECIDE", "PROJECT_ANY"],
+      ["reviewer", "CAP_APPROVAL_REQUEST_DECIDE", "PROJECT_ANY"],
     ] as const;
     await database.user.createMany({
       data: roles.map(([role]) => ({
@@ -176,7 +185,6 @@ describe("capability admission evaluator", () => {
   });
 
   it("does not infer service-only capabilities from Project identity", async () => {
-    database = createTestPrisma();
     const service = new ProjectAdmissionService(database);
     await database.project.create({
       data: {
@@ -200,7 +208,6 @@ describe("capability admission evaluator", () => {
   });
 
   it("does not let a Platform Administrator bypass Project membership", async () => {
-    database = createTestPrisma();
     const service = new ProjectAdmissionService(database);
     const request = new Request("http://tali.test/api/v1/projects/individual/resource");
     await expect(service.authorize(

@@ -27,7 +27,7 @@ describe("help content", () => {
     const topics = Object.values(getHelpTopics("en-US"));
     expect(topics.filter((topic) => topic.category === "role")).toHaveLength(5);
     expect(topics.filter((topic) => topic.category === "operations")).toHaveLength(2);
-    expect(getHelpTopics("en-US").approver.preview).toBe(true);
+    expect(getHelpTopics("en-US").reviewer.preview).toBe(true);
     expect(
       topics
         .filter((topic) => topic.category === "operations")

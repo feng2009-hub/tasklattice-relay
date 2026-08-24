@@ -126,6 +126,114 @@ describe("platform audit request capture", () => {
     });
   });
 
+  it("audits online SSO changes without retaining the Client secret", async () => {
+    const captured = await captureAuditRequest(new Request(
+      "http://tali.local/api/v1/platform/security",
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          sso: {
+            clientId: "tali-control",
+            clientSecret: { action: "replace", value: "never-audit-this" },
+            displayName: "Company SSO",
+            enabled: true,
+            issuer: "https://identity.example",
+          },
+        }),
+      },
+    ));
+
+    expect(captured).toMatchObject({
+      descriptor: {
+        action: "platform.security_update",
+        objectId: "platform",
+        objectType: "Platform Security",
+      },
+      body: {
+        sso: { clientSecret: "[REDACTED]" },
+      },
+    });
+    expect(JSON.stringify(captured)).not.toContain("never-audit-this");
+
+    const validation = await captureAuditRequest(new Request(
+      "http://tali.local/api/v1/platform/security/validate",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          clientId: "tali-control",
+          clientSecret: { action: "replace", value: "never-audit-validation" },
+          issuer: "https://identity.example",
+        }),
+      },
+    ));
+    expect(validation).toMatchObject({
+      descriptor: {
+        action: "platform.security_validate",
+        objectId: "platform",
+        objectType: "Platform Security",
+      },
+      body: { clientSecret: "[REDACTED]" },
+    });
+    expect(JSON.stringify(validation)).not.toContain("never-audit-validation");
+  });
+
+  it("audits email delivery changes without retaining the SMTP password", async () => {
+    const captured = await captureAuditRequest(new Request(
+      "http://tali.local/api/v1/platform/email",
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          enabled: true,
+          fromAddress: "invites@tali.example",
+          fromName: "TaskLattice Relay",
+          host: "smtp.example",
+          password: { action: "replace", value: "never-audit-smtp" },
+          port: 587,
+          replyTo: "",
+          secure: false,
+          username: "mailer",
+        }),
+      },
+    ));
+
+    expect(captured).toMatchObject({
+      descriptor: {
+        action: "platform.email_update",
+        objectId: "platform",
+        objectType: "Platform Email",
+      },
+      body: { password: "[REDACTED]" },
+    });
+    expect(JSON.stringify(captured)).not.toContain("never-audit-smtp");
+
+    const validation = await captureAuditRequest(new Request(
+      "http://tali.local/api/v1/platform/email/validate",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          host: "smtp.example",
+          password: { action: "replace", value: "never-audit-smtp-validation" },
+          port: 587,
+          secure: false,
+          username: "mailer",
+        }),
+      },
+    ));
+    expect(validation).toMatchObject({
+      descriptor: {
+        action: "platform.email_validate",
+        objectId: "platform",
+        objectType: "Platform Email",
+      },
+      body: { password: "[REDACTED]" },
+    });
+    expect(JSON.stringify(validation)).not.toContain("never-audit-smtp-validation");
+  });
+
   it("excludes read-only cost analytics requests", async () => {
     expect(await captureAuditRequest(new Request(
       "http://tali.local/api/v1/projects/individual/costs/breakdown",
@@ -213,7 +321,7 @@ describe("platform audit request capture", () => {
     }
 
     expect(uncovered).toEqual([]);
-    expect(routeFiles).toHaveLength(46);
+    expect(routeFiles).toHaveLength(52);
   });
 
   it("records direct Project role switches", async () => {

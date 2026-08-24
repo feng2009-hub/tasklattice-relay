@@ -186,6 +186,21 @@ describe("OpenShell Kubernetes command contract", () => {
     ]);
   });
 
+  it("applies platform resource overrides only to newly created Sandboxes", () => {
+    const args = openShellSandboxCreateArguments(
+      {
+        ...input,
+        sandboxResources: { cpu: "1500m", memory: "4Gi" },
+      },
+      "/tmp/AGENTS.md",
+      "/tmp/tali-nemoclaw-start",
+      "/tmp/openshell-policy.yaml",
+    );
+
+    expect(args[args.indexOf("--cpu") + 1]).toBe("1500m");
+    expect(args[args.indexOf("--memory") + 1]).toBe("4Gi");
+  });
+
   it("leaves inference routing to the attached Provider profile", () => {
     const policy = composeOpenShellInferencePolicy(
       "version: 1\nnetwork_policies:\n  github:\n    name: github\n  tali_inference_gateway:\n    name: legacy\n",

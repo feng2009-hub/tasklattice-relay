@@ -24,11 +24,11 @@ export type TicketPreview = {
 };
 
 export const pendingTicketPreviews: TicketPreview[] = [
-  { actionOwner: "Platform Quota Approvers", currentStep: "Quota approval", id: "REQ-2026-0715", kind: "Quota increase", status: "PENDING", target: "deepseek-chat" },
+  { actionOwner: "Platform Quota Reviewers", currentStep: "Quota approval", id: "REQ-2026-0715", kind: "Quota increase", status: "PENDING", target: "deepseek-chat" },
   { actionOwner: "Security Review", currentStep: "Security review", id: "REQ-2026-0712", kind: "Skill binding", status: "PENDING", target: "SQL Query" },
 ];
 
 export const historyTicketPreviews: TicketPreview[] = [
   { actionOwner: "Platform Operations", completedAt: "Jul 12", currentStep: "Completed", id: "REQ-2026-0688", kind: "Instance update", status: "APPROVED", target: "Research Assistant" },
-  { actionOwner: "Platform Quota Approvers", completedAt: "Jul 08", currentStep: "Closed", id: "REQ-2026-0661", kind: "Quota request", status: "REJECTED", target: "embedding-v3" },
+  { actionOwner: "Platform Quota Reviewers", completedAt: "Jul 08", currentStep: "Closed", id: "REQ-2026-0661", kind: "Quota request", status: "REJECTED", target: "embedding-v3" },
 ];

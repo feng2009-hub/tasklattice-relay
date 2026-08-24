@@ -75,11 +75,11 @@ function statusForMessage(message: string): number {
     ? 404
     : /access denied|do not have permission/i.test(message)
       ? 403
-      : /Invalid |must be|before end_time/i.test(message)
+      : /Invalid |must be|required when|before end_time/i.test(message)
         ? 400
-        : /Consumer|in use|already exists|already connected|connected to a Coordinator|cannot delegate|does not accept delegated|Only a READY Agent|managed by TaskLattice Relay|immutable|digest does not match|cannot be changed|default Model Routing|compliance|suspended|READY Model Routing|Multiple default|quota exceeded/i.test(message)
+        : /Consumer|in use|already exists|already connected|connected to a Coordinator|cannot delegate|does not accept delegated|Only a READY Agent|managed by TaskLattice Relay|immutable|digest does not match|cannot be changed|default Model Routing|compliance|suspended|READY Model Routing|Multiple default|quota exceeded|Online SSO changes require/i.test(message)
           ? 409
-          : /LiteLLM|gateway is unavailable|SMTP|invitation delivery/i.test(message)
+          : /LiteLLM|gateway is unavailable|SMTP|invitation delivery|OIDC discovery|OIDC JWKS/i.test(message)
             ? 503
             : 500;
 }

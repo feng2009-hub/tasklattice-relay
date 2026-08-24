@@ -245,9 +245,11 @@ export class InstanceService {
       throw error;
     }
     try {
-      const sandboxImage = await new PlatformSettingsService(
-        this.store.database(),
-      ).runtimeImageOverride(agent.agentPlatform);
+      const platformSettings = new PlatformSettingsService(this.store.database());
+      const [sandboxImage, sandboxResources] = await Promise.all([
+        platformSettings.runtimeImageOverride(agent.agentPlatform),
+        platformSettings.sandboxProvisioningOverrides(),
+      ]);
       agent = await this.store.save(
         applyObservedState(
           agent,
@@ -262,6 +264,7 @@ export class InstanceService {
             apiKey: instanceKey.secret,
             instanceId: id,
             ...(sandboxImage ? { sandboxImage } : {}),
+            ...(sandboxResources ? { sandboxResources } : {}),
             runTelemetry: {
               endpoint: `${controlOrigin.replace(/\/$/, "")}/api/internal/run-events`,
               token: signRunTelemetryToken({

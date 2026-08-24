@@ -1,5 +1,12 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import {
+  projectIdSchema,
+  projectNameSchema,
+  scopedEntityIdFromName,
+  scopedEntityIdLimits,
+  scopedEntityNameLimits,
+} from "@tali/contracts";
 import { Building2, LockKeyhole, Plus, Trash2 } from "lucide-react";
 import { AccountAvatar } from "@/components/account/account-avatar";
 import type { AuthUser } from "@/components/auth/auth-provider";
@@ -47,6 +54,8 @@ export function CreateProjectSheet({
   const { currentProject } = useProject();
   const [departmentId, setDepartmentId] = useState("");
   const [name, setName] = useState("");
+  const [projectId, setProjectId] = useState("");
+  const [projectIdEdited, setProjectIdEdited] = useState(false);
   const [nameConfirmed, setNameConfirmed] = useState(false);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<ProjectRole>("developer");
@@ -62,6 +71,8 @@ export function CreateProjectSheet({
     staleTime: 30_000,
   });
   const availableDepartments = departmentOptions ?? departments.data;
+  const validatedName = projectNameSchema.safeParse(name);
+  const validatedProjectId = projectIdSchema.safeParse(projectId);
 
   useEffect(() => {
     if (!open || !availableDepartments) return;
@@ -84,6 +95,8 @@ export function CreateProjectSheet({
   const reset = () => {
     setDepartmentId("");
     setName("");
+    setProjectId("");
+    setProjectIdEdited(false);
     setNameConfirmed(false);
     setEmail("");
     setRole("developer");
@@ -97,6 +110,7 @@ export function CreateProjectSheet({
       (authority === "platform" ? createPlatformProject : createProject)({
         confirmImmutableName: true,
         departmentId,
+        id: projectId.trim(),
         name: name.trim(),
         invitations,
       }),
@@ -158,7 +172,8 @@ export function CreateProjectSheet({
           <Button
             disabled={
               !departmentId ||
-              name.trim().length < 2 ||
+              !validatedName.success ||
+              !validatedProjectId.success ||
               !nameConfirmed ||
               create.isPending
             }
@@ -226,8 +241,14 @@ export function CreateProjectSheet({
             id="new-project-name"
             className="h-11"
             value={name}
+            maxLength={scopedEntityNameLimits.max}
+            aria-invalid={Boolean(name) && !validatedName.success}
             onChange={(event) => {
-              setName(event.target.value);
+              const nextName = event.target.value;
+              setName(nextName);
+              if (!projectIdEdited) {
+                setProjectId(scopedEntityIdFromName(nextName));
+              }
               setNameConfirmed(false);
               create.reset();
             }}
@@ -237,9 +258,45 @@ export function CreateProjectSheet({
           />
           <p className="flex items-start gap-2 text-xs leading-5 text-muted-foreground">
             <LockKeyhole className="mt-0.5 size-4 shrink-0" />
-            Project names are unique inside the selected Department and cannot
-            be changed after creation.
+            {scopedEntityNameLimits.min}–{scopedEntityNameLimits.max} characters.
+            Slashes, backslashes, and control characters are not allowed. The
+            name is unique inside the selected Department and cannot be changed.
           </p>
+          {name && !validatedName.success ? (
+            <p className="text-xs text-destructive" role="alert">
+              {validatedName.error.issues[0]?.message}
+            </p>
+          ) : null}
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="new-project-id">Project ID</Label>
+          <Input
+            id="new-project-id"
+            className="h-11 font-mono"
+            value={projectId}
+            maxLength={scopedEntityIdLimits.max}
+            onChange={(event) => {
+              setProjectIdEdited(true);
+              setProjectId(event.target.value.toLowerCase());
+              setNameConfirmed(false);
+              create.reset();
+            }}
+            placeholder="ai-trading-agent"
+            aria-describedby="new-project-id-help"
+            aria-invalid={Boolean(projectId) && !validatedProjectId.success}
+            required
+          />
+          <p id="new-project-id-help" className="text-xs leading-5 text-muted-foreground">
+            Immutable, globally unique ID used in URLs, APIs, resource ownership,
+            and SSO paths. Use {scopedEntityIdLimits.min}–{scopedEntityIdLimits.max}
+            lowercase letters, numbers, or hyphens.
+          </p>
+          {projectId && !validatedProjectId.success ? (
+            <p className="text-xs text-destructive" role="alert">
+              {validatedProjectId.error.issues[0]?.message}
+            </p>
+          ) : null}
         </div>
 
         <label className="flex min-h-11 cursor-pointer items-start gap-3 border bg-muted/20 px-4 py-3 text-sm">
@@ -247,16 +304,17 @@ export function CreateProjectSheet({
             type="checkbox"
             className="mt-0.5 size-4 shrink-0 accent-current"
             checked={nameConfirmed}
-            disabled={name.trim().length < 2}
+            disabled={!validatedName.success || !validatedProjectId.success}
             onChange={(event) => setNameConfirmed(event.target.checked)}
           />
           <span>
             <strong className="block font-medium">
-              Confirm the permanent Project name
+              Confirm the permanent Project identity
             </strong>
             <span className="mt-1 block text-xs leading-5 text-muted-foreground">
-              I have reviewed “{name.trim() || "Project name"}” and understand
-              it cannot be renamed later.
+              I have reviewed “{name.trim() || "Project name"}” with ID “
+              {projectId || "project-id"}” and understand that neither value
+              can be changed later.
             </span>
           </span>
         </label>
@@ -344,7 +402,7 @@ export function CreateProjectSheet({
                       "user",
                       "auditor",
                       "admin",
-                      "approver",
+                      "reviewer",
                     ] as const
                   ).map((roleId) => (
                     <SelectItem key={roleId} value={roleId}>

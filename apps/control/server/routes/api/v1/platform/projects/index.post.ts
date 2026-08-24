@@ -15,7 +15,10 @@ export default defineHandler(async (event) => {
     return unauthorizedResponse(error);
   }
   try {
-    const auth = await requirePlatformAdministrator(event.req);
+    const auth = await requirePlatformAdministrator(
+      event.req,
+      "CAP_PLATFORM_PROJECT_CREATE",
+    );
     const input = createProjectInputSchema.parse(await event.req.json());
     return jsonResponse(
       await new ProjectService().create(
@@ -24,6 +27,7 @@ export default defineHandler(async (event) => {
         input.name,
         input.invitations,
         "platform",
+        input.id,
       ),
       { status: 201 },
     );

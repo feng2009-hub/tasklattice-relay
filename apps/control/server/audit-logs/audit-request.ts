@@ -134,12 +134,62 @@ function descriptor(method: string, path: string): AuditDescriptor | undefined {
       operation: "create",
     };
   }
+  if (method === "POST" && path === "/api/v1/platform/departments") {
+    return {
+      action: "platform.department_create",
+      objectType: "Department",
+      operation: "create",
+    };
+  }
   if (method === "PUT" && path === "/api/v1/platform/settings") {
     return {
       action: "platform.settings_update",
       objectId: "platform",
       objectType: "Platform Settings",
       operation: "update",
+    };
+  }
+  if (method === "PUT" && path === "/api/v1/platform/security") {
+    return {
+      action: "platform.security_update",
+      objectId: "platform",
+      objectType: "Platform Security",
+      operation: "update",
+    };
+  }
+  if (
+    method === "PUT"
+    && path === "/api/v1/platform/security/role-bindings"
+  ) {
+    return {
+      action: "platform.security_role_bindings_update",
+      objectId: "platform",
+      objectType: "Platform Security Role Bindings",
+      operation: "update",
+    };
+  }
+  if (method === "PUT" && path === "/api/v1/platform/email") {
+    return {
+      action: "platform.email_update",
+      objectId: "platform",
+      objectType: "Platform Email",
+      operation: "update",
+    };
+  }
+  if (method === "POST" && path === "/api/v1/platform/security/validate") {
+    return {
+      action: "platform.security_validate",
+      objectId: "platform",
+      objectType: "Platform Security",
+      operation: "validate",
+    };
+  }
+  if (method === "POST" && path === "/api/v1/platform/email/validate") {
+    return {
+      action: "platform.email_validate",
+      objectId: "platform",
+      objectType: "Platform Email",
+      operation: "validate",
     };
   }
   const departmentMatch = path.match(/^\/api\/v1\/departments\/([^/]+)$/);

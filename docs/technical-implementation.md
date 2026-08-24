@@ -156,21 +156,21 @@ Every registered Endpoint is treated as an external dependency with its own owne
 |---|---|
 | Requester | Browse services, request quota, create Agents, and request Skill bindings |
 | Service Owner | Register Endpoint metadata and own availability information |
-| Quota Approver | Approve limits, duration, and budget |
+| Quota Reviewer | Approve limits, duration, and budget |
 | Skill Publisher | Publish Skill packages and permission manifests |
 | Skill Reviewer | Review Skill provenance, dependencies, secrets, network access, and side effects |
 | Agent Operator | Maintain Agent runtime integrations and investigate runtime failures |
 | Platform Administrator | Manage adapters, policies, runtimes, identity, and gateway configuration |
 | Auditor | Read approval, access, runtime, Skill, usage, and cost history |
 
-A requester cannot be the final approver of their own request when an approval
+A requester cannot be the final reviewer of their own request when an approval
 policy applies.
 
 ## 5. High-level architecture
 
 ~~~mermaid
 flowchart LR
-    USER["Requester / Approver / Admin"] --> UI["Marketplace Web Portal"]
+    USER["Requester / Reviewer / Admin"] --> UI["Marketplace Web Portal"]
     UI --> API["Marketplace API / BFF"]
 
     subgraph CONTROL["TaskLattice Relay Control Plane"]
@@ -392,7 +392,7 @@ status
 version
 ~~~
 
-Approvers may grant lower limits than requested. Requested and granted values both remain immutable audit inputs.
+Reviewers may grant lower limits than requested. Requested and granted values both remain immutable audit inputs.
 
 ### 8.4 Enforcement modes
 

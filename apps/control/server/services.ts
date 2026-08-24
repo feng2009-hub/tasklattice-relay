@@ -151,6 +151,7 @@ export async function requireProjectCreateCapability(
 ): Promise<void> {
   const { auth, userId } = await projectService.authenticate(request);
   await requireDepartmentAdministrator(auth, departmentId, undefined, {
+    capability: "CAP_DEPARTMENT_PROJECT_CREATE",
     requireActiveDepartment: true,
   });
   appendAdmissionEvidence(request, {

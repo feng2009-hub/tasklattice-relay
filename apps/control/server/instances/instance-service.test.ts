@@ -414,6 +414,25 @@ async function createConfiguredInstance(
 }
 
 describe("Instance Access Policy lifecycle", () => {
+  it("passes Platform Sandbox resource overrides to the Runner", async () => {
+    const setup = await configuredService();
+    await setup.store.database().platformSettingsRecord.create({
+      data: {
+        id: "platform",
+        sandboxCpu: "1500m",
+        sandboxMemory: "4Gi",
+      },
+    });
+
+    await createConfiguredInstance(setup);
+
+    expect(setup.runner.createSandbox).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sandboxResources: { cpu: "1500m", memory: "4Gi" },
+      }),
+    );
+  });
+
   it("provisions native Memory without adding an embedding model to the Instance key", async () => {
     const setup = await configuredService();
     const agent = await createConfiguredInstance(setup, {

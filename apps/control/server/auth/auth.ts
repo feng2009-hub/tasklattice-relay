@@ -1,6 +1,8 @@
-import { getControlConfig } from "../config/control-config";
 import { prisma } from "../db/prisma";
+import type { PlatformCapability } from "@tali/contracts";
+import { RoleCatalogService } from "../authorization/role-catalog";
 import { jsonResponse, problemResponse } from "../http/responses";
+import { PlatformSettingsService } from "../platform/platform-settings-service";
 import { auth } from "./better-auth";
 
 export type SystemRole = "user" | "platform_administrator";
@@ -34,7 +36,7 @@ async function resolveAuth(
   request: Request,
   context: AuthenticationRequestContext,
 ): Promise<PlatformPrincipal> {
-  const result = await auth().api.getSession({
+  const result = await (await auth()).api.getSession({
     headers: request.headers,
     returnHeaders: true,
   });
@@ -61,7 +63,10 @@ async function resolveAuth(
       email: user.email,
       hasPassword: user.authAccounts.length > 0,
       id: user.id,
-      systemRole: user.systemRole,
+      systemRole: user.systemRole === "platform_administrator"
+        || user.externalPlatformAdministrator
+        ? "platform_administrator"
+        : "user",
       username: user.username ?? user.email,
     },
   };
@@ -75,12 +80,16 @@ export function requireAuth(request: Request): Promise<PlatformPrincipal> {
 
 export async function requirePlatformAdministrator(
   request: Request,
+  capability: PlatformCapability = "CAP_PLATFORM_VIEW",
 ): Promise<PlatformPrincipal> {
   const principal = await requireAuth(request);
   if (principal.user.systemRole !== "platform_administrator") {
     throw new Error(
       "You do not have permission to administer the TaskLattice Relay platform.",
     );
+  }
+  if (!await new RoleCatalogService().hasCapability("ROLE_PLATFORM_ADMIN", capability)) {
+    throw new Error(`Platform Administrator does not grant ${capability}.`);
   }
   return principal;
 }
@@ -104,18 +113,18 @@ export function unauthorizedResponse(error: unknown): Response {
   );
 }
 
-export function publicAuthConfig() {
-  const config = getControlConfig();
+export async function publicAuthConfig() {
+  const runtime = await new PlatformSettingsService().authRuntimeSettings();
   return {
     authRequired: true,
     developmentDefaults:
       !process.env.TALI_CONFIG && process.env.NODE_ENV !== "production",
-    localEnabled: config.auth.local.enabled,
-    mode: config.auth.oidc.enabled ? "local-sso" : "local",
-    providerName: config.auth.oidc.enabled
-      ? config.auth.oidc.display_name
+    localEnabled: runtime.localAuthenticationEnabled,
+    mode: runtime.sso.enabled ? "local-sso" : "local",
+    providerName: runtime.sso.enabled
+      ? runtime.sso.displayName
       : "Company SSO",
-    ssoEnabled: config.auth.oidc.enabled,
+    ssoEnabled: runtime.sso.enabled,
   } as const;
 }
 

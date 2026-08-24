@@ -17,13 +17,6 @@ initial_platform_administrator_username = "admin"
 initial_platform_administrator_email = "admin@tasklattice.local"
 initial_platform_administrator_password = "CHANGE_TO_A_STRONG_PASSWORD"
 
-[auth.oidc]
-enabled = false
-display_name = "Keycloak SSO"
-issuer = "http://keycloak:8080/realms/tali"
-client_id = "tali-control-plane"
-client_secret = "CHANGE_ME"
-
 [runner]
 url = "http://tali-runner:9090"
 token = "CHANGE_ME"
@@ -37,17 +30,3 @@ enabled = true
 cluster_id = "in-cluster"
 # Must be unique to this Relay installation when sharing a Kubernetes cluster.
 name_prefix = "tali-p"
-deletion_timeout_seconds = 120
-
-[smtp]
-# SMTP is required for sending invitations to users who do not already have a
-# TaskLattice Relay account. server.public_url must be browser-accessible when enabled.
-enabled = false
-host = "smtp.example.com"
-port = 587
-secure = false
-username = "tali@example.com"
-password = "CHANGE_ME"
-from_address = "tali@example.com"
-from_name = "TaskLattice Relay"
-reply_to = "support@example.com"

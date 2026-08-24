@@ -19,6 +19,10 @@ export interface ProvisionInput {
   apiKey?: string;
   instanceId: string;
   sandboxImage?: string;
+  sandboxResources?: {
+    cpu?: string | undefined;
+    memory?: string | undefined;
+  };
   runTelemetry: {
     endpoint: string;
     token: string;

@@ -95,14 +95,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    let providerLogoutUrl = "";
     try {
-      await authClient.signOut();
+      const result = await authClient.signOut({
+        callbackURL: "/login",
+        // Handle the navigation explicitly so the local fallback and the OIDC
+        // redirect cannot race each other in this callback.
+        disableRedirect: true,
+      });
+      providerLogoutUrl = result.data?.url ?? "";
     } catch {
-      // The local session state is cleared below even if provider logout fails.
-    } finally {
-      setUser(null);
-      await navigate({ to: "/login" });
+      // Better Auth deletes the Relay session before it attempts to construct
+      // the Provider logout URL. Always continue to the local login fallback.
     }
+    setUser(null);
+    if (providerLogoutUrl) {
+      window.location.assign(providerLogoutUrl);
+      return;
+    }
+    await navigate({ to: "/login" });
   }, [navigate]);
 
   const value = useMemo(

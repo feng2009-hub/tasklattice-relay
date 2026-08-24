@@ -1,10 +1,10 @@
-import nodemailer from "nodemailer";
-import type { Transporter } from "nodemailer";
+import { getControlConfig } from "../config/control-config";
 import {
-  getControlConfig,
-  type ControlConfig,
-} from "../config/control-config";
+  PlatformSettingsService,
+  type PlatformEmailRuntimeSettings,
+} from "../platform/platform-settings-service";
 import type { ProjectRole } from "../projects/project-service";
+import { createSmtpTransport } from "./smtp-transport";
 
 export interface ProjectInvitationEmail {
   email: string;
@@ -15,23 +15,26 @@ export interface ProjectInvitationEmail {
 }
 
 export interface InvitationMailer {
-  assertConfigured(): void;
+  assertConfigured(): Promise<void>;
   sendProjectInvitation(invitation: ProjectInvitationEmail): Promise<void>;
 }
 
 export class SmtpInvitationMailer implements InvitationMailer {
-  private transporter: Transporter | undefined;
-
   constructor(
-    private readonly smtp: ControlConfig["smtp"] = getControlConfig().smtp,
+    private readonly loadSmtp: () => Promise<PlatformEmailRuntimeSettings> =
+      () => new PlatformSettingsService().emailRuntimeSettings(),
     private readonly publicUrl: string | undefined =
       getControlConfig().server.public_url,
   ) {}
 
-  assertConfigured(): void {
-    if (!this.smtp.enabled) {
+  async assertConfigured(): Promise<void> {
+    this.assertRuntimeConfigured(await this.loadSmtp());
+  }
+
+  private assertRuntimeConfigured(smtp: PlatformEmailRuntimeSettings): void {
+    if (!smtp.enabled) {
       throw new Error(
-        "SMTP invitation delivery is not configured in the Control Plane.",
+        "SMTP invitation delivery is not enabled in Platform Setting.",
       );
     }
     if (!this.publicUrl) {
@@ -42,21 +45,23 @@ export class SmtpInvitationMailer implements InvitationMailer {
   }
 
   async verify(): Promise<void> {
-    this.assertConfigured();
-    await this.transport().verify();
+    const smtp = await this.loadSmtp();
+    this.assertRuntimeConfigured(smtp);
+    await createSmtpTransport(smtp).verify();
   }
 
   async sendProjectInvitation(
     invitation: ProjectInvitationEmail,
   ): Promise<void> {
-    this.assertConfigured();
+    const smtp = await this.loadSmtp();
+    this.assertRuntimeConfigured(smtp);
     const loginUrl = this.publicUrl!.replace(/\/$/, "");
     const roleLabel = ({
       admin: "Project Administrator",
       auditor: "Auditor",
       developer: "Agent Developer",
       user: "User",
-      approver: "Approver",
+      reviewer: "Reviewer",
     } as const)[invitation.role];
     const subject = `You are invited to ${invitation.projectName} on TaskLattice Relay`;
     const text = [
@@ -83,12 +88,12 @@ export class SmtpInvitationMailer implements InvitationMailer {
 </html>`;
 
     try {
-      await this.transport().sendMail({
+      await createSmtpTransport(smtp).sendMail({
         from: {
-          address: this.smtp.from_address,
-          name: this.smtp.from_name,
+          address: smtp.fromAddress,
+          name: smtp.fromName,
         },
-        ...(this.smtp.reply_to ? { replyTo: this.smtp.reply_to } : {}),
+        ...(smtp.replyTo ? { replyTo: smtp.replyTo } : {}),
         to: invitation.email,
         subject,
         text,
@@ -103,27 +108,6 @@ export class SmtpInvitationMailer implements InvitationMailer {
     }
   }
 
-  private transport(): Transporter {
-    this.transporter ??= nodemailer.createTransport({
-      host: this.smtp.host,
-      port: this.smtp.port,
-      secure: this.smtp.secure,
-      ...(this.smtp.username
-        ? {
-            auth: {
-              user: this.smtp.username,
-              pass: this.smtp.password,
-            },
-          }
-        : {}),
-      connectionTimeout: 10_000,
-      greetingTimeout: 10_000,
-      socketTimeout: 20_000,
-      disableFileAccess: true,
-      disableUrlAccess: true,
-    });
-    return this.transporter;
-  }
 }
 
 function escapeHtml(value: string): string {

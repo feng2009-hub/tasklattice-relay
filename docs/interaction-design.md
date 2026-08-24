@@ -61,7 +61,7 @@ Quota is presented in user-facing units such as RPM, TPM, monthly tokens, concur
 
 ### 2.4 Keep approval in context
 
-Requester and approver open the same request detail page. Available actions change by role and current approval step.
+Requester and reviewer open the same request detail page. Available actions change by role and current approval step.
 
 ### 2.5 Protect high-impact actions
 
@@ -78,7 +78,7 @@ Primary forms show only required decisions. Advanced provider, gateway, runtime,
 | Role | Main capabilities |
 |---|---|
 | Requester | Browse Services, request quota, create Agents, bind Skills, view own usage |
-| Approver | Review requests, approve, adjust quota, reject, request changes |
+| Reviewer | Review requests, approve, adjust quota, reject, request changes |
 | Service Owner | View Service health and manage Endpoint integration metadata |
 | Skill Publisher | Publish Skill versions and view validation results |
 | Agent Operator | Inspect runtime operations and resolve failures |
@@ -201,7 +201,7 @@ Requester view:
 - Loaded Skills;
 - Current Month Usage or Cost.
 
-Approver additions:
+Reviewer additions:
 
 - Requests Waiting for You;
 - Requests Due Soon.
@@ -379,7 +379,7 @@ Step 4 — Review:
 
 - complete request summary;
 - policy warnings;
-- required approvers;
+- required reviewers;
 - expected next steps.
 
 ### 9.3 Inline validation
@@ -511,7 +511,7 @@ Approve with Adjusted Quota opens an editable comparison table:
 | Concurrency | 30 | 20 | editable |
 | Monthly Budget | $5,000 | $4,000 | editable |
 
-The approver must provide a reason when a granted value differs from the request.
+The reviewer must provide a reason when a granted value differs from the request.
 
 ### 11.4 Confirmation
 
@@ -933,7 +933,7 @@ for irreversible deletion.
 
 - A user can find a Service, understand its capability, and submit a valid quota request.
 - Policy maximum and estimated cost are visible before submission.
-- An approver can compare requested, policy, and granted values.
+- An reviewer can compare requested, policy, and granted values.
 - Approved access is not shown as Active until provisioning succeeds.
 - Expired and revoked Grants cannot be mistaken for usable access.
 
@@ -954,9 +954,9 @@ for irreversible deletion.
 
 ### 21.4 Approval
 
-- Requester and approver use the same detail page.
+- Requester and reviewer use the same detail page.
 - Role-specific actions are unambiguous.
-- Approver adjustments require reasons.
+- Reviewer adjustments require reasons.
 - Every decision and runtime outcome is visible in the timeline.
 
 ## 22. Open interaction decisions

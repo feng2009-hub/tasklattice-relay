@@ -1,4 +1,6 @@
+import { departmentNameSchema } from "@tali/contracts";
 import type { PlatformPrincipal } from "../auth/auth";
+import { RoleCatalogService } from "../authorization/role-catalog";
 import { prisma } from "../db/prisma";
 import type { PrismaClient } from "../generated/prisma/client";
 import { nextBudgetWindow } from "../quotas/budget-window";
@@ -93,8 +95,38 @@ export class DepartmentService {
 
   async list(auth: PlatformPrincipal): Promise<DepartmentSummaryView[]> {
     const userId = await requireActiveDepartmentUser(auth, this.db);
+    if (!await new RoleCatalogService(this.db).hasCapability(
+      "ROLE_DEPARTMENT_ADMIN",
+      "CAP_DEPARTMENT_VIEW",
+    )) {
+      throw new Error("Department Administrator cannot view Departments.");
+    }
+    const externalAdministratorGrants = await this.db.externalRoleGrant.findMany({
+      where: {
+        userId,
+        binding: {
+          enabled: true,
+          scope: "DEPARTMENT",
+          roleId: "ROLE_DEPARTMENT_ADMIN",
+        },
+      },
+      select: { binding: { select: { departmentId: true } } },
+    });
+    const externalDepartmentIds = externalAdministratorGrants.flatMap(
+      ({ binding }) => binding.departmentId ? [binding.departmentId] : [],
+    );
     const memberships = await this.db.departmentMember.findMany({
-      where: { userId, role: "administrator", status: "active" },
+      where: {
+        userId,
+        status: "active",
+        OR: [
+          { manualAccess: true, role: "administrator" },
+          {
+            externalAccessActive: true,
+            departmentId: { in: externalDepartmentIds },
+          },
+        ],
+      },
       select: { departmentId: true },
     });
     const departments = await this.db.department.findMany({
@@ -111,7 +143,9 @@ export class DepartmentService {
     auth: PlatformPrincipal,
     departmentId: string,
   ): Promise<DepartmentDetailView> {
-    await requireDepartmentAdministrator(auth, departmentId, this.db);
+    await requireDepartmentAdministrator(auth, departmentId, this.db, {
+      capability: "CAP_DEPARTMENT_VIEW",
+    });
     const department = await this.db.department.findUnique({
       where: { id: departmentId },
       include: {
@@ -160,13 +194,10 @@ export class DepartmentService {
     departmentId: string,
     input: UpdateDepartmentInput,
   ): Promise<DepartmentDetailView> {
-    await requireDepartmentAdministrator(auth, departmentId, this.db);
-    const name = input.name.trim();
-    if (name.length < 2 || name.length > 80) {
-      throw new Error(
-        "Department name must contain between 2 and 80 characters.",
-      );
-    }
+    await requireDepartmentAdministrator(auth, departmentId, this.db, {
+      capability: "CAP_DEPARTMENT_SETTINGS_UPDATE",
+    });
+    const name = departmentNameSchema.parse(input.name);
     const description = input.description?.trim() || null;
     if (description && description.length > 500) {
       throw new Error(
@@ -183,6 +214,16 @@ export class DepartmentService {
         select: { id: true },
       });
       if (!department) throw new Error("Department not found.");
+      const duplicateName = await transaction.department.findFirst({
+        where: {
+          id: { not: departmentId },
+          name: { equals: name, mode: "insensitive" },
+        },
+        select: { id: true },
+      });
+      if (duplicateName) {
+        throw new Error(`A Department named "${name}" already exists.`);
+      }
       if (input.hardBudgetUsd !== null) {
         const window = nextBudgetWindow(new Date(), "30d", null, null);
         const projects = await transaction.project.findMany({

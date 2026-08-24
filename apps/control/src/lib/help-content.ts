@@ -1,19 +1,19 @@
 import adminEn from "../../../../docs/help/en-US/roles/admin.md?raw";
-import approverEn from "../../../../docs/help/en-US/roles/approver.md?raw";
+import reviewerEn from "../../../../docs/help/en-US/roles/reviewer.md?raw";
 import auditorEn from "../../../../docs/help/en-US/roles/auditor.md?raw";
 import developerEn from "../../../../docs/help/en-US/roles/developer.md?raw";
 import userEn from "../../../../docs/help/en-US/roles/user.md?raw";
 import maintenanceEn from "../../../../docs/help/en-US/operations/maintenance.md?raw";
 import troubleshootingEn from "../../../../docs/help/en-US/operations/troubleshooting.md?raw";
 import adminZh from "../../../../docs/help/zh-CN/roles/admin.md?raw";
-import approverZh from "../../../../docs/help/zh-CN/roles/approver.md?raw";
+import reviewerZh from "../../../../docs/help/zh-CN/roles/reviewer.md?raw";
 import auditorZh from "../../../../docs/help/zh-CN/roles/auditor.md?raw";
 import developerZh from "../../../../docs/help/zh-CN/roles/developer.md?raw";
 import userZh from "../../../../docs/help/zh-CN/roles/user.md?raw";
 import maintenanceZh from "../../../../docs/help/zh-CN/operations/maintenance.md?raw";
 import troubleshootingZh from "../../../../docs/help/zh-CN/operations/troubleshooting.md?raw";
 import adminZhTW from "../../../../docs/help/zh-TW/roles/admin.md?raw";
-import approverZhTW from "../../../../docs/help/zh-TW/roles/approver.md?raw";
+import reviewerZhTW from "../../../../docs/help/zh-TW/roles/reviewer.md?raw";
 import auditorZhTW from "../../../../docs/help/zh-TW/roles/auditor.md?raw";
 import developerZhTW from "../../../../docs/help/zh-TW/roles/developer.md?raw";
 import userZhTW from "../../../../docs/help/zh-TW/roles/user.md?raw";
@@ -24,7 +24,7 @@ import type { SupportedLanguage } from "@/i18n/config";
 export const helpTopicIds = [
   "admin",
   "developer",
-  "approver",
+  "reviewer",
   "auditor",
   "user",
   "maintenance",
@@ -79,7 +79,7 @@ const topicMetadata: Record<
   Omit<HelpTopic, "body">
 > = {
   admin: { category: "role", id: "admin" },
-  approver: { category: "role", id: "approver", preview: true },
+  reviewer: { category: "role", id: "reviewer", preview: true },
   auditor: { category: "role", id: "auditor" },
   developer: { category: "role", id: "developer" },
   maintenance: { category: "operations", id: "maintenance" },
@@ -93,7 +93,7 @@ const topicBodies: Record<
 > = {
   "en-US": {
     admin: adminEn,
-    approver: approverEn,
+    reviewer: reviewerEn,
     auditor: auditorEn,
     developer: developerEn,
     maintenance: maintenanceEn,
@@ -102,7 +102,7 @@ const topicBodies: Record<
   },
   "zh-CN": {
     admin: adminZh,
-    approver: approverZh,
+    reviewer: reviewerZh,
     auditor: auditorZh,
     developer: developerZh,
     maintenance: maintenanceZh,
@@ -111,7 +111,7 @@ const topicBodies: Record<
   },
   "zh-TW": {
     admin: adminZhTW,
-    approver: approverZhTW,
+    reviewer: reviewerZhTW,
     auditor: auditorZhTW,
     developer: developerZhTW,
     maintenance: maintenanceZhTW,

@@ -1,0 +1,2018 @@
+{
+  "revision": 1,
+  "roles": [
+    {
+      "id": "ROLE_PLATFORM_ADMIN",
+      "scope": "PLATFORM",
+      "family": "ADMINISTRATION",
+      "name": "Platform Administrator",
+      "description": "Controls platform settings, Departments, people, integrations, Runtime defaults, and the system Role catalog.",
+      "assignable": true,
+      "sortOrder": 10,
+      "grants": [
+        {
+          "capability": "CAP_PLATFORM_VIEW",
+          "relations": []
+        },
+        {
+          "capability": "CAP_PLATFORM_SETTINGS_VIEW",
+          "relations": []
+        },
+        {
+          "capability": "CAP_PLATFORM_SETTINGS_UPDATE",
+          "relations": []
+        },
+        {
+          "capability": "CAP_PLATFORM_DEPARTMENT_VIEW",
+          "relations": []
+        },
+        {
+          "capability": "CAP_PLATFORM_DEPARTMENT_CREATE",
+          "relations": []
+        },
+        {
+          "capability": "CAP_PLATFORM_PROJECT_CREATE",
+          "relations": []
+        },
+        {
+          "capability": "CAP_PLATFORM_PEOPLE_VIEW",
+          "relations": []
+        },
+        {
+          "capability": "CAP_PLATFORM_ROLE_VIEW",
+          "relations": []
+        },
+        {
+          "capability": "CAP_PLATFORM_PROVIDER_VIEW",
+          "relations": []
+        },
+        {
+          "capability": "CAP_PLATFORM_PROVIDER_UPDATE",
+          "relations": []
+        },
+        {
+          "capability": "CAP_PLATFORM_RUNTIME_VIEW",
+          "relations": []
+        },
+        {
+          "capability": "CAP_PLATFORM_RUNTIME_UPDATE",
+          "relations": []
+        },
+        {
+          "capability": "CAP_PLATFORM_SANDBOX_VIEW",
+          "relations": []
+        },
+        {
+          "capability": "CAP_PLATFORM_SANDBOX_UPDATE",
+          "relations": []
+        },
+        {
+          "capability": "CAP_PLATFORM_SECURITY_VIEW",
+          "relations": []
+        },
+        {
+          "capability": "CAP_PLATFORM_SECURITY_UPDATE",
+          "relations": []
+        },
+        {
+          "capability": "CAP_PLATFORM_EMAIL_VIEW",
+          "relations": []
+        },
+        {
+          "capability": "CAP_PLATFORM_EMAIL_UPDATE",
+          "relations": []
+        }
+      ]
+    },
+    {
+      "id": "ROLE_DEPARTMENT_ADMIN",
+      "scope": "DEPARTMENT",
+      "family": "ADMINISTRATION",
+      "name": "Department Administrator",
+      "description": "Controls one Department, its people, budget boundary, and Project portfolio.",
+      "assignable": true,
+      "sortOrder": 20,
+      "grants": [
+        {
+          "capability": "CAP_DEPARTMENT_VIEW",
+          "relations": []
+        },
+        {
+          "capability": "CAP_DEPARTMENT_SETTINGS_UPDATE",
+          "relations": []
+        },
+        {
+          "capability": "CAP_DEPARTMENT_MEMBER_VIEW",
+          "relations": []
+        },
+        {
+          "capability": "CAP_DEPARTMENT_MEMBER_INVITE",
+          "relations": []
+        },
+        {
+          "capability": "CAP_DEPARTMENT_MEMBER_ROLE_ASSIGN",
+          "relations": []
+        },
+        {
+          "capability": "CAP_DEPARTMENT_MEMBER_REMOVE",
+          "relations": []
+        },
+        {
+          "capability": "CAP_DEPARTMENT_PROJECT_VIEW",
+          "relations": []
+        },
+        {
+          "capability": "CAP_DEPARTMENT_PROJECT_CREATE",
+          "relations": []
+        },
+        {
+          "capability": "CAP_DEPARTMENT_PROJECT_DELETE",
+          "relations": []
+        },
+        {
+          "capability": "CAP_DEPARTMENT_QUOTA_VIEW",
+          "relations": []
+        },
+        {
+          "capability": "CAP_DEPARTMENT_QUOTA_UPDATE",
+          "relations": []
+        }
+      ]
+    },
+    {
+      "id": "ROLE_PROJECT_ADMIN",
+      "scope": "PROJECT",
+      "family": "ADMINISTRATION",
+      "name": "Project Administrator",
+      "description": "Owns the complete Project lifecycle, including resources, models, routing, runtime operations, and evidence.",
+      "assignable": true,
+      "sortOrder": 30,
+      "grants": [
+        {
+          "capability": "CAP_PROJECT_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_PROJECT_SETTINGS_UPDATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_PROJECT_DELETE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_PROJECT_MEMBER_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_PROJECT_MEMBER_INVITE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_PROJECT_MEMBER_ROLE_ASSIGN",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_PROJECT_MEMBER_REMOVE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_PROJECT_ROLE_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_PROJECT_ROLE_CREATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_PROJECT_ROLE_UPDATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_PROJECT_ROLE_DELETE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_PROJECT_QUOTA_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_PROJECT_QUOTA_UPDATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_PROJECT_QUOTA_RECONCILE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_REGISTRATION_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_REGISTRATION_CREATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_REGISTRATION_DISCOVER",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_REGISTRATION_UPDATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_REGISTRATION_DELETE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_CONNECTION_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_CONNECTION_GRANT",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_CONNECTION_UPDATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_CONNECTION_REVOKE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_CONFIG_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_CREATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_UPDATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_START",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_STOP",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_RESTART",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_DELETE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_OWNER_TRANSFER",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_LOG_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_INTERACT",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_TERMINAL_EXEC",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_SKILL_ASSIGN",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_MCP_SERVER_ASSIGN",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_KNOWLEDGE_SOURCE_ASSIGN",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_ACCESS_POLICY_ASSIGN",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_RUNTIME_POLICY_ASSIGN",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_MODEL_ROUTING_ASSIGN",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_SECRET_BIND",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_ASSIGNMENT_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_ASSIGNMENT_ASSIGN",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_ASSIGNMENT_UNASSIGN",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_SESSION_CREATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_SESSION_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_SESSION_CONTENT_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_SESSION_MESSAGE_SEND",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_SESSION_DELETE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_SESSION_EXPORT",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_SESSION_SHARE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_CONFIG_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_CONFIG_UPDATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_EMBEDDING_ASSIGN",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_ITEM_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_CONTENT_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_CONTENT_WRITE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_CONTENT_DELETE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_CONTENT_PURGE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_RECALL_USE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_SEARCH",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_SESSION_INDEX_MANAGE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_INDEX_STATUS_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_INDEX_VALIDATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_INDEX_REBUILD",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_INDEX_PURGE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_IMPORT",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_EXPORT",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_RETENTION_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_RETENTION_UPDATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_LEGAL_HOLD_MANAGE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_SKILL_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_SKILL_CREATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_SKILL_UPDATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_SKILL_VERIFY",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_SKILL_PUBLISH",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_SKILL_SUSPEND",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_SKILL_DELETE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_SKILL_ARTIFACT_METADATA_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_SKILL_ARTIFACT_DOWNLOAD",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_SKILL_ARTIFACT_PUBLISH",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_MCP_SERVER_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_MCP_SERVER_CREATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_MCP_SERVER_UPDATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_MCP_SERVER_DELETE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_MCP_SERVER_DISCOVER",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_MCP_SERVER_TEST",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_MCP_TOOL_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_MCP_TOOL_TEST_INVOKE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_KNOWLEDGE_SOURCE_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_KNOWLEDGE_SOURCE_CONTENT_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_KNOWLEDGE_SOURCE_CREATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_KNOWLEDGE_SOURCE_UPDATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_KNOWLEDGE_SOURCE_DELETE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_KNOWLEDGE_SOURCE_SYNC",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_KNOWLEDGE_SOURCE_REINDEX",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_SPECIALIZATION_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_SPECIALIZATION_CREATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_SPECIALIZATION_UPDATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_SPECIALIZATION_DELETE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_ACCESS_POLICY_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_ACCESS_POLICY_VERSION_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_ACCESS_POLICY_CREATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_ACCESS_POLICY_UPDATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_ACCESS_POLICY_DELETE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_RUNTIME_POLICY_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_RUNTIME_POLICY_CREATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_RUNTIME_POLICY_UPDATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_RUNTIME_POLICY_DELETE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_RUNTIME_POLICY_VALIDATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_PROVIDER_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_PROVIDER_CREATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_PROVIDER_UPDATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_PROVIDER_DELETE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_PROVIDER_DISCOVER",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_PROVIDER_VALIDATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_PROVIDER_CREDENTIAL_ROTATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_MODEL_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_MODEL_CREATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_MODEL_UPDATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_MODEL_DELETE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_MODEL_VALIDATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_INFERENCE_GATEWAY_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_INFERENCE_GATEWAY_CREATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_INFERENCE_GATEWAY_UPDATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_INFERENCE_GATEWAY_DELETE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_INFERENCE_GATEWAY_VALIDATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_MODEL_ROUTING_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_MODEL_ROUTING_CREATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_MODEL_ROUTING_UPDATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_MODEL_ROUTING_DELETE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_MODEL_ROUTING_VALIDATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_MODEL_ROUTING_RECONCILE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_SECRET_METADATA_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_SECRET_CREATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_SECRET_ROTATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_SECRET_BIND",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_SECRET_UNBIND",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_SECRET_DELETE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_APPROVAL_REQUEST_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_APPROVAL_REQUEST_DRAFT_CREATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_APPROVAL_REQUEST_DRAFT_UPDATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_APPROVAL_REQUEST_SUBMIT",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_APPROVAL_REQUEST_COMMENT",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_APPROVAL_REQUEST_CANCEL",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_APPROVAL_REQUEST_DECIDE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_APPROVAL_REQUEST_ASSIGN",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_APPROVAL_POLICY_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_APPROVAL_POLICY_UPDATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AUDIT_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AUDIT_DETAIL_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AUDIT_SENSITIVE_CONTENT_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AUDIT_EXPORT",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AUDIT_INTEGRITY_VERIFY",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AUDIT_RETENTION_UPDATE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AUDIT_LEGAL_HOLD_MANAGE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_TRACE_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_TRACE_CONTENT_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_TRACE_EXPORT",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_RUNTIME_LOG_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_RUNTIME_LOG_DOWNLOAD",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_RUNTIME_OPERATION_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_RUNTIME_OPERATION_RECONCILE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_RUNTIME_OPERATION_CANCEL",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_RUNTIME_OPERATION_ROLLBACK",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_COST_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_COST_EXPORT",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_USAGE_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_USAGE_EXPORT",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_USAGE_DATA_QUALITY_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ROLE_AGENT_DEVELOPER",
+      "scope": "PROJECT",
+      "family": "PROJECT_BUSINESS",
+      "name": "Agent Developer",
+      "description": "Manages the lifecycle and configuration of owned or maintained Agents.",
+      "assignable": true,
+      "sortOrder": 40,
+      "grants": [
+        {
+          "capability": "CAP_PROJECT_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_PROJECT_QUOTA_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_REGISTRATION_VIEW",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_REGISTRATION_CREATE",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_REGISTRATION_DISCOVER",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_REGISTRATION_UPDATE",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_REGISTRATION_DELETE",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_CONNECTION_VIEW",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_CONNECTION_GRANT",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_CONNECTION_UPDATE",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_CONNECTION_REVOKE",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_VIEW",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_CONFIG_VIEW",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_CREATE",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_UPDATE",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_START",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_STOP",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_RESTART",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_DELETE",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_OWNER_TRANSFER",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_LOG_VIEW",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_INTERACT",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_SKILL_ASSIGN",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_MCP_SERVER_ASSIGN",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_KNOWLEDGE_SOURCE_ASSIGN",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_ACCESS_POLICY_ASSIGN",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_RUNTIME_POLICY_ASSIGN",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_MODEL_ROUTING_ASSIGN",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_SECRET_BIND",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_ASSIGNMENT_VIEW",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_ASSIGNMENT_ASSIGN",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_ASSIGNMENT_UNASSIGN",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_SESSION_CREATE",
+          "relations": [
+            "SESSION_PARTICIPANT"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_SESSION_VIEW",
+          "relations": [
+            "SESSION_PARTICIPANT"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_SESSION_MESSAGE_SEND",
+          "relations": [
+            "SESSION_PARTICIPANT"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_SESSION_DELETE",
+          "relations": [
+            "SESSION_PARTICIPANT"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_CONFIG_VIEW",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_CONFIG_UPDATE",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_EMBEDDING_ASSIGN",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_ITEM_VIEW",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_SESSION_INDEX_MANAGE",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_INDEX_STATUS_VIEW",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_INDEX_VALIDATE",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_INDEX_REBUILD",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_RETENTION_VIEW",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_SKILL_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_SKILL_ARTIFACT_METADATA_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_MCP_SERVER_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_MCP_TOOL_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_KNOWLEDGE_SOURCE_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_SPECIALIZATION_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_ACCESS_POLICY_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_ACCESS_POLICY_VERSION_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_RUNTIME_POLICY_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_PROVIDER_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_MODEL_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_INFERENCE_GATEWAY_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_MODEL_ROUTING_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_SECRET_METADATA_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_SECRET_BIND",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_SECRET_UNBIND",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_APPROVAL_REQUEST_VIEW",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_APPROVAL_REQUEST_DRAFT_CREATE",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_APPROVAL_REQUEST_DRAFT_UPDATE",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_APPROVAL_REQUEST_SUBMIT",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_APPROVAL_REQUEST_COMMENT",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_APPROVAL_REQUEST_CANCEL",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_RUNTIME_LOG_VIEW",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_RECALL_USE",
+          "relations": [
+            "OWNER",
+            "MAINTAINER",
+            "SESSION_PARTICIPANT"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ROLE_USER",
+      "scope": "PROJECT",
+      "family": "PROJECT_BUSINESS",
+      "name": "User",
+      "description": "Interacts with assigned Agents and participates in their own sessions.",
+      "assignable": true,
+      "sortOrder": 50,
+      "grants": [
+        {
+          "capability": "CAP_PROJECT_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_VIEW",
+          "relations": [
+            "ASSIGNED"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_INTERACT",
+          "relations": [
+            "ASSIGNED"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_SESSION_CREATE",
+          "relations": [
+            "SESSION_PARTICIPANT"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_SESSION_VIEW",
+          "relations": [
+            "SESSION_PARTICIPANT"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_SESSION_CONTENT_VIEW",
+          "relations": [
+            "SESSION_PARTICIPANT"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_SESSION_MESSAGE_SEND",
+          "relations": [
+            "SESSION_PARTICIPANT"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_SESSION_DELETE",
+          "relations": [
+            "SESSION_PARTICIPANT"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_RECALL_USE",
+          "relations": [
+            "ASSIGNED"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ROLE_AUDITOR",
+      "scope": "PROJECT",
+      "family": "PROJECT_BUSINESS",
+      "name": "Auditor",
+      "description": "Observes Project behavior, risk, and compliance evidence without changing it.",
+      "assignable": true,
+      "sortOrder": 60,
+      "grants": [
+        {
+          "capability": "CAP_PROJECT_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_PROJECT_MEMBER_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_PROJECT_ROLE_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_PROJECT_QUOTA_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_REGISTRATION_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_CONNECTION_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_CONFIG_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_INSTANCE_LOG_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_ASSIGNMENT_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_CONFIG_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_ITEM_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_INDEX_STATUS_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_RETENTION_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_SKILL_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_SKILL_ARTIFACT_METADATA_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_MCP_SERVER_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_MCP_TOOL_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_KNOWLEDGE_SOURCE_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_SPECIALIZATION_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_ACCESS_POLICY_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_ACCESS_POLICY_VERSION_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_RUNTIME_POLICY_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_PROVIDER_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_MODEL_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_INFERENCE_GATEWAY_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_MODEL_ROUTING_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_SECRET_METADATA_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_APPROVAL_REQUEST_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_APPROVAL_POLICY_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AUDIT_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AUDIT_DETAIL_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AUDIT_INTEGRITY_VERIFY",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_TRACE_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_RUNTIME_LOG_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_RUNTIME_OPERATION_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_COST_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_USAGE_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_USAGE_DATA_QUALITY_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ROLE_REVIEWER",
+      "scope": "PROJECT",
+      "family": "PROJECT_BUSINESS",
+      "name": "Reviewer",
+      "description": "Reviews governed changes independently of the requester and target operator.",
+      "assignable": true,
+      "sortOrder": 70,
+      "grants": [
+        {
+          "capability": "CAP_PROJECT_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_APPROVAL_REQUEST_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_APPROVAL_REQUEST_COMMENT",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_APPROVAL_REQUEST_DECIDE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_APPROVAL_REQUEST_ASSIGN",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_APPROVAL_POLICY_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AUDIT_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        }
+      ]
+    }
+  ]
+}

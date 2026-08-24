@@ -25,7 +25,7 @@ const defaultKubernetesServiceCidrs = [
   "192.168.0.0/16",
 ] as const;
 
-function kubernetesServiceCidrs(): string[] {
+export function openShellKubernetesServiceCidrs(): string[] {
   return (
     process.env.OPENSHELL_KUBERNETES_SERVICE_CIDRS
       ?.split(",")
@@ -96,7 +96,7 @@ export function taliLiteLlmProviderProfile(
           access: "full",
           enforcement: "enforce",
           ...(isKubernetesService
-            ? { allowed_ips: kubernetesServiceCidrs() }
+            ? { allowed_ips: openShellKubernetesServiceCidrs() }
             : {}),
         },
       ],
@@ -120,11 +120,15 @@ export function openShellBinary(): string {
   return process.env.OPENSHELL_BIN ?? "openshell";
 }
 
+export function openShellGatewayEndpoint(): string {
+  return process.env.OPENSHELL_GATEWAY_ENDPOINT
+    ?? "http://openshell.openshell.svc.cluster.local:8080";
+}
+
 export function openShellArguments(args: string[]): string[] {
   return [
     "--gateway-endpoint",
-    process.env.OPENSHELL_GATEWAY_ENDPOINT ??
-      "http://openshell.openshell.svc.cluster.local:8080",
+    openShellGatewayEndpoint(),
     ...args,
   ];
 }
@@ -451,7 +455,7 @@ export function composeOpenShellInferencePolicy(
         protocol: "rest",
         enforcement: "enforce",
         access: "full",
-        ...(isKubernetesService ? { allowed_ips: kubernetesServiceCidrs() } : {}),
+        ...(isKubernetesService ? { allowed_ips: openShellKubernetesServiceCidrs() } : {}),
       }],
       binaries: ["/usr/local/bin/node"].map((path) => ({ path })),
     };
@@ -480,9 +484,9 @@ export function openShellSandboxCreateArguments(
     "--from",
     input.sandboxImage ?? runtime.sandboxImage(),
     "--cpu",
-    process.env.OPENSHELL_SANDBOX_CPU ?? "1",
+    input.sandboxResources?.cpu ?? process.env.OPENSHELL_SANDBOX_CPU ?? "1",
     "--memory",
-    process.env.OPENSHELL_SANDBOX_MEMORY ?? "2Gi",
+    input.sandboxResources?.memory ?? process.env.OPENSHELL_SANDBOX_MEMORY ?? "2Gi",
     "--provider",
     openShellProviderName(input.name),
     "--policy",
@@ -582,11 +586,13 @@ export function openShellWorkspace(): string {
   return workspace;
 }
 
+export function openShellServiceBaseUrl(): string {
+  return process.env.OPENSHELL_SERVICE_BASE_URL
+    ?? "http://openshell.localhost:8080";
+}
+
 export function openShellWebUiOrigin(name: string): string {
-  const base = new URL(
-    process.env.OPENSHELL_SERVICE_BASE_URL ??
-      "http://openshell.localhost:8080",
-  );
+  const base = new URL(openShellServiceBaseUrl());
   base.hostname = `${openShellWorkspace()}--${name}--${nemoClawWebUiService}.${base.hostname}`;
   return base.origin;
 }

@@ -1,5 +1,6 @@
 import type {
   AuthorizationDecision,
+  BuiltinRoleView,
   BuiltinProjectRoleId,
   ProjectCapability,
   ResourceRelation,
@@ -7,11 +8,10 @@ import type {
 import { prisma } from "../db/prisma";
 import type { PrismaClient } from "../generated/prisma/client";
 import { appendAdmissionEvidence, type AdmissionEvidence } from "./authorization-context";
-import {
-  builtinRole,
-} from "./builtin-roles";
+import { RoleCatalogService } from "./role-catalog";
 import {
   activeBuiltinRoleIds,
+  membershipHasAccess,
   membershipAccessInclude,
 } from "../projects/project-access";
 
@@ -59,7 +59,12 @@ function result(
   };
 }
 
-export function evaluateAdmission(input: AdmissionInput): AdmissionResult {
+type AdmissionRoleDefinition = Pick<BuiltinRoleView, "grants" | "id">;
+
+export function evaluateAdmission(
+  input: AdmissionInput,
+  roleDefinitions: readonly AdmissionRoleDefinition[],
+): AdmissionResult {
   if (input.explicitDeny) {
     return result(input, "DENY", "An explicit policy denied this request.");
   }
@@ -68,8 +73,13 @@ export function evaluateAdmission(input: AdmissionInput): AdmissionResult {
   }
 
   const relation = input.relation ?? "PROJECT_ANY";
+  const definitions = new Map(
+    roleDefinitions.map((definition) => [definition.id, definition]),
+  );
   const capabilityRole = input.roleIds.find((id) =>
-    builtinRole(id).grants.some((grant) => grant.capability === input.capability),
+    definitions.get(id)?.grants.some(
+      (grant) => grant.capability === input.capability,
+    ),
   );
   if (!capabilityRole) {
     return result(
@@ -79,11 +89,11 @@ export function evaluateAdmission(input: AdmissionInput): AdmissionResult {
     );
   }
   const relationRole = input.roleIds.find((id) => {
-    const definition = builtinRole(id);
-    return definition.grants.some((grant) =>
+    const definition = definitions.get(id);
+    return definition?.grants.some((grant) =>
       grant.capability === input.capability
       && relationCovered(grant.relations, relation)
-    );
+    ) ?? false;
   });
   if (!relationRole) {
     return result(
@@ -97,11 +107,11 @@ export function evaluateAdmission(input: AdmissionInput): AdmissionResult {
   const requiresApproval = input.requireApproval ?? false;
   if (requiresApproval) {
     const maySubmit = input.roleIds.some((id) => {
-      const definition = builtinRole(id);
-      return definition.grants.some((grant) =>
+      const definition = definitions.get(id);
+      return definition?.grants.some((grant) =>
         grant.capability === "CAP_APPROVAL_REQUEST_SUBMIT"
         && relationCovered(grant.relations, relation)
-      );
+      ) ?? false;
     });
     if (!maySubmit) {
       return result(
@@ -176,16 +186,19 @@ export class ProjectAdmissionService {
         },
       },
     });
-    const roleIds = membership && !membership.project.deletedAt
+    const roleIds = membership
+      && membershipHasAccess(membership)
+      && !membership.project.deletedAt
       ? activeBuiltinRoleIds(membership)
       : [];
+    const roleDefinitions = await new RoleCatalogService(this.db).roles(roleIds);
     const evidence = evaluateAdmission({
       actorId,
       capability,
       projectId,
       roleIds,
       ...requirement,
-    });
+    }, roleDefinitions);
     appendAdmissionEvidence(request, evidence);
     if (evidence.decision !== "ALLOW") {
       throw new CapabilityAdmissionError(evidence);

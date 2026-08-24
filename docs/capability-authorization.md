@@ -1,24 +1,29 @@
-# Project Capability Authorization
+# Role Catalog and Capability Authorization
 
 Status: current implementation snapshot
 
-Last verified: 2026-08-13
+Last verified: 2026-08-24
 
-This document records the authorization behavior that exists in the repository
-today and separates it from the intended four-role model. A registered `CAP_*`
-identifier is not evidence that its persistence, relation resolver, API route,
-or business workflow has been implemented.
+This document records the persisted, versioned Role catalog used by runtime
+authorization, SSO Group bindings, and Platform Settings. A registered `CAP_*`
+identifier is not by itself evidence that its relation resolver, API route, or
+business workflow has been implemented.
 
-The intended default Project roles are:
+The built-in catalog contains exactly seven Roles:
 
-- Project Administrator (`Admin`)
-- Auditor
-- Agent Developer (`Developer`)
+- Platform Administrator
+- Department Administrator
+- Project Administrator
+- Agent Developer
 - User
+- Auditor
+- Reviewer
 
-The current code does not yet match that target exactly. It defines a fifth
-`Approver` builtin role. That difference is documented below rather than
-presented as part of the intended four-role default.
+Role IDs and Capability IDs remain stable contract identifiers. Their
+Role-to-Capability composition is synchronized from the revisioned catalog into
+`role_definitions`, `capability_definitions`, and `role_capability_grants`.
+Runtime admission and the read-only Roles & Capabilities page both read those
+persisted records.
 
 ## Status vocabulary
 
@@ -38,13 +43,14 @@ This document uses the following implementation states:
 
 | Area | Current repository state |
 |---|---|
-| Capability registry | 174 unique `CAP_*` identifiers |
+| Capability registry | 203 unique `CAP_*` identifiers: 18 Platform, 11 Department, 174 Project |
 | Admission consumers | 78 capabilities used by Project route policies, plus the system-scoped `CAP_PROJECT_CREATE` entitlement |
 | Registered without a direct consumer | 95 capabilities |
 | Project route coverage | 73 of 73 current Project route files have an admission declaration; an undeclared Project route fails closed |
-| Builtin role presets | 5: Admin, Auditor, Developer, User, Approver |
-| Membership values | 5: `admin`, `auditor`, `developer`, `user`, `approver` |
-| Persisted role binding | One `ProjectRole` value per Project member |
+| Built-in Role catalog | 7: 3 administration Roles and 4 Project business Roles |
+| Persisted Role composition | `RoleDefinition` + `CapabilityDefinition` + `RoleCapabilityGrant`, synchronized by catalog revision |
+| Membership values | 5: `admin`, `auditor`, `developer`, `user`, `reviewer` |
+| Persisted Role binding | Platform identity, Department membership, and Project membership/assignments remain scope-specific |
 | Persisted resource relations | `PROJECT_ANY` and `OWNER` are usable; `MAINTAINER`, `ASSIGNED`, and `SESSION_PARTICIPANT` are not yet backed by their required resource models |
 | Memory | 20 capabilities registered; 2 are consumed as conditional checks during Instance creation |
 | Approval | `APPROVAL_REQUIRED` admission decision and audit evidence exist; request persistence, review APIs, state machine, and approved-change execution do not |
@@ -59,9 +65,10 @@ Project-scoped requests are evaluated as:
 
 ```text
 authenticated actor
-  + Project membership / builtin role preset
+  + scope-specific Role binding
+  + persisted Role Capability grants
   + required CAP_* action
-  + capability-specific resource relation
+  + capability-specific resource relation (Project scope)
   -> ALLOW | DENY | APPROVAL_REQUIRED
 ```
 
@@ -70,8 +77,13 @@ The implementation layers are:
 - [`packages/contracts/src/authorization.ts`](../packages/contracts/src/authorization.ts)
   defines the capability registry, role identifiers, relations, decision
   values, and coarse sensitivity metadata.
+- [`apps/control/server/config/builtin-role-catalog.json`](../apps/control/server/config/builtin-role-catalog.json)
+  is the revisioned declarative composition for the seven built-in Roles.
+- [`apps/control/server/authorization/role-catalog.ts`](../apps/control/server/authorization/role-catalog.ts)
+  validates, persists, and reads Role definitions and Capability grants.
 - [`apps/control/server/authorization/builtin-roles.ts`](../apps/control/server/authorization/builtin-roles.ts)
-  defines immutable builtin role presets and relation grants per capability.
+  is only a compatibility adapter over the persisted catalog; it contains no
+  hard-coded Capability lists.
 - [`apps/control/server/authorization/admission-control.ts`](../apps/control/server/authorization/admission-control.ts)
   evaluates grants, relations, and explicit approval requirements.
 - [`apps/control/server/authorization/route-capabilities.ts`](../apps/control/server/authorization/route-capabilities.ts)
@@ -82,17 +94,35 @@ The implementation layers are:
 - [`apps/control/server/authorization/authorization-context.ts`](../apps/control/server/authorization/authorization-context.ts)
   carries the exact admission evidence into audit processing.
 
-## Current role model
+## Built-in Role model
 
-The role counts below are generated from the current builtin definitions.
+The counts below are generated from catalog revision 1.
 
-| Membership value | Builtin role | CAP count | Grant relations | Current readiness |
-|---|---|---:|---|---|
-| `admin` | `ROLE_PROJECT_ADMIN` | 172 | `PROJECT_ANY` | Complete human capability preset; workflow coverage varies |
-| `auditor` | `ROLE_AUDITOR` | 39 | `PROJECT_ANY` | Mostly implemented for read-only metadata |
-| `developer` | `ROLE_AGENT_DEVELOPER` | 69 | `PROJECT_ANY`, `OWNER`, `MAINTAINER`, `SESSION_PARTICIPANT` | Partial |
-| `user` | `ROLE_USER` | 9 | `PROJECT_ANY`, `ASSIGNED`, `SESSION_PARTICIPANT` | Defined but core Agent flow is fail closed |
-| `approver` | `ROLE_APPROVER` | 7 | `PROJECT_ANY` | Registered preset without an approval workflow |
+| Scope | Binding value | Built-in Role | CAP count | Grant relations |
+|---|---|---|---:|---|
+| Platform | `platform_administrator` | `ROLE_PLATFORM_ADMIN` | 18 | Not applicable |
+| Department | `administrator` | `ROLE_DEPARTMENT_ADMIN` | 11 | Not applicable |
+| Project | `admin` | `ROLE_PROJECT_ADMIN` | 171 | `PROJECT_ANY` |
+| Project | `developer` | `ROLE_AGENT_DEVELOPER` | 69 | `PROJECT_ANY`, `OWNER`, `MAINTAINER`, `SESSION_PARTICIPANT` |
+| Project | `user` | `ROLE_USER` | 9 | `PROJECT_ANY`, `ASSIGNED`, `SESSION_PARTICIPANT` |
+| Project | `auditor` | `ROLE_AUDITOR` | 39 | `PROJECT_ANY` |
+| Project | `reviewer` | `ROLE_REVIEWER` | 7 | `PROJECT_ANY` |
+
+### Administration scope isolation
+
+Administration Roles do not inherit across scopes. Platform Administrator
+grants Platform capabilities only. Department Administrator grants Department
+capabilities only. Project Administrator grants Project capabilities only. A
+Platform or Department administrator still needs explicit Project membership
+before Project admission can succeed.
+
+### Department Administrator
+
+`ROLE_DEPARTMENT_ADMIN` is a first-class built-in catalog entry. It currently
+aggregates Department visibility/settings, member view/invite/role assignment/
+removal, Project portfolio view/create/delete, and Department quota view/update.
+Manual Department membership and verified external SSO grants remain the two
+binding sources; both resolve through this same Capability composition.
 
 ### Project Administrator
 
@@ -110,8 +140,9 @@ preset contains `CAP_PROJECT_ROLE_CREATE`, `UPDATE`, and `DELETE`, but custom
 Role persistence and Role CRUD APIs do not exist, so those capabilities remain
 registered only.
 
-Every Project membership maps to exactly one builtin role. Project identity does
-not add capabilities or compose another role implicitly.
+Every Project membership has one active Role and may retain multiple explicit
+manual or SSO Role assignments. Project identity by itself does not add
+Capabilities or inherit a Platform/Department administration Role.
 
 ### Auditor
 
@@ -159,34 +190,33 @@ Memory partitioning contract. Admission therefore cannot prove `ASSIGNED` or
 `SESSION_PARTICIPANT`, and User Agent discovery/interaction remains fail
 closed.
 
-### Approver discrepancy
+### Reviewer
 
-`ROLE_APPROVER` is implemented as a fifth immutable preset with request view,
+`ROLE_REVIEWER` is a built-in Project business Role with request view,
 comment, decide, assign, approval-policy view, and audit view capabilities.
 There are no Approval Request APIs or persistence, so only its audit view has a
 current route consumer.
 
-The target default model contains only Admin, Auditor, Developer, and User.
-Before schema stabilization, `Approver` must either be removed from the default
-role set or become a future optional/custom role. Admin now also has approval
-decision capabilities as part of the complete human capability preset; the
-eventual workflow must still prohibit self-approval and preserve separation of
-duties.
+Project Administrator also has approval decision capabilities as part of the
+complete human capability preset; the eventual workflow must still prohibit
+self-approval and preserve separation of duties.
 
 ## Capability composition limitations
 
-Builtin roles are code-defined collections of capability grants, but Project
-members cannot currently compose them in persisted data:
+Built-in Role composition is persisted and is the runtime authorization source,
+but assignment storage is still deliberately scope-specific:
 
-- `ProjectMember` stores one scalar `ProjectRole` enum value.
-- There is no `Role`, `RoleCapabilityGrant`, or `MemberRoleBinding` model.
-- There is no custom Role CRUD API or ad-hoc/JIT grant path.
-- The evaluator accepts multiple role IDs, but the Project adapter derives one
-  ID from membership.
-- Several service methods still contain direct `admin` checks. Middleware
-  admission makes the current HTTP path work, but capability-equivalent future
-  custom roles would not be a universal authorization source for direct service
-  calls.
+- Role and Capability definitions are system-managed and read-only; custom Role
+  CRUD is not exposed yet.
+- Platform identity uses a Platform administrator binding.
+- Department membership stores administrator/member state and can additionally
+  be activated by a verified SSO Group grant.
+- Project membership and Role assignment storage use the five Project binding
+  values.
+- Capability evaluation cannot cross a Role's declared authorization scope.
+- Several service methods still retain identity/scope checks before evaluating
+  the catalog grant. Those checks establish binding scope; they are not a second
+  hard-coded Capability list.
 
 The `effectiveCapabilities` returned in Project list responses is therefore a
 coarse role-level UI hint. It does not prove the caller's relation to a specific
@@ -320,25 +350,29 @@ removes its secret and invalidates every outstanding Hermes token and session.
 
 - `GET /api/v1/projects/{projectId}/authorization/capabilities`
 - `GET /api/v1/projects/{projectId}/authorization/roles`
+- `GET /api/v1/platform/roles`
 
-Both routes require `CAP_PROJECT_ROLE_VIEW`. The capability response currently
+The Project routes require `CAP_PROJECT_ROLE_VIEW`; the Platform catalog route
+requires `CAP_PLATFORM_ROLE_VIEW`. The Project capability response currently
 returns the complete registry without an `implemented` or `reserved` field, and
-the role response returns all five current builtin presets. Consumers must not
+the Project Role response returns the five Project-scoped built-ins. The
+Platform route returns all seven built-ins plus catalog revision and Capability
+metadata. Consumers must not
 interpret either response as proof that every advertised operation is usable.
 
-## Pre-launch role stabilization
+## Role identity stabilization
 
 Membership roles now use the canonical values `admin`, `auditor`, `developer`,
-`user`, and `approver`. There is no compatibility alias for an older generic
+`user`, and `reviewer`. There is no compatibility alias for an older generic
 membership role and no rollout gate for assigning builtin roles. The final
 ownership foreign keys, same-Project constraints, Project authorization
 environment, and authorization audit fields remain security properties rather
 than compatibility behavior.
 
-`Approver` remains a fifth builtin role in the current implementation. It is
-documented separately because the intended default persona set contains Admin,
-Auditor, Developer, and User, while the approval workflow that would make the
-Approver preset operational is not implemented yet.
+`Reviewer` is the fourth Project business Role and the fifth Project-scoped
+built-in when Project Administrator is included. Its Capability composition is
+authoritative even though the approval workflow needed to exercise every grant
+is not implemented yet.
 
 ## Verification and missing acceptance coverage
 
@@ -358,7 +392,7 @@ They currently encode five builtin roles and User fail-closed behavior. They do
 not yet provide:
 
 - an exact capability/relation golden matrix for the four intended default
-  roles, with Approver verified separately;
+  roles, with Reviewer verified separately;
 - a contract that distinguishes implemented from registered-only capabilities;
 - a test ensuring every route-consumed management capability is reachable from
   an intended role;

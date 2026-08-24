@@ -124,22 +124,26 @@ function LoginPage() {
               {t("separator")}
               <span className="h-px flex-1 bg-border" />
             </div>
-            <button
-              type="button"
-              aria-describedby="sso-login-description"
-              disabled={loading || !config?.ssoEnabled}
-              onClick={() => {
-                if (!config?.ssoEnabled) return;
-                void authClient.signIn.social({
-                  provider: "corporate-sso",
-                  callbackURL: redirect,
-                });
-              }}
-              className="mt-6 flex min-h-12 w-full items-center justify-center gap-2 border border-input bg-background px-6 text-sm font-medium transition-colors hover:border-foreground focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:bg-muted/50 disabled:text-muted-foreground"
-            >
-              <LockKeyhole className="size-4" />
-              {t("sso.login")}
-            </button>
+            {config?.ssoEnabled ? (
+              <a
+                href={`/api/auth/sso?callbackURL=${encodeURIComponent(redirect)}`}
+                aria-describedby="sso-login-description"
+                className="mt-6 flex min-h-12 w-full items-center justify-center gap-2 border border-input bg-background px-6 text-sm font-medium transition-colors hover:border-foreground focus-visible:outline-2 focus-visible:outline-offset-2"
+              >
+                <LockKeyhole className="size-4" />
+                {t("sso.login")}
+              </a>
+            ) : (
+              <button
+                type="button"
+                aria-describedby="sso-login-description"
+                disabled
+                className="mt-6 flex min-h-12 w-full cursor-not-allowed items-center justify-center gap-2 border border-input bg-muted/50 px-6 text-sm font-medium text-muted-foreground"
+              >
+                <LockKeyhole className="size-4" />
+                {t("sso.login")}
+              </button>
+            )}
             <p
               id="sso-login-description"
               className="mt-3 text-center text-xs leading-5 text-muted-foreground"

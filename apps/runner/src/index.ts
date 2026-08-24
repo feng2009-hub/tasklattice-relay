@@ -29,7 +29,11 @@ import {
   observeOpenShellSandbox,
   openShellArguments,
   openShellBinary,
+  openShellGatewayEndpoint,
+  openShellKubernetesServiceCidrs,
+  openShellServiceBaseUrl,
   openShellTerminalArguments,
+  openShellWorkspace,
   issueOpenShellWebUiEndpoint,
   provisionOpenShellSandbox,
 } from "./openshell.js";
@@ -78,6 +82,14 @@ const createSchema = z.object({
   apiKey: z.string().min(16).max(512).optional(),
   instanceId: z.string().uuid(),
   sandboxImage: z.string().trim().min(3).max(500).regex(/^\S+$/).optional(),
+  sandboxResources: z.object({
+    cpu: z.string().trim().min(1).max(32).regex(
+      /^(?:[1-9]\d*m|[1-9]\d*(?:\.\d+)?|0\.\d+)$/,
+    ).optional(),
+    memory: z.string().trim().min(1).max(32).regex(
+      /^[1-9]\d*(?:\.\d+)?(?:Ki|Mi|Gi|Ti|K|M|G|T)?$/,
+    ).optional(),
+  }).strict().optional(),
   runTelemetry: z.object({
     endpoint: z.string().url(),
     token: z.string().min(32).max(2_048),
@@ -252,6 +264,37 @@ app.get("/health", (_request, response) => response.json({
     openclaw: getAgentPlatformRuntime("openclaw").sandboxImage(),
     hermes: getAgentPlatformRuntime("hermes").sandboxImage(),
   },
+  ...(isOpenShell
+    ? {
+        sandbox: {
+          provider: "openshell",
+          cpu: process.env.OPENSHELL_SANDBOX_CPU ?? "1",
+          memory: process.env.OPENSHELL_SANDBOX_MEMORY ?? "2Gi",
+          gatewayEndpoint: openShellGatewayEndpoint(),
+          workspace: openShellWorkspace(),
+          serviceBaseUrl: openShellServiceBaseUrl(),
+          kubernetesServiceCidrs: openShellKubernetesServiceCidrs(),
+          ...(process.env.OPENSHELL_GATEWAY_IMAGE
+            ? { gatewayImage: process.env.OPENSHELL_GATEWAY_IMAGE }
+            : {}),
+          ...(process.env.OPENSHELL_SUPERVISOR_IMAGE
+            ? { supervisorImage: process.env.OPENSHELL_SUPERVISOR_IMAGE }
+            : {}),
+          ...(process.env.OPENSHELL_DEFAULT_SANDBOX_IMAGE
+            ? { defaultImage: process.env.OPENSHELL_DEFAULT_SANDBOX_IMAGE }
+            : {}),
+          ...(process.env.OPENSHELL_DEFAULT_SANDBOX_IMAGE_PULL_POLICY
+            ? {
+                defaultImagePullPolicy:
+                  process.env.OPENSHELL_DEFAULT_SANDBOX_IMAGE_PULL_POLICY,
+              }
+            : {}),
+          ...(process.env.OPENSHELL_TLS_DISABLED
+            ? { tlsDisabled: process.env.OPENSHELL_TLS_DISABLED === "true" }
+            : {}),
+        },
+      }
+    : {}),
 }));
 app.use((request, response, next) =>
   authorized(request.headers.authorization)
@@ -277,6 +320,9 @@ app.post("/v1/sandboxes", (request, response, next) => {
       ...(parsedInput.apiKey ? { apiKey: parsedInput.apiKey } : {}),
       ...(parsedInput.sandboxImage
         ? { sandboxImage: parsedInput.sandboxImage }
+        : {}),
+      ...(parsedInput.sandboxResources
+        ? { sandboxResources: parsedInput.sandboxResources }
         : {}),
       ...(parsedInput.memory ? { memory: parsedInput.memory } : {}),
       instanceId: parsedInput.instanceId,

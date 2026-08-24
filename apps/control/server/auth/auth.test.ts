@@ -5,6 +5,7 @@ import {
   setControlConfigForTests,
 } from "../config/control-config";
 import { createTestPrisma } from "../test/prisma";
+import { PlatformSettingsService } from "../platform/platform-settings-service";
 import {
   applyAuthenticationResponseHeaders,
   handleAuthMe,
@@ -15,8 +16,11 @@ import {
   authSessionIdleTimeoutSeconds,
   ensureInitialPlatformAdministrator,
   resetBetterAuthForTests,
+  ssoAuth,
 } from "./better-auth";
 import { betterAuthSessionCookieName } from "./cookies";
+import { corporateSsoProviderId } from "./external-role-bindings";
+import { handleSsoSignOut } from "./sso-sign-out";
 
 function cookieHeader(response: Response): string {
   return (response.headers.get("set-cookie") ?? "")
@@ -26,8 +30,8 @@ function cookieHeader(response: Response): string {
     .join("; ");
 }
 
-function signIn(password: string): Promise<Response> {
-  return auth().handler(
+async function signIn(password: string): Promise<Response> {
+  return (await auth()).handler(
     new Request("http://tali.local/api/auth/sign-in/username", {
       body: JSON.stringify({
         password,
@@ -56,12 +60,14 @@ describe("Better Auth platform authentication", () => {
     resetBetterAuthForTests();
     await db.authSession.deleteMany();
     await db.authAccount.deleteMany();
+    await db.platformSettingsRecord.deleteMany();
     await ensureInitialPlatformAdministrator();
   });
 
   afterEach(() => {
     resetBetterAuthForTests();
     setControlConfigForTests(undefined);
+    vi.unstubAllGlobals();
     vi.unstubAllEnvs();
   });
 
@@ -167,19 +173,24 @@ describe("Better Auth platform authentication", () => {
     expect(second.password).toBe(first.password);
   });
 
-  it("publishes enabled login methods without exposing Better Auth secrets", () => {
-    const config = developmentControlConfig();
-    config.server.public_url = "http://tali.local";
-    config.auth.oidc = {
-      enabled: true,
-      display_name: "Example ID",
+  it("publishes enabled login methods without exposing Better Auth secrets", async () => {
+    const discoveryFetch = vi.fn(async () => new Response(JSON.stringify({
       issuer: "https://identity.example/realms/agents",
-      client_id: "tali",
-      client_secret: "provider-secret",
-    };
-    setControlConfigForTests(config);
+      authorization_endpoint: "https://identity.example/authorize",
+      token_endpoint: "https://identity.example/token",
+      jwks_uri: "https://identity.example/jwks",
+    }), { status: 200 })) as unknown as typeof fetch;
+    await new PlatformSettingsService(db, discoveryFetch).updateSecurity({
+      sso: {
+        clientId: "tali",
+        clientSecret: { action: "replace", value: "provider-secret" },
+        displayName: "Example ID",
+        enabled: true,
+        issuer: "https://identity.example/realms/agents",
+      },
+    }, "admin");
 
-    expect(publicAuthConfig()).toEqual({
+    expect(await publicAuthConfig()).toEqual({
       authRequired: true,
       developmentDefaults: false,
       localEnabled: true,
@@ -187,15 +198,195 @@ describe("Better Auth platform authentication", () => {
       providerName: "Example ID",
       ssoEnabled: true,
     });
-    expect(JSON.stringify(publicAuthConfig())).not.toContain("provider-secret");
-    expect(JSON.stringify(publicAuthConfig())).not.toContain(config.auth.secret);
+    expect(JSON.stringify(await publicAuthConfig())).not.toContain("provider-secret");
+    expect(JSON.stringify(await publicAuthConfig())).not.toContain(
+      developmentControlConfig().auth.secret,
+    );
   });
 
-  it("requires one canonical public URL for every authentication mode", () => {
+  it("refreshes the authentication provider after the shared settings revision changes", async () => {
+    const discoveryFetch = vi.fn(async () => new Response(JSON.stringify({
+      issuer: "https://identity.example",
+      authorization_endpoint: "https://identity.example/authorize",
+      token_endpoint: "https://identity.example/token",
+      jwks_uri: "https://identity.example/jwks",
+    }), { status: 200 })) as unknown as typeof fetch;
+    vi.stubGlobal("fetch", discoveryFetch);
+    const settings = new PlatformSettingsService(db, discoveryFetch);
+    const before = await ssoAuth();
+
+    await settings.updateSecurity({
+      sso: {
+        clientId: "online-client",
+        clientSecret: { action: "replace", value: "online-secret" },
+        displayName: "Online SSO",
+        enabled: true,
+        issuer: "https://identity.example",
+      },
+    }, "admin");
+
+    expect(await publicAuthConfig()).toEqual({
+      authRequired: true,
+      developmentDefaults: false,
+      localEnabled: true,
+      mode: "local-sso",
+      providerName: "Online SSO",
+      ssoEnabled: true,
+    });
+    expect(JSON.stringify(await publicAuthConfig())).not.toContain("online-secret");
+    const reconfigured = await ssoAuth();
+    expect(reconfigured).not.toBe(before);
+    await reconfigured.api.getSession({ headers: new Headers() });
+  });
+
+  it("clears the Relay session and returns the OIDC Provider logout URL", async () => {
+    const issuer = "https://identity.example/realms/tali";
+    const discoveryFetchMock = vi.fn(async (
+      input: string | URL | Request,
+      _init?: RequestInit,
+    ) => {
+      if (String(input) === `${issuer}/revoke`) {
+        return new Response(null, { status: 204 });
+      }
+      return new Response(JSON.stringify({
+        issuer,
+        authorization_endpoint: `${issuer}/authorize`,
+        token_endpoint: `${issuer}/token`,
+        jwks_uri: `${issuer}/jwks`,
+        end_session_endpoint: `${issuer}/logout`,
+        revocation_endpoint: `${issuer}/revoke`,
+        id_token_signing_alg_values_supported: ["RS256"],
+      }), { status: 200 });
+    });
+    const discoveryFetch = discoveryFetchMock as unknown as typeof fetch;
+    vi.stubGlobal("fetch", discoveryFetch);
+    await new PlatformSettingsService(db, discoveryFetch).updateSecurity({
+      sso: {
+        clientId: "tali-control-plane",
+        clientSecret: { action: "replace", value: "provider-secret" },
+        displayName: "Example ID",
+        enabled: true,
+        issuer,
+      },
+    }, "admin");
+    const idToken = "header.payload.signature";
+    const refreshToken = "refresh-token-value";
+    await db.authAccount.create({
+      data: {
+        id: "local-admin-sso-account",
+        accountId: "external-local-admin",
+        providerId: corporateSsoProviderId,
+        issuer,
+        userId: "local-admin",
+        idToken,
+        refreshToken,
+      },
+    });
+    const signedIn = await signIn("correct-horse-battery");
+
+    const sso = await ssoAuth();
+    const response = await handleSsoSignOut(
+      new Request("http://tali.local/api/auth/sign-out", {
+        body: JSON.stringify({
+          callbackURL: "/login",
+          disableRedirect: true,
+        }),
+        headers: {
+          "content-type": "application/json",
+          cookie: cookieHeader(signedIn),
+          origin: "http://tali.local",
+        },
+        method: "POST",
+      }),
+      sso,
+      db,
+      discoveryFetch,
+    );
+
+    expect(response.status).toBe(200);
+    const payload = await response.json() as {
+      redirect?: boolean;
+      success: boolean;
+      url?: string;
+    };
+    expect(payload).toMatchObject({ success: true, redirect: false });
+    const logoutUrl = new URL(payload.url!);
+    expect(logoutUrl.origin + logoutUrl.pathname).toBe(`${issuer}/logout`);
+    expect(logoutUrl.searchParams.get("id_token_hint")).toBe(idToken);
+    expect(logoutUrl.searchParams.get("client_id")).toBe("tali-control-plane");
+    expect(logoutUrl.searchParams.get("post_logout_redirect_uri")).toBe(
+      "http://tali.local/login",
+    );
+    await expect(db.authSession.count()).resolves.toBe(0);
+    expect(response.headers.get("set-cookie")).toContain(
+      `${betterAuthSessionCookieName}=`,
+    );
+    const revokeCall = discoveryFetchMock.mock.calls.find(
+      ([input]) => String(input) === `${issuer}/revoke`,
+    );
+    expect(revokeCall).toBeDefined();
+    const revokeBody = revokeCall?.[1]?.body as URLSearchParams;
+    expect(revokeBody.get("token")).toBe(refreshToken);
+    expect(revokeBody.get("token_type_hint")).toBe("refresh_token");
+    expect(revokeBody.get("client_id")).toBe("tali-control-plane");
+    const clearedAccount = await db.authAccount.findUnique({
+      where: { id: "local-admin-sso-account" },
+    });
+    expect(clearedAccount).toMatchObject({
+      accessToken: null,
+      idToken: null,
+      refreshToken: null,
+    });
+  });
+
+  it("keeps Local authentication available when OIDC discovery is offline", async () => {
+    const discoveryFetch = vi.fn(async () => new Response(JSON.stringify({
+      issuer: "https://identity.example",
+      authorization_endpoint: "https://identity.example/authorize",
+      token_endpoint: "https://identity.example/token",
+      jwks_uri: "https://identity.example/jwks",
+    }), { status: 200 })) as unknown as typeof fetch;
+    await new PlatformSettingsService(db, discoveryFetch).updateSecurity({
+      sso: {
+        clientId: "online-client",
+        clientSecret: { action: "replace", value: "online-secret" },
+        displayName: "Online SSO",
+        enabled: true,
+        issuer: "https://identity.example",
+      },
+    }, "admin");
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      throw new Error("identity provider offline");
+    }));
+
+    const sso = await ssoAuth();
+    await expect(sso.handler(new Request(
+      "http://tali.local/api/auth/sign-in/social",
+      {
+        body: JSON.stringify({
+          callbackURL: "/proj1",
+          provider: "corporate-sso",
+        }),
+        headers: {
+          "content-type": "application/json",
+          origin: "http://tali.local",
+        },
+        method: "POST",
+      },
+    ))).rejects.toThrow("discovery returned no valid data");
+
+    await expect(signIn("correct-horse-battery")).resolves.toMatchObject({
+      status: 200,
+    });
+  });
+
+  it("requires one canonical public URL for every authentication mode", async () => {
     const config = developmentControlConfig();
     delete config.server.public_url;
     setControlConfigForTests(config);
     resetBetterAuthForTests();
-    expect(() => auth()).toThrow("server.public_url is required for Better Auth");
+    await expect(auth()).rejects.toThrow(
+      "server.public_url is required for Better Auth",
+    );
   });
 });

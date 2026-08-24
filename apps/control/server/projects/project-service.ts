@@ -1,6 +1,11 @@
 import { createHash, randomUUID } from "node:crypto";
-import type { ProjectMembershipRole } from "@tali/contracts";
+import {
+  projectIdSchema,
+  projectNameSchema,
+  type ProjectMembershipRole,
+} from "@tali/contracts";
 import { ensureDefaultAccessPolicy } from "../access-policies/default-access-policy";
+import { RoleCatalogService } from "../authorization/role-catalog";
 import type { PlatformPrincipal } from "../auth/auth";
 import { requireAuth } from "../auth/auth";
 import { getControlConfig } from "../config/control-config";
@@ -23,6 +28,8 @@ import { developmentResourceCatalog } from "../catalog/development-resource-cata
 import { BuiltInRuntimePolicyCatalogSource } from "../runtime-policies/runtime-policy-service";
 import {
   accessForMembership,
+  activeRoleForMembership,
+  membershipHasAccess,
   membershipAccessInclude,
   projectAccessForMember,
   type ProjectAccessView,
@@ -208,7 +215,7 @@ export class ProjectService {
       where: { projectId_userId: { projectId, userId: actorId } },
       include: membershipAccessInclude,
     });
-    if (!actor || accessForMembership(actor).activeRole !== "admin") {
+    if (!actor || activeRoleForMembership(actor) !== "admin") {
       throw new Error("You do not have permission to manage this project.");
     }
   }
@@ -261,7 +268,7 @@ export class ProjectService {
             userId: id,
             role: invitation.role,
           },
-          update: {},
+          update: { manualAccess: true },
         });
         await transaction.projectMemberRoleAssignment.upsert({
           where: {
@@ -276,7 +283,7 @@ export class ProjectService {
             userId: id,
             role: invitation.role,
           },
-          update: {},
+          update: { manualAssignment: true },
         });
         await transaction.projectInvitation.update({
           where: { id: invitation.id },
@@ -313,6 +320,10 @@ export class ProjectService {
     const memberships = await this.db.projectMember.findMany({
       where: {
         userId: currentUserId,
+        OR: [
+          { manualAccess: true },
+          { externalAccessActive: true },
+        ],
         project: { deletedAt: null },
       },
       include: {
@@ -332,17 +343,27 @@ export class ProjectService {
               },
             },
             _count: {
-              select: { humanMembers: true },
+              select: {
+                humanMembers: {
+                  where: {
+                    OR: [
+                      { manualAccess: true },
+                      { externalAccessActive: true },
+                    ],
+                  },
+                },
+              },
             },
           },
         },
       },
       orderBy: { joinedAt: "asc" },
     });
-    return memberships
-      .map((membership) => {
+    const visibleProjects = await Promise.all(
+      memberships.map(async (membership) => {
         const { project } = membership;
         if (project.department.status !== "active") return null;
+        const access = await accessForMembership(membership, this.db);
         return {
           department: {
             id: project.department.id,
@@ -353,10 +374,13 @@ export class ProjectService {
           name: project.name,
           ...(project.avatar ? { avatar: project.avatar } : {}),
           memberCount: project._count.humanMembers,
-          ...accessForMembership(membership),
+          ...access,
         };
-      })
-      .filter((project): project is ProjectView => project !== null);
+      }),
+    );
+    return visibleProjects.filter(
+      (project): project is ProjectView => project !== null,
+    );
   }
 
   async resolve(request: Request): Promise<{
@@ -386,12 +410,13 @@ export class ProjectService {
     });
     if (
       !membership ||
+      !membershipHasAccess(membership) ||
       membership.project.deletedAt ||
       membership.project.department.status !== "active"
     ) {
       throw new Error("Project not found or access denied.");
     }
-    const access = accessForMembership(membership);
+    const access = await accessForMembership(membership, this.db);
     return {
       auth,
       userId: currentUserId,
@@ -406,16 +431,24 @@ export class ProjectService {
     name: string,
     invitations: InitialProjectInvitation[],
     authority: "department" | "platform" = "department",
+    requestedProjectId?: string,
   ): Promise<ProjectView> {
     const currentUserId = await this.acceptPendingInvitations(auth);
     if (authority === "platform") {
-      if (auth.user.systemRole !== "platform_administrator") {
+      if (
+        auth.user.systemRole !== "platform_administrator"
+        || !await new RoleCatalogService(this.db).hasCapability(
+          "ROLE_PLATFORM_ADMIN",
+          "CAP_PLATFORM_PROJECT_CREATE",
+        )
+      ) {
         throw new Error(
           "You do not have permission to create Projects at the platform level.",
         );
       }
     } else {
       await requireDepartmentAdministrator(auth, departmentId, this.db, {
+        capability: "CAP_DEPARTMENT_PROJECT_CREATE",
         requireActiveDepartment: true,
       });
     }
@@ -426,7 +459,17 @@ export class ProjectService {
     if (!department || department.status !== "active") {
       throw new Error("Department not found or unavailable.");
     }
-    const projectName = name.trim();
+    const projectName = projectNameSchema.parse(name);
+    const projectId = requestedProjectId
+      ? projectIdSchema.parse(requestedProjectId)
+      : `${slug(projectName)}-${randomUUID().slice(0, 8)}`;
+    const duplicateId = await this.db.project.findUnique({
+      where: { id: projectId },
+      select: { id: true },
+    });
+    if (duplicateId) {
+      throw new Error(`A Project with ID "${projectId}" already exists.`);
+    }
     const duplicate = await this.db.project.findFirst({
       where: {
         departmentId,
@@ -463,11 +506,10 @@ export class ProjectService {
     const existingUserByEmail = new Map(
       existingUsers.map((user) => [user.email, user]),
     );
-    const id = `${slug(projectName)}-${randomUUID().slice(0, 8)}`;
     const runtimeNamespaceConfig = getControlConfig().runtime_namespaces;
     const project = await this.db.project.create({
       data: {
-        id,
+        id: projectId,
         name: projectName,
         departmentId,
         createdBy: currentUserId,
@@ -514,7 +556,7 @@ export class ProjectService {
           create: {
             clusterId: runtimeNamespaceConfig.cluster_id,
             namespace: projectRuntimeNamespace(
-              id,
+              projectId,
               runtimeNamespaceConfig.name_prefix,
             ),
           },
@@ -558,10 +600,10 @@ export class ProjectService {
     await ensureDefaultAccessPolicy(this.db, project.id);
     await this.seedProject(project.id);
     await this.syncProjectTeam(project.id);
-    const access = accessForMembership({
+    const access = await accessForMembership({
       role: "admin",
       roleAssignments: [{ role: "admin" }],
-    });
+    }, this.db);
     const departmentMembership = await this.db.departmentMember.findUnique({
       where: {
         departmentId_userId: { departmentId: department.id, userId: currentUserId },
@@ -635,7 +677,9 @@ export class ProjectService {
         ...membershipAccessInclude,
       },
     });
-    const access = membership ? accessForMembership(membership) : undefined;
+    const access = membership
+      ? await accessForMembership(membership, this.db)
+      : undefined;
     const matchedRole =
       access && roles.includes(access.activeRole)
         ? access.activeRole
@@ -900,9 +944,9 @@ export class ProjectService {
         orderBy: { createdAt: "asc" },
       }),
     ]);
-    const result: ProjectMemberView[] = [
-      ...members.map((membership) => {
-        const access = accessForMembership(membership);
+    const activeMembers = await Promise.all(
+      members.map(async (membership) => {
+        const access = await accessForMembership(membership, this.db);
         return {
           id: membership.user.id,
           kind: "human" as const,
@@ -913,6 +957,9 @@ export class ProjectService {
           status: "active" as const,
         };
       }),
+    );
+    const result: ProjectMemberView[] = [
+      ...activeMembers,
       ...invitations.map((invite) => ({
         id: invite.id,
         kind: "human" as const,
@@ -947,7 +994,7 @@ export class ProjectService {
               userId: existing.id,
               role,
             },
-            update: {},
+            update: { manualAccess: true },
             include: membershipAccessInclude,
           });
           await transaction.projectMemberRoleAssignment.upsert({
@@ -963,7 +1010,7 @@ export class ProjectService {
               userId: existing.id,
               role,
             },
-            update: {},
+            update: { manualAssignment: true },
           });
           return transaction.projectMember.findUniqueOrThrow({
             where: { projectId_userId: { projectId, userId: existing.id } },
@@ -972,7 +1019,7 @@ export class ProjectService {
         }),
       );
       await this.syncProjectTeam(projectId);
-      const access = accessForMembership(membership);
+      const access = await accessForMembership(membership, this.db);
       return {
         id: existing.id,
         kind: "human",
@@ -983,7 +1030,7 @@ export class ProjectService {
         status: "active",
       };
     }
-    this.invitationMailer.assertConfigured();
+    await this.invitationMailer.assertConfigured();
     const [project, inviter] = await Promise.all([
       this.db.project.findUnique({
         where: { id: projectId },

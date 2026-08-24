@@ -1,9 +1,24 @@
 import { z } from "zod";
-import type { ProjectCapability } from "./authorization.js";
+import type {
+  ExternalRoleId,
+  ProjectCapability,
+  ProjectMembershipRole,
+} from "./authorization.js";
+import {
+  builtinProjectRoleIds,
+  departmentRoleIds,
+  externalRoleIds,
+  platformRoleIds,
+} from "./authorization.js";
+import {
+  departmentIdSchema,
+  departmentNameSchema,
+} from "./organization.js";
 
 export * from "./traces.js";
 export * from "./authorization.js";
 export * from "./project-overview.js";
+export * from "./organization.js";
 
 export const instanceStatuses = [
   "PROVISIONING",
@@ -46,20 +61,41 @@ export const providerKinds = [
 ] as const;
 
 export const platformSettingsSections = [
-  "overview",
-  "runtime-images",
+  "departments",
+  "people",
+  "project-roles",
+  "runtime",
+  "sandbox",
   "model-providers",
-  "organization",
+  "security",
+  "email",
 ] as const;
 
 const optionalContainerImageSchema = z.string().trim().min(3).max(500)
   .regex(/^\S+$/, "Container image references cannot contain whitespace.")
   .nullable();
 
+const optionalSandboxCpuSchema = z.string().trim().min(1).max(32).regex(
+  /^(?:[1-9]\d*m|[1-9]\d*(?:\.\d+)?|0\.\d+)$/,
+  "CPU must be a positive Kubernetes quantity such as 500m, 1, or 1.5.",
+).nullable();
+
+const optionalSandboxMemorySchema = z.string().trim().min(1).max(32).regex(
+  /^[1-9]\d*(?:\.\d+)?(?:Ki|Mi|Gi|Ti|K|M|G|T)?$/,
+  "Memory must be a positive Kubernetes quantity such as 512Mi or 2Gi.",
+).nullable();
+
 export const updatePlatformSettingsSchema = z.object({
   runtimeImages: z.object({
     openclaw: optionalContainerImageSchema,
     hermes: optionalContainerImageSchema,
+  }).strict(),
+  sandbox: z.object({
+    cpu: optionalSandboxCpuSchema,
+    memory: optionalSandboxMemorySchema,
+  }).strict(),
+  runtimePolicy: z.object({
+    namespaceDeletionTimeoutSeconds: z.number().int().min(10).max(1_800),
   }).strict(),
   enabledProviderKinds: z.array(z.enum(providerKinds)).max(providerKinds.length),
 }).strict().superRefine((value, context) => {
@@ -75,25 +111,371 @@ export const updatePlatformSettingsSchema = z.object({
 export type UpdatePlatformSettingsInput = z.infer<typeof updatePlatformSettingsSchema>;
 export type PlatformSettingsSection = (typeof platformSettingsSections)[number];
 
+const platformClientSecretUpdateSchema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("preserve") }).strict(),
+  z.object({ action: z.literal("replace"), value: z.string().min(1).max(4_096) }).strict(),
+  z.object({ action: z.literal("clear") }).strict(),
+]);
+
+function isHttpUrl(value: string): boolean {
+  try {
+    return ["http:", "https:"].includes(new URL(value).protocol);
+  } catch {
+    return false;
+  }
+}
+
+const platformSsoSettingsSchema = z.object({
+  clientId: z.string().trim().max(500),
+  clientSecret: platformClientSecretUpdateSchema,
+  displayName: z.string().trim().max(80),
+  enabled: z.boolean(),
+  groupClaim: z.string().trim().min(1).max(200).regex(
+    /^[A-Za-z0-9_.:-]+$/,
+    "Group claim may contain letters, numbers, dots, underscores, colons, and hyphens.",
+  ).optional(),
+  issuer: z.string().trim().max(2_000),
+}).strict().superRefine((value, context) => {
+  if (!value.enabled) return;
+  for (const [field, label] of [
+    ["displayName", "Display name"],
+    ["clientId", "Client ID"],
+  ] as const) {
+    if (!value[field]) {
+      context.addIssue({
+        code: "custom",
+        path: [field],
+        message: `${label} is required when SSO is enabled.`,
+      });
+    }
+  }
+  if (!isHttpUrl(value.issuer)) {
+    context.addIssue({
+      code: "custom",
+      path: ["issuer"],
+      message: "A valid OIDC issuer URL is required when SSO is enabled.",
+    });
+  }
+});
+
+export const updatePlatformSecuritySettingsSchema = z.object({
+  sso: platformSsoSettingsSchema,
+}).strict();
+
+export type UpdatePlatformSecuritySettingsInput = z.infer<
+  typeof updatePlatformSecuritySettingsSchema
+>;
+
+export const externalRoleBindingScopes = [
+  "PLATFORM",
+  "DEPARTMENT",
+  "PROJECT",
+] as const;
+
+export type ExternalRoleBindingScope =
+  (typeof externalRoleBindingScopes)[number];
+
+export const externalRoleBindingInputSchema = z.object({
+  id: z.uuid().optional(),
+  enabled: z.boolean(),
+  group: z.string().trim().min(1).max(1_024).regex(
+    /^\/(?:[^/\u0000-\u001F\u007F]+\/)*[^/\u0000-\u001F\u007F]+$/,
+    "Use a complete Keycloak Group path beginning with / and without an ending slash.",
+  ),
+  scope: z.enum(externalRoleBindingScopes),
+  departmentId: departmentIdSchema.nullable(),
+  projectId: departmentIdSchema.nullable(),
+  roleId: z.enum(externalRoleIds),
+}).strict().superRefine((value, context) => {
+  if (value.scope === "PLATFORM") {
+    if (value.departmentId !== null || value.projectId !== null) {
+      context.addIssue({
+        code: "custom",
+        path: ["scope"],
+        message: "Platform bindings cannot target a Department or Project.",
+      });
+    }
+    if (!platformRoleIds.includes(value.roleId as (typeof platformRoleIds)[number])) {
+      context.addIssue({
+        code: "custom",
+        path: ["roleId"],
+        message: "Select a Platform role for a Platform binding.",
+      });
+    }
+  }
+  if (value.scope === "DEPARTMENT") {
+    if (!value.departmentId || value.projectId !== null) {
+      context.addIssue({
+        code: "custom",
+        path: ["departmentId"],
+        message: "Department bindings require one Department and no Project.",
+      });
+    }
+    if (!departmentRoleIds.includes(value.roleId as (typeof departmentRoleIds)[number])) {
+      context.addIssue({
+        code: "custom",
+        path: ["roleId"],
+        message: "Select a Department role for a Department binding.",
+      });
+    }
+  }
+  if (value.scope === "PROJECT") {
+    if (!value.departmentId || !value.projectId) {
+      context.addIssue({
+        code: "custom",
+        path: ["projectId"],
+        message: "Project bindings require both a Department and Project.",
+      });
+    }
+    if (!builtinProjectRoleIds.includes(value.roleId as (typeof builtinProjectRoleIds)[number])) {
+      context.addIssue({
+        code: "custom",
+        path: ["roleId"],
+        message: "Select a Project role for a Project binding.",
+      });
+    }
+  }
+});
+
+export const replaceExternalRoleBindingsSchema = z.object({
+  bindings: z.array(externalRoleBindingInputSchema).max(500),
+}).strict().superRefine((value, context) => {
+  const keys = new Set<string>();
+  value.bindings.forEach((binding, index) => {
+    const key = [
+      binding.group,
+      binding.scope,
+      binding.departmentId ?? "",
+      binding.projectId ?? "",
+      binding.roleId,
+    ].join("\u0000");
+    if (keys.has(key)) {
+      context.addIssue({
+        code: "custom",
+        path: ["bindings", index],
+        message: "This Group, scope, target, and role binding is duplicated.",
+      });
+    }
+    keys.add(key);
+  });
+});
+
+export type ExternalRoleBindingInput = z.infer<
+  typeof externalRoleBindingInputSchema
+>;
+
+export type ReplaceExternalRoleBindingsInput = z.infer<
+  typeof replaceExternalRoleBindingsSchema
+>;
+
+export const validatePlatformSsoSettingsSchema = z.object({
+  clientId: z.string().trim().min(1, "Client ID is required.").max(500),
+  clientSecret: platformClientSecretUpdateSchema,
+  issuer: z.string().trim().max(2_000).refine(
+    isHttpUrl,
+    "A valid OIDC issuer URL is required.",
+  ),
+}).strict();
+
+export type ValidatePlatformSsoSettingsInput = z.infer<
+  typeof validatePlatformSsoSettingsSchema
+>;
+
+export interface PlatformSsoValidationView {
+  authorizationEndpoint: string;
+  discoveryUrl: string;
+  issuer: string;
+  jwksUri: string;
+  signingKeyCount: number;
+  tokenEndpoint: string;
+  validatedAt: string;
+}
+
+export interface PlatformSecuritySettingsView {
+  canEditOnline: boolean;
+  configurationError: string | null;
+  localAuthenticationEnabled: boolean;
+  sso: {
+    callbackUrl: string;
+    clientId: string;
+    clientSecretConfigured: boolean;
+    displayName: string;
+    enabled: boolean;
+    groupClaim: string;
+    issuer: string;
+    roleBindings: ExternalRoleBindingView[];
+  };
+}
+
+export interface ExternalRoleBindingView {
+  id: string;
+  enabled: boolean;
+  group: string;
+  scope: ExternalRoleBindingScope;
+  departmentId: string | null;
+  departmentName: string | null;
+  projectId: string | null;
+  projectName: string | null;
+  roleId: ExternalRoleId;
+  lastMatchedAt: string | null;
+}
+
+export const updatePlatformEmailSettingsSchema = z.object({
+  enabled: z.boolean(),
+  fromAddress: z.string().trim().max(320),
+  fromName: z.string().trim().min(1).max(120),
+  host: z.string().trim().max(500),
+  password: platformClientSecretUpdateSchema,
+  port: z.number().int().min(1).max(65_535),
+  replyTo: z.string().trim().max(320),
+  secure: z.boolean(),
+  username: z.string().trim().max(500),
+}).strict().superRefine((value, context) => {
+  if (!value.enabled) return;
+  if (!value.host) {
+    context.addIssue({
+      code: "custom",
+      path: ["host"],
+      message: "SMTP host is required when email delivery is enabled.",
+    });
+  }
+  if (!z.email().safeParse(value.fromAddress).success) {
+    context.addIssue({
+      code: "custom",
+      path: ["fromAddress"],
+      message: "A valid From address is required when email delivery is enabled.",
+    });
+  }
+  if (value.replyTo && !z.email().safeParse(value.replyTo).success) {
+    context.addIssue({
+      code: "custom",
+      path: ["replyTo"],
+      message: "Reply-to must be a valid email address.",
+    });
+  }
+});
+
+export type UpdatePlatformEmailSettingsInput = z.infer<
+  typeof updatePlatformEmailSettingsSchema
+>;
+
+export const validatePlatformEmailSettingsSchema = z.object({
+  host: z.string().trim().min(1, "SMTP host is required.").max(500),
+  password: platformClientSecretUpdateSchema,
+  port: z.number().int().min(1).max(65_535),
+  secure: z.boolean(),
+  username: z.string().trim().max(500),
+}).strict();
+
+export type ValidatePlatformEmailSettingsInput = z.infer<
+  typeof validatePlatformEmailSettingsSchema
+>;
+
+export interface PlatformEmailValidationView {
+  authentication: "authenticated" | "not_required";
+  host: string;
+  port: number;
+  secure: boolean;
+  validatedAt: string;
+}
+
+export interface PlatformEmailSettingsView {
+  configurationError: string | null;
+  enabled: boolean;
+  fromAddress: string;
+  fromName: string;
+  host: string;
+  passwordConfigured: boolean;
+  port: number;
+  replyTo: string;
+  secure: boolean;
+  username: string;
+}
+
+export const createPlatformDepartmentSchema = z.object({
+  administratorUserId: z.string().trim().min(1),
+  description: z.string().trim().max(500).nullable(),
+  id: departmentIdSchema,
+  name: departmentNameSchema,
+}).strict();
+
+export type CreatePlatformDepartmentInput = z.infer<
+  typeof createPlatformDepartmentSchema
+>;
+
 export interface PlatformSettingsView extends UpdatePlatformSettingsInput {
   effectiveRuntimeImages: {
     openclaw: string;
     hermes: string;
   };
+  effectiveSandbox: {
+    cpu: string;
+    memory: string;
+  };
+  sandboxRuntime: {
+    available: boolean;
+    provider: "openshell";
+    mode?: string;
+    gatewayEndpoint?: string;
+    workspace?: string;
+    serviceBaseUrl?: string;
+    kubernetesServiceCidrs?: string[];
+    gatewayImage?: string;
+    supervisorImage?: string;
+    defaultImage?: string;
+    defaultImagePullPolicy?: string;
+    tlsDisabled?: boolean;
+  };
   runtimeStatus: {
     available: boolean;
     mode?: string;
   };
-  summary: {
-    departments: number;
-    projects: number;
-    people: number;
-    instances: number;
-    providerConnections: number;
-  };
+  security: PlatformSecuritySettingsView;
+  email: PlatformEmailSettingsView;
   revision: number;
   updatedAt: string | null;
   updatedBy: string | null;
+}
+
+export interface PlatformPersonView {
+  departments: Array<{
+    id: string;
+    name: string;
+    role: "administrator" | "member";
+    status: "active" | "suspended";
+  }>;
+  displayName: string;
+  email: string;
+  id: string;
+  projects: Array<{
+    activeRole: ProjectMembershipRole;
+    departmentId: string;
+    departmentName: string;
+    id: string;
+    name: string;
+    roles: ProjectMembershipRole[];
+  }>;
+  status: "active" | "disabled";
+  systemRole: "user" | "platform_administrator";
+}
+
+export interface PlatformPeopleView {
+  data: PlatformPersonView[];
+  filters: {
+    departments: Array<{ id: string; name: string }>;
+    projects: Array<{
+      departmentId: string;
+      departmentName: string;
+      id: string;
+      name: string;
+    }>;
+  };
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
 }
 
 export interface PlatformOrganizationView {
@@ -115,6 +497,7 @@ export interface PlatformOrganizationView {
       memberCount: number;
     }>;
   }>;
+  people: PlatformPersonView[];
 }
 
 export const modelTypes = ["llm", "text-embedding", "speech-to-text"] as const;
@@ -2177,6 +2560,20 @@ export interface RunnerHealth {
   runtimeImages?: {
     openclaw: string;
     hermes: string;
+  };
+  sandbox?: {
+    provider: "openshell";
+    cpu: string;
+    memory: string;
+    gatewayEndpoint: string;
+    workspace: string;
+    serviceBaseUrl: string;
+    kubernetesServiceCidrs: string[];
+    gatewayImage?: string;
+    supervisorImage?: string;
+    defaultImage?: string;
+    defaultImagePullPolicy?: string;
+    tlsDisabled?: boolean;
   };
 }
 

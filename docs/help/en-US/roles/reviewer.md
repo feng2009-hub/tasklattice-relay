@@ -1,4 +1,4 @@
-# Approver guide
+# Reviewer guide
 
 Review governed changes independently, verify the requested scope, and keep the decision separate from execution.
 

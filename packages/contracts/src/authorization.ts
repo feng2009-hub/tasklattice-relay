@@ -188,22 +188,105 @@ export const projectCapabilities = [
 
 export type ProjectCapability = (typeof projectCapabilities)[number];
 
+export const platformCapabilities = [
+  "CAP_PLATFORM_VIEW",
+  "CAP_PLATFORM_SETTINGS_VIEW",
+  "CAP_PLATFORM_SETTINGS_UPDATE",
+  "CAP_PLATFORM_DEPARTMENT_VIEW",
+  "CAP_PLATFORM_DEPARTMENT_CREATE",
+  "CAP_PLATFORM_PROJECT_CREATE",
+  "CAP_PLATFORM_PEOPLE_VIEW",
+  "CAP_PLATFORM_ROLE_VIEW",
+  "CAP_PLATFORM_PROVIDER_VIEW",
+  "CAP_PLATFORM_PROVIDER_UPDATE",
+  "CAP_PLATFORM_RUNTIME_VIEW",
+  "CAP_PLATFORM_RUNTIME_UPDATE",
+  "CAP_PLATFORM_SANDBOX_VIEW",
+  "CAP_PLATFORM_SANDBOX_UPDATE",
+  "CAP_PLATFORM_SECURITY_VIEW",
+  "CAP_PLATFORM_SECURITY_UPDATE",
+  "CAP_PLATFORM_EMAIL_VIEW",
+  "CAP_PLATFORM_EMAIL_UPDATE",
+] as const;
+
+export type PlatformCapability = (typeof platformCapabilities)[number];
+
+export const departmentCapabilities = [
+  "CAP_DEPARTMENT_VIEW",
+  "CAP_DEPARTMENT_SETTINGS_UPDATE",
+  "CAP_DEPARTMENT_MEMBER_VIEW",
+  "CAP_DEPARTMENT_MEMBER_INVITE",
+  "CAP_DEPARTMENT_MEMBER_ROLE_ASSIGN",
+  "CAP_DEPARTMENT_MEMBER_REMOVE",
+  "CAP_DEPARTMENT_PROJECT_VIEW",
+  "CAP_DEPARTMENT_PROJECT_CREATE",
+  "CAP_DEPARTMENT_PROJECT_DELETE",
+  "CAP_DEPARTMENT_QUOTA_VIEW",
+  "CAP_DEPARTMENT_QUOTA_UPDATE",
+] as const;
+
+export type DepartmentCapability = (typeof departmentCapabilities)[number];
+
+export const authorizationCapabilities = [
+  ...platformCapabilities,
+  ...departmentCapabilities,
+  ...projectCapabilities,
+] as const;
+
+export type AuthorizationCapability =
+  (typeof authorizationCapabilities)[number];
+
+export const authorizationScopes = [
+  "PLATFORM",
+  "DEPARTMENT",
+  "PROJECT",
+] as const;
+
+export type AuthorizationScope = (typeof authorizationScopes)[number];
+
+export const builtinRoleIds = [
+  "ROLE_PLATFORM_ADMIN",
+  "ROLE_DEPARTMENT_ADMIN",
+  "ROLE_PROJECT_ADMIN",
+  "ROLE_AGENT_DEVELOPER",
+  "ROLE_USER",
+  "ROLE_AUDITOR",
+  "ROLE_REVIEWER",
+] as const;
+
+export type BuiltinRoleId = (typeof builtinRoleIds)[number];
+
 export const builtinProjectRoleIds = [
   "ROLE_PROJECT_ADMIN",
   "ROLE_AUDITOR",
   "ROLE_AGENT_DEVELOPER",
   "ROLE_USER",
-  "ROLE_APPROVER",
+  "ROLE_REVIEWER",
 ] as const;
 
 export type BuiltinProjectRoleId = (typeof builtinProjectRoleIds)[number];
+
+export const platformRoleIds = ["ROLE_PLATFORM_ADMIN"] as const;
+export type PlatformRoleId = (typeof platformRoleIds)[number];
+
+export const departmentRoleIds = [
+  "ROLE_DEPARTMENT_ADMIN",
+  "ROLE_DEPARTMENT_MEMBER",
+] as const;
+export type DepartmentRoleId = (typeof departmentRoleIds)[number];
+
+export const externalRoleIds = [
+  ...builtinRoleIds,
+  "ROLE_DEPARTMENT_MEMBER",
+] as const;
+export type ExternalRoleId = (typeof externalRoleIds)[number];
 
 export const projectMembershipRoles = [
   "admin",
   "auditor",
   "developer",
   "user",
-  "approver",
+  "reviewer",
 ] as const;
 
 export type ProjectMembershipRole = (typeof projectMembershipRoles)[number];
@@ -213,7 +296,7 @@ export const assignableProjectMembershipRoles = [
   "auditor",
   "developer",
   "user",
-  "approver",
+  "reviewer",
 ] as const satisfies readonly ProjectMembershipRole[];
 
 export type AssignableProjectMembershipRole =
@@ -228,6 +311,63 @@ export const resourceRelations = [
 ] as const;
 
 export type ResourceRelation = (typeof resourceRelations)[number];
+
+export interface BuiltinProjectCapabilityGrantView {
+  capability: ProjectCapability;
+  relations: readonly ResourceRelation[];
+}
+
+export interface BuiltinProjectRoleView {
+  id: BuiltinProjectRoleId;
+  name: string;
+  description: string;
+  immutable: true;
+  grants: readonly BuiltinProjectCapabilityGrantView[];
+  capabilities: readonly ProjectCapability[];
+  relations: readonly ResourceRelation[];
+}
+
+export const builtinRoleFamilies = [
+  "ADMINISTRATION",
+  "PROJECT_BUSINESS",
+] as const;
+
+export type BuiltinRoleFamily = (typeof builtinRoleFamilies)[number];
+
+export interface AuthorizationCapabilityDefinitionView {
+  id: AuthorizationCapability;
+  scope: AuthorizationScope;
+  sideEffect: boolean;
+  sensitiveContent: boolean;
+  systemManaged: true;
+}
+
+export interface BuiltinRoleCapabilityGrantView {
+  capability: AuthorizationCapability;
+  relations: readonly ResourceRelation[];
+}
+
+export interface BuiltinRoleView {
+  id: BuiltinRoleId;
+  scope: AuthorizationScope;
+  family: BuiltinRoleFamily;
+  name: string;
+  description: string;
+  builtin: true;
+  assignable: true;
+  systemManaged: true;
+  immutable: true;
+  revision: number;
+  grants: readonly BuiltinRoleCapabilityGrantView[];
+  capabilities: readonly AuthorizationCapability[];
+  relations: readonly ResourceRelation[];
+}
+
+export interface BuiltinRoleCatalogView {
+  revision: number;
+  capabilities: readonly AuthorizationCapabilityDefinitionView[];
+  roles: readonly BuiltinRoleView[];
+}
 
 export const authorizationDecisions = [
   "ALLOW",

@@ -2,9 +2,9 @@ import { defineHandler } from "nitro";
 import { publicAuthConfig } from "../../../../auth/auth";
 import { jsonResponse, problemResponse } from "../../../../http/responses";
 
-export default defineHandler(() => {
+export default defineHandler(async () => {
   try {
-    return jsonResponse(publicAuthConfig());
+    return jsonResponse(await publicAuthConfig());
   } catch (error) {
     return problemResponse(
       500,

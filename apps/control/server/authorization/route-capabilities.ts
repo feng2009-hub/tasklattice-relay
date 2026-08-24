@@ -378,7 +378,7 @@ export function conditionalRequestRequirements(
 export function concreteRelation(
   resolver: RelationResolver,
   ownedByActor: boolean,
-  collectionRole?: "admin" | "auditor" | "developer" | "user" | "approver",
+  collectionRole?: "admin" | "auditor" | "developer" | "user" | "reviewer",
 ): ResourceRelation {
   if (resolver === "NEW_OWNER") return "OWNER";
   if (resolver === "INSTANCE_COLLECTION") {

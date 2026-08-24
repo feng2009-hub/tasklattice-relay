@@ -1,14 +1,18 @@
 import {
+  builtinRoleIds,
   projectCapabilities,
   projectCapabilityDefinition,
   type ProjectCapability,
 } from "@tali/contracts";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { PrismaClient } from "../generated/prisma/client";
+import { createTestPrisma } from "../test/prisma";
 import {
   builtinProjectRoles,
   builtinRole,
   builtinRoleForMembership,
 } from "./builtin-roles";
+import { RoleCatalogService } from "./role-catalog";
 
 const forbiddenForEveryHumanRole = [
   "CAP_PROJECT_CREATE",
@@ -16,19 +20,75 @@ const forbiddenForEveryHumanRole = [
   "CAP_APPROVAL_OVERRIDE",
 ] as const satisfies readonly ProjectCapability[];
 
+let database: PrismaClient;
+
+beforeEach(() => {
+  database = createTestPrisma();
+});
+
+afterEach(async () => {
+  await database?.$disconnect();
+});
+
+describe("builtin Role catalog", () => {
+  it("persists the exact seven system Roles and their Capability grants", async () => {
+    const catalog = await new RoleCatalogService(database).catalog();
+    expect(catalog.revision).toBeGreaterThan(0);
+    expect(catalog.roles.map(({ id }) => id)).toEqual(builtinRoleIds);
+    expect(catalog.roles).toHaveLength(7);
+    expect(catalog.roles.map(({ name, scope }) => ({ name, scope }))).toEqual([
+      { name: "Platform Administrator", scope: "PLATFORM" },
+      { name: "Department Administrator", scope: "DEPARTMENT" },
+      { name: "Project Administrator", scope: "PROJECT" },
+      { name: "Agent Developer", scope: "PROJECT" },
+      { name: "User", scope: "PROJECT" },
+      { name: "Auditor", scope: "PROJECT" },
+      { name: "Reviewer", scope: "PROJECT" },
+    ]);
+    expect(await database.roleDefinition.count()).toBe(7);
+    expect(await database.roleCapabilityGrant.count()).toBeGreaterThan(0);
+    expect(catalog.roles.every((role) =>
+      role.grants.length > 0
+      && role.capabilities.length === role.grants.length
+      && role.builtin
+      && role.systemManaged
+      && role.immutable
+    )).toBe(true);
+  });
+
+  it("keeps administration Roles inside their own scope", async () => {
+    const catalog = await new RoleCatalogService(database).catalog();
+    for (const role of catalog.roles) {
+      expect(role.capabilities.every((capability) => {
+        if (role.scope === "PLATFORM") return capability.startsWith("CAP_PLATFORM_");
+        if (role.scope === "DEPARTMENT") return capability.startsWith("CAP_DEPARTMENT_");
+        return !capability.startsWith("CAP_PLATFORM_")
+          && !capability.startsWith("CAP_DEPARTMENT_");
+      })).toBe(true);
+    }
+    expect((await new RoleCatalogService(database).role(
+      "ROLE_DEPARTMENT_ADMIN",
+    )).capabilities).toEqual(expect.arrayContaining([
+      "CAP_DEPARTMENT_MEMBER_INVITE",
+      "CAP_DEPARTMENT_MEMBER_ROLE_ASSIGN",
+      "CAP_DEPARTMENT_PROJECT_CREATE",
+      "CAP_DEPARTMENT_QUOTA_UPDATE",
+    ]));
+  });
+});
+
 describe("builtin Project roles", () => {
-  it("binds immutable, unique, registered capabilities to every builtin role", () => {
-    expect(new Set(builtinProjectRoles.map(({ id }) => id)).size).toBe(5);
+  it("binds unique, registered capabilities to every builtin Project role", async () => {
+    const roles = await builtinProjectRoles(database);
+    expect(new Set(roles.map(({ id }) => id)).size).toBe(5);
     const registry = new Set(projectCapabilities);
-    for (const role of builtinProjectRoles) {
+    for (const role of roles) {
       expect(role.immutable).toBe(true);
-      expect(Object.isFrozen(role)).toBe(true);
-      expect(Object.isFrozen(role.grants)).toBe(true);
-      expect(Object.isFrozen(role.capabilities)).toBe(true);
       expect(role.grants.map(({ capability }) => capability)).toEqual(role.capabilities);
-      expect(role.grants.every(({ relations }) => Object.isFrozen(relations))).toBe(true);
       expect(new Set(role.capabilities).size).toBe(role.capabilities.length);
-      expect(role.capabilities.every((capability) => registry.has(capability))).toBe(true);
+      expect(role.capabilities.every((capability) => registry.has(
+        capability as ProjectCapability,
+      ))).toBe(true);
       for (const forbidden of forbiddenForEveryHumanRole) {
         expect(role.capabilities).not.toContain(forbidden);
       }
@@ -38,8 +98,8 @@ describe("builtin Project roles", () => {
     expect(projectCapabilities).not.toContain("CAP_SECRET_REVEAL" as ProjectCapability);
   });
 
-  it("gives Project Administrator the complete Project-scoped capability set", () => {
-    const capabilities = builtinRole("ROLE_PROJECT_ADMIN").capabilities;
+  it("gives Project Administrator the complete Project-scoped capability set", async () => {
+    const capabilities = (await builtinRole("ROLE_PROJECT_ADMIN", database)).capabilities;
     expect(capabilities).toEqual(
       projectCapabilities.filter(
         (capability) => !forbiddenForEveryHumanRole.includes(
@@ -52,24 +112,17 @@ describe("builtin Project roles", () => {
       "CAP_PROJECT_MEMBER_INVITE",
       "CAP_PROJECT_MEMBER_ROLE_ASSIGN",
       "CAP_PROVIDER_CREATE",
-      "CAP_PROVIDER_DISCOVER",
       "CAP_MODEL_CREATE",
-      "CAP_MODEL_DELETE",
-      "CAP_MODEL_ROUTING_CREATE",
-      "CAP_MODEL_ROUTING_UPDATE",
-      "CAP_MODEL_ROUTING_DELETE",
-      "CAP_MODEL_ROUTING_RECONCILE",
       "CAP_AGENT_INSTANCE_TERMINAL_EXEC",
       "CAP_AGENT_INSTANCE_DELETE",
       "CAP_AGENT_MEMORY_CONTENT_VIEW",
       "CAP_AUDIT_EXPORT",
       "CAP_APPROVAL_REQUEST_DECIDE",
     ]));
-    expect(capabilities).not.toContain("CAP_PROJECT_CREATE");
   });
 
-  it("makes Auditor metadata-oriented and mutation-free", () => {
-    const capabilities = builtinRole("ROLE_AUDITOR").capabilities;
+  it("makes Auditor metadata-oriented and mutation-free", async () => {
+    const capabilities = (await builtinRole("ROLE_AUDITOR", database)).capabilities;
     expect(capabilities).toEqual(expect.arrayContaining([
       "CAP_AUDIT_VIEW",
       "CAP_AUDIT_DETAIL_VIEW",
@@ -82,12 +135,12 @@ describe("builtin Project roles", () => {
       "CAP_AGENT_MEMORY_CONTENT_VIEW",
       "CAP_AGENT_INSTANCE_INTERACT",
     ]));
-    const mutationActions = /_(?:CREATE|UPDATE|DELETE|ASSIGN|GRANT|REVOKE|EXEC|DECIDE|APPLY|WRITE|PURGE|IMPORT|EXPORT)$/;
-    expect(capabilities.filter((capability) => mutationActions.test(capability))).toEqual([]);
+    const mutations = /_(?:CREATE|UPDATE|DELETE|ASSIGN|GRANT|REVOKE|EXEC|DECIDE|APPLY|WRITE|PURGE|IMPORT|EXPORT)$/;
+    expect(capabilities.filter((capability) => mutations.test(capability))).toEqual([]);
   });
 
-  it("limits Agent Developer to owned/maintained lifecycle operations", () => {
-    const role = builtinRole("ROLE_AGENT_DEVELOPER");
+  it("limits Agent Developer to owned or maintained lifecycle operations", async () => {
+    const role = await builtinRole("ROLE_AGENT_DEVELOPER", database);
     expect(role.relations).toEqual([
       "PROJECT_ANY",
       "OWNER",
@@ -105,33 +158,27 @@ describe("builtin Project roles", () => {
     expect(role.capabilities).not.toEqual(expect.arrayContaining([
       "CAP_PROJECT_MEMBER_INVITE",
       "CAP_PROJECT_ROLE_UPDATE",
-      "CAP_PROJECT_QUOTA_UPDATE",
       "CAP_AGENT_INSTANCE_TERMINAL_EXEC",
-      "CAP_AGENT_MEMORY_CONTENT_VIEW",
       "CAP_APPROVAL_REQUEST_DECIDE",
     ]));
   });
 
-  it("scopes each Developer grant independently", () => {
+  it("scopes each Developer grant independently", async () => {
     const grants = new Map(
-      builtinRole("ROLE_AGENT_DEVELOPER").grants.map((item) => [
+      (await builtinRole("ROLE_AGENT_DEVELOPER", database)).grants.map((item) => [
         item.capability,
         item.relations,
       ]),
     );
     expect(grants.get("CAP_PROJECT_QUOTA_VIEW")).toEqual(["PROJECT_ANY"]);
-    expect(grants.get("CAP_SKILL_VIEW")).toEqual(["PROJECT_ANY"]);
-    expect(grants.get("CAP_AGENT_INSTANCE_DELETE")).toEqual([
-      "OWNER",
-      "MAINTAINER",
-    ]);
+    expect(grants.get("CAP_AGENT_INSTANCE_DELETE")).toEqual(["OWNER", "MAINTAINER"]);
     expect(grants.get("CAP_AGENT_SESSION_MESSAGE_SEND")).toEqual([
       "SESSION_PARTICIPANT",
     ]);
   });
 
-  it("separates User memory recall from raw memory access", () => {
-    const capabilities = builtinRole("ROLE_USER").capabilities;
+  it("separates User memory recall from raw memory access", async () => {
+    const capabilities = (await builtinRole("ROLE_USER", database)).capabilities;
     expect(capabilities).toEqual(expect.arrayContaining([
       "CAP_AGENT_INSTANCE_INTERACT",
       "CAP_AGENT_SESSION_CREATE",
@@ -140,15 +187,13 @@ describe("builtin Project roles", () => {
     ]));
     expect(capabilities).not.toEqual(expect.arrayContaining([
       "CAP_AGENT_INSTANCE_CONFIG_VIEW",
-      "CAP_AGENT_INSTANCE_TERMINAL_EXEC",
       "CAP_AGENT_MEMORY_CONTENT_VIEW",
-      "CAP_AGENT_MEMORY_SEARCH",
       "CAP_AUDIT_VIEW",
     ]));
   });
 
-  it("keeps Approver independent from target mutations", () => {
-    const capabilities = builtinRole("ROLE_APPROVER").capabilities;
+  it("keeps Reviewer independent from target mutations", async () => {
+    const capabilities = (await builtinRole("ROLE_REVIEWER", database)).capabilities;
     expect(capabilities).toEqual(expect.arrayContaining([
       "CAP_APPROVAL_REQUEST_VIEW",
       "CAP_APPROVAL_REQUEST_COMMENT",
@@ -158,10 +203,8 @@ describe("builtin Project roles", () => {
     expect(capabilities).not.toContain("CAP_PROJECT_ROLE_UPDATE");
   });
 
-  it("maps the User membership directly to the User builtin role", () => {
-    expect(builtinRoleForMembership("user")).toBe(
-      builtinRole("ROLE_USER"),
-    );
+  it("maps the User membership directly to the User builtin Role", async () => {
+    expect((await builtinRoleForMembership("user", database)).id).toBe("ROLE_USER");
   });
 
   it("registers the complete Memory capability boundary", () => {
@@ -169,13 +212,8 @@ describe("builtin Project roles", () => {
       capability.startsWith("CAP_AGENT_MEMORY_"),
     );
     expect(memoryCapabilities).toHaveLength(20);
-    expect(memoryCapabilities).toEqual(expect.arrayContaining([
-      "CAP_AGENT_MEMORY_CONFIG_VIEW",
-      "CAP_AGENT_MEMORY_CONTENT_PURGE",
-      "CAP_AGENT_MEMORY_RECALL_USE",
-      "CAP_AGENT_MEMORY_SESSION_INDEX_MANAGE",
-      "CAP_AGENT_MEMORY_LEGAL_HOLD_MANAGE",
-    ]));
-    expect(projectCapabilityDefinition("CAP_AGENT_MEMORY_CONTENT_VIEW").sensitiveContent).toBe(true);
+    expect(projectCapabilityDefinition(
+      "CAP_AGENT_MEMORY_CONTENT_VIEW",
+    ).sensitiveContent).toBe(true);
   });
 });

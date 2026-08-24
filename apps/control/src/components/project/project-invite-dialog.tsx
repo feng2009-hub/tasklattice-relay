@@ -109,7 +109,7 @@ export function ProjectInviteDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {(["developer", "user", "auditor", "admin", "approver"] as const)
+                  {(["developer", "user", "auditor", "admin", "reviewer"] as const)
                     .map((roleId) => (
                       <SelectItem key={roleId} value={roleId}>
                         {projectRoleLabels[roleId]}
