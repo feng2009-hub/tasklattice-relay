@@ -19,6 +19,7 @@ export * from "./traces.js";
 export * from "./authorization.js";
 export * from "./project-overview.js";
 export * from "./organization.js";
+export * from "./department-settings.js";
 
 export const instanceStatuses = [
   "PROVISIONING",

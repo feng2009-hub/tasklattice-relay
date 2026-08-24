@@ -225,4 +225,50 @@ describe("ProjectQuotaService", () => {
       service.update({ ...quota, hardBudgetUsd: 70 }, "admin"),
     ).resolves.toMatchObject({ hardBudgetUsd: 70 });
   });
+
+  it("enforces Department capacity for both Project allocations and actual resources", async () => {
+    const store = createTestStore();
+    const database = store.database();
+    await database.department.update({
+      where: { id: "dep1" },
+      data: { hardMaxInstances: 5, hardMaxMcpIntegrations: 0 },
+    });
+    await database.project.create({
+      data: {
+        id: "capacity-sibling",
+        name: "Capacity Sibling",
+        departmentId: "dep1",
+        createdBy: "local-admin",
+      },
+    });
+    await database.projectQuotaRecord.create({
+      data: { projectId: "capacity-sibling", maxInstances: 3 },
+    });
+    const service = new ProjectQuotaService(store, adapter());
+    const quota = {
+      hardBudgetUsd: null,
+      budgetDuration: null,
+      tpmLimit: null,
+      maxInstances: 3,
+      maxMcpIntegrations: 0,
+      maxKnowledgeBaseIntegrations: null,
+    };
+
+    await expect(service.update(quota, "admin")).rejects.toThrow(
+      "Department's 5 hard limit",
+    );
+    await expect(
+      service.update({ ...quota, maxInstances: null }, "admin"),
+    ).rejects.toThrow("must have an explicit Instance quota");
+    await expect(
+      service.update({ ...quota, maxInstances: 2 }, "admin"),
+    ).resolves.toMatchObject({ maxInstances: 2 });
+    await database.projectQuotaRecord.update({
+      where: { projectId: "individual" },
+      data: { maxMcpIntegrations: 1 },
+    });
+    await expect(service.assertCanCreate("mcp")).rejects.toThrow(
+      "Department hard quota exceeded",
+    );
+  });
 });

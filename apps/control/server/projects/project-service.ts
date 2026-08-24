@@ -21,7 +21,7 @@ import {
   LiteLLMClient,
   type LiteLLMAdminClient,
 } from "../providers/litellm-client";
-import { nextBudgetWindow } from "../quotas/budget-window";
+import { type BudgetDuration, nextBudgetWindow } from "../quotas/budget-window";
 import { ProjectQuotaService } from "../quotas/project-quota-service";
 import { ProjectStore } from "./project-store";
 import { developmentResourceCatalog } from "../catalog/development-resource-catalog";
@@ -454,7 +454,26 @@ export class ProjectService {
     }
     const department = await this.db.department.findUnique({
       where: { id: departmentId },
-      select: { hardBudgetUsd: true, id: true, name: true, status: true },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        hardBudgetUsd: true,
+        hardMaxInstances: true,
+        hardMaxMcpIntegrations: true,
+        hardMaxKnowledgeBaseIntegrations: true,
+        defaultChatModel: true,
+        defaultEmbeddingModel: true,
+        defaultRoutingMode: true,
+        defaultFallbackModel: true,
+        defaultProjectHardBudgetUsd: true,
+        defaultProjectBudgetDuration: true,
+        defaultProjectTpmLimit: true,
+        defaultProjectMaxInstances: true,
+        defaultProjectMaxMcpIntegrations: true,
+        defaultProjectMaxKnowledgeBaseIntegrations: true,
+        settingsRevision: true,
+      },
     });
     if (!department || department.status !== "active") {
       throw new Error("Department not found or unavailable.");
@@ -506,6 +525,25 @@ export class ProjectService {
     const existingUserByEmail = new Map(
       existingUsers.map((user) => [user.email, user]),
     );
+    const inheritedQuota = {
+      hardBudgetUsd: department.defaultProjectHardBudgetUsd === null
+        ? (department.hardBudgetUsd === null ? null : 0)
+        : Number(department.defaultProjectHardBudgetUsd),
+      budgetDuration: department.defaultProjectHardBudgetUsd === null
+        ? (department.hardBudgetUsd === null ? null : "30d")
+        : (department.defaultProjectBudgetDuration ?? "30d") as BudgetDuration | null,
+      tpmLimit: department.defaultProjectTpmLimit === null
+        ? null
+        : Number(department.defaultProjectTpmLimit),
+      maxInstances: department.defaultProjectMaxInstances
+        ?? (department.hardMaxInstances === null ? null : 0),
+      maxMcpIntegrations: department.defaultProjectMaxMcpIntegrations
+        ?? (department.hardMaxMcpIntegrations === null ? null : 0),
+      maxKnowledgeBaseIntegrations:
+        department.defaultProjectMaxKnowledgeBaseIntegrations
+        ?? (department.hardMaxKnowledgeBaseIntegrations === null ? null : 0),
+    } as const;
+    await assertDepartmentAllocationAvailable(this.db, department, inheritedQuota);
     const runtimeNamespaceConfig = getControlConfig().runtime_namespaces;
     const project = await this.db.project.create({
       data: {
@@ -513,6 +551,19 @@ export class ProjectService {
         name: projectName,
         departmentId,
         createdBy: currentUserId,
+        inheritedDepartmentSettingsRevision: department.settingsRevision,
+        inheritedDepartmentDefaults: {
+          departmentId: department.id,
+          departmentSettingsRevision: department.settingsRevision,
+          models: {
+            defaultChatModel: department.defaultChatModel,
+            defaultEmbeddingModel: department.defaultEmbeddingModel,
+          },
+          routing: {
+            mode: department.defaultRoutingMode,
+            fallbackModel: department.defaultFallbackModel,
+          },
+        },
         humanMembers: {
           create: [
             {
@@ -579,14 +630,21 @@ export class ProjectService {
       );
       throw error;
     }
-    const hardBudgetUsd = department.hardBudgetUsd === null ? null : 0;
-    const budgetDuration = hardBudgetUsd === null ? null : "30d";
+    const hardBudgetUsd = inheritedQuota.hardBudgetUsd;
+    const budgetDuration = inheritedQuota.budgetDuration;
     const initialBudgetWindow = budgetDuration
       ? nextBudgetWindow(new Date(), budgetDuration, null, null)
       : null;
     await this.db.projectQuotaRecord.create({
       data: {
         projectId: project.id,
+        tpmLimit: inheritedQuota.tpmLimit === null
+          ? null
+          : BigInt(inheritedQuota.tpmLimit),
+        maxInstances: inheritedQuota.maxInstances,
+        maxMcpIntegrations: inheritedQuota.maxMcpIntegrations,
+        maxKnowledgeBaseIntegrations:
+          inheritedQuota.maxKnowledgeBaseIntegrations,
         ...(hardBudgetUsd !== null && initialBudgetWindow
           ? {
               hardBudgetUsd,
@@ -1156,4 +1214,44 @@ export class ProjectService {
       .catch(() => undefined);
   }
 
+}
+
+async function assertDepartmentAllocationAvailable(
+  database: PrismaClient,
+  department: {
+    id: string;
+    hardBudgetUsd: { toString(): string } | null;
+    hardMaxInstances: number | null;
+    hardMaxMcpIntegrations: number | null;
+    hardMaxKnowledgeBaseIntegrations: number | null;
+  },
+  defaults: {
+    hardBudgetUsd: number | null;
+    maxInstances: number | null;
+    maxMcpIntegrations: number | null;
+    maxKnowledgeBaseIntegrations: number | null;
+  },
+) {
+  const allocated = await database.projectQuotaRecord.aggregate({
+    where: { project: { departmentId: department.id, deletedAt: null } },
+    _sum: {
+      hardBudgetUsd: true,
+      maxInstances: true,
+      maxMcpIntegrations: true,
+      maxKnowledgeBaseIntegrations: true,
+    },
+  });
+  const checks = [
+    ["budget", Number(allocated._sum.hardBudgetUsd ?? 0), defaults.hardBudgetUsd, department.hardBudgetUsd === null ? null : Number(department.hardBudgetUsd)],
+    ["Instance", Number(allocated._sum.maxInstances ?? 0), defaults.maxInstances, department.hardMaxInstances],
+    ["MCP integration", Number(allocated._sum.maxMcpIntegrations ?? 0), defaults.maxMcpIntegrations, department.hardMaxMcpIntegrations],
+    ["Knowledge Base integration", Number(allocated._sum.maxKnowledgeBaseIntegrations ?? 0), defaults.maxKnowledgeBaseIntegrations, department.hardMaxKnowledgeBaseIntegrations],
+  ] as const;
+  for (const [label, current, projectDefault, hard] of checks) {
+    if (hard !== null && current + Number(projectDefault ?? 0) > hard) {
+      throw new Error(
+        `The new Project's default ${label} allocation would exceed the Department hard quota (${current} allocated + ${projectDefault ?? 0} requested > ${hard}).`,
+      );
+    }
+  }
 }

@@ -5,6 +5,10 @@ policy. Platform settings are database-owned and audited; deployment settings
 describe how Control reaches infrastructure and how the first administrator
 recovers access.
 
+Department-owned model, routing, and quota defaults are documented in
+[Department Setting](./department-settings.md). They are not Platform fallbacks
+and require an explicit Department Administrator role.
+
 ## Current boundary
 
 `control.toml` contains 15 operational fields plus `schema_version`:

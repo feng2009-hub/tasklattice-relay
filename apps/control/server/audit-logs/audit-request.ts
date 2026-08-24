@@ -201,6 +201,17 @@ function descriptor(method: string, path: string): AuditDescriptor | undefined {
       operation: "update",
     };
   }
+  const departmentSettingsMatch = path.match(
+    /^\/api\/v1\/departments\/([^/]+)\/settings$/,
+  );
+  if (departmentSettingsMatch && method === "PUT") {
+    return {
+      action: "department.settings_update",
+      objectId: decodeURIComponent(departmentSettingsMatch[1]!),
+      objectType: "Department Settings",
+      operation: "update",
+    };
+  }
   if (path === "/api/auth/sign-in/username" && method === "POST") {
     return { action: "auth.login", objectType: "Session", operation: "login" };
   }

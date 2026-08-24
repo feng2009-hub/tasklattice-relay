@@ -43,6 +43,7 @@ import platformEmailAndRuntimePolicyMigration from "../../prisma/migrations/2026
 import platformSandboxDefaultsMigration from "../../prisma/migrations/20260824030000_platform_sandbox_defaults/migration.sql?raw";
 import ssoRoleBindingsMigration from "../../prisma/migrations/20260824040000_sso_role_bindings/migration.sql?raw";
 import builtinRoleCatalogMigration from "../../prisma/migrations/20260824050000_builtin_role_catalog/migration.sql?raw";
+import departmentSettingsMigration from "../../prisma/migrations/20260824060000_department_settings/migration.sql?raw";
 import { developmentResourceCatalog } from "../catalog/development-resource-catalog";
 import { PrismaClient } from "../generated/prisma/client";
 
@@ -462,6 +463,9 @@ export function createTestPrisma(): PrismaClient {
         /,\n  CONSTRAINT "role_capability_grants_relations_array_check"[\s\S]*?CHECK \(jsonb_typeof\("relations"\) = 'array'\)\n/,
         "\n",
       ),
+  );
+  memory.public.none(
+    departmentSettingsMigration.replaceAll("DECIMAL(18, 6)", "NUMERIC"),
   );
   const pg = memory.adapters.createPg();
   const query = pg.Client.prototype.query;

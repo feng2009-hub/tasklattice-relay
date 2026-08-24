@@ -9,7 +9,6 @@ import {
   Plus,
   Search,
   Settings,
-  SlidersHorizontal,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ProjectAvatar } from "@/components/project/project-item";
@@ -370,23 +369,6 @@ export function ProjectSwitcher({
         ) : null}
 
         <div className="border-t p-2">
-          {currentProject?.department.role === "administrator" ? (
-            <Link
-              to="/departments/$departmentId"
-              params={{ departmentId: currentProject.department.id }}
-              className="flex min-h-11 items-center gap-2 rounded-md px-2 text-sm text-muted-foreground outline-none transition-colors hover:bg-muted/65 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/35"
-              onClick={() => {
-                setOpen(false);
-                onProjectSettingsOpen();
-              }}
-            >
-              <SlidersHorizontal className="size-4" />
-              {t("projectSwitcher.manageDepartment", {
-                departmentName: currentProject.department.name,
-              })}
-            </Link>
-          ) : null}
-
           <button
             type="button"
             className="flex min-h-11 w-full items-center gap-2 rounded-md px-2 text-left text-sm font-medium text-foreground outline-none transition-colors hover:bg-muted/65 focus-visible:ring-2 focus-visible:ring-ring/35 disabled:cursor-not-allowed disabled:opacity-50"

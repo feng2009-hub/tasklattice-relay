@@ -66,6 +66,7 @@ const enUS = {
     help: {
       label: "Help & documentation",
     },
+    departmentSetting: "Department Setting",
     platformSetting: "Platform Setting",
     projectEmptyState: {
       create: "Create Project",
@@ -104,7 +105,6 @@ const enUS = {
       current: "Current project",
       currentProject: "Current project: {{projectName}}. Switch project",
       loading: "Loading project",
-      manageDepartment: "Manage {{departmentName}}",
       members_one: "{{count}} member",
       members_other: "{{count}} members",
       newProject: "New Project",
@@ -270,6 +270,7 @@ const zhCN = {
     help: {
       label: "帮助与文档",
     },
+    departmentSetting: "部门设置",
     platformSetting: "平台设置",
     projectEmptyState: {
       create: "创建项目",
@@ -307,7 +308,6 @@ const zhCN = {
       current: "当前项目",
       currentProject: "当前项目：{{projectName}}。切换项目",
       loading: "正在加载项目",
-      manageDepartment: "管理 {{departmentName}}",
       members_one: "{{count}} 位成员",
       members_other: "{{count}} 位成员",
       newProject: "新建项目",
@@ -472,6 +472,7 @@ const zhTW = {
     help: {
       label: "說明與文件",
     },
+    departmentSetting: "部門設定",
     platformSetting: "平台設定",
     projectEmptyState: {
       create: "建立專案",
@@ -509,7 +510,6 @@ const zhTW = {
       current: "目前專案",
       currentProject: "目前專案：{{projectName}}。切換專案",
       loading: "正在載入專案",
-      manageDepartment: "管理 {{departmentName}}",
       members_one: "{{count}} 位成員",
       members_other: "{{count}} 位成員",
       newProject: "新增專案",

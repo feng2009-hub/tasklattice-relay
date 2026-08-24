@@ -3,6 +3,10 @@ import type {
   DepartmentSummary,
   UpdateDepartmentInput,
 } from "@/types/department";
+import type {
+  DepartmentSettingsView,
+  UpdateDepartmentSettingsInput,
+} from "@tali/contracts";
 
 async function departmentRequest<T>(
   path: string,
@@ -31,6 +35,9 @@ async function departmentRequest<T>(
 export const departmentQueryKey = (departmentId: string) =>
   ["department", departmentId] as const;
 
+export const departmentSettingsQueryKey = (departmentId: string) =>
+  ["department-settings", departmentId] as const;
+
 export async function getDepartments(): Promise<DepartmentSummary[]> {
   return departmentRequest<DepartmentSummary[]>("/api/v1/departments");
 }
@@ -50,5 +57,23 @@ export async function updateDepartment(
   return departmentRequest<DepartmentDetail>(
     `/api/v1/departments/${encodeURIComponent(departmentId)}`,
     { method: "PATCH", body: JSON.stringify(input) },
+  );
+}
+
+export async function getDepartmentSettings(
+  departmentId: string,
+): Promise<DepartmentSettingsView> {
+  return departmentRequest<DepartmentSettingsView>(
+    `/api/v1/departments/${encodeURIComponent(departmentId)}/settings`,
+  );
+}
+
+export async function updateDepartmentSettings(
+  departmentId: string,
+  input: UpdateDepartmentSettingsInput,
+): Promise<DepartmentSettingsView> {
+  return departmentRequest<DepartmentSettingsView>(
+    `/api/v1/departments/${encodeURIComponent(departmentId)}/settings`,
+    { method: "PUT", body: JSON.stringify(input) },
   );
 }

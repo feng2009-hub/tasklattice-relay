@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { updateDepartmentSettingsSchema } from "@tali/contracts";
 import { defineContracts } from "./contract";
 import { projectRoute, response, route } from "./helpers";
 import {
@@ -29,6 +30,7 @@ import {
   updateProjectInputSchema,
   updatedCountSchema,
   domainObjectSchema,
+  openObjectSchema,
 } from "./schemas";
 
 export const identityContracts = defineContracts([
@@ -90,6 +92,18 @@ export const identityContracts = defineContracts([
     summary: "Update a Department", tags: ["Departments"],
     request: { params: departmentParamsSchema, body: updateDepartmentInputSchema },
     responses: { 200: response("Updated Department", departmentDetailSchema) },
+  }),
+  route({
+    method: "get", path: "/departments/{departmentId}/settings", operationId: "getDepartmentSettings",
+    summary: "Read Department defaults and quota", tags: ["Departments"],
+    request: { params: departmentParamsSchema },
+    responses: { 200: response("Department settings", openObjectSchema) },
+  }),
+  route({
+    method: "put", path: "/departments/{departmentId}/settings", operationId: "updateDepartmentSettings",
+    summary: "Update Department defaults and quota", tags: ["Departments"],
+    request: { params: departmentParamsSchema, body: updateDepartmentSettingsSchema },
+    responses: { 200: response("Updated Department settings", openObjectSchema) },
   }),
   route({
     method: "get", path: "/projects", operationId: "listProjects",

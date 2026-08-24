@@ -5,6 +5,7 @@ import {
   Bot,
   Boxes,
   BrainCircuit,
+  Building2,
   CheckCircle2,
   CircleDollarSign,
   CircleHelp,
@@ -49,6 +50,7 @@ import {
   getPersonalProfile,
   personalProfileQueryKey,
 } from "@/services/personal-profile";
+import { getDepartments } from "@/services/department";
 import { WorkspaceHeader } from "@/components/layout/workspace-header";
 import { CreateProjectSheet } from "@/components/project/create-project-sheet";
 import { ProjectSwitcher } from "@/components/project/project-switcher";
@@ -149,6 +151,7 @@ export function itemIsActive(item: NavItemDefinition, pathname: string, projectI
 export function routeUsesFullBleedLayout(pathname: string): boolean {
   const normalizedPathname = pathname.replace(/\/$/, "");
   return normalizedPathname === "/platform/settings"
+    || /^\/departments\/[^/]+$/.test(normalizedPathname)
     || /^\/[^/]+\/help$/.test(normalizedPathname);
 }
 
@@ -197,8 +200,17 @@ function ProjectSidebar({ createProjectOpen, logout, onCreateProjectOpenChange, 
   const [toastProject, setToastProject] = useState("");
   const projectId = currentProject?.id ?? "proj1";
   const permissions = useProjectPermissions();
+  const administeredDepartments = useQuery({
+    queryKey: ["departments"],
+    queryFn: getDepartments,
+    staleTime: 30_000,
+  });
   const helpActive = pathname.replace(/\/$/, "") === `/${encodeURIComponent(projectId)}/help`;
   const platformSettingsActive = pathname.replace(/\/$/, "") === "/platform/settings";
+  const departmentSettingsActive = pathname.startsWith("/departments/");
+  const departmentSettingsTarget = administeredDepartments.data?.find(
+    (department) => department.id === currentProject?.department.id,
+  ) ?? administeredDepartments.data?.[0];
   return (
     <ToastProvider duration={3_000} swipeDirection="right">
       <Sidebar
@@ -251,25 +263,47 @@ function ProjectSidebar({ createProjectOpen, logout, onCreateProjectOpenChange, 
           </nav>
         </SidebarContent>
         <SidebarFooter className="border-t border-sidebar-border p-2">
-          {user?.systemRole === "platform_administrator" ? (
+          {user?.systemRole === "platform_administrator" || departmentSettingsTarget ? (
             <SidebarMenu className="border-b border-sidebar-border pb-2">
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  isActive={platformSettingsActive}
-                  tooltip={t("platformSetting")}
-                >
-                  <Link
-                    to="/platform/settings"
-                    onClick={() => setOpenMobile(false)}
-                    aria-current={platformSettingsActive ? "page" : undefined}
-                    aria-label={t("platformSetting")}
+              {user?.systemRole === "platform_administrator" ? (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={platformSettingsActive}
+                    tooltip={t("platformSetting")}
                   >
-                    <Settings2 />
-                    <span>{t("platformSetting")}</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+                    <Link
+                      to="/platform/settings"
+                      onClick={() => setOpenMobile(false)}
+                      aria-current={platformSettingsActive ? "page" : undefined}
+                      aria-label={t("platformSetting")}
+                    >
+                      <Settings2 />
+                      <span>{t("platformSetting")}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ) : null}
+              {departmentSettingsTarget ? (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={departmentSettingsActive}
+                    tooltip={t("departmentSetting")}
+                  >
+                    <Link
+                      to="/departments/$departmentId"
+                      params={{ departmentId: departmentSettingsTarget.id }}
+                      onClick={() => setOpenMobile(false)}
+                      aria-current={departmentSettingsActive ? "page" : undefined}
+                      aria-label={t("departmentSetting")}
+                    >
+                      <Building2 />
+                      <span>{t("departmentSetting")}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ) : null}
             </SidebarMenu>
           ) : null}
           <SidebarMenu>

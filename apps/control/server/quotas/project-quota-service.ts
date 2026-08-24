@@ -79,7 +79,14 @@ export class ProjectQuotaService {
         where: { id: this.store.projectId },
         select: {
           departmentId: true,
-          department: { select: { hardBudgetUsd: true } },
+          department: {
+            select: {
+              hardBudgetUsd: true,
+              hardMaxInstances: true,
+              hardMaxMcpIntegrations: true,
+              hardMaxKnowledgeBaseIntegrations: true,
+            },
+          },
         },
       });
       await lockDepartmentBudget(transaction, project.departmentId);
@@ -125,6 +132,37 @@ export class ProjectQuotaService {
         if (allocatedBudgetUsd > departmentBudgetUsd) {
           throw new Error(
             `Project budget would allocate $${allocatedBudgetUsd.toFixed(2)} of the Department's $${departmentBudgetUsd.toFixed(2)} limit.`,
+          );
+        }
+      }
+
+      const siblingCapacity = await transaction.projectQuotaRecord.aggregate({
+        where: {
+          projectId: { not: this.store.projectId },
+          project: { departmentId: project.departmentId, deletedAt: null },
+        },
+        _sum: {
+          maxInstances: true,
+          maxMcpIntegrations: true,
+          maxKnowledgeBaseIntegrations: true,
+        },
+      });
+      const capacityChecks = [
+        ["Instance", input.maxInstances, siblingCapacity._sum.maxInstances, project.department.hardMaxInstances],
+        ["MCP integration", input.maxMcpIntegrations, siblingCapacity._sum.maxMcpIntegrations, project.department.hardMaxMcpIntegrations],
+        ["Knowledge Base integration", input.maxKnowledgeBaseIntegrations, siblingCapacity._sum.maxKnowledgeBaseIntegrations, project.department.hardMaxKnowledgeBaseIntegrations],
+      ] as const;
+      for (const [label, requested, siblingAllocation, departmentHard] of capacityChecks) {
+        if (departmentHard === null) continue;
+        if (requested === null) {
+          throw new Error(
+            `A Project inside a ${label}-limited Department must have an explicit ${label} quota.`,
+          );
+        }
+        const allocated = Number(siblingAllocation ?? 0) + requested;
+        if (allocated > departmentHard) {
+          throw new Error(
+            `${label} quota would allocate ${allocated} of the Department's ${departmentHard} hard limit.`,
           );
         }
       }
@@ -245,6 +283,44 @@ export class ProjectQuotaService {
     if (limit !== null && count >= limit) {
       throw new Error(
         `${label} quota exceeded (${count}/${limit}). Increase the Project quota before adding another.`,
+      );
+    }
+    const project = await this.db.project.findUniqueOrThrow({
+      where: { id: this.store.projectId },
+      select: {
+        departmentId: true,
+        department: {
+          select: {
+            hardMaxInstances: true,
+            hardMaxMcpIntegrations: true,
+            hardMaxKnowledgeBaseIntegrations: true,
+          },
+        },
+      },
+    });
+    const [departmentLimit, departmentCount] = resource === "instances"
+      ? [
+          project.department.hardMaxInstances,
+          await this.db.agentRecord.count({
+            where: { project: { departmentId: project.departmentId, deletedAt: null } },
+          }),
+        ]
+      : resource === "mcp"
+        ? [
+            project.department.hardMaxMcpIntegrations,
+            await this.db.mcpServerRecord.count({
+              where: { project: { departmentId: project.departmentId, deletedAt: null } },
+            }),
+          ]
+        : [
+            project.department.hardMaxKnowledgeBaseIntegrations,
+            await this.db.knowledgeSourceRecord.count({
+              where: { project: { departmentId: project.departmentId, deletedAt: null } },
+            }),
+          ];
+    if (departmentLimit !== null && departmentCount >= departmentLimit) {
+      throw new Error(
+        `${label} Department hard quota exceeded (${departmentCount}/${departmentLimit}). A Department Administrator must raise the hard quota before another resource can be added.`,
       );
     }
   }

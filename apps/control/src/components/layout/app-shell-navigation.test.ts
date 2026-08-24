@@ -63,7 +63,8 @@ describe("Project control-plane navigation", () => {
     expect(routeUsesFullBleedLayout("/platform/settings/")).toBe(true);
     expect(routeUsesFullBleedLayout("/proj1/help")).toBe(true);
     expect(routeUsesFullBleedLayout("/proj1/help/")).toBe(true);
-    expect(routeUsesFullBleedLayout("/departments/dep1")).toBe(false);
+    expect(routeUsesFullBleedLayout("/departments/dep1")).toBe(true);
+    expect(routeUsesFullBleedLayout("/departments/dep1/")).toBe(true);
     expect(routeUsesFullBleedLayout("/proj1/instances")).toBe(false);
     expect(routeUsesFullBleedLayout("/proj1/help/article")).toBe(false);
   });
