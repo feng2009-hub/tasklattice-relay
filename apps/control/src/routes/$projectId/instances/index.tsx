@@ -3,11 +3,12 @@ import {
   agentPlatformIds,
   type Instance as Agent,
   type InstanceStatus,
+  type ManagedA2aInstance,
 } from "@tali/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
-import { AlertTriangle, Boxes, Eye, Globe2, Info, MoreHorizontal, Plus, RefreshCw, Search, SquareTerminal, Trash2, X } from "lucide-react";
+import { AlertTriangle, Box, Boxes, Eye, Globe2, Info, MoreHorizontal, Plus, RefreshCw, Search, SquareTerminal, Trash2, X } from "lucide-react";
 import { AccountAvatar } from "@/components/account/account-avatar";
 import { AgentPlatformIcon } from "@/components/agents/agent-platform-icon";
 import { CreateInstanceSheet } from "@/components/agents/create-instance-sheet";
@@ -87,6 +88,19 @@ function InstanceLifecycleStatus({ instance }: { instance: Agent }) {
       <span className="mt-0.5 pl-6 tabular-nums text-muted-foreground">{state.progress}% complete</span>
     </Link>
   );
+}
+
+function ManagedA2aLifecycleStatus({ instance }: { instance: ManagedA2aInstance }) {
+  if (instance.status === "READY") {
+    return <Badge className="gap-2 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-300"><span className="size-2 rounded-full bg-emerald-500" />Ready</Badge>;
+  }
+  if (instance.status === "FAILED") {
+    return <span className="inline-flex min-h-11 items-center gap-2 rounded-md border border-destructive/25 bg-destructive/5 px-3 text-xs font-medium text-destructive"><AlertTriangle className="size-4" />Failed</span>;
+  }
+  if (instance.status === "DESTROYING") {
+    return <span className="inline-flex min-h-11 items-center gap-2 rounded-md bg-muted px-3 text-xs font-medium"><Spinner className="size-4" />Removing</span>;
+  }
+  return <span className="inline-flex min-h-11 items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 text-xs font-medium"><Spinner className="size-4 text-primary" />Provisioning</span>;
 }
 
 function ActionTooltip({ children, label }: { children: ReactElement; label: string }) {
@@ -173,6 +187,57 @@ function InstanceActions({ canDelete, canUseTerminal, instance, onDelete }: { ca
   );
 }
 
+function ManagedA2aInstanceRow({ instance }: { instance: ManagedA2aInstance }) {
+  const projectId = useCurrentProjectId();
+  const details = (
+    <Link
+      to="/$projectId/agent-garden/$agentId"
+      params={{ projectId, agentId: instance.agentId }}
+      aria-label={`View Agent and runtime details for ${instance.name}`}
+    ><Eye className="size-[18px]" /></Link>
+  );
+  return (
+    <div className="group relative grid min-h-[5.25rem] grid-cols-[minmax(0,1fr)_2.75rem_2.75rem] items-center gap-3 border-b px-4 py-3 text-sm transition-colors hover:bg-muted/30 xl:grid-cols-[minmax(13rem,1.3fr)_minmax(9rem,.9fr)_minmax(9rem,.75fr)_8rem_9rem_3.5rem_3rem]">
+      <Link
+        to="/$projectId/agent-garden/$agentId"
+        params={{ projectId, agentId: instance.agentId }}
+        aria-label={`View Agent Garden details for ${instance.name}`}
+        className="absolute inset-0 z-0 focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
+      />
+      <span className="pointer-events-none relative z-10 col-span-3 flex min-w-0 items-center gap-3 xl:col-span-1">
+        <span aria-hidden="true" className="grid size-11 shrink-0 place-items-center rounded-md border bg-background shadow-xs transition-colors group-hover:border-primary/30 group-hover:bg-primary/5"><Box className="size-5 text-muted-foreground" /></span>
+        <span className="min-w-0">
+          <Link to="/$projectId/agent-garden/$agentId" params={{ projectId, agentId: instance.agentId }} className="pointer-events-auto block truncate font-medium text-foreground hover:text-primary hover:underline">{instance.name}</Link>
+          <span className="mt-1 block truncate font-mono text-xs text-muted-foreground">{instance.id.slice(0, 8)} · A2A Standard</span>
+          <span className="mt-1 block truncate text-xs text-muted-foreground xl:hidden">Pod {instance.podName ?? "pending"}</span>
+        </span>
+      </span>
+      <span className="pointer-events-none relative z-10 hidden min-w-0 xl:block">
+        <strong className="block truncate text-xs font-medium">Kubernetes · Project Main Space</strong>
+        <span className="mt-1 block truncate font-mono text-xs text-muted-foreground">{instance.podName ?? instance.deploymentName ?? "Pod pending"}</span>
+      </span>
+      <span className="pointer-events-none relative z-10 hidden min-w-0 items-center gap-2 xl:flex">
+        <AccountAvatar identity={instance.createdBy} className="size-7" />
+        <span className="min-w-0">
+          <strong className="block truncate text-xs font-medium">{instance.createdBy?.displayName ?? "Unknown user"}</strong>
+          <span className="mt-1 block truncate text-xs text-muted-foreground">{instance.createdBy ? `@${instance.createdBy.username}` : "Creator unavailable"}</span>
+        </span>
+      </span>
+      <span className="pointer-events-none relative z-10 hidden text-xs text-muted-foreground xl:block">{relativeTime(instance.updatedAt)}</span>
+      <span className="relative z-20" onClick={(event) => event.stopPropagation()}><ManagedA2aLifecycleStatus instance={instance} /></span>
+      <span className="relative z-20 justify-self-end lg:justify-self-start" onClick={(event) => event.stopPropagation()}>
+        <ActionTooltip label="View Agent and runtime details"><Button asChild variant="outline" size="icon">{details}</Button></ActionTooltip>
+      </span>
+      <span className="relative z-20 justify-self-end" onClick={(event) => event.stopPropagation()}>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" aria-label={`Actions for ${instance.name}`}><MoreHorizontal className="size-5" /></Button></DropdownMenuTrigger>
+          <DropdownMenuContent align="end"><DropdownMenuItem asChild><Link to="/$projectId/agent-garden/$agentId" params={{ projectId, agentId: instance.agentId }}><Eye />View Garden Agent</Link></DropdownMenuItem></DropdownMenuContent>
+        </DropdownMenu>
+      </span>
+    </div>
+  );
+}
+
 function Instances() {
   const projectId = useCurrentProjectId();
   const queryClient = useQueryClient();
@@ -184,10 +249,18 @@ function Instances() {
   const [status, setStatus] = useState<(typeof statusFilters)[number]>("ALL");
   const [deletingInstance, setDeletingInstance] = useState<Agent>();
   const agents = useQuery({ queryKey: scope.key("agents"), queryFn: api.listInstances, refetchInterval: 2_000 });
+  const garden = useQuery({ queryKey: scope.key("agent-garden"), queryFn: api.getAgentGarden });
   const filtered = useMemo(() => (agents.data ?? []).filter((agent) => {
     const matchesQuery = `${agent.name} ${agent.id} ${agent.sandboxName} ${getAgentPlatformPresentation(agent.agentPlatform).name} ${agent.createdBy?.displayName ?? ""} ${agent.createdBy?.username ?? ""}`.toLowerCase().includes(query.trim().toLowerCase());
     return matchesQuery && (status === "ALL" || agent.status === status);
   }), [agents.data, query, status]);
+  const managed = useMemo(() => (garden.data?.instances ?? []).filter((instance) => {
+    const searchable = `${instance.name} ${instance.id} ${instance.agentId} ${instance.runtimeNamespace} ${instance.deploymentName ?? ""} ${instance.podName ?? ""} ${instance.imageReference} A2A Kubernetes`;
+    return searchable.toLowerCase().includes(query.trim().toLowerCase())
+      && (status === "ALL" || instance.status === status);
+  }), [garden.data?.instances, query, status]);
+  const totalInstances = (agents.data?.length ?? 0) + (garden.data?.instances.length ?? 0);
+  const visibleInstances = filtered.length + managed.length;
   const remove = useMutation({
     mutationFn: api.deleteInstance,
     onSuccess: async () => {
@@ -198,9 +271,15 @@ function Instances() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Instances" description="View and manage your Agent instances. Start new instances and monitor their status." actions={permissions.canCreateAgents ? <Button asChild className="h-11"><Link to="/$projectId/instances" params={{ projectId }} search={{ create: "instance" }}><Plus />Create Instance</Link></Button> : undefined} />
+      <PageHeader title="Instances" description="Monitor workbench Agents and managed A2A container Instances running in this Project." actions={permissions.canCreateAgents ? <Button asChild className="h-11"><Link to="/$projectId/instances" params={{ projectId }} search={{ create: "instance" }}><Plus />Create Instance</Link></Button> : undefined} />
 
       {search.created ? <CreationNotice onClose={() => void navigate({ to: "/$projectId/instances", params: { projectId }, search: {}, replace: true })} /> : null}
+
+      {agents.error || garden.error ? (
+        <p role="alert" className="border-l-2 border-destructive bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          {(agents.error ?? garden.error)?.message}
+        </p>
+      ) : null}
 
       <TooltipProvider>
       <Card>
@@ -217,20 +296,21 @@ function Instances() {
               <SelectTrigger size="lg" aria-label="Filter Instances by status" className="w-[calc(100%-3.5rem)] sm:w-44"><SelectValue /></SelectTrigger>
               <SelectContent>{statusFilters.map((value) => <SelectItem key={value} value={value}>{value === "ALL" ? "All statuses" : value.charAt(0) + value.slice(1).toLowerCase()}</SelectItem>)}</SelectContent>
             </Select>
-            <span className="ml-auto hidden text-xs tabular-nums text-muted-foreground sm:block">{filtered.length} of {(agents.data ?? []).length} Instances</span>
-            <ActionTooltip label={agents.isFetching ? "Refreshing Instances" : "Refresh Instances"}>
-              <Button type="button" variant="outline" size="icon" className="size-11" disabled={agents.isFetching} aria-label="Refresh Instances" onClick={() => void agents.refetch()}>
-                {agents.isFetching ? <Spinner /> : <RefreshCw className="size-4" />}
+            <span className="ml-auto hidden text-xs tabular-nums text-muted-foreground sm:block">{visibleInstances} of {totalInstances} Instances</span>
+            <ActionTooltip label={agents.isFetching || garden.isFetching ? "Refreshing Instances" : "Refresh Instances"}>
+              <Button type="button" variant="outline" size="icon" className="size-11" disabled={agents.isFetching || garden.isFetching} aria-label="Refresh Instances" onClick={() => void Promise.all([agents.refetch(), garden.refetch()])}>
+                {agents.isFetching || garden.isFetching ? <Spinner /> : <RefreshCw className="size-4" />}
               </Button>
             </ActionTooltip>
           </div>
         </CardHeader>
         <CardContent className="px-0">
-          {filtered.length ? (
+          {visibleInstances ? (
             <>
               <div className="hidden grid-cols-[minmax(13rem,1.3fr)_minmax(9rem,.9fr)_minmax(9rem,.75fr)_8rem_9rem_3.5rem_3rem] items-center gap-3 border-b bg-muted/20 px-4 py-3 text-xs text-muted-foreground xl:grid">
                 <span>Instance</span><span>Runtime</span><span>Created by</span><span>Updated</span><span>Status</span><span>Access</span><span className="sr-only">Actions</span>
               </div>
+              {managed.map((instance) => <ManagedA2aInstanceRow key={instance.id} instance={instance} />)}
               {filtered.map((agent) => {
                 const platform = getAgentPlatformPresentation(agent.agentPlatform);
                 return (
@@ -266,7 +346,7 @@ function Instances() {
                 );
               })}
             </>
-          ) : agents.data?.length ? (
+          ) : totalInstances ? (
             <EmptyState
               icon={Boxes}
               title="No matching instances"

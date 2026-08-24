@@ -1108,9 +1108,41 @@ export const agentConnectionSchema = createAgentConnectionSchema.extend({
   updatedAt: z.string().datetime(),
 }).strict();
 
+export const managedA2aInstanceSchema = z.object({
+  id: z.string().uuid(),
+  agentId: z.string().trim().min(1).max(160),
+  kind: z.literal("MANAGED_A2A"),
+  name: z.string().trim().min(2).max(160),
+  description: z.string().trim().max(2_000),
+  runtime: z.literal("kubernetes"),
+  status: z.enum(instanceStatuses),
+  provisioningStage: z.enum(provisioningStages).optional(),
+  runtimeNamespace: z.string().trim().min(1).max(253),
+  deploymentName: z.string().trim().min(1).max(253).nullable(),
+  serviceName: z.string().trim().min(1).max(253).nullable(),
+  podName: z.string().trim().min(1).max(253).nullable(),
+  labelSelector: z.string().trim().min(1).max(500),
+  imageReference: z.string().trim().min(1).max(500),
+  imageDigest: z.string().trim().min(1).max(500).nullable(),
+  endpoint: z.string().trim().url().nullable(),
+  agentCardUrl: z.string().trim().url().nullable(),
+  a2a: agentGardenA2aProfileSchema.nullable(),
+  skills: z.array(agentGardenSkillSchema).max(1_000),
+  createdBy: z.object({
+    id: z.string().trim().min(1),
+    displayName: z.string().trim().min(1),
+    username: z.string().trim().min(1),
+  }).strict().optional(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+  logs: z.array(z.string().max(4_000)).max(1_000),
+  error: z.string().max(4_000).nullable(),
+}).strict();
+
 export const agentGardenSnapshotSchema = z.object({
   agents: z.array(agentGardenEntrySchema),
   connections: z.array(agentConnectionSchema),
+  instances: z.array(managedA2aInstanceSchema),
 }).strict();
 
 export const resourceKindSchema = z.enum([
@@ -1402,6 +1434,7 @@ export type AgentConnectionApprovalMode = (typeof agentConnectionApprovalModeIds
 export type AgentConnection = z.infer<typeof agentConnectionSchema>;
 export type CreateAgentConnectionInput = z.infer<typeof createAgentConnectionSchema>;
 export type AgentGardenSnapshot = z.infer<typeof agentGardenSnapshotSchema>;
+export type ManagedA2aInstance = z.infer<typeof managedA2aInstanceSchema>;
 export type CreateAccessPolicyInput = z.infer<typeof createAccessPolicySchema>;
 export type UpdateAccessPolicyInput = z.infer<typeof updateAccessPolicySchema>;
 export type KnowledgeSourceDefinition = z.infer<typeof knowledgeSourceDefinitionSchema>;

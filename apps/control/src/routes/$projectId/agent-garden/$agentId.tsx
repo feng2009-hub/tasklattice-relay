@@ -12,6 +12,7 @@ import type {
 import {
   ArrowLeft,
   ArrowRight,
+  Boxes,
   Check,
   CircleCheck,
   Code2,
@@ -446,6 +447,7 @@ function MarketplaceActions({
   onCreateInstance: () => void;
   onTry: () => void;
 }) {
+  const projectId = useCurrentProjectId();
   return (
     <div className="border bg-muted/15 p-4">
       <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
@@ -459,6 +461,17 @@ function MarketplaceActions({
         )}
       </div>
       <div className="mt-4 grid gap-2">
+        {agent.configuration.managedInstanceId ? (
+          <Button asChild variant="outline" className="h-11 w-full">
+            <Link
+              to="/$projectId/instances"
+              params={{ projectId }}
+              search={{ created: agent.configuration.managedInstanceId }}
+            >
+              <Boxes /> View managed Instance
+            </Link>
+          </Button>
+        ) : null}
         {agent.usageCapabilities.acceptsDelegation ? (
           <Button
             type="button"
@@ -574,6 +587,14 @@ function MarketplaceFactCard({
     ["Release", agent.configuration.releaseStage ?? agentStatusLabel(agent.status)],
     ["Support", agent.configuration.supportLevel ?? "Project managed"],
     ["License", agent.configuration.license ?? "Project registration"],
+    ...(agent.configuration.onboardingSource === "CONTAINER_IMAGE"
+      ? [
+          ["Instance", agent.configuration.managedInstanceId ?? "Pending"],
+          ["Namespace", agent.configuration.runtimeNamespace ?? "Pending"],
+          ["Pod", agent.configuration.podName ?? "Pending"],
+          ["Service", agent.configuration.serviceName ?? "Pending"],
+        ]
+      : []),
   ];
   return (
     <section className="border bg-card p-4">

@@ -2,6 +2,8 @@ import { PatchStrategy, type V1Deployment, type V1Service } from "@kubernetes/cl
 import { describe, expect, it, vi } from "vitest";
 import {
   KubernetesManagedAgentRuntimeClient,
+  managedAgentRevisionKey,
+  kubernetesMetadataLabel,
   managedAgentEndpoint,
   managedAgentResourceName,
   pinnedImageReference,
@@ -11,6 +13,7 @@ import {
 const input: ManagedAgentRuntimeInput = {
   sourceType: "container-image",
   agentId: "agent-research-a",
+  instanceId: "6ed68a7c-4b63-4c37-a0ce-51a189d567f0",
   projectId: "project-a",
   namespace: "tali-p-0123456789abcdef0123456789abcdef",
   name: "Research Agent",
@@ -49,17 +52,69 @@ describe("KubernetesManagedAgentRuntimeClient", () => {
     };
     const core = {
       readNamespacedService: vi.fn(notFound),
-      listNamespacedPod: vi.fn(async () => ({
-        items: [{
-          status: {
-            containerStatuses: [{
-              name: "agent",
-              ready: true,
-              imageID: "docker-pullable://ghcr.io/acme/research-agent@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-            }],
-          },
-        }],
-      })),
+      listNamespacedPod: vi.fn()
+        .mockResolvedValueOnce({
+          items: [{
+            metadata: {
+              name: "tali-a2a-old-6f8b7c9d4f-2nv4m",
+              labels: {
+                "tali.io/revision-key": managedAgentRevisionKey(input, input.image),
+              },
+            },
+            spec: { containers: [{ name: "agent", image: input.image }] },
+            status: {
+              containerStatuses: [{
+                name: "agent",
+                ready: true,
+                imageID: "docker-pullable://ghcr.io/acme/research-agent@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              }],
+            },
+          }],
+        })
+        .mockResolvedValueOnce({
+          items: [
+            {
+              metadata: {
+                name: "tali-a2a-old-6f8b7c9d4f-2nv4m",
+                labels: {
+                  "tali.io/revision-key": managedAgentRevisionKey(input, input.image),
+                },
+              },
+              spec: { containers: [{ name: "agent", image: input.image }] },
+              status: {
+                containerStatuses: [{
+                  name: "agent",
+                  ready: true,
+                  imageID: "docker-pullable://ghcr.io/acme/research-agent@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                }],
+              },
+            },
+            {
+              metadata: {
+                name: "tali-a2a-pinned-7f9c8d0e5g-4px6n",
+                labels: {
+                  "tali.io/revision-key": managedAgentRevisionKey(
+                    input,
+                    "ghcr.io/acme/research-agent@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  ),
+                },
+              },
+              spec: {
+                containers: [{
+                  name: "agent",
+                  image: "ghcr.io/acme/research-agent@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                }],
+              },
+              status: {
+                containerStatuses: [{
+                  name: "agent",
+                  ready: true,
+                  imageID: "docker-pullable://ghcr.io/acme/research-agent@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                }],
+              },
+            },
+          ],
+        }),
       deleteNamespacedService: vi.fn(async () => ({})),
     };
     const objects = {
@@ -83,6 +138,8 @@ describe("KubernetesManagedAgentRuntimeClient", () => {
         namespace: input.namespace,
         annotations: {
           "tali.io/agent-id": input.agentId,
+          "tali.io/agent-name": input.name,
+          "tali.io/instance-id": input.instanceId,
           "tali.io/project-id": input.projectId,
         },
       },
@@ -102,6 +159,9 @@ describe("KubernetesManagedAgentRuntimeClient", () => {
         },
       }],
     });
+    expect(deployments[0]?.spec?.template.metadata?.labels).toMatchObject({
+      "tali.io/revision-key": managedAgentRevisionKey(input, input.image),
+    });
     expect(deployments[1]?.spec?.template.spec?.containers?.[0]).toMatchObject({
       image: "ghcr.io/acme/research-agent@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       imagePullPolicy: "IfNotPresent",
@@ -117,20 +177,79 @@ describe("KubernetesManagedAgentRuntimeClient", () => {
     expect(result).toMatchObject({
       endpoint: managedAgentEndpoint(
         input.namespace,
-        managedAgentResourceName(input.agentId),
+        managedAgentResourceName(input.instanceId),
         input.containerPort,
       ),
       imageDigest: "ghcr.io/acme/research-agent@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      podName: "tali-a2a-pinned-7f9c8d0e5g-4px6n",
     });
+  });
+
+  it("waits for the current Pod template revision when the digest is unchanged", async () => {
+    const image = "ghcr.io/acme/research-agent@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    const immutableInput = { ...input, image };
+    const readyPod = {
+      metadata: {
+        name: "tali-a2a-current-8a0d9e1f6h-5qy7p",
+        labels: {
+          "tali.io/revision-key": managedAgentRevisionKey(
+            immutableInput,
+            image,
+          ),
+        },
+      },
+      spec: { containers: [{ name: "agent", image }] },
+      status: {
+        containerStatuses: [{
+          name: "agent",
+          ready: true,
+          imageID: `docker-pullable://${image}`,
+        }],
+      },
+    };
+    const apps = {
+      readNamespacedDeployment: vi.fn()
+        .mockImplementationOnce(notFound)
+        .mockResolvedValue(readyDeployment()),
+      deleteNamespacedDeployment: vi.fn(),
+    };
+    const core = {
+      readNamespacedService: vi.fn(notFound),
+      listNamespacedPod: vi.fn()
+        .mockResolvedValueOnce({
+          items: [{
+            ...readyPod,
+            metadata: {
+              name: "tali-a2a-previous-7f9c8d0e5g-4px6n",
+              labels: { "tali.io/revision-key": "previous-revision" },
+            },
+          }],
+        })
+        .mockResolvedValueOnce({ items: [readyPod] }),
+      deleteNamespacedService: vi.fn(),
+    };
+    const client = new KubernetesManagedAgentRuntimeClient(
+      apps as never,
+      core as never,
+      { patch: vi.fn(async () => ({})) } as never,
+      100,
+      1,
+    );
+
+    const result = await client.onboard(immutableInput);
+
+    expect(result.podName).toBe(readyPod.metadata.name);
+    expect(core.listNamespacedPod).toHaveBeenCalledTimes(2);
   });
 
   it("refuses to adopt a resource with different ownership metadata", async () => {
     const apps = {
       readNamespacedDeployment: vi.fn(async () => ({
         metadata: {
-          name: managedAgentResourceName(input.agentId),
+          name: managedAgentResourceName(input.instanceId),
           annotations: {
             "tali.io/agent-id": "another-agent",
+            "tali.io/instance-id": input.instanceId,
             "tali.io/project-id": input.projectId,
           },
         },
@@ -154,9 +273,10 @@ describe("KubernetesManagedAgentRuntimeClient", () => {
   });
 
   it("deletes only resources owned by the Project Agent", async () => {
-    const name = managedAgentResourceName(input.agentId);
+    const name = managedAgentResourceName(input.instanceId);
     const ownership = {
       "tali.io/agent-id": input.agentId,
+      "tali.io/instance-id": input.instanceId,
       "tali.io/project-id": input.projectId,
     };
     const apps = {
@@ -180,6 +300,7 @@ describe("KubernetesManagedAgentRuntimeClient", () => {
 
     await client.remove({
       agentId: input.agentId,
+      instanceId: input.instanceId,
       namespace: input.namespace,
       projectId: input.projectId,
     });
@@ -193,6 +314,17 @@ describe("KubernetesManagedAgentRuntimeClient", () => {
       name,
       namespace: input.namespace,
     });
+  });
+});
+
+describe("Kubernetes managed A2A metadata", () => {
+  it("uses a readable bounded label with a stable hash suffix", () => {
+    const label = kubernetesMetadataLabel(
+      "Research Agent / Customer Evidence with a deliberately long display name",
+    );
+    expect(label).toMatch(/^research-agent-customer-evidence/);
+    expect(label).toMatch(/[a-f0-9]{10}$/);
+    expect(label.length).toBeLessThanOrEqual(63);
   });
 });
 

@@ -84,17 +84,26 @@ Never commit `.env`.
 
 ## Build the local images
 
-Build the complete local image set: the five released images plus the
-test-only Example MCP image:
+Build the complete local image set: Control, Runner, LiteLLM, and the test-only
+Example MCP image are built from the checkout. The OpenClaw and Hermes Sandbox
+images reuse the published `0.2.2` multi-architecture Release and are retagged
+as `:dev` in the local Docker store:
 
 ```sh
 npm run images:build
 ```
 
-The OpenClaw and Hermes builds clone pinned NVIDIA NemoClaw revisions, build an
-upstream image, and pass it through a TaskLattice Relay-owned wrapper Dockerfile.
-Hermes builds its pinned base locally when the upstream GHCR base is
-unavailable.
+Override the reused Sandbox Release when needed:
+
+```sh
+TALI_SANDBOX_RELEASE_VERSION=0.2.2 npm run images:reuse:sandbox-release
+```
+
+Use `npm run images:build:all-source` only when the Sandbox sources or wrapper
+Dockerfiles changed. That command clones the pinned NVIDIA NemoClaw revisions,
+builds the upstream images, and passes them through the TaskLattice Relay-owned
+wrapper Dockerfiles. Hermes builds its pinned base locally when the upstream
+GHCR base is unavailable.
 
 Confirm the resulting images:
 
@@ -116,6 +125,7 @@ npm run images:build:litellm
 npm run images:build:example-mcp
 npm run images:build:sandbox:openclaw
 npm run images:build:sandbox:hermes
+npm run images:reuse:sandbox-release
 ```
 
 ## Deploy with Helm

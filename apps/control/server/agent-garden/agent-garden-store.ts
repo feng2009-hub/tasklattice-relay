@@ -1,14 +1,35 @@
 import {
   agentConnectionSchema,
   agentGardenEntrySchema,
+  managedA2aInstanceSchema,
   type AgentConnection,
   type AgentGardenEntry,
+  type ManagedA2aInstance,
 } from "@tali/contracts";
 import { prisma } from "../db/prisma";
 import type { Prisma, PrismaClient } from "../generated/prisma/client";
 
 function jsonInput(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
+
+function managedInstancePayload(
+  instance: ManagedA2aInstance,
+): Prisma.InputJsonValue {
+  const { createdBy: _createdBy, ...payload } = instance;
+  return jsonInput(payload);
+}
+
+function managedInstanceCreator(user: {
+  id: string;
+  displayName: string;
+  username: string | null;
+}): NonNullable<ManagedA2aInstance["createdBy"]> {
+  return {
+    id: user.id,
+    displayName: user.displayName,
+    username: user.username ?? user.displayName,
+  };
 }
 
 export class AgentGardenStore {
@@ -127,6 +148,105 @@ export class AgentGardenStore {
   async deleteAgent(id: string): Promise<boolean> {
     const result = await this.db.agentCatalogRecord.deleteMany({
       where: { projectId: this.projectId, id },
+    });
+    return result.count > 0;
+  }
+
+  async saveManagedInstance(
+    instance: ManagedA2aInstance,
+    ownerUserId?: string,
+  ): Promise<ManagedA2aInstance> {
+    const parsed = managedA2aInstanceSchema.parse(instance);
+    if (!ownerUserId) {
+      const updated = await this.db.managedA2aInstanceRecord.updateMany({
+        where: { projectId: this.projectId, id: parsed.id },
+        data: {
+          payload: managedInstancePayload(parsed),
+          updatedAt: new Date(parsed.updatedAt),
+        },
+      });
+      if (!updated.count) {
+        throw new Error(
+          "An owner user is required when creating a managed A2A Instance.",
+        );
+      }
+      return parsed;
+    }
+    await this.db.managedA2aInstanceRecord.upsert({
+      where: {
+        projectId_id: { projectId: this.projectId, id: parsed.id },
+      },
+      create: {
+        projectId: this.projectId,
+        id: parsed.id,
+        agentId: parsed.agentId,
+        ownerUserId,
+        payload: managedInstancePayload(parsed),
+        createdAt: new Date(parsed.createdAt),
+        updatedAt: new Date(parsed.updatedAt),
+      },
+      update: {
+        payload: managedInstancePayload(parsed),
+        updatedAt: new Date(parsed.updatedAt),
+      },
+    });
+    return parsed;
+  }
+
+  async getManagedInstanceForAgent(
+    agentId: string,
+  ): Promise<ManagedA2aInstance | undefined> {
+    const row = await this.db.managedA2aInstanceRecord.findFirst({
+      where: { projectId: this.projectId, agentId },
+      orderBy: { createdAt: "asc" },
+      select: {
+        payload: true,
+        ownerMembership: {
+          select: {
+            user: {
+              select: { id: true, displayName: true, username: true },
+            },
+          },
+        },
+      },
+    });
+    return row
+      ? managedA2aInstanceSchema.parse({
+          ...(row.payload as object),
+          createdBy: managedInstanceCreator(row.ownerMembership.user),
+        })
+      : undefined;
+  }
+
+  async listManagedInstances(
+    ownerUserId?: string,
+  ): Promise<ManagedA2aInstance[]> {
+    const rows = await this.db.managedA2aInstanceRecord.findMany({
+      where: {
+        projectId: this.projectId,
+        ...(ownerUserId ? { ownerUserId } : {}),
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+      select: {
+        payload: true,
+        ownerMembership: {
+          select: {
+            user: {
+              select: { id: true, displayName: true, username: true },
+            },
+          },
+        },
+      },
+    });
+    return rows.map((row) => managedA2aInstanceSchema.parse({
+      ...(row.payload as object),
+      createdBy: managedInstanceCreator(row.ownerMembership.user),
+    }));
+  }
+
+  async deleteManagedInstanceForAgent(agentId: string): Promise<boolean> {
+    const result = await this.db.managedA2aInstanceRecord.deleteMany({
+      where: { projectId: this.projectId, agentId },
     });
     return result.count > 0;
   }

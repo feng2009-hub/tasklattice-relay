@@ -339,6 +339,7 @@ describe("AgentGardenService", () => {
         agentCardUrl: `http://managed.${input.namespace}.svc.cluster.local:8080/.well-known/agent-card.json`,
         deploymentName: "tali-a2a-managed",
         serviceName: "tali-a2a-managed",
+        podName: "tali-a2a-managed-76d8d9f4d9-h7k2p",
         namespace: input.namespace,
         imageReference: input.image,
         imageDigest: "ghcr.io/acme/research-agent@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -388,9 +389,21 @@ describe("AgentGardenService", () => {
     expect(agent.skills.map((skill) => skill.id)).toEqual(["research"]);
     expect(runtime.onboard).toHaveBeenCalledWith(expect.objectContaining({
       agentId: agent.id,
+      instanceId: agent.configuration.managedInstanceId,
       image: imageAgentInput.image,
       projectId: projectStore.projectId,
     }));
+    await expect(service.store.listManagedInstances()).resolves.toEqual([
+      expect.objectContaining({
+        agentId: agent.id,
+        id: agent.configuration.managedInstanceId,
+        status: "READY",
+        runtimeNamespace: "tali-p-test-agent-garden",
+        deploymentName: "tali-a2a-managed",
+        podName: "tali-a2a-managed-76d8d9f4d9-h7k2p",
+        imageDigest: expect.stringContaining("@sha256:"),
+      }),
+    ]);
 
     await service.discover(agent.id);
     expect(runtime.onboard).toHaveBeenLastCalledWith(expect.objectContaining({
@@ -400,8 +413,10 @@ describe("AgentGardenService", () => {
     await expect(service.remove(agent.id)).resolves.toBe(true);
     expect(runtime.remove).toHaveBeenCalledWith(expect.objectContaining({
       agentId: agent.id,
+      instanceId: agent.configuration.managedInstanceId,
       projectId: projectStore.projectId,
     }));
+    await expect(service.store.listManagedInstances()).resolves.toEqual([]);
   });
 
   it("keeps a failed Container Image onboarding visible for retry", async () => {
@@ -441,6 +456,14 @@ describe("AgentGardenService", () => {
     await expect(service.store.getAgent(agent.id)).resolves.toMatchObject({
       status: "UNAVAILABLE",
     });
+    await expect(service.store.listManagedInstances()).resolves.toEqual([
+      expect.objectContaining({
+        agentId: agent.id,
+        id: agent.configuration.managedInstanceId,
+        status: "FAILED",
+        error: "ImagePullBackOff: registry authentication failed",
+      }),
+    ]);
   });
 
   it("rejects Repository onboarding until the isolated builder is enabled", async () => {

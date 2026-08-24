@@ -3,18 +3,21 @@ import {
   agentConnectionSchema,
   agentGardenEntrySchema,
   createAgentConnectionSchema,
+  managedA2aInstanceSchema,
   onboardAgentSchema,
   onboardContainerImageAgentSchema,
   type AgentConnection,
   type AgentGardenEntry,
   type AgentGardenSnapshot,
   type CreateAgentConnectionInput,
+  type ManagedA2aInstance,
   type OnboardAgentInput,
   type OnboardContainerImageAgentInput,
   type OnboardExistingAgentInput,
 } from "@tali/contracts";
 import {
   createManagedAgentRuntimeClient,
+  managedAgentResourceName,
   type ManagedAgentRuntimeClient,
   type ManagedAgentRuntimeResult,
 } from "../kubernetes/managed-agent-runtime-client";
@@ -90,11 +93,13 @@ function containerInputFromAgent(
 
 function managedConfiguration(
   input: OnboardContainerImageAgentInput,
+  instanceId: string,
   runtime?: ManagedAgentRuntimeResult,
   imageReference = input.image,
 ): Record<string, string> {
   return {
     onboardingSource: CONTAINER_IMAGE_SOURCE,
+    managedInstanceId: instanceId,
     imageReference,
     containerPort: String(input.containerPort),
     agentCardPath: input.agentCardPath,
@@ -106,10 +111,73 @@ function managedConfiguration(
           imageDigest: runtime.imageDigest,
           runtimeNamespace: runtime.namespace,
           deploymentName: runtime.deploymentName,
+          podName: runtime.podName,
           serviceName: runtime.serviceName,
         }
       : {}),
   };
+}
+
+function appendLifecycleLog(
+  logs: readonly string[] | undefined,
+  message: string,
+): string[] {
+  return logs?.at(-1) === message ? [...logs] : [...(logs ?? []), message];
+}
+
+function managedInstance(
+  agent: AgentGardenEntry,
+  input: OnboardContainerImageAgentInput,
+  instanceId: string,
+  namespace: string,
+  previous?: ManagedA2aInstance,
+  runtime?: ManagedAgentRuntimeResult,
+  discovery?: {
+    a2a: AgentGardenEntry["a2a"];
+    endpoint: string;
+    agentCardUrl: string;
+    skills: AgentGardenEntry["skills"];
+  },
+  failure?: string,
+): ManagedA2aInstance {
+  const now = new Date().toISOString();
+  const resourceName = managedAgentResourceName(instanceId);
+  const status = failure ? "FAILED" : discovery ? "READY" : "PROVISIONING";
+  const lifecycleMessage = failure
+    ? `Managed A2A Instance failed: ${failure}`
+    : discovery
+      ? `A2A Agent Card validated. Pod ${runtime?.podName ?? previous?.podName ?? resourceName} is ready.`
+      : `Provisioning ${resourceName} in Project Main Space ${namespace}.`;
+  return managedA2aInstanceSchema.parse({
+    id: instanceId,
+    agentId: agent.id,
+    kind: "MANAGED_A2A",
+    name: agent.name,
+    description: agent.description,
+    runtime: "kubernetes",
+    status,
+    provisioningStage: discovery ? "READY" : runtime ? "ENDPOINT" : "POD",
+    runtimeNamespace: namespace,
+    deploymentName: runtime?.deploymentName ?? previous?.deploymentName ?? resourceName,
+    serviceName: runtime?.serviceName ?? previous?.serviceName ?? resourceName,
+    podName: runtime?.podName ?? previous?.podName ?? null,
+    labelSelector: `app.kubernetes.io/instance=${resourceName}`,
+    imageReference:
+      agent.configuration.imageReference ?? previous?.imageReference ?? input.image,
+    imageDigest: runtime?.imageDigest ?? previous?.imageDigest ?? null,
+    endpoint: discovery?.endpoint ?? runtime?.endpoint ?? previous?.endpoint ?? null,
+    agentCardUrl:
+      discovery?.agentCardUrl
+      ?? runtime?.agentCardUrl
+      ?? previous?.agentCardUrl
+      ?? null,
+    a2a: discovery?.a2a ?? previous?.a2a ?? null,
+    skills: discovery?.skills ?? previous?.skills ?? [],
+    createdAt: previous?.createdAt ?? now,
+    updatedAt: now,
+    logs: appendLifecycleLog(previous?.logs, lifecycleMessage),
+    error: failure ?? null,
+  });
 }
 
 export class AgentGardenService {
@@ -125,9 +193,10 @@ export class AgentGardenService {
   ) {}
 
   async snapshot(ownerUserId?: string): Promise<AgentGardenSnapshot> {
-    const [, connections] = await Promise.all([
+    const [, connections, instances] = await Promise.all([
       this.store.ensureAgents(databaseAgentCatalog),
       this.store.listConnections(ownerUserId),
+      this.store.listManagedInstances(ownerUserId),
     ]);
     const persistedAgents = await this.store.listAgents(ownerUserId);
     const builtInIds = new Set(
@@ -152,6 +221,7 @@ export class AgentGardenService {
         ),
       ],
       connections,
+      instances,
     };
   }
 
@@ -206,6 +276,7 @@ export class AgentGardenService {
     }
 
     const now = new Date().toISOString();
+    const instanceId = randomUUID();
     const agent = agentGardenEntrySchema.parse({
       id: resourceId(input.name),
       name: input.name,
@@ -225,7 +296,7 @@ export class AgentGardenService {
       authType: "none",
       authReference: "",
       internalNetworkOnly: true,
-      configuration: managedConfiguration(input),
+      configuration: managedConfiguration(input, instanceId),
       skills: [],
       specializationId: null,
       createdAt: now,
@@ -245,22 +316,62 @@ export class AgentGardenService {
       updatedAt: new Date().toISOString(),
       lastDiscoveryError: null,
     });
+    let runtimeInstance: ManagedA2aInstance | undefined;
+    let runtimeResult: ManagedAgentRuntimeResult | undefined;
     try {
       if (checking.configuration.onboardingSource === CONTAINER_IMAGE_SOURCE) {
         const input = containerInputFromAgent(checking);
         const target = await this.requireRuntimeTarget();
+        const instanceId = checking.configuration.managedInstanceId || randomUUID();
+        if (!checking.configuration.managedInstanceId) {
+          checking = await this.store.saveAgent({
+            ...checking,
+            configuration: managedConfiguration(
+              input,
+              instanceId,
+              undefined,
+              checking.configuration.imageReference ?? input.image,
+            ),
+            updatedAt: new Date().toISOString(),
+          });
+        }
+        const ownerUserId = await this.store.ownerUserId(checking.id);
+        if (!ownerUserId) {
+          throw new Error("Managed A2A Instance ownership could not be resolved.");
+        }
+        const previous = await this.store.getManagedInstanceForAgent(checking.id);
+        runtimeInstance = managedInstance(
+          checking,
+          input,
+          instanceId,
+          target.namespace,
+          previous,
+        );
+        await this.store.saveManagedInstance(runtimeInstance, ownerUserId);
         const runtime = await this.runtime.onboard({
           ...input,
           agentId: checking.id,
+          instanceId,
           namespace: target.namespace,
           projectId: this.store.projectId,
         });
+        runtimeResult = runtime;
+        runtimeInstance = managedInstance(
+          checking,
+          input,
+          instanceId,
+          target.namespace,
+          runtimeInstance,
+          runtime,
+        );
+        await this.store.saveManagedInstance(runtimeInstance);
         checking = await this.store.saveAgent({
           ...checking,
           endpoint: runtime.endpoint,
           agentCardUrl: runtime.agentCardUrl,
           configuration: managedConfiguration(
             input,
+            instanceId,
             runtime,
             checking.configuration.imageReference ?? input.image,
           ),
@@ -271,7 +382,7 @@ export class AgentGardenService {
         ? await this.secrets.get(checking.authReference)
         : undefined;
       const result = await this.discovery.discover(checking, credential);
-      return this.store.saveAgent({
+      const ready = await this.store.saveAgent({
         ...checking,
         endpoint: result.endpoint,
         agentCardUrl: result.agentCardUrl,
@@ -282,12 +393,44 @@ export class AgentGardenService {
         lastDiscoveredAt: new Date().toISOString(),
         lastDiscoveryError: null,
       });
+      if (runtimeInstance) {
+        const input = containerInputFromAgent(ready);
+        const target = await this.requireRuntimeTarget();
+        const instanceId = ready.configuration.managedInstanceId;
+        if (!instanceId) {
+          throw new Error("Managed A2A Instance identifier was not persisted.");
+        }
+        await this.store.saveManagedInstance(managedInstance(
+          ready,
+          input,
+          instanceId,
+          target.namespace,
+          runtimeInstance,
+          runtimeResult,
+          result,
+        ));
+      }
+      return ready;
     } catch (error) {
+      const message = safeError(error);
+      if (runtimeInstance) {
+        const input = containerInputFromAgent(checking);
+        await this.store.saveManagedInstance(managedInstance(
+          checking,
+          input,
+          runtimeInstance.id,
+          runtimeInstance.runtimeNamespace,
+          runtimeInstance,
+          undefined,
+          undefined,
+          message,
+        ));
+      }
       return this.store.saveAgent({
         ...checking,
         status: "UNAVAILABLE",
         updatedAt: new Date().toISOString(),
-        lastDiscoveryError: safeError(error),
+        lastDiscoveryError: message,
       });
     }
   }
@@ -301,11 +444,20 @@ export class AgentGardenService {
     }
     if (agent.configuration.onboardingSource === CONTAINER_IMAGE_SOURCE) {
       const target = await this.requireRuntimeTarget();
+      const instance = await this.store.getManagedInstanceForAgent(agent.id);
+      const instanceId = instance?.id ?? agent.configuration.managedInstanceId;
+      if (!instanceId) {
+        throw new Error(
+          "Managed A2A Instance metadata is missing. Reconcile the Agent before removal.",
+        );
+      }
       await this.runtime.remove({
         agentId: agent.id,
+        instanceId,
         namespace: target.namespace,
         projectId: this.store.projectId,
       });
+      await this.store.deleteManagedInstanceForAgent(agent.id);
     }
     return this.store.deleteAgent(id);
   }

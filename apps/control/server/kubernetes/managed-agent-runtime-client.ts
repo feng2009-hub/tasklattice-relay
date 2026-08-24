@@ -37,6 +37,7 @@ interface KubernetesErrorLike {
 export interface ManagedAgentRuntimeInput
   extends OnboardContainerImageAgentInput {
   agentId: string;
+  instanceId: string;
   namespace: string;
   projectId: string;
 }
@@ -48,6 +49,7 @@ export interface ManagedAgentRuntimeResult {
   imageDigest: string;
   imageReference: string;
   namespace: string;
+  podName: string;
   serviceName: string;
 }
 
@@ -55,6 +57,7 @@ export interface ManagedAgentRuntimeClient {
   onboard(input: ManagedAgentRuntimeInput): Promise<ManagedAgentRuntimeResult>;
   remove(input: {
     agentId: string;
+    instanceId: string;
     namespace: string;
     projectId: string;
   }): Promise<void>;
@@ -62,12 +65,12 @@ export interface ManagedAgentRuntimeClient {
 
 type ManagedAgentOwnership = Pick<
   ManagedAgentRuntimeInput,
-  "agentId" | "namespace" | "projectId"
+  "agentId" | "instanceId" | "namespace" | "projectId"
 >;
 
-export function managedAgentResourceName(agentId: string): string {
+export function managedAgentResourceName(instanceId: string): string {
   const identifier = createHash("sha256")
-    .update(agentId)
+    .update(instanceId)
     .digest("hex")
     .slice(0, 16);
   return `tali-a2a-${identifier}`;
@@ -77,22 +80,85 @@ function managedAgentKey(agentId: string): string {
   return createHash("sha256").update(agentId).digest("hex").slice(0, 24);
 }
 
+function managedInstanceKey(instanceId: string): string {
+  return createHash("sha256").update(instanceId).digest("hex").slice(0, 24);
+}
+
+function managedProjectKey(projectId: string): string {
+  return createHash("sha256").update(projectId).digest("hex").slice(0, 24);
+}
+
+export function managedAgentRevisionKey(
+  input: ManagedAgentRuntimeInput,
+  image: string,
+): string {
+  return createHash("sha256")
+    .update(JSON.stringify([
+      input.agentId,
+      input.instanceId,
+      input.projectId,
+      input.name,
+      input.description,
+      input.category,
+      input.owner,
+      input.containerPort,
+      input.agentCardPath,
+      input.image,
+      input.imagePullSecretName,
+      input.command,
+      input.args,
+      image,
+    ]))
+    .digest("hex")
+    .slice(0, 24);
+}
+
+export function kubernetesMetadataLabel(value: string): string {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_.-]+/g, "-")
+    .replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, "");
+  const readable = normalized.slice(0, 48).replace(/[^a-z0-9]+$/g, "") || "agent";
+  const suffix = createHash("sha256").update(value).digest("hex").slice(0, 10);
+  return `${readable}-${suffix}`.slice(0, 63).replace(/[^a-z0-9]+$/g, "");
+}
+
 function managedLabels(input: ManagedAgentRuntimeInput): Record<string, string> {
   return {
     "app.kubernetes.io/component": "a2a-agent",
+    "app.kubernetes.io/instance": managedAgentResourceName(input.instanceId),
     "app.kubernetes.io/managed-by": "tali",
     "app.kubernetes.io/name": "tali-managed-agent",
     "app.kubernetes.io/part-of": "tali",
+    "tali.io/agent-name": kubernetesMetadataLabel(input.name),
     "tali.io/agent-key": managedAgentKey(input.agentId),
+    "tali.io/instance-key": managedInstanceKey(input.instanceId),
+    "tali.io/project-key": managedProjectKey(input.projectId),
+    "tali.io/runtime-kind": "managed-a2a",
   };
 }
 
 function managedAnnotations(
-  input: Pick<ManagedAgentRuntimeInput, "agentId" | "projectId">,
+  input: Pick<
+    ManagedAgentRuntimeInput,
+    | "agentId"
+    | "category"
+    | "image"
+    | "instanceId"
+    | "name"
+    | "owner"
+    | "projectId"
+  >,
 ): Record<string, string> {
   return {
     "tali.io/agent-id": input.agentId,
+    "tali.io/agent-name": input.name,
+    "tali.io/agent-category": input.category,
+    "tali.io/agent-owner": input.owner,
+    "tali.io/instance-id": input.instanceId,
     "tali.io/project-id": input.projectId,
+    "tali.io/source-image": input.image,
   };
 }
 
@@ -108,7 +174,7 @@ function deploymentResource(
   input: ManagedAgentRuntimeInput,
   image: string,
 ): V1Deployment {
-  const name = managedAgentResourceName(input.agentId);
+  const name = managedAgentResourceName(input.instanceId);
   const labels = managedLabels(input);
   const endpoint = managedAgentEndpoint(
     input.namespace,
@@ -127,12 +193,17 @@ function deploymentResource(
     spec: {
       replicas: 1,
       selector: {
-        matchLabels: { "tali.io/agent-key": labels["tali.io/agent-key"]! },
+        matchLabels: {
+          "tali.io/instance-key": labels["tali.io/instance-key"]!,
+        },
       },
       template: {
         metadata: {
           annotations: managedAnnotations(input),
-          labels,
+          labels: {
+            ...labels,
+            "tali.io/revision-key": managedAgentRevisionKey(input, image),
+          },
         },
         spec: {
           automountServiceAccountToken: false,
@@ -155,6 +226,7 @@ function deploymentResource(
                 { name: "PORT", value: String(input.containerPort) },
                 { name: "TALI_PROJECT_ID", value: input.projectId },
                 { name: "TALI_AGENT_ID", value: input.agentId },
+                { name: "TALI_INSTANCE_ID", value: input.instanceId },
                 { name: "TALI_A2A_BASE_URL", value: endpoint },
               ],
               ports: [
@@ -188,7 +260,7 @@ function deploymentResource(
 }
 
 function serviceResource(input: ManagedAgentRuntimeInput): V1Service {
-  const name = managedAgentResourceName(input.agentId);
+  const name = managedAgentResourceName(input.instanceId);
   const labels = managedLabels(input);
   return {
     apiVersion: "v1",
@@ -201,7 +273,7 @@ function serviceResource(input: ManagedAgentRuntimeInput): V1Service {
     },
     spec: {
       type: "ClusterIP",
-      selector: { "tali.io/agent-key": labels["tali.io/agent-key"]! },
+      selector: { "tali.io/instance-key": labels["tali.io/instance-key"]! },
       ports: [
         {
           name: "http",
@@ -247,14 +319,32 @@ export function pinnedImageReference(
   return digest ? `${imageRepository(requestedImage)}@${digest}` : undefined;
 }
 
-function imageIdFromPods(pods: V1Pod[]): string | undefined {
+function readyAgentPod(
+  pods: V1Pod[],
+  expectedImage?: string,
+  expectedRevisionKey?: string,
+): V1Pod | undefined {
   for (const pod of pods) {
+    const container = pod.spec?.containers.find(
+      (candidate) => candidate.name === "agent",
+    );
+    if (expectedImage && container?.image !== expectedImage) continue;
+    if (
+      expectedRevisionKey &&
+      pod.metadata?.labels?.["tali.io/revision-key"] !== expectedRevisionKey
+    ) continue;
     const status = pod.status?.containerStatuses?.find(
       (container) => container.name === "agent" && container.ready,
     );
-    if (status?.imageID) return status.imageID;
+    if (status?.imageID) return pod;
   }
   return undefined;
+}
+
+function imageIdFromPod(pod: V1Pod | undefined): string | undefined {
+  return pod?.status?.containerStatuses?.find(
+    (container) => container.name === "agent" && container.ready,
+  )?.imageID;
 }
 
 class DisabledManagedAgentRuntimeClient implements ManagedAgentRuntimeClient {
@@ -329,15 +419,10 @@ export class KubernetesManagedAgentRuntimeClient
     await this.assertExistingOwnership(input);
     await this.apply(serviceResource(input));
     await this.apply(deploymentResource(input, input.image));
-    await this.waitUntilReady(input);
-
-    const pods = await this.core.listNamespacedPod({
-      namespace: input.namespace,
-      labelSelector: `tali.io/agent-key=${managedAgentKey(input.agentId)}`,
-    });
+    let readyPod = await this.waitUntilReady(input, input.image);
     const pinnedImage = pinnedImageReference(
       input.image,
-      imageIdFromPods(pods.items),
+      imageIdFromPod(readyPod),
     );
     if (!pinnedImage) {
       throw new Error(
@@ -346,10 +431,16 @@ export class KubernetesManagedAgentRuntimeClient
     }
     if (pinnedImage !== input.image) {
       await this.apply(deploymentResource(input, pinnedImage));
-      await this.waitUntilReady(input);
+      readyPod = await this.waitUntilReady(input, pinnedImage);
     }
 
-    const name = managedAgentResourceName(input.agentId);
+    const podName = readyPod?.metadata?.name;
+    if (!podName) {
+      throw new Error(
+        "The Agent container became ready, but Kubernetes did not report its Pod name.",
+      );
+    }
+    const name = managedAgentResourceName(input.instanceId);
     const endpoint = managedAgentEndpoint(
       input.namespace,
       name,
@@ -362,12 +453,14 @@ export class KubernetesManagedAgentRuntimeClient
       imageDigest: pinnedImage,
       imageReference: input.image,
       namespace: input.namespace,
+      podName,
       serviceName: name,
     };
   }
 
   async remove(input: {
     agentId: string;
+    instanceId: string;
     namespace: string;
     projectId: string;
   }): Promise<void> {
@@ -404,7 +497,7 @@ export class KubernetesManagedAgentRuntimeClient
     deployment?: V1Deployment;
     service?: V1Service;
   }> {
-    const name = managedAgentResourceName(input.agentId);
+    const name = managedAgentResourceName(input.instanceId);
     const [deployment, service] = await Promise.all([
       this.readDeployment(input.namespace, name),
       this.readService(input.namespace, name),
@@ -414,7 +507,8 @@ export class KubernetesManagedAgentRuntimeClient
       const annotations = resource.metadata?.annotations;
       if (
         annotations?.["tali.io/project-id"] !== input.projectId ||
-        annotations?.["tali.io/agent-id"] !== input.agentId
+        annotations?.["tali.io/agent-id"] !== input.agentId ||
+        annotations?.["tali.io/instance-id"] !== input.instanceId
       ) {
         throw new Error(
           `Refusing to manage Kubernetes resource ${input.namespace}/${name}: ownership metadata does not match this Agent.`,
@@ -451,24 +545,40 @@ export class KubernetesManagedAgentRuntimeClient
     }
   }
 
-  private async waitUntilReady(input: ManagedAgentRuntimeInput): Promise<void> {
-    const name = managedAgentResourceName(input.agentId);
+  private async waitUntilReady(
+    input: ManagedAgentRuntimeInput,
+    expectedImage: string,
+  ): Promise<V1Pod> {
+    const name = managedAgentResourceName(input.instanceId);
     const deadline = Date.now() + this.timeoutMs;
     while (Date.now() < deadline) {
-      const deployment = await this.apps.readNamespacedDeployment({
-        name,
-        namespace: input.namespace,
-      });
+      const [deployment, pods] = await Promise.all([
+        this.apps.readNamespacedDeployment({
+          name,
+          namespace: input.namespace,
+        }),
+        this.core.listNamespacedPod({
+          namespace: input.namespace,
+          labelSelector:
+            `tali.io/instance-key=${managedInstanceKey(input.instanceId)}`,
+        }),
+      ]);
+      const readyPod = readyAgentPod(
+        pods.items,
+        expectedImage,
+        managedAgentRevisionKey(input, expectedImage),
+      );
       if (
+        readyPod &&
         (deployment.status?.availableReplicas ?? 0) >= 1 &&
         deployment.status?.observedGeneration === deployment.metadata?.generation
       ) {
-        return;
+        return readyPod;
       }
       await new Promise((resolve) => setTimeout(resolve, this.pollIntervalMs));
     }
     throw new Error(
-      `Agent image ${input.image} did not become ready within ${this.timeoutMs}ms. Review the image entrypoint, port, and pull credentials.`,
+      `Agent image ${expectedImage} did not become ready within ${this.timeoutMs}ms. Review the image entrypoint, port, and pull credentials.`,
     );
   }
 }

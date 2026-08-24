@@ -3,9 +3,11 @@ import type {
   AgentConnection,
   AgentGardenEntry,
 } from "@tali/contracts";
+import { Link } from "@tanstack/react-router";
 import {
   Activity,
   ArrowRight,
+  Boxes,
   Check,
   ExternalLink,
   Link2,
@@ -20,6 +22,7 @@ import {
 import { StatusDot } from "@/components/shared/status-dot";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useCurrentProjectId } from "@/hooks/use-project";
 import { formatPlatformDateTime } from "@/lib/platform-preferences";
 import { AgentGardenIcon } from "./agent-garden-icon";
 import {
@@ -56,6 +59,7 @@ export function AgentDetailSheet({
   open: boolean;
   refreshing: boolean;
 }) {
+  const projectId = useCurrentProjectId();
   const preview = agent ? isPreviewAgent(agent) : false;
   const managedContainer =
     agent?.configuration.onboardingSource === "CONTAINER_IMAGE";
@@ -111,6 +115,17 @@ export function AgentDetailSheet({
                 : managedContainer
                   ? "Reconcile & validate"
                   : "Refresh discovery"}
+            </Button>
+          ) : null}
+          {managedContainer && agent?.configuration.managedInstanceId ? (
+            <Button asChild variant="outline">
+              <Link
+                to="/$projectId/instances"
+                params={{ projectId }}
+                search={{ created: agent.configuration.managedInstanceId }}
+              >
+                <Boxes /> View Instance
+              </Link>
             </Button>
           ) : null}
           {agent?.usageCapabilities.interactive &&
@@ -254,6 +269,13 @@ export function AgentDetailSheet({
                       mono: true,
                     },
                     {
+                      label: "Instance",
+                      value:
+                        agent.configuration.managedInstanceId
+                        ?? "Pending Instance allocation",
+                      mono: true,
+                    },
+                    {
                       label: "Runtime Namespace",
                       value:
                         agent.configuration.runtimeNamespace
@@ -265,6 +287,20 @@ export function AgentDetailSheet({
                       value:
                         agent.configuration.deploymentName
                         ?? "Pending deployment",
+                      mono: true,
+                    },
+                    {
+                      label: "Service",
+                      value:
+                        agent.configuration.serviceName
+                        ?? "Pending Service",
+                      mono: true,
+                    },
+                    {
+                      label: "Pod",
+                      value:
+                        agent.configuration.podName
+                        ?? "Pending Pod",
                       mono: true,
                     },
                   ]

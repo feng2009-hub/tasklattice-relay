@@ -81,6 +81,28 @@ if [[ "$action" == "delete" ]]; then
   exit 0
 fi
 
+agent_sandbox_crds=(
+  sandboxes.agents.x-k8s.io
+  sandboxclaims.extensions.agents.x-k8s.io
+  sandboxtemplates.extensions.agents.x-k8s.io
+  sandboxwarmpools.extensions.agents.x-k8s.io
+)
+existing_agent_sandbox_crds=0
+for crd_name in "${agent_sandbox_crds[@]}"; do
+  if kubectl --context "$kube_context" get crd "$crd_name" >/dev/null 2>&1; then
+    ((existing_agent_sandbox_crds += 1))
+  fi
+done
+
+crd_helm_args=()
+if (( existing_agent_sandbox_crds == ${#agent_sandbox_crds[@]} )); then
+  echo "Reusing the existing Agent Sandbox CRDs."
+  crd_helm_args+=(--skip-crds)
+elif (( existing_agent_sandbox_crds > 0 )); then
+  echo "Agent Sandbox CRDs are only partially installed; refusing to skip or overwrite them." >&2
+  exit 1
+fi
+
 images=(
   "$image_registry/tali-control:$image_tag"
   "$image_registry/tali-openshell-runner:$image_tag"
@@ -178,6 +200,7 @@ helm upgrade --install "$release_name" "$repository_root/charts/tali-relay" \
   ${control_helm_args[@]+"${control_helm_args[@]}"} \
   ${keycloak_helm_args[@]+"${keycloak_helm_args[@]}"} \
   ${example_mcp_helm_args[@]+"${example_mcp_helm_args[@]}"} \
+  ${crd_helm_args[@]+"${crd_helm_args[@]}"} \
   --wait \
   --wait-for-jobs \
   --timeout "$helm_timeout"

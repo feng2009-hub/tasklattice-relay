@@ -36,6 +36,7 @@ import projectDeletionTasksMigration from "../../prisma/migrations/2026081500000
 import departmentsMigration from "../../prisma/migrations/20260819000000_departments/migration.sql?raw";
 import departmentRolesMigration from "../../prisma/migrations/20260820000000_department_roles/migration.sql?raw";
 import projectRuntimeTargetsMigration from "../../prisma/migrations/20260822000000_project_runtime_targets/migration.sql?raw";
+import managedA2aInstancesMigration from "../../prisma/migrations/20260823000000_managed_a2a_instances/migration.sql?raw";
 import { developmentResourceCatalog } from "../catalog/development-resource-catalog";
 import { PrismaClient } from "../generated/prisma/client";
 
@@ -410,6 +411,15 @@ export function createTestPrisma(): PrismaClient {
     throw new Error("Project Runtime Target migration structure is incomplete.");
   }
   memory.public.none(projectRuntimeTargetsMigration);
+  if (
+    !managedA2aInstancesMigration.includes("managed_a2a_instances_agent_idx")
+    || !managedA2aInstancesMigration.includes(
+      "managed_a2a_instances_owner_membership_fkey",
+    )
+  ) {
+    throw new Error("Managed A2A Instance migration structure is incomplete.");
+  }
+  memory.public.none(managedA2aInstancesMigration);
   const pg = memory.adapters.createPg();
   const query = pg.Client.prototype.query;
   pg.Client.prototype.query = function (

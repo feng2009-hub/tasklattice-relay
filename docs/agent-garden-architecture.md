@@ -10,8 +10,9 @@ not part of the onboarding API. It deliberately separates three concepts:
 
 - **Agent definition** — a reusable built-in template, a Project-managed
   container, or an existing remote Agent.
-- **Agent Instance** — a running OpenClaw or Hermes runtime created from a
-  built-in definition.
+- **Agent Instance** — a running workload. It may be an interactive OpenClaw or
+  Hermes workbench, or a Project-managed A2A service created while onboarding a
+  container image.
 - **Agent connection** — an explicit authorization for one Coordinator
   Instance to delegate tasks to one callable built-in or Project-registered
   Agent.
@@ -23,7 +24,10 @@ that relationship; the remote Agent is shown as a **Connected Agent**.
 ```mermaid
 flowchart LR
   G["Agent Garden definition"] -->|"Create Instance"| C["OpenClaw / Hermes Coordinator"]
-  R["Callable built-in or Project-registered Agent"] -->|"Publish capabilities"| D["A2A 1.0 Agent Card snapshot"]
+  I["A2A container image"] -->|"Onboard"| MI["Managed A2A Instance"]
+  MI --> K["Deployment + Service + Pod"]
+  K -->|"Ready + discover"| D["A2A 1.0 Agent Card snapshot"]
+  R["Callable built-in or Project-registered Agent"] -->|"Publish capabilities"| D
   C -->|"Explicit connection + policy"| D
   D -.->|"Future runtime gateway: delegate task"| A["A2A Agent runtime"]
 ```
@@ -112,6 +116,9 @@ Project onboarding has three source tabs:
   Deployment and internal ClusterIP Service in the Project Runtime Namespace,
   waits for readiness, reads the Pod's resolved image ID, reapplies the
   Deployment with the immutable digest, and validates an A2A 1.0 Agent Card.
+  The same operation persists the initial `MANAGED_A2A` Instance. It becomes
+  `READY` only after the Pod is ready and the card has passed validation; a
+  failed deployment remains visible as a failed Instance with lifecycle logs.
   The card must advertise a supported JSON-RPC or HTTP+JSON interface. The
   image's ENTRYPOINT/CMD is used unless command or arguments are explicitly
   supplied. Private registries reference an existing Secret by name.
@@ -134,6 +141,25 @@ annotations before changing or deleting a pre-existing resource.
 If deployment or discovery fails, the Project catalog record remains
 `UNAVAILABLE` with the latest error so an administrator can retry the same
 idempotent path or remove both runtime resources and the catalog entry.
+
+Every managed Instance receives a stable Kubernetes resource prefix derived
+from the Instance UUID:
+
+```text
+tali-a2a-<first 16 hex characters of sha256(instance UUID)>
+```
+
+The Deployment and Service use that exact name; Kubernetes appends its own
+ReplicaSet suffixes to the Pod name. Selectors use the opaque
+`tali.io/instance-key` hash. Workload metadata also includes hashed Project and
+Agent keys, `tali.io/runtime-kind=managed-a2a`, and standard
+`app.kubernetes.io/*` labels. Full Agent, Instance, Project, source-image, owner,
+and category values live in annotations so long user-provided values never make
+selectors invalid. A bounded `tali.io/agent-name` label keeps the Agent human
+recognizable without becoming an identity key. Each Pod template also carries
+a `tali.io/revision-key` hash; readiness is accepted only from the current
+image, startup configuration, and metadata revision, preventing a rolling
+update's previous Pod from being recorded as the active Instance.
 
 ## Discovery and endpoint security
 
@@ -168,6 +194,9 @@ making the operation idempotent while allowing future catalog revisions. The
 three non-callable platform definitions remain application-owned.
 `agent_connections` stores Coordinator-to-Agent authorization, approval
 behavior, and an optional skill allowlist.
+`managed_a2a_instances` stores the first runtime Instance created by Container
+Image onboarding, including lifecycle state, namespace, Deployment, Service,
+Pod, pinned image, discovered endpoint/card, skills, creator, and logs.
 
 Both tables are Project-scoped. Database foreign keys cascade when a Project
 or Coordinator Instance is deleted and restrict deletion of a connected
@@ -177,7 +206,7 @@ catalog Agent.
 
 | Method | Path suffix | Purpose |
 | --- | --- | --- |
-| `GET` | `/agent-garden` | Read built-in definitions, Project registrations, and connections |
+| `GET` | `/agent-garden` | Read built-in definitions, Project registrations, managed A2A Instances, and connections |
 | `POST` | `/agent-garden/onboard` | Deploy an A2A container image or connect through an existing A2A 1.0 Agent Card |
 | `POST` | `/agent-garden/agents/:id/discover` | Refresh its discovery snapshot |
 | `DELETE` | `/agent-garden/agents/:id` | Remove a Project registration |

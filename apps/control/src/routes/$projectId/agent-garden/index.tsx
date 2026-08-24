@@ -409,7 +409,7 @@ function AgentGarden() {
           setDetailId(agent.id);
           void refreshGarden(
             agent.status === "READY"
-              ? `${agent.name} was onboarded and is ready.`
+              ? `${agent.name} was onboarded. Its managed A2A Instance is running in the Project Main Space.`
               : `${agent.name} was onboarded, but its runtime needs attention.`,
           );
         }}

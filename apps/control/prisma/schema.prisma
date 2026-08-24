@@ -70,28 +70,28 @@ model User {
   createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  createdProjects      Project[]           @relation("ProjectCreator")
-  createdDepartments   Department[]        @relation("DepartmentCreator")
+  createdProjects       Project[]           @relation("ProjectCreator")
+  createdDepartments    Department[]        @relation("DepartmentCreator")
   departmentMemberships DepartmentMember[]
-  authAccounts         AuthAccount[]
-  authSessions         AuthSession[]
-  memberships          ProjectMember[]
-  notifications        UserNotification[]
-  invitations          ProjectInvitation[] @relation("InvitationCreator")
+  authAccounts          AuthAccount[]
+  authSessions          AuthSession[]
+  memberships           ProjectMember[]
+  notifications         UserNotification[]
+  invitations           ProjectInvitation[] @relation("InvitationCreator")
 
   @@map("users")
   @@schema("tasklattice")
 }
 
 model Department {
-  id            String    @id
-  name          String    @unique
+  id            String   @id
+  name          String   @unique
   description   String?
-  hardBudgetUsd Decimal?  @map("hard_budget_usd") @db.Decimal(18, 6)
-  status        String    @default("active")
-  createdBy     String    @map("created_by")
-  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  hardBudgetUsd Decimal? @map("hard_budget_usd") @db.Decimal(18, 6)
+  status        String   @default("active")
+  createdBy     String   @map("created_by")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   creator  User               @relation("DepartmentCreator", fields: [createdBy], references: [id], onDelete: Restrict, onUpdate: Cascade)
   members  DepartmentMember[]
@@ -206,6 +206,7 @@ model Project {
   invitations                  ProjectInvitation[]
   agents                       AgentRecord[]
   agentCatalogEntries          AgentCatalogRecord[]
+  managedA2aInstances          ManagedA2aInstanceRecord[]
   agentConnections             AgentConnectionRecord[]
   providerAccounts             ProviderAccountRecord[]
   modelDeployments             ModelDeploymentRecord[]
@@ -309,22 +310,22 @@ model ProjectQuotaRecord {
 }
 
 model ProjectRunRecord {
-  projectId       String    @map("project_id")
-  id              String
-  instanceId      String    @map("instance_id")
-  agentPlatform   String    @map("agent_platform")
-  source          String
-  externalRunId   String    @map("external_run_id")
-  triggerType     String    @map("trigger_type")
-  status          String
-  traceId         String?   @map("trace_id")
-  startedAt       DateTime  @map("started_at") @db.Timestamptz(6)
-  endedAt         DateTime? @map("ended_at") @db.Timestamptz(6)
-  durationMs      Int?      @map("duration_ms")
-  terminalReason  String?   @map("terminal_reason")
-  errorCategory   String?   @map("error_category")
-  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  projectId      String    @map("project_id")
+  id             String
+  instanceId     String    @map("instance_id")
+  agentPlatform  String    @map("agent_platform")
+  source         String
+  externalRunId  String    @map("external_run_id")
+  triggerType    String    @map("trigger_type")
+  status         String
+  traceId        String?   @map("trace_id")
+  startedAt      DateTime  @map("started_at") @db.Timestamptz(6)
+  endedAt        DateTime? @map("ended_at") @db.Timestamptz(6)
+  durationMs     Int?      @map("duration_ms")
+  terminalReason String?   @map("terminal_reason")
+  errorCategory  String?   @map("error_category")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
@@ -387,11 +388,12 @@ model ProjectMember {
   role      ProjectRole
   joinedAt  DateTime    @default(now()) @map("joined_at") @db.Timestamptz(6)
 
-  project            Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  user               User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  ownedAgents        AgentRecord[]        @relation("AgentRecordOwnerMembership")
-  ownedCatalogAgents AgentCatalogRecord[] @relation("AgentCatalogRecordOwnerMembership")
-  roleAssignments    ProjectMemberRoleAssignment[]
+  project                  Project                       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user                     User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ownedAgents              AgentRecord[]                 @relation("AgentRecordOwnerMembership")
+  ownedCatalogAgents       AgentCatalogRecord[]          @relation("AgentCatalogRecordOwnerMembership")
+  ownedManagedA2aInstances ManagedA2aInstanceRecord[]    @relation("ManagedA2aInstanceOwnerMembership")
+  roleAssignments          ProjectMemberRoleAssignment[]
 
   @@id([projectId, userId])
   @@map("project_members")
@@ -457,14 +459,35 @@ model AgentCatalogRecord {
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  project         Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  ownerMembership ProjectMember?          @relation("AgentCatalogRecordOwnerMembership", fields: [projectId, ownerUserId], references: [projectId, userId], onDelete: Restrict, map: "agent_catalog_owner_membership_fkey")
-  connections     AgentConnectionRecord[]
+  project          Project                    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  ownerMembership  ProjectMember?             @relation("AgentCatalogRecordOwnerMembership", fields: [projectId, ownerUserId], references: [projectId, userId], onDelete: Restrict, map: "agent_catalog_owner_membership_fkey")
+  connections      AgentConnectionRecord[]
+  managedInstances ManagedA2aInstanceRecord[]
 
   @@id([projectId, id])
   @@index([projectId, ownerUserId], map: "agent_catalog_project_owner_idx")
   @@index([projectId, updatedAt(sort: Desc)], map: "agent_catalog_updated_idx")
   @@map("agent_catalog")
+  @@schema("tasklattice")
+}
+
+model ManagedA2aInstanceRecord {
+  projectId   String   @map("project_id")
+  id          String
+  agentId     String   @map("agent_id")
+  payload     Json
+  ownerUserId String   @map("owner_user_id")
+  createdAt   DateTime @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @map("updated_at") @db.Timestamptz(6)
+
+  project         Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  catalogAgent    AgentCatalogRecord @relation(fields: [projectId, agentId], references: [projectId, id], onDelete: Cascade)
+  ownerMembership ProjectMember      @relation("ManagedA2aInstanceOwnerMembership", fields: [projectId, ownerUserId], references: [projectId, userId], onDelete: Restrict, map: "managed_a2a_instances_owner_membership_fkey")
+
+  @@id([projectId, id])
+  @@index([projectId, agentId], map: "managed_a2a_instances_agent_idx")
+  @@index([projectId, ownerUserId], map: "managed_a2a_instances_owner_idx")
+  @@map("managed_a2a_instances")
   @@schema("tasklattice")
 }
 
