@@ -19,6 +19,7 @@ const tagDescriptions: Record<string, string> = {
   "Model routing": "Project model routing and its consumer bindings.",
   Models: "Model deployments made available to a Project.",
   Notifications: "Personal in-app notifications.",
+  "Platform administration": "Platform Administrator settings and organization-wide operations.",
   Profile: "Personal preferences and credential management.",
   "Project members": "Project membership and Project-scoped role selection.",
   Projects: "Business isolation, authorization, and runtime ownership boundary.",
@@ -159,7 +160,10 @@ function errorResponses(contract: (typeof apiContracts)[number]) {
   const problem = { $ref: "#/components/responses/Problem" };
   if (contract.request?.body || contract.request?.params || contract.request?.query) errors["400"] = problem;
   if ((contract.auth ?? "session") === "session") errors["401"] = problem;
-  if (contract.path.startsWith("/projects/{projectId}")) errors["403"] = problem;
+  if (
+    contract.path.startsWith("/projects/{projectId}")
+    || contract.path.startsWith("/platform/")
+  ) errors["403"] = problem;
   if (contract.path.includes("{") && !contract.responses[404]) errors["404"] = problem;
   errors["500"] = problem;
   return errors;

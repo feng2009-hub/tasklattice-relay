@@ -123,9 +123,9 @@ secret = {{ required "secrets.authSecret is required" .Values.secrets.authSecret
 [auth.local]
 enabled = {{ .Values.auth.local.enabled }}
 {{ if .Values.auth.local.enabled }}
-initial_super_admin_username = {{ required "auth.local.username is required when Local authentication is enabled" .Values.auth.local.username | quote }}
-initial_super_admin_email = {{ required "auth.local.email is required when Local authentication is enabled" .Values.auth.local.email | quote }}
-initial_super_admin_password = {{ required "secrets.initialSuperAdminPassword is required when Local authentication is enabled" .Values.secrets.initialSuperAdminPassword | quote }}
+initial_platform_administrator_username = {{ required "auth.local.username is required when Local authentication is enabled" .Values.auth.local.username | quote }}
+initial_platform_administrator_email = {{ required "auth.local.email is required when Local authentication is enabled" .Values.auth.local.email | quote }}
+initial_platform_administrator_password = {{ required "secrets.initialPlatformAdministratorPassword is required when Local authentication is enabled" (default .Values.secrets.initialSuperAdminPassword .Values.secrets.initialPlatformAdministratorPassword) | quote }}
 {{ end }}
 
 [auth.oidc]

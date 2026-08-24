@@ -24,7 +24,7 @@ export interface AuthUser {
   email: string;
   id: string;
   hasPassword: boolean;
-  systemRole: "user" | "super_administrator";
+  systemRole: "user" | "platform_administrator";
   username: string;
 }
 

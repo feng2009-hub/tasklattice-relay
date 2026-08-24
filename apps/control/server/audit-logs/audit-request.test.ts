@@ -85,6 +85,47 @@ describe("platform audit request capture", () => {
     ))).toBeUndefined();
   });
 
+  it("records platform changes without inventing a Project relation", async () => {
+    database = createTestPrisma();
+    const captured = await captureAuditRequest(new Request(
+      "http://tali.local/api/v1/platform/settings",
+      {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+          "x-request-id": "request-platform-settings",
+        },
+        body: JSON.stringify({ enabledProviderKinds: ["openai"] }),
+      },
+    ));
+
+    expect(captured).toMatchObject({
+      descriptor: {
+        action: "platform.settings_update",
+        objectId: "platform",
+        objectType: "Platform Settings",
+      },
+    });
+    expect(captured?.descriptor).not.toHaveProperty("projectId");
+
+    await writeAuditResponse(
+      captured!,
+      new Response(JSON.stringify({ revision: 2 }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+      database,
+    );
+
+    await expect(database.auditLogRecord.findFirstOrThrow({
+      where: { requestId: "request-platform-settings" },
+    })).resolves.toMatchObject({
+      action: "platform.settings_update",
+      objectId: "platform",
+      projectId: null,
+    });
+  });
+
   it("excludes read-only cost analytics requests", async () => {
     expect(await captureAuditRequest(new Request(
       "http://tali.local/api/v1/projects/individual/costs/breakdown",
@@ -172,7 +213,7 @@ describe("platform audit request capture", () => {
     }
 
     expect(uncovered).toEqual([]);
-    expect(routeFiles).toHaveLength(44);
+    expect(routeFiles).toHaveLength(46);
   });
 
   it("records direct Project role switches", async () => {

@@ -13,6 +13,7 @@ import {
   Network,
   Search,
   ServerCog,
+  Settings2,
   ShieldCheck,
   Sparkles,
   Waypoints,
@@ -147,6 +148,12 @@ export function itemIsActive(item: NavItemDefinition, pathname: string, projectI
   return normalizedPathname.startsWith(`${normalizedTarget}/`);
 }
 
+export function routeUsesFullBleedLayout(pathname: string): boolean {
+  const normalizedPathname = pathname.replace(/\/$/, "");
+  return normalizedPathname === "/platform/settings"
+    || /^\/[^/]+\/help$/.test(normalizedPathname);
+}
+
 function NavigationItem({ item, pathname, projectId }: {
   item: NavItemDefinition;
   pathname: string;
@@ -193,6 +200,7 @@ function ProjectSidebar({ createProjectOpen, logout, onCreateProjectOpenChange, 
   const projectId = currentProject?.id ?? "proj1";
   const permissions = useProjectPermissions();
   const helpActive = pathname.replace(/\/$/, "") === `/${encodeURIComponent(projectId)}/help`;
+  const platformSettingsActive = pathname.replace(/\/$/, "") === "/platform/settings";
   return (
     <ToastProvider duration={3_000} swipeDirection="right">
       <Sidebar
@@ -245,6 +253,27 @@ function ProjectSidebar({ createProjectOpen, logout, onCreateProjectOpenChange, 
           </nav>
         </SidebarContent>
         <SidebarFooter className="border-t border-sidebar-border p-2">
+          {user?.systemRole === "platform_administrator" ? (
+            <SidebarMenu className="border-b border-sidebar-border pb-2">
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={platformSettingsActive}
+                  tooltip={t("platformSetting")}
+                >
+                  <Link
+                    to="/platform/settings"
+                    onClick={() => setOpenMobile(false)}
+                    aria-current={platformSettingsActive ? "page" : undefined}
+                    aria-label={t("platformSetting")}
+                  >
+                    <Settings2 />
+                    <span>{t("platformSetting")}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          ) : null}
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton
@@ -331,7 +360,10 @@ export function AppShell() {
     refreshProjects,
   } = useProject();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const platformRoute = pathname.startsWith("/platform/");
   const departmentRoute = pathname.startsWith("/departments/");
+  const globalRoute = departmentRoute || platformRoute;
+  const fullBleedRoute = routeUsesFullBleedLayout(pathname);
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -383,16 +415,17 @@ export function AppShell() {
           <main
             id="main-content"
             className={cn(
-              "mx-auto w-full p-5 sm:p-6 lg:py-6",
-              sidebarOpen ? "max-w-[1600px]" : "max-w-none",
+              "w-full",
+              fullBleedRoute ? "flex-1" : "mx-auto p-5 sm:p-6 lg:py-6",
+              !fullBleedRoute && (sidebarOpen ? "max-w-[1600px]" : "max-w-none"),
             )}
           >
-            {!departmentRoute && projectError ? (
+            {!globalRoute && projectError ? (
               <div role="status" className="mb-5 border-l-2 border-amber-500 bg-amber-500/5 px-4 py-3 text-sm text-amber-900">
                 {projectError}
               </div>
             ) : null}
-            {!departmentRoute && projectLoading ? (
+            {!globalRoute && projectLoading ? (
               <div className="space-y-6" aria-label={t("projectEmptyState.loading")}>
                 <div className="h-20 animate-pulse rounded-md bg-muted/70" />
                 <div className="grid gap-4 md:grid-cols-3">
@@ -402,7 +435,7 @@ export function AppShell() {
                 </div>
                 <div className="h-64 animate-pulse rounded-md bg-muted/50" />
               </div>
-            ) : !currentProject && !departmentRoute ? (
+            ) : !currentProject && !globalRoute ? (
               <section className="mx-auto max-w-md py-20 text-center" aria-labelledby="no-project-title">
                 <h1 id="no-project-title" className="text-lg font-semibold">
                   {t("projectEmptyState.title")}
@@ -420,7 +453,10 @@ export function AppShell() {
                 </div>
               </section>
             ) : (
-              <div key={departmentRoute ? pathname : currentProject?.id}>
+              <div
+                key={globalRoute ? pathname : currentProject?.id}
+                className={cn(fullBleedRoute && "min-h-full")}
+              >
                 <Outlet />
               </div>
             )}

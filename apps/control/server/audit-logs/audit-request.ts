@@ -127,6 +127,21 @@ function descriptor(method: string, path: string): AuditDescriptor | undefined {
   if (method === "POST" && path === "/api/v1/projects") {
     return { action: "project.create", objectType: "Project", operation: "create" };
   }
+  if (method === "POST" && path === "/api/v1/platform/projects") {
+    return {
+      action: "platform.project_create",
+      objectType: "Project",
+      operation: "create",
+    };
+  }
+  if (method === "PUT" && path === "/api/v1/platform/settings") {
+    return {
+      action: "platform.settings_update",
+      objectId: "platform",
+      objectType: "Platform Settings",
+      operation: "update",
+    };
+  }
   const departmentMatch = path.match(/^\/api\/v1\/departments\/([^/]+)$/);
   if (departmentMatch && method === "PATCH") {
     return {

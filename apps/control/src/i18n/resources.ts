@@ -66,6 +66,7 @@ const enUS = {
     help: {
       label: "Help & documentation",
     },
+    platformSetting: "Platform Setting",
     projectEmptyState: {
       create: "Create Project",
       description: "Create a Project before resources can be loaded.",
@@ -145,7 +146,9 @@ const enUS = {
   breadcrumbs: {
     ariaLabel: "Breadcrumb",
     departmentSettings: "Department settings",
+    platformSetting: "Platform Setting",
     rootDepartment: "Department",
+    rootPlatform: "Platform",
     rootProject: "Project",
     details: {
       accessPolicies: "Policy details",
@@ -267,6 +270,7 @@ const zhCN = {
     help: {
       label: "帮助与文档",
     },
+    platformSetting: "平台设置",
     projectEmptyState: {
       create: "创建项目",
       description: "请先创建项目，再加载相关资源。",
@@ -345,7 +349,9 @@ const zhCN = {
   breadcrumbs: {
     ariaLabel: "面包屑导航",
     departmentSettings: "部门设置",
+    platformSetting: "平台设置",
     rootDepartment: "部门",
+    rootPlatform: "平台",
     rootProject: "项目",
     details: {
       accessPolicies: "策略详情",
@@ -466,6 +472,7 @@ const zhTW = {
     help: {
       label: "說明與文件",
     },
+    platformSetting: "平台設定",
     projectEmptyState: {
       create: "建立專案",
       description: "請先建立專案，再載入相關資源。",
@@ -544,7 +551,9 @@ const zhTW = {
   breadcrumbs: {
     ariaLabel: "麵包屑導覽",
     departmentSettings: "部門設定",
+    platformSetting: "平台設定",
     rootDepartment: "部門",
+    rootPlatform: "平台",
     rootProject: "專案",
     details: {
       accessPolicies: "原則詳細資料",

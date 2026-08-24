@@ -3,7 +3,7 @@ import { prisma } from "../db/prisma";
 import { jsonResponse, problemResponse } from "../http/responses";
 import { auth } from "./better-auth";
 
-export type SystemRole = "user" | "super_administrator";
+export type SystemRole = "user" | "platform_administrator";
 
 export interface AuthUser {
   displayName: string;
@@ -71,6 +71,18 @@ export function requireAuth(request: Request): Promise<PlatformPrincipal> {
   const context = authenticationContext(request);
   context.platformAuthentication ??= resolveAuth(request, context);
   return context.platformAuthentication;
+}
+
+export async function requirePlatformAdministrator(
+  request: Request,
+): Promise<PlatformPrincipal> {
+  const principal = await requireAuth(request);
+  if (principal.user.systemRole !== "platform_administrator") {
+    throw new Error(
+      "You do not have permission to administer the TaskLattice Relay platform.",
+    );
+  }
+  return principal;
 }
 
 export function applyAuthenticationResponseHeaders(

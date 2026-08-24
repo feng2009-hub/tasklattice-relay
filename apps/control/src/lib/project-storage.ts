@@ -7,6 +7,7 @@ export function projectIdFromPathname(pathname: string): string | null {
     || projectId === "login"
     || projectId === "auth"
     || projectId === "departments"
+    || projectId === "platform"
   ) return null;
   try {
     return decodeURIComponent(projectId);

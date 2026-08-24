@@ -21,6 +21,7 @@ import {
   providerAdapter,
 } from "./provider-adapters";
 import { LiteLLMClient, type LiteLLMAdminClient } from "./litellm-client";
+import { PlatformSettingsService } from "../platform/platform-settings-service";
 
 interface StoredProviderCredential {
   version: 1;
@@ -257,6 +258,8 @@ export class ProviderService {
   }
 
   async createConnection(input: CreateProviderConnectionInput): Promise<ProviderConnectionCreationResult> {
+    await new PlatformSettingsService(this.store.database())
+      .assertProviderEnabled(input.connection.provider);
     assertComplianceConfiguration(input);
     const discovery = await this.discover(input.connection);
     return this.createConnectionWithDiscovery(input, discovery);

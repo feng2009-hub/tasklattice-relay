@@ -27,6 +27,7 @@ import { ModelRoutingService } from "../model-routings/model-routing-service";
 import { ProjectQuotaService } from "../quotas/project-quota-service";
 import { getControlConfig } from "../config/control-config";
 import { signRunTelemetryToken } from "../runs/run-telemetry-token";
+import { PlatformSettingsService } from "../platform/platform-settings-service";
 
 export function agentSandboxName(id: string): string {
   const compactId = BigInt(`0x${id.replaceAll("-", "")}`)
@@ -244,6 +245,9 @@ export class InstanceService {
       throw error;
     }
     try {
+      const sandboxImage = await new PlatformSettingsService(
+        this.store.database(),
+      ).runtimeImageOverride(agent.agentPlatform);
       agent = await this.store.save(
         applyObservedState(
           agent,
@@ -257,6 +261,7 @@ export class InstanceService {
             systemPrompt: input.systemPrompt,
             apiKey: instanceKey.secret,
             instanceId: id,
+            ...(sandboxImage ? { sandboxImage } : {}),
             runTelemetry: {
               endpoint: `${controlOrigin.replace(/\/$/, "")}/api/internal/run-events`,
               token: signRunTelemetryToken({

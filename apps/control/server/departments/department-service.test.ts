@@ -12,7 +12,7 @@ const administrator = auth({
   displayName: "Local Administrator",
   email: "admin@tali.local",
   hasPassword: true,
-  systemRole: "super_administrator",
+  systemRole: "platform_administrator",
   username: "admin",
 });
 
@@ -70,7 +70,7 @@ describe("DepartmentService", () => {
     ).resolves.toMatchObject({ id: "dep1", role: "administrator" });
   });
 
-  it("does not let a system Super Administrator bypass the Department role", async () => {
+  it("does not let a Platform Administrator bypass the Department role", async () => {
     const database = createTestPrisma();
     await database.user.create({
       data: {
@@ -78,7 +78,7 @@ describe("DepartmentService", () => {
         username: "system-admin",
         email: "system-admin@example.com",
         displayName: "System Administrator",
-        systemRole: "super_administrator",
+        systemRole: "platform_administrator",
       },
     });
     await database.departmentMember.create({
@@ -89,7 +89,7 @@ describe("DepartmentService", () => {
       displayName: "System Administrator",
       email: "system-admin@example.com",
       hasPassword: false,
-      systemRole: "super_administrator",
+      systemRole: "platform_administrator",
       username: "system-admin",
     });
 

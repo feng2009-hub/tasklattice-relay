@@ -51,6 +51,9 @@ export function getHeaderBreadcrumbItems(
   t: TFunction<"breadcrumbs">,
 ): HeaderBreadcrumbItem[] {
   const parts = pathname.split("/").filter(Boolean);
+  if (parts[0] === "platform") {
+    return [{ href: "/platform/settings", label: t("platformSetting") }];
+  }
   if (parts[0] === "departments" && parts[1]) {
     return [{ href: pathname, label: t("departmentSettings") }];
   }
@@ -82,14 +85,17 @@ export function HeaderBreadcrumb({ pathname }: { pathname: string }) {
   const items = getHeaderBreadcrumbItems(pathname, t);
   const lastIndex = items.length - 1;
   const departmentRoute = pathname.startsWith("/departments/");
+  const platformRoute = pathname.startsWith("/platform/");
   const departmentId = pathname.split("/").filter(Boolean)[1];
-  const rootTitle = departmentRoute
-    ? currentProject?.department.id === departmentId
-      ? currentProject?.department.name ??
-        departmentId ??
-        t("rootDepartment")
-      : departmentId ?? t("rootDepartment")
-    : currentProject?.name ?? t("rootProject");
+  const rootTitle = platformRoute
+    ? t("rootPlatform")
+    : departmentRoute
+      ? currentProject?.department.id === departmentId
+        ? currentProject?.department.name ??
+          departmentId ??
+          t("rootDepartment")
+        : departmentId ?? t("rootDepartment")
+      : currentProject?.name ?? t("rootProject");
 
   return (
     <nav

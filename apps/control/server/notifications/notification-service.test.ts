@@ -9,7 +9,7 @@ const auth: PlatformPrincipal = {
     email: "admin@tali.local",
     id: "local-admin",
     hasPassword: true,
-    systemRole: "super_administrator",
+    systemRole: "platform_administrator",
     username: "admin",
   },
 };

@@ -86,7 +86,7 @@ export const authUserSchema = z.object({
   email: z.email(),
   hasPassword: z.boolean(),
   id,
-  systemRole: z.enum(["user", "super_administrator"]),
+  systemRole: z.enum(["user", "platform_administrator"]),
   username: z.string(),
 }).meta({ id: "AuthUser" });
 
@@ -116,7 +116,7 @@ export const profileSchema = profileInputSchema.extend({
   displayName: z.string(),
   email: z.email(),
   hasPassword: z.boolean(),
-  systemRole: z.enum(["user", "super_administrator"]),
+  systemRole: z.enum(["user", "platform_administrator"]),
   username: z.string(),
 }).meta({ id: "Profile" });
 

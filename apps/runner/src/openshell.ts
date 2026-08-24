@@ -478,7 +478,7 @@ export function openShellSandboxCreateArguments(
     "--name",
     input.name,
     "--from",
-    runtime.sandboxImage(),
+    input.sandboxImage ?? runtime.sandboxImage(),
     "--cpu",
     process.env.OPENSHELL_SANDBOX_CPU ?? "1",
     "--memory",

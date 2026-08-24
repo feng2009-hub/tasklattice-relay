@@ -18,6 +18,7 @@ export interface ProvisionInput {
   systemPrompt: string;
   apiKey?: string;
   instanceId: string;
+  sandboxImage?: string;
   runTelemetry: {
     endpoint: string;
     token: string;

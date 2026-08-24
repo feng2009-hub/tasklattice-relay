@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createPlatformI18n } from "@/i18n/create-i18n";
-import { itemIsActive, navGroups } from "./app-shell";
+import { itemIsActive, navGroups, routeUsesFullBleedLayout } from "./app-shell";
 
 describe("Project control-plane navigation", () => {
   it("uses Home as a section label with Instances and Memory beneath it", () => {
@@ -56,5 +56,15 @@ describe("Project control-plane navigation", () => {
     expect(
       itemIsActive(accessPolicies, "/p-hr/access-policies/policy-1", "p-hr"),
     ).toBe(true);
+  });
+
+  it("gives routes with secondary navigation a full-bleed layout", () => {
+    expect(routeUsesFullBleedLayout("/platform/settings")).toBe(true);
+    expect(routeUsesFullBleedLayout("/platform/settings/")).toBe(true);
+    expect(routeUsesFullBleedLayout("/proj1/help")).toBe(true);
+    expect(routeUsesFullBleedLayout("/proj1/help/")).toBe(true);
+    expect(routeUsesFullBleedLayout("/departments/dep1")).toBe(false);
+    expect(routeUsesFullBleedLayout("/proj1/instances")).toBe(false);
+    expect(routeUsesFullBleedLayout("/proj1/help/article")).toBe(false);
   });
 });

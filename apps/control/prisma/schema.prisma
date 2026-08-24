@@ -31,7 +31,7 @@ enum DepartmentRole {
 
 enum SystemRole {
   user
-  super_administrator
+  platform_administrator
 
   @@map("system_role")
   @@schema("tasklattice")
@@ -80,6 +80,20 @@ model User {
   invitations           ProjectInvitation[] @relation("InvitationCreator")
 
   @@map("users")
+  @@schema("tasklattice")
+}
+
+model PlatformSettingsRecord {
+  id                   String   @id @default("platform")
+  openclawSandboxImage String?  @map("openclaw_sandbox_image")
+  hermesSandboxImage   String?  @map("hermes_sandbox_image")
+  enabledProviderKinds Json?    @map("enabled_provider_kinds")
+  revision             Int      @default(1)
+  updatedBy            String?  @map("updated_by")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("platform_settings")
   @@schema("tasklattice")
 }
 

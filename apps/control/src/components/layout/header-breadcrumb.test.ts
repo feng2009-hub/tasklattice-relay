@@ -61,6 +61,12 @@ describe("getHeaderBreadcrumbItems", () => {
     ]);
   });
 
+  it("keeps Platform Setting outside the Project hierarchy", () => {
+    expect(getHeaderBreadcrumbItems("/platform/settings", englishT)).toEqual([
+      { href: "/platform/settings", label: "Platform Setting" },
+    ]);
+  });
+
   it("uses a stable label for Agent marketplace details", () => {
     expect(
       getHeaderBreadcrumbItems(

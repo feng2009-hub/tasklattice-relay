@@ -199,13 +199,13 @@ describe("capability admission evaluator", () => {
     expect(admissionEvidenceForRequest(request)[0]?.decision).toBe("DENY");
   });
 
-  it("does not let a system super-administrator bypass Project membership", async () => {
+  it("does not let a Platform Administrator bypass Project membership", async () => {
     database = createTestPrisma();
     const service = new ProjectAdmissionService(database);
     const request = new Request("http://tali.test/api/v1/projects/individual/resource");
     await expect(service.authorize(
       request,
-      "missing-super-admin",
+      "missing-platform-administrator",
       "CAP_PROJECT_SETTINGS_UPDATE",
       { resourceType: "Project" },
     )).rejects.toBeInstanceOf(CapabilityAdmissionError);

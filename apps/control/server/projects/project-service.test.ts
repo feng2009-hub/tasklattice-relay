@@ -51,7 +51,7 @@ function auth(
       (input.hasPassword ? "local-admin" : `test-${input.username}`),
     systemRole:
       input.systemRole ??
-      (input.hasPassword ? "super_administrator" : "user"),
+      (input.hasPassword ? "platform_administrator" : "user"),
   };
   return { user };
 }
@@ -139,6 +139,15 @@ describe("ProjectService", () => {
       assignedRoles: ["admin"],
     });
     expect(team).not.toHaveProperty("type");
+    await expect(db.projectQuotaRecord.findUniqueOrThrow({
+      where: { projectId: team.id },
+    })).resolves.toMatchObject({
+      hardBudgetUsd: null,
+      tpmLimit: null,
+      maxInstances: null,
+      maxMcpIntegrations: null,
+      maxKnowledgeBaseIntegrations: null,
+    });
     await expect(db.projectRuntimeTarget.findUnique({
       where: { projectId: team.id },
     })).resolves.toMatchObject({
@@ -988,7 +997,7 @@ describe("ProjectService", () => {
     }
   });
 
-  it("does not let the system Super Administrator bypass Project membership", async () => {
+  it("does not let the Platform Administrator bypass Project membership", async () => {
     const db = createTestPrisma();
     const service = new ProjectService(db);
     const owner = auth({
@@ -1023,5 +1032,49 @@ describe("ProjectService", () => {
     await expect(
       service.rename(team.id, "local-admin", "Managed Globally"),
     ).rejects.toThrow(/permission/i);
+  });
+
+  it("uses explicit platform authority to create a Project without granting Department authority", async () => {
+    const db = createTestPrisma();
+    const service = new ProjectService(db);
+    const platformAdministrator = auth({
+      displayName: "Platform Administrator",
+      email: "platform@example.com",
+      hasPassword: false,
+      id: "platform-only",
+      systemRole: "platform_administrator",
+      username: "platform-admin",
+    });
+    await syncAuthUser(db, service, platformAdministrator.user);
+
+    const project = await service.create(
+      platformAdministrator,
+      "dep1",
+      "Platform Created Project",
+      [],
+      "platform",
+    );
+
+    await expect(
+      db.departmentMember.findUnique({
+        where: {
+          departmentId_userId: {
+            departmentId: "dep1",
+            userId: platformAdministrator.user.id,
+          },
+        },
+      }),
+    ).resolves.toBeNull();
+    expect(project.department.role).toBeNull();
+    await expect(
+      db.projectMember.findUnique({
+        where: {
+          projectId_userId: {
+            projectId: project.id,
+            userId: platformAdministrator.user.id,
+          },
+        },
+      }),
+    ).resolves.toMatchObject({ role: "admin" });
   });
 });

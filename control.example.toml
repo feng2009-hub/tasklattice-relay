@@ -13,9 +13,9 @@ secret = "CHANGE_TO_AT_LEAST_32_RANDOM_CHARACTERS"
 
 [auth.local]
 enabled = true
-initial_super_admin_username = "admin"
-initial_super_admin_email = "admin@tasklattice.local"
-initial_super_admin_password = "CHANGE_TO_A_STRONG_PASSWORD"
+initial_platform_administrator_username = "admin"
+initial_platform_administrator_email = "admin@tasklattice.local"
+initial_platform_administrator_password = "CHANGE_TO_A_STRONG_PASSWORD"
 
 [auth.oidc]
 enabled = false

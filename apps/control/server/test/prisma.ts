@@ -37,6 +37,7 @@ import departmentsMigration from "../../prisma/migrations/20260819000000_departm
 import departmentRolesMigration from "../../prisma/migrations/20260820000000_department_roles/migration.sql?raw";
 import projectRuntimeTargetsMigration from "../../prisma/migrations/20260822000000_project_runtime_targets/migration.sql?raw";
 import managedA2aInstancesMigration from "../../prisma/migrations/20260823000000_managed_a2a_instances/migration.sql?raw";
+import platformSettingsMigration from "../../prisma/migrations/20260824000000_platform_settings/migration.sql?raw";
 import { developmentResourceCatalog } from "../catalog/development-resource-catalog";
 import { PrismaClient } from "../generated/prisma/client";
 
@@ -83,10 +84,12 @@ export function createTestPrisma(): PrismaClient {
   memory.public.none(personalProfileMigration);
   memory.public.none(accountPreferencesMigration);
   memory.public.none(
-    betterAuthMigration.replace(
-      /CREATE INDEX auth_(?:sessions_user_id|accounts_user_id|verifications_identifier)_idx[\s\S]*?;/g,
-      "",
-    ),
+    betterAuthMigration
+      .replaceAll("super_administrator", "platform_administrator")
+      .replace(
+        /CREATE INDEX auth_(?:sessions_user_id|accounts_user_id|verifications_identifier)_idx[\s\S]*?;/g,
+        "",
+      ),
   );
   memory.public.none(
     resourceCatalogNamesMigration.replace(
@@ -420,6 +423,14 @@ export function createTestPrisma(): PrismaClient {
     throw new Error("Managed A2A Instance migration structure is incomplete.");
   }
   memory.public.none(managedA2aInstancesMigration);
+  memory.public.none(
+    platformSettingsMigration
+      .replace(
+        /ALTER TYPE "tasklattice"\."system_role"[\s\S]*?;/,
+        "",
+      )
+      .replaceAll("DECIMAL(18, 6)", "NUMERIC"),
+  );
   const pg = memory.adapters.createPg();
   const query = pg.Client.prototype.query;
   pg.Client.prototype.query = function (

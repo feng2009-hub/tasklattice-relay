@@ -13,7 +13,7 @@ import {
 import {
   auth,
   authSessionIdleTimeoutSeconds,
-  ensureInitialSuperAdministrator,
+  ensureInitialPlatformAdministrator,
   resetBetterAuthForTests,
 } from "./better-auth";
 import { betterAuthSessionCookieName } from "./cookies";
@@ -51,12 +51,12 @@ describe("Better Auth platform authentication", () => {
     vi.stubEnv("TALI_CONFIG", "/test/control.toml");
     const config = developmentControlConfig();
     config.server.public_url = "http://tali.local";
-    config.auth.local.initial_super_admin_password = "correct-horse-battery";
+    config.auth.local.initial_platform_administrator_password = "correct-horse-battery";
     setControlConfigForTests(config);
     resetBetterAuthForTests();
     await db.authSession.deleteMany();
     await db.authAccount.deleteMany();
-    await ensureInitialSuperAdministrator();
+    await ensureInitialPlatformAdministrator();
   });
 
   afterEach(() => {
@@ -97,7 +97,7 @@ describe("Better Auth platform authentication", () => {
       user: {
         hasPassword: true,
         id: "local-admin",
-        systemRole: "super_administrator",
+        systemRole: "platform_administrator",
         username: "admin",
       },
     });
@@ -118,14 +118,14 @@ describe("Better Auth platform authentication", () => {
   it("bootstraps the canonical admin / admin development credentials", async () => {
     const config = developmentControlConfig();
     config.server.public_url = "http://tali.local";
-    expect(config.auth.local.initial_super_admin_username).toBe("admin");
-    expect(config.auth.local.initial_super_admin_password).toBe("admin");
+    expect(config.auth.local.initial_platform_administrator_username).toBe("admin");
+    expect(config.auth.local.initial_platform_administrator_password).toBe("admin");
 
     setControlConfigForTests(config);
     resetBetterAuthForTests();
     await db.authSession.deleteMany();
     await db.authAccount.deleteMany();
-    await ensureInitialSuperAdministrator();
+    await ensureInitialPlatformAdministrator();
 
     const response = await signIn("admin");
     expect(response.status).toBe(200);
@@ -157,9 +157,9 @@ describe("Better Auth platform authentication", () => {
 
     const config = developmentControlConfig();
     config.server.public_url = "http://tali.local";
-    config.auth.local.initial_super_admin_password = "different-password-value";
+    config.auth.local.initial_platform_administrator_password = "different-password-value";
     setControlConfigForTests(config);
-    await ensureInitialSuperAdministrator();
+    await ensureInitialPlatformAdministrator();
 
     const second = await db.authAccount.findUniqueOrThrow({
       where: { id: first.id },

@@ -17,6 +17,7 @@ export interface CreateSandboxInput {
   systemPrompt: string;
   apiKey?: string;
   instanceId: string;
+  sandboxImage?: string;
   runTelemetry: {
     endpoint: string;
     token: string;

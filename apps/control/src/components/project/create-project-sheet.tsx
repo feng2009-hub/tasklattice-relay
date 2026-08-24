@@ -18,6 +18,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { createProject } from "@/services/project";
 import { getDepartments } from "@/services/department";
+import { createPlatformProject } from "@/services/platform-settings";
 import { useProject } from "@/hooks/use-project";
 import { projectRoleLabels, type ProjectRole } from "@/types/project";
 
@@ -29,11 +30,15 @@ type InitialInvitation = {
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function CreateProjectSheet({
+  authority = "department",
+  departmentOptions,
   onCreated,
   onOpenChange,
   open,
   user,
 }: {
+  authority?: "department" | "platform";
+  departmentOptions?: Array<{ id: string; name: string }>;
   onCreated: (projectId: string, projectName: string) => Promise<void>;
   onOpenChange: (open: boolean) => void;
   open: boolean;
@@ -53,27 +58,28 @@ export function CreateProjectSheet({
   const departments = useQuery({
     queryKey: ["departments"],
     queryFn: getDepartments,
-    enabled: open,
+    enabled: open && !departmentOptions,
     staleTime: 30_000,
   });
+  const availableDepartments = departmentOptions ?? departments.data;
 
   useEffect(() => {
-    if (!open || !departments.data) return;
+    if (!open || !availableDepartments) return;
     if (
       departmentId &&
-      departments.data.some((department) => department.id === departmentId)
+      availableDepartments.some((department) => department.id === departmentId)
     ) {
       return;
     }
     const currentDepartmentId = currentProject?.department.id;
     setDepartmentId(
-      departments.data.some(
+      availableDepartments.some(
         (department) => department.id === currentDepartmentId,
       )
         ? (currentDepartmentId ?? "")
-        : (departments.data[0]?.id ?? ""),
+        : (availableDepartments[0]?.id ?? ""),
     );
-  }, [currentProject?.department.id, departmentId, departments.data, open]);
+  }, [availableDepartments, currentProject?.department.id, departmentId, open]);
 
   const reset = () => {
     setDepartmentId("");
@@ -88,7 +94,7 @@ export function CreateProjectSheet({
 
   const create = useMutation({
     mutationFn: () =>
-      createProject({
+      (authority === "platform" ? createPlatformProject : createProject)({
         confirmImmutableName: true,
         departmentId,
         name: name.trim(),
@@ -178,19 +184,22 @@ export function CreateProjectSheet({
               id="new-project-department"
               size="lg"
               className="w-full"
-              disabled={departments.isPending || !departments.data?.length}
+              disabled={
+                (!departmentOptions && departments.isPending)
+                || !availableDepartments?.length
+              }
             >
               <Building2 className="size-4 text-muted-foreground" />
               <SelectValue
                 placeholder={
-                  departments.isPending
+                  !departmentOptions && departments.isPending
                     ? "Loading Departments…"
                     : "Select a Department"
                 }
               />
             </SelectTrigger>
             <SelectContent>
-              {departments.data?.map((department) => (
+              {availableDepartments?.map((department) => (
                 <SelectItem key={department.id} value={department.id}>
                   {department.name}
                 </SelectItem>

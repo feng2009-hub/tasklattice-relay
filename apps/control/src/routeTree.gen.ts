@@ -24,6 +24,7 @@ import { Route as ProjectIdRuntimePoliciesRouteImport } from './routes/$projectI
 import { Route as ProjectIdSkillsRouteImport } from './routes/$projectId/skills'
 import { Route as ProjectIdTracesRouteImport } from './routes/$projectId/traces'
 import { Route as DepartmentsDepartmentIdRouteImport } from './routes/departments/$departmentId'
+import { Route as PlatformSettingsRouteImport } from './routes/platform/settings'
 import { Route as ProjectIdAccessPoliciesIndexRouteImport } from './routes/$projectId/access-policies/index'
 import { Route as ProjectIdAccessPoliciesPolicyIdRouteImport } from './routes/$projectId/access-policies/$policyId'
 import { Route as ProjectIdAgentGardenIndexRouteImport } from './routes/$projectId/agent-garden/index'
@@ -112,6 +113,11 @@ const DepartmentsDepartmentIdRoute = DepartmentsDepartmentIdRouteImport.update({
   path: '/departments/$departmentId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PlatformSettingsRoute = PlatformSettingsRouteImport.update({
+  id: '/platform/settings',
+  path: '/platform/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProjectIdAccessPoliciesIndexRoute =
   ProjectIdAccessPoliciesIndexRouteImport.update({
     id: '/$projectId/access-policies/',
@@ -189,6 +195,7 @@ export interface FileRoutesByFullPath {
   '/$projectId/skills': typeof ProjectIdSkillsRoute
   '/$projectId/traces': typeof ProjectIdTracesRoute
   '/departments/$departmentId': typeof DepartmentsDepartmentIdRoute
+  '/platform/settings': typeof PlatformSettingsRoute
   '/$projectId/': typeof ProjectIdIndexRoute
   '/$projectId/access-policies/$policyId': typeof ProjectIdAccessPoliciesPolicyIdRoute
   '/$projectId/agent-garden/$agentId': typeof ProjectIdAgentGardenAgentIdRoute
@@ -217,6 +224,7 @@ export interface FileRoutesByTo {
   '/$projectId/skills': typeof ProjectIdSkillsRoute
   '/$projectId/traces': typeof ProjectIdTracesRoute
   '/departments/$departmentId': typeof DepartmentsDepartmentIdRoute
+  '/platform/settings': typeof PlatformSettingsRoute
   '/$projectId': typeof ProjectIdIndexRoute
   '/$projectId/access-policies/$policyId': typeof ProjectIdAccessPoliciesPolicyIdRoute
   '/$projectId/agent-garden/$agentId': typeof ProjectIdAgentGardenAgentIdRoute
@@ -246,6 +254,7 @@ export interface FileRoutesById {
   '/$projectId/skills': typeof ProjectIdSkillsRoute
   '/$projectId/traces': typeof ProjectIdTracesRoute
   '/departments/$departmentId': typeof DepartmentsDepartmentIdRoute
+  '/platform/settings': typeof PlatformSettingsRoute
   '/$projectId/': typeof ProjectIdIndexRoute
   '/$projectId/access-policies/$policyId': typeof ProjectIdAccessPoliciesPolicyIdRoute
   '/$projectId/agent-garden/$agentId': typeof ProjectIdAgentGardenAgentIdRoute
@@ -276,6 +285,7 @@ export interface FileRouteTypes {
     | '/$projectId/skills'
     | '/$projectId/traces'
     | '/departments/$departmentId'
+    | '/platform/settings'
     | '/$projectId/'
     | '/$projectId/access-policies/$policyId'
     | '/$projectId/agent-garden/$agentId'
@@ -304,6 +314,7 @@ export interface FileRouteTypes {
     | '/$projectId/skills'
     | '/$projectId/traces'
     | '/departments/$departmentId'
+    | '/platform/settings'
     | '/$projectId'
     | '/$projectId/access-policies/$policyId'
     | '/$projectId/agent-garden/$agentId'
@@ -332,6 +343,7 @@ export interface FileRouteTypes {
     | '/$projectId/skills'
     | '/$projectId/traces'
     | '/departments/$departmentId'
+    | '/platform/settings'
     | '/$projectId/'
     | '/$projectId/access-policies/$policyId'
     | '/$projectId/agent-garden/$agentId'
@@ -361,6 +373,7 @@ export interface RootRouteChildren {
   ProjectIdSkillsRoute: typeof ProjectIdSkillsRoute
   ProjectIdTracesRoute: typeof ProjectIdTracesRoute
   DepartmentsDepartmentIdRoute: typeof DepartmentsDepartmentIdRoute
+  PlatformSettingsRoute: typeof PlatformSettingsRoute
   ProjectIdIndexRoute: typeof ProjectIdIndexRoute
   ProjectIdAccessPoliciesPolicyIdRoute: typeof ProjectIdAccessPoliciesPolicyIdRoute
   ProjectIdAgentGardenAgentIdRoute: typeof ProjectIdAgentGardenAgentIdRoute
@@ -482,6 +495,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DepartmentsDepartmentIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/platform/settings': {
+      id: '/platform/settings'
+      path: '/platform/settings'
+      fullPath: '/platform/settings'
+      preLoaderRoute: typeof PlatformSettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/$projectId/access-policies/': {
       id: '/$projectId/access-policies/'
       path: '/$projectId/access-policies'
@@ -577,6 +597,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProjectIdSkillsRoute: ProjectIdSkillsRoute,
   ProjectIdTracesRoute: ProjectIdTracesRoute,
   DepartmentsDepartmentIdRoute: DepartmentsDepartmentIdRoute,
+  PlatformSettingsRoute: PlatformSettingsRoute,
   ProjectIdIndexRoute: ProjectIdIndexRoute,
   ProjectIdAccessPoliciesPolicyIdRoute: ProjectIdAccessPoliciesPolicyIdRoute,
   ProjectIdAgentGardenAgentIdRoute: ProjectIdAgentGardenAgentIdRoute,

@@ -5,7 +5,7 @@ export interface PersonalProfile {
   email: string;
   language: SupportedLanguage;
   hasPassword: boolean;
-  systemRole: "user" | "super_administrator";
+  systemRole: "user" | "platform_administrator";
   theme: ThemePreference;
   timezone: string;
   username: string;

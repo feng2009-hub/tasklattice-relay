@@ -21,9 +21,9 @@ secret = "replace-with-at-least-32-random-characters"
 
 [auth.local]
 enabled = true
-initial_super_admin_username = "admin"
-initial_super_admin_email = "admin@tasklattice.local"
-initial_super_admin_password = "replace-with-a-strong-password"
+initial_platform_administrator_username = "admin"
+initial_platform_administrator_email = "admin@tasklattice.local"
+initial_platform_administrator_password = "replace-with-a-strong-password"
 
 [auth.oidc]
 enabled = true
@@ -83,7 +83,7 @@ Relay namespaces all Better Auth cookies with the `tali-relay` prefix. This is
 required when Relay and another Better Auth application run on different ports
 of the same hostname because browser cookies are not isolated by port.
 
-When Local authentication is enabled, all three initial Super Administrator
+When Local authentication is enabled, all three initial Platform Administrator
 values are required. On first startup, Better Auth creates one `credential`
 account and hashes the plaintext bootstrap password with its native password
 hasher. Later startups never overwrite an existing database password. Password
@@ -102,7 +102,7 @@ Department administration is loaded exclusively from an active
 authorization is loaded exclusively from `project_members`. These bindings do
 not inherit from one another.
 
-`systemRole=super_administrator` remains bootstrap/platform metadata. It grants
+`systemRole=platform_administrator` remains platform-level metadata. It grants
 neither Department nor Project access. Department administration still comes
 only from an active Department `administrator` membership, and Project
 Capabilities still come only from the active Project Role.

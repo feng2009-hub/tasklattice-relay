@@ -77,6 +77,7 @@ const createSchema = z.object({
   policyYaml: z.string().min(10).max(64_000),
   apiKey: z.string().min(16).max(512).optional(),
   instanceId: z.string().uuid(),
+  sandboxImage: z.string().trim().min(3).max(500).regex(/^\S+$/).optional(),
   runTelemetry: z.object({
     endpoint: z.string().url(),
     token: z.string().min(32).max(2_048),
@@ -244,7 +245,14 @@ async function provision(
 }
 
 app.use(express.json({ limit: "32kb" }));
-app.get("/health", (_request, response) => response.json({ ok: true, mode }));
+app.get("/health", (_request, response) => response.json({
+  ok: true,
+  mode,
+  runtimeImages: {
+    openclaw: getAgentPlatformRuntime("openclaw").sandboxImage(),
+    hermes: getAgentPlatformRuntime("hermes").sandboxImage(),
+  },
+}));
 app.use((request, response, next) =>
   authorized(request.headers.authorization)
     ? next()
@@ -267,6 +275,9 @@ app.post("/v1/sandboxes", (request, response, next) => {
       systemPrompt: parsedInput.systemPrompt,
       policyYaml: parsedInput.policyYaml,
       ...(parsedInput.apiKey ? { apiKey: parsedInput.apiKey } : {}),
+      ...(parsedInput.sandboxImage
+        ? { sandboxImage: parsedInput.sandboxImage }
+        : {}),
       ...(parsedInput.memory ? { memory: parsedInput.memory } : {}),
       instanceId: parsedInput.instanceId,
       runTelemetry: parsedInput.runTelemetry,

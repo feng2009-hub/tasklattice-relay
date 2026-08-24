@@ -45,6 +45,78 @@ export const providerKinds = [
   "custom-anthropic-compatible",
 ] as const;
 
+export const platformSettingsSections = [
+  "overview",
+  "runtime-images",
+  "model-providers",
+  "organization",
+] as const;
+
+const optionalContainerImageSchema = z.string().trim().min(3).max(500)
+  .regex(/^\S+$/, "Container image references cannot contain whitespace.")
+  .nullable();
+
+export const updatePlatformSettingsSchema = z.object({
+  runtimeImages: z.object({
+    openclaw: optionalContainerImageSchema,
+    hermes: optionalContainerImageSchema,
+  }).strict(),
+  enabledProviderKinds: z.array(z.enum(providerKinds)).max(providerKinds.length),
+}).strict().superRefine((value, context) => {
+  if (new Set(value.enabledProviderKinds).size !== value.enabledProviderKinds.length) {
+    context.addIssue({
+      code: "custom",
+      path: ["enabledProviderKinds"],
+      message: "Each enabled Provider can appear only once.",
+    });
+  }
+});
+
+export type UpdatePlatformSettingsInput = z.infer<typeof updatePlatformSettingsSchema>;
+export type PlatformSettingsSection = (typeof platformSettingsSections)[number];
+
+export interface PlatformSettingsView extends UpdatePlatformSettingsInput {
+  effectiveRuntimeImages: {
+    openclaw: string;
+    hermes: string;
+  };
+  runtimeStatus: {
+    available: boolean;
+    mode?: string;
+  };
+  summary: {
+    departments: number;
+    projects: number;
+    people: number;
+    instances: number;
+    providerConnections: number;
+  };
+  revision: number;
+  updatedAt: string | null;
+  updatedBy: string | null;
+}
+
+export interface PlatformOrganizationView {
+  departments: Array<{
+    id: string;
+    name: string;
+    description: string | null;
+    status: "active" | "suspended";
+    members: Array<{
+      id: string;
+      displayName: string;
+      email: string;
+      role: "administrator" | "member";
+      status: "active" | "suspended";
+    }>;
+    projects: Array<{
+      id: string;
+      name: string;
+      memberCount: number;
+    }>;
+  }>;
+}
+
 export const modelTypes = ["llm", "text-embedding", "speech-to-text"] as const;
 
 export const modelCapabilities = [
@@ -2102,6 +2174,10 @@ export interface SandboxAuditEvent {
 export interface RunnerHealth {
   ok: boolean;
   mode: string;
+  runtimeImages?: {
+    openclaw: string;
+    hermes: string;
+  };
 }
 
 export interface RuntimeStatus {

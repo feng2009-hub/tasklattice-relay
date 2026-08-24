@@ -405,11 +405,20 @@ export class ProjectService {
     departmentId: string,
     name: string,
     invitations: InitialProjectInvitation[],
+    authority: "department" | "platform" = "department",
   ): Promise<ProjectView> {
     const currentUserId = await this.acceptPendingInvitations(auth);
-    await requireDepartmentAdministrator(auth, departmentId, this.db, {
-      requireActiveDepartment: true,
-    });
+    if (authority === "platform") {
+      if (auth.user.systemRole !== "platform_administrator") {
+        throw new Error(
+          "You do not have permission to create Projects at the platform level.",
+        );
+      }
+    } else {
+      await requireDepartmentAdministrator(auth, departmentId, this.db, {
+        requireActiveDepartment: true,
+      });
+    }
     const department = await this.db.department.findUnique({
       where: { id: departmentId },
       select: { hardBudgetUsd: true, id: true, name: true, status: true },
@@ -528,17 +537,18 @@ export class ProjectService {
       );
       throw error;
     }
-    const initialBudgetWindow =
-      department.hardBudgetUsd === null
-        ? null
-        : nextBudgetWindow(new Date(), "30d", null, null);
+    const hardBudgetUsd = department.hardBudgetUsd === null ? null : 0;
+    const budgetDuration = hardBudgetUsd === null ? null : "30d";
+    const initialBudgetWindow = budgetDuration
+      ? nextBudgetWindow(new Date(), budgetDuration, null, null)
+      : null;
     await this.db.projectQuotaRecord.create({
       data: {
         projectId: project.id,
-        ...(initialBudgetWindow
+        ...(hardBudgetUsd !== null && initialBudgetWindow
           ? {
-              hardBudgetUsd: 0,
-              budgetDuration: "30d",
+              hardBudgetUsd,
+              budgetDuration,
               budgetPeriodStartedAt: initialBudgetWindow.startedAt,
               budgetResetsAt: initialBudgetWindow.resetsAt,
             }
@@ -552,11 +562,20 @@ export class ProjectService {
       role: "admin",
       roleAssignments: [{ role: "admin" }],
     });
+    const departmentMembership = await this.db.departmentMember.findUnique({
+      where: {
+        departmentId_userId: { departmentId: department.id, userId: currentUserId },
+      },
+      select: { role: true, status: true },
+    });
     return {
       department: {
         id: department.id,
         name: department.name,
-        role: "administrator",
+        role:
+          departmentMembership?.status === "active"
+            ? departmentMembership.role
+            : null,
       },
       id: project.id,
       name: project.name,

@@ -90,6 +90,55 @@ const smtpConfigSchema = z.object({
   }
 });
 
+const localAuthConfigSchema = z.object({
+  enabled: z.boolean(),
+  initial_platform_administrator_username: z.string().trim().min(1).optional(),
+  initial_platform_administrator_email: z.string().email().optional(),
+  initial_platform_administrator_password: z.string().min(1).max(128).optional(),
+  // Accepted during the terminology migration so existing sealed TOML files
+  // continue to boot. New generated configuration only emits the canonical
+  // Platform Administrator keys.
+  initial_super_admin_username: z.string().trim().min(1).optional(),
+  initial_super_admin_email: z.string().email().optional(),
+  initial_super_admin_password: z.string().min(1).max(128).optional(),
+}).superRefine((value, context) => {
+  const canonical = [
+    value.initial_platform_administrator_username,
+    value.initial_platform_administrator_email,
+    value.initial_platform_administrator_password,
+  ].filter(Boolean).length;
+  const legacy = [
+    value.initial_super_admin_username,
+    value.initial_super_admin_email,
+    value.initial_super_admin_password,
+  ].filter(Boolean).length;
+  if (canonical !== 0 && canonical !== 3) {
+    context.addIssue({
+      code: "custom",
+      message:
+        "initial_platform_administrator_username, initial_platform_administrator_email, and initial_platform_administrator_password must be configured together.",
+    });
+  }
+  if (legacy !== 0 && legacy !== 3) {
+    context.addIssue({
+      code: "custom",
+      message:
+        "Legacy initial administrator username, email, and password values must be configured together.",
+    });
+  }
+}).transform((value) => ({
+  enabled: value.enabled,
+  initial_platform_administrator_username:
+    value.initial_platform_administrator_username
+    ?? value.initial_super_admin_username,
+  initial_platform_administrator_email:
+    value.initial_platform_administrator_email
+    ?? value.initial_super_admin_email,
+  initial_platform_administrator_password:
+    value.initial_platform_administrator_password
+    ?? value.initial_super_admin_password,
+}));
+
 const controlConfigSchema = z.object({
   schema_version: z.literal(1),
   server: z.object({
@@ -101,25 +150,7 @@ const controlConfigSchema = z.object({
   }),
   auth: z.object({
     secret: z.string().min(32),
-    local: z.object({
-      enabled: z.boolean(),
-      initial_super_admin_username: z.string().trim().min(1).optional(),
-      initial_super_admin_email: z.string().email().optional(),
-      initial_super_admin_password: z.string().min(1).max(128).optional(),
-    }).superRefine((value, context) => {
-      const configured = [
-        value.initial_super_admin_username,
-        value.initial_super_admin_email,
-        value.initial_super_admin_password,
-      ].filter(Boolean).length;
-      if (configured !== 0 && configured !== 3) {
-        context.addIssue({
-          code: "custom",
-          message:
-            "initial_super_admin_username, initial_super_admin_email, and initial_super_admin_password must be configured together.",
-        });
-      }
-    }),
+    local: localAuthConfigSchema,
     oidc: z.discriminatedUnion("enabled", [
       enabledOidcSchema,
       disabledOidcSchema,
@@ -133,15 +164,15 @@ const controlConfigSchema = z.object({
     }
     if (
       value.local.enabled &&
-      (!value.local.initial_super_admin_username ||
-        !value.local.initial_super_admin_email ||
-        !value.local.initial_super_admin_password)
+      (!value.local.initial_platform_administrator_username ||
+        !value.local.initial_platform_administrator_email ||
+        !value.local.initial_platform_administrator_password)
     ) {
       context.addIssue({
         code: "custom",
         path: ["local"],
         message:
-          "Local authentication requires initial_super_admin_username, initial_super_admin_email, and initial_super_admin_password.",
+          "Local authentication requires the initial Platform Administrator username, email, and password.",
       });
     }
   }),
@@ -192,9 +223,9 @@ const developmentConfig: ControlConfig = {
     secret: "tali-local-development-secret-32-chars",
     local: {
       enabled: true,
-      initial_super_admin_username: "admin",
-      initial_super_admin_email: "admin@tasklattice.local",
-      initial_super_admin_password: "admin",
+      initial_platform_administrator_username: "admin",
+      initial_platform_administrator_email: "admin@tasklattice.local",
+      initial_platform_administrator_password: "admin",
     },
     oidc: {
       enabled: false,

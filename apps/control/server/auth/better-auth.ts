@@ -58,7 +58,7 @@ function createBetterAuth() {
           returned: true,
         },
         systemRole: {
-          type: ["user", "super_administrator"],
+          type: ["user", "platform_administrator"],
           defaultValue: "user",
           input: false,
           returned: true,
@@ -143,15 +143,15 @@ export function resetBetterAuthForTests(): void {
   globalThis.taliBetterAuth = undefined;
 }
 
-export async function ensureInitialSuperAdministrator(): Promise<void> {
+export async function ensureInitialPlatformAdministrator(): Promise<void> {
   const local = getControlConfig().auth.local;
   if (!local.enabled) return;
-  const username = local.initial_super_admin_username;
-  const email = local.initial_super_admin_email;
-  const password = local.initial_super_admin_password;
+  const username = local.initial_platform_administrator_username;
+  const email = local.initial_platform_administrator_email;
+  const password = local.initial_platform_administrator_password;
   if (!username || !email || !password) {
     throw new Error(
-      "Local authentication requires an initial Super Administrator username, email, and password.",
+      "Local authentication requires an initial Platform Administrator username, email, and password.",
     );
   }
 
@@ -162,15 +162,15 @@ export async function ensureInitialSuperAdministrator(): Promise<void> {
       username,
       email,
       emailVerified: true,
-      displayName: "Super Administrator",
-      systemRole: "super_administrator",
+      displayName: "Platform Administrator",
+      systemRole: "platform_administrator",
       status: "active",
     },
     update: {
       username,
       email,
       emailVerified: true,
-      systemRole: "super_administrator",
+      systemRole: "platform_administrator",
       status: "active",
     },
   });

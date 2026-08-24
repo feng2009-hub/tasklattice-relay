@@ -3,12 +3,14 @@ import type { RouteContract } from "./contract";
 import { identityContracts } from "./identity.contracts";
 import { inferenceContracts } from "./inference.contracts";
 import { instanceContracts } from "./instances.contracts";
+import { platformContracts } from "./platform.contracts";
 
 export const apiContracts: readonly RouteContract[] = Object.freeze([
   ...identityContracts,
   ...catalogContracts,
   ...inferenceContracts,
   ...instanceContracts,
+  ...platformContracts,
 ]);
 
 const contractIndex = new Map(
