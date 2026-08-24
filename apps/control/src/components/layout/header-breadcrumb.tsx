@@ -15,7 +15,7 @@ const routeLabelKeys = {
   memory: "routes.memory",
   "mcp-servers": "routes.mcpServers",
   notifications: "routes.notifications",
-  profile: "routes.profile",
+  account: "routes.account",
   requests: "routes.requests",
   "requests/new": "routes.requestsNew",
   runtime: "routes.runtime",

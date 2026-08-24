@@ -1,10 +1,23 @@
 import type { SupportedLanguage } from "@/i18n/config";
 
+export interface PersonalSsoIdentity {
+  groupClaim: string;
+  groupClaimError: string | null;
+  groups: string[];
+  issuer: string;
+  providerId: string;
+  providerName: string;
+  scopes: string[];
+  subject: string;
+  synchronizedAt: string;
+}
+
 export interface PersonalProfile {
   displayName: string;
   email: string;
   language: SupportedLanguage;
   hasPassword: boolean;
+  ssoIdentity: PersonalSsoIdentity | null;
   systemRole: "user" | "platform_administrator";
   theme: ThemePreference;
   timezone: string;

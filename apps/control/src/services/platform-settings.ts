@@ -137,9 +137,7 @@ export function createPlatformDepartment(
 }
 
 export function createPlatformProject(input: {
-  confirmImmutableName: true;
   departmentId: string;
-  id: string;
   invitations: Array<{ email: string; role: ProjectRole }>;
   name: string;
 }): Promise<Project> {

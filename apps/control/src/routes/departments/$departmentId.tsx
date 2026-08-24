@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
@@ -13,6 +13,7 @@ import {
 } from "@tali/contracts";
 import {
   ArrowUpRight,
+  Boxes,
   Building2,
   CheckCircle2,
   Database,
@@ -22,13 +23,20 @@ import {
   Plus,
   Route as RouteIcon,
   Save,
+  Search,
   ShieldAlert,
   ShieldCheck,
   TriangleAlert,
+  Users,
 } from "lucide-react";
 import { AccountAvatar } from "@/components/account/account-avatar";
 import { useAuth } from "@/components/auth/auth-provider";
 import { ContextSidebarLayout } from "@/components/layout/context-sidebar-layout";
+import {
+  ContextSettingsMobileNavigation,
+  ContextSettingsSidebar,
+  type ContextSettingsSectionGroup,
+} from "@/components/layout/context-settings-navigation";
 import { PageHeader } from "@/components/layout/page-header";
 import { CreateProjectSheet } from "@/components/project/create-project-sheet";
 import { Badge } from "@/components/ui/badge";
@@ -38,22 +46,10 @@ import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-} from "@/components/ui/sidebar";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { useProject } from "@/hooks/use-project";
@@ -67,6 +63,7 @@ import {
   updateDepartmentSettings,
 } from "@/services/department";
 import type { DepartmentDetail, DepartmentSummary } from "@/types/department";
+import { projectRoleLabels } from "@/types/project";
 
 export const Route = createFileRoute("/departments/$departmentId")({
   validateSearch: (search): { section?: DepartmentSettingsSection } => ({
@@ -80,32 +77,27 @@ export const Route = createFileRoute("/departments/$departmentId")({
   component: DepartmentSettingsPage,
 });
 
-type SectionItem = {
-  id: DepartmentSettingsSection;
-  label: string;
-  icon: typeof Building2;
-};
-
 const sectionGroups = [
   {
     label: "Department",
-    items: [{ id: "general", label: "General", icon: Building2 }],
+    items: [
+      { id: "general", label: "Overview", icon: Building2 },
+      { id: "projects", label: "Projects", icon: FolderKanban },
+      { id: "people", label: "People", icon: Users },
+    ],
   },
   {
-    label: "Project defaults",
+    label: "Inference",
     items: [
       { id: "models", label: "Models", icon: Database },
       { id: "routing", label: "Routing", icon: RouteIcon },
     ],
   },
   {
-    label: "Governance",
+    label: "Resources",
     items: [{ id: "quota", label: "Quota", icon: Gauge }],
   },
-] as const satisfies ReadonlyArray<{
-  label: string;
-  items: readonly SectionItem[];
-}>;
+] as const satisfies readonly ContextSettingsSectionGroup<DepartmentSettingsSection>[];
 
 function DepartmentSettingsPage() {
   const { departmentId } = Route.useParams();
@@ -139,20 +131,32 @@ function DepartmentSettingsPage() {
     <ContextSidebarLayout
       sidebarWidth="15rem"
       sidebar={(
-        <DepartmentContextSidebar
-          departmentId={departmentId}
-          departments={departments.data ?? []}
+        <ContextSettingsSidebar
+          ariaLabel="Department settings sections"
+          groups={sectionGroups}
+          header={(
+            <DepartmentSettingsHeader
+              departmentId={departmentId}
+              departments={departments.data ?? []}
+              onDepartmentChange={changeDepartment}
+            />
+          )}
           section={section}
-          onDepartmentChange={changeDepartment}
           onSectionChange={changeSection}
         />
       )}
       mobileNavigation={(
-        <DepartmentMobileNavigation
-          departmentId={departmentId}
-          departments={departments.data ?? []}
+        <ContextSettingsMobileNavigation
+          ariaLabel="Department settings section"
+          groups={sectionGroups}
+          leading={departments.data && departments.data.length > 1 ? (
+            <DepartmentSelect
+              departmentId={departmentId}
+              departments={departments.data}
+              onDepartmentChange={changeDepartment}
+            />
+          ) : undefined}
           section={section}
-          onDepartmentChange={changeDepartment}
           onSectionChange={changeSection}
         />
       )}
@@ -192,12 +196,18 @@ function DepartmentSettingsPage() {
             Department Administrator
           </Badge>
         )}
-        description={`Manage ${department.data.name} and define the defaults and resource boundaries inherited by new Projects.`}
+        description={`Manage ${department.data.name}, its Projects and people, inference policy, and resource boundaries.`}
       />
 
       <section className="min-w-0">
         {section === "general" ? (
-          <GeneralSection department={department.data} />
+          <OverviewSection department={department.data} settings={settings.data} />
+        ) : null}
+        {section === "projects" ? (
+          <ProjectsSection department={department.data} />
+        ) : null}
+        {section === "people" ? (
+          <PeopleSection department={department.data} />
         ) : null}
         {section === "models" ? (
           <ModelsSection departmentId={departmentId} settings={settings.data} />
@@ -213,135 +223,78 @@ function DepartmentSettingsPage() {
   );
 }
 
-function DepartmentContextSidebar({
+function DepartmentSettingsHeader({
   departmentId,
   departments,
   onDepartmentChange,
-  onSectionChange,
-  section,
 }: {
   departmentId: string;
   departments: DepartmentSummary[];
   onDepartmentChange: (departmentId: string) => void;
-  onSectionChange: (section: DepartmentSettingsSection) => void;
-  section: DepartmentSettingsSection;
 }) {
   const current = departments.find((department) => department.id === departmentId);
   return (
     <>
-      <SidebarHeader className="min-h-16 shrink-0 justify-center border-b border-sidebar-border px-4 py-2">
-        {departments.length > 1 ? (
-          <Select value={departmentId} onValueChange={onDepartmentChange}>
-            <SelectTrigger className="h-11 w-full border-0 bg-transparent px-1 shadow-none" aria-label="Administered Department">
-              <Building2 className="size-4" />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {departments.map((department) => (
-                <SelectItem key={department.id} value={department.id}>
-                  {department.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        ) : (
-          <strong className="truncate font-display text-xl font-medium">
-            {current?.name ?? departmentId}
-          </strong>
-        )}
-        <span className="text-xs text-muted-foreground">Department Administrator</span>
-      </SidebarHeader>
-      <SidebarContent className="py-3">
-        <nav aria-label="Department settings sections">
-          {sectionGroups.map((group) => (
-            <SidebarGroup key={group.label}>
-              <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {group.items.map((item) => (
-                    <SidebarMenuItem key={item.id}>
-                      <SidebarMenuButton
-                        type="button"
-                        size="lg"
-                        className="h-11"
-                        isActive={section === item.id}
-                        aria-current={section === item.id ? "page" : undefined}
-                        onClick={() => onSectionChange(item.id)}
-                      >
-                        <item.icon />
-                        <span>{item.label}</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          ))}
-        </nav>
-      </SidebarContent>
+      {departments.length > 1 ? (
+        <DepartmentSelect
+          departmentId={departmentId}
+          departments={departments}
+          onDepartmentChange={onDepartmentChange}
+          borderless
+        />
+      ) : (
+        <strong className="truncate font-display text-xl font-medium">
+          {current?.name ?? departmentId}
+        </strong>
+      )}
+      <span className="text-xs text-muted-foreground">Department Administrator</span>
     </>
   );
 }
 
-function DepartmentMobileNavigation({
+function DepartmentSelect({
+  borderless = false,
   departmentId,
   departments,
   onDepartmentChange,
-  onSectionChange,
-  section,
 }: {
+  borderless?: boolean;
   departmentId: string;
   departments: DepartmentSummary[];
   onDepartmentChange: (departmentId: string) => void;
-  onSectionChange: (section: DepartmentSettingsSection) => void;
-  section: DepartmentSettingsSection;
 }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      {departments.length > 1 ? (
-        <Select value={departmentId} onValueChange={onDepartmentChange}>
-          <SelectTrigger size="lg" className="w-full" aria-label="Administered Department">
-            <Building2 />
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {departments.map((department) => (
-              <SelectItem key={department.id} value={department.id}>
-                {department.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      ) : null}
-      <Select value={section} onValueChange={(value) => onSectionChange(value as DepartmentSettingsSection)}>
-        <SelectTrigger size="lg" className="w-full" aria-label="Department settings section">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {sectionGroups.map((group) => (
-            <SelectGroup key={group.label}>
-              <SelectLabel>{group.label}</SelectLabel>
-              {group.items.map((item) => (
-                <SelectItem key={item.id} value={item.id}>
-                  <item.icon />
-                  {item.label}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
+    <Select value={departmentId} onValueChange={onDepartmentChange}>
+      <SelectTrigger
+        size="lg"
+        className={borderless ? "w-full border-0 bg-transparent px-1 shadow-none" : "w-full"}
+        aria-label="Administered Department"
+      >
+        <Building2 />
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {departments.map((department) => (
+          <SelectItem key={department.id} value={department.id}>
+            {department.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
-function GeneralSection({ department }: { department: DepartmentDetail }) {
-  const { user } = useAuth();
+function OverviewSection({
+  department,
+  settings,
+}: {
+  department: DepartmentDetail;
+  settings: DepartmentSettingsView;
+}) {
   const { refreshProjects } = useProject();
   const queryClient = useQueryClient();
   const [name, setName] = useState(department.name);
   const [description, setDescription] = useState(department.description ?? "");
-  const [createOpen, setCreateOpen] = useState(false);
   useEffect(() => {
     setName(department.name);
     setDescription(department.description ?? "");
@@ -363,8 +316,8 @@ function GeneralSection({ department }: { department: DepartmentDetail }) {
 
   return (
     <SettingsSection
-      title="Department profile"
-      description="Maintain the organizational identity and review the Projects and people inside this boundary."
+      title="Department overview"
+      description="Review this organizational boundary at a glance, then maintain its name and purpose."
       action={(
         <Button className="h-11" disabled={!dirty || !validatedName.success || save.isPending} onClick={() => save.mutate()}>
           {save.isPending ? <Spinner /> : <Save />}
@@ -373,7 +326,17 @@ function GeneralSection({ department }: { department: DepartmentDetail }) {
       )}
     >
       <SaveFeedback mutation={save} success="Department profile saved." />
-      <div className="grid gap-6 border-y py-5 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.7fr)]">
+      <dl className="grid border-y sm:grid-cols-2 xl:grid-cols-4">
+        <SummaryStat label="Projects" value={department.projectCount} detail="Active in this Department" />
+        <SummaryStat label="People" value={department.memberCount} detail="Department members" />
+        <SummaryStat label="Instances" value={settings.usage.actualInstances} detail="Across all Projects" />
+        <SummaryStat
+          label="Resources"
+          value={settings.usage.actualMcpIntegrations + settings.usage.actualKnowledgeBaseIntegrations}
+          detail={`${settings.usage.actualMcpIntegrations} MCP · ${settings.usage.actualKnowledgeBaseIntegrations} Knowledge`}
+        />
+      </dl>
+      <div className="mt-6 grid gap-6 border-y py-5 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.7fr)]">
         <div className="grid gap-5">
           <div className="grid gap-2">
             <Label htmlFor="department-name">Department name</Label>
@@ -392,45 +355,100 @@ function GeneralSection({ department }: { department: DepartmentDetail }) {
           <Fact label="Department ID" value={department.id} />
           <Fact label="Projects" value={String(department.projectCount)} />
           <Fact label="People" value={String(department.memberCount)} />
+          <Fact label="Created" value={new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(new Date(department.createdAt))} />
           <Fact label="Settings ownership" value="Department" />
         </dl>
       </div>
+    </SettingsSection>
+  );
+}
 
-      <div className="mt-7 grid gap-7 xl:grid-cols-2">
-        <section aria-labelledby="department-projects-title">
-          <div className="flex min-h-11 items-center justify-between gap-4 border-b pb-3">
-            <div>
-              <h3 id="department-projects-title" className="text-sm font-semibold">Projects</h3>
-              <p className="mt-1 text-xs text-muted-foreground">New Projects inherit the current Department defaults as a creation snapshot.</p>
-            </div>
-            <Button className="h-11" onClick={() => setCreateOpen(true)}><Plus />New Project</Button>
+function ProjectsSection({ department }: { department: DepartmentDetail }) {
+  const { user } = useAuth();
+  const { refreshProjects } = useProject();
+  const queryClient = useQueryClient();
+  const [createOpen, setCreateOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const projects = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return department.projects.filter((project) =>
+      !query || `${project.name} ${project.id}`.toLowerCase().includes(query),
+    );
+  }, [department.projects, search]);
+  const totals = department.projects.reduce(
+    (result, project) => ({
+      people: result.people + project.memberCount,
+      instances: result.instances + project.instanceCount,
+      models: result.models + project.modelCount,
+      resources: result.resources + project.mcpIntegrationCount + project.knowledgeBaseCount,
+    }),
+    { people: 0, instances: 0, models: 0, resources: 0 },
+  );
+
+  return (
+    <SettingsSection
+      title="Projects"
+      description="Query every Project in this Department and compare its people, Instances, inference assets, and connected resources."
+      action={<Button className="h-11" onClick={() => setCreateOpen(true)}><Plus />New Project</Button>}
+    >
+      <dl className="grid border-y sm:grid-cols-2 xl:grid-cols-4">
+        <SummaryStat label="Projects" value={department.projects.length} detail="Active Projects" />
+        <SummaryStat label="Project memberships" value={totals.people} detail="Memberships, not unique people" />
+        <SummaryStat label="Instances" value={totals.instances} detail="Running across Projects" />
+        <SummaryStat label="Connected resources" value={totals.resources} detail={`${totals.models} registered models`} />
+      </dl>
+      <div className="flex flex-col gap-3 border-b px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative w-full sm:max-w-sm">
+          <Label htmlFor="department-project-search" className="sr-only">Search Projects</Label>
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input id="department-project-search" className="h-11 pl-9" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search Project name or ID…" />
+        </div>
+        <span className="text-xs text-muted-foreground">Showing {projects.length} of {department.projects.length}</span>
+      </div>
+      {projects.length ? (
+        <>
+          <div className="hidden overflow-x-auto md:block">
+            <table className="w-full min-w-[1080px] text-left">
+              <thead className="border-b bg-muted/20 text-xs text-muted-foreground">
+                <tr>
+                  <th className="px-5 py-2.5 font-medium">Project</th>
+                  <th className="px-4 py-2.5 text-right font-medium">People</th>
+                  <th className="px-4 py-2.5 text-right font-medium">Instances</th>
+                  <th className="px-4 py-2.5 font-medium">Inference</th>
+                  <th className="px-4 py-2.5 font-medium">Resources</th>
+                  <th className="px-4 py-2.5 text-right font-medium">Hard budget</th>
+                  <th className="px-4 py-2.5 font-medium">Inherited defaults</th>
+                  <th className="w-14"><span className="sr-only">Open Project</span></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {projects.map((project) => (
+                  <tr key={project.id} className="hover:bg-muted/[0.12]">
+                    <td className="px-5 py-3"><strong className="block text-sm">{project.name}</strong><code className="mt-0.5 block text-[11px] text-muted-foreground">{project.id}</code></td>
+                    <td className="px-4 py-3 text-right font-mono text-sm tabular-nums">{project.memberCount}</td>
+                    <td className="px-4 py-3 text-right font-mono text-sm tabular-nums">{project.instanceCount}</td>
+                    <td className="px-4 py-3 text-xs"><strong className="font-mono">{project.modelCount}</strong> models <span className="text-muted-foreground">·</span> <strong className="font-mono">{project.routingCount}</strong> Routing</td>
+                    <td className="px-4 py-3 text-xs"><strong className="font-mono">{project.mcpIntegrationCount}</strong> MCP <span className="text-muted-foreground">·</span> <strong className="font-mono">{project.knowledgeBaseCount}</strong> Knowledge</td>
+                    <td className="px-4 py-3 text-right font-mono text-xs tabular-nums">{project.hardBudgetUsd === null ? "Unlimited" : formatQuota(project.hardBudgetUsd, true)}</td>
+                    <td className="px-4 py-3"><Badge variant="outline" className="font-mono">{project.inheritedSettingsRevision === null ? "None" : `Revision ${project.inheritedSettingsRevision}`}</Badge></td>
+                    <td className="px-2 py-3"><Button asChild size="icon" variant="ghost"><Link to="/$projectId" params={{ projectId: project.id }} aria-label={`Open ${project.name}`}><ArrowUpRight /></Link></Button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <div className="divide-y border-b">
-            {department.projects.length ? department.projects.map((project) => (
-              <Link key={project.id} to="/$projectId" params={{ projectId: project.id }} className="flex min-h-16 items-center gap-3 py-3 outline-none transition-colors hover:bg-muted/35 focus-visible:ring-2 focus-visible:ring-ring/35">
-                <span className="grid size-9 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground"><FolderKanban className="size-4" /></span>
-                <span className="min-w-0 flex-1"><strong className="block truncate text-sm">{project.name}</strong><span className="text-xs text-muted-foreground">{project.memberCount} members</span></span>
-                <ArrowUpRight className="size-4 text-muted-foreground" />
-              </Link>
-            )) : <p className="py-8 text-center text-sm text-muted-foreground">No Projects in this Department.</p>}
-          </div>
-        </section>
-        <section aria-labelledby="department-people-title">
-          <div className="min-h-11 border-b pb-3">
-            <h3 id="department-people-title" className="text-sm font-semibold">People</h3>
-            <p className="mt-1 text-xs text-muted-foreground">Department membership is separate from Project business Roles.</p>
-          </div>
-          <div className="divide-y border-b">
-            {department.members.map((member) => (
-              <div key={member.id} className="flex min-h-16 items-center gap-3 py-3">
-                <AccountAvatar identity={member} className="size-9" />
-                <span className="min-w-0 flex-1"><strong className="block truncate text-sm">{member.displayName}</strong><span className="block truncate text-xs text-muted-foreground">{member.email}</span></span>
-                <Badge variant="outline">{member.role === "administrator" ? "Administrator" : "Member"}</Badge>
-              </div>
+          <div className="divide-y md:hidden">
+            {projects.map((project) => (
+              <article key={project.id} className="space-y-4 p-4">
+                <div className="flex items-start justify-between gap-3"><div className="min-w-0"><strong className="block truncate text-sm">{project.name}</strong><code className="text-[11px] text-muted-foreground">{project.id}</code></div><Button asChild size="icon" variant="ghost"><Link to="/$projectId" params={{ projectId: project.id }} aria-label={`Open ${project.name}`}><ArrowUpRight /></Link></Button></div>
+                <dl className="grid grid-cols-2 gap-3 text-xs"><CompactFact label="People" value={project.memberCount} /><CompactFact label="Instances" value={project.instanceCount} /><CompactFact label="Models / Routing" value={`${project.modelCount} / ${project.routingCount}`} /><CompactFact label="MCP / Knowledge" value={`${project.mcpIntegrationCount} / ${project.knowledgeBaseCount}`} /></dl>
+              </article>
             ))}
           </div>
-        </section>
-      </div>
+        </>
+      ) : (
+        <div className="grid min-h-48 place-items-center border-b p-8 text-center"><div><FolderKanban className="mx-auto size-6 text-muted-foreground" /><p className="mt-3 text-sm font-medium">{department.projects.length ? "No Projects match this search" : "No Projects in this Department"}</p><p className="mt-1 text-xs text-muted-foreground">{department.projects.length ? "Try a different Project name or ID." : "Create the first Project to start allocating resources."}</p></div></div>
+      )}
 
       <CreateProjectSheet
         open={createOpen}
@@ -449,6 +467,86 @@ function GeneralSection({ department }: { department: DepartmentDetail }) {
   );
 }
 
+function PeopleSection({ department }: { department: DepartmentDetail }) {
+  const [search, setSearch] = useState("");
+  const [departmentRole, setDepartmentRole] = useState("all");
+  const [projectId, setProjectId] = useState("all");
+  const members = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return department.members.filter((member) => {
+      const matchesQuery = !query || [
+        member.displayName,
+        member.email,
+        ...member.projects.flatMap((project) => [
+          project.name,
+          ...project.roles.map((role) => projectRoleLabels[role]),
+        ]),
+      ].join(" ").toLowerCase().includes(query);
+      return matchesQuery
+        && (departmentRole === "all" || member.role === departmentRole)
+        && (projectId === "all" || member.projects.some((project) => project.id === projectId));
+    });
+  }, [department.members, departmentRole, projectId, search]);
+  const projectMemberships = department.members.reduce((total, member) => total + member.projects.length, 0);
+  const filtersActive = Boolean(search || departmentRole !== "all" || projectId !== "all");
+
+  return (
+    <SettingsSection
+      title="People"
+      description="See every Department member and the exact Roles they hold in each Project. Department access and Project permissions remain separate scopes."
+    >
+      <dl className="grid border-y sm:grid-cols-3">
+        <SummaryStat label="People" value={department.members.length} detail="Unique Department members" />
+        <SummaryStat label="Administrators" value={department.members.filter((member) => member.role === "administrator").length} detail="Department scope" />
+        <SummaryStat label="Project memberships" value={projectMemberships} detail="Across all Projects" />
+      </dl>
+      <div className="grid gap-3 border-b px-4 py-4 md:grid-cols-2 xl:grid-cols-[minmax(18rem,1fr)_15rem_15rem_auto]">
+        <div className="relative min-w-0">
+          <Label htmlFor="department-people-search" className="sr-only">Search people</Label>
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input id="department-people-search" className="h-11 pl-9" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search person, Project, or Role…" />
+        </div>
+        <Select value={projectId} onValueChange={setProjectId}>
+          <SelectTrigger className="h-11 w-full" aria-label="Filter by Project"><SelectValue /></SelectTrigger>
+          <SelectContent><SelectItem value="all">All Projects</SelectItem>{department.projects.map((project) => <SelectItem key={project.id} value={project.id}>{project.name}</SelectItem>)}</SelectContent>
+        </Select>
+        <Select value={departmentRole} onValueChange={setDepartmentRole}>
+          <SelectTrigger className="h-11 w-full" aria-label="Filter by Department role"><SelectValue /></SelectTrigger>
+          <SelectContent><SelectItem value="all">All Department roles</SelectItem><SelectItem value="administrator">Administrator</SelectItem><SelectItem value="member">Member</SelectItem></SelectContent>
+        </Select>
+        <Button type="button" variant="outline" className="h-11" disabled={!filtersActive} onClick={() => { setSearch(""); setDepartmentRole("all"); setProjectId("all"); }}>Clear filters</Button>
+      </div>
+      {members.length ? (
+        <>
+          <div className="hidden overflow-x-auto md:block">
+            <table className="w-full min-w-[900px] text-left">
+              <thead className="border-b bg-muted/20 text-xs text-muted-foreground"><tr><th className="px-5 py-2.5 font-medium">Person</th><th className="px-4 py-2.5 font-medium">Department role</th><th className="px-4 py-2.5 font-medium">Project access and Roles</th></tr></thead>
+              <tbody className="divide-y">
+                {members.map((member) => (
+                  <tr key={member.id} className="align-top hover:bg-muted/[0.12]">
+                    <td className="px-5 py-4"><div className="flex min-w-0 items-center gap-3"><AccountAvatar identity={member} className="size-9" /><span className="min-w-0"><strong className="block truncate text-sm">{member.displayName}</strong><span className="block truncate text-xs text-muted-foreground">{member.email}</span></span></div></td>
+                    <td className="px-4 py-4"><Badge variant="outline">{member.role === "administrator" ? "Administrator" : "Member"}</Badge></td>
+                    <td className="px-4 py-3"><ProjectAccessList projects={member.projects} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="divide-y md:hidden">{members.map((member) => <article key={member.id} className="space-y-4 p-4"><div className="flex items-center gap-3"><AccountAvatar identity={member} className="size-9" /><span className="min-w-0 flex-1"><strong className="block truncate text-sm">{member.displayName}</strong><span className="block truncate text-xs text-muted-foreground">{member.email}</span></span><Badge variant="outline">{member.role === "administrator" ? "Administrator" : "Member"}</Badge></div><ProjectAccessList projects={member.projects} /></article>)}</div>
+        </>
+      ) : (
+        <div className="grid min-h-48 place-items-center border-b p-8 text-center"><div><Users className="mx-auto size-6 text-muted-foreground" /><p className="mt-3 text-sm font-medium">No people match these filters</p><p className="mt-1 text-xs text-muted-foreground">Try another person, Project, or Role.</p></div></div>
+      )}
+      <div className="border-t px-5 py-2.5 text-xs text-muted-foreground">Showing {members.length} of {department.members.length} people</div>
+    </SettingsSection>
+  );
+}
+
+function ProjectAccessList({ projects }: { projects: DepartmentDetail["members"][number]["projects"] }) {
+  if (!projects.length) return <span className="text-xs text-muted-foreground">No Project access</span>;
+  return <div className="grid gap-2">{projects.map((project) => <div key={project.id} className="flex flex-wrap items-center gap-2"><Link to="/$projectId/setting" params={{ projectId: project.id }} search={{ section: "members" }} className="min-w-32 text-sm font-medium underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/35">{project.name}</Link><span className="flex flex-wrap gap-1">{project.roles.map((role) => <Badge key={role} variant="secondary">{projectRoleLabels[role]}</Badge>)}</span></div>)}</div>;
+}
+
 function ModelsSection({ departmentId, settings }: SettingsSectionProps) {
   const [chatModel, setChatModel] = useState(settings.models.defaultChatModel ?? "");
   const [embeddingModel, setEmbeddingModel] = useState(settings.models.defaultEmbeddingModel ?? "");
@@ -465,24 +563,30 @@ function ModelsSection({ departmentId, settings }: SettingsSectionProps) {
   });
   const valid = updateDepartmentSettingsSchema.safeParse(input).success;
   const dirty = chatModel !== (settings.models.defaultChatModel ?? "") || embeddingModel !== (settings.models.defaultEmbeddingModel ?? "");
+  const configuredModels = [chatModel, embeddingModel].filter((model) => model.trim()).length;
   return (
     <SettingsSection
-      title="Model defaults"
-      description="Define the model references copied into a new Project. Each Project resolves these references against its own registered Provider models."
-      action={<Button className="h-11" disabled={!dirty || !valid || save.isPending} onClick={() => save.mutate(input)}>{save.isPending ? <Spinner /> : <Save />}Save defaults</Button>}
+      title="Available models"
+      description="Define the model references made available to newly created Projects. Provider connections and credentials always remain Project-owned."
+      action={<Button className="h-11" disabled={!dirty || !valid || save.isPending} onClick={() => save.mutate(input)}>{save.isPending ? <Spinner /> : <Save />}Save models</Button>}
     >
       <SaveFeedback mutation={save} success={`Model defaults saved as revision ${save.data?.revision ?? settings.revision}.`} />
+      <div className="mb-5 grid gap-3 border-y bg-muted/[0.12] px-4 py-4 sm:grid-cols-3">
+        <PolicyFact icon={<Database />} label="Department availability" value={configuredModels ? `${configuredModels} model reference${configuredModels === 1 ? "" : "s"}` : "No inherited models"} />
+        <PolicyFact icon={<ArrowUpRight />} label="New Projects" value={configuredModels ? "Copy current revision" : "Start Project-managed"} />
+        <PolicyFact icon={<Boxes />} label="Existing Projects" value="Keep their current snapshot" />
+      </div>
       <div className="divide-y border-y">
-        <SettingRow title="Default chat model" description="Used as the primary text-generation reference for newly created Projects.">
+        <SettingRow title="Chat model" description="Primary text-generation reference available to a new Project. Leave blank to inherit no chat model.">
           <Label htmlFor="default-chat-model">Provider/model reference</Label>
           <Input id="default-chat-model" className="mt-2 h-11 font-mono text-xs" value={chatModel} onChange={(event) => { setChatModel(event.target.value); save.reset(); }} placeholder="openai/gpt-5" />
         </SettingRow>
-        <SettingRow title="Default embedding model" description="Used by inherited semantic search and Memory configuration.">
+        <SettingRow title="Embedding model" description="Semantic search and Memory reference available to a new Project. Leave blank to inherit none.">
           <Label htmlFor="default-embedding-model">Provider/model reference</Label>
           <Input id="default-embedding-model" className="mt-2 h-11 font-mono text-xs" value={embeddingModel} onChange={(event) => { setEmbeddingModel(event.target.value); save.reset(); }} placeholder="openai/text-embedding-3-large" />
         </SettingRow>
       </div>
-      <InheritanceNotice />
+      <InheritanceNotice enabled={configuredModels > 0} />
     </SettingsSection>
   );
 }
@@ -502,15 +606,20 @@ function RoutingSection({ departmentId, settings }: SettingsSectionProps) {
   const dirty = mode !== settings.routing.mode || (mode === "FAILOVER" ? fallbackModel : "") !== (settings.routing.fallbackModel ?? "");
   return (
     <SettingsSection
-      title="Routing defaults"
-      description="Choose how a new Project starts routing model traffic. Project Administrators can replace the inherited snapshot later."
+      title="Routing availability"
+      description="Choose whether a new Project receives no Department Routing, a single-model route, or a failover route."
       action={<Button className="h-11" disabled={!dirty || !parsed.success || save.isPending} onClick={() => save.mutate(input)}>{save.isPending ? <Spinner /> : <Save />}Save routing</Button>}
     >
       <SaveFeedback mutation={save} success={`Routing defaults saved as revision ${save.data?.revision ?? settings.revision}.`} />
+      <div className="mb-5 grid gap-3 border-y bg-muted/[0.12] px-4 py-4 sm:grid-cols-3">
+        <PolicyFact icon={<RouteIcon />} label="Department policy" value={mode === "PROJECT_MANAGED" ? "No inherited Routing" : mode === "SINGLE" ? "Single-model snapshot" : "Failover snapshot"} />
+        <PolicyFact icon={<ArrowUpRight />} label="New Projects" value={mode === "PROJECT_MANAGED" ? "Start Project-managed" : "Copy current revision"} />
+        <PolicyFact icon={<Boxes />} label="Existing Projects" value="Keep their current Routing" />
+      </div>
       <div className="grid gap-6 border-y py-5 lg:grid-cols-[minmax(16rem,0.6fr)_minmax(24rem,1.4fr)]">
         <div>
           <h3 className="text-sm font-semibold">Inheritance mode</h3>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">The inherited policy contains references only; credentials and Provider connections remain Project-owned.</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">Routing is copied as an explicit creation snapshot. Credentials and Provider connections remain Project-owned.</p>
         </div>
         <div className="grid gap-5">
           <div className="grid gap-2">
@@ -518,12 +627,12 @@ function RoutingSection({ departmentId, settings }: SettingsSectionProps) {
             <Select value={mode} onValueChange={(value) => { setMode(value as DepartmentRoutingMode); save.reset(); }}>
               <SelectTrigger id="routing-mode" size="lg" className="w-full"><Network /><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="PROJECT_MANAGED">Project managed</SelectItem>
-                <SelectItem value="SINGLE">Single default model</SelectItem>
-                <SelectItem value="FAILOVER">Default with failover</SelectItem>
+                <SelectItem value="PROJECT_MANAGED">Do not inherit · Project managed</SelectItem>
+                <SelectItem value="SINGLE">Inherit · Single model</SelectItem>
+                <SelectItem value="FAILOVER">Inherit · Primary with failover</SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">{mode === "PROJECT_MANAGED" ? "The Project starts without an active inherited route." : mode === "SINGLE" ? "The Department chat model becomes the Project's initial route." : "Traffic starts on the Department chat model and fails over to a second reference."}</p>
+            <p className="text-xs text-muted-foreground">{mode === "PROJECT_MANAGED" ? "The Project starts without Department Routing and configures its own policy." : mode === "SINGLE" ? "The Department chat model becomes the Project's initial route." : "Traffic starts on the Department chat model and fails over to the second reference."}</p>
           </div>
           {mode === "FAILOVER" ? (
             <div className="grid gap-2">
@@ -534,7 +643,7 @@ function RoutingSection({ departmentId, settings }: SettingsSectionProps) {
           {!parsed.success ? <p className="border-l-2 border-amber-500 bg-amber-500/5 px-3 py-2 text-xs text-amber-900 dark:text-amber-200" role="alert">{parsed.error.issues[0]?.message}</p> : null}
         </div>
       </div>
-      <InheritanceNotice />
+      <InheritanceNotice enabled={mode !== "PROJECT_MANAGED"} />
     </SettingsSection>
   );
 }
@@ -653,8 +762,20 @@ function Fact({ label, value }: { label: string; value: string }) {
   return <div className="flex min-h-12 items-center justify-between gap-4 py-3"><dt className="text-xs text-muted-foreground">{label}</dt><dd className="font-mono text-xs font-semibold text-right">{value}</dd></div>;
 }
 
-function InheritanceNotice() {
-  return <p className="mt-5 border-l-2 border-primary/50 bg-primary/[0.04] px-4 py-3 text-xs leading-5 text-muted-foreground"><strong className="text-foreground">Creation snapshot.</strong> Changes apply to Projects created after this revision. Existing Projects are not silently rewritten.</p>;
+function SummaryStat({ detail, label, value }: { detail: string; label: string; value: number }) {
+  return <div className="min-w-0 border-b p-4 last:border-b-0 sm:border-r sm:last:border-r-0 xl:border-b-0"><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1 font-mono text-2xl font-semibold tabular-nums">{new Intl.NumberFormat("en-US").format(value)}</dd><span className="mt-1 block truncate text-[11px] text-muted-foreground" title={detail}>{detail}</span></div>;
+}
+
+function CompactFact({ label, value }: { label: string; value: number | string }) {
+  return <div><dt className="text-muted-foreground">{label}</dt><dd className="mt-1 font-mono font-semibold tabular-nums">{value}</dd></div>;
+}
+
+function PolicyFact({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+  return <div className="flex min-w-0 items-start gap-3"><span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-md border bg-background text-muted-foreground [&>svg]:size-4">{icon}</span><span className="min-w-0"><span className="block text-[11px] text-muted-foreground">{label}</span><strong className="mt-0.5 block text-xs leading-5">{value}</strong></span></div>;
+}
+
+function InheritanceNotice({ enabled }: { enabled: boolean }) {
+  return <p className="mt-5 border-l-2 border-primary/50 bg-primary/[0.04] px-4 py-3 text-xs leading-5 text-muted-foreground"><strong className="text-foreground">Deterministic inheritance.</strong> {enabled ? "A new Project receives the saved Department revision once, at creation. Existing Projects are never rewritten, and Project Administrators may replace the snapshot." : "No Department inference configuration is copied. The new Project starts Project-managed and existing Projects remain unchanged."}</p>;
 }
 
 function SaveFeedback({ mutation, success }: { mutation: { error: Error | null; isSuccess: boolean; reset: () => void }; success: string }) {

@@ -124,6 +124,23 @@ removal, Project portfolio view/create/delete, and Department quota view/update.
 Manual Department membership and verified external SSO grants remain the two
 binding sources; both resolve through this same Capability composition.
 
+### Canonical Keycloak Group paths
+
+Group-to-Role bindings use one compact, generated path format. Administrators
+select the scope, Department, Project, and stable Role ID; Relay does not accept
+an independently typed Group alias.
+
+```text
+/tali/r/{roleId}
+/tali/d/{departmentId}/r/{roleId}
+/tali/d/{departmentId}/p/{projectId}/r/{roleId}
+```
+
+The first form is Platform-scoped, the second is Department-scoped, and the
+third is Project-scoped. Namespace segments and entity IDs are lowercase;
+built-in Role IDs retain their uppercase `ROLE_*` form. Matching against the
+verified OIDC `groups` claim is exact and case-sensitive.
+
 ### Project Administrator
 
 The Admin preset grants the complete human Project capability catalog. One

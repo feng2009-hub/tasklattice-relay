@@ -67,10 +67,12 @@ import {
   personalProfileQueryKey,
   resetLocalPassword,
   updatePersonalProfile,
+  type PersonalProfile,
+  type PersonalSsoIdentity,
   type ThemePreference,
 } from "@/services/personal-profile";
 
-export const Route = createFileRoute("/$projectId/profile")({
+export const Route = createFileRoute("/$projectId/account")({
   validateSearch: (search): { section?: AccountSection } => {
     const section =
       search.section === "general" ||
@@ -391,10 +393,119 @@ function MyAccountPage() {
           </TabsContent>
 
           <TabsContent value="security" className="mt-0">
-            <PasswordPanel hasPassword={current.hasPassword} />
+            <SecurityPanel profile={current} />
           </TabsContent>
         </Tabs>
       </section>
+    </div>
+  );
+}
+
+function SecurityPanel({ profile }: { profile: PersonalProfile }) {
+  return (
+    <div className="divide-y">
+      {profile.ssoIdentity ? (
+        <SsoIdentityPanel
+          identity={profile.ssoIdentity}
+          language={profile.language}
+          timezone={profile.timezone}
+        />
+      ) : null}
+      <PasswordPanel hasPassword={profile.hasPassword} />
+    </div>
+  );
+}
+
+function SsoIdentityPanel({
+  identity,
+  language,
+  timezone,
+}: {
+  identity: PersonalSsoIdentity;
+  language: SupportedLanguage;
+  timezone: string;
+}) {
+  const synchronizedAt = new Intl.DateTimeFormat(language, {
+    dateStyle: "medium",
+    timeStyle: "medium",
+    timeZone: timezone,
+  }).format(new Date(identity.synchronizedAt));
+
+  return (
+    <section className="p-5">
+      <div className="max-w-5xl">
+        <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="size-4 text-muted-foreground" />
+              <h2 className="font-sans text-lg font-semibold">SSO identity</h2>
+            </div>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+              Read-only identity diagnostics from the most recently verified
+              SSO ID token. Tokens and secrets are never shown here.
+            </p>
+          </div>
+          <Badge variant="outline">{identity.providerName}</Badge>
+        </div>
+
+        <dl className="mt-5 grid overflow-hidden rounded-md border text-sm sm:grid-cols-2">
+          <SsoIdentityField label="Provider ID" value={identity.providerId} />
+          <SsoIdentityField label="Subject" value={identity.subject} />
+          <SsoIdentityField label="Issuer" value={identity.issuer} />
+          <SsoIdentityField label="Group claim" value={identity.groupClaim} />
+          <SsoIdentityField
+            label="Scopes"
+            value={identity.scopes.length ? identity.scopes.join(" ") : "Not reported"}
+          />
+          <SsoIdentityField label="Identity synchronized" value={synchronizedAt} />
+        </dl>
+
+        <div className="mt-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="text-sm font-semibold">Resolved groups</h3>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Values read from the <code>{identity.groupClaim}</code> claim.
+              </p>
+            </div>
+            <Badge variant="secondary">{identity.groups.length}</Badge>
+          </div>
+
+          {identity.groupClaimError ? (
+            <p
+              className="mt-3 border-l-2 border-destructive bg-destructive/5 px-3 py-2 text-sm text-destructive"
+              role="alert"
+            >
+              {identity.groupClaimError}
+            </p>
+          ) : identity.groups.length ? (
+            <ul className="mt-3 divide-y overflow-hidden rounded-md border">
+              {identity.groups.map((group) => (
+                <li key={group} className="px-3 py-2.5">
+                  <code className="break-all text-xs text-foreground">{group}</code>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-3 border border-dashed px-4 py-5 text-center text-xs text-muted-foreground">
+              No groups were present in this claim.
+            </p>
+          )}
+          <p className="mt-3 text-xs leading-5 text-muted-foreground">
+            Sign out and sign in again after changing Identity Provider groups
+            to refresh these values and their mapped roles.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function SsoIdentityField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 border-b p-3 last:border-b-0 sm:odd:border-r sm:[&:nth-last-child(-n+2)]:border-b-0">
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="mt-1 break-all font-mono text-xs text-foreground">{value}</dd>
     </div>
   );
 }
@@ -624,11 +735,11 @@ function PasswordPanel({ hasPassword }: { hasPassword: boolean }) {
         <div className="max-w-3xl">
           <div className="flex items-center gap-2">
             <ShieldCheck className="size-4 text-muted-foreground" />
-            <h2 className="font-sans text-lg font-semibold">Password & security</h2>
+            <h2 className="font-sans text-lg font-semibold">SSO-managed sign-in</h2>
           </div>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            This is an SSO account. Password and sign-in security are managed by
-            your identity provider.
+            Password, MFA, and sign-in policy are managed by your identity
+            provider.
           </p>
         </div>
       </section>

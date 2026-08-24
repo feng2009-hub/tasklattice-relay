@@ -18,12 +18,23 @@ export interface DepartmentDetail extends DepartmentSummary {
     email: string;
     role: "administrator" | "member";
     status: "active" | "suspended";
+    projects: Array<{
+      id: string;
+      name: string;
+      roles: Array<"admin" | "auditor" | "developer" | "user" | "reviewer">;
+    }>;
   }>;
   projects: Array<{
     id: string;
     name: string;
     hardBudgetUsd: number | null;
     memberCount: number;
+    instanceCount: number;
+    mcpIntegrationCount: number;
+    knowledgeBaseCount: number;
+    modelCount: number;
+    routingCount: number;
+    inheritedSettingsRevision: number | null;
   }>;
 }
 

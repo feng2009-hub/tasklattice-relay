@@ -1,12 +1,10 @@
 import { useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import {
   Building2,
   Check,
   ChevronsUpDown,
   LoaderCircle,
-  Plus,
   Search,
   Settings,
 } from "lucide-react";
@@ -22,16 +20,13 @@ import { useProject } from "@/hooks/use-project";
 import { useProjectPermissions } from "@/hooks/use-project-permissions";
 import { defaultLanguage, normalizeLanguage } from "@/i18n/config";
 import { cn } from "@/lib/utils";
-import { getDepartments } from "@/services/department";
 
 export function ProjectSwitcher({
   collapsed = false,
-  onCreateProject,
   onProjectSettingsOpen,
   onProjectSwitchSuccess,
 }: {
   collapsed?: boolean;
-  onCreateProject: () => void;
   onProjectSettingsOpen: () => void;
   onProjectSwitchSuccess: (projectName: string) => void;
 }) {
@@ -48,11 +43,6 @@ export function ProjectSwitcher({
     switchingProjectId,
   } = useProject();
   const permissions = useProjectPermissions();
-  const administeredDepartments = useQuery({
-    queryKey: ["departments"],
-    queryFn: getDepartments,
-    staleTime: 30_000,
-  });
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -333,7 +323,7 @@ export function ProjectSwitcher({
                                 onProjectSettingsOpen();
                               }}
                             >
-                              <Settings className="size-4" />
+                              <Settings aria-hidden="true" className="size-4" />
                             </Link>
                           ) : null}
                         </div>
@@ -367,36 +357,6 @@ export function ProjectSwitcher({
             {switchError}
           </p>
         ) : null}
-
-        <div className="border-t p-2">
-          <button
-            type="button"
-            className="flex min-h-11 w-full items-center gap-2 rounded-md px-2 text-left text-sm font-medium text-foreground outline-none transition-colors hover:bg-muted/65 focus-visible:ring-2 focus-visible:ring-ring/35 disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={
-              administeredDepartments.isPending ||
-              !administeredDepartments.data?.length
-            }
-            onClick={() => {
-              setOpen(false);
-              onCreateProject();
-            }}
-          >
-            {administeredDepartments.isPending ? (
-              <LoaderCircle className="size-4 animate-spin" />
-            ) : (
-              <Plus className="size-4" />
-            )}
-            {administeredDepartments.isPending
-              ? t("projectSwitcher.checkingAccess")
-              : t("projectSwitcher.newProject")}
-          </button>
-          {!administeredDepartments.isPending &&
-          !administeredDepartments.data?.length ? (
-            <p className="px-2 pb-1 text-[11px] leading-4 text-muted-foreground">
-              {t("projectSwitcher.createRequiresAdmin")}
-            </p>
-          ) : null}
-        </div>
       </PopoverContent>
     </Popover>
   );

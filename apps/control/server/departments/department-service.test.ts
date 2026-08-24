@@ -32,9 +32,24 @@ describe("DepartmentService", () => {
           displayName: "Local Administrator",
           role: "administrator",
           status: "active",
+          projects: [
+            {
+              id: "individual",
+              roles: ["admin", "developer"],
+            },
+          ],
         },
       ],
-      projects: [{ memberCount: 1 }],
+      projects: [
+        {
+          memberCount: 1,
+          instanceCount: 0,
+          mcpIntegrationCount: 0,
+          knowledgeBaseCount: 0,
+          modelCount: 0,
+          routingCount: 0,
+        },
+      ],
     });
   });
 

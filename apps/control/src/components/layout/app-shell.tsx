@@ -152,6 +152,7 @@ export function routeUsesFullBleedLayout(pathname: string): boolean {
   const normalizedPathname = pathname.replace(/\/$/, "");
   return normalizedPathname === "/platform/settings"
     || /^\/departments\/[^/]+$/.test(normalizedPathname)
+    || /^\/[^/]+\/setting$/.test(normalizedPathname)
     || /^\/[^/]+\/help$/.test(normalizedPathname);
 }
 
@@ -224,15 +225,11 @@ function ProjectSidebar({ createProjectOpen, logout, onCreateProjectOpenChange, 
           </Link>
           <ProjectSwitcher
             collapsed={!isMobile && state === "collapsed"}
-            onCreateProject={() => {
-              setOpenMobile(false);
-              onCreateProjectOpenChange(true);
-            }}
+            onProjectSettingsOpen={() => setOpenMobile(false)}
             onProjectSwitchSuccess={(projectName) => {
               setOpenMobile(false);
               setToastProject(projectName);
             }}
-            onProjectSettingsOpen={() => setOpenMobile(false)}
           />
         </SidebarHeader>
         <SidebarContent>

@@ -479,9 +479,13 @@ export class ProjectService {
       throw new Error("Department not found or unavailable.");
     }
     const projectName = projectNameSchema.parse(name);
-    const projectId = requestedProjectId
-      ? projectIdSchema.parse(requestedProjectId)
-      : `${slug(projectName)}-${randomUUID().slice(0, 8)}`;
+    const suffix = randomUUID().slice(0, 8);
+    const generatedProjectId = `${slug(projectName)
+      .slice(0, 48 - suffix.length - 1)
+      .replace(/-+$/, "")}-${suffix}`;
+    const projectId = projectIdSchema.parse(
+      requestedProjectId ?? generatedProjectId,
+    );
     const duplicateId = await this.db.project.findUnique({
       where: { id: projectId },
       select: { id: true },

@@ -111,7 +111,7 @@ export function AccountMenu({
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link to="/$projectId/profile" params={{ projectId }}>
+          <Link to="/$projectId/account" params={{ projectId }}>
             <CircleUserRound className="size-4" />
             {t("account.account")}
           </Link>

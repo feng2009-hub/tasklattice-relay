@@ -44,6 +44,7 @@ import platformSandboxDefaultsMigration from "../../prisma/migrations/2026082403
 import ssoRoleBindingsMigration from "../../prisma/migrations/20260824040000_sso_role_bindings/migration.sql?raw";
 import builtinRoleCatalogMigration from "../../prisma/migrations/20260824050000_builtin_role_catalog/migration.sql?raw";
 import departmentSettingsMigration from "../../prisma/migrations/20260824060000_department_settings/migration.sql?raw";
+import compactSsoGroupPathsMigration from "../../prisma/migrations/20260824070000_compact_sso_group_paths/migration.sql?raw";
 import { developmentResourceCatalog } from "../catalog/development-resource-catalog";
 import { PrismaClient } from "../generated/prisma/client";
 
@@ -466,6 +467,17 @@ export function createTestPrisma(): PrismaClient {
   );
   memory.public.none(
     departmentSettingsMigration.replaceAll("DECIMAL(18, 6)", "NUMERIC"),
+  );
+  memory.public.none(
+    compactSsoGroupPathsMigration
+      .replace(
+        /ALTER TABLE "tasklattice"\."external_role_bindings"\s+DROP CONSTRAINT "external_role_bindings_subject_path_check";/,
+        "",
+      )
+      .replace(
+        /ALTER TABLE "tasklattice"\."external_role_bindings"\s+ADD CONSTRAINT "external_role_bindings_subject_path_check" CHECK \([\s\S]*?\n  \);/,
+        "",
+      ),
   );
   const pg = memory.adapters.createPg();
   const query = pg.Client.prototype.query;

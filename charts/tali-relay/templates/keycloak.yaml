@@ -158,37 +158,32 @@ data:
           "name": "tali",
           "subGroups": [
             {
-              "name": "platform",
+              "name": "r",
               "subGroups": [
-                {
-                  "name": "roles",
-                  "subGroups": [
-                    { "name": "ROLE_PLATFORM_ADMIN" }
-                  ]
-                }
+                { "name": "ROLE_PLATFORM_ADMIN" }
               ]
             },
             {
-              "name": "departments",
+              "name": "d",
               "subGroups": [
                 {
                   "name": "dep1",
                   "subGroups": [
                     {
-                      "name": "roles",
+                      "name": "r",
                       "subGroups": [
                         { "name": "ROLE_DEPARTMENT_ADMIN" },
                         { "name": "ROLE_DEPARTMENT_MEMBER" }
                       ]
                     },
                     {
-                      "name": "projects",
+                      "name": "p",
                       "subGroups": [
                         {
                           "name": "proj1",
                           "subGroups": [
                             {
-                              "name": "roles",
+                              "name": "r",
                               "subGroups": [
                                 { "name": "ROLE_PROJECT_ADMIN" },
                                 { "name": "ROLE_AGENT_DEVELOPER" },

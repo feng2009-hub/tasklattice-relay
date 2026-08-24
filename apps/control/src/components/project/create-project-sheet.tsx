@@ -1,10 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
-  projectIdSchema,
   projectNameSchema,
-  scopedEntityIdFromName,
-  scopedEntityIdLimits,
   scopedEntityNameLimits,
 } from "@tali/contracts";
 import { Building2, LockKeyhole, Plus, Trash2 } from "lucide-react";
@@ -54,9 +51,6 @@ export function CreateProjectSheet({
   const { currentProject } = useProject();
   const [departmentId, setDepartmentId] = useState("");
   const [name, setName] = useState("");
-  const [projectId, setProjectId] = useState("");
-  const [projectIdEdited, setProjectIdEdited] = useState(false);
-  const [nameConfirmed, setNameConfirmed] = useState(false);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<ProjectRole>("developer");
   const [invitations, setInvitations] = useState<InitialInvitation[]>([]);
@@ -72,7 +66,6 @@ export function CreateProjectSheet({
   });
   const availableDepartments = departmentOptions ?? departments.data;
   const validatedName = projectNameSchema.safeParse(name);
-  const validatedProjectId = projectIdSchema.safeParse(projectId);
 
   useEffect(() => {
     if (!open || !availableDepartments) return;
@@ -95,9 +88,6 @@ export function CreateProjectSheet({
   const reset = () => {
     setDepartmentId("");
     setName("");
-    setProjectId("");
-    setProjectIdEdited(false);
-    setNameConfirmed(false);
     setEmail("");
     setRole("developer");
     setInvitations([]);
@@ -108,9 +98,7 @@ export function CreateProjectSheet({
   const create = useMutation({
     mutationFn: () =>
       (authority === "platform" ? createPlatformProject : createProject)({
-        confirmImmutableName: true,
         departmentId,
-        id: projectId.trim(),
         name: name.trim(),
         invitations,
       }),
@@ -170,13 +158,7 @@ export function CreateProjectSheet({
             Cancel
           </Button>
           <Button
-            disabled={
-              !departmentId ||
-              !validatedName.success ||
-              !validatedProjectId.success ||
-              !nameConfirmed ||
-              create.isPending
-            }
+            disabled={!departmentId || !validatedName.success || create.isPending}
             onClick={() => create.mutate()}
           >
             {create.isPending ? <Spinner /> : <Plus />}
@@ -244,12 +226,7 @@ export function CreateProjectSheet({
             maxLength={scopedEntityNameLimits.max}
             aria-invalid={Boolean(name) && !validatedName.success}
             onChange={(event) => {
-              const nextName = event.target.value;
-              setName(nextName);
-              if (!projectIdEdited) {
-                setProjectId(scopedEntityIdFromName(nextName));
-              }
-              setNameConfirmed(false);
+              setName(event.target.value);
               create.reset();
             }}
             placeholder="AI Trading Agent"
@@ -268,56 +245,6 @@ export function CreateProjectSheet({
             </p>
           ) : null}
         </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="new-project-id">Project ID</Label>
-          <Input
-            id="new-project-id"
-            className="h-11 font-mono"
-            value={projectId}
-            maxLength={scopedEntityIdLimits.max}
-            onChange={(event) => {
-              setProjectIdEdited(true);
-              setProjectId(event.target.value.toLowerCase());
-              setNameConfirmed(false);
-              create.reset();
-            }}
-            placeholder="ai-trading-agent"
-            aria-describedby="new-project-id-help"
-            aria-invalid={Boolean(projectId) && !validatedProjectId.success}
-            required
-          />
-          <p id="new-project-id-help" className="text-xs leading-5 text-muted-foreground">
-            Immutable, globally unique ID used in URLs, APIs, resource ownership,
-            and SSO paths. Use {scopedEntityIdLimits.min}–{scopedEntityIdLimits.max}
-            lowercase letters, numbers, or hyphens.
-          </p>
-          {projectId && !validatedProjectId.success ? (
-            <p className="text-xs text-destructive" role="alert">
-              {validatedProjectId.error.issues[0]?.message}
-            </p>
-          ) : null}
-        </div>
-
-        <label className="flex min-h-11 cursor-pointer items-start gap-3 border bg-muted/20 px-4 py-3 text-sm">
-          <input
-            type="checkbox"
-            className="mt-0.5 size-4 shrink-0 accent-current"
-            checked={nameConfirmed}
-            disabled={!validatedName.success || !validatedProjectId.success}
-            onChange={(event) => setNameConfirmed(event.target.checked)}
-          />
-          <span>
-            <strong className="block font-medium">
-              Confirm the permanent Project identity
-            </strong>
-            <span className="mt-1 block text-xs leading-5 text-muted-foreground">
-              I have reviewed “{name.trim() || "Project name"}” with ID “
-              {projectId || "project-id"}” and understand that neither value
-              can be changed later.
-            </span>
-          </span>
-        </label>
 
         <section aria-labelledby="project-creator-heading">
           <div className="flex items-start justify-between gap-4">

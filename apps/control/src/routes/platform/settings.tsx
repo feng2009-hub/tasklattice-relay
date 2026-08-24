@@ -5,6 +5,7 @@ import {
   type AuthorizationCapabilityDefinitionView,
   type BuiltinRoleView,
   builtinProjectRoleIds,
+  canonicalExternalRoleGroupPath,
   departmentRoleIds,
   departmentIdSchema,
   departmentNameSchema,
@@ -51,6 +52,11 @@ import {
 import { useAuth } from "@/components/auth/auth-provider";
 import { AgentPlatformIcon } from "@/components/agents/agent-platform-icon";
 import { ContextSidebarLayout } from "@/components/layout/context-sidebar-layout";
+import {
+  ContextSettingsMobileNavigation,
+  ContextSettingsSidebar,
+  type ContextSettingsSectionGroup,
+} from "@/components/layout/context-settings-navigation";
 import { CreateProjectSheet } from "@/components/project/create-project-sheet";
 import { EntitySheet } from "@/components/shared/entity-sheet";
 import { ProviderIcon } from "@/components/providers/provider-icon";
@@ -67,22 +73,10 @@ import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-} from "@/components/ui/sidebar";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -125,12 +119,6 @@ export const Route = createFileRoute("/platform/settings")({
   component: PlatformSettingsPage,
 });
 
-type PlatformSectionItem = {
-  id: PlatformSettingsSection;
-  label: string;
-  icon: typeof Building2;
-};
-
 const sectionGroups = [
   {
     label: "People & access",
@@ -155,10 +143,7 @@ const sectionGroups = [
       { id: "email", label: "Email Delivery", icon: Mail },
     ],
   },
-] as const satisfies ReadonlyArray<{
-  label: string;
-  items: readonly PlatformSectionItem[];
-}>;
+] as const satisfies readonly ContextSettingsSectionGroup<PlatformSettingsSection>[];
 
 function PlatformSettingsPage() {
   const { user } = useAuth();
@@ -186,15 +171,25 @@ function PlatformSettingsPage() {
     <ContextSidebarLayout
       sidebarWidth="15rem"
       sidebar={(
-        <PlatformContextSidebar
+        <ContextSettingsSidebar
+          ariaLabel="Platform settings sections"
           disabled={user?.systemRole !== "platform_administrator"}
+          groups={sectionGroups}
+          header={(
+            <>
+              <strong className="font-display text-xl font-medium">Platform</strong>
+              <span className="text-xs text-muted-foreground">Platform Administrator</span>
+            </>
+          )}
           section={section}
           onSectionChange={changeSection}
         />
       )}
       mobileNavigation={(
-        <PlatformMobileNavigation
+        <ContextSettingsMobileNavigation
+          ariaLabel="Platform settings section"
           disabled={user?.systemRole !== "platform_administrator"}
+          groups={sectionGroups}
           section={section}
           onSectionChange={changeSection}
         />
@@ -294,89 +289,6 @@ function PlatformSettingsPage() {
         {section === "email" ? <EmailSettings settings={settings.data} /> : null}
       </section>
     </div>,
-  );
-}
-
-function PlatformContextSidebar({
-  disabled,
-  onSectionChange,
-  section,
-}: {
-  disabled: boolean;
-  onSectionChange: (section: PlatformSettingsSection) => void;
-  section: PlatformSettingsSection;
-}) {
-  return (
-    <>
-      <SidebarHeader className="h-16 shrink-0 justify-center border-b border-sidebar-border px-5 py-0">
-        <strong className="font-display text-xl font-medium">Platform</strong>
-        <span className="text-xs text-muted-foreground">Platform Administrator</span>
-      </SidebarHeader>
-      <SidebarContent className="py-3">
-        <nav aria-label="Platform settings sections">
-          {sectionGroups.map((group) => (
-            <SidebarGroup key={group.label}>
-              <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {group.items.map((item) => (
-                    <SidebarMenuItem key={item.id}>
-                      <SidebarMenuButton
-                        type="button"
-                        size="lg"
-                        className="h-11"
-                        disabled={disabled}
-                        isActive={section === item.id}
-                        aria-current={section === item.id ? "page" : undefined}
-                        onClick={() => onSectionChange(item.id)}
-                      >
-                        <item.icon />
-                        <span>{item.label}</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          ))}
-        </nav>
-      </SidebarContent>
-    </>
-  );
-}
-
-function PlatformMobileNavigation({
-  disabled,
-  onSectionChange,
-  section,
-}: {
-  disabled: boolean;
-  onSectionChange: (section: PlatformSettingsSection) => void;
-  section: PlatformSettingsSection;
-}) {
-  return (
-    <Select
-      disabled={disabled}
-      value={section}
-      onValueChange={(value) => onSectionChange(value as PlatformSettingsSection)}
-    >
-      <SelectTrigger size="lg" className="w-full" aria-label="Platform settings section">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {sectionGroups.map((group) => (
-          <SelectGroup key={group.label}>
-            <SelectLabel>{group.label}</SelectLabel>
-            {group.items.map((item) => (
-              <SelectItem key={item.id} value={item.id}>
-                <item.icon />
-                {item.label}
-              </SelectItem>
-            ))}
-          </SelectGroup>
-        ))}
-      </SelectContent>
-    </Select>
   );
 }
 
@@ -1681,7 +1593,6 @@ function ExternalRoleBindingSheet({
   const [roleId, setRoleId] = useState<ExternalRoleBindingInput["roleId"]>(
     "ROLE_AGENT_DEVELOPER",
   );
-  const [group, setGroup] = useState("");
 
   const selectedDepartment = organization.data?.departments.find(
     (department) => department.id === departmentId,
@@ -1692,16 +1603,15 @@ function ExternalRoleBindingSheet({
       : scope === "DEPARTMENT"
         ? departmentRoleIds
         : builtinProjectRoleIds;
-  const canonicalGroup = scope === "PLATFORM"
-    ? `/tali/platform/roles/${roleId}`
-    : scope === "DEPARTMENT" && departmentId
-      ? `/tali/departments/${departmentId}/roles/${roleId}`
-      : scope === "PROJECT" && departmentId && projectId
-        ? `/tali/departments/${departmentId}/projects/${projectId}/roles/${roleId}`
-        : "";
+  const canonicalGroup = canonicalExternalRoleGroupPath({
+    scope,
+    departmentId: scope === "PLATFORM" ? null : departmentId || null,
+    projectId: scope === "PROJECT" ? projectId || null : null,
+    roleId,
+  }) ?? "";
   const draft: ExternalRoleBindingInput = {
     enabled: true,
-    group: group.trim() || canonicalGroup,
+    group: canonicalGroup,
     scope,
     departmentId: scope === "PLATFORM" ? null : departmentId || null,
     projectId: scope === "PROJECT" ? projectId || null : null,
@@ -1714,7 +1624,6 @@ function ExternalRoleBindingSheet({
     setDepartmentId("");
     setProjectId("");
     setRoleId("ROLE_AGENT_DEVELOPER");
-    setGroup("");
   };
   const close = () => {
     if (pending) return;
@@ -1725,7 +1634,6 @@ function ExternalRoleBindingSheet({
     setScope(next);
     setDepartmentId("");
     setProjectId("");
-    setGroup("");
     setRoleId(
       next === "PLATFORM"
         ? "ROLE_PLATFORM_ADMIN"
@@ -1774,7 +1682,7 @@ function ExternalRoleBindingSheet({
         {scope !== "PLATFORM" ? (
           <div className="space-y-2">
             <Label htmlFor="binding-department">Department</Label>
-            <Select value={departmentId} onValueChange={(value) => { setDepartmentId(value); setProjectId(""); setGroup(""); }}>
+            <Select value={departmentId} onValueChange={(value) => { setDepartmentId(value); setProjectId(""); }}>
               <SelectTrigger id="binding-department" size="lg" className="w-full"><SelectValue placeholder={organization.isPending ? "Loading Departments…" : "Select Department"} /></SelectTrigger>
               <SelectContent>
                 {organization.data?.departments.map((department) => (
@@ -1787,7 +1695,7 @@ function ExternalRoleBindingSheet({
         {scope === "PROJECT" ? (
           <div className="space-y-2">
             <Label htmlFor="binding-project">Project</Label>
-            <Select value={projectId} onValueChange={(value) => { setProjectId(value); setGroup(""); }} disabled={!departmentId}>
+            <Select value={projectId} onValueChange={setProjectId} disabled={!departmentId}>
               <SelectTrigger id="binding-project" size="lg" className="w-full"><SelectValue placeholder="Select Project" /></SelectTrigger>
               <SelectContent>
                 {selectedDepartment?.projects.map((project) => (
@@ -1799,7 +1707,7 @@ function ExternalRoleBindingSheet({
         ) : null}
         <div className="space-y-2">
           <Label htmlFor="binding-role">Role</Label>
-          <Select value={roleId} onValueChange={(value) => { setRoleId(value as ExternalRoleBindingInput["roleId"]); setGroup(""); }}>
+          <Select value={roleId} onValueChange={(value) => setRoleId(value as ExternalRoleBindingInput["roleId"])}>
             <SelectTrigger id="binding-role" size="lg" className="w-full"><SelectValue /></SelectTrigger>
             <SelectContent>
               {roleOptions.map((role) => (
@@ -1813,18 +1721,14 @@ function ExternalRoleBindingSheet({
           <Input
             id="binding-group"
             className="h-11 font-mono text-xs"
-            value={group}
-            onChange={(event) => setGroup(event.target.value)}
-            placeholder={canonicalGroup || "/tali/departments/department-id/projects/project-id/roles/ROLE_ID"}
+            value={canonicalGroup}
+            readOnly
+            aria-readonly="true"
+            placeholder={canonicalGroup || "/tali/d/department-id/p/project-id/r/ROLE_ID"}
           />
           <p className="text-xs leading-5 text-muted-foreground">
-            Leave blank to use the generated canonical path. Matching is exact and case-sensitive.
+            Generated from the selected scope, stable IDs, and Role. Matching is exact and case-sensitive.
           </p>
-          {canonicalGroup ? (
-            <button type="button" className="break-all text-left font-mono text-xs text-primary hover:underline" onClick={() => setGroup(canonicalGroup)}>
-              {canonicalGroup}
-            </button>
-          ) : null}
         </div>
         {error ? (
           <p className="border-l-2 border-destructive bg-destructive/5 px-3 py-2 text-sm text-destructive" role="alert">{error}</p>

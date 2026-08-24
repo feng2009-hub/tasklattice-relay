@@ -32,12 +32,23 @@ export interface DepartmentDetailView extends DepartmentSummaryView {
     email: string;
     role: DepartmentRole;
     status: "active" | "suspended";
+    projects: Array<{
+      id: string;
+      name: string;
+      roles: Array<"admin" | "auditor" | "developer" | "user" | "reviewer">;
+    }>;
   }>;
   projects: Array<{
     id: string;
     name: string;
     hardBudgetUsd: number | null;
     memberCount: number;
+    instanceCount: number;
+    mcpIntegrationCount: number;
+    knowledgeBaseCount: number;
+    modelCount: number;
+    routingCount: number;
+    inheritedSettingsRevision: number | null;
   }>;
 }
 
@@ -152,13 +163,56 @@ export class DepartmentService {
         ...summaryInclude,
         members: {
           where: { status: "active" },
-          include: { user: true },
+          include: {
+            user: {
+              include: {
+                memberships: {
+                  where: {
+                    project: { departmentId, deletedAt: null },
+                    OR: [
+                      { manualAccess: true },
+                      { externalAccessActive: true },
+                    ],
+                  },
+                  include: {
+                    project: { select: { id: true, name: true } },
+                    roleAssignments: {
+                      where: {
+                        OR: [
+                          { manualAssignment: true },
+                          { externalAssignmentActive: true },
+                        ],
+                      },
+                      select: { role: true },
+                    },
+                  },
+                  orderBy: { joinedAt: "asc" },
+                },
+              },
+            },
+          },
           orderBy: { joinedAt: "asc" },
         },
         projects: {
           where: { deletedAt: null },
           include: {
-            _count: { select: { humanMembers: true } },
+            _count: {
+              select: {
+                agents: true,
+                humanMembers: {
+                  where: {
+                    OR: [
+                      { manualAccess: true },
+                      { externalAccessActive: true },
+                    ],
+                  },
+                },
+                knowledgeSources: true,
+                mcpServers: true,
+                modelDeployments: true,
+                modelRoutings: true,
+              },
+            },
             quota: { select: { hardBudgetUsd: true } },
           },
           orderBy: { createdAt: "asc" },
@@ -175,6 +229,15 @@ export class DepartmentService {
         email: membership.user.email,
         role: membership.role,
         status: membership.status as "active" | "suspended",
+        projects: membership.user.memberships.map((projectMembership) => ({
+          id: projectMembership.project.id,
+          name: projectMembership.project.name,
+          roles: (projectMembership.roleAssignments.length
+            ? projectMembership.roleAssignments.map((assignment) => assignment.role)
+            : [projectMembership.role]) as Array<
+              "admin" | "auditor" | "developer" | "user" | "reviewer"
+            >,
+        })),
       })),
       projects: department.projects.map((project) => ({
         id: project.id,
@@ -185,6 +248,12 @@ export class DepartmentService {
             ? null
             : Number(project.quota.hardBudgetUsd),
         memberCount: project._count.humanMembers,
+        instanceCount: project._count.agents,
+        mcpIntegrationCount: project._count.mcpServers,
+        knowledgeBaseCount: project._count.knowledgeSources,
+        modelCount: project._count.modelDeployments,
+        routingCount: project._count.modelRoutings,
+        inheritedSettingsRevision: project.inheritedDepartmentSettingsRevision,
       })),
     };
   }

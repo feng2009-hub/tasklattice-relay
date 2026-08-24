@@ -245,19 +245,20 @@ keycloak:
       firstName: Alice
       lastName: Operator
       groups:
-        - /tali/departments/dep1/projects/proj1/roles/ROLE_PROJECT_ADMIN
+        - /tali/d/dep1/p/proj1/r/ROLE_PROJECT_ADMIN
     - id: 71000000-0000-4000-8000-000000000001
       username: adm
       email: adm@tali.test
       firstName: Development
       lastName: Administrator
       groups:
-        - /tali/platform/roles/ROLE_PLATFORM_ADMIN
-        - /tali/departments/dep1/projects/proj1/roles/ROLE_PROJECT_ADMIN
-        - /tali/departments/dep1/projects/proj1/roles/ROLE_AUDITOR
-        - /tali/departments/dep1/projects/proj1/roles/ROLE_AGENT_DEVELOPER
-        - /tali/departments/dep1/projects/proj1/roles/ROLE_REVIEWER
-        - /tali/departments/dep1/projects/proj1/roles/ROLE_USER
+        - /tali/r/ROLE_PLATFORM_ADMIN
+        - /tali/d/dep1/r/ROLE_DEPARTMENT_ADMIN
+        - /tali/d/dep1/p/proj1/r/ROLE_PROJECT_ADMIN
+        - /tali/d/dep1/p/proj1/r/ROLE_AUDITOR
+        - /tali/d/dep1/p/proj1/r/ROLE_AGENT_DEVELOPER
+        - /tali/d/dep1/p/proj1/r/ROLE_REVIEWER
+        - /tali/d/dep1/p/proj1/r/ROLE_USER
     - id: 71000000-0000-4000-8000-000000000007
       username: sso-admin
       email: sso-admin@tali.test
@@ -266,54 +267,55 @@ keycloak:
       # Test-only override. Other users use secrets.keycloakTestUserPassword.
       password: admin
       groups:
-        - /tali/platform/roles/ROLE_PLATFORM_ADMIN
-        - /tali/departments/dep1/projects/proj1/roles/ROLE_PROJECT_ADMIN
-        - /tali/departments/dep1/projects/proj1/roles/ROLE_AUDITOR
-        - /tali/departments/dep1/projects/proj1/roles/ROLE_AGENT_DEVELOPER
-        - /tali/departments/dep1/projects/proj1/roles/ROLE_REVIEWER
-        - /tali/departments/dep1/projects/proj1/roles/ROLE_USER
+        - /tali/r/ROLE_PLATFORM_ADMIN
+        - /tali/d/dep1/r/ROLE_DEPARTMENT_ADMIN
+        - /tali/d/dep1/p/proj1/r/ROLE_PROJECT_ADMIN
+        - /tali/d/dep1/p/proj1/r/ROLE_AUDITOR
+        - /tali/d/dep1/p/proj1/r/ROLE_AGENT_DEVELOPER
+        - /tali/d/dep1/p/proj1/r/ROLE_REVIEWER
+        - /tali/d/dep1/p/proj1/r/ROLE_USER
     - id: 71000000-0000-4000-8000-000000000002
       username: project-admin
       email: project-admin@tali.test
       firstName: Project
       lastName: Administrator
       groups:
-        - /tali/departments/dep1/projects/proj1/roles/ROLE_PROJECT_ADMIN
+        - /tali/d/dep1/p/proj1/r/ROLE_PROJECT_ADMIN
     - id: 71000000-0000-4000-8000-000000000008
       username: department-admin
       email: department-admin@tali.test
       firstName: Department
       lastName: Administrator
       groups:
-        - /tali/departments/dep1/roles/ROLE_DEPARTMENT_ADMIN
+        - /tali/d/dep1/r/ROLE_DEPARTMENT_ADMIN
     - id: 71000000-0000-4000-8000-000000000003
       username: developer
       email: developer@tali.test
       firstName: Agent
       lastName: Developer
       groups:
-        - /tali/departments/dep1/projects/proj1/roles/ROLE_AGENT_DEVELOPER
+        - /tali/d/dep1/p/proj1/r/ROLE_AGENT_DEVELOPER
     - id: 71000000-0000-4000-8000-000000000004
       username: reviewer
       email: reviewer@tali.test
       firstName: Change
       lastName: Reviewer
       groups:
-        - /tali/departments/dep1/projects/proj1/roles/ROLE_REVIEWER
+        - /tali/d/dep1/p/proj1/r/ROLE_REVIEWER
     - id: 71000000-0000-4000-8000-000000000005
       username: end-user
       email: end-user@tali.test
       firstName: Project
       lastName: User
       groups:
-        - /tali/departments/dep1/projects/proj1/roles/ROLE_USER
+        - /tali/d/dep1/p/proj1/r/ROLE_USER
     - id: 71000000-0000-4000-8000-000000000006
       username: auditor
       email: auditor@tali.test
       firstName: Project
       lastName: Auditor
       groups:
-        - /tali/departments/dep1/projects/proj1/roles/ROLE_AUDITOR
+        - /tali/d/dep1/p/proj1/r/ROLE_AUDITOR
   resources:
     requests:
       cpu: 250m

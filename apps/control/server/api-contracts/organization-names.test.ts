@@ -6,6 +6,7 @@ import {
   scopedEntityIdFromName,
 } from "@tali/contracts";
 import { describe, expect, it } from "vitest";
+import { createProjectInputSchema } from "./schemas";
 
 describe("Department and Project naming rules", () => {
   it("normalizes display-name width and spacing without restricting languages", () => {
@@ -30,5 +31,17 @@ describe("Department and Project naming rules", () => {
     for (const id of ["Agent_Platform", "-agent", "agent-", "a"]) {
       expect(projectIdSchema.safeParse(id).success).toBe(false);
     }
+  });
+
+  it("accepts Project creation without a client-supplied ID", () => {
+    expect(createProjectInputSchema.parse({
+      departmentId: "dep1",
+      invitations: [],
+      name: "AI Platform",
+    })).toEqual({
+      departmentId: "dep1",
+      invitations: [],
+      name: "AI Platform",
+    });
   });
 });

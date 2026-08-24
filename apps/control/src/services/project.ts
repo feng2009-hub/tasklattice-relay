@@ -45,9 +45,7 @@ export async function getProjectMembers(projectId: string): Promise<HumanProject
 }
 
 export async function createProject(input: {
-  confirmImmutableName: true;
   departmentId: string;
-  id: string;
   invitations: Array<{ email: string; role: ProjectRole }>;
   name: string;
 }): Promise<Project> {

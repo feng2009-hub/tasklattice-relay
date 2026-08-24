@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   Database,
+  FolderKanban,
   Gauge,
   LockKeyhole,
   Route as RouteIcon,
@@ -9,10 +10,16 @@ import {
   Trash2,
   Users,
 } from "lucide-react";
+import { ContextSidebarLayout } from "@/components/layout/context-sidebar-layout";
+import {
+  ContextSettingsMobileNavigation,
+  ContextSettingsSidebar,
+  type ContextSettingsSectionGroup,
+} from "@/components/layout/context-settings-navigation";
 import { PageHeader } from "@/components/layout/page-header";
 import { ProjectModelRoutingsSettings } from "@/components/project/project-model-routing-settings";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProjectMembers } from "@/components/project/project-members";
 import { ProjectQuotaSettings } from "@/components/project/project-quota-settings";
 import { DeleteProjectSheet } from "@/components/project/delete-project-sheet";
@@ -42,7 +49,29 @@ type ProjectSettingsSection =
   | "routing"
   | "quota";
 
+const sectionGroups = [
+  {
+    label: "Project",
+    items: [
+      { id: "settings", label: "General", icon: FolderKanban },
+      { id: "members", label: "Members", icon: Users },
+    ],
+  },
+  {
+    label: "Models & routing",
+    items: [
+      { id: "models", label: "Models", icon: Database },
+      { id: "routing", label: "Routing", icon: RouteIcon },
+    ],
+  },
+  {
+    label: "Governance",
+    items: [{ id: "quota", label: "Quota", icon: Gauge }],
+  },
+] as const satisfies readonly ContextSettingsSectionGroup<ProjectSettingsSection>[];
+
 function ProjectSettingsPage() {
+  const { projectId } = Route.useParams();
   const navigate = Route.useNavigate();
   const { section = "settings" } = Route.useSearch();
   const {
@@ -51,115 +80,112 @@ function ProjectSettingsPage() {
     selectProject,
   } = useProject();
   const permissions = useProjectPermissions();
+  const changeSection = (next: ProjectSettingsSection) => {
+    void navigate({ replace: true, search: { section: next } });
+  };
+  const renderLayout = (content: ReactNode) => (
+    <ContextSidebarLayout
+      sidebarWidth="15rem"
+      sidebar={(
+        <ContextSettingsSidebar
+          ariaLabel="Project settings sections"
+          disabled={!permissions.canManageProject}
+          groups={sectionGroups}
+          header={(
+            <>
+              <strong className="truncate font-display text-xl font-medium">
+                {project?.name ?? projectId}
+              </strong>
+              <span className="text-xs text-muted-foreground">Project Administrator</span>
+            </>
+          )}
+          section={section}
+          onSectionChange={changeSection}
+        />
+      )}
+      mobileNavigation={(
+        <ContextSettingsMobileNavigation
+          ariaLabel="Project settings section"
+          disabled={!permissions.canManageProject}
+          groups={sectionGroups}
+          section={section}
+          onSectionChange={changeSection}
+        />
+      )}
+    >
+      {content}
+    </ContextSidebarLayout>
+  );
 
   if (!project) {
-    return (
+    return renderLayout(
       <div className="grid min-h-72 place-items-center text-sm text-muted-foreground">
         Loading Project settings…
-      </div>
+      </div>,
     );
   }
 
   if (!permissions.canManageProject) {
-    return (
+    return renderLayout(
       <section
-        className="mx-auto max-w-xl rounded-lg border bg-background p-6"
+        className="mx-auto max-w-xl px-6 py-16 text-center"
         aria-labelledby="project-settings-restricted"
       >
-        <ShieldCheck className="size-8 text-muted-foreground" />
+        <span className="mx-auto grid size-12 place-items-center rounded-full border bg-muted/35 text-muted-foreground">
+          <ShieldCheck className="size-5" />
+        </span>
         <h1
           id="project-settings-restricted"
-          className="mt-4 font-sans text-2xl font-semibold"
+          className="mt-5 font-display text-2xl font-medium"
         >
           Project settings are restricted
         </h1>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
           Only Project administrators can manage Project identity, members,
           models, routing, and quota. Your personal details remain available
-          from Personal profile in the account menu.
+          from Account in the account menu.
         </p>
-      </section>
+      </section>,
     );
   }
 
-  return (
-    <div className="space-y-6">
+  return renderLayout(
+    <div className="mx-auto w-full max-w-[1600px] space-y-7 p-5 sm:p-6 lg:p-8">
       <PageHeader
-        title="Project settings"
+        title="Project Setting"
+        badge={(
+          <Badge className="border-primary/20 bg-primary/7 text-primary" variant="outline">
+            <ShieldCheck />
+            Project Administrator
+          </Badge>
+        )}
         description="Manage Project identity, human membership, models, routing, and quota."
       />
 
-      <section className="overflow-hidden rounded-lg border bg-background">
-        <Tabs
-          value={section}
-          onValueChange={(value) => {
-            void navigate({
-              replace: true,
-              search: { section: value as ProjectSettingsSection },
-            });
-          }}
-        >
-          <TabsList
-            variant="line"
-            className="w-full justify-start overflow-x-auto overflow-y-hidden px-2"
-          >
-            <TabsTrigger value="settings" className="h-11">
-              <ShieldCheck />
-              General
-            </TabsTrigger>
-            <TabsTrigger value="members" className="h-11">
-              <Users />
-              Members
-            </TabsTrigger>
-            <TabsTrigger value="models" className="h-11">
-              <Database />
-              Models
-            </TabsTrigger>
-            <TabsTrigger value="routing" className="h-11">
-              <RouteIcon />
-              Routing
-            </TabsTrigger>
-            <TabsTrigger value="quota" className="h-11">
-              <Gauge />
-              Quota
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="settings" className="mt-0">
-            <ProjectGeneralSettings
-              project={project}
-              onDeleted={async () => {
-                const remaining = await refreshProjects();
-                const fallback = remaining.find(
-                  (candidate) => candidate.id !== project.id,
-                );
-                if (fallback) await selectProject(fallback.id);
-              }}
-            />
-          </TabsContent>
-          <TabsContent value="members" className="mt-0">
-            <ProjectMembers project={project} />
-          </TabsContent>
-          {section === "models" || section === "routing" ? (
-            <TabsContent value={section} className="mt-0">
-              <ProjectModelRoutingsSettings
-                project={project}
-                view={section}
-                onViewChange={(value) => {
-                  void navigate({
-                    replace: true,
-                    search: { section: value },
-                  });
-                }}
-              />
-            </TabsContent>
-          ) : null}
-          <TabsContent value="quota" className="mt-0">
-            <ProjectQuotaSettings project={project} />
-          </TabsContent>
-        </Tabs>
+      <section className="min-w-0 overflow-hidden border-b">
+        {section === "settings" ? (
+          <ProjectGeneralSettings
+            project={project}
+            onDeleted={async () => {
+              const remaining = await refreshProjects();
+              const fallback = remaining.find(
+                (candidate) => candidate.id !== project.id,
+              );
+              if (fallback) await selectProject(fallback.id);
+            }}
+          />
+        ) : null}
+        {section === "members" ? <ProjectMembers project={project} /> : null}
+        {section === "models" || section === "routing" ? (
+          <ProjectModelRoutingsSettings
+            project={project}
+            view={section}
+            onViewChange={changeSection}
+          />
+        ) : null}
+        {section === "quota" ? <ProjectQuotaSettings project={project} /> : null}
       </section>
-    </div>
+    </div>,
   );
 }
 
@@ -175,6 +201,15 @@ function ProjectGeneralSettings({
 
   return (
     <div className="divide-y">
+      <div className="flex flex-col justify-between gap-3 p-5 sm:flex-row sm:items-start">
+        <div>
+          <h2 className="text-lg font-semibold">Project profile</h2>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            Review the immutable Project identity used by URLs, audit records, and resource ownership.
+          </p>
+        </div>
+      </div>
+
       <div className="space-y-3 p-5">
         <span className="text-sm font-medium">Project name</span>
         <div className="flex min-h-12 max-w-lg items-center gap-3 border bg-muted/20 px-4">
@@ -183,7 +218,7 @@ function ProjectGeneralSettings({
           <span className="shrink-0 text-xs font-medium text-muted-foreground">Immutable</span>
         </div>
         <p className="max-w-2xl text-xs leading-5 text-muted-foreground">
-          Project names are unique across TaskLattice Relay and are permanently fixed at creation. This protects stable URLs, audit records, and resource ownership.
+          Project names are unique inside their Department and are permanently fixed at creation. This protects stable URLs, audit records, and resource ownership.
         </p>
       </div>
 

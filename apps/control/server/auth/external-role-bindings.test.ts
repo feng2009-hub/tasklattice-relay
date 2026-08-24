@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { externalRoleBindingInputSchema } from "@tali/contracts";
 import { createTestPrisma } from "../test/prisma";
 import { DepartmentService } from "../departments/department-service";
 import {
@@ -35,17 +36,36 @@ describe("external SSO role bindings", () => {
     });
   });
 
+  it("accepts only canonical compact Group paths", () => {
+    const target = {
+      enabled: true,
+      scope: "PROJECT" as const,
+      departmentId: "dep1",
+      projectId: "individual",
+      roleId: "ROLE_AGENT_DEVELOPER" as const,
+    };
+
+    expect(externalRoleBindingInputSchema.safeParse({
+      ...target,
+      group: "/tali/d/dep1/p/individual/r/ROLE_AGENT_DEVELOPER",
+    }).success).toBe(true);
+    expect(externalRoleBindingInputSchema.safeParse({
+      ...target,
+      group: "/tali/custom/ROLE_AGENT_DEVELOPER",
+    }).success).toBe(false);
+  });
+
   it("reads exact Group paths from the configured verified token claim", () => {
     const token = idToken({
       groups: [
-        "/tali/platform/roles/ROLE_PLATFORM_ADMIN",
-        "/tali/departments/dep1/projects/individual/roles/ROLE_AGENT_DEVELOPER",
-        "/tali/platform/roles/ROLE_PLATFORM_ADMIN",
+        "/tali/r/ROLE_PLATFORM_ADMIN",
+        "/tali/d/dep1/p/individual/r/ROLE_AGENT_DEVELOPER",
+        "/tali/r/ROLE_PLATFORM_ADMIN",
       ],
     });
     expect(groupsFromVerifiedIdToken(token, "groups")).toEqual([
-      "/tali/platform/roles/ROLE_PLATFORM_ADMIN",
-      "/tali/departments/dep1/projects/individual/roles/ROLE_AGENT_DEVELOPER",
+      "/tali/r/ROLE_PLATFORM_ADMIN",
+      "/tali/d/dep1/p/individual/r/ROLE_AGENT_DEVELOPER",
     ]);
     expect(() => groupsFromVerifiedIdToken(idToken({ groups: { bad: true } }), "groups"))
       .toThrow("must be a string or string array");
@@ -58,7 +78,7 @@ describe("external SSO role bindings", () => {
           id: "binding-platform-admin",
           providerId: corporateSsoProviderId,
           subjectType: "GROUP",
-          subjectValue: "/tali/platform/roles/ROLE_PLATFORM_ADMIN",
+          subjectValue: "/tali/r/ROLE_PLATFORM_ADMIN",
           scope: "PLATFORM",
           roleId: "ROLE_PLATFORM_ADMIN",
         },
@@ -66,7 +86,7 @@ describe("external SSO role bindings", () => {
           id: "binding-project-developer",
           providerId: corporateSsoProviderId,
           subjectType: "GROUP",
-          subjectValue: "/tali/departments/dep1/projects/individual/roles/ROLE_AGENT_DEVELOPER",
+          subjectValue: "/tali/d/dep1/p/individual/r/ROLE_AGENT_DEVELOPER",
           scope: "PROJECT",
           departmentId: "dep1",
           projectId: "individual",
@@ -79,8 +99,8 @@ describe("external SSO role bindings", () => {
       "keycloak-alice",
       idToken({
         groups: [
-          "/tali/platform/roles/ROLE_PLATFORM_ADMIN",
-          "/tali/departments/dep1/projects/individual/roles/ROLE_AGENT_DEVELOPER",
+          "/tali/r/ROLE_PLATFORM_ADMIN",
+          "/tali/d/dep1/p/individual/r/ROLE_AGENT_DEVELOPER",
         ],
       }),
       "groups",
@@ -144,7 +164,7 @@ describe("external SSO role bindings", () => {
         id: "binding-department-admin",
         providerId: corporateSsoProviderId,
         subjectType: "GROUP",
-        subjectValue: "/tali/departments/dep1/roles/ROLE_DEPARTMENT_ADMIN",
+        subjectValue: "/tali/d/dep1/r/ROLE_DEPARTMENT_ADMIN",
         scope: "DEPARTMENT",
         departmentId: "dep1",
         roleId: "ROLE_DEPARTMENT_ADMIN",
@@ -154,7 +174,7 @@ describe("external SSO role bindings", () => {
     await synchronizeExternalRoleBindings(
       "keycloak-alice",
       idToken({
-        groups: ["/tali/departments/dep1/roles/ROLE_DEPARTMENT_ADMIN"],
+        groups: ["/tali/d/dep1/r/ROLE_DEPARTMENT_ADMIN"],
       }),
       "groups",
       db,
@@ -190,7 +210,7 @@ describe("external SSO role bindings", () => {
           id: "binding-project-developer",
           providerId: corporateSsoProviderId,
           subjectType: "GROUP",
-          subjectValue: "/tali/departments/dep1/projects/individual/roles/ROLE_AGENT_DEVELOPER",
+          subjectValue: "/tali/d/dep1/p/individual/r/ROLE_AGENT_DEVELOPER",
           scope: "PROJECT",
           departmentId: "dep1",
           projectId: "individual",
@@ -200,7 +220,7 @@ describe("external SSO role bindings", () => {
           id: "binding-project-admin",
           providerId: corporateSsoProviderId,
           subjectType: "GROUP",
-          subjectValue: "/tali/departments/dep1/projects/individual/roles/ROLE_PROJECT_ADMIN",
+          subjectValue: "/tali/d/dep1/p/individual/r/ROLE_PROJECT_ADMIN",
           scope: "PROJECT",
           departmentId: "dep1",
           projectId: "individual",
@@ -213,8 +233,8 @@ describe("external SSO role bindings", () => {
       "keycloak-alice",
       idToken({
         groups: [
-          "/tali/departments/dep1/projects/individual/roles/ROLE_AGENT_DEVELOPER",
-          "/tali/departments/dep1/projects/individual/roles/ROLE_PROJECT_ADMIN",
+          "/tali/d/dep1/p/individual/r/ROLE_AGENT_DEVELOPER",
+          "/tali/d/dep1/p/individual/r/ROLE_PROJECT_ADMIN",
         ],
       }),
       "groups",

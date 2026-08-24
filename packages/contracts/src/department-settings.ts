@@ -2,6 +2,8 @@ import { z } from "zod";
 
 export const departmentSettingsSections = [
   "general",
+  "projects",
+  "people",
   "models",
   "routing",
   "quota",

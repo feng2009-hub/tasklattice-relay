@@ -6,6 +6,7 @@ import type {
 } from "./authorization.js";
 import {
   builtinProjectRoleIds,
+  canonicalExternalRoleGroupPath,
   departmentRoleIds,
   externalRoleIds,
   platformRoleIds,
@@ -235,6 +236,14 @@ export const externalRoleBindingInputSchema = z.object({
         message: "Select a Project role for a Project binding.",
       });
     }
+  }
+  const canonicalGroup = canonicalExternalRoleGroupPath(value);
+  if (canonicalGroup && value.group !== canonicalGroup) {
+    context.addIssue({
+      code: "custom",
+      path: ["group"],
+      message: `Use the canonical Keycloak Group path ${canonicalGroup}.`,
+    });
   }
 });
 

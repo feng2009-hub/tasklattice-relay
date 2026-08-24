@@ -173,6 +173,7 @@ describe("ProjectService", () => {
       activeRole: "admin",
       assignedRoles: ["admin"],
     });
+    expect(team.id).toMatch(/^ai-platform-[a-f0-9]{8}$/);
     expect(team).not.toHaveProperty("type");
     await expect(db.projectQuotaRecord.findUniqueOrThrow({
       where: { projectId: team.id },

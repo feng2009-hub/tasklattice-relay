@@ -281,6 +281,24 @@ export const externalRoleIds = [
 ] as const;
 export type ExternalRoleId = (typeof externalRoleIds)[number];
 
+export function canonicalExternalRoleGroupPath(input: {
+  scope: AuthorizationScope;
+  departmentId: string | null;
+  projectId: string | null;
+  roleId: ExternalRoleId;
+}): string | null {
+  if (input.scope === "PLATFORM") {
+    return `/tali/r/${input.roleId}`;
+  }
+  if (input.scope === "DEPARTMENT" && input.departmentId) {
+    return `/tali/d/${input.departmentId}/r/${input.roleId}`;
+  }
+  if (input.scope === "PROJECT" && input.departmentId && input.projectId) {
+    return `/tali/d/${input.departmentId}/p/${input.projectId}/r/${input.roleId}`;
+  }
+  return null;
+}
+
 export const projectMembershipRoles = [
   "admin",
   "auditor",

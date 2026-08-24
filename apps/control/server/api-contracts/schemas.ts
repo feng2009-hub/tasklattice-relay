@@ -137,11 +137,8 @@ export const projectInvitationInputSchema = z.object({
 }).meta({ id: "ProjectInvitationInput" });
 
 export const createProjectInputSchema = z.object({
-  confirmImmutableName: z.literal(true, {
-    error: "Confirm that the Project name cannot be changed after creation.",
-  }),
   departmentId: id.max(80),
-  id: projectIdSchema,
+  id: projectIdSchema.optional(),
   name: projectNameSchema,
   invitations: z.array(projectInvitationInputSchema).max(25),
 }).superRefine(({ invitations }, context) => {

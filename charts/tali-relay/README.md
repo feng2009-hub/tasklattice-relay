@@ -339,20 +339,21 @@ credentials in **Platform Setting -> Security & SSO**, keep the Group claim as
 `groups`, and add the exact test bindings represented by these Group paths:
 
 ```text
-/tali/platform/roles/ROLE_PLATFORM_ADMIN
-/tali/departments/dep1/roles/ROLE_DEPARTMENT_ADMIN
-/tali/departments/dep1/projects/proj1/roles/ROLE_PROJECT_ADMIN
-/tali/departments/dep1/projects/proj1/roles/ROLE_AUDITOR
-/tali/departments/dep1/projects/proj1/roles/ROLE_AGENT_DEVELOPER
-/tali/departments/dep1/projects/proj1/roles/ROLE_REVIEWER
-/tali/departments/dep1/projects/proj1/roles/ROLE_USER
+/tali/r/ROLE_PLATFORM_ADMIN
+/tali/d/dep1/r/ROLE_DEPARTMENT_ADMIN
+/tali/d/dep1/p/proj1/r/ROLE_PROJECT_ADMIN
+/tali/d/dep1/p/proj1/r/ROLE_AUDITOR
+/tali/d/dep1/p/proj1/r/ROLE_AGENT_DEVELOPER
+/tali/d/dep1/p/proj1/r/ROLE_REVIEWER
+/tali/d/dep1/p/proj1/r/ROLE_USER
 ```
 
-`adm` and `sso-admin` are both Platform Administrators and members of every
-built-in `proj1` Project role so the complete authorization surface can be
-exercised during development. `sso-admin` uses its explicit per-user test
-password; the other profiles use `secrets.keycloakTestUserPassword`. The
-remaining users isolate one administrative scope or Project role each. A
+`adm` and `sso-admin` are both Platform Administrators, `dep1` Department
+Administrators, and members of every built-in `proj1` Project role so the
+complete authorization surface can be exercised during development.
+`sso-admin` uses its explicit per-user test password; the other profiles use
+`secrets.keycloakTestUserPassword`. The remaining users isolate one
+administrative scope or Project role each. A
 successful SSO sign-in
 materializes the corresponding externally managed Project membership and shows
 each binding's last-match time in Platform Setting. Use an independently

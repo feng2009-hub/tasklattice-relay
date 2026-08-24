@@ -65,7 +65,10 @@ describe("Project control-plane navigation", () => {
     expect(routeUsesFullBleedLayout("/proj1/help/")).toBe(true);
     expect(routeUsesFullBleedLayout("/departments/dep1")).toBe(true);
     expect(routeUsesFullBleedLayout("/departments/dep1/")).toBe(true);
+    expect(routeUsesFullBleedLayout("/proj1/setting")).toBe(true);
+    expect(routeUsesFullBleedLayout("/proj1/setting/")).toBe(true);
     expect(routeUsesFullBleedLayout("/proj1/instances")).toBe(false);
     expect(routeUsesFullBleedLayout("/proj1/help/article")).toBe(false);
+    expect(routeUsesFullBleedLayout("/proj1/setting/model-routings/routing-1")).toBe(false);
   });
 });

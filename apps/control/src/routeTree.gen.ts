@@ -12,13 +12,13 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ProjectIdIndexRouteImport } from './routes/$projectId/index'
+import { Route as ProjectIdAccountRouteImport } from './routes/$projectId/account'
 import { Route as ProjectIdCostRouteImport } from './routes/$projectId/cost'
 import { Route as ProjectIdHelpRouteImport } from './routes/$projectId/help'
 import { Route as ProjectIdKnowledgeBaseRouteImport } from './routes/$projectId/knowledge-base'
 import { Route as ProjectIdMcpServersRouteImport } from './routes/$projectId/mcp-servers'
 import { Route as ProjectIdMemoryRouteImport } from './routes/$projectId/memory'
 import { Route as ProjectIdNotificationsRouteImport } from './routes/$projectId/notifications'
-import { Route as ProjectIdProfileRouteImport } from './routes/$projectId/profile'
 import { Route as ProjectIdRuntimeRouteImport } from './routes/$projectId/runtime'
 import { Route as ProjectIdRuntimePoliciesRouteImport } from './routes/$projectId/runtime-policies'
 import { Route as ProjectIdSkillsRouteImport } from './routes/$projectId/skills'
@@ -52,6 +52,11 @@ const ProjectIdIndexRoute = ProjectIdIndexRouteImport.update({
   path: '/$projectId/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProjectIdAccountRoute = ProjectIdAccountRouteImport.update({
+  id: '/$projectId/account',
+  path: '/$projectId/account',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProjectIdCostRoute = ProjectIdCostRouteImport.update({
   id: '/$projectId/cost',
   path: '/$projectId/cost',
@@ -80,11 +85,6 @@ const ProjectIdMemoryRoute = ProjectIdMemoryRouteImport.update({
 const ProjectIdNotificationsRoute = ProjectIdNotificationsRouteImport.update({
   id: '/$projectId/notifications',
   path: '/$projectId/notifications',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProjectIdProfileRoute = ProjectIdProfileRouteImport.update({
-  id: '/$projectId/profile',
-  path: '/$projectId/profile',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProjectIdRuntimeRoute = ProjectIdRuntimeRouteImport.update({
@@ -183,13 +183,13 @@ const ProjectIdSettingModelRoutingsRoutingIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/$projectId/account': typeof ProjectIdAccountRoute
   '/$projectId/cost': typeof ProjectIdCostRoute
   '/$projectId/help': typeof ProjectIdHelpRoute
   '/$projectId/knowledge-base': typeof ProjectIdKnowledgeBaseRoute
   '/$projectId/mcp-servers': typeof ProjectIdMcpServersRoute
   '/$projectId/memory': typeof ProjectIdMemoryRoute
   '/$projectId/notifications': typeof ProjectIdNotificationsRoute
-  '/$projectId/profile': typeof ProjectIdProfileRoute
   '/$projectId/runtime': typeof ProjectIdRuntimeRoute
   '/$projectId/runtime-policies': typeof ProjectIdRuntimePoliciesRoute
   '/$projectId/skills': typeof ProjectIdSkillsRoute
@@ -212,13 +212,13 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/$projectId/account': typeof ProjectIdAccountRoute
   '/$projectId/cost': typeof ProjectIdCostRoute
   '/$projectId/help': typeof ProjectIdHelpRoute
   '/$projectId/knowledge-base': typeof ProjectIdKnowledgeBaseRoute
   '/$projectId/mcp-servers': typeof ProjectIdMcpServersRoute
   '/$projectId/memory': typeof ProjectIdMemoryRoute
   '/$projectId/notifications': typeof ProjectIdNotificationsRoute
-  '/$projectId/profile': typeof ProjectIdProfileRoute
   '/$projectId/runtime': typeof ProjectIdRuntimeRoute
   '/$projectId/runtime-policies': typeof ProjectIdRuntimePoliciesRoute
   '/$projectId/skills': typeof ProjectIdSkillsRoute
@@ -242,13 +242,13 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/$projectId/account': typeof ProjectIdAccountRoute
   '/$projectId/cost': typeof ProjectIdCostRoute
   '/$projectId/help': typeof ProjectIdHelpRoute
   '/$projectId/knowledge-base': typeof ProjectIdKnowledgeBaseRoute
   '/$projectId/mcp-servers': typeof ProjectIdMcpServersRoute
   '/$projectId/memory': typeof ProjectIdMemoryRoute
   '/$projectId/notifications': typeof ProjectIdNotificationsRoute
-  '/$projectId/profile': typeof ProjectIdProfileRoute
   '/$projectId/runtime': typeof ProjectIdRuntimeRoute
   '/$projectId/runtime-policies': typeof ProjectIdRuntimePoliciesRoute
   '/$projectId/skills': typeof ProjectIdSkillsRoute
@@ -273,13 +273,13 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/$projectId/account'
     | '/$projectId/cost'
     | '/$projectId/help'
     | '/$projectId/knowledge-base'
     | '/$projectId/mcp-servers'
     | '/$projectId/memory'
     | '/$projectId/notifications'
-    | '/$projectId/profile'
     | '/$projectId/runtime'
     | '/$projectId/runtime-policies'
     | '/$projectId/skills'
@@ -302,13 +302,13 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/login'
+    | '/$projectId/account'
     | '/$projectId/cost'
     | '/$projectId/help'
     | '/$projectId/knowledge-base'
     | '/$projectId/mcp-servers'
     | '/$projectId/memory'
     | '/$projectId/notifications'
-    | '/$projectId/profile'
     | '/$projectId/runtime'
     | '/$projectId/runtime-policies'
     | '/$projectId/skills'
@@ -331,13 +331,13 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/login'
+    | '/$projectId/account'
     | '/$projectId/cost'
     | '/$projectId/help'
     | '/$projectId/knowledge-base'
     | '/$projectId/mcp-servers'
     | '/$projectId/memory'
     | '/$projectId/notifications'
-    | '/$projectId/profile'
     | '/$projectId/runtime'
     | '/$projectId/runtime-policies'
     | '/$projectId/skills'
@@ -361,13 +361,13 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LoginRoute: typeof LoginRoute
+  ProjectIdAccountRoute: typeof ProjectIdAccountRoute
   ProjectIdCostRoute: typeof ProjectIdCostRoute
   ProjectIdHelpRoute: typeof ProjectIdHelpRoute
   ProjectIdKnowledgeBaseRoute: typeof ProjectIdKnowledgeBaseRoute
   ProjectIdMcpServersRoute: typeof ProjectIdMcpServersRoute
   ProjectIdMemoryRoute: typeof ProjectIdMemoryRoute
   ProjectIdNotificationsRoute: typeof ProjectIdNotificationsRoute
-  ProjectIdProfileRoute: typeof ProjectIdProfileRoute
   ProjectIdRuntimeRoute: typeof ProjectIdRuntimeRoute
   ProjectIdRuntimePoliciesRoute: typeof ProjectIdRuntimePoliciesRoute
   ProjectIdSkillsRoute: typeof ProjectIdSkillsRoute
@@ -411,6 +411,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectIdIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/$projectId/account': {
+      id: '/$projectId/account'
+      path: '/$projectId/account'
+      fullPath: '/$projectId/account'
+      preLoaderRoute: typeof ProjectIdAccountRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/$projectId/cost': {
       id: '/$projectId/cost'
       path: '/$projectId/cost'
@@ -451,13 +458,6 @@ declare module '@tanstack/react-router' {
       path: '/$projectId/notifications'
       fullPath: '/$projectId/notifications'
       preLoaderRoute: typeof ProjectIdNotificationsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/$projectId/profile': {
-      id: '/$projectId/profile'
-      path: '/$projectId/profile'
-      fullPath: '/$projectId/profile'
-      preLoaderRoute: typeof ProjectIdProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$projectId/runtime': {
@@ -585,13 +585,13 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LoginRoute: LoginRoute,
+  ProjectIdAccountRoute: ProjectIdAccountRoute,
   ProjectIdCostRoute: ProjectIdCostRoute,
   ProjectIdHelpRoute: ProjectIdHelpRoute,
   ProjectIdKnowledgeBaseRoute: ProjectIdKnowledgeBaseRoute,
   ProjectIdMcpServersRoute: ProjectIdMcpServersRoute,
   ProjectIdMemoryRoute: ProjectIdMemoryRoute,
   ProjectIdNotificationsRoute: ProjectIdNotificationsRoute,
-  ProjectIdProfileRoute: ProjectIdProfileRoute,
   ProjectIdRuntimeRoute: ProjectIdRuntimeRoute,
   ProjectIdRuntimePoliciesRoute: ProjectIdRuntimePoliciesRoute,
   ProjectIdSkillsRoute: ProjectIdSkillsRoute,

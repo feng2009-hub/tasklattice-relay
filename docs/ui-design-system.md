@@ -93,11 +93,20 @@ States:
 - SSO callback: show a single-purpose completion state, then validate the
   returned TaskLattice Relay session before entering the Project console.
 - Expired session: clear stored credentials and return to login.
-- Project switcher: switch Project context and expose Project settings to
-  administrators; it never owns session actions.
+- Project switcher: search and switch Project context. The current Project row
+  exposes a separate 44px settings action to Project Administrators; the row
+  itself remains dedicated to context switching. Project creation remains in
+  Department settings.
+- Settings navigation: Platform, Department, and Project settings share
+  `ContextSidebarLayout`, `ContextSettingsSidebar`, and the same grouped mobile
+  selector. The scope-specific content changes, but the two-sidebar navigation
+  model does not.
 - My Account: open from the account menu and contain user-owned details,
   accessible Projects, account type, theme, local time zone, and local-account
-  password reset independently of the current Project.
+  password reset independently of the current Project. For SSO accounts, the
+  Security section exposes a safe, read-only diagnostic view of provider,
+  issuer, subject, scopes, group claim, resolved groups, and synchronization
+  time; raw tokens and secrets never reach the browser.
 - Sign out: live only in the account menu. Local accounts clear the Relay
   session directly. OIDC accounts first clear the Relay session and then use
   the Provider's token-revocation and RP-Initiated Logout endpoints. Relay also
