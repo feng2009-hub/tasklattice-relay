@@ -11,7 +11,6 @@ import {
   FileLock2,
   FileClock,
   Network,
-  Search,
   ServerCog,
   Settings2,
   ShieldCheck,
@@ -38,7 +37,6 @@ import {
   SidebarMenuItem,
   SidebarProvider,
   SidebarRail,
-  SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
@@ -51,7 +49,7 @@ import {
   getPersonalProfile,
   personalProfileQueryKey,
 } from "@/services/personal-profile";
-import { HeaderBreadcrumb } from "@/components/layout/header-breadcrumb";
+import { WorkspaceHeader } from "@/components/layout/workspace-header";
 import { CreateProjectSheet } from "@/components/project/create-project-sheet";
 import { ProjectSwitcher } from "@/components/project/project-switcher";
 import {
@@ -366,6 +364,7 @@ export function AppShell() {
   const fullBleedRoute = routeUsesFullBleedLayout(pathname);
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [nestedSidebarOpen, setNestedSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (account.data) {
@@ -389,14 +388,24 @@ export function AppShell() {
     setSidebarOpen(window.localStorage.getItem("tali.sidebar.collapsed") !== "true");
   }, []);
 
+  useEffect(() => {
+    if (fullBleedRoute) setNestedSidebarOpen(false);
+  }, [fullBleedRoute, pathname]);
+
   const handleSidebarOpenChange = (open: boolean) => {
+    if (fullBleedRoute) {
+      setNestedSidebarOpen(open);
+      return;
+    }
     setSidebarOpen(open);
     window.localStorage.setItem("tali.sidebar.collapsed", String(!open));
   };
 
+  const activeSidebarOpen = fullBleedRoute ? nestedSidebarOpen : sidebarOpen;
+
   return (
     <TooltipProvider delayDuration={250}>
-      <SidebarProvider open={sidebarOpen} onOpenChange={handleSidebarOpenChange}>
+      <SidebarProvider open={activeSidebarOpen} onOpenChange={handleSidebarOpenChange}>
         <ProjectSidebar
           createProjectOpen={createProjectOpen}
           logout={logout}
@@ -405,13 +414,7 @@ export function AppShell() {
           user={user}
         />
         <SidebarInset>
-          <div className="sticky top-0 z-30 bg-background/94 backdrop-blur-md">
-            <header className="flex h-16 items-center gap-3 border-b px-4 sm:px-6 lg:px-8">
-              <SidebarTrigger label={t("navigation.toggle")} />
-              <HeaderBreadcrumb pathname={pathname} />
-              <button disabled className="ml-auto hidden h-9 w-64 cursor-not-allowed items-center gap-2 rounded-md border border-border/70 bg-muted/30 px-3 text-sm text-muted-foreground/45 md:flex"><Search className="size-3.5" />{t("search.label")}<span className="ml-auto text-[10px] uppercase">{t("search.planned")}</span></button>
-            </header>
-          </div>
+          {!fullBleedRoute ? <WorkspaceHeader /> : null}
           <main
             id="main-content"
             className={cn(

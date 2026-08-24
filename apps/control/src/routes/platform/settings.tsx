@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import {
@@ -28,6 +28,7 @@ import {
   Waypoints,
 } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-provider";
+import { ContextSidebarLayout } from "@/components/layout/context-sidebar-layout";
 import { CreateProjectSheet } from "@/components/project/create-project-sheet";
 import { ProviderIcon } from "@/components/providers/provider-icon";
 import { PageHeader } from "@/components/layout/page-header";
@@ -51,13 +52,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Sidebar,
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarHeader,
-  SidebarInset,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -128,8 +127,34 @@ function PlatformSettingsPage() {
     },
   });
 
+  const changeSection = (next: PlatformSettingsSection) => {
+    save.reset();
+    void navigate({ replace: true, search: { section: next } });
+  };
+  const renderLayout = (content: ReactNode) => (
+    <ContextSidebarLayout
+      sidebarWidth="15rem"
+      sidebar={(
+        <PlatformContextSidebar
+          disabled={user?.systemRole !== "platform_administrator"}
+          section={section}
+          onSectionChange={changeSection}
+        />
+      )}
+      mobileNavigation={(
+        <PlatformMobileNavigation
+          disabled={user?.systemRole !== "platform_administrator"}
+          section={section}
+          onSectionChange={changeSection}
+        />
+      )}
+    >
+      {content}
+    </ContextSidebarLayout>
+  );
+
   if (user?.systemRole !== "platform_administrator") {
-    return (
+    return renderLayout(
       <section className="mx-auto max-w-xl px-6 py-16 text-center" role="alert">
         <span className="mx-auto grid size-12 place-items-center rounded-full border bg-muted/35 text-muted-foreground">
           <ShieldAlert className="size-5" />
@@ -146,13 +171,13 @@ function PlatformSettingsPage() {
             </Link>
           </Button>
         ) : null}
-      </section>
+      </section>,
     );
   }
 
-  if (settings.isPending) return <PlatformSettingsSkeleton />;
+  if (settings.isPending) return renderLayout(<PlatformSettingsSkeleton />);
   if (settings.error || !settings.data) {
-    return (
+    return renderLayout(
       <section className="mx-auto max-w-xl px-6 py-16 text-center" role="alert">
         <ShieldAlert className="mx-auto size-8 text-destructive" />
         <h1 className="mt-4 text-xl font-semibold">Platform settings unavailable</h1>
@@ -163,120 +188,136 @@ function PlatformSettingsPage() {
           <RefreshCw />
           Try again
         </Button>
-      </section>
+      </section>,
     );
   }
 
   const update = (input: UpdatePlatformSettingsInput) => save.mutate(input);
-  const changeSection = (next: PlatformSettingsSection) => {
-    save.reset();
-    void navigate({ replace: true, search: { section: next } });
-  };
 
-  return (
-    <div
-      className="flex min-h-[calc(100svh-4rem)] w-full bg-background"
-      style={{ "--sidebar-width": "15rem" } as CSSProperties}
-    >
-      <Sidebar collapsible="none" className="hidden min-h-[calc(100svh-4rem)] shrink-0 border-r border-sidebar-border md:flex">
-        <SidebarHeader className="border-b border-sidebar-border px-5 py-5">
-          <strong className="font-display text-xl font-medium">Platform</strong>
-          <span className="text-xs text-muted-foreground">Platform Administrator</span>
-        </SidebarHeader>
-        <SidebarContent className="py-3">
-          <nav aria-label="Platform settings sections">
-            <SidebarGroup>
-              <SidebarGroupLabel>Platform settings</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {sectionItems.map((item) => (
-                    <SidebarMenuItem key={item.id}>
-                      <SidebarMenuButton
-                        type="button"
-                        size="lg"
-                        className="h-11"
-                        isActive={section === item.id}
-                        aria-current={section === item.id ? "page" : undefined}
-                        onClick={() => changeSection(item.id)}
-                      >
-                        <item.icon />
-                        <span>{item.label}</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          </nav>
-        </SidebarContent>
-      </Sidebar>
+  return renderLayout(
+    <div className="mx-auto w-full max-w-[1600px] space-y-7 p-5 sm:p-6 lg:p-8">
+      <PageHeader
+        title="Platform Setting"
+        badge={
+          <Badge className="border-primary/20 bg-primary/7 text-primary" variant="outline">
+            <ShieldCheck />
+            Platform Administrator
+          </Badge>
+        }
+        description="Manage platform-wide runtime defaults, Provider admission, and organizational structure. Quotas remain governed at the Department scope."
+      />
 
-      <SidebarInset className="min-h-[calc(100svh-4rem)]">
-        <div className="border-b border-sidebar-border p-4 md:hidden">
-          <Select value={section} onValueChange={(value) => changeSection(value as PlatformSettingsSection)}>
-            <SelectTrigger size="lg" className="w-full" aria-label="Platform settings section">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {sectionItems.map((item) => (
-                <SelectItem key={item.id} value={item.id}>
-                  <item.icon />
-                  {item.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+      {save.isSuccess ? (
+        <p className="flex items-center gap-2 border-l-2 border-emerald-500 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-300" role="status">
+          <CheckCircle2 className="size-4" />
+          Platform settings saved as revision {save.data.revision}.
+        </p>
+      ) : null}
+      {save.error ? (
+        <p className="border-l-2 border-destructive bg-destructive/5 px-4 py-3 text-sm text-destructive" role="alert">
+          {save.error.message}
+        </p>
+      ) : null}
 
-        <div className="mx-auto w-full max-w-[1600px] space-y-7 p-5 sm:p-6 lg:p-8">
-          <PageHeader
-            title="Platform Setting"
-            badge={
-              <Badge className="border-primary/20 bg-primary/7 text-primary" variant="outline">
-                <ShieldCheck />
-                Platform Administrator
-              </Badge>
-            }
-            description="Manage platform-wide runtime defaults, Provider admission, and organizational structure. Quotas remain governed at the Department scope."
+      <section className="min-w-0">
+        {section === "overview" ? (
+          <PlatformOverview settings={settings.data} onSectionChange={changeSection} />
+        ) : null}
+        {section === "runtime-images" ? (
+          <RuntimeImagesSettings
+            key={`runtime-${settings.data.revision}`}
+            settings={settings.data}
+            saving={save.isPending}
+            onSave={update}
           />
+        ) : null}
+        {section === "model-providers" ? (
+          <ModelProviderSettings
+            key={`providers-${settings.data.revision}`}
+            settings={settings.data}
+            saving={save.isPending}
+            onSave={update}
+          />
+        ) : null}
+        {section === "organization" ? <OrganizationSettings /> : null}
+      </section>
+    </div>,
+  );
+}
 
-          {save.isSuccess ? (
-            <p className="flex items-center gap-2 border-l-2 border-emerald-500 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-300" role="status">
-              <CheckCircle2 className="size-4" />
-              Platform settings saved as revision {save.data.revision}.
-            </p>
-          ) : null}
-          {save.error ? (
-            <p className="border-l-2 border-destructive bg-destructive/5 px-4 py-3 text-sm text-destructive" role="alert">
-              {save.error.message}
-            </p>
-          ) : null}
+function PlatformContextSidebar({
+  disabled,
+  onSectionChange,
+  section,
+}: {
+  disabled: boolean;
+  onSectionChange: (section: PlatformSettingsSection) => void;
+  section: PlatformSettingsSection;
+}) {
+  return (
+    <>
+      <SidebarHeader className="h-16 shrink-0 justify-center border-b border-sidebar-border px-5 py-0">
+        <strong className="font-display text-xl font-medium">Platform</strong>
+        <span className="text-xs text-muted-foreground">Platform Administrator</span>
+      </SidebarHeader>
+      <SidebarContent className="py-3">
+        <nav aria-label="Platform settings sections">
+          <SidebarGroup>
+            <SidebarGroupLabel>Platform settings</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {sectionItems.map((item) => (
+                  <SidebarMenuItem key={item.id}>
+                    <SidebarMenuButton
+                      type="button"
+                      size="lg"
+                      className="h-11"
+                      disabled={disabled}
+                      isActive={section === item.id}
+                      aria-current={section === item.id ? "page" : undefined}
+                      onClick={() => onSectionChange(item.id)}
+                    >
+                      <item.icon />
+                      <span>{item.label}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </nav>
+      </SidebarContent>
+    </>
+  );
+}
 
-          <section className="min-w-0">
-            {section === "overview" ? (
-              <PlatformOverview settings={settings.data} onSectionChange={changeSection} />
-            ) : null}
-            {section === "runtime-images" ? (
-              <RuntimeImagesSettings
-                key={`runtime-${settings.data.revision}`}
-                settings={settings.data}
-                saving={save.isPending}
-                onSave={update}
-              />
-            ) : null}
-            {section === "model-providers" ? (
-              <ModelProviderSettings
-                key={`providers-${settings.data.revision}`}
-                settings={settings.data}
-                saving={save.isPending}
-                onSave={update}
-              />
-            ) : null}
-            {section === "organization" ? <OrganizationSettings /> : null}
-          </section>
-        </div>
-      </SidebarInset>
-    </div>
+function PlatformMobileNavigation({
+  disabled,
+  onSectionChange,
+  section,
+}: {
+  disabled: boolean;
+  onSectionChange: (section: PlatformSettingsSection) => void;
+  section: PlatformSettingsSection;
+}) {
+  return (
+    <Select
+      disabled={disabled}
+      value={section}
+      onValueChange={(value) => onSectionChange(value as PlatformSettingsSection)}
+    >
+      <SelectTrigger size="lg" className="w-full" aria-label="Platform settings section">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {sectionItems.map((item) => (
+          <SelectItem key={item.id} value={item.id}>
+            <item.icon />
+            {item.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
@@ -296,9 +337,9 @@ function PlatformOverview({
   ];
   return (
     <div>
-      <div className="grid border-b sm:grid-cols-2 2xl:grid-cols-5">
+      <div className="grid border-b sm:grid-cols-2 lg:grid-cols-5">
         {summary.map((item) => (
-          <div key={item.label} className="flex min-h-24 items-center gap-3 border-b p-4 last:border-b-0 sm:nth-[2n]:border-l sm:nth-[n+4]:border-b-0 2xl:border-b-0 2xl:border-l 2xl:first:border-l-0">
+          <div key={item.label} className="flex min-h-24 items-center gap-3 border-b p-4 last:border-b-0 sm:even:border-l sm:last:col-span-2 lg:last:col-span-1 lg:border-b-0 lg:border-l lg:first:border-l-0">
             <span className="grid size-9 shrink-0 place-items-center rounded-md border bg-background text-muted-foreground">
               <item.icon className="size-4" />
             </span>
@@ -311,7 +352,7 @@ function PlatformOverview({
       </div>
 
       <div className="grid gap-6 p-5 lg:p-6 2xl:grid-cols-[minmax(0,1.15fr)_minmax(20rem,0.85fr)]">
-        <Card className="shadow-none">
+        <Card className="min-w-0 shadow-none">
           <CardHeader className="border-b">
             <CardTitle>Administration hierarchy</CardTitle>
             <CardDescription>Each administrator role has its own explicit scope.</CardDescription>
@@ -323,7 +364,7 @@ function PlatformOverview({
           </CardContent>
         </Card>
 
-        <div className="space-y-3">
+        <div className="min-w-0 space-y-3">
           <h2 className="text-sm font-semibold">Configuration status</h2>
           <OverviewAction
             icon={Container}
@@ -515,26 +556,11 @@ function SaveButton({ dirty, onClick, saving }: { dirty: boolean; onClick: () =>
 
 function PlatformSettingsSkeleton() {
   return (
-    <div
-      className="flex min-h-[calc(100svh-4rem)] w-full"
-      style={{ "--sidebar-width": "15rem" } as CSSProperties}
-      aria-label="Loading Platform Setting"
-    >
-      <div className="hidden w-(--sidebar-width) shrink-0 border-r p-5 md:block">
-        <div className="h-6 w-24 animate-pulse rounded-sm bg-muted/65" />
-        <div className="mt-2 h-4 w-32 animate-pulse rounded-sm bg-muted/50" />
-        <div className="mt-10 space-y-2">
-          {sectionItems.map((item) => (
-            <div key={item.id} className="h-10 animate-pulse rounded-md bg-muted/45" />
-          ))}
-        </div>
-      </div>
-      <div className="min-w-0 flex-1 p-5 sm:p-6 lg:p-8">
-        <div className="h-24 animate-pulse rounded-md bg-muted/65" />
-        <div className="mt-7 grid gap-5 border-t pt-6 2xl:grid-cols-2">
-          <div className="h-80 animate-pulse rounded-md bg-muted/45" />
-          <div className="h-80 animate-pulse rounded-md bg-muted/35" />
-        </div>
+    <div className="mx-auto w-full max-w-[1600px] p-5 sm:p-6 lg:p-8" aria-label="Loading Platform Setting">
+      <div className="h-24 animate-pulse rounded-md bg-muted/65" />
+      <div className="mt-7 grid gap-5 border-t pt-6 2xl:grid-cols-2">
+        <div className="h-80 animate-pulse rounded-md bg-muted/45" />
+        <div className="h-80 animate-pulse rounded-md bg-muted/35" />
       </div>
     </div>
   );

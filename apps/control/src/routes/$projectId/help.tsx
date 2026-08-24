@@ -1,5 +1,4 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import type { CSSProperties } from "react";
 import {
   BadgeCheck,
   BookOpenText,
@@ -14,6 +13,7 @@ import {
 } from "lucide-react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import { useTranslation } from "react-i18next";
+import { ContextSidebarLayout } from "@/components/layout/context-sidebar-layout";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -27,13 +27,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Sidebar,
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarHeader,
-  SidebarInset,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -205,62 +203,57 @@ function HelpPage() {
   };
 
   return (
-    <div
-      className="flex min-h-[calc(100svh-4rem)] w-full bg-background"
-      style={{ "--sidebar-width": "16rem" } as CSSProperties}
-    >
-      <Sidebar
-        collapsible="none"
-        className="hidden min-h-[calc(100svh-4rem)] shrink-0 border-r border-sidebar-border lg:flex"
-      >
-        <SidebarHeader className="border-b border-sidebar-border px-5 py-5">
-          <strong className="font-display text-xl font-medium">{t("title")}</strong>
-          <span className="text-xs text-muted-foreground">{t("navigation.title")}</span>
-        </SidebarHeader>
-        <SidebarContent className="py-3">
-          <nav aria-label={t("navigation.title")}>
-            <SidebarGroup>
-              <SidebarGroupLabel>{t("navigation.userGuides")}</SidebarGroupLabel>
-              <p className="px-3 pb-2 text-xs leading-5 text-muted-foreground">
-                {t("navigation.userGuidesDescription")}
-              </p>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {roleTopics.map((topic) => (
-                    <TopicLink
-                      key={topic.id}
-                      active={selectedTopicId === topic.id}
-                      projectId={projectId}
-                      topic={topic}
-                    />
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-            <SidebarGroup className="mt-2 border-t border-sidebar-border pt-3">
-              <SidebarGroupLabel>{t("navigation.operations")}</SidebarGroupLabel>
-              <p className="px-3 pb-2 text-xs leading-5 text-muted-foreground">
-                {t("navigation.operationsDescription")}
-              </p>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {operationsTopics.map((topic) => (
-                    <TopicLink
-                      key={topic.id}
-                      active={selectedTopicId === topic.id}
-                      projectId={projectId}
-                      topic={topic}
-                    />
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          </nav>
-        </SidebarContent>
-      </Sidebar>
-
-      <SidebarInset className="min-h-[calc(100svh-4rem)]">
-        <div className="border-b border-sidebar-border p-4 lg:hidden">
+    <ContextSidebarLayout
+      sidebar={(
+        <>
+          <SidebarHeader className="h-16 shrink-0 justify-center border-b border-sidebar-border px-5 py-0">
+            <strong className="font-display text-xl font-medium">{t("title")}</strong>
+            <span className="text-xs text-muted-foreground">{t("navigation.title")}</span>
+          </SidebarHeader>
+          <SidebarContent className="py-3">
+            <nav aria-label={t("navigation.title")}>
+              <SidebarGroup>
+                <SidebarGroupLabel>{t("navigation.userGuides")}</SidebarGroupLabel>
+                <p className="px-3 pb-2 text-xs leading-5 text-muted-foreground">
+                  {t("navigation.userGuidesDescription")}
+                </p>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    {roleTopics.map((topic) => (
+                      <TopicLink
+                        key={topic.id}
+                        active={selectedTopicId === topic.id}
+                        projectId={projectId}
+                        topic={topic}
+                      />
+                    ))}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+              <SidebarGroup className="mt-2 border-t border-sidebar-border pt-3">
+                <SidebarGroupLabel>{t("navigation.operations")}</SidebarGroupLabel>
+                <p className="px-3 pb-2 text-xs leading-5 text-muted-foreground">
+                  {t("navigation.operationsDescription")}
+                </p>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    {operationsTopics.map((topic) => (
+                      <TopicLink
+                        key={topic.id}
+                        active={selectedTopicId === topic.id}
+                        projectId={projectId}
+                        topic={topic}
+                      />
+                    ))}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            </nav>
+          </SidebarContent>
+        </>
+      )}
+      mobileNavigation={(
+        <>
           <label className="mb-2 block text-xs font-medium text-muted-foreground" htmlFor="help-topic-select">
             {t("browse")}
           </label>
@@ -291,42 +284,42 @@ function HelpPage() {
               </SelectGroup>
             </SelectContent>
           </Select>
-        </div>
+        </>
+      )}
+    >
+      <div className="mx-auto w-full max-w-5xl p-5 sm:p-6 lg:p-8">
+        <PageHeader
+          title={t("title")}
+          description={t("description")}
+          badge={
+            <Badge variant="outline" className="gap-1.5">
+              <BookOpenText />
+              {t("navigation.userGuides")} · {t("navigation.operations")}
+            </Badge>
+          }
+        />
 
-        <div className="mx-auto w-full max-w-5xl p-5 sm:p-6 lg:p-8">
-          <PageHeader
-            title={t("title")}
-            description={t("description")}
-            badge={
-              <Badge variant="outline" className="gap-1.5">
-                <BookOpenText />
-                {t("navigation.userGuides")} · {t("navigation.operations")}
+        <article className="mt-7 min-w-0">
+          <header className="border-b pb-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="secondary">
+                {selectedTopic.category === "role"
+                  ? t("navigation.userGuides")
+                  : t("navigation.operations")}
               </Badge>
-            }
-          />
-
-          <article className="mt-7 min-w-0">
-            <header className="border-b pb-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="secondary">
-                  {selectedTopic.category === "role"
-                    ? t("navigation.userGuides")
-                    : t("navigation.operations")}
+              {selectedTopic.id === roleTopicId ? (
+                <Badge variant="outline">{t("currentRole")}</Badge>
+              ) : null}
+              {selectedTopic.preview ? (
+                <Badge variant="outline" className="border-amber-500/35 text-amber-700 dark:text-amber-300">
+                  {t("preview")}
                 </Badge>
-                {selectedTopic.id === roleTopicId ? (
-                  <Badge variant="outline">{t("currentRole")}</Badge>
-                ) : null}
-                {selectedTopic.preview ? (
-                  <Badge variant="outline" className="border-amber-500/35 text-amber-700 dark:text-amber-300">
-                    {t("preview")}
-                  </Badge>
-                ) : null}
-              </div>
-            </header>
-            <MarkdownDocument body={selectedTopic.body} projectId={projectId} />
-          </article>
-        </div>
-      </SidebarInset>
-    </div>
+              ) : null}
+            </div>
+          </header>
+          <MarkdownDocument body={selectedTopic.body} projectId={projectId} />
+        </article>
+      </div>
+    </ContextSidebarLayout>
   );
 }
