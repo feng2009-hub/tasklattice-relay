@@ -26,6 +26,109 @@ data:
       "resetPasswordAllowed": true,
       "loginWithEmailAllowed": true,
       "duplicateEmailsAllowed": false,
+      "clientScopes": [
+        {
+          "name": "profile",
+          "description": "OpenID Connect profile claims",
+          "protocol": "openid-connect",
+          "attributes": {
+            "include.in.token.scope": "true",
+            "display.on.consent.screen": "true"
+          },
+          "protocolMappers": [
+            {
+              "name": "full name",
+              "protocol": "openid-connect",
+              "protocolMapper": "oidc-full-name-mapper",
+              "consentRequired": false,
+              "config": {
+                "id.token.claim": "true",
+                "access.token.claim": "true",
+                "userinfo.token.claim": "true"
+              }
+            },
+            {
+              "name": "preferred username",
+              "protocol": "openid-connect",
+              "protocolMapper": "oidc-usermodel-property-mapper",
+              "consentRequired": false,
+              "config": {
+                "user.attribute": "username",
+                "claim.name": "preferred_username",
+                "jsonType.label": "String",
+                "id.token.claim": "true",
+                "access.token.claim": "true",
+                "userinfo.token.claim": "true"
+              }
+            }
+          ]
+        },
+        {
+          "name": "email",
+          "description": "OpenID Connect email claims",
+          "protocol": "openid-connect",
+          "attributes": {
+            "include.in.token.scope": "true",
+            "display.on.consent.screen": "true"
+          },
+          "protocolMappers": [
+            {
+              "name": "email",
+              "protocol": "openid-connect",
+              "protocolMapper": "oidc-usermodel-property-mapper",
+              "consentRequired": false,
+              "config": {
+                "user.attribute": "email",
+                "claim.name": "email",
+                "jsonType.label": "String",
+                "id.token.claim": "true",
+                "access.token.claim": "true",
+                "userinfo.token.claim": "true"
+              }
+            },
+            {
+              "name": "email verified",
+              "protocol": "openid-connect",
+              "protocolMapper": "oidc-usermodel-property-mapper",
+              "consentRequired": false,
+              "config": {
+                "user.attribute": "emailVerified",
+                "claim.name": "email_verified",
+                "jsonType.label": "boolean",
+                "id.token.claim": "true",
+                "access.token.claim": "true",
+                "userinfo.token.claim": "true"
+              }
+            }
+          ]
+        },
+        {
+          "name": "groups",
+          "description": "TaskLattice Relay full Group paths",
+          "protocol": "openid-connect",
+          "attributes": {
+            "include.in.token.scope": "true",
+            "display.on.consent.screen": "false"
+          },
+          "protocolMappers": [
+            {
+              "name": "groups",
+              "protocol": "openid-connect",
+              "protocolMapper": "oidc-group-membership-mapper",
+              "consentRequired": false,
+              "config": {
+                "full.path": "true",
+                "id.token.claim": "true",
+                "access.token.claim": "true",
+                "userinfo.token.claim": "true",
+                "claim.name": "groups",
+                "jsonType.label": "String",
+                "multivalued": "true"
+              }
+            }
+          ]
+        }
+      ],
       "clients": [
         {
           "clientId": "tali-control-plane",
@@ -37,6 +140,8 @@ data:
           "secret": "${TALI_KEYCLOAK_CLIENT_SECRET}",
           "standardFlowEnabled": true,
           "directAccessGrantsEnabled": false,
+          "defaultClientScopes": ["profile", "email"],
+          "optionalClientScopes": ["groups"],
           "redirectUris": [
             {{ printf "%s/api/auth/callback/corporate-sso" (trimSuffix "/" .Values.control.publicUrl) | quote }}
           ],
@@ -46,6 +151,61 @@ data:
           "attributes": {
             "post.logout.redirect.uris": {{ printf "%s/*" (trimSuffix "/" .Values.control.publicUrl) | quote }}
           }
+        }
+      ],
+      "groups": [
+        {
+          "name": "tali",
+          "subGroups": [
+            {
+              "name": "platform",
+              "subGroups": [
+                {
+                  "name": "roles",
+                  "subGroups": [
+                    { "name": "ROLE_PLATFORM_ADMIN" }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "departments",
+              "subGroups": [
+                {
+                  "name": "dep1",
+                  "subGroups": [
+                    {
+                      "name": "roles",
+                      "subGroups": [
+                        { "name": "ROLE_DEPARTMENT_ADMIN" },
+                        { "name": "ROLE_DEPARTMENT_MEMBER" }
+                      ]
+                    },
+                    {
+                      "name": "projects",
+                      "subGroups": [
+                        {
+                          "name": "proj1",
+                          "subGroups": [
+                            {
+                              "name": "roles",
+                              "subGroups": [
+                                { "name": "ROLE_PROJECT_ADMIN" },
+                                { "name": "ROLE_AGENT_DEVELOPER" },
+                                { "name": "ROLE_AUDITOR" },
+                                { "name": "ROLE_REVIEWER" },
+                                { "name": "ROLE_USER" }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
         }
       ],
       "users": [
@@ -61,10 +221,11 @@ data:
           "lastName": {{ required "every keycloak.testUsers entry requires lastName" $user.lastName | quote }},
           "enabled": true,
           "emailVerified": true,
+          "groups": {{ toJson ($user.groups | default (list)) }},
           "credentials": [
             {
               "type": "password",
-              "value": "${TALI_KEYCLOAK_TEST_USER_PASSWORD}",
+              "value": {{ $user.password | default "${TALI_KEYCLOAK_TEST_USER_PASSWORD}" | quote }},
               "temporary": false
             }
           ]
@@ -91,7 +252,7 @@ spec:
       labels:
         {{- include "tali.selectorLabels" (dict "root" . "component" $component) | nindent 8 }}
       annotations:
-        checksum/realm: {{ printf "%s:%s" (toJson .Values.keycloak) .Values.control.publicUrl | sha256sum }}
+        checksum/realm: {{ printf "%s:%s:%d" (toJson .Values.keycloak) .Values.control.publicUrl .Release.Revision | sha256sum }}
         checksum/keycloak-secret: {{ include "tali.keycloakSecretChecksum" . }}
     spec:
       serviceAccountName: {{ include "tali.runtimeServiceAccountName" . }}

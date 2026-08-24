@@ -462,12 +462,6 @@ const missingOidcPublicUrlResult = spawnSync(
   templateArguments([
     "--set-string",
     "control.publicUrl=",
-    "--set",
-    "auth.oidc.enabled=true",
-    "--set-string",
-    "auth.oidc.issuer=https://identity.example.com",
-    "--set-string",
-    "auth.oidc.clientId=tali",
   ]),
   { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
 );
@@ -478,7 +472,7 @@ if (
   )
 ) {
   throw new Error(
-    "The Chart must require control.publicUrl in every authentication mode.",
+    "The Chart must require control.publicUrl for authentication callbacks and invitation links.",
   );
 }
 

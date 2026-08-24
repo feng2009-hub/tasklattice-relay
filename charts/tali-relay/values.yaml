@@ -99,19 +99,6 @@ control:
     extraEnv: []
   # Canonical browser origin used by Better Auth for cookies and callbacks.
   publicUrl: http://localhost:38080
-  smtp:
-    # Enables email delivery for invitations to users who do not already have
-    # a TaskLattice Relay account. Requires control.publicUrl.
-    enabled: false
-    host: ""
-    port: 587
-    # Use true for implicit TLS (normally port 465). Keep false for STARTTLS
-    # on port 587.
-    secure: false
-    username: ""
-    fromAddress: ""
-    fromName: TaskLattice Relay
-    replyTo: ""
   hostAliases: []
   service:
     type: LoadBalancer
@@ -141,7 +128,6 @@ projectRuntimeNamespaces:
   # Use a value unique to this Relay installation when the cluster is shared.
   # Runtime namespaces are named <namePrefix>-<stable project hash>.
   namePrefix: tali-p
-  deletionTimeoutSeconds: 120
 
 runner:
   replicaCount: 1
@@ -229,25 +215,18 @@ secrets:
   litellmUiUsername: admin
   litellmUiPassword: tali-local-admin
   litellmSaltKey: tali-local-litellm-salt-v1
-  smtpPassword: ""
 
 auth:
   local:
     enabled: true
     username: admin
     email: admin@tasklattice.local
-  oidc:
-    enabled: false
-    issuer: ""
-    clientId: ""
-    clientSecret: ""
-    displayName: Keycloak SSO
 
 # Test-only identity provider. Enable with:
 #   --set keycloak.enabled=true \
 #   --set keycloak.publicUrl=http://<reachable-keycloak-host>:8080
-# The embedded provider overrides auth.oidc while enabled. It uses ephemeral
-# storage and must not be used as a production identity provider.
+# The embedded provider is available for test environments. Configure its
+# OIDC client from Platform Setting after deployment.
 keycloak:
   enabled: false
   publicUrl: ""
@@ -265,6 +244,76 @@ keycloak:
       email: alice@tali.test
       firstName: Alice
       lastName: Operator
+      groups:
+        - /tali/departments/dep1/projects/proj1/roles/ROLE_PROJECT_ADMIN
+    - id: 71000000-0000-4000-8000-000000000001
+      username: adm
+      email: adm@tali.test
+      firstName: Development
+      lastName: Administrator
+      groups:
+        - /tali/platform/roles/ROLE_PLATFORM_ADMIN
+        - /tali/departments/dep1/projects/proj1/roles/ROLE_PROJECT_ADMIN
+        - /tali/departments/dep1/projects/proj1/roles/ROLE_AUDITOR
+        - /tali/departments/dep1/projects/proj1/roles/ROLE_AGENT_DEVELOPER
+        - /tali/departments/dep1/projects/proj1/roles/ROLE_REVIEWER
+        - /tali/departments/dep1/projects/proj1/roles/ROLE_USER
+    - id: 71000000-0000-4000-8000-000000000007
+      username: sso-admin
+      email: sso-admin@tali.test
+      firstName: SSO
+      lastName: Administrator
+      # Test-only override. Other users use secrets.keycloakTestUserPassword.
+      password: admin
+      groups:
+        - /tali/platform/roles/ROLE_PLATFORM_ADMIN
+        - /tali/departments/dep1/projects/proj1/roles/ROLE_PROJECT_ADMIN
+        - /tali/departments/dep1/projects/proj1/roles/ROLE_AUDITOR
+        - /tali/departments/dep1/projects/proj1/roles/ROLE_AGENT_DEVELOPER
+        - /tali/departments/dep1/projects/proj1/roles/ROLE_REVIEWER
+        - /tali/departments/dep1/projects/proj1/roles/ROLE_USER
+    - id: 71000000-0000-4000-8000-000000000002
+      username: project-admin
+      email: project-admin@tali.test
+      firstName: Project
+      lastName: Administrator
+      groups:
+        - /tali/departments/dep1/projects/proj1/roles/ROLE_PROJECT_ADMIN
+    - id: 71000000-0000-4000-8000-000000000008
+      username: department-admin
+      email: department-admin@tali.test
+      firstName: Department
+      lastName: Administrator
+      groups:
+        - /tali/departments/dep1/roles/ROLE_DEPARTMENT_ADMIN
+    - id: 71000000-0000-4000-8000-000000000003
+      username: developer
+      email: developer@tali.test
+      firstName: Agent
+      lastName: Developer
+      groups:
+        - /tali/departments/dep1/projects/proj1/roles/ROLE_AGENT_DEVELOPER
+    - id: 71000000-0000-4000-8000-000000000004
+      username: reviewer
+      email: reviewer@tali.test
+      firstName: Change
+      lastName: Reviewer
+      groups:
+        - /tali/departments/dep1/projects/proj1/roles/ROLE_REVIEWER
+    - id: 71000000-0000-4000-8000-000000000005
+      username: end-user
+      email: end-user@tali.test
+      firstName: Project
+      lastName: User
+      groups:
+        - /tali/departments/dep1/projects/proj1/roles/ROLE_USER
+    - id: 71000000-0000-4000-8000-000000000006
+      username: auditor
+      email: auditor@tali.test
+      firstName: Project
+      lastName: Auditor
+      groups:
+        - /tali/departments/dep1/projects/proj1/roles/ROLE_AUDITOR
   resources:
     requests:
       cpu: 250m

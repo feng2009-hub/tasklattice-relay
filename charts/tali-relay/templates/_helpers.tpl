@@ -94,18 +94,6 @@ app.kubernetes.io/component: {{ .component }}
 {{- if not .Values.control.publicUrl -}}
 {{- fail "control.publicUrl is required for Better Auth" -}}
 {{- end -}}
-{{- if and .Values.control.smtp.enabled (not .Values.control.publicUrl) -}}
-{{- fail "control.publicUrl is required when SMTP invitations are enabled" -}}
-{{- end -}}
-{{- if and .Values.control.smtp.enabled (not .Values.control.smtp.host) -}}
-{{- fail "control.smtp.host is required when SMTP invitations are enabled" -}}
-{{- end -}}
-{{- if and .Values.control.smtp.enabled (not .Values.control.smtp.fromAddress) -}}
-{{- fail "control.smtp.fromAddress is required when SMTP invitations are enabled" -}}
-{{- end -}}
-{{- if and .Values.control.smtp.enabled (ne (empty .Values.control.smtp.username) (empty .Values.secrets.smtpPassword)) -}}
-{{- fail "control.smtp.username and secrets.smtpPassword must be configured together" -}}
-{{- end -}}
 schema_version = 1
 
 [server]
@@ -128,25 +116,6 @@ initial_platform_administrator_email = {{ required "auth.local.email is required
 initial_platform_administrator_password = {{ required "secrets.initialPlatformAdministratorPassword is required when Local authentication is enabled" (default .Values.secrets.initialSuperAdminPassword .Values.secrets.initialPlatformAdministratorPassword) | quote }}
 {{ end }}
 
-[auth.oidc]
-enabled = {{ or .Values.auth.oidc.enabled .Values.keycloak.enabled }}
-{{ if .Values.keycloak.enabled }}
-display_name = "TaskLattice Relay Test SSO"
-issuer = {{ printf "%s/realms/tali" (trimSuffix "/" (required "keycloak.publicUrl is required when the embedded Keycloak is enabled" .Values.keycloak.publicUrl)) | quote }}
-client_id = "tali-control-plane"
-client_secret = {{ required "secrets.keycloakClientSecret is required when the embedded Keycloak is enabled" .Values.secrets.keycloakClientSecret | quote }}
-{{ else if .Values.auth.oidc.enabled }}
-display_name = {{ .Values.auth.oidc.displayName | quote }}
-issuer = {{ required "auth.oidc.issuer is required when OIDC is enabled" .Values.auth.oidc.issuer | quote }}
-client_id = {{ required "auth.oidc.clientId is required when OIDC is enabled" .Values.auth.oidc.clientId | quote }}
-client_secret = {{ .Values.auth.oidc.clientSecret | quote }}
-{{ else }}
-display_name = {{ .Values.auth.oidc.displayName | quote }}
-issuer = ""
-client_id = ""
-client_secret = ""
-{{ end }}
-
 [runner]
 url = {{ printf "http://%s:9090" (include "tali.componentName" (dict "root" . "component" "runner")) | quote }}
 token = {{ required "secrets.runnerToken is required" .Values.secrets.runnerToken | quote }}
@@ -159,18 +128,6 @@ master_key = {{ required "secrets.litellmMasterKey is required" .Values.secrets.
 enabled = {{ .Values.projectRuntimeNamespaces.enabled }}
 cluster_id = {{ .Values.projectRuntimeNamespaces.clusterId | quote }}
 name_prefix = {{ .Values.projectRuntimeNamespaces.namePrefix | quote }}
-deletion_timeout_seconds = {{ .Values.projectRuntimeNamespaces.deletionTimeoutSeconds }}
-
-[smtp]
-enabled = {{ .Values.control.smtp.enabled }}
-host = {{ .Values.control.smtp.host | quote }}
-port = {{ .Values.control.smtp.port }}
-secure = {{ .Values.control.smtp.secure }}
-username = {{ .Values.control.smtp.username | quote }}
-password = {{ .Values.secrets.smtpPassword | quote }}
-from_address = {{ .Values.control.smtp.fromAddress | quote }}
-from_name = {{ .Values.control.smtp.fromName | quote }}
-reply_to = {{ .Values.control.smtp.replyTo | quote }}
 {{- end }}
 
 {{- define "tali.controlConfigChecksum" -}}

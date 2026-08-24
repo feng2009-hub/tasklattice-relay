@@ -77,6 +77,14 @@ OpenShift project or Kubernetes namespace already has an equivalent
 administrator-managed `LimitRange`, set `resourceDefaults.enabled=false` to
 avoid defining a second default policy.
 
+`runner.sandbox.cpu` and `runner.sandbox.memory` are the deployment defaults
+reported to Platform Setting. A Platform Administrator can override them for
+new Sandboxes from **Platform Setting -> Sandbox** without restarting Control
+or Runner. Clearing the override returns to these values. Gateway endpoint,
+Workspace, service route base, service CIDRs, OpenShell Gateway/Supervisor/base
+images, pull policy, and TLS mode are also reported to the page, but remain
+read-only deployment topology.
+
 `projectRuntimeNamespaces.enabled=true` makes Project creation synchronously
 ensure an opaque, stable Namespace before the API returns success. The exact
 Project name is stored as an annotation and a DNS-safe form is stored as a
@@ -146,36 +154,18 @@ the namespace `LimitRange` exists on a first installation.
 When `secrets.existingSecret` is used it must contain `control.toml`,
 `runner-token`, `litellm-master-key`, `postgres-password`, `database-url`,
 `litellm-ui-username`, `litellm-ui-password`, and `litellm-salt-key`.
-`control.toml` contains the Control Plane database, Local/OIDC authentication,
-SMTP credentials, Runner, and LiteLLM settings. Set `runner.gatewayEndpoint`
+`control.toml` contains Control Plane infrastructure connectivity, Local
+authentication recovery, Runner, and LiteLLM settings. OIDC and SMTP are
+configured after sign-in from Platform Setting and are stored only in the
+Platform database. Set `runner.gatewayEndpoint`
 when `openshell.enabled=false` and the gateway is managed outside this release.
 Set `runner.workspace` to the same OpenShell workspace used by that gateway;
 service routes include this value as their first hostname segment.
 
-To deliver Project invitations through SMTP, add the following to a private
-values file. Port 587 uses STARTTLS; use `secure: true` for implicit TLS,
-normally on port 465.
-
-```yaml
-control:
-  publicUrl: https://tali.example.com
-  smtp:
-    enabled: true
-    host: smtp.example.com
-    port: 587
-    secure: false
-    username: tali@example.com
-    fromAddress: tali@example.com
-    fromName: TaskLattice Relay
-    replyTo: support@example.com
-secrets:
-  smtpPassword: replace-me
-```
-
-If the SMTP relay does not require authentication, leave both
-`control.smtp.username` and `secrets.smtpPassword` empty. When
-`secrets.existingSecret` is used, configure the `[smtp]` section directly in
-its `control.toml` value instead.
+To deliver Project invitations, sign in as a Platform Administrator and
+configure **Platform Setting -> Email delivery**. Port 587 uses STARTTLS; use
+implicit TLS for port 465. SMTP settings and the encrypted password are stored
+only in PostgreSQL and have no values-file or `control.toml` fallback.
 
 ## Disconnected / air-gapped installation
 
@@ -293,9 +283,10 @@ volume configuration.
 
 Set `keycloak.enabled=true` to deploy a test-only Keycloak instance together
 with TaskLattice Relay. The Chart imports the `tali` realm, configures the
-confidential `tali-control-plane` OIDC client, creates complete Alice
-and Bob test profiles, and automatically enables the matching OIDC settings in
-`control.toml`.
+confidential `tali-control-plane` OIDC client, installs a `groups` Client Scope
+that emits complete Group paths, and creates role-focused development profiles.
+OIDC and Group Role Bindings remain database-owned and are configured from
+Platform Setting after the deployment is reachable.
 
 Keycloak needs a stable URL that is reachable from both the browser and the
 Control pod. For a cluster with a reserved load-balancer address:
@@ -325,8 +316,15 @@ The development credentials are:
 | Purpose | Username | Password |
 | --- | --- | --- |
 | Keycloak administration | `admin` | `admin` |
-| TaskLattice Relay SSO user | `alice` | `password` |
-| TaskLattice Relay SSO user | `bob` | `password` |
+| TaskLattice Relay Project Administrator | `alice` | `password` |
+| Relay development administrator (all built-in `proj1` roles) | `adm` | `password` |
+| Relay SSO authorization test administrator (all built-in `proj1` roles) | `sso-admin` | `admin` |
+| Relay Department Administrator (`dep1` only) | `department-admin` | `password` |
+| Relay Project Administrator | `project-admin` | `password` |
+| Relay Agent Developer | `developer` | `password` |
+| Relay Reviewer | `reviewer` | `password` |
+| Relay End User (`ROLE_USER`) | `end-user` | `password` |
+| Relay Auditor | `auditor` | `password` |
 
 Override `secrets.keycloakAdminPassword`,
 `secrets.keycloakClientSecret`, and `secrets.keycloakTestUserPassword` when
@@ -336,8 +334,29 @@ needed. Test user profile fields can be replaced through
 This mode runs Keycloak with `start-dev` and ephemeral storage. Realm changes
 are lost when its pod is replaced. It intentionally cannot be combined with
 `secrets.existingSecret`, because the Chart must generate matching Keycloak
-credentials and `control.toml`. Use `auth.oidc` with an independently managed
-identity provider for production.
+credentials. After the first Local sign-in, configure its issuer and Client
+credentials in **Platform Setting -> Security & SSO**, keep the Group claim as
+`groups`, and add the exact test bindings represented by these Group paths:
+
+```text
+/tali/platform/roles/ROLE_PLATFORM_ADMIN
+/tali/departments/dep1/roles/ROLE_DEPARTMENT_ADMIN
+/tali/departments/dep1/projects/proj1/roles/ROLE_PROJECT_ADMIN
+/tali/departments/dep1/projects/proj1/roles/ROLE_AUDITOR
+/tali/departments/dep1/projects/proj1/roles/ROLE_AGENT_DEVELOPER
+/tali/departments/dep1/projects/proj1/roles/ROLE_REVIEWER
+/tali/departments/dep1/projects/proj1/roles/ROLE_USER
+```
+
+`adm` and `sso-admin` are both Platform Administrators and members of every
+built-in `proj1` Project role so the complete authorization surface can be
+exercised during development. `sso-admin` uses its explicit per-user test
+password; the other profiles use `secrets.keycloakTestUserPassword`. The
+remaining users isolate one administrative scope or Project role each. A
+successful SSO sign-in
+materializes the corresponding externally managed Project membership and shows
+each binding's last-match time in Platform Setting. Use an independently
+managed identity provider for production.
 
 ## Example MCP Server for integration tests
 

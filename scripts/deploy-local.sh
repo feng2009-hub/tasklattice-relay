@@ -103,6 +103,14 @@ elif (( existing_agent_sandbox_crds > 0 )); then
   exit 1
 fi
 
+# Helm 4 uses server-side apply and can encounter a managed-fields conflict
+# when an existing local release updates a rendered checksum annotation. The
+# local deployment owns these resources, so let Helm reclaim its own fields.
+helm_conflict_args=()
+if helm upgrade --help | grep -q -- "--force-conflicts"; then
+  helm_conflict_args+=(--force-conflicts)
+fi
+
 images=(
   "$image_registry/tali-control:$image_tag"
   "$image_registry/tali-openshell-runner:$image_tag"
@@ -201,6 +209,7 @@ helm upgrade --install "$release_name" "$repository_root/charts/tali-relay" \
   ${keycloak_helm_args[@]+"${keycloak_helm_args[@]}"} \
   ${example_mcp_helm_args[@]+"${example_mcp_helm_args[@]}"} \
   ${crd_helm_args[@]+"${crd_helm_args[@]}"} \
+  ${helm_conflict_args[@]+"${helm_conflict_args[@]}"} \
   --wait \
   --wait-for-jobs \
   --timeout "$helm_timeout"
