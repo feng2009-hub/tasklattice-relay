@@ -4,8 +4,12 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
-import type { ProvisioningStage, SandboxAuditEvent } from "@tali/contracts";
-import type { AgentPlatformId } from "@tali/contracts";
+import {
+  getAgentPlatformDefinition,
+  type AgentPlatformId,
+  type ProvisioningStage,
+  type SandboxAuditEvent,
+} from "@tali/contracts";
 import { parse, stringify } from "yaml";
 import { getAgentPlatformRuntime } from "./agent-platform.js";
 import {
@@ -439,7 +443,10 @@ export function composeOpenShellInferencePolicy(
   // rule. Keeping the legacy direct rule in a business policy can match first
   // and bypass credential resolution, so remove only TaskLattice Relay's old entry.
   delete networkPolicies.tali_inference_gateway;
-  if (telemetryEndpoint && agentPlatform === "openclaw") {
+  if (
+    telemetryEndpoint
+    && getAgentPlatformDefinition(agentPlatform).capabilities.embeddedRunTelemetry
+  ) {
     const endpoint = new URL(telemetryEndpoint);
     if (endpoint.protocol !== "http:" && endpoint.protocol !== "https:") {
       throw new Error("The Run telemetry endpoint must use HTTP or HTTPS.");
@@ -481,6 +488,8 @@ export function openShellSandboxCreateArguments(
   telemetryFile?: string,
 ): string[] {
   const runtime = getAgentPlatformRuntime(input.agentPlatform);
+  const capabilities = getAgentPlatformDefinition(input.agentPlatform)
+    .capabilities;
   return openShellArguments([
     "sandbox",
     "create",
@@ -509,7 +518,7 @@ export function openShellSandboxCreateArguments(
     `${instructionsFile}:${runtime.instructionsPath}`,
     "--upload",
     `${bootstrapFile}:/tmp/tali-nemoclaw-start`,
-    ...(telemetryFile && runtime.embeddedRunTelemetry
+    ...(telemetryFile && capabilities.embeddedRunTelemetry
       ? ["--upload", `${telemetryFile}:/tmp/tali-run-telemetry.env`]
       : []),
     "--no-tty",
@@ -1000,10 +1009,12 @@ export async function provisionOpenShellSandbox(
 
   const temporaryDirectory = await mkdtemp(join(tmpdir(), "tali-openshell-"));
   const runtime = getAgentPlatformRuntime(input.agentPlatform);
+  const capabilities = getAgentPlatformDefinition(input.agentPlatform)
+    .capabilities;
   const instructionsFile = join(temporaryDirectory, "AGENTS.md");
   const bootstrapFile = join(temporaryDirectory, "tali-nemoclaw-start");
   const policyFile = join(temporaryDirectory, "openshell-policy.yaml");
-  const telemetryFile = runtime.embeddedRunTelemetry
+  const telemetryFile = capabilities.embeddedRunTelemetry
     ? join(temporaryDirectory, "tali-run-telemetry.env")
     : undefined;
   try {
@@ -1029,7 +1040,7 @@ export async function provisionOpenShellSandbox(
         input.policyYaml ?? "version: 1\n",
         input.inferenceEndpoint,
         input.agentPlatform,
-        runtime.embeddedRunTelemetry ? input.runTelemetry.endpoint : undefined,
+        capabilities.embeddedRunTelemetry ? input.runTelemetry.endpoint : undefined,
       ),
       { mode: 0o600 },
     );

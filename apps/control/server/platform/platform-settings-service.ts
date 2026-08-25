@@ -1,4 +1,5 @@
 import {
+  mapAgentPlatforms,
   providerKinds,
   type AgentPlatformId,
   type ExternalRoleBindingView,
@@ -40,11 +41,9 @@ import {
 } from "./platform-settings-validation";
 import { deploymentBootstrapRuntimeConfiguration } from "./platform-runtime-config";
 
-const fallbackRuntimeImages = {
-  openclaw: "ghcr.io/tasklattice/tali-nemoclaw-sandbox:dev",
-  hermes: "ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:dev",
-  deepagents: "ghcr.io/tasklattice/tali-nemoclaw-deepagents-sandbox:dev",
-} as const;
+const fallbackRuntimeImages = mapAgentPlatforms(
+  (platform) => platform.sandboxImage,
+);
 
 const fallbackSandboxDefaults = {
   cpu: "1",
@@ -58,6 +57,18 @@ function providerKindList(value: Prisma.JsonValue | null | undefined): ProviderK
   return value.filter(
     (item): item is ProviderKind => typeof item === "string" && allowed.has(item),
   );
+}
+
+function runtimeImageOverrides(
+  value: Prisma.JsonValue | null | undefined,
+): Record<AgentPlatformId, string | null> {
+  const stored = value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+  return mapAgentPlatforms((platform) => {
+    const image = stored[platform.id];
+    return typeof image === "string" && image.trim() ? image : null;
+  });
 }
 
 function normalizedHttpUrl(value: unknown): string | null {
@@ -163,11 +174,7 @@ export class PlatformSettingsService {
     agentPlatform: AgentPlatformId,
   ): Promise<string | null> {
     const settings = await this.stored();
-    if (agentPlatform === "openclaw")
-      return settings?.openclawSandboxImage ?? null;
-    if (agentPlatform === "hermes")
-      return settings?.hermesSandboxImage ?? null;
-    return settings?.deepagentsSandboxImage ?? null;
+    return runtimeImageOverrides(settings?.runtimeImages)[agentPlatform];
   }
 
   async sandboxProvisioningOverrides(): Promise<{
@@ -194,29 +201,15 @@ export class PlatformSettingsService {
   async get(health?: RunnerHealth): Promise<PlatformSettingsView> {
     const settings = await this.stored();
     const roleBindings = await new ExternalRoleBindingService(this.db).list();
-    const openclawOverride = settings?.openclawSandboxImage ?? null;
-    const hermesOverride = settings?.hermesSandboxImage ?? null;
-    const deepagentsOverride = settings?.deepagentsSandboxImage ?? null;
+    const runtimeImages = runtimeImageOverrides(settings?.runtimeImages);
     return {
-      runtimeImages: {
-        openclaw: openclawOverride,
-        hermes: hermesOverride,
-        deepagents: deepagentsOverride,
-      },
-      effectiveRuntimeImages: {
-        openclaw:
-          openclawOverride
-          ?? health?.runtimeImages?.openclaw
-          ?? fallbackRuntimeImages.openclaw,
-        hermes:
-          hermesOverride
-          ?? health?.runtimeImages?.hermes
-          ?? fallbackRuntimeImages.hermes,
-        deepagents:
-          deepagentsOverride
-          ?? health?.runtimeImages?.deepagents
-          ?? fallbackRuntimeImages.deepagents,
-      },
+      runtimeImages,
+      effectiveRuntimeImages: mapAgentPlatforms(
+        (platform) =>
+          runtimeImages[platform.id]
+          ?? health?.runtimeImages?.[platform.id]
+          ?? fallbackRuntimeImages[platform.id],
+      ),
       sandbox: {
         cpu: settings?.sandboxCpu ?? null,
         memory: settings?.sandboxMemory ?? null,
@@ -290,9 +283,7 @@ export class PlatformSettingsService {
       where: { id: "platform" },
       create: {
         id: "platform",
-        openclawSandboxImage: input.runtimeImages.openclaw,
-        hermesSandboxImage: input.runtimeImages.hermes,
-        deepagentsSandboxImage: input.runtimeImages.deepagents,
+        runtimeImages: input.runtimeImages,
         sandboxCpu: input.sandbox.cpu,
         sandboxMemory: input.sandbox.memory,
         enabledProviderKinds: input.enabledProviderKinds,
@@ -301,9 +292,7 @@ export class PlatformSettingsService {
         updatedBy: actor,
       },
       update: {
-        openclawSandboxImage: input.runtimeImages.openclaw,
-        hermesSandboxImage: input.runtimeImages.hermes,
-        deepagentsSandboxImage: input.runtimeImages.deepagents,
+        runtimeImages: input.runtimeImages,
         sandboxCpu: input.sandbox.cpu,
         sandboxMemory: input.sandbox.memory,
         enabledProviderKinds: input.enabledProviderKinds,

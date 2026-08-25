@@ -1,4 +1,7 @@
-import type { AgentPlatformId } from "@tali/contracts";
+import {
+  isAgentPlatformId,
+  type AgentPlatformId,
+} from "@tali/contracts";
 import { prisma } from "../db/prisma";
 import type { Prisma, PrismaClient } from "../generated/prisma/client";
 import {
@@ -69,9 +72,8 @@ function deletionAgent(payload: Prisma.JsonValue): DeletionAgent {
     typeof value.id !== "string" ||
     typeof value.name !== "string" ||
     typeof value.sandboxName !== "string" ||
-    (agentPlatform !== "openclaw" &&
-      agentPlatform !== "hermes" &&
-      agentPlatform !== "deepagents")
+    typeof agentPlatform !== "string" ||
+    !isAgentPlatformId(agentPlatform)
   ) {
     throw new Error(
       "Project cleanup stopped because stored Agent Instance data is incomplete.",
@@ -262,7 +264,10 @@ export class ProjectDeletionService {
       where: { id: projectId },
       select: {
         deletedAt: true,
-        agents: { select: { payload: true } },
+        agents: {
+          where: { kind: "SUPERVISOR" },
+          select: { payload: true },
+        },
         mcpServers: { select: { litellmServerId: true } },
         knowledgeSources: { select: { payload: true } },
         modelDeployments: { select: { payload: true } },
@@ -365,7 +370,6 @@ export class ProjectDeletionService {
       });
       await Promise.all([
         transaction.agentCatalogRecord.updateMany({ where: { projectId, deletedAt: null }, data: { deletedAt: project.deletedAt } }),
-        transaction.managedA2aInstanceRecord.updateMany({ where: { projectId, deletedAt: null }, data: { deletedAt: project.deletedAt } }),
         transaction.agentConnectionRecord.updateMany({ where: { projectId, deletedAt: null }, data: { deletedAt: project.deletedAt } }),
         transaction.providerAccountRecord.updateMany({ where: { projectId, deletedAt: null }, data: { deletedAt: project.deletedAt } }),
         transaction.modelDeploymentRecord.updateMany({ where: { projectId, deletedAt: null }, data: { deletedAt: project.deletedAt } }),

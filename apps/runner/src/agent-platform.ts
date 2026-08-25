@@ -1,7 +1,8 @@
-import type {
-  AgentMemoryConfiguration,
-  AgentPlatformId,
-  HttpEndpoint,
+import {
+  getAgentPlatformDefinition,
+  type AgentMemoryConfiguration,
+  type AgentPlatformId,
+  type HttpEndpoint,
 } from "@tali/contracts";
 
 type NativeMemoryConfiguration = Extract<
@@ -26,7 +27,6 @@ export interface AgentPlatformRuntime {
   headlessCommand?: string;
   inferenceBinaries: readonly string[];
   endpointKind?: HttpEndpoint["kind"];
-  embeddedRunTelemetry: boolean;
   sandboxImage: () => string;
   bootstrapScript: (
     dashboardOrigin: string,
@@ -288,10 +288,9 @@ const agentPlatformRuntimeRegistry = {
     terminalCommand: "exec openclaw tui",
     inferenceBinaries: ["/usr/local/bin/node"],
     endpointKind: "openclaw-webui",
-    embeddedRunTelemetry: true,
     sandboxImage: () =>
       process.env.OPENSHELL_SANDBOX_IMAGE ??
-      "ghcr.io/tasklattice/tali-nemoclaw-sandbox:dev",
+      getAgentPlatformDefinition("openclaw").sandboxImage,
     bootstrapScript: openClawBootstrapScript,
     healthProbe: (dashboardPort) =>
       `test -x /usr/local/bin/nemoclaw-start && test -f /sandbox/.openclaw/openclaw.json && curl -fsS --max-time 3 http://127.0.0.1:${dashboardPort}/health >/dev/null`,
@@ -312,10 +311,9 @@ const agentPlatformRuntimeRegistry = {
       "/usr/bin/python3.*",
     ],
     endpointKind: "hermes-dashboard",
-    embeddedRunTelemetry: false,
     sandboxImage: () =>
       process.env.OPENSHELL_HERMES_SANDBOX_IMAGE ??
-      "ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:dev",
+      getAgentPlatformDefinition("hermes").sandboxImage,
     bootstrapScript: hermesBootstrapScript,
     healthProbe: (dashboardPort) => {
       const upstreamDashboardPort = dashboardPort === "18790" ? "18791" : "18790";
@@ -337,10 +335,9 @@ const agentPlatformRuntimeRegistry = {
       "/opt/venv/bin/python3*",
       "/opt/venv/lib/python3.13/**",
     ],
-    embeddedRunTelemetry: false,
     sandboxImage: () =>
       process.env.OPENSHELL_DEEPAGENTS_SANDBOX_IMAGE ??
-      "ghcr.io/tasklattice/tali-nemoclaw-deepagents-sandbox:dev",
+      getAgentPlatformDefinition("deepagents").sandboxImage,
     bootstrapScript: deepAgentsBootstrapScript,
     healthProbe: () =>
       "test -x /usr/local/bin/dcode && test -s /sandbox/.deepagents/config.toml && test -s /tmp/nemoclaw-proxy-env.sh && dcode --version >/dev/null",

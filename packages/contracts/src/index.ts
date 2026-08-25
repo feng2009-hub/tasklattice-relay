@@ -15,9 +15,16 @@ import {
   departmentIdSchema,
   departmentNameSchema,
 } from "./organization.js";
+import {
+  agentPlatformIds,
+  defaultAgentPlatformId,
+  getAgentPlatformDefinition,
+  type AgentPlatformId,
+} from "./agent-platforms.js";
 
 export * from "./traces.js";
 export * from "./authorization.js";
+export * from "./agent-platforms.js";
 export * from "./project-overview.js";
 export * from "./organization.js";
 export * from "./department-settings.js";
@@ -78,6 +85,10 @@ const optionalContainerImageSchema = z.string().trim().min(3).max(500)
   .regex(/^\S+$/, "Container image references cannot contain whitespace.")
   .nullable();
 
+const runtimeImageShape = Object.fromEntries(
+  agentPlatformIds.map((id) => [id, optionalContainerImageSchema]),
+) as Record<AgentPlatformId, typeof optionalContainerImageSchema>;
+
 const optionalSandboxCpuSchema = z.string().trim().min(1).max(32).regex(
   /^(?:[1-9]\d*m|[1-9]\d*(?:\.\d+)?|0\.\d+)$/,
   "CPU must be a positive Kubernetes quantity such as 500m, 1, or 1.5.",
@@ -89,11 +100,7 @@ const optionalSandboxMemorySchema = z.string().trim().min(1).max(32).regex(
 ).nullable();
 
 export const updatePlatformSettingsSchema = z.object({
-  runtimeImages: z.object({
-    openclaw: optionalContainerImageSchema,
-    hermes: optionalContainerImageSchema,
-    deepagents: optionalContainerImageSchema,
-  }).strict(),
+  runtimeImages: z.object(runtimeImageShape).strict(),
   sandbox: z.object({
     cpu: optionalSandboxCpuSchema,
     memory: optionalSandboxMemorySchema,
@@ -486,11 +493,7 @@ export type CreatePlatformDepartmentInput = z.infer<
 
 export interface PlatformSettingsView extends UpdatePlatformSettingsInput {
   infrastructure: PlatformInfrastructureSettingsView;
-  effectiveRuntimeImages: {
-    openclaw: string;
-    hermes: string;
-    deepagents: string;
-  };
+  effectiveRuntimeImages: Record<AgentPlatformId, string>;
   effectiveSandbox: {
     cpu: string;
     memory: string;
@@ -1077,50 +1080,6 @@ export const createProviderConnectionSchema = z.object({
   complianceDomain: z.enum(complianceDomains),
 });
 
-export const agentPlatformIds = ["openclaw", "hermes", "deepagents"] as const;
-
-export const agentPlatforms = [
-  {
-    id: "openclaw",
-    name: "OpenClaw",
-    description: "Gateway-based Agent with a plugin ecosystem and browser UI.",
-    terminalLabel: "OpenClaw TUI",
-    endpointLabel: "OpenClaw Web UI",
-    interactionSurface: "web-ui",
-    isDefault: true,
-  },
-  {
-    id: "hermes",
-    name: "Hermes",
-    description: "Self-improving Agent with durable memory and a learning loop.",
-    terminalLabel: "Hermes TUI",
-    endpointLabel: "Hermes dashboard",
-    interactionSurface: "web-ui",
-    isDefault: false,
-  },
-  {
-    id: "deepagents",
-    name: "Deep Agents Code",
-    description: "Terminal coding Agent built on the LangChain Deep Agents SDK.",
-    terminalLabel: "Deep Agents TUI",
-    endpointLabel: "No Web UI",
-    interactionSurface: "terminal",
-    isDefault: false,
-  },
-] as const satisfies ReadonlyArray<{
-  description: string;
-  endpointLabel: string;
-  id: (typeof agentPlatformIds)[number];
-  interactionSurface: "web-ui" | "terminal";
-  isDefault: boolean;
-  name: string;
-  terminalLabel: string;
-}>;
-
-export const defaultAgentPlatformId = agentPlatforms.find(
-  (platform) => platform.isDefault,
-)!.id;
-
 export const agentMemoryCitations = ["auto", "on", "off"] as const;
 
 export const agentMemoryConfigurationSchema = z.discriminatedUnion("mode", [
@@ -1449,8 +1408,7 @@ export const agentSpecializationDefinitionSchema = z.object({
 });
 
 export const agentGardenBuiltInTypeIds = [
-  "openclaw",
-  "hermes",
+  ...agentPlatformIds,
   "claude-code",
 ] as const;
 
@@ -1658,10 +1616,10 @@ export const agentConnectionSchema = createAgentConnectionSchema.extend({
   updatedAt: z.string().datetime(),
 }).strict();
 
-export const managedA2aInstanceSchema = z.object({
+export const a2aAgentInstanceSchema = z.object({
   id: z.string().uuid(),
   agentId: z.string().trim().min(1).max(160),
-  kind: z.literal("MANAGED_A2A"),
+  kind: z.literal("A2A"),
   name: z.string().trim().min(2).max(160),
   description: z.string().trim().max(2_000),
   runtime: z.literal("kubernetes"),
@@ -1689,10 +1647,13 @@ export const managedA2aInstanceSchema = z.object({
   error: z.string().max(4_000).nullable(),
 }).strict();
 
+/** @deprecated Use a2aAgentInstanceSchema. */
+export const managedA2aInstanceSchema = a2aAgentInstanceSchema;
+
 export const agentGardenSnapshotSchema = z.object({
   agents: z.array(agentGardenEntrySchema),
   connections: z.array(agentConnectionSchema),
-  instances: z.array(managedA2aInstanceSchema),
+  instances: z.array(a2aAgentInstanceSchema),
 }).strict();
 
 export const resourceKindSchema = z.enum([
@@ -1738,7 +1699,11 @@ export const createInstanceSchema = z.object({
   knowledgeSourceIds: z.array(z.string().trim().min(1).max(160)).max(64).optional(),
   memory: agentMemoryConfigurationSchema.optional(),
 }).strict().superRefine((value, context) => {
-  if (value.memory && value.agentPlatform !== "openclaw") {
+  if (
+    value.memory
+    && getAgentPlatformDefinition(value.agentPlatform).capabilities.memory
+      === "none"
+  ) {
     context.addIssue({
       code: "custom",
       path: ["memory"],
@@ -1928,8 +1893,6 @@ export type ModelType = (typeof modelTypes)[number];
 export type ModelCapability = (typeof modelCapabilities)[number];
 export type ModelInputModality = (typeof modelInputModalities)[number];
 export type ModelOutputModality = (typeof modelOutputModalities)[number];
-export type AgentPlatformId = (typeof agentPlatformIds)[number];
-export type AgentPlatform = (typeof agentPlatforms)[number];
 export type AgentMemoryConfiguration = z.infer<
   typeof agentMemoryConfigurationSchema
 >;
@@ -1984,7 +1947,9 @@ export type AgentConnectionApprovalMode = (typeof agentConnectionApprovalModeIds
 export type AgentConnection = z.infer<typeof agentConnectionSchema>;
 export type CreateAgentConnectionInput = z.infer<typeof createAgentConnectionSchema>;
 export type AgentGardenSnapshot = z.infer<typeof agentGardenSnapshotSchema>;
-export type ManagedA2aInstance = z.infer<typeof managedA2aInstanceSchema>;
+export type A2aAgentInstance = z.infer<typeof a2aAgentInstanceSchema>;
+/** @deprecated Use A2aAgentInstance. */
+export type ManagedA2aInstance = A2aAgentInstance;
 export type CreateAccessPolicyInput = z.infer<typeof createAccessPolicySchema>;
 export type UpdateAccessPolicyInput = z.infer<typeof updateAccessPolicySchema>;
 export type KnowledgeSourceDefinition = z.infer<typeof knowledgeSourceDefinitionSchema>;
@@ -2652,11 +2617,7 @@ export interface SandboxAuditEvent {
 export interface RunnerHealth {
   ok: boolean;
   mode: string;
-  runtimeImages?: {
-    openclaw: string;
-    hermes: string;
-    deepagents: string;
-  };
+  runtimeImages?: Record<AgentPlatformId, string>;
   sandbox?: {
     provider: "openshell";
     cpu: string;

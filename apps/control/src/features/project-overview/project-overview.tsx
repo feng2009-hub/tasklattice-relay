@@ -1,9 +1,10 @@
 import { lazy, Suspense, useState } from "react";
 import { ClientOnly, Link } from "@tanstack/react-router";
-import type {
-  ProjectOverviewAttentionItem,
-  ProjectOverviewRange,
-  ProjectOverviewResponse,
+import {
+  getAgentPlatformDefinition,
+  type ProjectOverviewAttentionItem,
+  type ProjectOverviewRange,
+  type ProjectOverviewResponse,
 } from "@tali/contracts";
 import {
   ArrowDownRight,
@@ -416,8 +417,6 @@ export function RuntimeHealthCard({
   );
 }
 
-const runtimeLabels = { openclaw: "OpenClaw", hermes: "Hermes" } as const;
-
 export function WorkloadDistributionCard({
   workload,
   projectId,
@@ -437,7 +436,9 @@ export function WorkloadDistributionCard({
             {workload.map((item) => (
               <div key={item.runtimeType}>
                 <div className="flex items-center justify-between gap-4 text-xs">
-                  <span className="font-medium">{runtimeLabels[item.runtimeType]}</span>
+                  <span className="font-medium">
+                    {getAgentPlatformDefinition(item.runtimeType).name}
+                  </span>
                   <span className="text-muted-foreground">
                     {number(item.runs)} Runs · {(item.percentage * 100).toFixed(1)}%
                   </span>

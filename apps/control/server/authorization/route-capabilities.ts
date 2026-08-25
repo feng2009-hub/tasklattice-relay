@@ -1,4 +1,10 @@
-import type { ProjectCapability, ResourceRelation } from "@tali/contracts";
+import {
+  defaultAgentPlatformId,
+  getAgentPlatformDefinition,
+  isAgentPlatformId,
+  type ProjectCapability,
+  type ResourceRelation,
+} from "@tali/contracts";
 
 export type RelationResolver =
   | "PROJECT"
@@ -346,8 +352,13 @@ export function conditionalInstanceCreateRequirements(
   if (Array.isArray(input.knowledgeSourceIds) && input.knowledgeSourceIds.length) {
     requirements.push(requirement("CAP_AGENT_INSTANCE_KNOWLEDGE_SOURCE_ASSIGN", "AgentInstance"));
   }
-  // OpenClaw currently defaults an omitted Memory field to native memory.
-  if (input.agentPlatform === undefined || input.agentPlatform === "openclaw") {
+  const requestedPlatform = typeof input.agentPlatform === "string"
+    && isAgentPlatformId(input.agentPlatform)
+    ? input.agentPlatform
+    : defaultAgentPlatformId;
+  if (
+    getAgentPlatformDefinition(requestedPlatform).capabilities.memory !== "none"
+  ) {
     requirements.push(requirement("CAP_AGENT_MEMORY_CONFIG_UPDATE", "AgentMemory"));
   }
   const memory = input.memory;

@@ -19,9 +19,6 @@ export class RunService {
     if (instance.agentPlatform !== claims.agentPlatform) {
       throw new Error("Run telemetry Runtime does not match the Instance.");
     }
-    if (claims.agentPlatform === "deepagents") {
-      throw new Error("Deep Agents embedded Run telemetry is not enabled.");
-    }
     return this.runs.ingest({
       instanceId: claims.instanceId,
       source: claims.agentPlatform,

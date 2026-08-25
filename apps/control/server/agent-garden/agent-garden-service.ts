@@ -2,15 +2,15 @@ import { randomUUID } from "node:crypto";
 import {
   agentConnectionSchema,
   agentGardenEntrySchema,
+  a2aAgentInstanceSchema,
   createAgentConnectionSchema,
-  managedA2aInstanceSchema,
   onboardAgentSchema,
   onboardContainerImageAgentSchema,
   type AgentConnection,
+  type A2aAgentInstance,
   type AgentGardenEntry,
   type AgentGardenSnapshot,
   type CreateAgentConnectionInput,
-  type ManagedA2aInstance,
   type OnboardAgentInput,
   type OnboardContainerImageAgentInput,
   type OnboardExistingAgentInput,
@@ -130,7 +130,7 @@ function managedInstance(
   input: OnboardContainerImageAgentInput,
   instanceId: string,
   namespace: string,
-  previous?: ManagedA2aInstance,
+  previous?: A2aAgentInstance,
   runtime?: ManagedAgentRuntimeResult,
   discovery?: {
     a2a: AgentGardenEntry["a2a"];
@@ -139,7 +139,7 @@ function managedInstance(
     skills: AgentGardenEntry["skills"];
   },
   failure?: string,
-): ManagedA2aInstance {
+): A2aAgentInstance {
   const now = new Date().toISOString();
   const resourceName = managedAgentResourceName(instanceId);
   const status = failure ? "FAILED" : discovery ? "READY" : "PROVISIONING";
@@ -148,10 +148,10 @@ function managedInstance(
     : discovery
       ? `A2A Agent Card validated. Pod ${runtime?.podName ?? previous?.podName ?? resourceName} is ready.`
       : `Provisioning ${resourceName} in Project Main Space ${namespace}.`;
-  return managedA2aInstanceSchema.parse({
+  return a2aAgentInstanceSchema.parse({
     id: instanceId,
     agentId: agent.id,
-    kind: "MANAGED_A2A",
+    kind: "A2A",
     name: agent.name,
     description: agent.description,
     runtime: "kubernetes",
@@ -316,7 +316,7 @@ export class AgentGardenService {
       updatedAt: new Date().toISOString(),
       lastDiscoveryError: null,
     });
-    let runtimeInstance: ManagedA2aInstance | undefined;
+    let runtimeInstance: A2aAgentInstance | undefined;
     let runtimeResult: ManagedAgentRuntimeResult | undefined;
     try {
       if (checking.configuration.onboardingSource === CONTAINER_IMAGE_SOURCE) {
@@ -466,12 +466,14 @@ export class AgentGardenService {
     rawInput: CreateAgentConnectionInput,
   ): Promise<AgentConnection> {
     const input = createAgentConnectionSchema.parse(rawInput);
-    const [coordinator, connectedAgent] = await Promise.all([
-      this.projects.get(input.coordinatorInstanceId),
+    const [coordinatorCapabilities, connectedAgent] = await Promise.all([
+      this.store.instanceCapabilities(input.coordinatorInstanceId),
       this.requireConnectableAgent(input.connectedAgentId),
     ]);
-    if (!coordinator) throw new Error("Coordinator Instance was not found.");
-    if (!["openclaw", "hermes"].includes(coordinator.agentPlatform)) {
+    if (!coordinatorCapabilities) {
+      throw new Error("Coordinator Instance was not found.");
+    }
+    if (!coordinatorCapabilities.canDelegate) {
       throw new Error(
         "This Instance runtime cannot delegate tasks to connected Agents.",
       );

@@ -3,7 +3,7 @@ import {
   agentPlatformIds,
   type Instance as Agent,
   type InstanceStatus,
-  type ManagedA2aInstance,
+  type A2aAgentInstance,
 } from "@tali/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
@@ -90,7 +90,7 @@ function InstanceLifecycleStatus({ instance }: { instance: Agent }) {
   );
 }
 
-function ManagedA2aLifecycleStatus({ instance }: { instance: ManagedA2aInstance }) {
+function ManagedA2aLifecycleStatus({ instance }: { instance: A2aAgentInstance }) {
   if (instance.status === "READY") {
     return <Badge className="gap-2 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-300"><span className="size-2 rounded-full bg-emerald-500" />Ready</Badge>;
   }
@@ -187,7 +187,7 @@ function InstanceActions({ canDelete, canUseTerminal, instance, onDelete }: { ca
   );
 }
 
-function ManagedA2aInstanceRow({ instance }: { instance: ManagedA2aInstance }) {
+function ManagedA2aInstanceRow({ instance }: { instance: A2aAgentInstance }) {
   const projectId = useCurrentProjectId();
   const details = (
     <Link

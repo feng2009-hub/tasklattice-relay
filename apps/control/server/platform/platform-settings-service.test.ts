@@ -137,7 +137,8 @@ describe("PlatformSettingsService", () => {
   });
 
   it("uses Runner deployment images until a Platform Administrator saves overrides", async () => {
-    const service = new PlatformSettingsService(createTestPrisma());
+    const db = createTestPrisma();
+    const service = new PlatformSettingsService(db);
     const initial = await service.get({
       ok: true,
       mode: "openshell-kubernetes",
@@ -240,6 +241,16 @@ describe("PlatformSettingsService", () => {
       .resolves.toBe("registry.example/openclaw@sha256:abc123");
     await expect(service.runtimeImageOverride("deepagents"))
       .resolves.toBe("registry.example/deepagents@sha256:def456");
+    await expect(db.platformSettingsRecord.findUniqueOrThrow({
+      where: { id: "platform" },
+      select: { runtimeImages: true },
+    })).resolves.toEqual({
+      runtimeImages: {
+        openclaw: "registry.example/openclaw@sha256:abc123",
+        hermes: null,
+        deepagents: "registry.example/deepagents@sha256:def456",
+      },
+    });
     await expect(service.sandboxProvisioningOverrides())
       .resolves.toEqual({ cpu: "1.5", memory: "4Gi" });
     await expect(service.assertProviderEnabled("deepseek"))

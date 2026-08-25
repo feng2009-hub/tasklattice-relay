@@ -130,9 +130,7 @@ model PlatformSettingsRecord {
   runtimeClusterId          String?  @map("runtime_cluster_id")
   runtimeNamespacePrefix    String?  @map("runtime_namespace_prefix")
   localAuthenticationEnabled Boolean? @map("local_authentication_enabled")
-  openclawSandboxImage      String?  @map("openclaw_sandbox_image")
-  hermesSandboxImage        String?  @map("hermes_sandbox_image")
-  deepagentsSandboxImage    String?  @map("deepagents_sandbox_image")
+  runtimeImages             Json?    @map("runtime_images")
   sandboxCpu                String?  @map("sandbox_cpu")
   sandboxMemory             String?  @map("sandbox_memory")
   enabledProviderKinds      Json?    @map("enabled_provider_kinds")
@@ -408,7 +406,6 @@ model Project {
   invitations                  ProjectInvitation[]
   agents                       AgentRecord[]
   agentCatalogEntries          AgentCatalogRecord[]
-  managedA2aInstances          ManagedA2aInstanceRecord[]
   agentConnections             AgentConnectionRecord[]
   providerAccounts             ProviderAccountRecord[]
   modelDeployments             ModelDeploymentRecord[]
@@ -597,7 +594,6 @@ model ProjectMember {
   user                     User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
   ownedAgents              AgentRecord[]                 @relation("AgentRecordOwnerMembership")
   ownedCatalogAgents       AgentCatalogRecord[]          @relation("AgentCatalogRecordOwnerMembership")
-  ownedManagedA2aInstances ManagedA2aInstanceRecord[]    @relation("ManagedA2aInstanceOwnerMembership")
   roleAssignments          ProjectMemberRoleAssignment[]
 
   @@id([projectId, userId])
@@ -642,17 +638,22 @@ model ProjectInvitation {
 model AgentRecord {
   projectId                String                                   @map("project_id")
   id                       String
+  kind                     String                                   @default("SUPERVISOR")
+  catalogAgentId           String?                                  @map("catalog_agent_id")
   payload                  Json
   ownerUserId              String                                   @map("owner_user_id")
   createdAt                DateTime                                 @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime                                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt                DateTime?                                @map("deleted_at") @db.Timestamptz(6)
   project                  Project                                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   ownerMembership          ProjectMember                            @relation("AgentRecordOwnerMembership", fields: [projectId, ownerUserId], references: [projectId, userId], onDelete: Restrict, map: "agents_owner_membership_fkey")
+  catalogAgent             AgentCatalogRecord?                      @relation("CatalogAgentRuntimeInstances", fields: [projectId, catalogAgentId], references: [projectId, id], onDelete: Cascade, map: "agents_catalog_agent_fkey")
   outboundAgentConnections AgentConnectionRecord[]                  @relation("CoordinatorAgentConnections")
   accessPolicyBindings     AgentInstanceAccessPolicyBindingRecord[]
 
   @@id([projectId, id])
   @@index([projectId, ownerUserId], map: "agents_project_owner_idx")
+  @@index([projectId, kind, catalogAgentId], map: "agents_project_kind_catalog_idx")
   @@index([projectId, deletedAt, createdAt(sort: Desc)], map: "agents_project_active_created_idx")
   @@map("agents")
   @@schema("tasklattice")
@@ -672,33 +673,12 @@ model AgentCatalogRecord {
   project          Project                    @relation(fields: [projectId], references: [id], onDelete: Cascade)
   ownerMembership  ProjectMember?             @relation("AgentCatalogRecordOwnerMembership", fields: [projectId, ownerUserId], references: [projectId, userId], onDelete: Restrict, map: "agent_catalog_owner_membership_fkey")
   connections      AgentConnectionRecord[]
-  managedInstances ManagedA2aInstanceRecord[]
+  runtimeInstances AgentRecord[]       @relation("CatalogAgentRuntimeInstances")
 
   @@id([projectId, id])
   @@index([projectId, ownerUserId], map: "agent_catalog_project_owner_idx")
   @@index([projectId, updatedAt(sort: Desc)], map: "agent_catalog_updated_idx")
   @@map("agent_catalog")
-  @@schema("tasklattice")
-}
-
-model ManagedA2aInstanceRecord {
-  projectId   String   @map("project_id")
-  id          String
-  agentId     String   @map("agent_id")
-  payload     Json
-  ownerUserId String   @map("owner_user_id")
-  createdAt   DateTime @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime @map("updated_at") @db.Timestamptz(6)
-  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
-
-  project         Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  catalogAgent    AgentCatalogRecord @relation(fields: [projectId, agentId], references: [projectId, id], onDelete: Cascade)
-  ownerMembership ProjectMember      @relation("ManagedA2aInstanceOwnerMembership", fields: [projectId, ownerUserId], references: [projectId, userId], onDelete: Restrict, map: "managed_a2a_instances_owner_membership_fkey")
-
-  @@id([projectId, id])
-  @@index([projectId, agentId], map: "managed_a2a_instances_agent_idx")
-  @@index([projectId, ownerUserId], map: "managed_a2a_instances_owner_idx")
-  @@map("managed_a2a_instances")
   @@schema("tasklattice")
 }
 

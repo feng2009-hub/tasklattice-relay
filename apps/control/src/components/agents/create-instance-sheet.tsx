@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import {
   defaultNativeAgentMemoryConfiguration,
   defaultAgentPlatformId,
+  getAgentPlatformDefinition,
   type AgentMemoryConfiguration,
   type AgentPlatformId,
   type CreateInstanceInput,
@@ -71,6 +72,10 @@ import { api } from "@/lib/api";
 import { getAgentPlatformPresentation } from "@/lib/agent-platforms";
 import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
 import { useCurrentProjectId } from "@/hooks/use-project";
+
+function supportsMemory(agentPlatform: AgentPlatformId): boolean {
+  return getAgentPlatformDefinition(agentPlatform).capabilities.memory !== "none";
+}
 
 function capabilityName(
   id: string,
@@ -223,7 +228,7 @@ export function CreateInstanceSheet({
         skillIds: selectedIds(selectedSkills),
         mcpServerIds: selectedIds(selectedMcps),
         knowledgeSourceIds: selectedIds(selectedKnowledgeSources),
-        ...(value.agentPlatform === "openclaw" && memoryEnabled
+        ...(supportsMemory(value.agentPlatform) && memoryEnabled
           ? { memory }
           : {}),
       } satisfies CreateInstanceInput);
@@ -366,7 +371,7 @@ export function CreateInstanceSheet({
     setKnowledgeSourcesTouched(
       nextKnowledgeSources.some((item) => item.source === "manual"),
     );
-    setMemoryEnabled(form.state.values.agentPlatform === "openclaw");
+    setMemoryEnabled(supportsMemory(form.state.values.agentPlatform));
     setSystemPrompt(id === "custom" ? customSystemPrompt : next.systemPrompt);
     setPendingSpecializationId(null);
   };
@@ -515,7 +520,7 @@ export function CreateInstanceSheet({
                       String(name).trim().length < 3 ||
                       currentSystemPrompt.trim().length < 10 ||
                       (memoryEnabled &&
-                        agentPlatform === "openclaw" &&
+                        supportsMemory(agentPlatform as AgentPlatformId) &&
                         memory.mode === "hybrid" &&
                         !embeddingModels.some(
                           (model) =>
@@ -1172,7 +1177,7 @@ export function CreateInstanceSheet({
                           <ReviewFact
                             label="Memory"
                             value={
-                              values.agentPlatform !== "openclaw"
+                              !supportsMemory(values.agentPlatform)
                                 ? "Workbench-managed"
                                 : memoryEnabled
                                   ? memory.mode === "hybrid"

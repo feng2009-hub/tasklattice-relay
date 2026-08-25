@@ -10,21 +10,22 @@ not part of the onboarding API. It deliberately separates three concepts:
 
 - **Agent definition** — a reusable built-in template, a Project-managed
   container, or an existing remote Agent.
-- **Agent Instance** — a running workload. It may be an interactive OpenClaw or
-  Hermes workbench, or a Project-managed A2A service created while onboarding a
-  container image.
+- **Agent Instance** — a running workload in the shared `agents` identity
+  space. Its role is `SUPERVISOR` for an OpenClaw, Hermes, or Deep Agents
+  workbench and `A2A` for a Project-managed callable service.
 - **Agent connection** — an explicit authorization for one Coordinator
   Instance to delegate tasks to one callable built-in or Project-registered
   Agent.
 
 “Primary Agent” and “Sub Agent” are not permanent Agent types. They are roles
-inside a connection. OpenClaw or Hermes is shown as the **Coordinator** for
-that relationship; the remote Agent is shown as a **Connected Agent**.
+inside a connection. A runtime whose manifest declares `canDelegate` is shown
+as the **Coordinator** for that relationship; the target is shown as a
+**Connected Agent**.
 
 ```mermaid
 flowchart LR
-  G["Agent Garden definition"] -->|"Create Instance"| C["OpenClaw / Hermes Coordinator"]
-  I["A2A container image"] -->|"Onboard"| MI["Managed A2A Instance"]
+  G["Agent Garden definition"] -->|"Create Instance"| C["Supervisor Instance"]
+  I["A2A container image"] -->|"Onboard"| MI["A2A Instance"]
   MI --> K["Deployment + Service + Pod"]
   K -->|"Ready + discover"| D["A2A 1.0 Agent Card snapshot"]
   R["Callable built-in or Project-registered Agent"] -->|"Publish capabilities"| D
@@ -37,7 +38,7 @@ flowchart LR
 Eligibility is represented by independent capability flags instead of a
 single “main/sub” enum.
 
-| Capability | Meaning | OpenClaw / Hermes | Claude Code | Callable A2A |
+| Capability | Meaning | OpenClaw / Hermes / Deep Agents | Claude Code | Callable A2A |
 | --- | --- | --- | --- | --- |
 | `interactive` | A user can work with it directly | Yes | Yes, coming soon | No |
 | `canDelegate` | It may coordinate other Agents | Yes | No | No |
@@ -45,9 +46,10 @@ single “main/sub” enum.
 
 The connection service enforces the same rules as the UI:
 
-- only READY OpenClaw and Hermes Instances can be Coordinators;
+- only READY Instances whose runtime capability declares `canDelegate` can be
+  Coordinators;
 - only READY catalog Agents with `acceptsDelegation` can be connected;
-- built-in OpenClaw, Hermes, and Claude Code definitions cannot be selected as
+- built-in Supervisor definitions and Claude Code cannot be selected as
   Connected Agents;
 - a registration cannot be removed while a connection still references it.
 
@@ -55,8 +57,10 @@ The connection service enforces the same rules as the UI:
 
 The catalog has two layers:
 
-- application-owned platform definitions: OpenClaw Generalist, Hermes Deep
-  Researcher, and Claude Code marked **Built-in** and **Coming soon**;
+- application-owned platform definitions generated from the shared runtime
+  manifest: OpenClaw Generalist, Hermes Deep Researcher, Deep Agents Code, and
+  Claude Code. The first three are available Supervisors; Claude Code is
+  **Coming soon**;
 - a versioned, database-backed example catalog seeded into each Project's
   `agent_catalog` table at startup and checked again on Garden reads.
 
@@ -72,8 +76,8 @@ The examples support two separate interactions:
 
 - **Try demo** sends a real A2A 1.0 JSON-RPC `SendMessage` request to a lightweight
   in-process endpoint and renders its execution trace and response;
-- **Connect to…** authorizes an OpenClaw or Hermes Coordinator to delegate one
-  or more advertised skills.
+- **Connect to…** authorizes a capable Supervisor to delegate one or more
+  advertised skills.
 
 The outputs are deterministic sample data and have no external side effects.
 The cards are explicitly labeled **Blueprint** or **Demo** so the interaction
@@ -116,7 +120,7 @@ Project onboarding has three source tabs:
   Deployment and internal ClusterIP Service in the Project Runtime Namespace,
   waits for readiness, reads the Pod's resolved image ID, reapplies the
   Deployment with the immutable digest, and validates an A2A 1.0 Agent Card.
-  The same operation persists the initial `MANAGED_A2A` Instance. It becomes
+  The same operation persists the initial `A2A` Instance. It becomes
   `READY` only after the Pod is ready and the card has passed validation; a
   failed deployment remains visible as a failed Instance with lifecycle logs.
   The card must advertise a supported JSON-RPC or HTTP+JSON interface. The
@@ -191,14 +195,16 @@ versioned example catalog. Application startup seeds all existing Projects;
 the first Garden read also performs the same check so newly created Projects
 are covered. Both paths upsert only missing or version-changed seed records,
 making the operation idempotent while allowing future catalog revisions. The
-three non-callable platform definitions remain application-owned.
+non-callable Supervisor platform definitions remain application-owned.
 `agent_connections` stores Coordinator-to-Agent authorization, approval
 behavior, and an optional skill allowlist.
-`managed_a2a_instances` stores the first runtime Instance created by Container
-Image onboarding, including lifecycle state, namespace, Deployment, Service,
-Pod, pinned image, discovered endpoint/card, skills, creator, and logs.
+`agents` stores both Supervisor and onboarded A2A runtime Instances. The `kind`
+discriminator represents their role at the same structural level;
+`catalog_agent_id` links an A2A runtime to its reusable definition. Its payload
+contains lifecycle state, namespace, Deployment, Service, Pod, pinned image,
+discovered endpoint/card, skills, creator, and logs.
 
-Both tables are Project-scoped. Database foreign keys cascade when a Project
+All three tables are Project-scoped. Database foreign keys cascade when a Project
 or Coordinator Instance is deleted and restrict deletion of a connected
 catalog Agent.
 
@@ -254,7 +260,7 @@ Coordinator. That tool will:
 3. validate the requested discovered skill and approval mode;
 4. dispatch through the selected A2A protocol binding;
 5. persist task state and emit an audit event;
-6. return a normalized task result to OpenClaw or Hermes.
+6. return a normalized task result to the coordinating runtime.
 
 This gateway should be implemented before labeling connections as
 “runtime-synced” or allowing autonomous Agent-to-Agent execution.

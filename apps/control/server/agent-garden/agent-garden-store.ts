@@ -1,10 +1,13 @@
 import {
   agentConnectionSchema,
   agentGardenEntrySchema,
-  managedA2aInstanceSchema,
+  a2aAgentInstanceSchema,
+  getAgentPlatformDefinition,
+  isAgentPlatformId,
   type AgentConnection,
+  type A2aAgentInstance,
   type AgentGardenEntry,
-  type ManagedA2aInstance,
+  type AgentGardenUsageCapabilities,
 } from "@tali/contracts";
 import { prisma } from "../db/prisma";
 import type { Prisma, PrismaClient } from "../generated/prisma/client";
@@ -14,7 +17,7 @@ function jsonInput(value: unknown): Prisma.InputJsonValue {
 }
 
 function managedInstancePayload(
-  instance: ManagedA2aInstance,
+  instance: A2aAgentInstance,
 ): Prisma.InputJsonValue {
   const { createdBy: _createdBy, ...payload } = instance;
   return jsonInput(payload);
@@ -24,7 +27,7 @@ function managedInstanceCreator(user: {
   id: string;
   displayName: string;
   username: string | null;
-}): NonNullable<ManagedA2aInstance["createdBy"]> {
+}): NonNullable<A2aAgentInstance["createdBy"]> {
   return {
     id: user.id,
     displayName: user.displayName,
@@ -151,13 +154,17 @@ export class AgentGardenStore {
   }
 
   async saveManagedInstance(
-    instance: ManagedA2aInstance,
+    instance: A2aAgentInstance,
     ownerUserId?: string,
-  ): Promise<ManagedA2aInstance> {
-    const parsed = managedA2aInstanceSchema.parse(instance);
+  ): Promise<A2aAgentInstance> {
+    const parsed = a2aAgentInstanceSchema.parse(instance);
     if (!ownerUserId) {
-      const updated = await this.db.managedA2aInstanceRecord.updateMany({
-        where: { projectId: this.projectId, id: parsed.id },
+      const updated = await this.db.agentRecord.updateMany({
+        where: {
+          projectId: this.projectId,
+          id: parsed.id,
+          kind: "A2A",
+        },
         data: {
           payload: managedInstancePayload(parsed),
           updatedAt: new Date(parsed.updatedAt),
@@ -170,20 +177,34 @@ export class AgentGardenStore {
       }
       return parsed;
     }
-    await this.db.managedA2aInstanceRecord.upsert({
+    const existing = await this.db.agentRecord.findUnique({
+      where: {
+        projectId_id: { projectId: this.projectId, id: parsed.id },
+      },
+      select: { kind: true },
+    });
+    if (existing && existing.kind !== "A2A") {
+      throw new Error(
+        "Agent Instance identifier belongs to a Supervisor runtime.",
+      );
+    }
+    await this.db.agentRecord.upsert({
       where: {
         projectId_id: { projectId: this.projectId, id: parsed.id },
       },
       create: {
         projectId: this.projectId,
         id: parsed.id,
-        agentId: parsed.agentId,
+        kind: "A2A",
+        catalogAgentId: parsed.agentId,
         ownerUserId,
         payload: managedInstancePayload(parsed),
         createdAt: new Date(parsed.createdAt),
         updatedAt: new Date(parsed.updatedAt),
       },
       update: {
+        kind: "A2A",
+        catalogAgentId: parsed.agentId,
         payload: managedInstancePayload(parsed),
         updatedAt: new Date(parsed.updatedAt),
       },
@@ -193,9 +214,14 @@ export class AgentGardenStore {
 
   async getManagedInstanceForAgent(
     agentId: string,
-  ): Promise<ManagedA2aInstance | undefined> {
-    const row = await this.db.managedA2aInstanceRecord.findFirst({
-      where: { projectId: this.projectId, agentId, deletedAt: null },
+  ): Promise<A2aAgentInstance | undefined> {
+    const row = await this.db.agentRecord.findFirst({
+      where: {
+        projectId: this.projectId,
+        kind: "A2A",
+        catalogAgentId: agentId,
+        deletedAt: null,
+      },
       orderBy: { createdAt: "asc" },
       select: {
         payload: true,
@@ -209,7 +235,7 @@ export class AgentGardenStore {
       },
     });
     return row
-      ? managedA2aInstanceSchema.parse({
+      ? a2aAgentInstanceSchema.parse({
           ...(row.payload as object),
           createdBy: managedInstanceCreator(row.ownerMembership.user),
         })
@@ -218,10 +244,11 @@ export class AgentGardenStore {
 
   async listManagedInstances(
     ownerUserId?: string,
-  ): Promise<ManagedA2aInstance[]> {
-    const rows = await this.db.managedA2aInstanceRecord.findMany({
+  ): Promise<A2aAgentInstance[]> {
+    const rows = await this.db.agentRecord.findMany({
       where: {
         projectId: this.projectId,
+        kind: "A2A",
         deletedAt: null,
         ...(ownerUserId ? { ownerUserId } : {}),
       },
@@ -237,18 +264,58 @@ export class AgentGardenStore {
         },
       },
     });
-    return rows.map((row) => managedA2aInstanceSchema.parse({
+    return rows.map((row) => a2aAgentInstanceSchema.parse({
       ...(row.payload as object),
       createdBy: managedInstanceCreator(row.ownerMembership.user),
     }));
   }
 
   async deleteManagedInstanceForAgent(agentId: string): Promise<boolean> {
-    const result = await this.db.managedA2aInstanceRecord.updateMany({
-      where: { projectId: this.projectId, agentId, deletedAt: null },
+    const result = await this.db.agentRecord.updateMany({
+      where: {
+        projectId: this.projectId,
+        kind: "A2A",
+        catalogAgentId: agentId,
+        deletedAt: null,
+      },
       data: { deletedAt: new Date() },
     });
     return result.count > 0;
+  }
+
+  async instanceCapabilities(
+    id: string,
+  ): Promise<AgentGardenUsageCapabilities | undefined> {
+    const row = await this.db.agentRecord.findFirst({
+      where: { projectId: this.projectId, id, deletedAt: null },
+      select: {
+        kind: true,
+        payload: true,
+        catalogAgent: { select: { payload: true } },
+      },
+    });
+    if (!row) return undefined;
+    if (row.kind === "A2A") {
+      return row.catalogAgent
+        ? agentGardenEntrySchema.parse(row.catalogAgent.payload)
+          .usageCapabilities
+        : undefined;
+    }
+    if (row.kind !== "SUPERVISOR") return undefined;
+    const payload = row.payload && typeof row.payload === "object"
+      && !Array.isArray(row.payload)
+      ? row.payload as Record<string, unknown>
+      : {};
+    const agentPlatform = payload.agentPlatform;
+    if (typeof agentPlatform !== "string" || !isAgentPlatformId(agentPlatform)) {
+      return undefined;
+    }
+    const capabilities = getAgentPlatformDefinition(agentPlatform).capabilities;
+    return {
+      interactive: capabilities.interactive,
+      canDelegate: capabilities.canDelegate,
+      acceptsDelegation: capabilities.acceptsDelegation,
+    };
   }
 
   async saveConnection(

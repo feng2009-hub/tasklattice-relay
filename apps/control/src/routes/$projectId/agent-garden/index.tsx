@@ -9,9 +9,10 @@ import {
   useNavigate,
 } from "@tanstack/react-router";
 import { z } from "zod";
-import type {
-  AgentGardenEntry,
-  AgentPlatformId,
+import {
+  getAgentPlatformDefinition,
+  isAgentPlatformId,
+  type AgentGardenEntry,
 } from "@tali/contracts";
 import {
   Bot,
@@ -187,16 +188,15 @@ function AgentGarden() {
   };
 
   const createInstance = (agent: AgentGardenEntry) => {
-    if (
-      agent.integrationType !== "openclaw" &&
-      agent.integrationType !== "hermes"
-    ) return;
+    if (!isAgentPlatformId(agent.integrationType)) return;
+    if (!getAgentPlatformDefinition(agent.integrationType).capabilities.interactive)
+      return;
     void navigate({
       to: "/$projectId/instances",
       params: { projectId },
       search: {
         create: "instance",
-        platform: agent.integrationType as AgentPlatformId,
+        platform: agent.integrationType,
         specialization: agent.specializationId ?? undefined,
       },
     });

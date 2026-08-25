@@ -1,10 +1,11 @@
-import type {
-  Instance as Agent,
-  ProjectOverviewAttentionItem,
-  ProjectOverviewRange,
-  ProjectOverviewResponse,
-  ProjectOverviewUsagePoint,
-  ProjectRunSource,
+import {
+  projectRunSources,
+  type Instance as Agent,
+  type ProjectOverviewAttentionItem,
+  type ProjectOverviewRange,
+  type ProjectOverviewResponse,
+  type ProjectOverviewUsagePoint,
+  type ProjectRunSource,
 } from "@tali/contracts";
 import type { PrismaClient } from "../generated/prisma/client";
 import { ProjectStore } from "../projects/project-store";
@@ -212,7 +213,7 @@ export class ProjectOverviewService {
       workloadCounts.set(source, (workloadCounts.get(source) ?? 0) + 1);
     }
     const totalWorkload = currentRuns.length;
-    const workload = (["openclaw", "hermes"] as const)
+    const workload = projectRunSources
       .map((runtimeType) => ({
         runtimeType,
         runs: workloadCounts.get(runtimeType) ?? 0,

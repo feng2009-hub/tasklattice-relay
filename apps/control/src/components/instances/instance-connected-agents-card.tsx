@@ -1,6 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import type { Instance as Agent } from "@tali/contracts";
+import {
+  getAgentPlatformDefinition,
+  type Instance as Agent,
+} from "@tali/contracts";
 import { ArrowRight, Link2, ShieldCheck, Waypoints } from "lucide-react";
 import { AgentGardenIcon } from "@/components/agent-garden/agent-garden-icon";
 import { DetailCardHeader } from "@/components/instances/instance-detail-shared";
@@ -15,7 +18,9 @@ import { api } from "@/lib/api";
 export function InstanceConnectedAgentsCard({ agent }: { agent: Agent }) {
   const projectId = useCurrentProjectId();
   const scope = useProjectQueryScope();
-  const canCoordinate = ["openclaw", "hermes"].includes(agent.agentPlatform);
+  const canCoordinate = getAgentPlatformDefinition(
+    agent.agentPlatform,
+  ).capabilities.canDelegate;
   const garden = useQuery({
     queryKey: scope.key("agent-garden"),
     queryFn: api.getAgentGarden,

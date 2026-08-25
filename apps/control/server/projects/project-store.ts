@@ -402,17 +402,29 @@ export class ProjectStore {
     };
     if (!ownerUserId) {
       const updated = await this.db.agentRecord.updateMany({
-        where: { projectId: this.projectId, id: agent.id },
+        where: {
+          projectId: this.projectId,
+          id: agent.id,
+          kind: "SUPERVISOR",
+        },
         data: { payload: agentPayload(agent) },
       });
       if (!updated.count) {
         throw new Error("An owner user is required when creating an Agent Instance.");
       }
     } else {
+      const existing = await this.db.agentRecord.findUnique({
+        where: { projectId_id: { projectId: this.projectId, id: agent.id } },
+        select: { kind: true },
+      });
+      if (existing && existing.kind !== "SUPERVISOR") {
+        throw new Error("Agent Instance identifier belongs to an A2A runtime.");
+      }
       await this.db.agentRecord.upsert({
         where: { projectId_id: { projectId: this.projectId, id: agent.id } },
         create: {
           ...create,
+          kind: "SUPERVISOR",
           ownerUserId,
         },
         update: {
@@ -441,6 +453,7 @@ export class ProjectStore {
       where: {
         projectId: this.projectId,
         id,
+        kind: "SUPERVISOR",
         ...(!includeDeleted ? { deletedAt: null } : {}),
       },
       select: {
@@ -469,7 +482,12 @@ export class ProjectStore {
 
   async ownerUserId(id: string): Promise<string | undefined> {
     const row = await this.db.agentRecord.findFirst({
-      where: { projectId: this.projectId, id, deletedAt: null },
+      where: {
+        projectId: this.projectId,
+        id,
+        kind: "SUPERVISOR",
+        deletedAt: null,
+      },
       select: { ownerUserId: true },
     });
     return row?.ownerUserId ?? undefined;
@@ -479,6 +497,7 @@ export class ProjectStore {
     const rows = await this.db.agentRecord.findMany({
       where: {
         projectId: this.projectId,
+        kind: "SUPERVISOR",
         deletedAt: null,
         ...(ownerUserId ? { ownerUserId } : {}),
       },
@@ -525,6 +544,7 @@ export class ProjectStore {
         where: {
           projectId: this.projectId,
           id: instanceId,
+          kind: "SUPERVISOR",
           deletedAt: null,
         },
         select: { id: true },
@@ -594,14 +614,21 @@ export class ProjectStore {
 
   async softDelete(id: string, deletedAt = new Date()): Promise<boolean> {
     const result = await this.db.agentRecord.updateMany({
-      where: { projectId: this.projectId, id, deletedAt: null },
+      where: {
+        projectId: this.projectId,
+        id,
+        kind: "SUPERVISOR",
+        deletedAt: null,
+      },
       data: { deletedAt },
     });
     return result.count > 0;
   }
 
   async hardDelete(id: string): Promise<void> {
-    await this.db.agentRecord.deleteMany({ where: { projectId: this.projectId, id } });
+    await this.db.agentRecord.deleteMany({
+      where: { projectId: this.projectId, id, kind: "SUPERVISOR" },
+    });
   }
 
   async saveProviderAccount(account: ProviderAccount, credentialPayload?: string): Promise<ProviderAccount> {
