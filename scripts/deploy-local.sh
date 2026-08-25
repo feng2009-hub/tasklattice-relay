@@ -215,5 +215,14 @@ helm upgrade --install "$release_name" "$repository_root/charts/tali-relay" \
   --wait-for-jobs \
   --timeout "$helm_timeout"
 
+if [[ "$enable_keycloak" == "true" ]]; then
+  CONTROL_PUBLIC_URL="$control_public_url" \
+    KEYCLOAK_PUBLIC_URL="$keycloak_public_url" \
+    KUBE_CONTEXT="$kube_context" \
+    HELM_NAMESPACE="$namespace" \
+    HELM_RELEASE_NAME="$release_name" \
+    bash "$repository_root/scripts/configure-dev-keycloak-sso.sh"
+fi
+
 kubectl --context "$kube_context" --namespace "$namespace" get pods,services,pvc
 helm --kube-context "$kube_context" --namespace "$namespace" status "$release_name"

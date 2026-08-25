@@ -320,6 +320,12 @@ The repository's local deployment script performs this mapping automatically:
 npm run helm:deploy:dev:keycloak
 ```
 
+The command also signs in to Control with the local development administrator,
+validates and saves the embedded Keycloak provider through the Control API,
+keeps Local authentication enabled, and merges the matching test Group
+bindings. If the local administrator credentials have changed, provide
+`CONTROL_LOCAL_ADMIN_USERNAME` and `CONTROL_LOCAL_ADMIN_PASSWORD`.
+
 The development credentials are:
 
 | Purpose | Username | Password |
@@ -343,7 +349,7 @@ needed. Test user profile fields can be replaced through
 This mode runs Keycloak with `start-dev` and ephemeral storage. Realm changes
 are lost when its pod is replaced. It intentionally cannot be combined with
 `secrets.existingSecret`, because the Chart must generate matching Keycloak
-credentials. After the first Local sign-in, configure its issuer and Client
+credentials. For a manual Helm installation, configure its issuer and Client
 credentials in **Platform Setting -> Security & SSO**, keep the Group claim as
 `groups`, and add the exact test bindings represented by these Group paths:
 
