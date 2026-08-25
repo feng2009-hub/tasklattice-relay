@@ -11,9 +11,12 @@ import {
 } from "@tali/contracts";
 import { z } from "zod";
 import { defineContracts } from "./contract";
-import { projectRoute, response } from "./helpers";
+import { departmentRoute, projectRoute, response } from "./helpers";
 import {
   costQuerySchemas,
+  departmentModelParamsSchema,
+  departmentProviderParamsSchema,
+  departmentRoutingParamsSchema,
   domainCollectionSchema,
   modelParamsSchema,
   openObjectSchema,
@@ -87,6 +90,21 @@ export const inferenceContracts = defineContracts([
     responses: { 200: response("Deleted model deployment", openObjectSchema) },
   }),
   projectRoute({
+    method: "get", path: "/models/inheritable", operationId: "listInheritableDepartmentModels",
+    summary: "List Department models available to inherit", tags: ["Models"],
+    responses: { 200: response("Department model inheritance catalog", openObjectSchema) },
+  }),
+  projectRoute({
+    method: "post", path: "/models/{modelId}/inherit", operationId: "inheritDepartmentModel",
+    summary: "Inherit a Department model", tags: ["Models"], request: { params: modelParamsSchema },
+    responses: { 201: response("Inherited Department model", modelDeploymentSchema) },
+  }),
+  projectRoute({
+    method: "delete", path: "/models/{modelId}/inherit", operationId: "removeDepartmentModelInheritance",
+    summary: "Remove Department model inheritance", tags: ["Models"], request: { params: modelParamsSchema },
+    responses: { 200: response("Removed Department model inheritance", openObjectSchema) },
+  }),
+  projectRoute({
     method: "get", path: "/inference-gateways", operationId: "listInferenceGateways",
     summary: "List inference gateways", tags: ["Inference gateways"],
     responses: { 200: response("Inference gateway list", z.object({ data: domainCollectionSchema })) },
@@ -132,6 +150,111 @@ export const inferenceContracts = defineContracts([
     method: "get", path: "/model-routings/{routingId}/audit", operationId: "listModelRoutingAuditEvents",
     summary: "List model routing audit events", tags: ["Model routing"], request: { params: routingParamsSchema },
     responses: { 200: response("Model routing audit events", z.object({ data: domainCollectionSchema })) },
+  }),
+  projectRoute({
+    method: "get", path: "/model-routings/inheritable", operationId: "listInheritableDepartmentRoutings",
+    summary: "List Department routing available to inherit", tags: ["Model routing"],
+    responses: { 200: response("Department routing inheritance catalog", openObjectSchema) },
+  }),
+  projectRoute({
+    method: "post", path: "/model-routings/{routingId}/inherit", operationId: "inheritDepartmentRouting",
+    summary: "Inherit Department routing", tags: ["Model routing"], request: { params: routingParamsSchema },
+    responses: { 201: response("Inherited Department routing", modelRoutingSchema) },
+  }),
+  projectRoute({
+    method: "delete", path: "/model-routings/{routingId}/inherit", operationId: "removeDepartmentRoutingInheritance",
+    summary: "Remove Department routing inheritance", tags: ["Model routing"], request: { params: routingParamsSchema },
+    responses: { 200: response("Removed Department routing inheritance", openObjectSchema) },
+  }),
+  departmentRoute({
+    method: "get", path: "/providers", operationId: "listDepartmentProviderAccounts",
+    summary: "List Department provider accounts", tags: ["Providers"],
+    responses: { 200: response("Department provider account collection", providerCollectionSchema) },
+  }),
+  departmentRoute({
+    method: "post", path: "/providers", operationId: "createDepartmentProviderAccount",
+    summary: "Create a Department provider account", tags: ["Providers"], request: { body: createProviderConnectionSchema },
+    responses: { 201: response("Created Department provider account", openObjectSchema) },
+  }),
+  departmentRoute({
+    method: "post", path: "/providers/discover", operationId: "discoverDepartmentProviderModels",
+    summary: "Discover Department provider models", tags: ["Providers"], request: { body: discoverProviderModelsSchema },
+    responses: { 200: response("Department provider model discovery", openObjectSchema) },
+  }),
+  departmentRoute({
+    method: "post", path: "/providers/{providerId}/validate", operationId: "validateDepartmentProviderAccount",
+    summary: "Validate a Department provider account", tags: ["Providers"], request: { params: departmentProviderParamsSchema },
+    responses: { 200: response("Validated Department provider account", openObjectSchema) },
+  }),
+  departmentRoute({
+    method: "post", path: "/providers/{providerId}/discover", operationId: "discoverDepartmentProviderAccountModels",
+    summary: "Discover models for a Department provider account", tags: ["Providers"], request: { params: departmentProviderParamsSchema },
+    responses: { 200: response("Department provider model discovery", openObjectSchema) },
+  }),
+  departmentRoute({
+    method: "delete", path: "/providers/{providerId}", operationId: "deleteDepartmentProviderAccount",
+    summary: "Delete a Department provider account", tags: ["Providers"], request: { params: departmentProviderParamsSchema },
+    responses: { 200: response("Deleted Department provider account", openObjectSchema) },
+  }),
+  departmentRoute({
+    method: "get", path: "/models", operationId: "listDepartmentModelDeployments",
+    summary: "List Department model deployments", tags: ["Models"],
+    responses: { 200: response("Department model deployment list", z.object({ data: z.array(modelDeploymentSchema) })) },
+  }),
+  departmentRoute({
+    method: "post", path: "/models", operationId: "createDepartmentModelDeployment",
+    summary: "Create a Department model deployment", tags: ["Models"], request: { body: createModelDeploymentSchema },
+    responses: { 201: response("Created Department model deployment", modelDeploymentSchema) },
+  }),
+  departmentRoute({
+    method: "delete", path: "/models/{modelId}", operationId: "deleteDepartmentModelDeployment",
+    summary: "Delete a Department model deployment", tags: ["Models"], request: { params: departmentModelParamsSchema },
+    responses: { 200: response("Deleted Department model deployment", openObjectSchema) },
+  }),
+  departmentRoute({
+    method: "get", path: "/inference-gateways", operationId: "listDepartmentInferenceGateways",
+    summary: "List Department inference gateways", tags: ["Inference gateways"],
+    responses: { 200: response("Department inference gateway list", z.object({ data: domainCollectionSchema })) },
+  }),
+  departmentRoute({
+    method: "get", path: "/model-routings", operationId: "listDepartmentModelRoutings",
+    summary: "List Department model routings", tags: ["Model routing"],
+    responses: { 200: response("Department model routing list", z.object({ data: z.array(modelRoutingSchema) })) },
+  }),
+  departmentRoute({
+    method: "post", path: "/model-routings", operationId: "createDepartmentModelRouting",
+    summary: "Create Department model routing", tags: ["Model routing"], request: { body: createModelRoutingSchema },
+    responses: { 201: response("Created Department model routing", modelRoutingSchema) },
+  }),
+  departmentRoute({
+    method: "get", path: "/model-routings/{routingId}", operationId: "getDepartmentModelRouting",
+    summary: "Read Department model routing", tags: ["Model routing"], request: { params: departmentRoutingParamsSchema },
+    responses: { 200: response("Department model routing", modelRoutingSchema) },
+  }),
+  departmentRoute({
+    method: "put", path: "/model-routings/{routingId}", operationId: "updateDepartmentModelRouting",
+    summary: "Update Department model routing", tags: ["Model routing"], request: { params: departmentRoutingParamsSchema, body: updateModelRoutingSchema },
+    responses: { 200: response("Updated Department model routing", modelRoutingSchema) },
+  }),
+  departmentRoute({
+    method: "delete", path: "/model-routings/{routingId}", operationId: "deleteDepartmentModelRouting",
+    summary: "Delete Department model routing", tags: ["Model routing"], request: { params: departmentRoutingParamsSchema },
+    responses: { 200: response("Deleted Department model routing", openObjectSchema) },
+  }),
+  departmentRoute({
+    method: "post", path: "/model-routings/{routingId}/refresh", operationId: "refreshDepartmentModelRouting",
+    summary: "Refresh Department model routing", tags: ["Model routing"], request: { params: departmentRoutingParamsSchema },
+    responses: { 200: response("Refreshed Department model routing", modelRoutingSchema) },
+  }),
+  departmentRoute({
+    method: "get", path: "/model-routings/{routingId}/consumers", operationId: "listDepartmentModelRoutingConsumers",
+    summary: "List Department model routing consumers", tags: ["Model routing"], request: { params: departmentRoutingParamsSchema },
+    responses: { 200: response("Department model routing consumer list", z.object({ data: domainCollectionSchema })) },
+  }),
+  departmentRoute({
+    method: "get", path: "/model-routings/{routingId}/audit", operationId: "listDepartmentModelRoutingAuditEvents",
+    summary: "List Department model routing audit events", tags: ["Model routing"], request: { params: departmentRoutingParamsSchema },
+    responses: { 200: response("Department model routing audit events", z.object({ data: domainCollectionSchema })) },
   }),
   projectRoute({
     method: "get", path: "/quota", operationId: "getProjectQuota", summary: "Read Project quota",

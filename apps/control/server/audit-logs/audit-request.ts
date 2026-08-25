@@ -14,6 +14,7 @@ const sensitiveKey =
   /(?:authorization|cookie|password|passphrase|secret|token|credential|api[-_]?key|master[-_]?key|private[-_]?key|client[-_]?secret|code[-_]?verifier)/i;
 const operationSegments = new Set([
   "discover",
+  "inherit",
   "provision",
   "refresh",
   "rotate-model-credential",
@@ -230,6 +231,42 @@ function descriptor(method: string, path: string): AuditDescriptor | undefined {
       objectType: "Department Settings",
       operation: "update",
     };
+  }
+  const departmentResourceMatch = path.match(
+    /^\/api\/v1\/departments\/([^/]+)\/(.*)$/,
+  );
+  if (departmentResourceMatch) {
+    const tail = departmentResourceMatch[2]!
+      .split("/")
+      .filter(Boolean)
+      .map(decodeURIComponent);
+    const unsafe = method === "POST" || method === "PUT"
+      || method === "PATCH" || method === "DELETE";
+    const resource = resources.find((candidate) => tail.includes(candidate.segment));
+    if (unsafe && resource) {
+      const resourceIndex = tail.lastIndexOf(resource.segment);
+      const possibleId = tail[resourceIndex + 1];
+      const customOperation = tail.find((segment) => operationSegments.has(segment));
+      const operation = method === "DELETE"
+        ? customOperation ?? "delete"
+        : customOperation
+          ? customOperation.replaceAll("-", "_")
+          : method === "POST"
+            ? "create"
+            : "update";
+      return {
+        action: `department_${resource.prefix}.${operation}`,
+        ...(
+          possibleId
+          && !operationSegments.has(possibleId)
+          && possibleId !== "discover"
+            ? { objectId: possibleId }
+            : {}
+        ),
+        objectType: `Department ${resource.type}`,
+        operation,
+      };
+    }
   }
   if (path === "/api/auth/sign-in/username" && method === "POST") {
     return { action: "auth.login", objectType: "Session", operation: "login" };

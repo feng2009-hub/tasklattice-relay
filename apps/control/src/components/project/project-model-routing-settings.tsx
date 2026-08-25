@@ -1,6 +1,5 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
 import {
   type ModelCapability,
   type ModelDeployment,
@@ -12,11 +11,13 @@ import {
   ArrowRight,
   AudioLines,
   BrainCircuit,
+  Building2,
   Check,
   CircleAlert,
   Database,
   FileScan,
   Info,
+  LockKeyhole,
   Plus,
   RefreshCw,
   Search,
@@ -25,14 +26,20 @@ import {
 } from "lucide-react";
 import { CreateModelRoutingSheet } from "@/components/providers/create-model-routing-sheet";
 import { GatewaySyncStatus } from "@/components/providers/gateway-sync-status";
+import {
+  InferenceManagementProvider,
+  useInferenceManagement,
+} from "@/components/providers/inference-management-context";
 import { ProviderConnectionsManagement } from "@/components/providers/provider-connections-management";
 import { ProviderIcon } from "@/components/providers/provider-icon";
 import { RegisterModelsDrawer } from "@/components/providers/register-models-drawer";
 import { DataBoundaryLabel } from "@/components/shared/data-boundary-label";
 import { DeleteEntitySheet } from "@/components/shared/delete-entity-sheet";
+import { EntitySheet } from "@/components/shared/entity-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -41,14 +48,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
-import { useCurrentProjectId } from "@/hooks/use-project";
-import { api } from "@/lib/api";
+import { api, departmentInferenceApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { Project } from "@/types/project";
 
@@ -72,16 +79,60 @@ const capabilityLabels: Record<ModelCapability, string> = {
   multilingual: "Multilingual",
 };
 
-export function ProjectModelRoutingsSettings({
-  onViewChange,
-  project,
-  view,
-}: {
+export function ProjectModelRoutingsSettings(props: {
   onViewChange: (view: ManagementView) => void;
   project: Project;
   view: ManagementView;
 }) {
   const scope = useProjectQueryScope();
+  return (
+    <InferenceManagementProvider
+      value={{ client: api, key: scope.key, scopeLabel: "Project" }}
+    >
+      <ModelRoutingsSettingsContent {...props} />
+    </InferenceManagementProvider>
+  );
+}
+
+export function DepartmentModelRoutingsSettings({
+  departmentId,
+  onViewChange,
+  view,
+}: {
+  departmentId: string;
+  onViewChange: (view: ManagementView) => void;
+  view: ManagementView;
+}) {
+  const client = useMemo(
+    () => departmentInferenceApi(departmentId),
+    [departmentId],
+  );
+  const key = useMemo(
+    () => (...parts: string[]) => ["department", departmentId, ...parts] as const,
+    [departmentId],
+  );
+  return (
+    <InferenceManagementProvider
+      value={{ client, key, scopeLabel: "Department" }}
+    >
+      <ModelRoutingsSettingsContent
+        onViewChange={onViewChange}
+        view={view}
+      />
+    </InferenceManagementProvider>
+  );
+}
+
+function ModelRoutingsSettingsContent({
+  onViewChange,
+  project,
+  view,
+}: {
+  onViewChange: (view: ManagementView) => void;
+  project?: Project;
+  view: ManagementView;
+}) {
+  const { client, key, scopeLabel } = useInferenceManagement();
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [registerOpen, setRegisterOpen] = useState(false);
@@ -90,61 +141,69 @@ export function ProjectModelRoutingsSettings({
   const [registrationMode, setRegistrationMode] =
     useState<"existing" | "new">("existing");
   const [successMessage, setSuccessMessage] = useState("");
+  const [inheritanceOpen, setInheritanceOpen] = useState(false);
+  const [editingRouting, setEditingRouting] = useState<ModelRouting>();
   const [modelSearch, setModelSearch] = useState("");
   const [modelType, setModelType] = useState<ModelTypeFilter>("all");
-  const capabilities = new Set(project.effectiveCapabilities);
+  const capabilities = new Set(project?.effectiveCapabilities ?? []);
+  const departmentManaged = scopeLabel === "Department";
   const canConnectProvider =
-    capabilities.has("CAP_PROVIDER_CREATE")
-    && capabilities.has("CAP_PROVIDER_DISCOVER");
+    departmentManaged || (
+      capabilities.has("CAP_PROVIDER_CREATE")
+      && capabilities.has("CAP_PROVIDER_DISCOVER")
+    );
   const canRegisterModels =
-    capabilities.has("CAP_MODEL_CREATE")
-    && capabilities.has("CAP_PROVIDER_DISCOVER");
-  const canDeleteModels = capabilities.has("CAP_MODEL_DELETE");
-  const canValidateProviders = capabilities.has("CAP_PROVIDER_VALIDATE");
-  const canDeleteProviders = capabilities.has("CAP_PROVIDER_DELETE");
-  const canCreateRouting = capabilities.has("CAP_MODEL_ROUTING_CREATE");
-  const canUpdateRouting = capabilities.has("CAP_MODEL_ROUTING_UPDATE");
-  const canReconcileRouting = capabilities.has("CAP_MODEL_ROUTING_RECONCILE");
+    departmentManaged || (
+      capabilities.has("CAP_MODEL_CREATE")
+      && capabilities.has("CAP_PROVIDER_DISCOVER")
+    );
+  const canDeleteModels = departmentManaged || capabilities.has("CAP_MODEL_DELETE");
+  const canValidateProviders = departmentManaged || capabilities.has("CAP_PROVIDER_VALIDATE");
+  const canDeleteProviders = departmentManaged || capabilities.has("CAP_PROVIDER_DELETE");
+  const canCreateRouting = departmentManaged || capabilities.has("CAP_MODEL_ROUTING_CREATE");
+  const canUpdateRouting = departmentManaged || capabilities.has("CAP_MODEL_ROUTING_UPDATE");
+  const canReconcileRouting = departmentManaged || capabilities.has("CAP_MODEL_ROUTING_RECONCILE");
+  const canDeleteRouting = departmentManaged || capabilities.has("CAP_MODEL_ROUTING_DELETE");
   const routings = useQuery({
-    queryKey: scope.key("model-routings"),
-    queryFn: api.listModelRoutings,
+    queryKey: key("model-routings"),
+    queryFn: client.listModelRoutings,
   });
   const deployments = useQuery({
-    queryKey: scope.key("model-deployments"),
-    queryFn: api.listModelDeployments,
+    queryKey: key("model-deployments"),
+    queryFn: client.listModelDeployments,
   });
   const accounts = useQuery({
-    queryKey: scope.key("provider-accounts"),
-    queryFn: api.listProviderAccounts,
+    queryKey: key("provider-accounts"),
+    queryFn: client.listProviderAccounts,
   });
   const setDefault = useMutation({
     mutationFn: (routing: ModelRouting) =>
-      api.updateModelRouting(routing.id, { isDefault: true }),
+      client.updateModelRouting(routing.id, { isDefault: true }),
     onSuccess: async (routing) => {
-      setSuccessMessage(`${routing.name} is now the Project default.`);
+      setSuccessMessage(`${routing.name} is now the ${scopeLabel} default.`);
       await queryClient.invalidateQueries({
-        queryKey: scope.key("model-routings"),
+        queryKey: key("model-routings"),
       });
     },
   });
   const refresh = useMutation({
-    mutationFn: api.refreshModelRouting,
+    mutationFn: client.refreshModelRouting,
     onSuccess: async () =>
       queryClient.invalidateQueries({
-        queryKey: scope.key("model-routings"),
+        queryKey: key("model-routings"),
       }),
   });
   const removeModel = useMutation({
     mutationFn: (model: ModelDeployment) =>
-      api.deleteModelDeployment(model.id),
+      client.deleteModelDeployment(model.id),
     onSuccess: async () => {
       setRemovingModel(undefined);
       await Promise.all([
         queryClient.invalidateQueries({
-          queryKey: scope.key("model-deployments"),
+          queryKey: key("model-deployments"),
         }),
         queryClient.invalidateQueries({
-          queryKey: scope.key("provider-accounts"),
+          queryKey: key("provider-accounts"),
         }),
       ]);
     },
@@ -233,12 +292,22 @@ export function ProjectModelRoutingsSettings({
                   <Tip content="A registered model is one callable Provider endpoint. The same model can appear more than once when supplied by different Providers or regions." />
                 </div>
                 <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">
-                  Models available to this Project and its routing configurations.
+                  Models owned by or available to this {scopeLabel} and its routing configurations.
                 </p>
               </div>
               <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
-                {canConnectProvider || canRegisterModels ? (
+                {canConnectProvider || canRegisterModels || project ? (
                   <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
+                    {project ? (
+                      <Button
+                        className="h-11"
+                        variant="outline"
+                        onClick={() => setInheritanceOpen(true)}
+                      >
+                        <Building2 />
+                        Department models
+                      </Button>
+                    ) : null}
                     {providerAccounts.length && canRegisterModels ? (
                       <Button
                         className="h-11"
@@ -387,21 +456,33 @@ export function ProjectModelRoutingsSettings({
                   Reusable routing configurations that Instances reference directly.
                 </p>
               </div>
-              {canCreateRouting ? (
-                <Button
-                  className="h-11 self-start sm:self-auto"
-                  disabled={!readyChatModels.length}
-                  title={
-                    readyChatModels.length
-                      ? undefined
-                      : "Register a validated text generation model first."
-                  }
-                  onClick={() => setCreateOpen(true)}
-                >
-                  <Plus />
-                  Create Routing
-                </Button>
-              ) : null}
+              <div className="flex flex-wrap gap-2 self-start sm:self-auto">
+                {project ? (
+                  <Button
+                    className="h-11"
+                    variant="outline"
+                    onClick={() => setInheritanceOpen(true)}
+                  >
+                    <Building2 />
+                    Department routing
+                  </Button>
+                ) : null}
+                {canCreateRouting ? (
+                  <Button
+                    className="h-11"
+                    disabled={!readyChatModels.length}
+                    title={
+                      readyChatModels.length
+                        ? undefined
+                        : "Register or inherit a validated text generation model first."
+                    }
+                    onClick={() => setCreateOpen(true)}
+                  >
+                    <Plus />
+                    Create Routing
+                  </Button>
+                ) : null}
+              </div>
             </div>
 
             {routings.isPending ? (
@@ -459,6 +540,11 @@ export function ProjectModelRoutingsSettings({
                     setSuccessMessage("");
                     setDefault.mutate(routing);
                   }}
+                  {...(departmentManaged
+                    ? { onConfigure: setEditingRouting }
+                    : {})}
+                  scopeLabel={scopeLabel}
+                  {...(project ? { projectId: project.id } : {})}
                 />
               </>
             ) : (
@@ -516,7 +602,7 @@ export function ProjectModelRoutingsSettings({
             if (!open) setRemovingModel(undefined);
           }}
           title="Delete registered model"
-          description={<>Remove <strong>{removingModel.displayName}</strong> from this Project.</>}
+          description={<>Remove <strong>{removingModel.displayName}</strong> from this {scopeLabel}.</>}
           entityName={removingModel.displayName}
           confirmLabel="Delete model"
           deleting={removeModel.isPending}
@@ -532,7 +618,328 @@ export function ProjectModelRoutingsSettings({
         open={registerOpen}
         onOpenChange={setRegisterOpen}
       />
+      {project ? (
+        <DepartmentInheritanceSheet
+          canAdd={view === "models" ? canRegisterModels : canCreateRouting}
+          canRemove={view === "models" ? canDeleteModels : canDeleteRouting}
+          open={inheritanceOpen}
+          onOpenChange={setInheritanceOpen}
+          view={view}
+        />
+      ) : null}
+      {editingRouting ? (
+        <DepartmentRoutingConfigurationSheet
+          open
+          routing={editingRouting}
+          onOpenChange={(open) => {
+            if (!open) setEditingRouting(undefined);
+          }}
+        />
+      ) : null}
     </div>
+  );
+}
+
+function DepartmentRoutingConfigurationSheet({
+  onOpenChange,
+  open,
+  routing,
+}: {
+  onOpenChange: (open: boolean) => void;
+  open: boolean;
+  routing: ModelRouting;
+}) {
+  const { client, key } = useInferenceManagement();
+  const queryClient = useQueryClient();
+  const [name, setName] = useState(routing.name);
+  const [description, setDescription] = useState(routing.description);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  useEffect(() => {
+    setName(routing.name);
+    setDescription(routing.description);
+  }, [routing]);
+  const invalidate = async () => {
+    await queryClient.invalidateQueries({ queryKey: key("model-routings") });
+  };
+  const update = useMutation({
+    mutationFn: () => client.updateModelRouting(routing.id, { name, description }),
+    onSuccess: async () => {
+      await invalidate();
+      onOpenChange(false);
+    },
+  });
+  const refresh = useMutation({
+    mutationFn: () => client.refreshModelRouting(routing.id),
+    onSuccess: invalidate,
+  });
+  const remove = useMutation({
+    mutationFn: () => client.deleteModelRouting(routing.id),
+    onSuccess: async () => {
+      await invalidate();
+      setDeleteOpen(false);
+      onOpenChange(false);
+    },
+  });
+  const dirty = name.trim() !== routing.name || description.trim() !== routing.description;
+  const canDelete = !routing.isDefault && routing.consumers === 0;
+
+  return (
+    <>
+      <EntitySheet
+        open={open}
+        onOpenChange={(next) => !update.isPending && onOpenChange(next)}
+        eyebrow="Department routing"
+        title={routing.name}
+        description="Manage the shared Routing identity. Saved changes are resolved live by every Project that inherits this Routing ID."
+        footer={(
+          <>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={!dirty || name.trim().length < 2 || update.isPending}
+              onClick={() => update.mutate()}
+            >
+              {update.isPending ? <Spinner /> : <Check />}
+              Save changes
+            </Button>
+          </>
+        )}
+      >
+        <div className="space-y-6">
+          <div className="flex gap-3 border border-sky-500/20 bg-sky-500/5 p-3 text-xs leading-5 text-muted-foreground">
+            <Building2 className="mt-0.5 size-4 shrink-0 text-sky-700" />
+            Project references stay read-only and receive these changes automatically; no snapshot or version copy is created.
+          </div>
+          <div className="grid gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="department-routing-name">Name</Label>
+              <Input
+                id="department-routing-name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="department-routing-description">Description</Label>
+              <Textarea
+                id="department-routing-description"
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+              />
+            </div>
+          </div>
+          <dl className="grid gap-px overflow-hidden border bg-border sm:grid-cols-2">
+            <div className="bg-background p-4">
+              <dt className="text-xs text-muted-foreground">Public alias</dt>
+              <dd className="mt-1 break-all font-mono text-xs font-semibold">{routing.publicModelAlias}</dd>
+            </div>
+            <div className="bg-background p-4">
+              <dt className="text-xs text-muted-foreground">Routing strategy</dt>
+              <dd className="mt-1 text-xs font-semibold">{routingSummary(routing).label}</dd>
+            </div>
+          </dl>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-y py-4">
+            <span>
+              <strong className="block text-sm">Reconcile shared routing</strong>
+              <span className="text-xs text-muted-foreground">Refresh readiness and LiteLLM desired state.</span>
+            </span>
+            <Button
+              disabled={refresh.isPending}
+              variant="outline"
+              onClick={() => refresh.mutate()}
+            >
+              <RefreshCw className={cn(refresh.isPending && "animate-spin")} />
+              Refresh
+            </Button>
+          </div>
+          <div className="border border-destructive/25 p-4">
+            <strong className="text-sm text-destructive">Danger zone</strong>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              {routing.isDefault
+                ? "Choose another Department default before deleting."
+                : routing.consumers
+                  ? `Reassign ${routing.consumers} active Instance${routing.consumers === 1 ? "" : "s"} before deleting.`
+                  : "Deletion is blocked while any Project still inherits this Routing."}
+            </p>
+            <Button
+              className="mt-3"
+              disabled={!canDelete}
+              variant="destructive"
+              onClick={() => setDeleteOpen(true)}
+            >
+              <Trash2 /> Delete routing
+            </Button>
+          </div>
+          {update.error || refresh.error ? (
+            <p className="border-l-2 border-destructive bg-destructive/5 p-3 text-sm text-destructive" role="alert">
+              {(update.error ?? refresh.error)?.message}
+            </p>
+          ) : null}
+        </div>
+      </EntitySheet>
+      {deleteOpen ? (
+        <DeleteEntitySheet
+          open
+          onOpenChange={setDeleteOpen}
+          title="Delete Department routing"
+          description={<>Delete <strong>{routing.name}</strong> from this Department.</>}
+          entityName={routing.name}
+          confirmLabel="Delete routing"
+          deleting={remove.isPending}
+          onConfirm={() => remove.mutate()}
+          {...(remove.error ? { error: remove.error.message } : {})}
+          retentionDescription="The shared routing record is soft-deleted. Audit history remains retained."
+        />
+      ) : null}
+    </>
+  );
+}
+
+function DepartmentInheritanceSheet({
+  canAdd,
+  canRemove,
+  onOpenChange,
+  open,
+  view,
+}: {
+  canAdd: boolean;
+  canRemove: boolean;
+  onOpenChange: (open: boolean) => void;
+  open: boolean;
+  view: ManagementView;
+}) {
+  const { key } = useInferenceManagement();
+  const queryClient = useQueryClient();
+  const models = useQuery({
+    queryKey: key("department-inheritable-models"),
+    queryFn: api.listInheritableModels,
+    enabled: open && view === "models",
+  });
+  const routings = useQuery({
+    queryKey: key("department-inheritable-routings"),
+    queryFn: api.listInheritableRoutings,
+    enabled: open && view === "routing",
+  });
+  const mutation = useMutation({
+    mutationFn: async ({ id, inherited }: { id: string; inherited: boolean }) => {
+      if (view === "models") {
+        return inherited
+          ? api.removeDepartmentModelInheritance(id)
+          : api.inheritDepartmentModel(id);
+      }
+      return inherited
+        ? api.removeDepartmentRoutingInheritance(id)
+        : api.inheritDepartmentRouting(id);
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: key("model-deployments") }),
+        queryClient.invalidateQueries({ queryKey: key("model-routings") }),
+        queryClient.invalidateQueries({ queryKey: key("department-inheritable-models") }),
+        queryClient.invalidateQueries({ queryKey: key("department-inheritable-routings") }),
+      ]);
+    },
+  });
+  const availability = view === "models" ? models.data : routings.data;
+  const resources = view === "models"
+    ? models.data?.models ?? []
+    : routings.data?.routings ?? [];
+  const pending = view === "models" ? models.isPending : routings.isPending;
+  const queryError = view === "models" ? models.error : routings.error;
+
+  return (
+    <EntitySheet
+      open={open}
+      onOpenChange={(next) => !mutation.isPending && onOpenChange(next)}
+      eyebrow="Live inheritance"
+      title={`Department ${view === "models" ? "models" : "routing"}`}
+      description={(
+        <>
+          Reference resources from <strong>{availability?.departmentName ?? "the parent Department"}</strong> by ID.
+          Inherited definitions stay read-only here and reflect Department updates automatically.
+        </>
+      )}
+      footer={(
+        <Button variant="outline" onClick={() => onOpenChange(false)}>
+          Done
+        </Button>
+      )}
+    >
+      {view === "routing" ? (
+        <div className="mb-4 flex gap-3 border border-sky-500/20 bg-sky-500/5 p-3 text-xs leading-5 text-muted-foreground">
+          <Info className="mt-0.5 size-4 shrink-0 text-sky-700" />
+          Inheriting a Routing also links the Department models referenced by that Routing.
+        </div>
+      ) : null}
+      {mutation.error ? (
+        <p className="mb-4 border-l-2 border-destructive bg-destructive/5 p-3 text-sm text-destructive" role="alert">
+          {mutation.error.message}
+        </p>
+      ) : null}
+      {pending ? (
+        <LoadingState label={`Loading Department ${view}…`} />
+      ) : queryError ? (
+        <ErrorState
+          message={queryError.message}
+          onRetry={() => void (view === "models" ? models.refetch() : routings.refetch())}
+        />
+      ) : resources.length ? (
+        <div className="divide-y border-y">
+          {resources.map((resource) => {
+            const inherited = Boolean(resource.origin?.inherited);
+            const actionAllowed = inherited ? canRemove : canAdd;
+            const isPending = mutation.isPending && mutation.variables?.id === resource.id;
+            const isModel = "modelType" in resource;
+            return (
+              <article className="flex items-start gap-4 py-4" key={resource.id}>
+                <span className="grid size-9 shrink-0 place-items-center border text-muted-foreground">
+                  {view === "models" ? <BrainCircuit /> : <Workflow />}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <strong className="text-sm">
+                      {isModel ? resource.displayName : resource.name}
+                    </strong>
+                    {inherited ? (
+                      <Badge className="gap-1" variant="secondary">
+                        <Check className="size-3" /> Inherited
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline">Available</Badge>
+                    )}
+                  </div>
+                  <p className="mt-1 truncate text-xs text-muted-foreground">
+                    {isModel
+                      ? `${resource.providerName} · ${modelTypeLabels[resource.modelType]}`
+                      : `${routingSummary(resource).label} · ${resource.publicModelAlias}`}
+                  </p>
+                </div>
+                {actionAllowed ? (
+                  <Button
+                    disabled={isPending}
+                    variant={inherited ? "outline" : "default"}
+                    onClick={() => mutation.mutate({ id: resource.id, inherited })}
+                  >
+                    {isPending ? <Spinner /> : inherited ? <Trash2 /> : <Plus />}
+                    {inherited ? "Remove" : "Inherit"}
+                  </Button>
+                ) : (
+                  <Badge variant="outline">View only</Badge>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      ) : (
+        <EmptyState
+          action={null}
+          icon={<Building2 className="size-4" />}
+          title={`No Department ${view === "models" ? "models" : "routing"} available`}
+          description="Ask a Department administrator to configure shared inference resources first."
+        />
+      )}
+    </EntitySheet>
   );
 }
 
@@ -593,9 +1000,12 @@ function ModelTable({
               return (
                 <tr key={model.id} className="hover:bg-muted/[0.12]">
                   <td className="px-5 py-3">
-                    <strong className="block text-sm font-medium">
-                      {model.displayName}
-                    </strong>
+                    <span className="flex flex-wrap items-center gap-2">
+                      <strong className="text-sm font-medium">
+                        {model.displayName}
+                      </strong>
+                      <InheritedBadge resource={model} />
+                    </span>
                     <code className="mt-0.5 block max-w-xs truncate text-[11px] text-muted-foreground">
                       {model.modelId}
                     </code>
@@ -621,7 +1031,7 @@ function ModelTable({
                     {useCount} Routing{useCount === 1 ? "" : "s"}
                   </td>
                   <td className="px-2 py-3">
-                    {canDelete ? (
+                    {canDelete && model.origin?.editable !== false ? (
                       <Button
                         aria-label={`Remove ${model.displayName}`}
                         disabled={
@@ -655,9 +1065,12 @@ function ModelTable({
             <article key={model.id} className="space-y-3 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <strong className="block truncate text-sm font-medium">
-                    {model.displayName}
-                  </strong>
+                  <span className="flex flex-wrap items-center gap-2">
+                    <strong className="truncate text-sm font-medium">
+                      {model.displayName}
+                    </strong>
+                    <InheritedBadge resource={model} />
+                  </span>
                   <code className="mt-0.5 block truncate text-[11px] text-muted-foreground">
                     {model.modelId}
                   </code>
@@ -676,7 +1089,7 @@ function ModelTable({
                 <span className="ml-auto text-xs text-muted-foreground">
                   Used by {useCount} Routing{useCount === 1 ? "" : "s"}
                 </span>
-                {canDelete ? (
+                {canDelete && model.origin?.editable !== false ? (
                   <Button
                     aria-label={`Remove ${model.displayName}`}
                     disabled={useCount > 0 || removingId === model.id}
@@ -709,17 +1122,23 @@ function RoutingTable({
   canUpdate,
   onRefresh,
   onSelectDefault,
+  onConfigure,
   routings,
   refreshingId,
   selectingId,
+  projectId,
+  scopeLabel,
 }: {
   canReconcile: boolean;
   canUpdate: boolean;
   onRefresh: (routing: ModelRouting) => void;
   onSelectDefault: (routing: ModelRouting) => void;
+  onConfigure?: (routing: ModelRouting) => void;
   routings: ModelRouting[];
   refreshingId?: string;
   selectingId?: string;
+  projectId?: string;
+  scopeLabel: "Project" | "Department";
 }) {
   return (
     <div className="overflow-x-auto border-t">
@@ -743,8 +1162,11 @@ function RoutingTable({
               routing={routing}
               refreshing={refreshingId === routing.id}
               selecting={selectingId === routing.id}
+              scopeLabel={scopeLabel}
+              {...(projectId ? { projectId } : {})}
               onRefresh={() => onRefresh(routing)}
               onSelectDefault={() => onSelectDefault(routing)}
+              {...(onConfigure ? { onConfigure: () => onConfigure(routing) } : {})}
             />
           ))}
         </tbody>
@@ -758,25 +1180,31 @@ function RoutingRow({
   canUpdate,
   onRefresh,
   onSelectDefault,
+  onConfigure,
   routing,
   refreshing,
   selecting,
+  projectId,
+  scopeLabel,
 }: {
   canReconcile: boolean;
   canUpdate: boolean;
   onRefresh: () => void;
   onSelectDefault: () => void;
+  onConfigure?: () => void;
   routing: ModelRouting;
   refreshing: boolean;
   selecting: boolean;
+  projectId?: string;
+  scopeLabel: "Project" | "Department";
 }) {
-  const projectId = useCurrentProjectId();
   const summary = routingSummary(routing);
   const fallbackCount =
     routing.routingPolicy.fallbackModelDeploymentIds.length;
   const retries = routing.routingPolicy.retries;
   const canBecomeDefault =
     canUpdate && routing.status === "READY" && !routing.isDefault;
+  const editable = routing.origin?.editable !== false;
   return (
     <tr className={cn(routing.isDefault && "bg-primary/[0.025]")}>
       <td className="px-5 py-3">
@@ -802,8 +1230,9 @@ function RoutingRow({
                 status={routing.status}
               />
               {routing.isDefault ? (
-                <Badge variant="secondary">Project default</Badge>
+                <Badge variant="secondary">{scopeLabel} default</Badge>
               ) : null}
+              <InheritedBadge resource={routing} />
             </span>
             <span className="mt-1 block max-w-xs truncate text-[11px] text-muted-foreground">
               {routing.description || routing.publicModelAlias}
@@ -838,7 +1267,7 @@ function RoutingRow({
       </td>
       <td className="px-5 py-3">
         <div className="flex items-center justify-end gap-1">
-          {canReconcile ? (
+          {canReconcile && editable ? (
             <Button
               size="icon"
               variant="ghost"
@@ -856,7 +1285,7 @@ function RoutingRow({
               title={
                 canBecomeDefault
                   ? undefined
-                  : "Only ready routing can become the Project default."
+                  : `Only ready routing can become the ${scopeLabel} default.`
               }
               onClick={onSelectDefault}
             >
@@ -864,15 +1293,28 @@ function RoutingRow({
               Set default
             </Button>
           ) : null}
-          <Button asChild variant="ghost">
-            <Link
-              to="/$projectId/setting/model-routings/$routingId"
-              params={{ projectId, routingId: routing.id }}
-            >
+          {editable && projectId ? (
+            <Button asChild variant="ghost">
+              <a href={`/${encodeURIComponent(projectId)}/setting/model-routings/${encodeURIComponent(routing.id)}`}>
+                Configure
+                <ArrowRight />
+              </a>
+            </Button>
+          ) : editable && onConfigure ? (
+            <Button variant="ghost" onClick={onConfigure}>
               Configure
               <ArrowRight />
-            </Link>
-          </Button>
+            </Button>
+          ) : !editable ? (
+            <Button
+              disabled
+              title="Inherited Department Routing is updated at the Department level."
+              variant="ghost"
+            >
+              <LockKeyhole />
+              Read only
+            </Button>
+          ) : null}
         </div>
       </td>
     </tr>
@@ -901,6 +1343,29 @@ function ProviderCell({
         </span>
       </span>
     </span>
+  );
+}
+
+function InheritedBadge({
+  resource,
+}: {
+  resource: {
+    origin?: {
+      inherited: boolean;
+      scopeName?: string;
+    };
+  };
+}) {
+  if (!resource.origin?.inherited) return null;
+  return (
+    <Badge
+      className="gap-1 border-sky-500/20 bg-sky-500/8 text-sky-800"
+      title="Referenced by ID. Department updates apply automatically."
+      variant="outline"
+    >
+      <Building2 className="size-3" />
+      Inherited from {resource.origin.scopeName ?? "Department"}
+    </Badge>
   );
 }
 

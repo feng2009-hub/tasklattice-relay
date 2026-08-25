@@ -48,6 +48,7 @@ import compactSsoGroupPathsMigration from "../../prisma/migrations/2026082407000
 import platformRuntimeSettingsMigration from "../../prisma/migrations/20260825000000_platform_runtime_settings/migration.sql?raw";
 import businessRecordSoftDeleteMigration from "../../prisma/migrations/20260826000000_business_record_soft_delete/migration.sql?raw";
 import unifiedAgentInstancesMigration from "../../prisma/migrations/20260826010000_unify_agent_instances_and_runtime_settings/migration.sql?raw";
+import departmentInferenceResourcesMigration from "../../prisma/migrations/20260826030000_department_inference_resources/migration.sql?raw";
 import { developmentResourceCatalog } from "../catalog/development-resource-catalog";
 import { PrismaClient } from "../generated/prisma/client";
 
@@ -497,6 +498,7 @@ export function createTestPrisma(): PrismaClient {
         "",
       ),
   );
+  memory.public.none(departmentInferenceResourcesMigration);
   const pg = memory.adapters.createPg();
   const query = pg.Client.prototype.query;
   pg.Client.prototype.query = function (

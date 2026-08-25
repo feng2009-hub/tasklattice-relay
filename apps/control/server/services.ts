@@ -32,6 +32,7 @@ import {
 import { requireDepartmentAdministrator } from "./departments/department-access";
 
 interface ProjectServices {
+  store: ProjectStore;
   instances: InstanceService;
   agentGarden: AgentGardenService;
   accessPolicies: AccessPolicyService;
@@ -75,6 +76,7 @@ function createServices(projectId: string): ProjectServices {
     accessPolicies,
   );
   return {
+    store,
     auditLogs: new AuditLogService(projectId, store.database()),
     instances,
     overview: new ProjectOverviewService(store, instances),
@@ -181,6 +183,10 @@ export async function getAgentGardenService(
 
 export async function getProviderService(request?: Request): Promise<ProviderService> {
   return (await forRequest(request)).provider;
+}
+
+export async function getProjectStore(request?: Request): Promise<ProjectStore> {
+  return (await forRequest(request)).store;
 }
 
 export async function getCostService(request?: Request): Promise<CostService> {

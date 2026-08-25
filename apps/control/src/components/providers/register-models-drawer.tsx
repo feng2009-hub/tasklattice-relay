@@ -9,6 +9,7 @@ import {
   providerSupportsComplianceDomain,
   type ComplianceDomain,
   type ModelCapability,
+  type ModelDeployment,
   type ModelType,
   type ProviderAccount,
   type ProviderConnectionDraft,
@@ -67,8 +68,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
-import { api } from "@/lib/api";
+import { useInferenceManagement } from "./inference-management-context";
 import { cn } from "@/lib/utils";
 
 const modelTypeLabels: Record<ModelType, string> = {
@@ -105,7 +105,7 @@ const registrationSteps: readonly CreationStep[] = [
 
 interface RegistrationSummary {
   connectionName: string;
-  models: Awaited<ReturnType<typeof api.registerModelDeployment>>[];
+  models: ModelDeployment[];
   failures: Array<{ model: ProviderModelSelection; message: string }>;
 }
 
@@ -122,7 +122,7 @@ export function RegisterModelsDrawer({
   onOpenChange: (open: boolean) => void;
   open: boolean;
 }) {
-  const scope = useProjectQueryScope();
+  const { client, key, scopeLabel } = useInferenceManagement();
   const queryClient = useQueryClient();
   const providerTriggerRef = useRef<HTMLButtonElement>(null);
   const availableAccounts = useMemo(
@@ -156,8 +156,8 @@ export function RegisterModelsDrawer({
   const discover = useMutation({
     mutationFn: () =>
       connectionMode === "existing"
-        ? api.discoverProviderAccountModels(accountId)
-        : api.discoverProviderModels(draft),
+        ? client.discoverProviderAccountModels(accountId)
+        : client.discoverProviderModels(draft),
     onSuccess: (result) => {
       setDiscovery(result);
       setModels(result.models[0] ? [cloneSelection(result.models[0])] : []);
@@ -170,7 +170,7 @@ export function RegisterModelsDrawer({
         if (!complianceDomain) {
           throw new Error("Choose a data boundary for this Provider connection.");
         }
-        const result = await api.registerProviderAccount({
+        const result = await client.registerProviderAccount({
           connection: draft,
           models,
           complianceDomain,
@@ -184,7 +184,7 @@ export function RegisterModelsDrawer({
       if (!activeAccount) throw new Error("Choose a Provider connection.");
       const results = await Promise.all(
         models.map(async (model) => {
-          const created = await api.registerModelDeployment({
+          const created = await client.registerModelDeployment({
             providerAccountId: activeAccount.id,
             ...model,
           });
@@ -209,12 +209,12 @@ export function RegisterModelsDrawer({
       setStep("complete");
       await Promise.all([
         queryClient.invalidateQueries({
-          queryKey: scope.key("provider-accounts"),
+          queryKey: key("provider-accounts"),
         }),
         queryClient.invalidateQueries({
-          queryKey: scope.key("model-deployments"),
+          queryKey: key("model-deployments"),
         }),
-        queryClient.invalidateQueries({ queryKey: scope.key("provider-cost") }),
+        queryClient.invalidateQueries({ queryKey: key("provider-cost") }),
       ]);
     },
   });
@@ -363,7 +363,7 @@ export function RegisterModelsDrawer({
                   <SourceChoice
                     active={connectionMode === "existing"}
                     title="Use existing connection"
-                    description="Discover with credentials already stored for this Project."
+                    description={`Discover with credentials already stored for this ${scopeLabel}.`}
                     onClick={() => setConnectionMode("existing")}
                   />
                   <SourceChoice

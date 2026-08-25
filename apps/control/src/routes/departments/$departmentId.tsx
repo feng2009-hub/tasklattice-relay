@@ -6,20 +6,17 @@ import {
   departmentSettingsSections,
   scopedEntityNameLimits,
   updateDepartmentSettingsSchema,
-  type DepartmentRoutingMode,
   type DepartmentSettingsSection,
   type DepartmentSettingsView,
   type UpdateDepartmentSettingsInput,
 } from "@tali/contracts";
 import {
   ArrowUpRight,
-  Boxes,
   Building2,
   CheckCircle2,
   Database,
   FolderKanban,
   Gauge,
-  Network,
   Plus,
   Route as RouteIcon,
   Save,
@@ -39,6 +36,7 @@ import {
 } from "@/components/layout/context-settings-navigation";
 import { PageHeader } from "@/components/layout/page-header";
 import { CreateProjectSheet } from "@/components/project/create-project-sheet";
+import { DepartmentModelRoutingsSettings } from "@/components/project/project-model-routing-settings";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -209,11 +207,12 @@ function DepartmentSettingsPage() {
         {section === "people" ? (
           <PeopleSection department={department.data} />
         ) : null}
-        {section === "models" ? (
-          <ModelsSection departmentId={departmentId} settings={settings.data} />
-        ) : null}
-        {section === "routing" ? (
-          <RoutingSection departmentId={departmentId} settings={settings.data} />
+        {section === "models" || section === "routing" ? (
+          <DepartmentModelRoutingsSettings
+            departmentId={departmentId}
+            view={section}
+            onViewChange={(next) => changeSection(next)}
+          />
         ) : null}
         {section === "quota" ? (
           <QuotaSection departmentId={departmentId} settings={settings.data} />
@@ -547,107 +546,6 @@ function ProjectAccessList({ projects }: { projects: DepartmentDetail["members"]
   return <div className="grid gap-2">{projects.map((project) => <div key={project.id} className="flex flex-wrap items-center gap-2"><Link to="/$projectId/setting" params={{ projectId: project.id }} search={{ section: "members" }} className="min-w-32 text-sm font-medium underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/35">{project.name}</Link><span className="flex flex-wrap gap-1">{project.roles.map((role) => <Badge key={role} variant="secondary">{projectRoleLabels[role]}</Badge>)}</span></div>)}</div>;
 }
 
-function ModelsSection({ departmentId, settings }: SettingsSectionProps) {
-  const [chatModel, setChatModel] = useState(settings.models.defaultChatModel ?? "");
-  const [embeddingModel, setEmbeddingModel] = useState(settings.models.defaultEmbeddingModel ?? "");
-  useEffect(() => {
-    setChatModel(settings.models.defaultChatModel ?? "");
-    setEmbeddingModel(settings.models.defaultEmbeddingModel ?? "");
-  }, [settings.models.defaultChatModel, settings.models.defaultEmbeddingModel]);
-  const save = useDepartmentSettingsMutation(departmentId);
-  const input = settingsInput(settings, {
-    models: {
-      defaultChatModel: nullable(chatModel),
-      defaultEmbeddingModel: nullable(embeddingModel),
-    },
-  });
-  const valid = updateDepartmentSettingsSchema.safeParse(input).success;
-  const dirty = chatModel !== (settings.models.defaultChatModel ?? "") || embeddingModel !== (settings.models.defaultEmbeddingModel ?? "");
-  const configuredModels = [chatModel, embeddingModel].filter((model) => model.trim()).length;
-  return (
-    <SettingsSection
-      title="Available models"
-      description="Define the model references made available to newly created Projects. Provider connections and credentials always remain Project-owned."
-      action={<Button className="h-11" disabled={!dirty || !valid || save.isPending} onClick={() => save.mutate(input)}>{save.isPending ? <Spinner /> : <Save />}Save models</Button>}
-    >
-      <SaveFeedback mutation={save} success={`Model defaults saved as revision ${save.data?.revision ?? settings.revision}.`} />
-      <div className="mb-5 grid gap-3 border-y bg-muted/[0.12] px-4 py-4 sm:grid-cols-3">
-        <PolicyFact icon={<Database />} label="Department availability" value={configuredModels ? `${configuredModels} model reference${configuredModels === 1 ? "" : "s"}` : "No inherited models"} />
-        <PolicyFact icon={<ArrowUpRight />} label="New Projects" value={configuredModels ? "Copy current revision" : "Start Project-managed"} />
-        <PolicyFact icon={<Boxes />} label="Existing Projects" value="Keep their current snapshot" />
-      </div>
-      <div className="divide-y border-y">
-        <SettingRow title="Chat model" description="Primary text-generation reference available to a new Project. Leave blank to inherit no chat model.">
-          <Label htmlFor="default-chat-model">Provider/model reference</Label>
-          <Input id="default-chat-model" className="mt-2 h-11 font-mono text-xs" value={chatModel} onChange={(event) => { setChatModel(event.target.value); save.reset(); }} placeholder="openai/gpt-5" />
-        </SettingRow>
-        <SettingRow title="Embedding model" description="Semantic search and Memory reference available to a new Project. Leave blank to inherit none.">
-          <Label htmlFor="default-embedding-model">Provider/model reference</Label>
-          <Input id="default-embedding-model" className="mt-2 h-11 font-mono text-xs" value={embeddingModel} onChange={(event) => { setEmbeddingModel(event.target.value); save.reset(); }} placeholder="openai/text-embedding-3-large" />
-        </SettingRow>
-      </div>
-      <InheritanceNotice enabled={configuredModels > 0} />
-    </SettingsSection>
-  );
-}
-
-function RoutingSection({ departmentId, settings }: SettingsSectionProps) {
-  const [mode, setMode] = useState<DepartmentRoutingMode>(settings.routing.mode);
-  const [fallbackModel, setFallbackModel] = useState(settings.routing.fallbackModel ?? "");
-  useEffect(() => {
-    setMode(settings.routing.mode);
-    setFallbackModel(settings.routing.fallbackModel ?? "");
-  }, [settings.routing.fallbackModel, settings.routing.mode]);
-  const save = useDepartmentSettingsMutation(departmentId);
-  const input = settingsInput(settings, {
-    routing: { mode, fallbackModel: mode === "FAILOVER" ? nullable(fallbackModel) : null },
-  });
-  const parsed = updateDepartmentSettingsSchema.safeParse(input);
-  const dirty = mode !== settings.routing.mode || (mode === "FAILOVER" ? fallbackModel : "") !== (settings.routing.fallbackModel ?? "");
-  return (
-    <SettingsSection
-      title="Routing availability"
-      description="Choose whether a new Project receives no Department Routing, a single-model route, or a failover route."
-      action={<Button className="h-11" disabled={!dirty || !parsed.success || save.isPending} onClick={() => save.mutate(input)}>{save.isPending ? <Spinner /> : <Save />}Save routing</Button>}
-    >
-      <SaveFeedback mutation={save} success={`Routing defaults saved as revision ${save.data?.revision ?? settings.revision}.`} />
-      <div className="mb-5 grid gap-3 border-y bg-muted/[0.12] px-4 py-4 sm:grid-cols-3">
-        <PolicyFact icon={<RouteIcon />} label="Department policy" value={mode === "PROJECT_MANAGED" ? "No inherited Routing" : mode === "SINGLE" ? "Single-model snapshot" : "Failover snapshot"} />
-        <PolicyFact icon={<ArrowUpRight />} label="New Projects" value={mode === "PROJECT_MANAGED" ? "Start Project-managed" : "Copy current revision"} />
-        <PolicyFact icon={<Boxes />} label="Existing Projects" value="Keep their current Routing" />
-      </div>
-      <div className="grid gap-6 border-y py-5 lg:grid-cols-[minmax(16rem,0.6fr)_minmax(24rem,1.4fr)]">
-        <div>
-          <h3 className="text-sm font-semibold">Inheritance mode</h3>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">Routing is copied as an explicit creation snapshot. Credentials and Provider connections remain Project-owned.</p>
-        </div>
-        <div className="grid gap-5">
-          <div className="grid gap-2">
-            <Label htmlFor="routing-mode">Routing behavior</Label>
-            <Select value={mode} onValueChange={(value) => { setMode(value as DepartmentRoutingMode); save.reset(); }}>
-              <SelectTrigger id="routing-mode" size="lg" className="w-full"><Network /><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="PROJECT_MANAGED">Do not inherit · Project managed</SelectItem>
-                <SelectItem value="SINGLE">Inherit · Single model</SelectItem>
-                <SelectItem value="FAILOVER">Inherit · Primary with failover</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">{mode === "PROJECT_MANAGED" ? "The Project starts without Department Routing and configures its own policy." : mode === "SINGLE" ? "The Department chat model becomes the Project's initial route." : "Traffic starts on the Department chat model and fails over to the second reference."}</p>
-          </div>
-          {mode === "FAILOVER" ? (
-            <div className="grid gap-2">
-              <Label htmlFor="fallback-model">Fallback model reference</Label>
-              <Input id="fallback-model" className="h-11 font-mono text-xs" value={fallbackModel} onChange={(event) => { setFallbackModel(event.target.value); save.reset(); }} placeholder="anthropic/claude-sonnet" />
-            </div>
-          ) : null}
-          {!parsed.success ? <p className="border-l-2 border-amber-500 bg-amber-500/5 px-3 py-2 text-xs text-amber-900 dark:text-amber-200" role="alert">{parsed.error.issues[0]?.message}</p> : null}
-        </div>
-      </div>
-      <InheritanceNotice enabled={mode !== "PROJECT_MANAGED"} />
-    </SettingsSection>
-  );
-}
-
 type QuotaForm = {
   softBudgetUsd: string;
   hardBudgetUsd: string;
@@ -770,14 +668,6 @@ function CompactFact({ label, value }: { label: string; value: number | string }
   return <div><dt className="text-muted-foreground">{label}</dt><dd className="mt-1 font-mono font-semibold tabular-nums">{value}</dd></div>;
 }
 
-function PolicyFact({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
-  return <div className="flex min-w-0 items-start gap-3"><span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-md border bg-background text-muted-foreground [&>svg]:size-4">{icon}</span><span className="min-w-0"><span className="block text-[11px] text-muted-foreground">{label}</span><strong className="mt-0.5 block text-xs leading-5">{value}</strong></span></div>;
-}
-
-function InheritanceNotice({ enabled }: { enabled: boolean }) {
-  return <p className="mt-5 border-l-2 border-primary/50 bg-primary/[0.04] px-4 py-3 text-xs leading-5 text-muted-foreground"><strong className="text-foreground">Deterministic inheritance.</strong> {enabled ? "A new Project receives the saved Department revision once, at creation. Existing Projects are never rewritten, and Project Administrators may replace the snapshot." : "No Department inference configuration is copied. The new Project starts Project-managed and existing Projects remain unchanged."}</p>;
-}
-
 function SaveFeedback({ mutation, success }: { mutation: { error: Error | null; isSuccess: boolean; reset: () => void }; success: string }) {
   if (mutation.error) return <p className="mb-5 border-l-2 border-destructive bg-destructive/5 px-4 py-3 text-sm text-destructive" role="alert">{mutation.error.message}</p>;
   if (mutation.isSuccess) return <p className="mb-5 flex items-center gap-2 border-l-2 border-emerald-500 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-300" role="status"><CheckCircle2 className="size-4" />{success}</p>;
@@ -808,7 +698,6 @@ function quotaForm(settings: DepartmentSettingsView): QuotaForm {
   };
 }
 
-function nullable(value: string): string | null { return value.trim() || null; }
 function optionalNumber(value: string): number | null { return value.trim() ? Number(value) : null; }
 function field(value: number | null): string { return value === null ? "" : String(value); }
 function formatQuota(value: number, money: boolean): string { return money ? new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value) : new Intl.NumberFormat("en-US").format(value); }

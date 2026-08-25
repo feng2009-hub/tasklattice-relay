@@ -1,0 +1,25 @@
+import type { PlatformPrincipal } from "../auth/auth";
+import { ModelRoutingService } from "../model-routings/model-routing-service";
+import { LiteLLMClient } from "../providers/litellm-client";
+import { ProviderService } from "../providers/provider-service";
+import { requireDepartmentAdministrator } from "./department-access";
+import { DepartmentInferenceStore } from "./department-inference-store";
+
+const litellm = new LiteLLMClient();
+
+export async function getDepartmentInferenceServices(
+  auth: PlatformPrincipal,
+  departmentId: string,
+  write = false,
+) {
+  await requireDepartmentAdministrator(auth, departmentId, undefined, {
+    capability: write ? "CAP_DEPARTMENT_SETTINGS_UPDATE" : "CAP_DEPARTMENT_VIEW",
+    requireActiveDepartment: true,
+  });
+  const store = new DepartmentInferenceStore(departmentId);
+  return {
+    store,
+    provider: new ProviderService(store, litellm),
+    modelRoutings: new ModelRoutingService(store, litellm),
+  };
+}

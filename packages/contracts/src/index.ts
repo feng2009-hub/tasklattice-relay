@@ -2010,6 +2010,14 @@ export interface ModelRoutingCapabilities {
   requestAudit: ModelRoutingCapabilityState;
 }
 
+export interface InferenceResourceOrigin {
+  scope: "PROJECT" | "DEPARTMENT";
+  scopeId: string;
+  scopeName?: string;
+  inherited: boolean;
+  editable: boolean;
+}
+
 export interface ModelRouting {
   id: string;
   name: string;
@@ -2034,6 +2042,7 @@ export interface ModelRouting {
   lastSynchronizedAt?: string;
   createdAt: string;
   updatedAt: string;
+  origin?: InferenceResourceOrigin;
 }
 
 export interface ModelRoutingBinding {
@@ -2131,6 +2140,7 @@ export interface ProviderAccount {
   validatedAt?: string;
   createdAt: string;
   updatedAt: string;
+  origin?: InferenceResourceOrigin;
 }
 
 export interface ProviderDiscoveryResult {
@@ -2172,6 +2182,14 @@ export interface ModelDeployment extends CreateModelDeploymentInput {
   validatedAt?: string;
   createdAt: string;
   updatedAt: string;
+  origin?: InferenceResourceOrigin;
+}
+
+export interface DepartmentInferenceAvailability {
+  departmentId: string;
+  departmentName: string;
+  models: ModelDeployment[];
+  routings: ModelRouting[];
 }
 
 export type CostGroupBy =

@@ -26,8 +26,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Spinner } from "@/components/ui/spinner";
-import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
-import { api } from "@/lib/api";
+import { useInferenceManagement } from "./inference-management-context";
 import { cn } from "@/lib/utils";
 
 export function ProviderConnectionsManagement({
@@ -50,6 +49,7 @@ export function ProviderConnectionsManagement({
   onRegisterModels: (account: ProviderAccount) => void;
 }) {
   const [actionError, setActionError] = useState("");
+  const { scopeLabel } = useInferenceManagement();
 
   return (
     <section aria-labelledby="provider-connections-title">
@@ -66,7 +66,7 @@ export function ProviderConnectionsManagement({
           </div>
           <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">
             Stored credentials and endpoints used to discover and register
-            models for this Project.
+            models for this {scopeLabel}.
           </p>
         </div>
       </div>
@@ -229,25 +229,25 @@ function ProviderActions({
   onRegisterModels: () => void;
 }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const scope = useProjectQueryScope();
+  const { client, key } = useInferenceManagement();
   const queryClient = useQueryClient();
   const invalidateRegistry = async () =>
     Promise.all([
       queryClient.invalidateQueries({
-        queryKey: scope.key("provider-accounts"),
+        queryKey: key("provider-accounts"),
       }),
       queryClient.invalidateQueries({
-        queryKey: scope.key("model-deployments"),
+        queryKey: key("model-deployments"),
       }),
     ]);
   const revalidate = useMutation({
-    mutationFn: () => api.revalidateProviderAccount(account.id),
+    mutationFn: () => client.revalidateProviderAccount(account.id),
     onMutate: () => onError(""),
     onSuccess: invalidateRegistry,
     onError: (error) => onError(error.message),
   });
   const remove = useMutation({
-    mutationFn: () => api.deleteProviderAccount(account.id),
+    mutationFn: () => client.deleteProviderAccount(account.id),
     onMutate: () => onError(""),
     onSuccess: async () => {
       setDeleteOpen(false);
