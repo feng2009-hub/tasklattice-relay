@@ -1,7 +1,11 @@
 # Repository Artifacts
 
-This directory contains generated, release-ready artifacts that are committed because builds or runtime seeds consume their exact bytes.
+This directory contains non-code repository assets, including editable source
+materials and generated, release-ready artifacts whose exact bytes are consumed
+by builds or runtime seeds.
 
-- `skills/` contains packaged Skill archives and manifests.
-- Add other artifact types as sibling directories instead of mixing them with editable source trees.
-- Keep source files in their domain directory and generate artifacts through the repository build commands.
+- `skills/` contains Skill source materials, packaged archives, and manifests.
+- Add other artifact types as sibling directories so each asset family remains self-contained.
+- Keep related source materials and generated outputs together under a dedicated
+  artifact-type directory, and generate release artifacts through the repository
+  build commands.
