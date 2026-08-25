@@ -108,7 +108,7 @@ from Kubernetes and preserves the desired mapping for a later rollout.
 
 ## Current OpenShell boundary
 
-The current Relay deployment keeps OpenShell `0.0.111` in its default `shared`
+The current Relay deployment keeps OpenShell `0.0.106` in its default `shared`
 workspace mode, so the sandbox Namespace remains a Gateway-level setting.
 Consequently, a `ready` Project Runtime Target currently means that the Project
 Namespace mapping exists; it does **not** mean existing OpenClaw or Hermes

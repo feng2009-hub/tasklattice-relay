@@ -11,7 +11,8 @@ const releaseNamespace = "tali-airgap-validation";
 const chartPath = process.env.TALI_CHART_PATH ?? "charts/tali-relay";
 const expectedRegistry = "registry.airgap.example.com/";
 const expectedPullSecret = "airgap-registry";
-const expectedOpenShellVersion = process.env.OPENSHELL_VERSION ?? "0.0.111";
+const expectedOpenShellVersion = process.env.OPENSHELL_VERSION ?? "0.0.106";
+const expectedNemoClawVersion = process.env.NEMOCLAW_VERSION ?? "v0.0.114";
 const forbiddenRegistries = [
   "docker.io/",
   "ghcr.io/",
@@ -187,7 +188,7 @@ const gatewayToml = gatewayConfig?.data?.["gateway.toml"] ?? "";
 for (const [label, expectedValue] of [
   [
     "mirrored default sandbox image",
-    `"registry.airgap.example.com/third-party/openshell-sandbox:${expectedOpenShellVersion}"`,
+    `"registry.airgap.example.com/third-party/nemoclaw-sandbox-base:${expectedNemoClawVersion}"`,
   ],
   [
     "mirrored supervisor image",

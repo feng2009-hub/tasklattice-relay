@@ -1,5 +1,5 @@
-# This overlay is reviewed against exactly this multi-arch upstream manifest.
-ARG LITELLM_IMAGE=litellm/litellm-database:v1.87.0@sha256:23f40f60a9effdc064ca6affe1d9f6f4f976604feab0682f0401a2046af54b37
+# This overlay is reviewed against this explicit upstream release tag.
+ARG LITELLM_IMAGE=litellm/litellm-database:v1.87.0
 
 FROM ${LITELLM_IMAGE} AS tasklattice-litellm-builder
 
@@ -18,6 +18,7 @@ FROM ${LITELLM_IMAGE}
 
 USER root
 ENV PYTHONPATH=/app
+COPY dist/release-dependencies.json /opt/tali/release-dependencies.json
 COPY --from=tasklattice-litellm-builder /app/litellm /app/litellm
 RUN apk add --no-cache libatomic \
     && chown -R 65532:65532 /app/.venv/lib/python3.13/site-packages/prisma

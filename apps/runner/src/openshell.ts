@@ -1,4 +1,5 @@
 import { createHmac, randomUUID } from "node:crypto";
+import { spawn } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -14,6 +15,8 @@ import {
 } from "./nemoclaw.js";
 
 const nemoClawGatewayPort = process.env.NEMOCLAW_DASHBOARD_PORT ?? "18789";
+const hermesDashboardUpstreamPort =
+  nemoClawGatewayPort === "18790" ? "18791" : "18790";
 const nemoClawWebUiService = "webui";
 const hermesWebUiSecretFile = "/tmp/tali-hermes-webui-secret";
 const hermesWebUiTokenTtlSeconds = 5 * 60;
@@ -496,6 +499,9 @@ export function openShellSandboxCreateArguments(
     `tali.io/instance-id=${input.instanceId}`,
     "--env",
     `TALI_AGENT_INSTANCE_ID=${input.instanceId}`,
+    ...(input.agentPlatform === "hermes"
+      ? ["--env", "HERMES_LAZY_INSTALL_TARGET=/sandbox/.hermes/lazy-packages"]
+      : []),
     "--upload",
     `${instructionsFile}:${runtime.instructionsPath}`,
     "--upload",
@@ -504,39 +510,9 @@ export function openShellSandboxCreateArguments(
       ? ["--upload", `${telemetryFile}:/tmp/tali-run-telemetry.env`]
       : []),
     "--no-tty",
-    "--detach",
-  ]);
-}
-
-export function openShellSandboxBootstrapArguments(name: string): string[] {
-  return openShellArguments([
-    "sandbox",
-    "exec",
-    "--name",
-    name,
-    "--no-tty",
-    "--timeout",
-    "30",
     "--",
     "/bin/bash",
-    "-lc",
-    "nohup /bin/bash /tmp/tali-nemoclaw-start >/tmp/tali-nemoclaw-start.log 2>&1 </dev/null &",
-  ]);
-}
-
-export function openShellSandboxBootstrapLogArguments(name: string): string[] {
-  return openShellArguments([
-    "sandbox",
-    "exec",
-    "--name",
-    name,
-    "--no-tty",
-    "--timeout",
-    "30",
-    "--",
-    "/bin/sh",
-    "-lc",
-    "test ! -f /tmp/tali-nemoclaw-start.log || tail -n 200 /tmp/tali-nemoclaw-start.log",
+    "/tmp/tali-nemoclaw-start",
   ]);
 }
 
@@ -661,7 +637,7 @@ export function openShellHermesWebUiProbeArguments(name: string): string[] {
     "--",
     "/bin/sh",
     "-lc",
-    `curl -fsS --max-time 3 http://127.0.0.1:${nemoClawGatewayPort}/__tali/health >/dev/null && test -s ${hermesWebUiSecretFile}`,
+    `curl -fsS --max-time 3 http://127.0.0.1:${nemoClawGatewayPort}/__tali/health >/dev/null && dashboard_status="$(curl -sS --max-time 3 -o /dev/null -w '%{http_code}' http://127.0.0.1:${hermesDashboardUpstreamPort}/)" && test "$dashboard_status" -ge 200 && test "$dashboard_status" -lt 500 && test -s ${hermesWebUiSecretFile}`,
   ]);
 }
 
@@ -875,67 +851,92 @@ async function createOpenShellNemoClawSandbox(
   observer?: ProvisioningObserver,
 ): Promise<string[]> {
   const timeoutMs = Number(process.env.NEMOCLAW_START_TIMEOUT_MS ?? "180000");
-  const startedAt = Date.now();
-  const created = await runCommand(
-    openShellBinary(),
-    openShellSandboxCreateArguments(
-      input,
-      instructionsFile,
-      bootstrapFile,
-      policyFile,
-      telemetryFile,
-    ),
-  );
-  const creationOutput = `${created.stdout}\n${created.stderr}`.trim();
-  if (creationOutput) observer?.onLog?.(creationOutput.split(/\r?\n/).filter(Boolean));
-  if (created.exitCode !== 0)
-    throw new Error(
-      created.stderr.trim()
-      || created.stdout.trim()
-      || "OpenShell sandbox creation failed.",
-    );
-
-  const launched = await runCommand(
-    openShellBinary(),
-    openShellSandboxBootstrapArguments(input.name),
-  );
-  if (launched.exitCode !== 0)
-    throw new Error(
-      launched.stderr.trim()
-      || launched.stdout.trim()
-      || "OpenShell sandbox bootstrap failed to launch.",
-    );
-
-  while (Date.now() - startedAt < timeoutMs) {
-    const probe = await runCommand(
+  return new Promise((resolve, reject) => {
+    const child = spawn(
       openShellBinary(),
-      openShellNemoClawProbeArguments(input.name, input.agentPlatform),
+      openShellSandboxCreateArguments(
+        input,
+        instructionsFile,
+        bootstrapFile,
+        policyFile,
+        telemetryFile,
+      ),
+      { env: process.env, stdio: ["ignore", "pipe", "pipe"] },
     );
-    if (probe.exitCode === 0) {
-      const startupLog = await runCommand(
-        openShellBinary(),
-        openShellSandboxBootstrapLogArguments(input.name),
-      );
-      const runtimeOutput = startupLog.exitCode === 0
-        ? startupLog.stdout.trim()
-        : "";
-      if (runtimeOutput)
-        observer?.onLog?.(runtimeOutput.split(/\r?\n/).filter(Boolean));
-      return `${creationOutput}\n${runtimeOutput}`
-        .split(/\r?\n/)
-        .filter(Boolean)
-        .slice(-100);
-    }
-    await waitForDeletionPoll(1_000);
-  }
+    let output = "";
+    let pendingLine = "";
+    let settled = false;
+    let probing = false;
+    const append = (data: Buffer) => {
+      const chunk = data.toString();
+      output = (output + chunk).slice(-64_000);
+      const parts = `${pendingLine}${chunk}`.split(/\r?\n/);
+      pendingLine = parts.pop() ?? "";
+      const lines = parts.filter(Boolean);
+      if (lines.length) observer?.onLog?.(lines);
+    };
+    child.stdout.on("data", append);
+    child.stderr.on("data", append);
 
-  const startupLog = await runCommand(
-    openShellBinary(),
-    openShellSandboxBootstrapLogArguments(input.name),
-  );
-  throw new Error(
-    `NemoClaw gateway startup timed out. ${startupLog.stdout.trim().slice(-4_000)}`,
-  );
+    const flushPendingLine = () => {
+      if (!pendingLine) return;
+      observer?.onLog?.([pendingLine]);
+      pendingLine = "";
+    };
+
+    const finish = (error?: Error) => {
+      if (settled) return;
+      settled = true;
+      clearInterval(probeTimer);
+      clearTimeout(timeoutTimer);
+      flushPendingLine();
+      if (error) reject(error);
+      else resolve(output.split("\n").filter(Boolean).slice(-100));
+    };
+
+    const probeTimer = setInterval(async () => {
+      if (settled || probing) return;
+      probing = true;
+      try {
+        const probe = await runCommand(
+          openShellBinary(),
+          openShellNemoClawProbeArguments(input.name, input.agentPlatform),
+        );
+        if (probe.exitCode === 0) {
+          // OpenShell 0.0.106 keeps the startup command attached to the create
+          // stream. Once health is proven, detach the local CLI; the sandbox
+          // runtime keeps the long-lived NemoClaw process running.
+          settled = true;
+          clearInterval(probeTimer);
+          clearTimeout(timeoutTimer);
+          flushPendingLine();
+          child.kill("SIGTERM");
+          resolve(output.split("\n").filter(Boolean).slice(-100));
+        }
+      } finally {
+        probing = false;
+      }
+    }, 1_000);
+
+    const timeoutTimer = setTimeout(() => {
+      child.kill("SIGTERM");
+      finish(
+        new Error(
+          `NemoClaw gateway startup timed out. ${output.trim().slice(-4_000)}`,
+        ),
+      );
+    }, timeoutMs);
+
+    child.on("error", (error) => finish(error));
+    child.on("close", (code) => {
+      if (settled) return;
+      finish(
+        new Error(
+          output.trim() || `OpenShell sandbox creation exited ${code ?? 1}.`,
+        ),
+      );
+    });
+  });
 }
 
 async function ensureInstanceProvider(input: ProvisionInput): Promise<void> {

@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import json
 import os
 from pathlib import Path
 import re
@@ -18,6 +17,7 @@ import yaml
 
 
 HASH_LINE = re.compile(r"^([0-9a-f]{64})  (.+)$")
+MANAGED_CREDENTIAL_SENTINEL = "sk-OPENSHELL-PROXY-REWRITE"
 MCP_LINE = re.compile(
     r"^# nemoclaw-hermes-mcp-state-v1 intended=([0-9a-f]{64}) applied=([0-9a-f]{64})$"
 )
@@ -98,29 +98,6 @@ def parse_anchor(anchor: bytes, config: Path, env: Path) -> tuple[str, str, str]
     return config_match.group(1), env_match.group(1), mcp_match.group(1)
 
 
-def use_environment_key_in_section(
-    config: str, section_name: str, credential_placeholder: str
-) -> str:
-    section = re.search(
-        rf"(?m)^{re.escape(section_name)}:\n(?P<body>(?:^[ \t].*\n)+)",
-        config,
-    )
-    if not section:
-        raise RuntimeError(f"Hermes config does not contain a {section_name} section")
-    body, count = re.subn(
-        r"(?m)^    api_key: (?:sk-OPENSHELL-PROXY-REWRITE|\"\"|\"openshell:resolve:env:[^\"]+\")$",
-        f"    api_key: {json.dumps(credential_placeholder)}",
-        section.group("body"),
-        count=1,
-    )
-    if count != 1:
-        raise RuntimeError(
-            f"Hermes {section_name} credential field has an unexpected shape"
-        )
-    body = re.sub(r"(?m)^    key_env: OPENAI_API_KEY\n", "", body)
-    return config[: section.start("body")] + body + config[section.end("body") :]
-
-
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=Path, required=True)
@@ -183,15 +160,6 @@ def main() -> None:
     upstream = document.get("_nemoclaw_upstream", {}).get("provider")
     if not isinstance(upstream, str) or not upstream:
         raise RuntimeError("Hermes config does not declare its upstream provider")
-    credential_placeholder = os.environ.get("OPENAI_API_KEY", "")
-    if not re.fullmatch(
-        r"openshell:resolve:env:[A-Za-z0-9_]*OPENAI_API_KEY",
-        credential_placeholder,
-    ):
-        raise RuntimeError(
-            "OPENAI_API_KEY is not an OpenShell environment credential placeholder"
-        )
-
     model_section = re.search(r"(?m)^model:\n(?P<body>(?:^[ \t].*\n)+)", updated)
     if not model_section:
         raise RuntimeError("Hermes config does not contain a model section")
@@ -203,8 +171,8 @@ def main() -> None:
         count=1,
     )
     model_body, model_key_count = re.subn(
-        r"(?m)^  api_key: (?:sk-OPENSHELL-PROXY-REWRITE|\"\"|\"openshell:resolve:env:[^\"]+\")$",
-        f"  api_key: {json.dumps(credential_placeholder)}",
+        rf"(?m)^  api_key: {re.escape(MANAGED_CREDENTIAL_SENTINEL)}$",
+        f"  api_key: {MANAGED_CREDENTIAL_SENTINEL}",
         model_body,
         count=1,
     )
@@ -216,26 +184,21 @@ def main() -> None:
         + updated[model_section.end("body") :]
     )
 
-    updated = use_environment_key_in_section(
-        updated, "providers", credential_placeholder
-    )
-    updated = use_environment_key_in_section(
-        updated, "custom_providers", credential_placeholder
-    )
     validated = yaml.safe_load(updated)
     if (
         validated.get("model", {}).get("provider") != "custom"
-        or validated.get("model", {}).get("api_key") != credential_placeholder
+        or validated.get("model", {}).get("api_key") != MANAGED_CREDENTIAL_SENTINEL
     ):
         raise RuntimeError("Hermes model provider migration did not apply")
     providers = validated.get("providers", {})
     custom = validated.get("custom_providers", [])
-    if providers.get(upstream, {}).get("api_key") != credential_placeholder or not any(
-        item.get("name") == upstream and item.get("api_key") == credential_placeholder
-        for item in custom
-        if isinstance(item, dict)
+    credential_routes = [validated.get("model"), *providers.values(), *custom]
+    if any(
+        not isinstance(route, dict)
+        or route.get("api_key") != MANAGED_CREDENTIAL_SENTINEL
+        for route in credential_routes
     ):
-        raise RuntimeError("Hermes provider credential placeholder migration did not apply")
+        raise RuntimeError("Hermes provider credential sentinel is not managed")
     updated_config = updated.encode("utf-8")
     config_mode = config.stat().st_mode & 0o7777
     anchor_mode = hash_file.stat().st_mode & 0o7777

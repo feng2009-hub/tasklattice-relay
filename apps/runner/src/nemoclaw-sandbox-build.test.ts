@@ -73,11 +73,13 @@ exit 0
       .trim()
       .split("\n")
       .filter((line) => line.startsWith("build "));
-    const upstreamImage =
-      "tali-nemoclaw-openclaw-upstream:2adc8481ff30";
+    const upstreamImage = "tali-nemoclaw-openclaw-upstream:0.0.114";
 
     expect(builds).toHaveLength(2);
     expect(builds[0]).toMatch(/^build --file .*\/Dockerfile /);
+    expect(builds[0]).toContain(
+      "--build-arg BASE_IMAGE=ghcr.io/nvidia/nemoclaw/sandbox-base:v0.0.114",
+    );
     expect(builds[0]).toContain(`--tag ${upstreamImage}`);
     expect(builds[1]).toBe(
       `build --file ${openClawWrapper} --build-arg BASE_IMAGE=${upstreamImage} --tag ${finalImage} ${repositoryRoot}`,

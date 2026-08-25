@@ -15,8 +15,6 @@ import {
   openShellHermesWebUiSecretArguments,
   openShellNemoClawProbeArguments,
   openShellAuditArguments,
-  openShellSandboxBootstrapArguments,
-  openShellSandboxBootstrapLogArguments,
   openShellSandboxCreateArguments,
   openShellTerminalArguments,
   openShellWebUiOrigin,
@@ -180,15 +178,29 @@ describe("OpenShell Kubernetes command contract", () => {
     );
     expect(args).toContain("--policy");
     expect(args).toContain("/tmp/openshell-policy.yaml");
+    expect(args).not.toContain(
+      "HERMES_LAZY_INSTALL_TARGET=/sandbox/.hermes/lazy-packages",
+    );
     expect(args).toContain("1");
     expect(args).toContain("2Gi");
-    expect(args.slice(-2)).toEqual(["--no-tty", "--detach"]);
-    expect(args).not.toContain("--");
-    expect(openShellSandboxBootstrapArguments(input.name).at(-1)).toContain(
-      "nohup /bin/bash /tmp/tali-nemoclaw-start",
+    expect(args.slice(-4)).toEqual([
+      "--no-tty",
+      "--",
+      "/bin/bash",
+      "/tmp/tali-nemoclaw-start",
+    ]);
+  });
+
+  it("pins the managed lazy-install boundary for Hermes Sandboxes", () => {
+    const args = openShellSandboxCreateArguments(
+      { ...input, agentPlatform: "hermes" },
+      "/tmp/AGENTS.md",
+      "/tmp/tali-nemoclaw-start",
+      "/tmp/openshell-policy.yaml",
     );
-    expect(openShellSandboxBootstrapLogArguments(input.name).at(-1)).toContain(
-      "tail -n 200 /tmp/tali-nemoclaw-start.log",
+
+    expect(args).toContain(
+      "HERMES_LAZY_INSTALL_TARGET=/sandbox/.hermes/lazy-packages",
     );
   });
 
@@ -372,6 +384,9 @@ describe("OpenShell Kubernetes command contract", () => {
     expect(bootstrap).not.toContain("hermes_runtime_pid");
     expect(bootstrap).not.toContain("cleanup_hermes_webui");
     expect(bootstrap).not.toContain("sed -i");
+    expect(getAgentPlatformRuntime("hermes").healthProbe("18789")).toContain(
+      "http://127.0.0.1:18790/",
+    );
     expect(bootstrap.indexOf("chmod 0770 /sandbox")).toBeLessThan(
       bootstrap.indexOf("/usr/local/bin/nemoclaw-start"),
     );
@@ -519,6 +534,9 @@ describe("OpenShell Kubernetes command contract", () => {
     );
     expect(openShellHermesWebUiProbeArguments(input.name).at(-1)).toContain(
       "/__tali/health",
+    );
+    expect(openShellHermesWebUiProbeArguments(input.name).at(-1)).toContain(
+      "http://127.0.0.1:18790/",
     );
   });
 

@@ -12,24 +12,17 @@ concurrency:
 permissions:
   contents: read
 
-# Reviewed release dependency manifest. Release builds must consume these exact
-# versions and checksums; scripts are not allowed to silently choose defaults.
+# Reviewed release compatibility set. Product dependencies use human-readable
+# upstream release versions; build provenance records the resolved artifacts.
 env:
   TALI_REQUIRE_DECLARED_DEPENDENCIES: "1"
   NODE_VERSION: "22"
   HELM_VERSION: "v3.18.4"
-  OPENSHELL_VERSION: "0.0.111"
-  OPENSHELL_HELM_SHA256: "2259e30cec735862807cb13ff8fc76626a2e121c2019f29fff25b3474c0d10b5"
-  OPENSHELL_CLI_AMD64_SHA256: "eea22e10a1d21c92c843c609e2a391456073b339ebc5e1fca293aff4a0d6dcdc"
-  OPENSHELL_CLI_ARM64_SHA256: "5e9689f5e3522e84bd6e12fc48594046f312f356dc2f1779f628eb42e8259bf5"
+  OPENSHELL_VERSION: "0.0.106"
+  NEMOCLAW_VERSION: "v0.0.114"
   AGENT_SANDBOX_VERSION: "v0.5.1"
   AGENT_SANDBOX_CHART_VERSION: "0.1.0"
-  AGENT_SANDBOX_SOURCE_SHA256: "b6f50dd6844f5c5d5a7b773a13d43a900dcbe3a20a8e02a8ea5731ec95dc0c42"
-  NEMOCLAW_OPENCLAW_REVISION: "2adc8481ff3053a5a7be37d130cb183e222934ff"
-  NEMOCLAW_OPENCLAW_BASE_IMAGE: "ghcr.io/nvidia/nemoclaw/sandbox-base@sha256:132dfea81026fe91581ab97d9034fb61d97b41a9951c7fd59d3d8b3b1b37b246"
-  NEMOCLAW_HERMES_REVISION: "c1bda8069d95a84a9e16b0d292a5fe20ce7cea7d"
-  NEMOCLAW_HERMES_BASE_IMAGE: "ghcr.io/nvidia/nemoclaw/hermes-sandbox-base@sha256:fa05221f5c7bcafea7e263c84e5d06f87e37d1ccb78dc28c113f1a4066aa544c"
-  LITELLM_IMAGE: "litellm/litellm-database:v1.87.0@sha256:23f40f60a9effdc064ca6affe1d9f6f4f976604feab0682f0401a2046af54b37"
+  LITELLM_IMAGE: "litellm/litellm-database:v1.87.0"
 
 jobs:
   validate:
@@ -40,15 +33,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for checksum_variable in \
-            OPENSHELL_HELM_SHA256 \
-            OPENSHELL_CLI_AMD64_SHA256 \
-            OPENSHELL_CLI_ARM64_SHA256 \
-            AGENT_SANDBOX_SOURCE_SHA256
+          for dependency_variable in \
+            OPENSHELL_VERSION \
+            NEMOCLAW_VERSION \
+            AGENT_SANDBOX_VERSION \
+            AGENT_SANDBOX_CHART_VERSION \
+            LITELLM_IMAGE
           do
-            checksum="${!checksum_variable}"
-            if [[ ! "${checksum}" =~ ^[0-9a-f]{64}$ ]]; then
-              echo "${checksum_variable} must be a lowercase SHA-256 digest." >&2
+            if [[ -z "${!dependency_variable}" ]]; then
+              echo "${dependency_variable} must be declared." >&2
               exit 2
             fi
           done
@@ -56,37 +49,23 @@ jobs:
             echo "OPENSHELL_VERSION must be an exact stable version." >&2
             exit 2
           fi
-          for revision_variable in \
-            NEMOCLAW_OPENCLAW_REVISION \
-            NEMOCLAW_HERMES_REVISION
-          do
-            revision="${!revision_variable}"
-            if [[ ! "${revision}" =~ ^[0-9a-f]{40}$ ]]; then
-              echo "${revision_variable} must be a full Git commit SHA." >&2
-              exit 2
-            fi
-          done
-          for image_variable in \
-            NEMOCLAW_OPENCLAW_BASE_IMAGE \
-            NEMOCLAW_HERMES_BASE_IMAGE \
-            LITELLM_IMAGE
-          do
-            image="${!image_variable}"
-            if [[ ! "${image}" =~ @sha256:[0-9a-f]{64}$ ]]; then
-              echo "${image_variable} must be pinned by digest." >&2
-              exit 2
-            fi
-          done
+          if [[ ! "${NEMOCLAW_VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "NEMOCLAW_VERSION must be an exact stable release tag." >&2
+            exit 2
+          fi
+          if [[ "${LITELLM_IMAGE}" == *@* || "${LITELLM_IMAGE}" == *:latest ]]; then
+            echo "LITELLM_IMAGE must use an explicit, human-readable version tag." >&2
+            exit 2
+          fi
+          bash scripts/write-release-dependencies.sh
           {
             echo "## Declared release dependencies"
             echo
-            echo "| Dependency | Immutable release input |"
+            echo "| Dependency | Reviewed version |"
             echo "| --- | --- |"
             echo "| OpenShell | \`${OPENSHELL_VERSION}\` |"
-            echo "| OpenShell Helm archive SHA-256 | \`${OPENSHELL_HELM_SHA256}\` |"
+            echo "| NemoClaw | \`${NEMOCLAW_VERSION}\` |"
             echo "| Agent Sandbox | source \`${AGENT_SANDBOX_VERSION}\`, Helm chart \`${AGENT_SANDBOX_CHART_VERSION}\` |"
-            echo "| NemoClaw OpenClaw revision | \`${NEMOCLAW_OPENCLAW_REVISION}\` |"
-            echo "| NemoClaw Hermes revision | \`${NEMOCLAW_HERMES_REVISION}\` |"
             echo "| LiteLLM image | \`${LITELLM_IMAGE}\` |"
             echo "| Build toolchain | Node.js \`${NODE_VERSION}\`, Helm \`${HELM_VERSION}\` |"
           } >> "${GITHUB_STEP_SUMMARY}"
@@ -176,6 +155,7 @@ jobs:
             runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - run: bash scripts/write-release-dependencies.sh
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
@@ -201,13 +181,11 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           registry="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}"
           image="${registry}/${{ matrix.image }}"
-          short_sha="${GITHUB_SHA::12}"
           {
             echo "name=${image}"
             echo "version=${version}"
             echo "tags<<EOF"
             echo "${image}:${version}-${{ matrix.architecture }}"
-            echo "${image}:sha-${short_sha}-${{ matrix.architecture }}"
             echo "EOF"
           } >> "${GITHUB_OUTPUT}"
       - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
@@ -222,8 +200,6 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}-${{ matrix.architecture }}
           build-args: |
             OPENSHELL_VERSION=${{ env.OPENSHELL_VERSION }}
-            OPENSHELL_CLI_AMD64_SHA256=${{ env.OPENSHELL_CLI_AMD64_SHA256 }}
-            OPENSHELL_CLI_ARM64_SHA256=${{ env.OPENSHELL_CLI_ARM64_SHA256 }}
             LITELLM_IMAGE=${{ env.LITELLM_IMAGE }}
           provenance: mode=max
           sbom: true
@@ -253,11 +229,9 @@ jobs:
         run: |
           set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
-          short_sha="${GITHUB_SHA::12}"
           image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${{ matrix.image }}"
           sources=("${image}:${version}-amd64" "${image}:${version}-arm64")
           docker buildx imagetools create --tag "${image}:${version}" "${sources[@]}"
-          docker buildx imagetools create --tag "${image}:sha-${short_sha}" "${sources[@]}"
           if [[ "${version}" != *-* ]]; then
             docker buildx imagetools create --tag "${image}:latest" "${sources[@]}"
           fi
@@ -286,6 +260,7 @@ jobs:
             runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - run: bash scripts/write-release-dependencies.sh
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
@@ -301,7 +276,6 @@ jobs:
           set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
           registry="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}"
-          short_sha="${GITHUB_SHA::12}"
           if [[ "${NEMOCLAW_AGENT_PLATFORM}" == "openclaw" ]]; then
             image="${registry}/tali-nemoclaw-sandbox"
             export NEMOCLAW_IMAGE="${image}:${version}-${{ matrix.architecture }}"
@@ -310,8 +284,8 @@ jobs:
             export NEMOCLAW_HERMES_IMAGE="${image}:${version}-${{ matrix.architecture }}"
           fi
           export NEMOCLAW_BUILD_OUTPUT=push
-          export NEMOCLAW_UPSTREAM_IMAGE="${image}:build-upstream-${short_sha}-${{ matrix.architecture }}"
-          export NEMOCLAW_FALLBACK_BASE_IMAGE="${image}:build-base-${short_sha}-${{ matrix.architecture }}"
+          export NEMOCLAW_UPSTREAM_IMAGE="${image}:build-upstream-${version}-${{ matrix.architecture }}"
+          export NEMOCLAW_FALLBACK_BASE_IMAGE="${image}:build-base-${version}-${{ matrix.architecture }}"
           bash scripts/build-nemoclaw-sandbox.sh
 
   publish-sandbox-manifests:
@@ -337,11 +311,9 @@ jobs:
         run: |
           set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
-          short_sha="${GITHUB_SHA::12}"
           image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${{ matrix.image }}"
           sources=("${image}:${version}-amd64" "${image}:${version}-arm64")
           docker buildx imagetools create --tag "${image}:${version}" "${sources[@]}"
-          docker buildx imagetools create --tag "${image}:sha-${short_sha}" "${sources[@]}"
           if [[ "${version}" != *-* ]]; then
             docker buildx imagetools create --tag "${image}:latest" "${sources[@]}"
           fi
@@ -354,6 +326,7 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - run: bash scripts/write-release-dependencies.sh
       - uses: azure/setup-helm@bf6a7d304bc2fdb57e0331155b7ebf2c504acf0a # v4
         with:
           version: ${{ env.HELM_VERSION }}
@@ -373,35 +346,6 @@ jobs:
             bash scripts/package-control-plane-chart.sh "${version}"
           cp dist/control-plane-chart/tali-relay.tgz "dist/tali-relay-${version}.tgz"
           helm push "dist/tali-relay-${version}.tgz" "oci://${registry}/charts"
-      - name: Write release dependency manifest
-        shell: bash
-        run: |
-          set -euo pipefail
-          version="${GITHUB_REF_NAME#v}"
-          cat > dist/release-dependencies.json <<EOF
-          {
-            "tasklatticeRelay": "${version}",
-            "openShell": {
-              "version": "${OPENSHELL_VERSION}",
-              "helmArchiveSha256": "${OPENSHELL_HELM_SHA256}",
-              "cliLinuxAmd64Sha256": "${OPENSHELL_CLI_AMD64_SHA256}",
-              "cliLinuxArm64Sha256": "${OPENSHELL_CLI_ARM64_SHA256}"
-            },
-            "agentSandbox": {
-              "version": "${AGENT_SANDBOX_VERSION}",
-              "chartVersion": "${AGENT_SANDBOX_CHART_VERSION}",
-              "sourceSha256": "${AGENT_SANDBOX_SOURCE_SHA256}"
-            },
-            "nemoClaw": {
-              "openClawRevision": "${NEMOCLAW_OPENCLAW_REVISION}",
-              "openClawBaseImage": "${NEMOCLAW_OPENCLAW_BASE_IMAGE}",
-              "hermesRevision": "${NEMOCLAW_HERMES_REVISION}",
-              "hermesBaseImage": "${NEMOCLAW_HERMES_BASE_IMAGE}"
-            },
-            "liteLlmImage": "${LITELLM_IMAGE}"
-          }
-          EOF
-          jq --exit-status . dist/release-dependencies.json > /dev/null
       - name: Create or update GitHub Release
         shell: bash
         env:

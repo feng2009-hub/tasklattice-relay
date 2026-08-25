@@ -1,9 +1,9 @@
 dependencies:
 - name: openshell
   repository: file://../../.helm-dependencies/openshell
-  version: 0.0.111
+  version: 0.0.106
 - name: agent-sandbox
   repository: file://../../.helm-dependencies/agent-sandbox
   version: 0.1.0
-digest: sha256:aad7ba298d74d7aa9090dfe5582e6e1af26de83c74c7dd500edb4fe112321999
-generated: "2026-08-24T23:36:56.036643+08:00"
+digest: sha256:7d37f8f1d341ed7d7aa8fed48162a50d01a1528bc34a438adb8fb0a9bed56ace
+generated: "2026-08-25T11:54:36.858324+08:00"

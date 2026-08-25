@@ -12,8 +12,7 @@ const bootstrap = resolve(
   "../../../scripts/bootstrap-hermes-config.py",
 );
 const mcpHash = "a".repeat(64);
-const credentialPlaceholder =
-  "openshell:resolve:env:v123_OPENAI_API_KEY";
+const managedCredentialSentinel = "sk-OPENSHELL-PROXY-REWRITE";
 
 function digest(value: string): string {
   return createHash("sha256").update(value).digest("hex");
@@ -28,7 +27,7 @@ afterEach(async () => {
 });
 
 describe("Hermes config bootstrap", () => {
-  it("routes through the custom provider with an OpenShell placeholder", async () => {
+  it("routes through the custom provider with NemoClaw's managed credential sentinel", async () => {
     const root = await mkdtemp(join(tmpdir(), "tali-hermes-config-"));
     temporaryDirectories.push(root);
     const state = join(root, ".hermes");
@@ -41,6 +40,7 @@ describe("Hermes config bootstrap", () => {
     const initial = `# Managed by NemoClaw
 _nemoclaw_upstream:
   provider: deepseek
+  provider_key: deepseek
   model: deepseek-chat
 model:
   default: deepseek-chat
@@ -87,26 +87,19 @@ custom_providers:
       "--runtime-config-guard",
       guard,
     ];
-    const first = spawnSync("python3", args, {
-      encoding: "utf8",
-      env: { ...process.env, OPENAI_API_KEY: credentialPlaceholder },
-    });
+    const first = spawnSync("python3", args, { encoding: "utf8" });
     expect(first.status, first.stderr).toBe(0);
     const migrated = await readFile(config, "utf8");
     const document = parse(migrated) as Record<string, any>;
     expect(document.model.provider).toBe("custom");
-    expect(document.model.api_key).toBe(credentialPlaceholder);
-    expect(document.providers.deepseek.api_key).toBe(credentialPlaceholder);
-    expect(document.custom_providers[0].api_key).toBe(credentialPlaceholder);
-    expect(migrated).not.toContain("sk-OPENSHELL-PROXY-REWRITE");
+    expect(document.model.api_key).toBe(managedCredentialSentinel);
+    expect(document.providers.deepseek.api_key).toBe(managedCredentialSentinel);
+    expect(document.custom_providers[0].api_key).toBe(managedCredentialSentinel);
 
-    const second = spawnSync("python3", args, {
-      encoding: "utf8",
-      env: { ...process.env, OPENAI_API_KEY: credentialPlaceholder },
-    });
+    const second = spawnSync("python3", args, { encoding: "utf8" });
     expect(second.status, second.stderr).toBe(0);
     const rerun = await readFile(config, "utf8");
-    expect(rerun.match(/openshell:resolve:env:/g)).toHaveLength(3);
+    expect(rerun.match(/sk-OPENSHELL-PROXY-REWRITE/g)).toHaveLength(3);
     expect(await readFile(anchor, "utf8")).toContain(
       `${digest(rerun)}  ${config}`,
     );

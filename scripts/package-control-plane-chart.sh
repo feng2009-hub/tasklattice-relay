@@ -21,6 +21,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
+bash "$repository_root/scripts/write-release-dependencies.sh"
 bash "$repository_root/scripts/prepare-helm-dependencies.sh"
 cp -R "$chart_root" "$work_dir/tali-relay"
 sed -i.bak \

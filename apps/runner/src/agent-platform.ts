@@ -277,8 +277,10 @@ const agentPlatformRuntimeRegistry = {
       process.env.OPENSHELL_HERMES_SANDBOX_IMAGE ??
       "ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:dev",
     bootstrapScript: hermesBootstrapScript,
-    healthProbe: (dashboardPort) =>
-      `test -x /usr/local/bin/hermes && test -f /sandbox/.hermes/config.yaml && curl -fsS --max-time 3 http://127.0.0.1:8642/health >/dev/null && curl -fsS --max-time 3 http://127.0.0.1:${dashboardPort}/__tali/health >/dev/null`,
+    healthProbe: (dashboardPort) => {
+      const upstreamDashboardPort = dashboardPort === "18790" ? "18791" : "18790";
+      return `test -x /usr/local/bin/hermes && test -f /sandbox/.hermes/config.yaml && curl -fsS --max-time 3 http://127.0.0.1:8642/health >/dev/null && curl -fsS --max-time 3 http://127.0.0.1:${dashboardPort}/__tali/health >/dev/null && dashboard_status="$(curl -sS --max-time 3 -o /dev/null -w '%{http_code}' http://127.0.0.1:${upstreamDashboardPort}/)" && test "$dashboard_status" -ge 200 && test "$dashboard_status" -lt 500`;
+    },
     startupLogs: [
       "Hermes Agent instructions uploaded to the sandbox state directory.",
       "NemoClaw supervisor started the Hermes gateway.",

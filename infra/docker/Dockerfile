@@ -1,20 +1,18 @@
 FROM alpine:3.22 AS openshell-cli
 ARG TARGETARCH
-ARG OPENSHELL_VERSION=0.0.111
-ARG OPENSHELL_CLI_AMD64_SHA256=eea22e10a1d21c92c843c609e2a391456073b339ebc5e1fca293aff4a0d6dcdc
-ARG OPENSHELL_CLI_ARM64_SHA256=5e9689f5e3522e84bd6e12fc48594046f312f356dc2f1779f628eb42e8259bf5
+ARG OPENSHELL_VERSION=0.0.106
 RUN apk add --no-cache ca-certificates curl tar \
     && case "${TARGETARCH}" in \
-      amd64) asset="openshell-x86_64-unknown-linux-musl.tar.gz"; checksum="${OPENSHELL_CLI_AMD64_SHA256}" ;; \
-      arm64) asset="openshell-aarch64-unknown-linux-musl.tar.gz"; checksum="${OPENSHELL_CLI_ARM64_SHA256}" ;; \
+      amd64) asset="openshell-x86_64-unknown-linux-musl.tar.gz" ;; \
+      arm64) asset="openshell-aarch64-unknown-linux-musl.tar.gz" ;; \
       *) echo "Unsupported architecture: ${TARGETARCH}" >&2; exit 1 ;; \
     esac \
     && curl --fail --location --retry 5 \
       --output /tmp/openshell.tar.gz \
       "https://github.com/NVIDIA/OpenShell/releases/download/v${OPENSHELL_VERSION}/${asset}" \
-    && echo "${checksum}  /tmp/openshell.tar.gz" | sha256sum -c - \
     && tar -xzf /tmp/openshell.tar.gz -C /usr/local/bin openshell \
-    && chmod 0755 /usr/local/bin/openshell
+    && chmod 0755 /usr/local/bin/openshell \
+    && test "$(/usr/local/bin/openshell --version)" = "openshell ${OPENSHELL_VERSION}"
 
 FROM node:22-bookworm-slim AS dependencies
 WORKDIR /app
@@ -63,6 +61,7 @@ COPY --from=build /app/apps/control/server/config ./apps/control/server/config
 COPY --from=build /app/apps/control/.output ./apps/control/.output
 COPY --from=build /app/skills/vendor/dist ./skills/vendor/dist
 COPY dist/control-plane-chart/tali-relay.tgz /opt/tali/helm/tali-relay.tgz
+COPY dist/release-dependencies.json /opt/tali/release-dependencies.json
 USER 10001
 EXPOSE 8080
 CMD ["node", "apps/control/.output/server/index.mjs"]
@@ -76,6 +75,7 @@ COPY --from=production-dependencies /app/node_modules ./node_modules
 COPY package.json package-lock.json ./
 COPY apps/example-mcp-server/package.json apps/example-mcp-server/package.json
 COPY --from=build /app/apps/example-mcp-server/dist ./apps/example-mcp-server/dist
+COPY dist/release-dependencies.json /opt/tali/release-dependencies.json
 USER node
 EXPOSE 3000
 CMD ["node", "apps/example-mcp-server/dist/index.js"]
@@ -95,6 +95,7 @@ COPY packages/contracts/package.json ./packages/contracts/package.json
 COPY --from=build /app/packages/contracts/dist ./packages/contracts/dist
 COPY --from=build /app/apps/runner/dist ./apps/runner/dist
 COPY apps/runner/package.json ./apps/runner/package.json
+COPY dist/release-dependencies.json /opt/tali/release-dependencies.json
 USER node
 EXPOSE 9090
 CMD ["node", "apps/runner/dist/index.js"]

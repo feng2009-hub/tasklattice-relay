@@ -2,11 +2,18 @@
 set -euo pipefail
 
 # Build one of the Agent implementations supported by the NemoClaw runtime.
-# Each platform pins its upstream revision and base image independently because
-# OpenClaw and Hermes publish different integration manifests and image lines.
+# The reviewed NemoClaw release tag supplies both supported Agent integrations.
 readonly AGENT_PLATFORM="${NEMOCLAW_AGENT_PLATFORM:-openclaw}"
 readonly BUILD_OUTPUT="${NEMOCLAW_BUILD_OUTPUT:-local}"
 readonly REPOSITORY_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [ "${TALI_REQUIRE_DECLARED_DEPENDENCIES:-0}" = "1" ] \
+  && [ -z "${NEMOCLAW_VERSION:-}" ]; then
+  echo "Release dependency variable is required: NEMOCLAW_VERSION" >&2
+  exit 2
+fi
+readonly NEMOCLAW_VERSION="${NEMOCLAW_VERSION:-v0.0.114}"
+
+bash "$REPOSITORY_ROOT/scripts/write-release-dependencies.sh"
 
 require_declared_dependencies() {
   if [ "${TALI_REQUIRE_DECLARED_DEPENDENCIES:-0}" != "1" ]; then
@@ -23,28 +30,24 @@ require_declared_dependencies() {
 case "$AGENT_PLATFORM" in
   openclaw)
     required_variables=(
-      NEMOCLAW_OPENCLAW_REVISION
-      NEMOCLAW_OPENCLAW_BASE_IMAGE
+      NEMOCLAW_VERSION
     )
     require_declared_dependencies
-    readonly NEMOCLAW_REVISION="${NEMOCLAW_OPENCLAW_REVISION:-2adc8481ff3053a5a7be37d130cb183e222934ff}"
-    readonly NEMOCLAW_BASE_IMAGE="${NEMOCLAW_OPENCLAW_BASE_IMAGE:-ghcr.io/nvidia/nemoclaw/sandbox-base@sha256:132dfea81026fe91581ab97d9034fb61d97b41a9951c7fd59d3d8b3b1b37b246}"
+    readonly NEMOCLAW_BASE_IMAGE="ghcr.io/nvidia/nemoclaw/sandbox-base:${NEMOCLAW_VERSION}"
     readonly NEMOCLAW_IMAGE="${NEMOCLAW_IMAGE:-ghcr.io/tasklattice/tali-nemoclaw-sandbox:dev}"
     readonly DOCKERFILE="Dockerfile"
-    readonly DEFAULT_UPSTREAM_IMAGE="tali-nemoclaw-openclaw-upstream:${NEMOCLAW_REVISION:0:12}"
+    readonly DEFAULT_UPSTREAM_IMAGE="tali-nemoclaw-openclaw-upstream:${NEMOCLAW_VERSION#v}"
     readonly WRAPPER_DOCKERFILE="$REPOSITORY_ROOT/infra/docker/Dockerfile.nemoclaw-openclaw"
     ;;
   hermes)
     required_variables=(
-      NEMOCLAW_HERMES_REVISION
-      NEMOCLAW_HERMES_BASE_IMAGE
+      NEMOCLAW_VERSION
     )
     require_declared_dependencies
-    readonly NEMOCLAW_REVISION="${NEMOCLAW_HERMES_REVISION:-c1bda8069d95a84a9e16b0d292a5fe20ce7cea7d}"
-    readonly NEMOCLAW_BASE_IMAGE="${NEMOCLAW_HERMES_BASE_IMAGE:-ghcr.io/nvidia/nemoclaw/hermes-sandbox-base@sha256:fa05221f5c7bcafea7e263c84e5d06f87e37d1ccb78dc28c113f1a4066aa544c}"
+    readonly NEMOCLAW_BASE_IMAGE="ghcr.io/nvidia/nemoclaw/hermes-sandbox-base:${NEMOCLAW_VERSION}"
     readonly NEMOCLAW_IMAGE="${NEMOCLAW_HERMES_IMAGE:-ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:dev}"
     readonly DOCKERFILE="agents/hermes/Dockerfile"
-    readonly DEFAULT_UPSTREAM_IMAGE="tali-nemoclaw-hermes-upstream:${NEMOCLAW_REVISION:0:12}"
+    readonly DEFAULT_UPSTREAM_IMAGE="tali-nemoclaw-hermes-upstream:${NEMOCLAW_VERSION#v}"
     readonly WRAPPER_DOCKERFILE="$REPOSITORY_ROOT/infra/docker/Dockerfile.nemoclaw-hermes"
     ;;
   *)
@@ -89,7 +92,7 @@ build_context="$(mktemp -d "${TMPDIR:-/tmp}/tali-nemoclaw.XXXXXX")"
 trap 'rm -rf "$build_context"' EXIT
 
 git clone --quiet --filter=blob:none https://github.com/NVIDIA/NemoClaw.git "$build_context"
-git -C "$build_context" checkout --quiet "$NEMOCLAW_REVISION"
+git -C "$build_context" checkout --quiet "$NEMOCLAW_VERSION"
 
 if [ "$AGENT_PLATFORM" = "openclaw" ]; then
   node "$REPOSITORY_ROOT/scripts/patch-nemoclaw-openclaw-no-proxy.mjs" \
@@ -121,7 +124,7 @@ if ! base_image_available; then
     fi
     resolved_base_image="$NEMOCLAW_FALLBACK_BASE_IMAGE"
   else
-    resolved_base_image="${NEMOCLAW_FALLBACK_BASE_IMAGE:-tali-nemoclaw-hermes-base:${NEMOCLAW_REVISION:0:12}}"
+    resolved_base_image="${NEMOCLAW_FALLBACK_BASE_IMAGE:-tali-nemoclaw-hermes-base:${NEMOCLAW_VERSION#v}}"
   fi
 
   if [ "$BUILD_OUTPUT" = "push" ] \
