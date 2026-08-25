@@ -6,10 +6,10 @@ export default defineConfig({
     outDir: ".output/workers",
     rollupOptions: {
       output: {
-        entryFileNames: "project-deletion-worker.mjs",
+        entryFileNames: "control-worker.mjs",
       },
     },
-    ssr: "server/workers/project-deletion-worker.ts",
+    ssr: "server/workers/control-worker.ts",
     target: "node22",
   },
   ssr: {

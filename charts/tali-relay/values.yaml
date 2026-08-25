@@ -87,10 +87,10 @@ images:
 
 control:
   replicaCount: 1
-  deletionWorker:
+  worker:
     enabled: true
-    # Database leases make multiple replicas safe; one is sufficient for the
-    # normal Project deletion volume.
+    # PostgreSQL-backed queue claims make multiple replicas safe. One is
+    # sufficient for the normal control-plane background workload.
     replicaCount: 1
     resources:
       requests:

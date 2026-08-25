@@ -31,6 +31,7 @@ RUN --mount=type=cache,target=/root/.npm \
 FROM dependencies AS build
 COPY tsconfig.base.json ./
 COPY apps ./apps
+COPY artifacts ./artifacts
 COPY docs ./docs
 COPY packages ./packages
 COPY skills ./skills
@@ -58,7 +59,7 @@ COPY --from=build /app/apps/control/prisma ./apps/control/prisma
 COPY --from=build /app/apps/control/prisma.config.ts ./apps/control/prisma.config.ts
 COPY --from=build /app/apps/control/server/config ./apps/control/server/config
 COPY --from=build /app/apps/control/.output ./apps/control/.output
-COPY --from=build /app/skills/vendor/dist ./skills/vendor/dist
+COPY --from=build /app/artifacts/skills/vendor ./artifacts/skills/vendor
 COPY dist/control-plane-chart/tali-relay.tgz /opt/tali/helm/tali-relay.tgz
 USER 10001
 EXPOSE 8080

@@ -1,5 +1,11 @@
-import { useEffect, useId, useState, type ReactNode } from "react";
-import { AlertTriangle, Database, LoaderCircle, Trash2 } from "lucide-react";
+import {
+  useEffect,
+  useId,
+  useState,
+  type ClipboardEvent,
+  type ReactNode,
+} from "react";
+import { AlertTriangle, Info, LoaderCircle, Trash2 } from "lucide-react";
 import { EntitySheet } from "@/components/shared/entity-sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,11 +21,11 @@ export function DeleteEntitySheet({
   description,
   entityName,
   error,
+  impactDescription,
   onConfirm,
   onOpenChange,
   open,
   pendingLabel = "Deleting…",
-  retentionDescription = "The business record is marked as deleted and retained for history. It disappears from active views immediately.",
   title,
 }: {
   blocked?: boolean;
@@ -31,11 +37,11 @@ export function DeleteEntitySheet({
   description: ReactNode;
   entityName: string;
   error?: string;
+  impactDescription?: ReactNode;
   onConfirm: () => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
   pendingLabel?: string;
-  retentionDescription?: ReactNode;
   title: ReactNode;
 }) {
   const inputId = useId();
@@ -48,6 +54,12 @@ export function DeleteEntitySheet({
   const confirmed = confirmation === entityName;
   const close = () => {
     if (!deleting) onOpenChange(false);
+  };
+  const pasteConfirmation = (event: ClipboardEvent<HTMLInputElement>) => {
+    const pastedName = event.clipboardData.getData("text").trim();
+    if (!pastedName) return;
+    event.preventDefault();
+    setConfirmation(pastedName);
   };
 
   return (
@@ -106,15 +118,21 @@ export function DeleteEntitySheet({
         {children}
         {!blocked ? (
           <>
-            <div className="flex gap-3 border-l-2 border-primary bg-primary/5 px-4 py-3">
-              <Database className="mt-0.5 size-4 shrink-0 text-primary" />
-              <p className="text-xs leading-5 text-muted-foreground">
-                {retentionDescription}
-              </p>
-            </div>
+            {impactDescription ? (
+              <div className="flex gap-3 border-l-2 border-primary bg-primary/5 px-4 py-3">
+                <Info className="mt-0.5 size-4 shrink-0 text-primary" />
+                <p className="text-xs leading-5 text-muted-foreground">
+                  {impactDescription}
+                </p>
+              </div>
+            ) : null}
             <div className="space-y-2">
               <Label htmlFor={inputId}>
-                Type <strong>{entityName}</strong> to confirm.
+                Paste or type
+                <code className="select-all rounded-sm bg-muted px-1.5 py-0.5 font-mono text-[0.8rem] text-foreground">
+                  {entityName}
+                </code>
+                to confirm.
               </Label>
               <Input
                 id={inputId}
@@ -123,7 +141,10 @@ export function DeleteEntitySheet({
                 disabled={deleting}
                 autoComplete="off"
                 autoFocus
+                autoCapitalize="none"
+                spellCheck={false}
                 onChange={(event) => setConfirmation(event.target.value)}
+                onPaste={pasteConfirmation}
               />
             </div>
           </>

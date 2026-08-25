@@ -1,5 +1,5 @@
-{{- if .Values.control.deletionWorker.enabled }}
-{{- $component := "deletion-worker" -}}
+{{- if .Values.control.worker.enabled }}
+{{- $component := "control-worker" -}}
 {{- $name := include "tali.componentName" (dict "root" . "component" $component) -}}
 apiVersion: apps/v1
 kind: Deployment
@@ -10,7 +10,7 @@ metadata:
   annotations:
     {{- include "tali.resourceAnnotations" (dict "root" . "wave" "application") | nindent 4 }}
 spec:
-  replicas: {{ .Values.control.deletionWorker.replicaCount }}
+  replicas: {{ .Values.control.worker.replicaCount }}
   selector:
     matchLabels:
       {{- include "tali.selectorLabels" (dict "root" . "component" $component) | nindent 6 }}
@@ -25,7 +25,7 @@ spec:
         {{- end }}
     spec:
       terminationGracePeriodSeconds: 600
-      serviceAccountName: {{ include "tali.projectRuntimeCleanupServiceAccountName" . }}
+      serviceAccountName: {{ include "tali.controlWorkerServiceAccountName" . }}
       automountServiceAccountToken: true
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets:
@@ -69,20 +69,38 @@ spec:
               mountPath: /etc/tali
               readOnly: true
       containers:
-        - name: deletion-worker
+        - name: control-worker
           image: {{ include "tali.image" (dict "root" . "image" .Values.images.control) }}
           imagePullPolicy: {{ .Values.images.control.pullPolicy }}
           command:
             - node
-            - apps/control/.output/workers/project-deletion-worker.mjs
+            - apps/control/.output/workers/control-worker.mjs
           env:
             - name: TALI_CONFIG
               value: /etc/tali/control.toml
-            {{- with .Values.control.deletionWorker.extraEnv }}
+            - name: CONTROL_WORKER_HEALTH_PORT
+              value: "9090"
+            {{- with .Values.control.worker.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+          ports:
+            - name: health
+              containerPort: 9090
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: health
+            initialDelaySeconds: 10
+            periodSeconds: 10
           resources:
-            {{- toYaml .Values.control.deletionWorker.resources | nindent 12 }}
+            {{- toYaml .Values.control.worker.resources | nindent 12 }}
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

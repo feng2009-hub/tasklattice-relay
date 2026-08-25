@@ -1,7 +1,5 @@
 node_modules/
 dist/
-!skills/vendor/dist/
-!skills/vendor/dist/**
 .vite/
 .output/
 .tanstack/

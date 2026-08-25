@@ -271,7 +271,7 @@ env \
   NEMOCLAW_INFERENCE_PROVIDER_ID=inference \
   NEMOCLAW_UPSTREAM_PROVIDER=tali-litellm \
   NEMOCLAW_UPSTREAM_ENDPOINT_URL="$upstream_endpoint" \
-  NEMOCLAW_INFERENCE_BASE_URL=https://inference.local/v1 \
+  NEMOCLAW_INFERENCE_BASE_URL="$upstream_endpoint" \
   NEMOCLAW_INFERENCE_API=openai-completions \
   node --experimental-strip-types "$config_generator"
 

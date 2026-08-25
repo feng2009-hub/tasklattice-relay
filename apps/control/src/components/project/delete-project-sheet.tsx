@@ -4,7 +4,6 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock3,
-  Database,
   LoaderCircle,
   RefreshCw,
   ServerCog,
@@ -158,7 +157,7 @@ export function DeleteProjectSheet({
                           Cleanup starts after a {impact.data.delayMinutes}-minute safety window
                         </h3>
                         <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                          Submitting immediately marks this Project as deleted and removes it from navigation. A dedicated worker then destroys runtime and integration resources while retaining business records as tombstones.
+                          Submitting immediately removes this Project from navigation. Runtime and integration resources are then cleaned up in the background.
                         </p>
                       </div>
                     </div>
@@ -205,10 +204,10 @@ export function DeleteProjectSheet({
                     <div className="flex items-end justify-between gap-3">
                       <div>
                         <h3 id="cascade-scope-title" className="text-sm font-semibold">
-                          Soft-delete scope
+                          Affected Project data
                         </h3>
                         <p className="mt-1 text-xs text-muted-foreground">
-                          These Project-owned records will leave active views and receive the same deletion timestamp.
+                          These Project-owned items will be removed from active views.
                         </p>
                       </div>
                       <span className="font-mono text-xs text-muted-foreground">
@@ -226,10 +225,6 @@ export function DeleteProjectSheet({
                         </div>
                       ))}
                     </dl>
-                    <p className="mt-2 flex gap-2 text-xs leading-5 text-muted-foreground">
-                      <Database className="mt-0.5 size-3.5 shrink-0" />
-                      Business records and audit evidence remain available for retention and traceability. Runtime resources are not retained.
-                    </p>
                   </section>
 
                   <section className="space-y-4 border-t pt-5" aria-labelledby="confirm-project-deletion-title">
@@ -250,7 +245,7 @@ export function DeleteProjectSheet({
                         onChange={(event) => setAcknowledged(event.target.checked)}
                       />
                       <span className="leading-5">
-                        I understand that active runtime resources will be permanently destroyed and Project-owned business records will be soft-deleted.
+                        I understand that this Project will disappear from active views and its active runtime resources will be permanently destroyed.
                       </span>
                     </label>
                     <div className="space-y-2">
@@ -338,13 +333,13 @@ function DeletionScheduled({
           </span>
           <SheetTitle className="mt-5 text-xl">Deletion scheduled</SheetTitle>
           <SheetDescription className="mt-2 leading-6">
-            <strong>{projectName}</strong> is now locked and has been removed from active Projects.
+            <strong>{projectName}</strong> has been removed from active Projects.
           </SheetDescription>
           <div className="mt-6 border bg-muted/20 px-4 py-4 text-left">
             <span className="text-xs text-muted-foreground">Cleanup begins around</span>
             <strong className="mt-1 block text-sm">{scheduledTime(schedule.scheduledFor)}</strong>
             <span className="mt-2 block text-xs leading-5 text-muted-foreground">
-              Runtime and integration resources are physically cleaned up. Business records remain soft-deleted with their deletion timestamps.
+              Runtime and integration cleanup runs in the background and may take some time.
             </span>
           </div>
         </div>

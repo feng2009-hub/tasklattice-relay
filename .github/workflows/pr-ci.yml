@@ -52,6 +52,7 @@ jobs:
               - 'tsconfig.base.json'
               - 'packages/contracts/**'
               - 'apps/control/**'
+              - 'artifacts/skills/**'
               - 'skills/**'
               - 'scripts/package-vendor-skills.py'
             runner:
@@ -113,6 +114,8 @@ jobs:
       - uses: ./.github/actions/setup-node-workspace
       - name: Build shared contracts
         run: npm run build --workspace @tali/contracts
+      - name: Verify packaged Skill artifacts
+        run: npm run skills:check
       - name: Test control
         run: npm run test --workspace @tali/control
       - name: Typecheck control

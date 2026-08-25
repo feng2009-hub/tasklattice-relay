@@ -99,9 +99,10 @@ the Relay installation when multiple control planes share a cluster. The main
 Control Plane ServiceAccount can ensure Namespaces and manage Deployments and
 Services carrying matching Relay Project/Agent ownership metadata; it reads
 Pods only to resolve a running image to its immutable digest. The separate
-deletion worker has get/delete access to Namespaces. There is no continuously
-running reconciliation Deployment. Operators can repair all mappings with the
-packaged one-shot command:
+Control Worker uses a PostgreSQL-backed durable queue for delayed Project
+deletion and periodic Runtime Namespace repair. Its dedicated identity can
+get/create/patch/delete Project Namespaces. Operators can also repair all
+mappings with the packaged one-shot command:
 
 ```bash
 kubectl -n <control-namespace> exec deployment/<release>-control -- \
@@ -136,7 +137,7 @@ TaskLattice Relay resources are deliberately later than the dependencies:
 | `10` | TaskLattice Relay ServiceAccounts, RBAC, Secrets, ConfigMaps, and Services |
 | `20` | PostgreSQL StatefulSet |
 | `30` | LiteLLM and optional Keycloak Deployments |
-| `40` | Control, deletion worker, Runner, and optional example MCP Deployments |
+| `40` | Control, Control Worker, Runner, and optional example MCP Deployments |
 | `50` | Optional OpenShift Routes |
 
 Argo CD waits for each wave to become healthy before advancing. The values are

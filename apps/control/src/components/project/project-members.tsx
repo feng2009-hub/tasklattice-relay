@@ -214,7 +214,7 @@ export function ProjectMembers({ project }: { project: Project }) {
           deleting={removeHuman.isPending}
           onConfirm={() => removeHuman.mutate(removingMember.id)}
           {...(removeHuman.error instanceof Error ? { error: removeHuman.error.message } : {})}
-          retentionDescription="Project access is revoked immediately. Historical actions remain in the audit log; owned Instances or registered Agents must be transferred before access can be removed."
+          impactDescription="Project access is revoked immediately. Owned Instances or registered Agents must be transferred before access can be removed."
         />
       ) : null}
     </div>

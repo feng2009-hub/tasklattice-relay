@@ -1,5 +1,5 @@
 import type { ResourceCatalog } from "@tali/contracts";
-import vendorSkillManifest from "../../../../skills/vendor/dist/manifest.json";
+import vendorSkillManifest from "../../../../artifacts/skills/vendor/manifest.json";
 import { mcpServerTemplates } from "./mcp-server-templates";
 
 const skillCatalogUpdatedAt = "2026-07-26T00:00:00.000Z";

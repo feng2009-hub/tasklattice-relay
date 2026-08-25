@@ -5,9 +5,9 @@ import { Pool } from "pg";
 import { parse } from "smol-toml";
 
 const manifestPath = fileURLToPath(
-  new URL("../../../skills/vendor/dist/manifest.json", import.meta.url),
+  new URL("../../../artifacts/skills/vendor/manifest.json", import.meta.url),
 );
-const archiveRoot = new URL("../../../skills/vendor/dist/", import.meta.url);
+const archiveRoot = new URL("../../../artifacts/skills/vendor/", import.meta.url);
 const maxCompressedSize = 10 * 1024 * 1024;
 const maxUnpackedSize = 50 * 1024 * 1024;
 const maxFileCount = 500;
@@ -105,7 +105,7 @@ async function seed() {
           artifact.unpackedSizeBytes,
           artifact.fileCount,
           JSON.stringify(artifact),
-          `skills/vendor/dist/${artifact.archive}`,
+          `artifacts/skills/vendor/${artifact.archive}`,
         ],
       );
       const endpoint =

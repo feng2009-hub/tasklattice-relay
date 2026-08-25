@@ -569,7 +569,7 @@ function SkillCatalog() {
           deleting={deleteSkill.isPending}
           onConfirm={() => deleteSkill.mutate(selected.id)}
           {...(deleteSkill.error instanceof Error ? { error: deleteSkill.error.message } : {})}
-          retentionDescription="The Skill catalog record is soft-deleted with a deletion timestamp. Its immutable artifact archive remains retained for provenance and audit history."
+          impactDescription="The Skill disappears from this Project and can no longer be selected for new work."
         />
       ) : null}
 

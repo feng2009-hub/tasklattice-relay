@@ -93,6 +93,34 @@ describe("ProjectRuntimeTargetService", () => {
     });
   });
 
+  it("does not overlap an active reconciliation lease", async () => {
+    setControlConfigForTests(enabledConfig());
+    const db = createTestPrisma();
+    await db.projectRuntimeTarget.create({
+      data: {
+        clusterId: "in-cluster",
+        leaseExpiresAt: new Date(Date.now() + 60_000),
+        leaseOwner: "another-reconciler",
+        namespace: projectRuntimeNamespace("individual"),
+        projectId: "individual",
+        status: "reconciling",
+      },
+    });
+    const fake = namespaceClient();
+    const service = new ProjectRuntimeTargetService(db, fake.client);
+
+    await expect(service.ensureProjectNamespace("individual")).rejects.toThrow(
+      "changed or started deleting",
+    );
+    expect(fake.reconcile).not.toHaveBeenCalled();
+    await expect(db.projectRuntimeTarget.findUnique({
+      where: { projectId: "individual" },
+    })).resolves.toMatchObject({
+      leaseOwner: "another-reconciler",
+      status: "reconciling",
+    });
+  });
+
   it("refuses a target assigned to another cluster", async () => {
     const config = enabledConfig();
     config.runtime_namespaces.cluster_id = "replacement-cluster";

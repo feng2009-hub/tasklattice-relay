@@ -78,8 +78,8 @@ app.kubernetes.io/component: {{ .component }}
 {{- end -}}
 {{- end }}
 
-{{- define "tali.projectRuntimeCleanupServiceAccountName" -}}
-{{- include "tali.componentName" (dict "root" . "component" "project-runtime-cleanup") -}}
+{{- define "tali.controlWorkerServiceAccountName" -}}
+{{- include "tali.componentName" (dict "root" . "component" "control-worker") -}}
 {{- end }}
 
 {{- define "tali.databaseUrl" -}}

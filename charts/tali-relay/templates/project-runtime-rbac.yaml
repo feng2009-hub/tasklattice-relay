@@ -2,10 +2,10 @@
 {{- $name := include "tali.componentName" (dict "root" . "component" $component) -}}
 {{- $clusterScopeId := printf "%s/%s" .Release.Namespace $name -}}
 {{- $clusterRoleName := printf "%s-%s" ($name | trunc 48 | trimSuffix "-") ($clusterScopeId | sha256sum | trunc 12) -}}
-{{- $cleanupComponent := "project-runtime-cleanup" -}}
-{{- $cleanupName := include "tali.componentName" (dict "root" . "component" $cleanupComponent) -}}
-{{- $cleanupClusterScopeId := printf "%s/%s" .Release.Namespace $cleanupName -}}
-{{- $cleanupClusterRoleName := printf "%s-%s" ($cleanupName | trunc 48 | trimSuffix "-") ($cleanupClusterScopeId | sha256sum | trunc 12) -}}
+{{- $workerComponent := "control-worker" -}}
+{{- $workerName := include "tali.componentName" (dict "root" . "component" $workerComponent) -}}
+{{- $workerClusterScopeId := printf "%s/%s" .Release.Namespace $workerName -}}
+{{- $workerClusterRoleName := printf "%s-%s" ($workerName | trunc 48 | trimSuffix "-") ($workerClusterScopeId | sha256sum | trunc 12) -}}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -44,14 +44,14 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: {{ $clusterRoleName }}
-{{- if .Values.control.deletionWorker.enabled }}
+{{- if .Values.control.worker.enabled }}
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: {{ include "tali.projectRuntimeCleanupServiceAccountName" . }}
+  name: {{ include "tali.controlWorkerServiceAccountName" . }}
   labels:
-    {{- include "tali.componentLabels" (dict "root" . "component" $cleanupComponent) | nindent 4 }}
+    {{- include "tali.componentLabels" (dict "root" . "component" $workerComponent) | nindent 4 }}
   annotations:
     {{- include "tali.resourceAnnotations" (dict "root" . "wave" "foundation") | nindent 4 }}
 automountServiceAccountToken: true
@@ -59,30 +59,30 @@ automountServiceAccountToken: true
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ $cleanupClusterRoleName }}
+  name: {{ $workerClusterRoleName }}
   labels:
-    {{- include "tali.componentLabels" (dict "root" . "component" $cleanupComponent) | nindent 4 }}
+    {{- include "tali.componentLabels" (dict "root" . "component" $workerComponent) | nindent 4 }}
   annotations:
     {{- include "tali.resourceAnnotations" (dict "root" . "wave" "foundation") | nindent 4 }}
 rules:
   - apiGroups: [""]
     resources: ["namespaces"]
-    verbs: ["get", "delete"]
+    verbs: ["get", "create", "patch", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: {{ $cleanupClusterRoleName }}
+  name: {{ $workerClusterRoleName }}
   labels:
-    {{- include "tali.componentLabels" (dict "root" . "component" $cleanupComponent) | nindent 4 }}
+    {{- include "tali.componentLabels" (dict "root" . "component" $workerComponent) | nindent 4 }}
   annotations:
     {{- include "tali.resourceAnnotations" (dict "root" . "wave" "foundation") | nindent 4 }}
 subjects:
   - kind: ServiceAccount
-    name: {{ include "tali.projectRuntimeCleanupServiceAccountName" . }}
+    name: {{ include "tali.controlWorkerServiceAccountName" . }}
     namespace: {{ .Release.Namespace }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: {{ $cleanupClusterRoleName }}
+  name: {{ $workerClusterRoleName }}
 {{- end }}

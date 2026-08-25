@@ -205,7 +205,7 @@ export class InstanceService {
       modelDeploymentId: `model-routing:${routing.id}`,
       providerAccountId: gateway.id,
       providerName: "LiteLLM managed",
-      model: routing.publicModelAlias,
+      model: modelKeyRouting.runtimeModel,
       modelType: "llm",
       inferenceMode: "PLATFORM_MANAGED",
       modelRoutingId: routing.id,
@@ -265,7 +265,7 @@ export class InstanceService {
             name: agent.sandboxName,
             agentPlatform: agent.agentPlatform,
             providerName: "LiteLLM",
-            model: routing.publicModelAlias,
+            model: modelKeyRouting.runtimeModel,
             inferenceEndpoint: `${litellmBaseUrl}/v1`,
             policyYaml: policy.policyYaml,
             systemPrompt: input.systemPrompt,
@@ -433,13 +433,18 @@ export class InstanceService {
 
   private async modelKeyRouting(routing: ModelRouting): Promise<{
     models: string[];
+    runtimeModel: string;
     keyConfiguration: Pick<
       LiteLLMInstanceServiceAccountInput,
       "aliases" | "routerSettings"
     >;
   }> {
     if (routing.routingPolicy.mode !== "SINGLE") {
-      return { models: [routing.publicModelAlias], keyConfiguration: {} };
+      return {
+        models: [routing.publicModelAlias],
+        runtimeModel: routing.publicModelAlias,
+        keyConfiguration: {},
+      };
     }
     const deployments = await Promise.all([
       this.store.getModelDeployment(routing.routingPolicy.modelDeploymentId),
@@ -463,6 +468,10 @@ export class InstanceService {
         primary.litellmModelName,
         ...fallbackModels,
       ],
+      // A SINGLE Routing has no LiteLLM Auto Router deployment of its own.
+      // Use the resolved deployment for runtime identity and requests while
+      // retaining the stable public alias on the isolated key for API clients.
+      runtimeModel: primary.litellmModelName,
       keyConfiguration: {
         aliases: {
           [routing.publicModelAlias]: primary.litellmModelName,

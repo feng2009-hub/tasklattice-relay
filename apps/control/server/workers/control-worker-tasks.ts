@@ -1,0 +1,300 @@
+import { z } from "zod";
+import { prisma } from "../db/prisma";
+import type { PrismaClient } from "../generated/prisma/client";
+import {
+  CONTROL_JOB_QUEUES,
+  type ControlJobMetadata,
+  type ControlMaintenanceJobPayload,
+  type PgBossControlJobQueue,
+  type ProjectDeletionJobPayload,
+  type ProjectRuntimeReconcileJobPayload,
+} from "../jobs/control-job-queue";
+import {
+  createStructuredLogger,
+  serializeError,
+  type StructuredLogger,
+} from "../observability/structured-logger";
+import { ProjectDeletionService } from "../projects/project-deletion-service";
+import { ProjectRuntimeTargetService } from "../projects/project-runtime-target-service";
+
+const projectIdPayloadSchema = z.object({ projectId: z.string().trim().min(1) });
+const runtimeReconcilePayloadSchema = projectIdPayloadSchema.extend({
+  reason: z.enum(["created", "manual", "periodic", "retry"]),
+});
+const maintenancePayloadSchema = z.object({
+  reason: z.enum(["scheduled", "startup"]),
+});
+
+export interface ControlWorkerTaskDependencies {
+  db?: PrismaClient;
+  deletionService?: ProjectDeletionService;
+  jobs: PgBossControlJobQueue;
+  logger?: StructuredLogger;
+  runtimeTargets?: ProjectRuntimeTargetService;
+}
+
+export class ControlWorkerTasks {
+  private readonly db: PrismaClient;
+  private readonly deletionService: ProjectDeletionService;
+  private readonly logger: StructuredLogger;
+  private readonly runtimeTargets: ProjectRuntimeTargetService;
+
+  constructor(private readonly dependencies: ControlWorkerTaskDependencies) {
+    this.db = dependencies.db ?? prisma();
+    this.deletionService =
+      dependencies.deletionService ?? new ProjectDeletionService(this.db);
+    this.logger =
+      dependencies.logger ?? createStructuredLogger("control-worker");
+    this.runtimeTargets =
+      dependencies.runtimeTargets ?? new ProjectRuntimeTargetService(this.db);
+  }
+
+  async projectDeletion(
+    job: ControlJobMetadata<ProjectDeletionJobPayload>,
+  ): Promise<void> {
+    const { projectId } = projectIdPayloadSchema.parse(job.data);
+    const startedAt = Date.now();
+    const attempt = job.retryCount + 1;
+    const task = await this.db.projectDeletionTask.findUnique({
+      where: { projectId },
+      select: { status: true },
+    });
+    if (!task || task.status === "completed") {
+      this.logJob("info", "job.skipped", job, {
+        attempt,
+        projectId,
+        reason: task ? "already-completed" : "domain-task-absent",
+      });
+      return;
+    }
+    await this.db.projectDeletionTask.update({
+      where: { projectId },
+      data: {
+        attempts: attempt,
+        lastError: null,
+        leaseExpiresAt: null,
+        leaseOwner: null,
+        queueJobId: job.id,
+        status: "running",
+      },
+    });
+    this.logJob("info", "job.started", job, { attempt, projectId });
+    try {
+      await this.deletionService.purge(projectId);
+      this.logJob("info", "job.completed", job, {
+        attempt,
+        durationMs: Date.now() - startedAt,
+        projectId,
+      });
+    } catch (error) {
+      const terminal = job.retryCount >= job.retryLimit;
+      await this.db.projectDeletionTask.updateMany({
+        where: { projectId, status: "running" },
+        data: {
+          lastError: safeError(error),
+          leaseExpiresAt: null,
+          leaseOwner: null,
+          status: terminal ? "failed" : "retry",
+        },
+      });
+      this.logJob("error", terminal ? "job.failed" : "job.retry", job, {
+        attempt,
+        durationMs: Date.now() - startedAt,
+        projectId,
+        ...serializeError(error),
+      });
+      throw error;
+    }
+  }
+
+  async projectRuntimeReconcile(
+    job: ControlJobMetadata<ProjectRuntimeReconcileJobPayload>,
+  ): Promise<void> {
+    const { projectId, reason } = runtimeReconcilePayloadSchema.parse(job.data);
+    const project = await this.db.project.findUnique({
+      where: { id: projectId },
+      select: { deletedAt: true },
+    });
+    if (!project || project.deletedAt) {
+      this.logJob("info", "job.skipped", job, {
+        projectId,
+        reason: "project-absent-or-deleting",
+      });
+      return;
+    }
+    const startedAt = Date.now();
+    this.logJob("info", "job.started", job, { projectId, reason });
+    try {
+      const reconciled = await this.runtimeTargets.ensureProjectNamespace(
+        projectId,
+      );
+      this.logJob("info", "job.completed", job, {
+        durationMs: Date.now() - startedAt,
+        outcome: reconciled ? "reconciled" : "disabled",
+        projectId,
+        reason,
+      });
+    } catch (error) {
+      this.logJob("error", "job.retry", job, {
+        durationMs: Date.now() - startedAt,
+        projectId,
+        reason,
+        ...serializeError(error),
+      });
+      throw error;
+    }
+  }
+
+  async maintenance(
+    job: ControlJobMetadata<ControlMaintenanceJobPayload>,
+  ): Promise<void> {
+    const { reason } = maintenancePayloadSchema.parse(job.data);
+    const startedAt = Date.now();
+    const deletionJobsAttached = await this.attachHistoricalDeletionJobs();
+    const projectIds = await this.runtimeTargets.reconciliationCandidateIds();
+    let runtimeJobsEnqueued = 0;
+    for (const projectId of projectIds) {
+      const jobId = await this.dependencies.jobs.enqueueProjectRuntimeReconcile(
+        projectId,
+        "periodic",
+      );
+      if (jobId) runtimeJobsEnqueued += 1;
+    }
+    const queueStatus = (await this.dependencies.jobs.boss.getQueues([
+      CONTROL_JOB_QUEUES.projectDeletion,
+      CONTROL_JOB_QUEUES.projectRuntimeReconcile,
+      CONTROL_JOB_QUEUES.deadLetter,
+    ])).map((queue) => ({
+      active: queue.activeCount,
+      deferred: queue.deferredCount,
+      failed: queue.failedCount,
+      name: queue.name,
+      ready: queue.readyCount,
+    }));
+    this.logJob("info", "maintenance.completed", job, {
+      deletionJobsAttached,
+      durationMs: Date.now() - startedAt,
+      queueStatus,
+      reason,
+      runtimeJobsEnqueued,
+    });
+  }
+
+  async attachHistoricalDeletionJobs(referenceTime = new Date()): Promise<number> {
+    const tasks = await this.db.projectDeletionTask.findMany({
+      where: {
+        queueJobId: null,
+        OR: [
+          { status: { in: ["scheduled", "retry"] } },
+          {
+            status: "running",
+            OR: [
+              { leaseExpiresAt: null },
+              { leaseExpiresAt: { lte: referenceTime } },
+            ],
+          },
+        ],
+      },
+      orderBy: { scheduledFor: "asc" },
+      select: { projectId: true },
+    });
+    let attached = 0;
+    for (const { projectId } of tasks) {
+      await this.db.$transaction(async (transaction) => {
+        const task = await transaction.projectDeletionTask.findUnique({
+          where: { projectId },
+          select: {
+            leaseExpiresAt: true,
+            queueJobId: true,
+            scheduledFor: true,
+            status: true,
+          },
+        });
+        if (
+          !task
+          || task.queueJobId
+          || task.status === "completed"
+          || task.status === "failed"
+          || (
+            task.status === "running"
+            && task.leaseExpiresAt
+            && task.leaseExpiresAt > referenceTime
+          )
+        ) return;
+        const queueJobId =
+          await this.dependencies.jobs.enqueueProjectDeletion(
+            projectId,
+            task.scheduledFor,
+            transaction,
+          );
+        await transaction.projectDeletionTask.update({
+          where: { projectId },
+          data: {
+            leaseExpiresAt: null,
+            leaseOwner: null,
+            queueJobId,
+            status: task.status === "running" ? "retry" : task.status,
+          },
+        });
+        attached += 1;
+      });
+    }
+    return attached;
+  }
+
+  register(): Promise<string[]> {
+    const { boss } = this.dependencies.jobs;
+    return Promise.all([
+      boss.work<ProjectDeletionJobPayload>(
+        CONTROL_JOB_QUEUES.projectDeletion,
+        {
+          groupConcurrency: 1,
+          includeMetadata: true,
+          localConcurrency: 2,
+          pollingIntervalSeconds: 2,
+        },
+        async ([job]) => this.projectDeletion(
+          job! as ControlJobMetadata<ProjectDeletionJobPayload>,
+        ),
+      ),
+      boss.work<ProjectRuntimeReconcileJobPayload>(
+        CONTROL_JOB_QUEUES.projectRuntimeReconcile,
+        {
+          groupConcurrency: 1,
+          includeMetadata: true,
+          localConcurrency: 4,
+          pollingIntervalSeconds: 2,
+        },
+        async ([job]) => this.projectRuntimeReconcile(
+          job! as ControlJobMetadata<ProjectRuntimeReconcileJobPayload>,
+        ),
+      ),
+      boss.work<ControlMaintenanceJobPayload>(
+        CONTROL_JOB_QUEUES.maintenance,
+        { includeMetadata: true, pollingIntervalSeconds: 2 },
+        async ([job]) => this.maintenance(
+          job! as ControlJobMetadata<ControlMaintenanceJobPayload>,
+        ),
+      ),
+    ]);
+  }
+
+  private logJob(
+    level: "error" | "info",
+    event: string,
+    job: ControlJobMetadata<object>,
+    fields: Record<string, unknown>,
+  ): void {
+    this.logger.log(level, event, {
+      jobId: job.id,
+      queue: job.name,
+      retryCount: job.retryCount,
+      retryLimit: job.retryLimit,
+      ...fields,
+    });
+  }
+}
+
+function safeError(error: unknown): string {
+  return (error instanceof Error ? error.message : String(error)).slice(0, 4_000);
+}

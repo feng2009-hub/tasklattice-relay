@@ -8,7 +8,7 @@ const releaseName = "tali-relay";
 const releaseNamespace = "tali-resource-validation";
 const chartPath = "charts/tali-relay";
 const runtimeControlName = `${releaseName}-project-runtime-control`;
-const runtimeCleanupName = `${releaseName}-project-runtime-cleanup`;
+const controlWorkerName = `${releaseName}-control-worker`;
 function scopedClusterRoleName(name) {
   return `${name.slice(0, 48).replace(/-$/, "")}-${createHash("sha256")
     .update(`${releaseNamespace}/${name}`)
@@ -18,7 +18,7 @@ function scopedClusterRoleName(name) {
 const runtimeControlClusterRoleName = scopedClusterRoleName(
   runtimeControlName,
 );
-const runtimeCleanupClusterRoleName = scopedClusterRoleName(runtimeCleanupName);
+const controlWorkerClusterRoleName = scopedClusterRoleName(controlWorkerName);
 const requiredResources = [
   ["requests", "cpu"],
   ["requests", "memory"],
@@ -160,11 +160,11 @@ for (const [kind, name, wave] of [
   ["LimitRange", `${releaseName}-container-resources`, "-10"],
   ["ServiceAccount", `${releaseName}-control`, "10"],
   ["ServiceAccount", `${releaseName}-runtime`, "10"],
-  ["ServiceAccount", runtimeCleanupName, "10"],
+  ["ServiceAccount", controlWorkerName, "10"],
   ["ClusterRole", runtimeControlClusterRoleName, "10"],
   ["ClusterRoleBinding", runtimeControlClusterRoleName, "10"],
-  ["ClusterRole", runtimeCleanupClusterRoleName, "10"],
-  ["ClusterRoleBinding", runtimeCleanupClusterRoleName, "10"],
+  ["ClusterRole", controlWorkerClusterRoleName, "10"],
+  ["ClusterRoleBinding", controlWorkerClusterRoleName, "10"],
   ["Role", `${releaseName}-control-managed-secrets`, "10"],
   ["RoleBinding", `${releaseName}-control-managed-secrets`, "10"],
   ["Secret", `${releaseName}-secrets`, "10"],
@@ -180,7 +180,7 @@ for (const [kind, name, wave] of [
   ["Deployment", `${releaseName}-litellm`, "30"],
   ["Deployment", `${releaseName}-keycloak`, "30"],
   ["Deployment", `${releaseName}-control`, "40"],
-  ["Deployment", `${releaseName}-deletion-worker`, "40"],
+  ["Deployment", controlWorkerName, "40"],
   ["Deployment", `${releaseName}-runner`, "40"],
   ["Deployment", `${releaseName}-example-mcp`, "40"],
 ]) {
@@ -247,7 +247,7 @@ for (const [deploymentName, expectedInitContainers] of [
     ],
   ],
   [
-    `${releaseName}-deletion-worker`,
+    controlWorkerName,
     [
       [
         "migrate-control-database",
@@ -357,17 +357,17 @@ for (const [name, key] of [
   }
 }
 
-const deletionWorker = requireObject(
+const controlWorker = requireObject(
   "Deployment",
-  `${releaseName}-deletion-worker`,
+  controlWorkerName,
 );
 if (
-  deletionWorker.spec?.template?.spec?.serviceAccountName !==
-    runtimeCleanupName ||
-  deletionWorker.spec?.template?.spec?.automountServiceAccountToken !== true
+  controlWorker.spec?.template?.spec?.serviceAccountName !==
+    controlWorkerName ||
+  controlWorker.spec?.template?.spec?.automountServiceAccountToken !== true
 ) {
   throw new Error(
-    "The deletion worker must use the Project Runtime Cleanup identity when Namespace cleanup is enabled.",
+    "The Control Worker must use its dedicated identity for asynchronous control-plane tasks.",
   );
 }
 
@@ -427,9 +427,9 @@ const runtimeDisabledObjects = parseObjects(
 for (const [kind, name] of [
   ["ClusterRole", runtimeControlClusterRoleName],
   ["ClusterRoleBinding", runtimeControlClusterRoleName],
-  ["ServiceAccount", runtimeCleanupName],
-  ["ClusterRole", runtimeCleanupClusterRoleName],
-  ["ClusterRoleBinding", runtimeCleanupClusterRoleName],
+  ["ServiceAccount", controlWorkerName],
+  ["ClusterRole", controlWorkerClusterRoleName],
+  ["ClusterRoleBinding", controlWorkerClusterRoleName],
 ]) {
   if (
     !runtimeDisabledObjects.some(
@@ -441,37 +441,37 @@ for (const [kind, name] of [
     );
   }
 }
-const runtimeDisabledDeletionWorker = runtimeDisabledObjects.find(
+const runtimeDisabledControlWorker = runtimeDisabledObjects.find(
   (object) =>
     object.kind === "Deployment" &&
-    object.metadata?.name === `${releaseName}-deletion-worker`,
+    object.metadata?.name === controlWorkerName,
 );
 if (
-  runtimeDisabledDeletionWorker?.spec?.template?.spec?.serviceAccountName !==
-    runtimeCleanupName ||
-  runtimeDisabledDeletionWorker?.spec?.template?.spec
+  runtimeDisabledControlWorker?.spec?.template?.spec?.serviceAccountName !==
+    controlWorkerName ||
+  runtimeDisabledControlWorker?.spec?.template?.spec
     ?.automountServiceAccountToken !== true
 ) {
   throw new Error(
-    "The deletion worker must retain its narrow cleanup identity when Runtime Namespaces are disabled in the initial Platform setting.",
+    "The Control Worker must retain its dedicated identity when Runtime Namespaces are disabled in the initial Platform setting.",
   );
 }
 
-const runtimeCleanupRole = requireObject(
+const controlWorkerRole = requireObject(
   "ClusterRole",
-  runtimeCleanupClusterRoleName,
+  controlWorkerClusterRoleName,
 );
 if (
-  JSON.stringify(runtimeCleanupRole.rules) !== JSON.stringify([
+  JSON.stringify(controlWorkerRole.rules) !== JSON.stringify([
     {
       apiGroups: [""],
       resources: ["namespaces"],
-      verbs: ["get", "delete"],
+      verbs: ["get", "create", "patch", "delete"],
     },
   ])
 ) {
   throw new Error(
-    "The Project Runtime Cleanup identity must be limited to reading and deleting Namespaces.",
+    "The Control Worker identity must be limited to reconciling and deleting Project Namespaces.",
   );
 }
 

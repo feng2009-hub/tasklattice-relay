@@ -15,10 +15,14 @@ Project creation is synchronous:
 3. If Namespace creation fails, Project creation fails and Relay compensates by
    deleting the new database Project.
 
-There is no continuously running Project Runtime worker, database lease,
-backoff loop, or periodic drift repair. Namespace creation is idempotent, so an
-operator can repair historical or partially created mappings with the one-shot
-command packaged in the Control Plane image:
+The independent Control Worker also reconciles active Runtime Targets in the
+background. A PostgreSQL-backed durable queue provides retries, exponential
+backoff, delayed execution, and safe work distribution across Worker replicas.
+The periodic maintenance task fans out one idempotent job per stale Project;
+it does not reconcile the entire platform in one long-running job.
+
+An operator can still repair historical or partially created mappings with the
+one-shot command packaged in the Control Plane image:
 
 ```bash
 kubectl -n <control-namespace> exec deployment/<release>-control -- \
@@ -33,9 +37,12 @@ Project fails. It can also be run from a built source checkout with:
 npm run reconcile:project-runtime --workspace @tali/control
 ```
 
-PostgreSQL and Kubernetes cannot participate in one atomic transaction. A
-process crash at the boundary between those systems can therefore still leave
-a partial result; rerunning the one-shot command repairs that rare case.
+PostgreSQL and Kubernetes cannot participate in one atomic transaction. The
+Worker therefore treats PostgreSQL as desired state, uses server-side apply,
+and records `generation`, `observed_generation`, status, the last error, and
+the last successful reconciliation. A stale job cannot mark a newer generation
+ready. The periodic Worker or the one-shot command repairs a partial result
+after a process or Kubernetes API failure.
 
 ## Why this is not a CRD
 
@@ -80,10 +87,10 @@ This phase creates only the Namespace. It does not inject a ServiceAccount,
 admission and networking behavior and should be introduced later as explicit,
 independently configurable Project policies.
 
-The main Control Plane ServiceAccount can only get, create, and patch
-Namespaces for synchronous creation and manual repair. The existing deletion
-worker uses a separate identity limited to getting and deleting Namespaces.
-Runtime workloads receive neither identity.
+The main Control Plane ServiceAccount can get, create, and patch Namespaces for
+synchronous creation and direct managed-workload operations. The independent
+Control Worker has a separate identity that can get, create, patch, and delete
+Project Namespaces. Runtime workloads receive neither identity.
 
 ## Configuration
 
@@ -110,8 +117,10 @@ accidental cluster switch from acting on a same-named Namespace. Moving targets
 between clusters requires an explicit data-plane migration.
 
 When the feature is disabled, Relay still stores the runtime-target mapping but
-does not create or delete a Namespace. This keeps local development independent
-from Kubernetes and preserves the desired mapping for a later rollout.
+does not create or delete a Namespace. Background maintenance does not enqueue
+Namespace reconciliation jobs until the saved Platform setting enables the
+feature. This keeps local development independent from Kubernetes and
+preserves the desired mapping for a later rollout.
 
 ## Current OpenShell boundary
 
