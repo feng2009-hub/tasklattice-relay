@@ -69,7 +69,20 @@ def archive_skill(skill_id: str, skill_root: Path, files: list[Path]) -> bytes:
             info.uname = ""
             info.gname = ""
             archive.addfile(info, io.BytesIO(data))
-    return gzip.compress(tar_buffer.getvalue(), compresslevel=9, mtime=0)
+    # GzipFile always writes the portable 255 OS byte. gzip.compress(...,
+    # mtime=0) delegates to zlib on Python 3.11 and 3.12, which writes a
+    # platform-specific OS byte and makes otherwise identical artifacts fail
+    # verification when they are produced on macOS and checked on Linux.
+    gzip_buffer = io.BytesIO()
+    with gzip.GzipFile(
+        fileobj=gzip_buffer,
+        mode="wb",
+        compresslevel=9,
+        mtime=0,
+        filename="",
+    ) as compressed:
+        compressed.write(tar_buffer.getvalue())
+    return gzip_buffer.getvalue()
 
 
 def main(*, check: bool = False) -> None:
