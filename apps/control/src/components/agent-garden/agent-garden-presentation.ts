@@ -1,6 +1,8 @@
-import type {
-  AgentGardenEntry,
-  AgentGardenIntegrationType,
+import {
+  agentPlatforms,
+  type AgentPlatformId,
+  type AgentGardenEntry,
+  type AgentGardenIntegrationType,
 } from "@tali/contracts";
 
 export interface AgentTypePresentation {
@@ -13,16 +15,11 @@ export const agentTypePresentations: Record<
   AgentGardenIntegrationType,
   AgentTypePresentation
 > = {
-  openclaw: {
-    label: "OpenClaw",
-    shortLabel: "OpenClaw",
-    description: "Interactive OpenShell Agent runtime with delegation support.",
-  },
-  hermes: {
-    label: "Hermes",
-    shortLabel: "Hermes",
-    description: "Interactive Agent runtime with durable memory and learning.",
-  },
+  ...Object.fromEntries(agentPlatforms.map((platform) => [platform.id, {
+    label: platform.name,
+    shortLabel: platform.name,
+    description: platform.description,
+  }])) as Record<AgentPlatformId, AgentTypePresentation>,
   "claude-code": {
     label: "Claude Code",
     shortLabel: "Claude Code",

@@ -4,7 +4,8 @@ TaskLattice Relay is a Project-scoped Kubernetes control plane for operating AI
 Agents. It manages model Providers and routing, Instance-bound access and
 runtime policies, Agent resources, and observability around
 OpenShell sandboxes. OpenShell is the fixed runtime; OpenClaw is the default
-Agent implementation and Hermes is the second supported implementation.
+Agent implementation, with Hermes and Deep Agents Code as additional supported
+implementations.
 
 TaskLattice is the open-source project name; Relay is this module. User-facing
 copy uses **TaskLattice Relay**, while code, package scopes, environment
@@ -39,7 +40,7 @@ TaskLattice Relay OpenShell Runner
 OpenShell Gateway ---- Agent Sandbox CR
                            |
                            `---- Sandbox Pod + workspace PVC
-                                 (OpenClaw or Hermes)
+                                 (OpenClaw, Hermes, or Deep Agents Code)
 ```
 
 ## Core capabilities
@@ -49,7 +50,8 @@ OpenShell Gateway ---- Agent Sandbox CR
   per-Instance virtual keys, spend attribution, and cost views.
 - Direct, many-to-many Instance bindings to reusable Access Policies, with
   independently selected OpenShell Runtime Policies.
-- OpenClaw and Hermes Instances with Agent UI and terminal access.
+- OpenClaw and Hermes Instances with browser UI and terminal access, plus Deep
+  Agents Code Instances with native TUI and headless CLI access.
 - Agent Garden registration and Agent-to-Agent connections, plus Skills, MCP
   Servers, and Knowledge Base catalogs.
 - Project audit logs and a preview Trace workbench for Agent, model, tool, MCP,
@@ -152,6 +154,7 @@ resolves to that exact value.
 | Example MCP server       | `ghcr.io/tasklattice/tali-example-mcp:<release>`               | Reference MCP integration used by examples         |
 | OpenClaw sandbox         | `ghcr.io/tasklattice/tali-nemoclaw-sandbox:<release>`          | Default Agent sandbox                              |
 | Hermes sandbox           | `ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:<release>`   | Hermes Agent sandbox                               |
+| Deep Agents sandbox      | `ghcr.io/tasklattice/tali-nemoclaw-deepagents-sandbox:<release>` | Deep Agents Code terminal sandbox                |
 | LiteLLM PostgreSQL       | `postgres:17-alpine`                                            | LiteLLM configuration and usage data               |
 | OpenShell gateway        | `ghcr.io/nvidia/openshell/gateway:0.0.106`                      | Policy enforcement, audit, exec, and HTTP routing  |
 | OpenShell supervisor     | `ghcr.io/nvidia/openshell/supervisor:0.0.106`                   | Supervisor injected into Agent sandboxes           |
@@ -164,6 +167,9 @@ top of `.github/workflows/release.yml`. Each build uses the content currently
 published under those tags. Release builds refresh upstream image tags and the
 OpenShell CLI download instead of reusing those inputs from cache; rerunning a
 release rebuilds and replaces the TaskLattice artifacts for that release.
+The tag-triggered GitHub Actions workflow is the only supported Release build
+and publication entry point; local commands produce `:dev` images and a
+development Chart only.
 
 ## Access
 
@@ -206,14 +212,17 @@ After signing in:
 3. Review the automatically configured `Default` Access Policy. It is Active
    and intentionally has no MCP allow rules, so a new Project starts from a
    deny-all baseline. Add narrower policies when the Instance needs tools.
-4. Create an Instance, choose OpenClaw or Hermes, select an Agent Role and one
+4. Create an Instance, choose OpenClaw, Hermes, or Deep Agents Code, select an Agent Role and one
    or more Active Access Policies, and keep the built-in Unrestricted Runtime
    Policy for the first validation run. The Instance uses the Project's READY
    default Model Routing.
-5. Wait for the Instance to reach `READY`, then open its Agent UI and terminal.
+5. Wait for the Instance to reach `READY`. OpenClaw and Hermes publish their
+   Agent UI and terminal; Deep Agents opens its `dcode` TUI in the terminal and
+   also supports `dcode -n` for headless use.
 
-A successful Instance reaches `READY`, exposes its Agent UI, and enables its
-terminal. Each Instance receives an isolated LiteLLM virtual key and an
+A successful Instance reaches `READY` and enables its platform-supported
+interaction surface. Deep Agents Code is intentionally terminal-only and does
+not publish a separate Web UI endpoint. Each Instance receives an isolated LiteLLM virtual key and an
 OpenShell Sandbox with its own workspace PVC.
 
 ## Persistence and uninstall

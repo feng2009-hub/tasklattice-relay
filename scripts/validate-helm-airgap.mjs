@@ -207,6 +207,7 @@ for (const [label, expectedValue] of [
 for (const sandboxImage of [
   "registry.airgap.example.com/tali/tali-nemoclaw-sandbox:",
   "registry.airgap.example.com/tali/tali-nemoclaw-hermes-sandbox:",
+  "registry.airgap.example.com/tali/tali-nemoclaw-deepagents-sandbox:",
 ]) {
   if (!rendered.includes(sandboxImage)) {
     violations.push(`Runner config is missing mirrored image ${sandboxImage}`);

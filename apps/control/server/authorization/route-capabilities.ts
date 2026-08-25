@@ -1,4 +1,10 @@
-import type { ProjectCapability, ResourceRelation } from "@tali/contracts";
+import {
+  defaultAgentPlatformId,
+  getAgentPlatformDefinition,
+  isAgentPlatformId,
+  type ProjectCapability,
+  type ResourceRelation,
+} from "@tali/contracts";
 
 export type RelationResolver =
   | "PROJECT"
@@ -276,6 +282,9 @@ export function projectRouteAdmissionPolicy(
   if (tail[0] === "models") {
     if (tail.length === 1 && method === "GET") return policy("PROJECT", [requirement("CAP_MODEL_VIEW", "Model")]);
     if (tail.length === 1 && method === "POST") return policy("PROJECT", [requirement("CAP_MODEL_CREATE", "Model")]);
+    if (tail.length === 2 && tail[1] === "inheritable" && method === "GET") return policy("PROJECT", [requirement("CAP_MODEL_VIEW", "Model")]);
+    if (tail.length === 3 && tail[2] === "inherit" && method === "POST") return policy("PROJECT", [requirement("CAP_MODEL_CREATE", "Model")], tail[1]);
+    if (tail.length === 3 && tail[2] === "inherit" && method === "DELETE") return policy("PROJECT", [requirement("CAP_MODEL_DELETE", "Model")], tail[1]);
     if (tail.length === 2 && tail[1] && method === "DELETE") return policy("PROJECT", [requirement("CAP_MODEL_DELETE", "Model")], tail[1]);
   }
   if (tail[0] === "inference-gateways" && tail.length === 1 && method === "GET") {
@@ -285,8 +294,11 @@ export function projectRouteAdmissionPolicy(
   if (tail[0] === "model-routings") {
     if (tail.length === 1 && method === "GET") return policy("PROJECT", [requirement("CAP_MODEL_ROUTING_VIEW", "ModelRouting")]);
     if (tail.length === 1 && method === "POST") return policy("PROJECT", [requirement("CAP_MODEL_ROUTING_CREATE", "ModelRouting")]);
+    if (tail.length === 2 && tail[1] === "inheritable" && method === "GET") return policy("PROJECT", [requirement("CAP_MODEL_ROUTING_VIEW", "ModelRouting")]);
     const id = tail[1];
     if (!id) return undefined;
+    if (tail.length === 3 && tail[2] === "inherit" && method === "POST") return policy("PROJECT", [requirement("CAP_MODEL_ROUTING_CREATE", "ModelRouting")], id);
+    if (tail.length === 3 && tail[2] === "inherit" && method === "DELETE") return policy("PROJECT", [requirement("CAP_MODEL_ROUTING_DELETE", "ModelRouting")], id);
     if ((tail.length === 2 || (tail.length === 3 && tail[2] === "consumers")) && method === "GET") {
       return policy("PROJECT", [requirement("CAP_MODEL_ROUTING_VIEW", "ModelRouting")], id);
     }
@@ -346,8 +358,13 @@ export function conditionalInstanceCreateRequirements(
   if (Array.isArray(input.knowledgeSourceIds) && input.knowledgeSourceIds.length) {
     requirements.push(requirement("CAP_AGENT_INSTANCE_KNOWLEDGE_SOURCE_ASSIGN", "AgentInstance"));
   }
-  // OpenClaw currently defaults an omitted Memory field to native memory.
-  if (input.agentPlatform === undefined || input.agentPlatform === "openclaw") {
+  const requestedPlatform = typeof input.agentPlatform === "string"
+    && isAgentPlatformId(input.agentPlatform)
+    ? input.agentPlatform
+    : defaultAgentPlatformId;
+  if (
+    getAgentPlatformDefinition(requestedPlatform).capabilities.memory !== "none"
+  ) {
     requirements.push(requirement("CAP_AGENT_MEMORY_CONFIG_UPDATE", "AgentMemory"));
   }
   const memory = input.memory;

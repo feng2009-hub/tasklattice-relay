@@ -84,26 +84,23 @@ Never commit `.env`.
 
 ## Build the local images
 
-Build the complete local image set: Control, Runner, LiteLLM, and the test-only
-Example MCP image are built from the checkout. The OpenClaw and Hermes Sandbox
-images reuse the published `0.2.2` multi-architecture Release and are retagged
-as `:dev` in the local Docker store:
+Build all seven first-party development images from the current checkout and the
+selected upstream sources. Every final image is written only to the local Docker
+store with a `:dev` tag:
 
 ```sh
-npm run images:build
+npm run images:build:dev
 ```
 
-Override the reused Sandbox Release when needed:
+The Agent Sandbox commands do not pull or retag a published TaskLattice image.
+They clone the pinned NVIDIA NemoClaw revision, build the selected Agent source,
+and pass it through the TaskLattice Relay-owned wrapper Dockerfile. Hermes and
+Deep Agents Code build their pinned base locally when the upstream GHCR base is
+unavailable. Third-party base images and build dependencies may still be pulled.
 
-```sh
-TALI_SANDBOX_RELEASE_VERSION=0.2.2 npm run images:reuse:sandbox-release
-```
-
-Use `npm run images:build:all-source` only when the Sandbox sources or wrapper
-Dockerfiles changed. That command clones the pinned NVIDIA NemoClaw revisions,
-builds the upstream images, and passes them through the TaskLattice Relay-owned
-wrapper Dockerfiles. Hermes builds its pinned base locally when the upstream
-GHCR base is unavailable.
+Local development commands never build or publish release tags. The only
+supported Release entry point is the tag-triggered GitHub Actions workflow in
+`.github/workflows/release.yml`.
 
 Confirm the resulting images:
 
@@ -113,19 +110,20 @@ docker image inspect ghcr.io/tasklattice/tali-openshell-runner:dev
 docker image inspect ghcr.io/tasklattice/tali-litellm:dev
 docker image inspect ghcr.io/tasklattice/tali-nemoclaw-sandbox:dev
 docker image inspect ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:dev
+docker image inspect ghcr.io/tasklattice/tali-nemoclaw-deepagents-sandbox:dev
 docker image inspect ghcr.io/tasklattice/tali-example-mcp:dev
 ```
 
 Individual build commands are available for shorter loops:
 
 ```sh
-npm run images:build:control
-npm run images:build:runner
-npm run images:build:litellm
-npm run images:build:example-mcp
-npm run images:build:sandbox:openclaw
-npm run images:build:sandbox:hermes
-npm run images:reuse:sandbox-release
+npm run images:build:dev:control
+npm run images:build:dev:runner
+npm run images:build:dev:litellm
+npm run images:build:dev:example-mcp
+npm run images:build:dev:sandbox:openclaw
+npm run images:build:dev:sandbox:hermes
+npm run images:build:dev:sandbox:deepagents
 ```
 
 ## Deploy with Helm
@@ -226,13 +224,13 @@ The control console is then available at `http://127.0.0.1:18080`.
 Rebuild the affected image and rerun the Helm deployment:
 
 ```sh
-npm run images:build:control
+npm run images:build:dev:control
 KUBE_CONTEXT=orbstack npm run helm:deploy:dev
 ```
 
 The same pattern applies to runner and LiteLLM changes. Rebuilding an Agent
 sandbox image affects newly created Sandboxes; recreate an existing development
-Instance when testing a new OpenClaw or Hermes image.
+Instance when testing a new OpenClaw, Hermes, or Deep Agents Code image.
 
 ## Kind smoke test
 

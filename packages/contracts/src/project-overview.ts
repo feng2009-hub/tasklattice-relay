@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { agentPlatformIds } from "./agent-platforms.js";
 
 export const projectRunStatuses = [
   "RUNNING",
@@ -17,7 +18,7 @@ export const projectRunTriggerTypes = [
   "UNKNOWN",
 ] as const;
 
-export const projectRunSources = ["openclaw", "hermes"] as const;
+export const projectRunSources = agentPlatformIds;
 
 const telemetryCodeSchema = z
   .string()

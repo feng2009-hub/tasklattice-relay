@@ -1,6 +1,6 @@
 import type { ZodType } from "zod";
 import { defineContract, type RouteContract } from "./contract";
-import { projectParamsSchema } from "./schemas";
+import { departmentParamsSchema, projectParamsSchema } from "./schemas";
 
 export const response = (description: string, schema?: ZodType, contentType?: string) => ({
   description,
@@ -29,6 +29,20 @@ export function projectRoute(input: Omit<RouteContract, "auth" | "description" |
     path: `/projects/{projectId}${input.path}`,
     request: {
       params: projectParamsSchema,
+      ...input.request,
+    },
+  });
+}
+
+export function departmentRoute(input: Omit<RouteContract, "auth" | "description" | "path"> & {
+  description?: string;
+  path: string;
+}): RouteContract {
+  return route({
+    ...input,
+    path: `/departments/{departmentId}${input.path}`,
+    request: {
+      params: departmentParamsSchema,
       ...input.request,
     },
   });

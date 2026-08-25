@@ -8,6 +8,7 @@ import type {
   AgentGardenEntry,
   AgentGardenSnapshot,
   CreateKnowledgeSourceDefinitionInput,
+  DepartmentInferenceAvailability,
   CreateAccessPolicyInput,
   CreateAgentConnectionInput,
   CreateInstanceInput,
@@ -334,6 +335,32 @@ export const api = {
     request<{ message: string }>(`/api/v1/models/${encodeURIComponent(id)}`, {
       method: "DELETE",
     }),
+  listInheritableModels: () =>
+    request<Pick<DepartmentInferenceAvailability, "departmentId" | "departmentName" | "models">>(
+      "/api/v1/models/inheritable",
+    ),
+  inheritDepartmentModel: (id: string) =>
+    request<ModelDeployment>(`/api/v1/models/${encodeURIComponent(id)}/inherit`, {
+      method: "POST",
+      body: "{}",
+    }),
+  removeDepartmentModelInheritance: (id: string) =>
+    request<{ message: string }>(`/api/v1/models/${encodeURIComponent(id)}/inherit`, {
+      method: "DELETE",
+    }),
+  listInheritableRoutings: () =>
+    request<Pick<DepartmentInferenceAvailability, "departmentId" | "departmentName" | "routings">>(
+      "/api/v1/model-routings/inheritable",
+    ),
+  inheritDepartmentRouting: (id: string) =>
+    request<ModelRouting>(`/api/v1/model-routings/${encodeURIComponent(id)}/inherit`, {
+      method: "POST",
+      body: "{}",
+    }),
+  removeDepartmentRoutingInheritance: (id: string) =>
+    request<{ message: string }>(`/api/v1/model-routings/${encodeURIComponent(id)}/inherit`, {
+      method: "DELETE",
+    }),
   getCostSummary: (params: CostQueryParams) =>
     request<ModelCostSummaryResponse>(`/api/v1/costs/summary?${costSearch(params)}`),
   getCostActivity: (params: CostQueryParams, granularity: ModelCostGranularity = "daily") =>
@@ -442,3 +469,45 @@ export const api = {
       { method: "POST", body: JSON.stringify({ targetId }) },
     ),
 };
+
+export function departmentInferenceApi(departmentId: string) {
+  const base = `/api/v1/departments/${encodeURIComponent(departmentId)}`;
+  return {
+    listInferenceGateways: async () =>
+      (await request<{ data: InferenceGateway[] }>(`${base}/inference-gateways`)).data,
+    listModelRoutings: async () =>
+      (await request<{ data: ModelRouting[] }>(`${base}/model-routings`)).data,
+    getModelRouting: (id: string) =>
+      request<ModelRouting>(`${base}/model-routings/${encodeURIComponent(id)}`),
+    createModelRouting: (input: CreateModelRoutingInput) =>
+      request<ModelRouting>(`${base}/model-routings`, { method: "POST", body: JSON.stringify(input) }),
+    updateModelRouting: (id: string, input: UpdateModelRoutingInput) =>
+      request<ModelRouting>(`${base}/model-routings/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(input) }),
+    refreshModelRouting: (id: string) =>
+      request<ModelRouting>(`${base}/model-routings/${encodeURIComponent(id)}/refresh`, { method: "POST", body: "{}" }),
+    deleteModelRouting: (id: string) =>
+      request<{ message: string }>(`${base}/model-routings/${encodeURIComponent(id)}`, { method: "DELETE" }),
+    listModelRoutingConsumers: async (id: string) =>
+      (await request<{ data: ModelRoutingConsumer[] }>(`${base}/model-routings/${encodeURIComponent(id)}/consumers`)).data,
+    listModelRoutingAudit: async (id: string) =>
+      (await request<{ data: ModelRoutingAuditEvent[] }>(`${base}/model-routings/${encodeURIComponent(id)}/audit`)).data,
+    listProviderAccounts: async () =>
+      (await request<{ data: ProviderAccount[] }>(`${base}/providers`)).data,
+    discoverProviderModels: (input: ProviderConnectionDraft) =>
+      request<ProviderDiscoveryResult>(`${base}/providers/discover`, { method: "POST", body: JSON.stringify(input) }),
+    discoverProviderAccountModels: (id: string) =>
+      request<ProviderDiscoveryResult>(`${base}/providers/${encodeURIComponent(id)}/discover`, { method: "POST", body: "{}" }),
+    registerProviderAccount: (input: CreateProviderConnectionInput) =>
+      request<ProviderConnectionCreationResult>(`${base}/providers`, { method: "POST", body: JSON.stringify(input) }),
+    revalidateProviderAccount: (id: string) =>
+      request<ProviderAccount>(`${base}/providers/${encodeURIComponent(id)}/validate`, { method: "POST", body: "{}" }),
+    deleteProviderAccount: (id: string) =>
+      request<{ message: string }>(`${base}/providers/${encodeURIComponent(id)}`, { method: "DELETE" }),
+    listModelDeployments: async () =>
+      (await request<{ data: ModelDeployment[] }>(`${base}/models`)).data,
+    registerModelDeployment: (input: CreateModelDeploymentInput) =>
+      request<ModelDeployment>(`${base}/models`, { method: "POST", body: JSON.stringify(input) }),
+    deleteModelDeployment: (id: string) =>
+      request<{ message: string }>(`${base}/models/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  };
+}

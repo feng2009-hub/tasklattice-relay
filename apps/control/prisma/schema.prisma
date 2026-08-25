@@ -130,8 +130,7 @@ model PlatformSettingsRecord {
   runtimeClusterId          String?  @map("runtime_cluster_id")
   runtimeNamespacePrefix    String?  @map("runtime_namespace_prefix")
   localAuthenticationEnabled Boolean? @map("local_authentication_enabled")
-  openclawSandboxImage      String?  @map("openclaw_sandbox_image")
-  hermesSandboxImage        String?  @map("hermes_sandbox_image")
+  runtimeImages             Json?    @map("runtime_images")
   sandboxCpu                String?  @map("sandbox_cpu")
   sandboxMemory             String?  @map("sandbox_memory")
   enabledProviderKinds      Json?    @map("enabled_provider_kinds")
@@ -292,6 +291,8 @@ model Department {
   creator  User               @relation("DepartmentCreator", fields: [createdBy], references: [id], onDelete: Restrict, onUpdate: Cascade)
   members  DepartmentMember[]
   projects Project[]
+  inferenceResources DepartmentInferenceResourceRecord[]
+  modelRoutingAudit  DepartmentModelRoutingAuditRecord[]
   externalRoleBindings ExternalRoleBinding[]
 
   @@map("departments")
@@ -407,7 +408,6 @@ model Project {
   invitations                  ProjectInvitation[]
   agents                       AgentRecord[]
   agentCatalogEntries          AgentCatalogRecord[]
-  managedA2aInstances          ManagedA2aInstanceRecord[]
   agentConnections             AgentConnectionRecord[]
   providerAccounts             ProviderAccountRecord[]
   modelDeployments             ModelDeploymentRecord[]
@@ -415,6 +415,8 @@ model Project {
   modelRoutings                ModelRoutingRecord[]
   modelRoutingBindings         ModelRoutingBindingRecord[]
   modelRoutingAudit            ModelRoutingAuditRecord[]
+  inheritedDepartmentModels    ProjectDepartmentModelBinding[]
+  inheritedDepartmentRoutings  ProjectDepartmentRoutingBinding[]
   sandboxPolicies              SandboxPolicyRecord[]
   accessPolicies               AccessPolicyRecord[]
   accessPolicyVersions         AccessPolicyVersionRecord[]
@@ -596,7 +598,6 @@ model ProjectMember {
   user                     User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
   ownedAgents              AgentRecord[]                 @relation("AgentRecordOwnerMembership")
   ownedCatalogAgents       AgentCatalogRecord[]          @relation("AgentCatalogRecordOwnerMembership")
-  ownedManagedA2aInstances ManagedA2aInstanceRecord[]    @relation("ManagedA2aInstanceOwnerMembership")
   roleAssignments          ProjectMemberRoleAssignment[]
 
   @@id([projectId, userId])
@@ -641,17 +642,22 @@ model ProjectInvitation {
 model AgentRecord {
   projectId                String                                   @map("project_id")
   id                       String
+  kind                     String                                   @default("SUPERVISOR")
+  catalogAgentId           String?                                  @map("catalog_agent_id")
   payload                  Json
   ownerUserId              String                                   @map("owner_user_id")
   createdAt                DateTime                                 @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime                                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt                DateTime?                                @map("deleted_at") @db.Timestamptz(6)
   project                  Project                                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   ownerMembership          ProjectMember                            @relation("AgentRecordOwnerMembership", fields: [projectId, ownerUserId], references: [projectId, userId], onDelete: Restrict, map: "agents_owner_membership_fkey")
+  catalogAgent             AgentCatalogRecord?                      @relation("CatalogAgentRuntimeInstances", fields: [projectId, catalogAgentId], references: [projectId, id], onDelete: Cascade, map: "agents_catalog_agent_fkey")
   outboundAgentConnections AgentConnectionRecord[]                  @relation("CoordinatorAgentConnections")
   accessPolicyBindings     AgentInstanceAccessPolicyBindingRecord[]
 
   @@id([projectId, id])
   @@index([projectId, ownerUserId], map: "agents_project_owner_idx")
+  @@index([projectId, kind, catalogAgentId], map: "agents_project_kind_catalog_idx")
   @@index([projectId, deletedAt, createdAt(sort: Desc)], map: "agents_project_active_created_idx")
   @@map("agents")
   @@schema("tasklattice")
@@ -671,33 +677,12 @@ model AgentCatalogRecord {
   project          Project                    @relation(fields: [projectId], references: [id], onDelete: Cascade)
   ownerMembership  ProjectMember?             @relation("AgentCatalogRecordOwnerMembership", fields: [projectId, ownerUserId], references: [projectId, userId], onDelete: Restrict, map: "agent_catalog_owner_membership_fkey")
   connections      AgentConnectionRecord[]
-  managedInstances ManagedA2aInstanceRecord[]
+  runtimeInstances AgentRecord[]       @relation("CatalogAgentRuntimeInstances")
 
   @@id([projectId, id])
   @@index([projectId, ownerUserId], map: "agent_catalog_project_owner_idx")
   @@index([projectId, updatedAt(sort: Desc)], map: "agent_catalog_updated_idx")
   @@map("agent_catalog")
-  @@schema("tasklattice")
-}
-
-model ManagedA2aInstanceRecord {
-  projectId   String   @map("project_id")
-  id          String
-  agentId     String   @map("agent_id")
-  payload     Json
-  ownerUserId String   @map("owner_user_id")
-  createdAt   DateTime @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime @map("updated_at") @db.Timestamptz(6)
-  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
-
-  project         Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  catalogAgent    AgentCatalogRecord @relation(fields: [projectId, agentId], references: [projectId, id], onDelete: Cascade)
-  ownerMembership ProjectMember      @relation("ManagedA2aInstanceOwnerMembership", fields: [projectId, ownerUserId], references: [projectId, userId], onDelete: Restrict, map: "managed_a2a_instances_owner_membership_fkey")
-
-  @@id([projectId, id])
-  @@index([projectId, agentId], map: "managed_a2a_instances_agent_idx")
-  @@index([projectId, ownerUserId], map: "managed_a2a_instances_owner_idx")
-  @@map("managed_a2a_instances")
   @@schema("tasklattice")
 }
 
@@ -772,7 +757,6 @@ model ModelRoutingRecord {
   createdAt DateTime                    @map("created_at") @db.Timestamptz(6)
   deletedAt DateTime?                   @map("deleted_at") @db.Timestamptz(6)
   project   Project                     @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  bindings  ModelRoutingBindingRecord[]
 
   @@id([projectId, id])
   @@map("model_routings")
@@ -787,7 +771,6 @@ model ModelRoutingBindingRecord {
   payload        Json
   createdAt      DateTime           @map("created_at") @db.Timestamptz(6)
   project        Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  modelRouting   ModelRoutingRecord @relation(fields: [projectId, modelRoutingId], references: [projectId, id], onDelete: Cascade)
 
   @@id([projectId, id])
   @@index([projectId, agentId, createdAt(sort: Desc)], map: "model_routing_bindings_agent_idx")
@@ -807,6 +790,75 @@ model ModelRoutingAuditRecord {
   @@id([projectId, eventId])
   @@index([projectId, modelRoutingId, createdAt(sort: Desc)], map: "model_routing_audit_routing_idx")
   @@map("model_routing_audit")
+  @@schema("tasklattice")
+}
+
+model DepartmentInferenceResourceRecord {
+  departmentId      String    @map("department_id")
+  id                String
+  kind              String
+  providerAccountId String?   @map("provider_account_id")
+  payload           Json
+  credentialPayload String?   @map("credential_payload")
+  createdAt         DateTime  @map("created_at") @db.Timestamptz(6)
+  deletedAt         DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  department      Department                      @relation(fields: [departmentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  projectModels   ProjectDepartmentModelBinding[]
+  projectRoutings ProjectDepartmentRoutingBinding[]
+
+  @@id([departmentId, id])
+  @@index([departmentId, kind, deletedAt, createdAt(sort: Desc)], map: "department_inference_resources_kind_idx")
+  @@index([departmentId, providerAccountId], map: "department_inference_resources_provider_idx")
+  @@map("department_inference_resources")
+  @@schema("tasklattice")
+}
+
+model DepartmentModelRoutingAuditRecord {
+  departmentId   String   @map("department_id")
+  eventId        String   @map("event_id")
+  modelRoutingId String   @map("model_routing_id")
+  payload        Json
+  createdAt      DateTime @map("created_at") @db.Timestamptz(6)
+
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@id([departmentId, eventId])
+  @@index([departmentId, modelRoutingId, createdAt(sort: Desc)], map: "department_model_routing_audit_routing_idx")
+  @@map("department_model_routing_audit")
+  @@schema("tasklattice")
+}
+
+model ProjectDepartmentModelBinding {
+  projectId    String   @map("project_id")
+  departmentId String   @map("department_id")
+  resourceId   String   @map("resource_id")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  project  Project                           @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  resource DepartmentInferenceResourceRecord @relation(fields: [departmentId, resourceId], references: [departmentId, id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@id([projectId, resourceId])
+  @@index([departmentId, resourceId], map: "project_department_models_resource_idx")
+  @@map("project_department_models")
+  @@schema("tasklattice")
+}
+
+model ProjectDepartmentRoutingBinding {
+  projectId    String   @map("project_id")
+  departmentId String   @map("department_id")
+  resourceId   String   @map("resource_id")
+  isDefault    Boolean  @default(false) @map("is_default")
+  liteLLMTeamId String? @map("litellm_team_id")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  project  Project                           @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  resource DepartmentInferenceResourceRecord @relation(fields: [departmentId, resourceId], references: [departmentId, id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@id([projectId, resourceId])
+  @@index([departmentId, resourceId], map: "project_department_routings_resource_idx")
+  @@index([projectId, isDefault], map: "project_department_routings_default_idx")
+  @@map("project_department_routings")
   @@schema("tasklattice")
 }
 

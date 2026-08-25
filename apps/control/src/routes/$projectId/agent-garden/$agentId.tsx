@@ -5,9 +5,10 @@ import {
   Link,
   useNavigate,
 } from "@tanstack/react-router";
-import type {
-  AgentGardenEntry,
-  AgentPlatformId,
+import {
+  getAgentPlatformDefinition,
+  isAgentPlatformId,
+  type AgentGardenEntry,
 } from "@tali/contracts";
 import {
   ArrowLeft,
@@ -119,16 +120,15 @@ function AgentMarketplaceDetail() {
   );
 
   const createInstance = () => {
-    if (
-      agent?.integrationType !== "openclaw" &&
-      agent?.integrationType !== "hermes"
-    ) return;
+    if (!agent || !isAgentPlatformId(agent.integrationType)) return;
+    if (!getAgentPlatformDefinition(agent.integrationType).capabilities.interactive)
+      return;
     void navigate({
       to: "/$projectId/instances",
       params: { projectId },
       search: {
         create: "instance",
-        platform: agent.integrationType as AgentPlatformId,
+        platform: agent.integrationType,
         specialization: agent.specializationId ?? undefined,
       },
     });

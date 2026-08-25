@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
-import type { AgentPlatformId } from "@tali/contracts";
+import { agentPlatformIds, type AgentPlatformId } from "@tali/contracts";
 import { getControlConfig } from "../config/control-config";
 
 const issuer = "tali-run-telemetry";
@@ -14,7 +14,7 @@ const claimsSchema = z.object({
   iss: z.literal(issuer),
   projectId: z.string().min(1),
   instanceId: z.string().uuid(),
-  agentPlatform: z.enum(["openclaw", "hermes"]),
+  agentPlatform: z.enum(agentPlatformIds),
 }).strict();
 
 export type RunTelemetryClaims = z.infer<typeof claimsSchema>;

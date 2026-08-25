@@ -130,6 +130,12 @@ export class ModelRoutingService {
 
   async update(id: string, input: UpdateModelRoutingInput, actor = "control-api"): Promise<ModelRouting> {
     const current = await this.require(id);
+    if (
+      await this.store.isInheritedModelRouting(id)
+      && !(input.isDefault === true && Object.keys(input).every((key) => key === "isDefault"))
+    ) {
+      throw new Error("Inherited Department Routing is read-only in this Project.");
+    }
     if (input.routingPolicy && input.suspended !== undefined)
       throw new Error("Update routing and lifecycle state in separate operations.");
     if (input.isDefault === false && current.isDefault)
@@ -185,6 +191,9 @@ export class ModelRoutingService {
   }
 
   async refresh(id: string, actor = "control-api"): Promise<ModelRouting> {
+    if (await this.store.isInheritedModelRouting(id)) {
+      throw new Error("Refresh this inherited Routing from its Department.");
+    }
     const current = await this.require(id);
     const gateway = await this.store.getInferenceGateway(current.gatewayId);
     if (!gateway) throw new Error("The Routing gateway is unavailable.");
@@ -332,7 +341,7 @@ export class ModelRoutingService {
         modelRoutingId: routing.id,
         complianceDomain: routing.complianceDomain,
       });
-      routing = await this.store.saveModelRouting({ ...routing, liteLLMTeamId: teamId, updatedAt: new Date().toISOString() });
+      routing = await this.store.saveModelRoutingRuntime({ ...routing, liteLLMTeamId: teamId, updatedAt: new Date().toISOString() });
     }
     const keyAlias = `tali/${routing.id.slice(0, 8)}/${agentId.slice(0, 8)}`;
     const key = await this.litellm.createModelRoutingKey({
@@ -382,6 +391,9 @@ export class ModelRoutingService {
   }
 
   async delete(id: string, actor = "control-api"): Promise<void> {
+    if (await this.store.isInheritedModelRouting(id)) {
+      throw new Error("Inherited Department Routing is read-only. Remove the inheritance instead.");
+    }
     const routing = await this.require(id);
     if (routing.isDefault)
       throw new Error("Choose another default Routing before deleting this one.");

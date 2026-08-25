@@ -250,6 +250,18 @@ export function InstanceOverviewTab({ access, agent, modelRoutingName, platform 
     params: { projectId, instanceId: agent.id },
     search: { tab: "capabilities" as const },
   };
+  const terminalHref = {
+    to: "/$projectId/instances/$instanceId" as const,
+    params: { projectId, instanceId: agent.id },
+    search: { tab: "terminal" as const },
+  };
+  const terminalFirst = platform.interactionSurface === "terminal";
+  const primaryAccessEnabled = terminalFirst
+    ? access.terminal.enabled
+    : access.webUI.enabled;
+  const primaryAccessReason = terminalFirst
+    ? access.terminal.disabledReason
+    : access.webUI.disabledReason;
 
   return (
     <div role="tabpanel" aria-label="Overview" className="space-y-5 pt-5">
@@ -282,7 +294,15 @@ export function InstanceOverviewTab({ access, agent, modelRoutingName, platform 
                 : capabilitySummary}
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
-              {access.webUI.enabled && access.webUI.url ? (
+              {terminalFirst && access.terminal.enabled ? (
+                <Button asChild className="min-h-11">
+                  <Link {...terminalHref}>
+                    Start in TUI <SquareTerminal />
+                  </Link>
+                </Button>
+              ) : terminalFirst ? (
+                <Button disabled className="min-h-11">Start in TUI <SquareTerminal /></Button>
+              ) : access.webUI.enabled && access.webUI.url ? (
                 <Button asChild className="min-h-11">
                   <a href={access.webUI.url} target="_blank" rel="noopener noreferrer">
                     Start a task <ExternalLink />
@@ -295,8 +315,8 @@ export function InstanceOverviewTab({ access, agent, modelRoutingName, platform 
                 <Link {...capabilityHref}>Review capabilities <ArrowRight /></Link>
               </Button>
             </div>
-            {!access.webUI.enabled ? (
-              <p className="mt-3 text-xs text-muted-foreground">{access.webUI.disabledReason}</p>
+            {!primaryAccessEnabled ? (
+              <p className="mt-3 text-xs text-muted-foreground">{primaryAccessReason}</p>
             ) : null}
           </div>
 
@@ -442,7 +462,12 @@ export function InstanceOverviewTab({ access, agent, modelRoutingName, platform 
                 <ContextFact label="Access policies" value={agent.accessPolicyIds.length} />
                 <ContextFact label="Model routing" value={modelRoutingName ?? "Platform managed"} />
                 <ContextFact label="Data boundary" value={boundary} />
-                <ContextFact label="Agent access" value={access.webUI.enabled ? "Protected session" : "Unavailable"} />
+                <ContextFact
+                  label="Agent access"
+                  value={primaryAccessEnabled
+                    ? terminalFirst ? "Protected TUI session" : "Protected session"
+                    : "Unavailable"}
+                />
                 <ContextFact label="Runtime" value={`${platform.name} on ${platform.runtimeName}`} />
               </dl>
               <Button asChild variant="outline" className="mt-4 min-h-11 w-full">
@@ -456,21 +481,29 @@ export function InstanceOverviewTab({ access, agent, modelRoutingName, platform 
             <CardContent className="space-y-3">
               <div className="flex items-start gap-3 border-b pb-3">
                 <span className="grid size-11 shrink-0 place-items-center rounded-md bg-primary/[0.07] text-primary">
-                  <Globe2 className="size-5" />
+                  {terminalFirst ? <SquareTerminal className="size-5" /> : <Globe2 className="size-5" />}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <strong className="text-sm">Agent workspace</strong>
-                  <p className="mt-1 text-xs leading-5 text-muted-foreground">Give the Agent a task and work with its response.</p>
+                  <strong className="text-sm">{terminalFirst ? "Deep Agents TUI" : "Agent workspace"}</strong>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    {terminalFirst
+                      ? "Work interactively with dcode inside the isolated terminal."
+                      : "Give the Agent a task and work with its response."}
+                  </p>
                 </div>
-                <Badge variant="outline">{access.webUI.enabled ? "Available" : "Unavailable"}</Badge>
+                <Badge variant="outline">{primaryAccessEnabled ? "Available" : "Unavailable"}</Badge>
               </div>
               <div className="flex items-start gap-3">
                 <span className="grid size-11 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground">
                   <SquareTerminal className="size-5" />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <strong className="text-sm">Terminal</strong>
-                  <p className="mt-1 text-xs leading-5 text-muted-foreground">Inspect or operate the Agent's isolated workspace.</p>
+                  <strong className="text-sm">{terminalFirst ? "Headless CLI" : "Terminal"}</strong>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    {terminalFirst
+                      ? "Run automation with dcode -n and the optional --json contract."
+                      : "Inspect or operate the Agent's isolated workspace."}
+                  </p>
                 </div>
                 <Badge variant="outline">{access.terminal.enabled ? "Available" : "Unavailable"}</Badge>
               </div>

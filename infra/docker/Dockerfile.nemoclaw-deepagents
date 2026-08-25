@@ -1,0 +1,7 @@
+ARG BASE_IMAGE=tali-nemoclaw-deepagents-upstream:local
+FROM ${BASE_IMAGE}
+
+# Deep Agents Code is a terminal-oriented NemoClaw harness. Relay keeps the
+# upstream managed runtime intact and publishes it through an explicit,
+# independently versioned image boundary for deployment and rollback.
+LABEL io.tasklattice.agent.platform="deepagents"

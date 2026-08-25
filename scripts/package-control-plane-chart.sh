@@ -14,6 +14,26 @@ version="${1:-0.0.0-dev}"
 image_registry="${TALI_IMAGE_REGISTRY:-ghcr.io/tasklattice}"
 chart_root="$repository_root/charts/tali-relay"
 output_root="$repository_root/dist/control-plane-chart"
+
+if [[ "$version" != "0.0.0-dev" ]]; then
+  if [[ "${CI:-}" != "true" || "${GITHUB_ACTIONS:-}" != "true" ]]; then
+    echo "Release chart builds are only supported by the GitHub Actions release workflow." >&2
+    exit 2
+  fi
+  if [[ "${GITHUB_REF_TYPE:-}" != "tag" || ! "${GITHUB_REF_NAME:-}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+    echo "Release chart builds require a semantic version tag in GitHub Actions." >&2
+    exit 2
+  fi
+  if [[ "${GITHUB_WORKFLOW_REF:-}" != */.github/workflows/release.yml@refs/tags/"${GITHUB_REF_NAME}" ]]; then
+    echo "Release chart builds are only supported by .github/workflows/release.yml." >&2
+    exit 2
+  fi
+  if [[ "${GITHUB_REF_NAME#v}" != "$version" ]]; then
+    echo "Release chart version does not match the workflow tag: $version" >&2
+    exit 2
+  fi
+fi
+
 work_dir="$(mktemp -d "${TMPDIR:-/tmp}/tali-control-chart.XXXXXX")"
 
 cleanup() {

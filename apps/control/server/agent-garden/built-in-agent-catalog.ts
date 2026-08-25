@@ -1,4 +1,5 @@
 import {
+  agentPlatforms,
   agentGardenEntrySchema,
   type AgentGardenEntry,
 } from "@tali/contracts";
@@ -20,46 +21,25 @@ const common = {
 };
 
 export const builtInAgentCatalog: AgentGardenEntry[] = [
-  {
+  ...agentPlatforms.map((platform) => ({
     ...common,
-    id: "openclaw-generalist",
-    name: "OpenClaw Generalist",
-    description:
-      "A general-purpose interactive Agent for browser tasks, terminal work, and multi-step automation.",
-    integrationType: "openclaw",
-    platformLabel: "OpenClaw",
-    category: "General",
+    id: platform.catalog.id,
+    name: platform.catalog.name,
+    description: platform.catalog.description,
+    integrationType: platform.id,
+    platformLabel: platform.name,
+    category: platform.catalog.category,
     owner: "TaskLattice Relay",
-    tags: ["Automation", "Browser", "Coding"],
-    status: "READY",
-    usageMode: "INTERACTIVE",
+    tags: [...platform.catalog.tags],
+    status: "READY" as const,
+    usageMode: "INTERACTIVE" as const,
     usageCapabilities: {
-      interactive: true,
-      canDelegate: true,
-      acceptsDelegation: false,
+      interactive: platform.capabilities.interactive,
+      canDelegate: platform.capabilities.canDelegate,
+      acceptsDelegation: platform.capabilities.acceptsDelegation,
     },
-    specializationId: "general-purpose",
-  },
-  {
-    ...common,
-    id: "hermes-deep-researcher",
-    name: "Hermes Deep Researcher",
-    description:
-      "Investigates complex questions with durable memory, evidence gathering, and synthesis.",
-    integrationType: "hermes",
-    platformLabel: "Hermes",
-    category: "Research",
-    owner: "TaskLattice Relay",
-    tags: ["Research", "RAG", "Memory"],
-    status: "READY",
-    usageMode: "INTERACTIVE",
-    usageCapabilities: {
-      interactive: true,
-      canDelegate: true,
-      acceptsDelegation: false,
-    },
-    specializationId: "research-analyst",
-  },
+    specializationId: platform.catalog.specializationId,
+  })),
   {
     ...common,
     id: "claude-code",

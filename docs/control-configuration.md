@@ -66,7 +66,7 @@ internal relay.
 
 New OpenShell Sandbox CPU and memory defaults and the Project Namespace
 deletion timeout are database-owned and can be changed from **Platform Setting
--> Sandbox**. OpenClaw and Hermes image references remain editable under
+-> Sandbox**. OpenClaw, Hermes, and Deep Agents image references remain editable under
 **Platform Setting -> Runtime** because they are resolved when a new Sandbox is
 created.
 

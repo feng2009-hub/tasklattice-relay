@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
   defaultNativeAgentMemoryConfiguration,
+  getAgentPlatformDefinition,
   type Instance as Agent,
   type AgentMemoryConfiguration,
   type CreateInstanceInput,
@@ -157,7 +158,8 @@ export class InstanceService {
         "The selected Routing LiteLLM Gateway is unavailable.",
       );
     const memoryConfiguration =
-      input.agentPlatform === "openclaw"
+      getAgentPlatformDefinition(input.agentPlatform).capabilities.memory
+        !== "none"
         ? (input.memory ?? defaultNativeAgentMemoryConfiguration)
         : input.memory;
     const memory = await this.resolveMemory(
@@ -484,7 +486,9 @@ export class InstanceService {
     runtime?: NonNullable<CreateSandboxInput["memory"]>;
   }> {
     if (!memory) return {};
-    if (agentPlatform !== "openclaw") {
+    if (
+      getAgentPlatformDefinition(agentPlatform).capabilities.memory === "none"
+    ) {
       throw new Error("Memory is currently available only for OpenClaw Instances.");
     }
     if (memory.mode === "native") {

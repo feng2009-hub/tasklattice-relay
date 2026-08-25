@@ -34,8 +34,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
-import { api } from "@/lib/api";
+import { useInferenceManagement } from "./inference-management-context";
 import { createUuid } from "@/lib/uuid";
 import { cn } from "@/lib/utils";
 
@@ -87,10 +86,10 @@ export function CreateModelRoutingSheet({
   open: boolean;
 }) {
   const queryClient = useQueryClient();
-  const scope = useProjectQueryScope();
+  const { client, key, scopeLabel } = useInferenceManagement();
   const gateways = useQuery({
-    queryKey: scope.key("inference-gateways"),
-    queryFn: api.listInferenceGateways,
+    queryKey: key("inference-gateways"),
+    queryFn: client.listInferenceGateways,
     enabled: open,
   });
   const [name, setName] = useState("");
@@ -269,7 +268,7 @@ export function CreateModelRoutingSheet({
 
   const mutation = useMutation({
     mutationFn: () =>
-      api.createModelRouting({
+      client.createModelRouting({
         name,
         description: "",
         gatewayId: gateway?.id ?? "",
@@ -285,7 +284,7 @@ export function CreateModelRoutingSheet({
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({
-        queryKey: scope.key("model-routings"),
+        queryKey: key("model-routings"),
       });
       onOpenChange(false);
     },
@@ -487,7 +486,7 @@ export function CreateModelRoutingSheet({
               className="flex gap-2 border-l-2 border-destructive bg-destructive/5 p-3 text-xs text-destructive"
             >
               <CircleAlert className="size-4 shrink-0" />
-              No model gateway is available for this Project.
+              No model gateway is available for this {scopeLabel}.
             </p>
           ) : null}
         </section>
@@ -575,9 +574,9 @@ export function CreateModelRoutingSheet({
               {makeDefault ? <Check className="size-3.5" /> : null}
             </span>
             <span>
-              <strong className="block font-medium">Project default</strong>
+              <strong className="block font-medium">{scopeLabel} default</strong>
               <span className="text-xs text-muted-foreground">
-                Automatically selected for new Instances in this Project.
+                Automatically selected for new Instances in this {scopeLabel}.
               </span>
             </span>
           </button>

@@ -1,12 +1,13 @@
 import { useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import type {
-  AgentMemoryConfiguration,
-  AgentPlatformId,
-  KnowledgeSourceDefinition,
-  McpServerDefinition,
-  ModelDeployment,
-  SkillDefinition,
+import {
+  getAgentPlatformDefinition,
+  type AgentMemoryConfiguration,
+  type AgentPlatformId,
+  type KnowledgeSourceDefinition,
+  type McpServerDefinition,
+  type ModelDeployment,
+  type SkillDefinition,
 } from "@tali/contracts";
 import { useTranslation } from "react-i18next";
 import { BookOpenText, Boxes, BrainCircuit, Check, ChevronDown, CircleHelp, Info, Network, Pencil, Plus, ServerCog, X } from "lucide-react";
@@ -247,7 +248,8 @@ function MemoryCapabilityRow({ agentPlatform, embeddingModels, enabled, memory, 
   projectId: string;
   roleLabel: string;
 }) {
-  const supported = agentPlatform === "openclaw";
+  const supported = getAgentPlatformDefinition(agentPlatform).capabilities
+    .memory !== "none";
   const selectMode = (mode: "native" | "hybrid") => {
     if (mode === "native") {
       onMemoryChange({ mode: "native", citations: memory.citations });

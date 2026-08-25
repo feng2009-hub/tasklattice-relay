@@ -132,7 +132,7 @@ describe("OpenShell Kubernetes command contract", () => {
     ).toBe(false);
   });
 
-  it("defines LiteLLM credential injection for OpenClaw and Hermes", () => {
+  it("defines LiteLLM credential injection for every Agent runtime", () => {
     const profile = taliLiteLlmProviderProfile(
       "http://tali-litellm.tali-sandboxes.svc.cluster.local:4000/v1",
     );
@@ -150,6 +150,8 @@ describe("OpenShell Kubernetes command contract", () => {
     expect(profile).toContain("- 192.168.0.0/16");
     expect(profile).toContain("- /usr/local/bin/node");
     expect(profile).toContain("- /opt/hermes/.venv/bin/python");
+    expect(profile).toContain("- /usr/local/bin/dcode");
+    expect(profile).toContain("- /opt/venv/bin/python3*");
   });
 
   it("creates a managed Pod-backed sandbox with uploaded instructions", () => {
@@ -354,6 +356,56 @@ describe("OpenShell Kubernetes command contract", () => {
         hermesInput.agentPlatform,
       ).at(-1),
     ).toBe("exec hermes --tui");
+  });
+
+  it("uses the Deep Agents image, managed state path, TUI, and headless contract", () => {
+    const deepAgentsInput = { ...input, agentPlatform: "deepagents" as const };
+    const createArgs = openShellSandboxCreateArguments(
+      deepAgentsInput,
+      "/tmp/AGENTS.md",
+      "/tmp/tali-nemoclaw-start",
+      "/tmp/openshell-policy.yaml",
+      "/tmp/tali-run-telemetry.env",
+    );
+    const runtime = getAgentPlatformRuntime("deepagents");
+    const bootstrap = runtime.bootstrapScript(
+      "http://unused.example.test",
+      "18789",
+      "http://inference.example.test/v1",
+      "tali/provider/deepseek-chat",
+    );
+
+    expect(createArgs).toContain(
+      "ghcr.io/tasklattice/tali-nemoclaw-deepagents-sandbox:dev",
+    );
+    expect(createArgs).toContain(
+      "/tmp/AGENTS.md:/sandbox/.deepagents/agent/AGENTS.md",
+    );
+    expect(createArgs).not.toContain(
+      "/tmp/tali-run-telemetry.env:/tmp/tali-run-telemetry.env",
+    );
+    expect(runtime.endpointKind).toBeUndefined();
+    expect(runtime.headlessCommand).toBe("dcode -n");
+    expect(runtime.healthProbe("18789")).toContain("dcode --version");
+    expect(runtime.healthProbe("18789")).not.toContain("curl");
+    expect(openShellTerminalArguments(
+      deepAgentsInput.name,
+      deepAgentsInput.agentPlatform,
+    ).at(-1)).toBe("exec dcode");
+    expect(nemoClawTerminalArguments(
+      deepAgentsInput.name,
+      deepAgentsInput.agentPlatform,
+    ).at(-1)).toBe("exec dcode");
+    expect(bootstrap).toContain(
+      "/opt/nemoclaw-deepagents-code/generate-config.ts",
+    );
+    expect(bootstrap).toContain(
+      'NEMOCLAW_UPSTREAM_ENDPOINT_URL="$upstream_endpoint"',
+    );
+    expect(bootstrap).toContain(
+      "NEMOCLAW_INFERENCE_BASE_URL=https://inference.local/v1",
+    );
+    expect(bootstrap).toContain("exec /usr/local/bin/nemoclaw-start");
   });
 
   it("normalizes only a sandbox-owned Hermes workspace mount", () => {

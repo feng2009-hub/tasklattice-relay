@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { getAgentPlatformDefinition } from "@tali/contracts";
 import {
   BrainCircuit,
   Database,
@@ -59,7 +60,8 @@ function Memory() {
     queryFn: api.listModelDeployments,
   });
   const openClawAgents = (agents.data ?? []).filter(
-    (agent) => agent.agentPlatform === "openclaw",
+    (agent) => getAgentPlatformDefinition(agent.agentPlatform).capabilities
+      .memory !== "none",
   );
   const embeddingModels = (modelDeployments.data ?? []).filter(
     (model) => model.status === "VALIDATED" && model.modelType === "text-embedding",

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type {
+  AgentPlatformId,
   Instance as Agent,
   OnboardContainerImageAgentInput,
   OnboardExistingAgentInput,
@@ -12,7 +13,10 @@ import { AgentGardenService } from "./agent-garden-service";
 import { AgentGardenStore } from "./agent-garden-store";
 import { databaseAgentCatalog } from "./database-agent-catalog";
 
-function coordinator(id = "coordinator-a"): Agent {
+function coordinator(
+  id = "coordinator-a",
+  agentPlatform: AgentPlatformId = "hermes",
+): Agent {
   const now = new Date().toISOString();
   return {
     schemaVersion: 2,
@@ -20,7 +24,7 @@ function coordinator(id = "coordinator-a"): Agent {
     name: "Hermes Coordinator",
     description: "",
     runtime: "openshell",
-    agentPlatform: "hermes",
+    agentPlatform,
     modelDeploymentId: "model-a",
     providerAccountId: "provider-a",
     providerName: "LiteLLM",
@@ -140,6 +144,9 @@ describe("AgentGardenService", () => {
     const openClaw = snapshot.agents.find(
       (agent) => agent.integrationType === "openclaw",
     );
+    const deepAgents = snapshot.agents.find(
+      (agent) => agent.integrationType === "deepagents",
+    );
     const claudeCode = snapshot.agents.find(
       (agent) => agent.integrationType === "claude-code",
     );
@@ -148,6 +155,15 @@ describe("AgentGardenService", () => {
       interactive: true,
       canDelegate: true,
       acceptsDelegation: false,
+    });
+    expect(deepAgents).toMatchObject({
+      id: "deepagents-code",
+      status: "READY",
+      usageCapabilities: {
+        interactive: true,
+        canDelegate: true,
+        acceptsDelegation: false,
+      },
     });
     expect(claudeCode).toMatchObject({
       source: "BUILT_IN",
@@ -184,19 +200,33 @@ describe("AgentGardenService", () => {
 
   it("connects a callable built-in demo without duplicating its card", async () => {
     const projectStore = createTestStore();
-    await projectStore.save(coordinator(), "local-admin");
+    await projectStore.save(
+      coordinator("deepagents-coordinator", "deepagents"),
+      "local-admin",
+    );
     const service = new AgentGardenService(
       new AgentGardenStore(projectStore.projectId, projectStore.database()),
       projectStore,
     );
 
     const connection = await service.connect({
-      coordinatorInstanceId: "coordinator-a",
+      coordinatorInstanceId: "deepagents-coordinator",
       connectedAgentId: "a2a-github-daily-triage",
       allowedSkillIds: ["daily-repository-triage"],
       approvalMode: "AUTO_READ_ONLY",
     });
     expect(connection.connectedAgentId).toBe("a2a-github-daily-triage");
+    await expect(
+      projectStore.database().agentRecord.findUniqueOrThrow({
+        where: {
+          projectId_id: {
+            projectId: projectStore.projectId,
+            id: "deepagents-coordinator",
+          },
+        },
+        select: { kind: true },
+      }),
+    ).resolves.toEqual({ kind: "SUPERVISOR" });
 
     const snapshot = await service.snapshot();
     expect(
@@ -404,6 +434,17 @@ describe("AgentGardenService", () => {
         imageDigest: expect.stringContaining("@sha256:"),
       }),
     ]);
+    await expect(
+      projectStore.database().agentRecord.findUniqueOrThrow({
+        where: {
+          projectId_id: {
+            projectId: projectStore.projectId,
+            id: agent.configuration.managedInstanceId!,
+          },
+        },
+        select: { kind: true, catalogAgentId: true },
+      }),
+    ).resolves.toEqual({ kind: "A2A", catalogAgentId: agent.id });
 
     await service.discover(agent.id);
     expect(runtime.onboard).toHaveBeenLastCalledWith(expect.objectContaining({

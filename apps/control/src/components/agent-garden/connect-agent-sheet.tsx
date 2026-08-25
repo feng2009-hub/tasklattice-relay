@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import type {
-  Instance as Agent,
-  AgentConnection,
-  AgentConnectionApprovalMode,
-  AgentGardenEntry,
+import {
+  getAgentPlatformDefinition,
+  type AgentConnection,
+  type AgentConnectionApprovalMode,
+  type AgentGardenEntry,
+  type Instance as Agent,
 } from "@tali/contracts";
 import {
   Link2,
@@ -51,7 +52,8 @@ export function ConnectAgentSheet({
       instances.filter(
         (instance) =>
           instance.status === "READY" &&
-          ["openclaw", "hermes"].includes(instance.agentPlatform),
+          getAgentPlatformDefinition(instance.agentPlatform).capabilities
+            .canDelegate,
       ),
     [instances],
   );
