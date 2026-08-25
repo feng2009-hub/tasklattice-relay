@@ -6,6 +6,13 @@ const validationUsername =
   process.env.TALI_VALIDATION_USERNAME ?? "admin";
 const validationPassword =
   process.env.TALI_VALIDATION_PASSWORD ?? "admin";
+const validationProjectId = process.env.TALI_VALIDATION_PROJECT_ID;
+const validationTimeoutMs = Number(
+  process.env.TALI_VALIDATION_TIMEOUT_MS ?? "180000",
+);
+if (!Number.isFinite(validationTimeoutMs) || validationTimeoutMs <= 0)
+  throw new Error("TALI_VALIDATION_TIMEOUT_MS must be a positive number.");
+const validationPollAttempts = Math.ceil(validationTimeoutMs / 1_000);
 let sessionCookie = "";
 
 async function request(path, init) {
@@ -17,8 +24,17 @@ async function request(path, init) {
       ...init?.headers,
     },
   });
-  const payload = await response.json();
-  if (!response.ok) throw new Error(payload.error ?? `HTTP ${response.status}`);
+  const body = await response.text();
+  let payload;
+  try {
+    payload = body ? JSON.parse(body) : undefined;
+  } catch {
+    throw new Error(
+      `Expected JSON from ${path}, received ${response.status} ${response.headers.get("content-type") ?? "without a content type"}.`,
+    );
+  }
+  if (!response.ok)
+    throw new Error(payload?.error ?? payload?.detail ?? `HTTP ${response.status}`);
   return payload;
 }
 
@@ -44,58 +60,85 @@ sessionCookie = (loginResponse.headers.get("set-cookie") ?? "")
   .filter(Boolean)
   .join("; ");
 
-const models = await request("/api/v1/providers/models");
-const validatedModel = models.data.find(
-  (model) => model.status === "VALIDATED" && model.modelType === "llm",
-);
-if (!validatedModel)
+const projects = await request("/api/v1/projects");
+const project = validationProjectId
+  ? projects.find((candidate) => candidate.id === validationProjectId)
+  : projects[0];
+if (!project)
   throw new Error(
-    "No validated LLM deployment is available for Instance creation.",
+    validationProjectId
+      ? `Validation Project ${validationProjectId} is unavailable.`
+      : "No Project is available for core-flow validation.",
   );
+const projectBasePath = `/api/v1/projects/${encodeURIComponent(project.id)}`;
+const projectRequest = (path, init) => request(`${projectBasePath}${path}`, init);
 
-const created = await request("/api/v1/agents", {
+const routings = await projectRequest("/model-routings");
+const validatedRouting = routings.data.find(
+  (routing) => routing.status === "READY",
+);
+if (!validatedRouting)
+  throw new Error(
+    "No READY Model Routing is available for Instance creation.",
+  );
+const accessPolicies = await projectRequest("/access-policies");
+const activeAccessPolicy = accessPolicies.data.find(
+  (policy) => policy.status === "ACTIVE",
+);
+if (!activeAccessPolicy)
+  throw new Error("No ACTIVE Access Policy is available for Instance creation.");
+
+const created = await projectRequest("/instances", {
   method: "POST",
   body: JSON.stringify({
     name: `validation-${Date.now().toString().slice(-6)}`,
     description: "REST and terminal contract validation",
     runtime: "openshell",
     agentPlatform: "openclaw",
-    modelDeploymentId: validatedModel.id,
+    accessPolicyIds: [activeAccessPolicy.id],
+    modelRoutingId: validatedRouting.id,
     systemPrompt: "You are a validation agent. Report runtime evidence clearly.",
   }),
 });
 
 let agent = created;
-for (let attempt = 0; attempt < 180 && agent.status === "PROVISIONING"; attempt += 1) {
+for (
+  let attempt = 0;
+  attempt < validationPollAttempts && agent.status === "PROVISIONING";
+  attempt += 1
+) {
   await new Promise((resolve) => setTimeout(resolve, 1_000));
-  agent = await request(`/api/v1/agents/${created.id}`);
+  agent = await projectRequest(`/instances/${created.id}`);
 }
 if (agent.status !== "READY") throw new Error(`Agent did not become READY: ${JSON.stringify(agent)}`);
 
 let httpEndpointEvidence;
+let interactionEndpoint;
 if (expectNemoClawRuntime) {
-  if (agent.httpEndpoint?.status !== "READY" || !agent.httpEndpoint.url)
-    throw new Error(`NemoClaw HTTP Endpoint unavailable: ${JSON.stringify(agent.httpEndpoint)}`);
-  const endpointResponse = await fetch(agent.httpEndpoint.url, {
+  const interaction = await projectRequest(`/instances/${agent.id}/interaction`);
+  interactionEndpoint = interaction.httpEndpoint;
+  if (interactionEndpoint?.status !== "READY" || !interactionEndpoint.url)
+    throw new Error(`NemoClaw HTTP Endpoint unavailable: ${JSON.stringify(interactionEndpoint)}`);
+  const endpointResponse = await fetch(interactionEndpoint.url, {
     signal: AbortSignal.timeout(10_000),
   });
   if (!endpointResponse.ok)
     throw new Error(`NemoClaw HTTP Endpoint returned ${endpointResponse.status}.`);
-  httpEndpointEvidence = `${agent.httpEndpoint.kind} returned HTTP ${endpointResponse.status}.`;
+  httpEndpointEvidence = `${interactionEndpoint.kind} returned HTTP ${endpointResponse.status}.`;
 } else {
   httpEndpointEvidence = "Not required for the fixture runtime.";
 }
 
-const runtime = await request("/api/v1/runtime");
+const runtime = await projectRequest("/runtime");
 let terminalEvidence;
 if (!runtime.terminal.available) {
   if (expectNemoClawRuntime)
     throw new Error(`NemoClaw TUI runtime unavailable: ${JSON.stringify(runtime)}`);
   let rejection = "";
   try {
-    await request(`/api/v1/agents/${agent.id}/terminal-sessions`, {
+    await projectRequest(`/instances/${agent.id}/terminal-sessions`, {
       method: "POST",
-      body: "{}",
+      body: JSON.stringify({ targetId: "agent" }),
     });
   } catch (error) {
     rejection = error instanceof Error ? error.message : String(error);
@@ -104,9 +147,9 @@ if (!runtime.terminal.available) {
     throw new Error(`Fixture TUI session was not rejected safely: ${rejection}`);
   terminalEvidence = `TUI unavailable in ${runtime.mode}; host shell blocked before session creation.`;
 } else {
-  const session = await request(`/api/v1/agents/${agent.id}/terminal-sessions`, {
+  const session = await projectRequest(`/instances/${agent.id}/terminal-sessions`, {
     method: "POST",
-    body: "{}",
+    body: JSON.stringify({ targetId: "agent" }),
   });
   const wsBase = new URL(baseUrl);
   wsBase.protocol = wsBase.protocol === "https:" ? "wss:" : "ws:";
@@ -135,21 +178,39 @@ if (!runtime.terminal.available) {
   });
 }
 
-const destroyed = await request(`/api/v1/agents/${agent.id}`, { method: "DELETE" });
-const deletedResource = await fetch(`${baseUrl}/api/v1/agents/${agent.id}`, {
-  headers: { cookie: sessionCookie },
+const destroyed = await projectRequest(`/instances/${agent.id}`, {
+  method: "DELETE",
 });
-const deletedEndpoint = agent.httpEndpoint?.url
-  ? await fetch(agent.httpEndpoint.url)
+let deletedResource;
+for (let attempt = 0; attempt < validationPollAttempts; attempt += 1) {
+  deletedResource = await fetch(
+    `${baseUrl}${projectBasePath}/instances/${agent.id}`,
+    { headers: { cookie: sessionCookie } },
+  );
+  if (deletedResource.status === 404) break;
+  await new Promise((resolve) => setTimeout(resolve, 1_000));
+}
+const deletedEndpoint = interactionEndpoint?.url
+  ? await fetch(interactionEndpoint.url)
   : undefined;
-if (destroyed.status !== "DESTROYED" || deletedResource.status !== 404) {
-  throw new Error(`Agent delete contract failed: ${JSON.stringify({ destroyed, getStatus: deletedResource.status })}`);
+if (
+  destroyed.status !== "DESTROYING"
+  || destroyed.accepted !== true
+  || deletedResource?.status !== 404
+) {
+  throw new Error(
+    `Instance delete contract failed: ${JSON.stringify({
+      destroyed,
+      getStatus: deletedResource?.status ?? "no response",
+    })}`,
+  );
 }
 if (expectNemoClawRuntime && deletedEndpoint?.status !== 404)
   throw new Error(`Deleted HTTP Endpoint returned ${deletedEndpoint?.status ?? "no response"}.`);
 
 console.log(JSON.stringify({
   result: "PASS",
+  projectId: project.id,
   agentId: agent.id,
   sandboxName: agent.sandboxName,
   status: agent.status,
@@ -157,5 +218,5 @@ console.log(JSON.stringify({
   provider: agent.providerName,
   httpEndpointEvidence,
   terminalEvidence: String(terminalEvidence).replace(/\u001b\[[0-9;?]*[A-Za-z]/g, "").trim(),
-  deleteEvidence: `${destroyed.status} / Agent GET ${deletedResource.status} / Endpoint GET ${deletedEndpoint?.status ?? "N/A"}`,
+  deleteEvidence: `${destroyed.status} accepted / Instance GET ${deletedResource.status} / Endpoint GET ${deletedEndpoint?.status ?? "N/A"}`,
 }, null, 2));

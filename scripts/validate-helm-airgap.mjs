@@ -11,6 +11,7 @@ const releaseNamespace = "tali-airgap-validation";
 const chartPath = process.env.TALI_CHART_PATH ?? "charts/tali-relay";
 const expectedRegistry = "registry.airgap.example.com/";
 const expectedPullSecret = "airgap-registry";
+const expectedOpenShellVersion = process.env.OPENSHELL_VERSION ?? "0.0.111";
 const forbiddenRegistries = [
   "docker.io/",
   "ghcr.io/",
@@ -183,21 +184,21 @@ const gatewayConfig = objects.find(
     object.metadata?.name === `${releaseName}-openshell-config`,
 );
 const gatewayToml = gatewayConfig?.data?.["gateway.toml"] ?? "";
-for (const [label, pattern] of [
+for (const [label, expectedValue] of [
   [
     "mirrored default sandbox image",
-    /default_image\s*=\s*"registry\.airgap\.example\.com\/third-party\/openshell-sandbox:0\.0\.106"/,
+    `"registry.airgap.example.com/third-party/openshell-sandbox:${expectedOpenShellVersion}"`,
   ],
   [
     "mirrored supervisor image",
-    /supervisor_image\s*=\s*"registry\.airgap\.example\.com\/third-party\/openshell-supervisor:0\.0\.106"/,
+    `"registry.airgap.example.com/third-party/openshell-supervisor:${expectedOpenShellVersion}"`,
   ],
   [
     "sandbox image pull Secret",
-    /image_pull_secrets\s*=\s*\["airgap-registry"\]/,
+    '["airgap-registry"]',
   ],
 ]) {
-  if (!pattern.test(gatewayToml)) {
+  if (!gatewayToml.includes(expectedValue)) {
     violations.push(`OpenShell gateway config is missing ${label}.`);
   }
 }

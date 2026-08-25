@@ -1,5 +1,9 @@
 {{- $component := "runner" -}}
 {{- $name := include "tali.componentName" (dict "root" . "component" $component) -}}
+{{- $gatewayEndpoint := .Values.runner.gatewayEndpoint -}}
+{{- if and (not $gatewayEndpoint) .Values.openshell.enabled -}}
+{{- $gatewayEndpoint = printf "http://%s.%s.svc.cluster.local:8080" (include "openshell.fullname" .Subcharts.openshell) .Release.Namespace -}}
+{{- end -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -57,7 +61,7 @@ spec:
                   name: {{ include "tali.secretName" . }}
                   key: runner-token
             - name: OPENSHELL_GATEWAY_ENDPOINT
-              value: {{ default (printf "http://%s.%s.svc.cluster.local:8080" (include "tali.componentName" (dict "root" . "component" "openshell")) .Release.Namespace) .Values.runner.gatewayEndpoint | quote }}
+              value: {{ required "runner.gatewayEndpoint is required when openshell.enabled=false" $gatewayEndpoint | quote }}
             {{- if .Values.openshell.enabled }}
             - name: OPENSHELL_GATEWAY_IMAGE
               value: {{ printf "%s:%s" .Values.openshell.image.repository .Values.openshell.image.tag | quote }}

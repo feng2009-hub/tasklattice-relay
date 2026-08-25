@@ -382,12 +382,12 @@ openshell:
   imagePullSecrets: []
   image:
     repository: ghcr.io/nvidia/openshell/gateway
-    tag: 0.0.106
+    tag: 0.0.111
     pullPolicy: IfNotPresent
   supervisor:
     image:
       repository: ghcr.io/nvidia/openshell/supervisor
-      tag: 0.0.106
+      tag: 0.0.111
       pullPolicy: IfNotPresent
     sideloadMethod: init-container
   service:
@@ -400,7 +400,7 @@ openshell:
       cpu: "1"
       memory: 1Gi
   server:
-    # The upstream base sandbox does not publish a 0.0.106 tag, so its explicit
+    # The upstream base sandbox does not publish a 0.0.111 tag, so its explicit
     # upstream default remains :latest. Private deployments should mirror and
     # pin this value together with sandboxImagePullPolicy.
     sandboxImage: ghcr.io/nvidia/openshell-community/sandboxes/base:latest

@@ -1,10 +1,12 @@
 FROM alpine:3.22 AS openshell-cli
 ARG TARGETARCH
-ARG OPENSHELL_VERSION=0.0.106
+ARG OPENSHELL_VERSION=0.0.111
+ARG OPENSHELL_CLI_AMD64_SHA256=eea22e10a1d21c92c843c609e2a391456073b339ebc5e1fca293aff4a0d6dcdc
+ARG OPENSHELL_CLI_ARM64_SHA256=5e9689f5e3522e84bd6e12fc48594046f312f356dc2f1779f628eb42e8259bf5
 RUN apk add --no-cache ca-certificates curl tar \
     && case "${TARGETARCH}" in \
-      amd64) asset="openshell-x86_64-unknown-linux-musl.tar.gz"; checksum="d1a885a91b3e5aaa006c36aca95dc78bed0638c1ba1a79b55f1da93211b8a0a0" ;; \
-      arm64) asset="openshell-aarch64-unknown-linux-musl.tar.gz"; checksum="ce981904ae8febd9cd6b3fbceb04e1dcfb48da6042bac08eadf0c2211f83fe55" ;; \
+      amd64) asset="openshell-x86_64-unknown-linux-musl.tar.gz"; checksum="${OPENSHELL_CLI_AMD64_SHA256}" ;; \
+      arm64) asset="openshell-aarch64-unknown-linux-musl.tar.gz"; checksum="${OPENSHELL_CLI_ARM64_SHA256}" ;; \
       *) echo "Unsupported architecture: ${TARGETARCH}" >&2; exit 1 ;; \
     esac \
     && curl --fail --location --retry 5 \

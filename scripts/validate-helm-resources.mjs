@@ -47,6 +47,24 @@ function renderChart(extraArguments = []) {
   });
 }
 
+function renderNamedChart(name, namespace, extraArguments = []) {
+  return execFileSync(
+    "helm",
+    [
+      "template",
+      name,
+      chartPath,
+      "--namespace",
+      namespace,
+      "--kube-version",
+      "1.29.0",
+      "--include-crds",
+      ...extraArguments,
+    ],
+    { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+  );
+}
+
 function parseObjects(rendered) {
   return parseAllDocuments(rendered, { uniqueKeys: false })
     .map((document) => {
@@ -70,6 +88,36 @@ const rendered = renderChart([
 ]);
 
 const objects = parseObjects(rendered);
+
+const arbitraryReleaseName = "tali-release-023";
+const arbitraryReleaseNamespace = "tali-arbitrary-release-validation";
+const arbitraryReleaseObjects = parseObjects(
+  renderNamedChart(arbitraryReleaseName, arbitraryReleaseNamespace),
+);
+const arbitraryOpenShellService = arbitraryReleaseObjects.find(
+  (object) =>
+    object.kind === "Service"
+    && object.metadata?.labels?.["app.kubernetes.io/name"] === "openshell",
+);
+const arbitraryRunner = arbitraryReleaseObjects.find(
+  (object) =>
+    object.kind === "Deployment"
+    && object.metadata?.labels?.["app.kubernetes.io/component"] === "runner",
+);
+const arbitraryGatewayEndpoint = arbitraryRunner?.spec?.template?.spec?.containers
+  ?.find((container) => container.name === "runner")
+  ?.env?.find((entry) => entry.name === "OPENSHELL_GATEWAY_ENDPOINT")?.value;
+const expectedArbitraryGatewayEndpoint = arbitraryOpenShellService
+  ? `http://${arbitraryOpenShellService.metadata.name}.${arbitraryReleaseNamespace}.svc.cluster.local:8080`
+  : undefined;
+if (
+  !expectedArbitraryGatewayEndpoint
+  || arbitraryGatewayEndpoint !== expectedArbitraryGatewayEndpoint
+) {
+  throw new Error(
+    "The Runner OpenShell endpoint must resolve to the dependency-owned Service for arbitrary Helm release names.",
+  );
+}
 
 for (const kind of ["Deployment", "ServiceAccount"]) {
   if (

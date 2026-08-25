@@ -4,7 +4,7 @@ Status: experimental local MVP
 
 Pinned versions:
 
-- OpenShell `0.0.106`
+- OpenShell `0.0.111`
 - Agent Sandbox `0.5.1`
 - OpenClaw `2026.6.10`
 - NemoClaw source revision `2adc8481ff3053a5a7be37d130cb183e222934ff`
@@ -62,7 +62,8 @@ reconciliation after a Sandbox Pod recreation, and concurrency-safe inference
 profiles.
 
 Relay now provisions one baseline Namespace, quota, limits, and network policy
-set per Project. However, OpenShell `0.0.106` selects one static sandbox
-Namespace at the Gateway level and cannot place an individual sandbox in a
-Project Namespace. See [Project Runtime Namespaces](project-runtime-namespaces.md)
-for the implemented lifecycle and the remaining runtime-placement boundary.
+set per Project. OpenShell `0.0.111` supports multiple workspace Namespace
+modes, but Relay currently keeps its Gateway in the default `shared` mode and
+does not place an individual sandbox in a Project Namespace. See
+[Project Runtime Namespaces](project-runtime-namespaces.md) for the implemented
+lifecycle and the remaining runtime-placement boundary.

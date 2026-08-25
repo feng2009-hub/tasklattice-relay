@@ -8,16 +8,38 @@ readonly AGENT_PLATFORM="${NEMOCLAW_AGENT_PLATFORM:-openclaw}"
 readonly BUILD_OUTPUT="${NEMOCLAW_BUILD_OUTPUT:-local}"
 readonly REPOSITORY_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+require_declared_dependencies() {
+  if [ "${TALI_REQUIRE_DECLARED_DEPENDENCIES:-0}" != "1" ]; then
+    return
+  fi
+  for variable_name in "${required_variables[@]}"; do
+    if [ -z "${!variable_name:-}" ]; then
+      echo "Release dependency variable is required: $variable_name" >&2
+      exit 2
+    fi
+  done
+}
+
 case "$AGENT_PLATFORM" in
   openclaw)
-    readonly NEMOCLAW_REVISION="${NEMOCLAW_REVISION:-2adc8481ff3053a5a7be37d130cb183e222934ff}"
-    readonly NEMOCLAW_BASE_IMAGE="${NEMOCLAW_BASE_IMAGE:-ghcr.io/nvidia/nemoclaw/sandbox-base@sha256:132dfea81026fe91581ab97d9034fb61d97b41a9951c7fd59d3d8b3b1b37b246}"
+    required_variables=(
+      NEMOCLAW_OPENCLAW_REVISION
+      NEMOCLAW_OPENCLAW_BASE_IMAGE
+    )
+    require_declared_dependencies
+    readonly NEMOCLAW_REVISION="${NEMOCLAW_OPENCLAW_REVISION:-2adc8481ff3053a5a7be37d130cb183e222934ff}"
+    readonly NEMOCLAW_BASE_IMAGE="${NEMOCLAW_OPENCLAW_BASE_IMAGE:-ghcr.io/nvidia/nemoclaw/sandbox-base@sha256:132dfea81026fe91581ab97d9034fb61d97b41a9951c7fd59d3d8b3b1b37b246}"
     readonly NEMOCLAW_IMAGE="${NEMOCLAW_IMAGE:-ghcr.io/tasklattice/tali-nemoclaw-sandbox:dev}"
     readonly DOCKERFILE="Dockerfile"
     readonly DEFAULT_UPSTREAM_IMAGE="tali-nemoclaw-openclaw-upstream:${NEMOCLAW_REVISION:0:12}"
     readonly WRAPPER_DOCKERFILE="$REPOSITORY_ROOT/infra/docker/Dockerfile.nemoclaw-openclaw"
     ;;
   hermes)
+    required_variables=(
+      NEMOCLAW_HERMES_REVISION
+      NEMOCLAW_HERMES_BASE_IMAGE
+    )
+    require_declared_dependencies
     readonly NEMOCLAW_REVISION="${NEMOCLAW_HERMES_REVISION:-c1bda8069d95a84a9e16b0d292a5fe20ce7cea7d}"
     readonly NEMOCLAW_BASE_IMAGE="${NEMOCLAW_HERMES_BASE_IMAGE:-ghcr.io/nvidia/nemoclaw/hermes-sandbox-base@sha256:fa05221f5c7bcafea7e263c84e5d06f87e37d1ccb78dc28c113f1a4066aa544c}"
     readonly NEMOCLAW_IMAGE="${NEMOCLAW_HERMES_IMAGE:-ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:dev}"

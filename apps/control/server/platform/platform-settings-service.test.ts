@@ -48,8 +48,8 @@ describe("PlatformSettingsService", () => {
         workspace: "default",
         serviceBaseUrl: "https://sandboxes.example",
         kubernetesServiceCidrs: ["10.0.0.0/8"],
-        gatewayImage: "ghcr.io/nvidia/openshell/gateway:0.0.106",
-        supervisorImage: "ghcr.io/nvidia/openshell/supervisor:0.0.106",
+        gatewayImage: "ghcr.io/nvidia/openshell/gateway:0.0.111",
+        supervisorImage: "ghcr.io/nvidia/openshell/supervisor:0.0.111",
         defaultImage: "ghcr.io/nvidia/openshell-community/sandboxes/base:latest",
         defaultImagePullPolicy: "Always",
         tlsDisabled: true,
@@ -67,7 +67,7 @@ describe("PlatformSettingsService", () => {
       sandboxRuntime: {
         available: true,
         provider: "openshell",
-        gatewayImage: "ghcr.io/nvidia/openshell/gateway:0.0.106",
+        gatewayImage: "ghcr.io/nvidia/openshell/gateway:0.0.111",
       },
       runtimePolicy: { namespaceDeletionTimeoutSeconds: 120 },
       security: {

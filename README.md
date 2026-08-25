@@ -153,12 +153,17 @@ resolves to that exact value.
 | OpenClaw sandbox         | `ghcr.io/tasklattice/tali-nemoclaw-sandbox:<release>`          | Default Agent sandbox                              |
 | Hermes sandbox           | `ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:<release>`   | Hermes Agent sandbox                               |
 | LiteLLM PostgreSQL       | `postgres:17-alpine`                                            | LiteLLM configuration and usage data               |
-| OpenShell gateway        | `ghcr.io/nvidia/openshell/gateway:0.0.106`                      | Policy enforcement, audit, exec, and HTTP routing  |
-| OpenShell supervisor     | `ghcr.io/nvidia/openshell/supervisor:0.0.106`                   | Supervisor injected into Agent sandboxes           |
+| OpenShell gateway        | `ghcr.io/nvidia/openshell/gateway:0.0.111`                      | Policy enforcement, audit, exec, and HTTP routing  |
+| OpenShell supervisor     | `ghcr.io/nvidia/openshell/supervisor:0.0.111`                   | Supervisor injected into Agent sandboxes           |
 | Agent Sandbox controller | `registry.k8s.io/agent-sandbox/agent-sandbox-controller:v0.5.1` | Sandbox CR, Pod, and workspace PVC lifecycle       |
 
 The OpenShell supervisor and selected Agent image are pulled when an Instance
 creates its Sandbox rather than running as permanent control-plane Pods.
+Every GitHub Release also includes `release-dependencies.json`, generated from
+the reviewed dependency manifest at the top of `.github/workflows/release.yml`.
+It records the exact OpenShell version and checksums, Agent Sandbox source and
+Chart versions, NemoClaw commits and base-image digests, and LiteLLM image
+digest used for that build.
 
 ## Access
 

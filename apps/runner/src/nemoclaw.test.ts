@@ -15,6 +15,8 @@ import {
   openShellHermesWebUiSecretArguments,
   openShellNemoClawProbeArguments,
   openShellAuditArguments,
+  openShellSandboxBootstrapArguments,
+  openShellSandboxBootstrapLogArguments,
   openShellSandboxCreateArguments,
   openShellTerminalArguments,
   openShellWebUiOrigin,
@@ -180,10 +182,14 @@ describe("OpenShell Kubernetes command contract", () => {
     expect(args).toContain("/tmp/openshell-policy.yaml");
     expect(args).toContain("1");
     expect(args).toContain("2Gi");
-    expect(args.slice(-2)).toEqual([
-      "/bin/bash",
-      "/tmp/tali-nemoclaw-start",
-    ]);
+    expect(args.slice(-2)).toEqual(["--no-tty", "--detach"]);
+    expect(args).not.toContain("--");
+    expect(openShellSandboxBootstrapArguments(input.name).at(-1)).toContain(
+      "nohup /bin/bash /tmp/tali-nemoclaw-start",
+    );
+    expect(openShellSandboxBootstrapLogArguments(input.name).at(-1)).toContain(
+      "tail -n 200 /tmp/tali-nemoclaw-start.log",
+    );
   });
 
   it("applies platform resource overrides only to newly created Sandboxes", () => {

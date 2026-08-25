@@ -4,7 +4,7 @@ This chart installs the complete TaskLattice Relay stack: control/UI, OpenShell
 runner, LiteLLM, PostgreSQL, OpenShell, and the Agent Sandbox controller.
 Its Chart, package, and default Helm release name is `tali-relay`; the examples
 use the product-level `tali` Kubernetes namespace.
-OpenShell 0.0.106 is a version- and checksum-pinned NVIDIA OCI dependency.
+OpenShell 0.0.111 is a version- and checksum-pinned NVIDIA OCI dependency.
 Agent Sandbox v0.5.1 is fetched from its checksum-pinned Kubernetes SIGs
 release tag and packaged as a Helm dependency. Their upstream source is not
 copied into this repository, while the released TaskLattice Relay archive remains
@@ -103,9 +103,9 @@ kubectl -n <control-namespace> exec deployment/<release>-control -- \
   node apps/control/.output/tools/project-runtime-reconcile.mjs
 ```
 
-OpenShell `0.0.106` still uses a Gateway-wide sandbox Namespace, so these
-Project Namespaces are immediately usable by managed A2A workloads but do not
-yet move existing OpenClaw or Hermes sandboxes. See
+The current Relay configuration keeps OpenShell in its default `shared`
+workspace mode, so these Project Namespaces are immediately usable by managed
+A2A workloads but do not yet move existing OpenClaw or Hermes sandboxes. See
 [Project Runtime Namespaces](../../docs/project-runtime-namespaces.md).
 
 Workload rollout checksums are component-scoped. Updating Control-only
@@ -145,8 +145,8 @@ set `litellm.workers=1` without patching the rendered Deployment. The chart sets
 Full exceptions remain available in the LiteLLM container logs. Increase this
 value only when request-level tracebacks are required for gateway diagnostics.
 
-The dependency preparation step applies the small OpenShell 0.0.106 overlay in
-`patches/openshell-0.0.106-certgen-resources.patch`, which applies the configured
+The dependency preparation step applies the small OpenShell overlay in
+`patches/openshell.patch`, which applies the configured
 `openshell.resources` to its pre-install certificate-generation Job. Keep or
 upstream that patch when refreshing the dependency so the hook can run before
 the namespace `LimitRange` exists on a first installation.

@@ -1,4 +1,3 @@
-import { spawn } from "node:child_process";
 import { createHmac, randomUUID } from "node:crypto";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -294,7 +293,7 @@ async function ensureLiteLlmProviderProfile(
       resourceVersion = exported.resource_version as number;
       const currentProfile = { ...exported };
       delete currentProfile.resource_version;
-      // OpenShell 0.0.106 adds read-only resolution metadata to exports.
+      // OpenShell exports read-only resolution metadata with the profile.
       // Neither field belongs in an imported profile document.
       delete currentProfile.source;
       delete currentProfile.scope;
@@ -505,9 +504,39 @@ export function openShellSandboxCreateArguments(
       ? ["--upload", `${telemetryFile}:/tmp/tali-run-telemetry.env`]
       : []),
     "--no-tty",
+    "--detach",
+  ]);
+}
+
+export function openShellSandboxBootstrapArguments(name: string): string[] {
+  return openShellArguments([
+    "sandbox",
+    "exec",
+    "--name",
+    name,
+    "--no-tty",
+    "--timeout",
+    "30",
     "--",
     "/bin/bash",
-    "/tmp/tali-nemoclaw-start",
+    "-lc",
+    "nohup /bin/bash /tmp/tali-nemoclaw-start >/tmp/tali-nemoclaw-start.log 2>&1 </dev/null &",
+  ]);
+}
+
+export function openShellSandboxBootstrapLogArguments(name: string): string[] {
+  return openShellArguments([
+    "sandbox",
+    "exec",
+    "--name",
+    name,
+    "--no-tty",
+    "--timeout",
+    "30",
+    "--",
+    "/bin/sh",
+    "-lc",
+    "test ! -f /tmp/tali-nemoclaw-start.log || tail -n 200 /tmp/tali-nemoclaw-start.log",
   ]);
 }
 
@@ -846,95 +875,67 @@ async function createOpenShellNemoClawSandbox(
   observer?: ProvisioningObserver,
 ): Promise<string[]> {
   const timeoutMs = Number(process.env.NEMOCLAW_START_TIMEOUT_MS ?? "180000");
-  return new Promise((resolve, reject) => {
-    const child = spawn(
-      openShellBinary(),
-      openShellSandboxCreateArguments(
-        input,
-        instructionsFile,
-        bootstrapFile,
-        policyFile,
-        telemetryFile,
-      ),
-      { env: process.env, stdio: ["ignore", "pipe", "pipe"] },
+  const startedAt = Date.now();
+  const created = await runCommand(
+    openShellBinary(),
+    openShellSandboxCreateArguments(
+      input,
+      instructionsFile,
+      bootstrapFile,
+      policyFile,
+      telemetryFile,
+    ),
+  );
+  const creationOutput = `${created.stdout}\n${created.stderr}`.trim();
+  if (creationOutput) observer?.onLog?.(creationOutput.split(/\r?\n/).filter(Boolean));
+  if (created.exitCode !== 0)
+    throw new Error(
+      created.stderr.trim()
+      || created.stdout.trim()
+      || "OpenShell sandbox creation failed.",
     );
-    let output = "";
-    let pendingLine = "";
-    let settled = false;
-    let probing = false;
-    const append = (data: Buffer) => {
-      const chunk = data.toString();
-      output = (output + chunk).slice(-64_000);
-      const parts = `${pendingLine}${chunk}`.split(/\r?\n/);
-      pendingLine = parts.pop() ?? "";
-      const lines = parts.filter(Boolean);
-      if (lines.length) observer?.onLog?.(lines);
-    };
-    child.stdout.on("data", append);
-    child.stderr.on("data", append);
 
-    const flushPendingLine = () => {
-      if (!pendingLine) return;
-      observer?.onLog?.([pendingLine]);
-      pendingLine = "";
-    };
+  const launched = await runCommand(
+    openShellBinary(),
+    openShellSandboxBootstrapArguments(input.name),
+  );
+  if (launched.exitCode !== 0)
+    throw new Error(
+      launched.stderr.trim()
+      || launched.stdout.trim()
+      || "OpenShell sandbox bootstrap failed to launch.",
+    );
 
-    const finish = (error?: Error) => {
-      if (settled) return;
-      settled = true;
-      clearInterval(probeTimer);
-      clearTimeout(timeoutTimer);
-      flushPendingLine();
-      if (error) reject(error);
-      else resolve(output.split("\n").filter(Boolean).slice(-100));
-    };
-
-    const probeTimer = setInterval(async () => {
-      if (settled || probing) return;
-      probing = true;
-      try {
-        const probe = await runCommand(
-          openShellBinary(),
-          openShellNemoClawProbeArguments(
-            input.name,
-            input.agentPlatform,
-          ),
-        );
-        if (probe.exitCode === 0) {
-          // The startup command is intentionally long-lived. Match NemoClaw's
-          // create-stream behavior: detach the local CLI once runtime health is
-          // proven; OpenShell keeps nemoclaw-start as a child of its PID 1.
-          settled = true;
-          clearInterval(probeTimer);
-          clearTimeout(timeoutTimer);
-          flushPendingLine();
-          child.kill("SIGTERM");
-          resolve(output.split("\n").filter(Boolean).slice(-100));
-        }
-      } finally {
-        probing = false;
-      }
-    }, 1_000);
-
-    const timeoutTimer = setTimeout(() => {
-      child.kill("SIGTERM");
-      finish(
-        new Error(
-          `NemoClaw gateway startup timed out. ${output.trim().slice(-4_000)}`,
-        ),
+  while (Date.now() - startedAt < timeoutMs) {
+    const probe = await runCommand(
+      openShellBinary(),
+      openShellNemoClawProbeArguments(input.name, input.agentPlatform),
+    );
+    if (probe.exitCode === 0) {
+      const startupLog = await runCommand(
+        openShellBinary(),
+        openShellSandboxBootstrapLogArguments(input.name),
       );
-    }, timeoutMs);
+      const runtimeOutput = startupLog.exitCode === 0
+        ? startupLog.stdout.trim()
+        : "";
+      if (runtimeOutput)
+        observer?.onLog?.(runtimeOutput.split(/\r?\n/).filter(Boolean));
+      return `${creationOutput}\n${runtimeOutput}`
+        .split(/\r?\n/)
+        .filter(Boolean)
+        .slice(-100);
+    }
+    await waitForDeletionPoll(1_000);
+  }
 
-    child.on("error", (error) => finish(error));
-    child.on("close", (code) => {
-      if (settled) return;
-      finish(
-        new Error(
-          output.trim() || `OpenShell sandbox creation exited ${code ?? 1}.`,
-        ),
-      );
-    });
-  });
+  const startupLog = await runCommand(
+    openShellBinary(),
+    openShellSandboxBootstrapLogArguments(input.name),
+  );
+  throw new Error(
+    `NemoClaw gateway startup timed out. ${startupLog.stdout.trim().slice(-4_000)}`,
+  );
 }
 
 async function ensureInstanceProvider(input: ProvisionInput): Promise<void> {
