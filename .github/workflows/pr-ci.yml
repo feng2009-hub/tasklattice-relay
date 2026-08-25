@@ -57,7 +57,6 @@ jobs:
               - 'packages/contracts/**'
               - 'apps/control/**'
               - 'artifacts/skills/**'
-              - 'skills/**'
               - 'scripts/package-vendor-skills.py'
             runner:
               - '.github/actions/setup-node-workspace/**'

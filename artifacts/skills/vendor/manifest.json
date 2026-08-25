@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedFrom": "skills/vendor/catalog.json",
+  "generatedFrom": "artifacts/skills/source/vendor/catalog.json",
   "artifacts": [
     {
       "skillId": "employee-policy-search",

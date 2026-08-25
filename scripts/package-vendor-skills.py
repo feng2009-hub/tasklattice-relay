@@ -13,7 +13,7 @@ import re
 import tarfile
 
 REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
-VENDOR_ROOT = REPOSITORY_ROOT / "skills" / "vendor"
+VENDOR_ROOT = REPOSITORY_ROOT / "artifacts" / "skills" / "source" / "vendor"
 CATALOG_PATH = VENDOR_ROOT / "catalog.json"
 ARTIFACT_ROOT = REPOSITORY_ROOT / "artifacts" / "skills" / "vendor"
 MAX_FILE_COUNT = 500
@@ -122,7 +122,7 @@ def main(*, check: bool = False) -> None:
 
     manifest = {
         "schemaVersion": 1,
-        "generatedFrom": "skills/vendor/catalog.json",
+        "generatedFrom": "artifacts/skills/source/vendor/catalog.json",
         "artifacts": artifacts,
     }
     artifact_files["manifest.json"] = (
