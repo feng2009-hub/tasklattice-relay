@@ -2,6 +2,7 @@ import { WebSocket } from "ws";
 import { defineWebSocketHandler } from "nitro";
 import type { InstanceService } from "../../../../../../../instances/instance-service";
 import { getInstanceServiceForProject } from "../../../../../../../services";
+import { BufferedTerminalInput } from "../../../../../../../terminal/buffered-terminal-input";
 import {
   consumeTerminalSession,
   type TerminalSessionRecord,
@@ -13,13 +14,18 @@ interface TerminalPeerContext {
 }
 
 interface TerminalConnection {
-  pending: string[];
-  upstream: WebSocket;
-  timeout: ReturnType<typeof setTimeout>;
+  input: BufferedTerminalInput;
+  timeout: ReturnType<typeof setTimeout> | undefined;
 }
 
 const connections = new Map<string, TerminalConnection>();
 const connectTimeoutMs = 15_000;
+
+function clearConnectionTimeout(connection: TerminalConnection): void {
+  if (!connection.timeout) return;
+  clearTimeout(connection.timeout);
+  connection.timeout = undefined;
+}
 
 export default defineWebSocketHandler({
   async upgrade(request) {
@@ -28,7 +34,8 @@ export default defineWebSocketHandler({
     const sessionId = segments.at(-2) ?? "";
     const token = url.searchParams.get("token") ?? "";
     const session = consumeTerminalSession(sessionId, token);
-    if (!session) throw new Response("Invalid terminal session.", { status: 401 });
+    if (!session)
+      throw new Response("Invalid terminal session.", { status: 401 });
     const projectId = decodeURIComponent(url.pathname.split("/")[4] ?? "");
     if (projectId !== session.projectId)
       throw new Response("Invalid project context.", { status: 401 });
@@ -52,57 +59,69 @@ export default defineWebSocketHandler({
     console.info(
       `[terminal ${connectionId}] browser connected; opening runner terminal for ${session.sandboxName}`,
     );
-    const [upstreamUrl, headers] = await Promise.all([
-      service.runner.terminalWebSocketUrl(
-        session.sandboxName,
-        session.agentPlatform,
-      ),
-      service.runner.authorizationHeaders(),
-    ]);
-    const upstream = new WebSocket(upstreamUrl, { headers });
-    const timeout = setTimeout(() => {
+    const connection: TerminalConnection = {
+      input: new BufferedTerminalInput(),
+      timeout: undefined,
+    };
+    connections.set(peer.id, connection);
+    connection.timeout = setTimeout(() => {
+      if (connections.get(peer.id) !== connection) return;
+      connections.delete(peer.id);
       peer.send(
         "\r\nUnable to open the runtime terminal before the connection timeout.\r\n",
       );
       peer.close(1011, "Runtime terminal connection timed out");
-      upstream.terminate();
+      connection.input.close();
     }, connectTimeoutMs);
-    const connection: TerminalConnection = { pending: [], upstream, timeout };
-    connections.set(peer.id, connection);
-    upstream.on("open", () => {
-      for (const input of connection.pending.splice(0)) upstream.send(input);
-    });
-    upstream.once("message", () => clearTimeout(timeout));
-    upstream.on("message", (data) => peer.send(data));
-    upstream.on("close", (code, reason) => {
-      clearTimeout(timeout);
-      peer.close(
-        code === 1005 || code === 1006 ? 1011 : code,
-        reason.toString(),
+
+    try {
+      const [upstreamUrl, headers] = await Promise.all([
+        service.runner.terminalWebSocketUrl(
+          session.sandboxName,
+          session.agentPlatform,
+        ),
+        service.runner.authorizationHeaders(),
+      ]);
+      if (connections.get(peer.id) !== connection) return;
+
+      const upstream = new WebSocket(upstreamUrl, { headers });
+      connection.input.attach(upstream);
+      upstream.on("open", () => connection.input.flush());
+      upstream.once("message", () => clearConnectionTimeout(connection));
+      upstream.on("message", (data) => peer.send(data));
+      upstream.on("close", (code, reason) => {
+        clearConnectionTimeout(connection);
+        peer.close(
+          code === 1005 || code === 1006 ? 1011 : code,
+          reason.toString(),
+        );
+      });
+      upstream.on("error", (error) => {
+        clearConnectionTimeout(connection);
+        console.error(`[terminal ${connectionId}] ${error.message}`);
+        peer.close(1011, "Runtime terminal unavailable");
+      });
+    } catch (error) {
+      if (connections.get(peer.id) !== connection) return;
+      clearConnectionTimeout(connection);
+      connections.delete(peer.id);
+      connection.input.close();
+      console.error(
+        `[terminal ${connectionId}] ${error instanceof Error ? error.message : "unable to initialize runtime terminal"}`,
       );
-    });
-    upstream.on("error", (error) => {
-      clearTimeout(timeout);
-      console.error(`[terminal ${connectionId}] ${error.message}`);
       peer.close(1011, "Runtime terminal unavailable");
-    });
+    }
   },
   message(peer, message) {
     const connection = connections.get(peer.id);
     if (!connection) return;
-    const input = message.text();
-    if (connection.upstream.readyState === WebSocket.OPEN)
-      connection.upstream.send(input);
-    else connection.pending.push(input);
+    connection.input.write(message.text());
   },
   close(peer) {
     const connection = connections.get(peer.id);
     if (!connection) return;
-    clearTimeout(connection.timeout);
+    clearConnectionTimeout(connection);
     connections.delete(peer.id);
-    if (connection.upstream.readyState === WebSocket.CONNECTING)
-      connection.upstream.terminate();
-    else if (connection.upstream.readyState === WebSocket.OPEN)
-      connection.upstream.close();
+    connection.input.close();
   },
 });

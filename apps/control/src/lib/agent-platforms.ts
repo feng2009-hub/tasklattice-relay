@@ -7,6 +7,7 @@ import {
 const platformBrandAssets: Partial<Record<AgentPlatformId, string>> = {
   openclaw: "/assets/brands/openclaw-lobehub.webp",
   hermes: "/assets/brands/hermesagent-lobehub.webp",
+  deepagents: "/assets/agent-providers/langgraph.png",
 };
 
 export const agentRuntimePresentation = {

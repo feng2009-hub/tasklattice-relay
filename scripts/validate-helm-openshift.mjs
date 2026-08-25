@@ -201,7 +201,7 @@ for (const serviceAccount of [
   `${releaseName}-runtime`,
   `${releaseName}-control`,
   `${releaseName}-openshell`,
-  `${releaseName}-project-runtime-cleanup`,
+  `${releaseName}-control-worker`,
 ]) {
   if (
     !anyuidSubjects.some(

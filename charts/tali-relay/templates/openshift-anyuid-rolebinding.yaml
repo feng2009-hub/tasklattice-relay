@@ -24,9 +24,9 @@ subjects:
     name: {{ include "openshell.serviceAccountName" .Subcharts.openshell }}
     namespace: {{ .Release.Namespace }}
   {{- end }}
-  {{- if .Values.control.deletionWorker.enabled }}
+  {{- if .Values.control.worker.enabled }}
   - kind: ServiceAccount
-    name: {{ include "tali.projectRuntimeCleanupServiceAccountName" . }}
+    name: {{ include "tali.controlWorkerServiceAccountName" . }}
     namespace: {{ .Release.Namespace }}
   {{- end }}
 {{- end }}

@@ -101,6 +101,12 @@ git -C "$build_context" checkout --quiet "$NEMOCLAW_VERSION"
 if [ "$AGENT_PLATFORM" = "openclaw" ]; then
   node "$REPOSITORY_ROOT/scripts/patch-nemoclaw-openclaw-no-proxy.mjs" \
     "$build_context/scripts/nemoclaw-start.sh"
+elif [ "$AGENT_PLATFORM" = "deepagents" ]; then
+  node "$REPOSITORY_ROOT/scripts/patch-nemoclaw-deepagents-kubernetes-profile.mjs" \
+    "$build_context/agents/langchain-deepagents-code/start.sh"
+  node "$REPOSITORY_ROOT/scripts/patch-nemoclaw-deepagents-provider-v2-inference.mjs" \
+    "$build_context/agents/langchain-deepagents-code/managed-dcode-runtime.py" \
+    "$build_context/agents/langchain-deepagents-code/patch-managed-deepagents-code.py"
 fi
 
 resolved_base_image="$NEMOCLAW_BASE_IMAGE"

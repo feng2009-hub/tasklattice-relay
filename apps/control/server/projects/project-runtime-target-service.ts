@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { prisma } from "../db/prisma";
 import type { PrismaClient } from "../generated/prisma/client";
 import { PlatformSettingsService } from "../platform/platform-settings-service";
@@ -49,12 +49,15 @@ function safeError(error: unknown): string {
   return message.slice(0, 4_000);
 }
 
+const PROJECT_RUNTIME_RECONCILE_LEASE_MS = 10 * 60 * 1_000;
+
 /**
- * Performs idempotent, on-demand Namespace provisioning.
+ * Performs idempotent Namespace provisioning for both synchronous creation
+ * and durable Control Worker reconciliation.
  *
- * There is deliberately no polling loop or lease. Project creation calls
- * ensureProjectNamespace synchronously, and operators can run reconcileAll
- * as a one-shot repair command after an outage or upgrade.
+ * Project creation calls ensureProjectNamespace synchronously. The Worker
+ * fans out stale Project targets into individual jobs, while reconcileAll
+ * remains available as a one-shot operator repair command.
  */
 export class ProjectRuntimeTargetService
   implements ProjectRuntimeNamespaceProvisioner
@@ -110,14 +113,47 @@ export class ProjectRuntimeTargetService
       }));
     this.assertConfiguredCluster(target.clusterId, runtime.clusterId);
 
+    const reconciliationId = randomUUID();
+    const referenceTime = new Date();
     try {
+      const claimed = await this.db.projectRuntimeTarget.updateMany({
+        where: {
+          generation: target.generation,
+          projectId: project.id,
+          status: { not: "deleting" },
+          OR: [
+            { status: { not: "reconciling" } },
+            { leaseExpiresAt: null },
+            { leaseExpiresAt: { lte: referenceTime } },
+          ],
+        },
+        data: {
+          attempts: { increment: 1 },
+          lastError: null,
+          leaseExpiresAt: new Date(
+            referenceTime.getTime() + PROJECT_RUNTIME_RECONCILE_LEASE_MS,
+          ),
+          leaseOwner: reconciliationId,
+          status: "reconciling",
+        },
+      });
+      if (!claimed.count) {
+        throw new Error(
+          `Project Runtime Target ${project.id} changed or started deleting before generation ${target.generation} could be reconciled.`,
+        );
+      }
       await namespaces.reconcile({
         namespace: target.namespace,
         projectId: project.id,
         projectName: project.name,
       });
-      await this.db.projectRuntimeTarget.update({
-        where: { projectId: project.id },
+      const observed = await this.db.projectRuntimeTarget.updateMany({
+        where: {
+          generation: target.generation,
+          leaseOwner: reconciliationId,
+          projectId: project.id,
+          status: "reconciling",
+        },
         data: {
           attempts: 0,
           lastError: null,
@@ -128,10 +164,20 @@ export class ProjectRuntimeTargetService
           status: "ready",
         },
       });
+      if (!observed.count) {
+        throw new Error(
+          `Project Runtime Target ${project.id} changed while generation ${target.generation} was being reconciled.`,
+        );
+      }
       return true;
     } catch (error) {
       await this.db.projectRuntimeTarget.updateMany({
-        where: { projectId: project.id },
+        where: {
+          generation: target.generation,
+          leaseOwner: reconciliationId,
+          projectId: project.id,
+          status: "reconciling",
+        },
         data: {
           lastError: safeError(error),
           leaseExpiresAt: null,
@@ -141,6 +187,43 @@ export class ProjectRuntimeTargetService
       });
       throw error;
     }
+  }
+
+  async reconciliationCandidateIds(
+    referenceTime = new Date(),
+    resyncIntervalMs = 5 * 60 * 1_000,
+  ): Promise<string[]> {
+    const runtime = (await loadPlatformRuntimeConfiguration(this.db)).runtimeNamespaces;
+    if (!runtime.enabled) return [];
+    const projects = await this.db.project.findMany({
+      where: { deletedAt: null },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        runtimeTarget: {
+          select: {
+            lastReconciledAt: true,
+            leaseExpiresAt: true,
+            status: true,
+          },
+        },
+      },
+    });
+    const staleBefore = referenceTime.getTime() - resyncIntervalMs;
+    return projects
+      .filter(({ runtimeTarget }) =>
+        !runtimeTarget
+        || (
+          runtimeTarget.status !== "reconciling"
+          || !runtimeTarget.leaseExpiresAt
+          || runtimeTarget.leaseExpiresAt <= referenceTime
+        ) && (
+          runtimeTarget.status !== "ready"
+          || !runtimeTarget.lastReconciledAt
+          || runtimeTarget.lastReconciledAt.getTime() <= staleBefore
+        )
+      )
+      .map(({ id }) => id);
   }
 
   async reconcileAll(): Promise<ProjectRuntimeReconciliationSummary> {

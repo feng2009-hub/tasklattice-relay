@@ -193,7 +193,7 @@ describe("ResourceCatalogService", () => {
       unpackedSizeBytes: archive.length,
       fileCount: 1,
       manifest: {},
-      sourcePath: "skills/vendor/dist/test.tar.gz",
+      sourcePath: "artifacts/skills/vendor/test.tar.gz",
       createdAt: new Date(),
     });
     await service.updateSkill(skill.id, {

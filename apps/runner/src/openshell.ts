@@ -83,7 +83,9 @@ export function taliLiteLlmProviderProfile(
         {
           name: "api_key",
           description: "TaskLattice Relay Instance virtual key",
-          env_vars: ["OPENAI_API_KEY"],
+          // Deep Agents Code reads its provider key from this dedicated name;
+          // both names resolve to the same instance-scoped LiteLLM credential.
+          env_vars: ["OPENAI_API_KEY", "DEEPAGENTS_CODE_OPENAI_API_KEY"],
           required: true,
           auth_style: "bearer",
           header_name: "authorization",
@@ -232,12 +234,19 @@ export function deepSeekProviderCreateCommand(input: ProvisionInput): {
       taliLiteLlmProviderProfileId,
       "--credential",
       "OPENAI_API_KEY",
+      "--credential",
+      "DEEPAGENTS_CODE_OPENAI_API_KEY",
       "--config",
       `OPENAI_BASE_URL=${input.inferenceEndpoint}`,
     ]),
     env: {
       ...process.env,
-      ...(apiKey ? { OPENAI_API_KEY: apiKey } : {}),
+      ...(apiKey
+        ? {
+            OPENAI_API_KEY: apiKey,
+            DEEPAGENTS_CODE_OPENAI_API_KEY: apiKey,
+          }
+        : {}),
     },
   };
 }

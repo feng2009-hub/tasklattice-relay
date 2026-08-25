@@ -13,6 +13,7 @@ import type {
 import type { LiteLLMAdminClient } from "../providers/litellm-client";
 import { createTestPrisma } from "../test/prisma";
 import type { PrismaClient } from "../generated/prisma/client";
+import type { ControlJobPublisher } from "../jobs/control-job-queue";
 import { ProjectService } from "./project-service";
 import {
   projectRuntimeNamespace,
@@ -514,7 +515,23 @@ describe("ProjectService", () => {
 
   it("soft deletes Projects while retaining their unique name and audit history", async () => {
     const db = createTestPrisma();
-    const service = new ProjectService(db);
+    const enqueueProjectDeletion = vi.fn(async () =>
+      "00000000-0000-4000-8000-000000000027"
+    );
+    const controlJobs: ControlJobPublisher = {
+      enqueueProjectDeletion,
+      enqueueProjectRuntimeReconcile: vi.fn(async () =>
+        "00000000-0000-4000-8000-000000000028"
+      ),
+      start: vi.fn(async () => undefined),
+    };
+    const service = new ProjectService(
+      db,
+      undefined,
+      undefined,
+      undefined,
+      controlJobs,
+    );
     const administrator = auth({
       displayName: "Administrator",
       email: "administrator@tali.local",
@@ -579,6 +596,11 @@ describe("ProjectService", () => {
       new Date(schedule.scheduledFor).getTime() -
         new Date(schedule.requestedAt).getTime(),
     ).toBe(10 * 60 * 1_000);
+    expect(enqueueProjectDeletion).toHaveBeenCalledWith(
+      project.id,
+      new Date(schedule.scheduledFor),
+      expect.any(Object),
+    );
     expect(
       await db.projectDeletionTask.findUnique({
         where: { projectId: project.id },
@@ -586,6 +608,7 @@ describe("ProjectService", () => {
     ).toMatchObject({
       attempts: 0,
       nextAttemptAt: new Date(schedule.scheduledFor),
+      queueJobId: "00000000-0000-4000-8000-000000000027",
       scheduledFor: new Date(schedule.scheduledFor),
       status: "scheduled",
     });
@@ -609,6 +632,33 @@ describe("ProjectService", () => {
     await expect(
       service.requireRole(project.id, administratorId, ["admin"]),
     ).rejects.toThrow(/permission/i);
+  });
+
+  it("rejects a Project deletion when the durable job cannot be enqueued", async () => {
+    const db = createTestPrisma();
+    const controlJobs: ControlJobPublisher = {
+      enqueueProjectDeletion: vi.fn(async () => {
+        throw new Error("Control queue unavailable");
+      }),
+      enqueueProjectRuntimeReconcile: vi.fn(async () => undefined),
+      start: vi.fn(async () => undefined),
+    };
+    const service = new ProjectService(
+      db,
+      undefined,
+      undefined,
+      undefined,
+      controlJobs,
+    );
+
+    await expect(service.delete("individual", "local-admin")).rejects.toThrow(
+      "Control queue unavailable",
+    );
+    expect(controlJobs.enqueueProjectDeletion).toHaveBeenCalledWith(
+      "individual",
+      expect.any(Date),
+      expect.any(Object),
+    );
   });
 
   it("does not create a Project when a user signs in", async () => {

@@ -608,7 +608,7 @@ function ModelRoutingsSettingsContent({
           deleting={removeModel.isPending}
           onConfirm={() => removeModel.mutate(removingModel)}
           {...(removeModel.error instanceof Error ? { error: removeModel.error.message } : {})}
-          retentionDescription="The registered model record is soft-deleted with a deletion timestamp. Its LiteLLM model registration is runtime configuration and is permanently removed."
+          impactDescription="The registered model disappears from this scope and its LiteLLM registration is permanently removed."
         />
       ) : null}
       <RegisterModelsDrawer
@@ -789,7 +789,7 @@ function DepartmentRoutingConfigurationSheet({
           deleting={remove.isPending}
           onConfirm={() => remove.mutate()}
           {...(remove.error ? { error: remove.error.message } : {})}
-          retentionDescription="The shared routing record is soft-deleted. Audit history remains retained."
+          impactDescription="The shared routing disappears from this Department and can no longer be inherited by Projects."
         />
       ) : null}
     </>

@@ -38,7 +38,7 @@ export function DeleteModelRoutingSheet({
       blockedAction={onViewConsumers}
       blockedActionLabel="View consumers"
       {...(error ? { error } : {})}
-      retentionDescription="The routing record, policy, and audit history are retained with a deletion timestamp. Its LiteLLM route and dedicated team are runtime configuration and are permanently removed."
+      impactDescription="Its LiteLLM route and dedicated team are permanently removed. Provider connections and registered models are not changed."
     >
       {blocked ? (
         <div role="alert" className="flex gap-3 border-l-2 border-amber-500 bg-amber-500/5 px-4 py-3 text-sm">

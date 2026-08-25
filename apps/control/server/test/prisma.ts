@@ -49,6 +49,7 @@ import platformRuntimeSettingsMigration from "../../prisma/migrations/2026082500
 import businessRecordSoftDeleteMigration from "../../prisma/migrations/20260826000000_business_record_soft_delete/migration.sql?raw";
 import unifiedAgentInstancesMigration from "../../prisma/migrations/20260826010000_unify_agent_instances_and_runtime_settings/migration.sql?raw";
 import departmentInferenceResourcesMigration from "../../prisma/migrations/20260826030000_department_inference_resources/migration.sql?raw";
+import controlWorkerQueueMigration from "../../prisma/migrations/20260827000000_control_worker_queue/migration.sql?raw";
 import { developmentResourceCatalog } from "../catalog/development-resource-catalog";
 import { PrismaClient } from "../generated/prisma/client";
 
@@ -499,6 +500,13 @@ export function createTestPrisma(): PrismaClient {
       ),
   );
   memory.public.none(departmentInferenceResourcesMigration);
+  if (
+    !controlWorkerQueueMigration.includes("queue_job_id UUID")
+    || !controlWorkerQueueMigration.includes("'failed'")
+  ) {
+    throw new Error("Control Worker queue migration structure is incomplete.");
+  }
+  memory.public.none(controlWorkerQueueMigration);
   const pg = memory.adapters.createPg();
   const query = pg.Client.prototype.query;
   pg.Client.prototype.query = function (

@@ -2697,26 +2697,35 @@ export interface TerminalResize {
   rows: number;
 }
 
+export type TerminalClientMessage =
+  | { type: "input"; data: string }
+  | { type: "resize"; cols: number; rows: number }
+  | { type: "invalid-control" };
+
 export function encodeTerminalResize({ cols, rows }: TerminalResize): string {
   return `${terminalResizePrefix}${cols}:${rows}`;
 }
 
-export function parseTerminalResize(input: string): TerminalResize | undefined {
-  if (!input.startsWith(terminalResizePrefix)) return undefined;
+export function parseTerminalClientMessage(
+  input: string,
+): TerminalClientMessage {
+  if (!input.startsWith(terminalResizePrefix))
+    return { type: "input", data: input };
   const parts = input.slice(terminalResizePrefix.length).split(":");
-  if (parts.length !== 2) return undefined;
+  if (parts.length !== 2) return { type: "invalid-control" };
   const [colsText, rowsText] = parts;
-  if (colsText === undefined || rowsText === undefined) return undefined;
+  if (colsText === undefined || rowsText === undefined)
+    return { type: "invalid-control" };
   const cols = Number(colsText);
   const rows = Number(rowsText);
   if (
     !Number.isInteger(cols) ||
     !Number.isInteger(rows) ||
-    cols < 20 ||
+    cols < 2 ||
     cols > 500 ||
-    rows < 5 ||
+    rows < 1 ||
     rows > 300
   )
-    return undefined;
-  return { cols, rows };
+    return { type: "invalid-control" };
+  return { type: "resize", cols, rows };
 }

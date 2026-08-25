@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Build deterministic vendor Skill archives and their deployment manifest."""
+"""Build or verify deterministic vendor Skill deployment artifacts."""
 
 from __future__ import annotations
 
+import argparse
 import gzip
 import hashlib
 import io
@@ -14,7 +15,7 @@ import tarfile
 REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
 VENDOR_ROOT = REPOSITORY_ROOT / "skills" / "vendor"
 CATALOG_PATH = VENDOR_ROOT / "catalog.json"
-DIST_ROOT = VENDOR_ROOT / "dist"
+ARTIFACT_ROOT = REPOSITORY_ROOT / "artifacts" / "skills" / "vendor"
 MAX_FILE_COUNT = 500
 MAX_FILE_SIZE = 5 * 1024 * 1024
 MAX_UNPACKED_SIZE = 50 * 1024 * 1024
@@ -68,16 +69,28 @@ def archive_skill(skill_id: str, skill_root: Path, files: list[Path]) -> bytes:
             info.uname = ""
             info.gname = ""
             archive.addfile(info, io.BytesIO(data))
-    return gzip.compress(tar_buffer.getvalue(), compresslevel=9, mtime=0)
+    # GzipFile always writes the portable 255 OS byte. gzip.compress(...,
+    # mtime=0) delegates to zlib on Python 3.11 and 3.12, which writes a
+    # platform-specific OS byte and makes otherwise identical artifacts fail
+    # verification when they are produced on macOS and checked on Linux.
+    gzip_buffer = io.BytesIO()
+    with gzip.GzipFile(
+        fileobj=gzip_buffer,
+        mode="wb",
+        compresslevel=9,
+        mtime=0,
+        filename="",
+    ) as compressed:
+        compressed.write(tar_buffer.getvalue())
+    return gzip_buffer.getvalue()
 
 
-def main() -> None:
+def main(*, check: bool = False) -> None:
     catalog = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
     if catalog.get("schemaVersion") != 1:
         raise ValueError("Unsupported Vendor Skill catalog schema")
-    DIST_ROOT.mkdir(parents=True, exist_ok=True)
     artifacts: list[dict[str, object]] = []
-    expected_archives: set[Path] = set()
+    artifact_files: dict[str, bytes] = {}
 
     for item in catalog["skills"]:
         skill_id = item["id"]
@@ -92,9 +105,7 @@ def main() -> None:
         if len(content) > MAX_ARCHIVE_SIZE:
             raise ValueError(f"{skill_id} exceeds the compressed size limit")
         archive_name = f"{skill_id}-{version}.tar.gz"
-        archive_path = DIST_ROOT / archive_name
-        archive_path.write_bytes(content)
-        expected_archives.add(archive_path)
+        artifact_files[archive_name] = content
         artifacts.append(
             {
                 "skillId": skill_id,
@@ -109,20 +120,56 @@ def main() -> None:
             }
         )
 
-    for existing in DIST_ROOT.glob("*.tar.gz"):
-        if existing not in expected_archives:
-            existing.unlink()
     manifest = {
         "schemaVersion": 1,
         "generatedFrom": "skills/vendor/catalog.json",
         "artifacts": artifacts,
     }
-    (DIST_ROOT / "manifest.json").write_text(
-        json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
+    artifact_files["manifest.json"] = (
+        json.dumps(manifest, indent=2, ensure_ascii=False) + "\n"
+    ).encode("utf-8")
+
+    if check:
+        mismatches = [
+            name
+            for name, expected in artifact_files.items()
+            if not (ARTIFACT_ROOT / name).is_file()
+            or (ARTIFACT_ROOT / name).read_bytes() != expected
+        ]
+        if ARTIFACT_ROOT.is_dir():
+            expected_names = set(artifact_files)
+            mismatches.extend(
+                path.name
+                for path in ARTIFACT_ROOT.iterdir()
+                if path.is_file()
+                and path.name != ".DS_Store"
+                and path.name not in expected_names
+            )
+        if mismatches:
+            files = ", ".join(sorted(set(mismatches)))
+            raise ValueError(
+                f"Vendor Skill artifacts are stale or incomplete: {files}. "
+                "Run `npm run skills:package`."
+            )
+        print(f"Verified {len(artifacts)} Vendor Skill artifacts in {ARTIFACT_ROOT}")
+        return
+
+    ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
+    for name, content in artifact_files.items():
+        (ARTIFACT_ROOT / name).write_bytes(content)
+    for existing in ARTIFACT_ROOT.glob("*.tar.gz"):
+        if existing.name not in artifact_files:
+            existing.unlink()
+    print(
+        f"Packaged {len(artifacts)} Vendor Skills as artifacts in {ARTIFACT_ROOT}"
     )
-    print(f"Packaged {len(artifacts)} Vendor Skills in {DIST_ROOT}")
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="verify that committed artifacts match their Skill sources",
+    )
+    main(check=parser.parse_args().check)

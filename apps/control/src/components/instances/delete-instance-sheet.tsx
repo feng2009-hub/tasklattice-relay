@@ -23,7 +23,7 @@ export function DeleteInstanceSheet({
       title="Delete Instance"
       description={(
         <>
-          Delete <strong>{instanceName}</strong> and queue its runtime cleanup.
+          Delete <strong>{instanceName}</strong> and clean up its runtime resources in the background.
         </>
       )}
       entityName={instanceName}
@@ -32,12 +32,11 @@ export function DeleteInstanceSheet({
       deleting={deleting}
       onConfirm={onConfirm}
       {...(error ? { error } : {})}
-      retentionDescription="The Instance record is soft-deleted and retained with a deletion timestamp. Its OpenShell Sandbox, Pod, service credentials, and other runtime resources are permanently destroyed in the background."
     >
       <div className="flex gap-3 border-l-2 border-amber-500 bg-amber-500/5 px-4 py-3">
         <ServerCog className="mt-0.5 size-4 shrink-0 text-amber-700 dark:text-amber-400" />
         <p className="text-xs leading-5 text-muted-foreground">
-          The Instance disappears from active views immediately. Runtime cleanup may continue after this panel closes.
+          The Instance disappears immediately. Runtime cleanup continues in the background and may take a few minutes.
         </p>
       </div>
     </DeleteEntitySheet>

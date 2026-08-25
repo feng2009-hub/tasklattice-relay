@@ -543,6 +543,7 @@ describe("Instance Access Policy lifecycle", () => {
       expect.objectContaining({
         apiKey: "sk-instance-service-account",
         inferenceEndpoint: "http://litellm:4000/v1",
+        model: "tali/provider-a/deepseek-chat",
       }),
     );
     expect(setup.runner.createSandbox).toHaveBeenCalledWith(
@@ -671,7 +672,7 @@ describe("Instance Access Policy lifecycle", () => {
     });
 
     expect(agent.modelRoutingId).toBe("routing-selected");
-    expect(agent.model).toBe("tali-routing-routing-selected");
+    expect(agent.model).toBe("tali/provider-a/deepseek-chat");
     expect(agent.modelRoutingBindingId).toBe(
       "instance-selected:routing-selected",
     );
@@ -679,6 +680,9 @@ describe("Instance Access Policy lifecycle", () => {
       vi.mocked(setup.litellm.createInstanceServiceAccountKey!).mock.calls[0]![0]
         .models,
     ).toContain("tali-routing-routing-selected");
+    expect(setup.runner.createSandbox).toHaveBeenCalledWith(
+      expect.objectContaining({ model: "tali/provider-a/deepseek-chat" }),
+    );
   });
 
   it("uses the Routing referenced by the Instance even if Project defaults conflict", async () => {

@@ -178,7 +178,7 @@ function PolicyPage() {
           deleting={remove.isPending}
           onConfirm={() => remove.mutate(selected.id)}
           {...(remove.error instanceof Error ? { error: remove.error.message } : {})}
-          retentionDescription="The Runtime Policy is marked as deleted and retained with a deletion timestamp. Existing Sandbox resources are not restarted or changed."
+          impactDescription="Existing Sandbox resources are not restarted or changed."
         />
       ) : null}
 

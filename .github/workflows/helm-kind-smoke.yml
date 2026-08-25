@@ -114,7 +114,7 @@ jobs:
             --tag "${control_image}" \
             .
           docker run --rm --entrypoint test "${control_image}" \
-            -f /app/apps/control/.output/workers/project-deletion-worker.mjs
+            -f /app/apps/control/.output/workers/control-worker.mjs
           docker run --rm --entrypoint test "${control_image}" \
             -f /app/apps/control/.output/tools/project-runtime-reconcile.mjs
           kind load docker-image \

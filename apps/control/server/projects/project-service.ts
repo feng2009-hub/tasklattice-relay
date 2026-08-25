@@ -17,6 +17,10 @@ import {
 } from "../email/smtp-invitation-mailer";
 import type { Prisma, PrismaClient } from "../generated/prisma/client";
 import {
+  controlJobQueue,
+  type ControlJobPublisher,
+} from "../jobs/control-job-queue";
+import {
   LiteLLMClient,
   type LiteLLMAdminClient,
 } from "../providers/litellm-client";
@@ -175,6 +179,7 @@ export class ProjectService {
     private readonly litellm: LiteLLMAdminClient = new LiteLLMClient(),
     private readonly invitationMailer: InvitationMailer = new SmtpInvitationMailer(),
     private runtimeNamespaces?: ProjectRuntimeNamespaceProvisioner,
+    private controlJobs?: ControlJobPublisher,
   ) {}
 
   /**
@@ -960,6 +965,11 @@ export class ProjectService {
     const scheduledFor = new Date(
       requestedAt.getTime() + PROJECT_DELETION_GRACE_PERIOD_MS,
     );
+    this.controlJobs ??= controlJobQueue();
+    // Initialize/migrate the library-owned queue schema before opening the
+    // product transaction. Enqueuing below still uses that same product
+    // transaction, so the tombstone and job commit or roll back together.
+    await this.controlJobs.start();
     await this.db.$transaction(async (transaction) => {
       await transaction.project.update({
         where: { id: projectId },
@@ -975,6 +985,15 @@ export class ProjectService {
           scheduledFor,
           status: "scheduled",
         },
+      });
+      const queueJobId = await this.controlJobs!.enqueueProjectDeletion(
+        projectId,
+        scheduledFor,
+        transaction,
+      );
+      await transaction.projectDeletionTask.update({
+        where: { projectId },
+        data: { queueJobId },
       });
     });
     return {

@@ -17,10 +17,6 @@ import { ProjectRuntimeTargetService } from "./project-runtime-target-service";
 export const PROJECT_DELETION_GRACE_PERIOD_MINUTES = 10;
 export const PROJECT_DELETION_GRACE_PERIOD_MS =
   PROJECT_DELETION_GRACE_PERIOD_MINUTES * 60 * 1_000;
-export const PROJECT_DELETION_LEASE_MS = 2 * 60 * 1_000;
-const PROJECT_DELETION_HEARTBEAT_MS = 30 * 1_000;
-const PROJECT_DELETION_RETRY_BASE_MS = 30 * 1_000;
-const PROJECT_DELETION_RETRY_MAX_MS = 30 * 60 * 1_000;
 
 export interface ProjectDeletionSchedule {
   delayMinutes: number;
@@ -37,19 +33,6 @@ interface CleanupOptions {
 export interface ProjectRuntimeTargetCleanup {
   deleteProjectNamespace(projectId: string): Promise<boolean>;
 }
-
-export interface ProjectDeletionTaskClaim {
-  attempts: number;
-  leaseExpiresAt: string;
-  projectId: string;
-  scheduledFor: string;
-  workerId: string;
-}
-
-export type ProjectDeletionWorkResult =
-  | { status: "idle" }
-  | { projectId: string; status: "completed" }
-  | { error: string; nextAttemptAt: string; projectId: string; status: "retry" };
 
 interface DeletionAgent {
   agentPlatform: AgentPlatformId;
@@ -123,140 +106,6 @@ export class ProjectDeletionService {
       options.externalCleanupEnabled ?? true;
     this.runtimeTargets =
       runtimeTargets ?? new ProjectRuntimeTargetService(this.db);
-  }
-
-  async claimNext(
-    workerId: string,
-    referenceTime = new Date(),
-  ): Promise<ProjectDeletionTaskClaim | undefined> {
-    for (let scan = 0; scan < 8; scan += 1) {
-      const candidate = await this.db.projectDeletionTask.findFirst({
-        where: {
-          nextAttemptAt: { lte: referenceTime },
-          scheduledFor: { lte: referenceTime },
-          OR: [
-            { status: { in: ["scheduled", "retry"] } },
-            {
-              status: "running",
-              OR: [
-                { leaseExpiresAt: null },
-                { leaseExpiresAt: { lte: referenceTime } },
-              ],
-            },
-          ],
-        },
-        orderBy: [{ nextAttemptAt: "asc" }, { scheduledFor: "asc" }],
-        select: {
-          attempts: true,
-          projectId: true,
-          scheduledFor: true,
-        },
-      });
-      if (!candidate) return undefined;
-      const leaseExpiresAt = new Date(
-        referenceTime.getTime() + PROJECT_DELETION_LEASE_MS,
-      );
-      const claimed = await this.db.projectDeletionTask.updateMany({
-        where: {
-          projectId: candidate.projectId,
-          nextAttemptAt: { lte: referenceTime },
-          scheduledFor: { lte: referenceTime },
-          OR: [
-            { status: { in: ["scheduled", "retry"] } },
-            {
-              status: "running",
-              OR: [
-                { leaseExpiresAt: null },
-                { leaseExpiresAt: { lte: referenceTime } },
-              ],
-            },
-          ],
-        },
-        data: {
-          attempts: { increment: 1 },
-          lastError: null,
-          leaseExpiresAt,
-          leaseOwner: workerId,
-          status: "running",
-        },
-      });
-      if (claimed.count) {
-        return {
-          attempts: candidate.attempts + 1,
-          leaseExpiresAt: leaseExpiresAt.toISOString(),
-          projectId: candidate.projectId,
-          scheduledFor: candidate.scheduledFor.toISOString(),
-          workerId,
-        };
-      }
-    }
-    return undefined;
-  }
-
-  async processNext(
-    workerId: string,
-    referenceTime = new Date(),
-  ): Promise<ProjectDeletionWorkResult> {
-    const claim = await this.claimNext(workerId, referenceTime);
-    if (!claim) return { status: "idle" };
-    const heartbeat = setInterval(() => {
-      void this.renewLease(claim.projectId, workerId).catch((error) => {
-        console.error("Project deletion lease renewal failed.", {
-          projectId: claim.projectId,
-          error,
-        });
-      });
-    }, PROJECT_DELETION_HEARTBEAT_MS);
-    heartbeat.unref();
-    try {
-      await this.purge(claim.projectId);
-      return { projectId: claim.projectId, status: "completed" };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown cleanup error.";
-      const retryDelay = Math.min(
-        PROJECT_DELETION_RETRY_BASE_MS * 2 ** Math.min(claim.attempts - 1, 6),
-        PROJECT_DELETION_RETRY_MAX_MS,
-      );
-      const nextAttemptAt = new Date(referenceTime.getTime() + retryDelay);
-      await this.db.projectDeletionTask.updateMany({
-        where: {
-          projectId: claim.projectId,
-          leaseOwner: workerId,
-          status: "running",
-        },
-        data: {
-          lastError: message,
-          leaseExpiresAt: null,
-          leaseOwner: null,
-          nextAttemptAt,
-          status: "retry",
-        },
-      });
-      return {
-        error: message,
-        nextAttemptAt: nextAttemptAt.toISOString(),
-        projectId: claim.projectId,
-        status: "retry",
-      };
-    } finally {
-      clearInterval(heartbeat);
-    }
-  }
-
-  async renewLease(
-    projectId: string,
-    workerId: string,
-    referenceTime = new Date(),
-  ): Promise<boolean> {
-    const renewed = await this.db.projectDeletionTask.updateMany({
-      where: { projectId, leaseOwner: workerId, status: "running" },
-      data: {
-        leaseExpiresAt: new Date(
-          referenceTime.getTime() + PROJECT_DELETION_LEASE_MS,
-        ),
-      },
-    });
-    return renewed.count > 0;
   }
 
   async purge(projectId: string): Promise<boolean> {

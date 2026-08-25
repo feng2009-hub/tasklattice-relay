@@ -2,7 +2,7 @@ import express from "express";
 import {
   agentPlatformIds,
   mapAgentPlatforms,
-  parseTerminalResize,
+  parseTerminalClientMessage,
   type AgentPlatformId,
   type ProvisioningStage,
   type RunnerSandbox,
@@ -651,10 +651,10 @@ server.on("upgrade", async (request, socket, head) => {
           webSocket.close(1000, `Terminal exited ${exitCode}`);
       });
       webSocket.on("message", (raw) => {
-        const input = raw.toString();
-        const resize = parseTerminalResize(input);
-        if (resize) terminal.resize(resize.cols, resize.rows);
-        else terminal.write(input);
+        const message = parseTerminalClientMessage(raw.toString());
+        if (message.type === "resize")
+          terminal.resize(message.cols, message.rows);
+        else if (message.type === "input") terminal.write(message.data);
       });
       webSocket.on("close", () => {
         console.info(`[terminal ${connectionId}] browser disconnected`);

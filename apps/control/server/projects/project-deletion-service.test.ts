@@ -26,7 +26,7 @@ function deletionDependencies() {
 }
 
 describe("ProjectDeletionService", () => {
-  it("leases due work, destroys runtime resources, and keeps business tombstones", async () => {
+  it("destroys runtime resources and keeps business tombstones", async () => {
     const db = createTestPrisma();
     const dependencies = deletionDependencies();
     const requestedAt = new Date("2026-08-15T08:00:00.000Z");
@@ -42,6 +42,7 @@ describe("ProjectDeletionService", () => {
         projectId: "individual",
         nextAttemptAt: scheduledFor,
         scheduledFor,
+        status: "running",
       },
     });
     await db.agentRecord.create({
@@ -75,45 +76,7 @@ describe("ProjectDeletionService", () => {
       } satisfies ProjectRuntimeTargetCleanup,
     );
 
-    const early = await service.processNext(
-      "worker-a",
-      new Date(requestedAt.getTime() + PROJECT_DELETION_GRACE_PERIOD_MS - 1),
-    );
-    expect(early).toEqual({ status: "idle" });
-    expect(dependencies.destroySandbox).not.toHaveBeenCalled();
-    await expect(db.project.findUnique({ where: { id: "individual" } }))
-      .resolves.not.toBeNull();
-
-    const claim = await service.claimNext(
-      "worker-a",
-      new Date(requestedAt.getTime() + PROJECT_DELETION_GRACE_PERIOD_MS),
-    );
-    expect(claim).toMatchObject({
-      attempts: 1,
-      projectId: "individual",
-      workerId: "worker-a",
-    });
-    await expect(service.claimNext(
-      "worker-b",
-      new Date(requestedAt.getTime() + PROJECT_DELETION_GRACE_PERIOD_MS),
-    )).resolves.toBeUndefined();
-    await db.projectDeletionTask.update({
-      where: { projectId: "individual" },
-      data: {
-        attempts: 0,
-        leaseExpiresAt: null,
-        leaseOwner: null,
-        status: "scheduled",
-      },
-    });
-    const result = await service.processNext(
-      "worker-a",
-      new Date(requestedAt.getTime() + PROJECT_DELETION_GRACE_PERIOD_MS),
-    );
-    expect(result).toEqual({
-      projectId: "individual",
-      status: "completed",
-    });
+    await expect(service.purge("individual")).resolves.toBe(true);
     expect(dependencies.destroySandbox).toHaveBeenCalledWith(
       "tali-cleanup-agent",
       "openclaw",
@@ -139,7 +102,7 @@ describe("ProjectDeletionService", () => {
     });
   });
 
-  it("keeps the tombstone for retry when external cleanup fails", async () => {
+  it("keeps the tombstone when external cleanup fails", async () => {
     const db = createTestPrisma();
     const requestedAt = new Date("2026-08-15T08:00:00.000Z");
     await db.project.update({
@@ -183,25 +146,16 @@ describe("ProjectDeletionService", () => {
       { externalCleanupEnabled: false },
     );
 
-    const result = await service.processNext(
-      "retry-worker",
-      new Date(requestedAt.getTime() + PROJECT_DELETION_GRACE_PERIOD_MS),
+    await expect(service.purge("individual")).rejects.toThrow(
+      "Runner unavailable",
     );
-    expect(result).toMatchObject({
-      projectId: "individual",
-      error: "Runner unavailable",
-      status: "retry",
-    });
     await expect(db.project.findUnique({ where: { id: "individual" } }))
       .resolves.toMatchObject({ deletedAt: requestedAt });
     await expect(db.projectDeletionTask.findUnique({
       where: { projectId: "individual" },
     })).resolves.toMatchObject({
-      attempts: 1,
-      lastError: "Runner unavailable",
-      leaseExpiresAt: null,
-      leaseOwner: null,
-      status: "retry",
+      attempts: 0,
+      status: "scheduled",
     });
   });
 });

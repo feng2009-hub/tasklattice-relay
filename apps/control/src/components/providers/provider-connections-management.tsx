@@ -315,7 +315,7 @@ function ProviderActions({
       deleting={remove.isPending}
       onConfirm={() => remove.mutate()}
       {...(remove.error instanceof Error ? { error: remove.error.message } : {})}
-      retentionDescription="The Provider connection and its unused model records are soft-deleted with a deletion timestamp. The encrypted credential remains in the retained tombstone; LiteLLM model registrations are permanently removed."
+      impactDescription="The Provider connection disappears from active views. Its unused LiteLLM model registrations are permanently removed."
     />
     </>
   );

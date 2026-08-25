@@ -473,7 +473,7 @@ function AgentGarden() {
         deleting={remove.isPending}
         onConfirm={() => remove.mutate(removingAgent.id)}
         {...(remove.error instanceof Error ? { error: remove.error.message } : {})}
-        retentionDescription="The registration, discovery snapshot, and managed Instance metadata are soft-deleted with a deletion timestamp. A platform-managed Deployment and Service are physically removed; an externally hosted Agent is not deleted."
+        impactDescription="A platform-managed Agent's Deployment and Service are permanently removed. An externally hosted Agent is only removed from this Project and is not deleted from its host."
       />
       ) : null}
     </div>

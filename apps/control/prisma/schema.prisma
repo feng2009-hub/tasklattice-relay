@@ -470,6 +470,7 @@ model ProjectRuntimeTarget {
 
 model ProjectDeletionTask {
   projectId      String    @id @map("project_id")
+  queueJobId     String?   @map("queue_job_id") @db.Uuid
   status         String    @default("scheduled")
   scheduledFor   DateTime  @map("scheduled_for") @db.Timestamptz(6)
   nextAttemptAt  DateTime  @map("next_attempt_at") @db.Timestamptz(6)
@@ -482,6 +483,7 @@ model ProjectDeletionTask {
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
+  @@unique([queueJobId], map: "project_deletion_tasks_queue_job_id_key")
   @@index([status, nextAttemptAt, scheduledFor], map: "project_deletion_tasks_due_idx")
   @@index([leaseExpiresAt], map: "project_deletion_tasks_lease_idx")
   @@map("project_deletion_tasks")

@@ -1,8 +1,6 @@
 import { useEffect, useRef } from "react";
-import { FitAddon } from "@xterm/addon-fit";
-import { Terminal as Xterm } from "@xterm/xterm";
 import { encodeTerminalResize, type AgentPlatformId } from "@tali/contracts";
-import "@xterm/xterm/css/xterm.css";
+import { FitAddon, init, Terminal } from "ghostty-web";
 import { api } from "@/lib/api";
 import {
   acquireTerminalSession,
@@ -13,11 +11,22 @@ import {
 } from "@/lib/terminal-session";
 import { getAgentPlatformPresentation } from "@/lib/agent-platforms";
 
+let ghosttyInitialization: Promise<void> | undefined;
+
+function initializeGhostty(): Promise<void> {
+  ghosttyInitialization ??= init().catch((error: unknown) => {
+    ghosttyInitialization = undefined;
+    throw error;
+  });
+  return ghosttyInitialization;
+}
+
+function errorMessage(reason: unknown): string {
+  return reason instanceof Error ? reason.message : "Terminal unavailable.";
+}
+
 export type TerminalConnectionState =
-  | "connecting"
-  | "connected"
-  | "closed"
-  | "error";
+  "connecting" | "connected" | "closed" | "error";
 
 export interface TerminalConnectionSnapshot {
   state: TerminalConnectionState;
@@ -48,147 +57,175 @@ export function AgentTerminal({
   }, [onConnectionChange]);
 
   useEffect(() => {
-    if (!container.current) return;
+    const host = container.current;
+    if (!host) return;
     const sessionKey = `agent/${agentId}/${targetId}`;
     if (reconnectAttempt > 0) resetTerminalSession(sessionKey);
     connectionChange.current({ state: "connecting" });
 
-    const terminal = new Xterm({
-      convertEol: true,
-      cursorBlink: true,
-      cursorStyle: "block",
-      fontSize: 13,
-      fontFamily:
-        '"SFMono-Regular", "Cascadia Code", "Roboto Mono", "JetBrains Mono", Menlo, Monaco, Consolas, monospace',
-      scrollback: 2_000,
-      theme: {
-        background: "#0b0f0e",
-        foreground: "#d8e0db",
-        cursor: "#b9f45a",
-        selectionBackground: "#36531499",
-      },
-    });
-    const fit = new FitAddon();
-    terminal.loadAddon(fit);
-    terminal.open(container.current);
-
     let disposed = false;
+    let terminal: Terminal | undefined;
     let session: TerminalSession | undefined;
     let sessionListener: ((event: TerminalSessionEvent) => void) | undefined;
+    let inputSubscription: { dispose: () => void } | undefined;
+    let resizeSubscription: { dispose: () => void } | undefined;
+    let connectionTimer: number | undefined;
     let receivedOutput = false;
+    let latestResize: string | undefined;
+    let lastSentResize: string | undefined;
+
     const notify = (snapshot: TerminalConnectionSnapshot) => {
       if (!disposed) connectionChange.current(snapshot);
     };
-    const connectionTimer = window.setTimeout(() => {
-      if (disposed || receivedOutput) return;
-      notify({
-        state: "error",
-        message: "Terminal connection timed out.",
-      });
-      if (
-        session?.socket.readyState === WebSocket.OPEN ||
-        session?.socket.readyState === WebSocket.CONNECTING
-      )
-        session.socket.close(4000, "terminal connection timed out");
-    }, 15_000);
-    const sendResize = () => {
-      fit.fit();
-      if (session?.socket.readyState === WebSocket.OPEN)
-        session.socket.send(
-          encodeTerminalResize({ cols: terminal.cols, rows: terminal.rows }),
-        );
+    const clearConnectionTimer = () => {
+      if (connectionTimer === undefined) return;
+      window.clearTimeout(connectionTimer);
+      connectionTimer = undefined;
     };
-    const resizeObserver = new ResizeObserver(sendResize);
-    resizeObserver.observe(container.current);
-    requestAnimationFrame(sendResize);
+    const sendLatestResize = (force = false) => {
+      if (
+        !latestResize ||
+        !session ||
+        session.socket.readyState !== WebSocket.OPEN ||
+        (!force && latestResize === lastSentResize)
+      )
+        return;
+      session.socket.send(latestResize);
+      lastSentResize = latestResize;
+    };
 
-    const inputSubscription = terminal.onData((data) => {
-      if (session?.socket.readyState === WebSocket.OPEN)
-        session.socket.send(data);
-    });
-    const focusTerminal = () => terminal.focus();
-    container.current.addEventListener("pointerdown", focusTerminal);
+    const start = async () => {
+      try {
+        await initializeGhostty();
+        if (disposed) return;
 
-    void acquireTerminalSession(sessionKey, async () => {
-      const created = await api.createTerminalSession(agentId, targetId);
-      const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-      return `${protocol}//${location.host}${created.websocketUrl}`;
-    })
-      .then((acquired) => {
-        session = acquired;
+        const openedTerminal = new Terminal({
+          convertEol: true,
+          cursorBlink: true,
+          cursorStyle: "block",
+          fontSize: 13,
+          fontFamily:
+            '"SFMono-Regular", "Cascadia Code", "Roboto Mono", "JetBrains Mono", Menlo, Monaco, Consolas, monospace',
+          scrollback: 2_000,
+          theme: {
+            background: "#0b0f0e",
+            foreground: "#d8e0db",
+            cursor: "#b9f45a",
+            selectionBackground: "#36531499",
+          },
+        });
+        terminal = openedTerminal;
+        const fit = new FitAddon();
+        openedTerminal.loadAddon(fit);
+        openedTerminal.open(host);
+        host.setAttribute(
+          "aria-label",
+          `Interactive ${platform.name} terminal for ${targetLabel}`,
+        );
+
+        inputSubscription = openedTerminal.onData((data) => {
+          if (session?.socket.readyState === WebSocket.OPEN)
+            session.socket.send(data);
+        });
+        resizeSubscription = openedTerminal.onResize(({ cols, rows }) => {
+          latestResize = encodeTerminalResize({ cols, rows });
+          sendLatestResize();
+        });
+
+        fit.fit();
+        latestResize = encodeTerminalResize({
+          cols: openedTerminal.cols,
+          rows: openedTerminal.rows,
+        });
+        fit.observeResize();
+
+        connectionTimer = window.setTimeout(() => {
+          if (disposed || receivedOutput) return;
+          notify({ state: "error", message: "Terminal connection timed out." });
+          if (
+            session?.socket.readyState === WebSocket.OPEN ||
+            session?.socket.readyState === WebSocket.CONNECTING
+          )
+            session.socket.close(4000, "terminal connection timed out");
+        }, 15_000);
+
+        session = await acquireTerminalSession(sessionKey, async () => {
+          const created = await api.createTerminalSession(agentId, targetId);
+          const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+          return `${protocol}//${location.host}${created.websocketUrl}`;
+        });
         if (disposed) {
           releaseTerminalSession(sessionKey);
           return;
         }
+
         sessionListener = (event) => {
           if (disposed) return;
-          if (event.type === "open") {
-            sendResize();
-            terminal.focus();
-            return;
+          switch (event.type) {
+            case "open":
+              sendLatestResize(true);
+              openedTerminal.focus();
+              break;
+            case "message":
+              if (!receivedOutput) {
+                receivedOutput = true;
+                clearConnectionTimer();
+                notify({ state: "connected" });
+              }
+              openedTerminal.write(event.data);
+              break;
+            case "close":
+              clearConnectionTimer();
+              notify({
+                state: "closed",
+                ...(event.event.reason ? { message: event.event.reason } : {}),
+              });
+              break;
+            case "error":
+              clearConnectionTimer();
+              notify({
+                state: "error",
+                message: "Unable to connect to the Agent terminal.",
+              });
           }
-          if (event.type === "message") {
-            if (!receivedOutput) {
-              receivedOutput = true;
-              window.clearTimeout(connectionTimer);
-              notify({ state: "connected" });
-            }
-            terminal.write(event.data);
-            return;
-          }
-          if (event.type === "close") {
-            window.clearTimeout(connectionTimer);
-            notify({
-              state: "closed",
-              ...(event.event.reason ? { message: event.event.reason } : {}),
-            });
-            return;
-          }
-          window.clearTimeout(connectionTimer);
-          notify({
-            state: "error",
-            message: "Unable to connect to the Agent terminal.",
-          });
         };
         session.listeners.add(sessionListener);
+
         if (session.buffer.length) {
           receivedOutput = true;
-          window.clearTimeout(connectionTimer);
+          clearConnectionTimer();
           notify({ state: "connected" });
-          terminal.write(session.buffer.join(""));
+          openedTerminal.write(session.buffer.join(""));
           session.buffer.length = 0;
         }
         if (session.connected) {
-          sendResize();
-          terminal.focus();
+          sendLatestResize(true);
+          openedTerminal.focus();
         }
-      })
-      .catch((reason: unknown) => {
-        window.clearTimeout(connectionTimer);
-        notify({
-          state: "error",
-          message:
-            reason instanceof Error ? reason.message : "Terminal unavailable.",
-        });
-      });
+      } catch (reason: unknown) {
+        clearConnectionTimer();
+        notify({ state: "error", message: errorMessage(reason) });
+      }
+    };
+
+    void start();
 
     return () => {
       disposed = true;
-      window.clearTimeout(connectionTimer);
-      resizeObserver.disconnect();
-      container.current?.removeEventListener("pointerdown", focusTerminal);
+      clearConnectionTimer();
       if (session && sessionListener) session.listeners.delete(sessionListener);
       releaseTerminalSession(sessionKey);
-      inputSubscription.dispose();
-      terminal.dispose();
+      inputSubscription?.dispose();
+      resizeSubscription?.dispose();
+      terminal?.dispose();
     };
-  }, [agentId, reconnectAttempt, targetId]);
+  }, [agentId, agentPlatform, reconnectAttempt, targetId, targetLabel]);
 
   return (
     <div
       ref={container}
       aria-label={`Interactive ${platform.name} terminal for ${targetLabel}`}
-      className="min-h-0 flex-1 cursor-text overflow-hidden bg-[#0b0f0e] p-3"
+      className="relative min-h-0 flex-1 cursor-text overflow-hidden bg-[#0b0f0e] p-3 outline-none before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:z-10 before:h-px before:bg-transparent before:transition-colors focus-within:before:bg-[#b9f45a]/30"
     />
   );
 }

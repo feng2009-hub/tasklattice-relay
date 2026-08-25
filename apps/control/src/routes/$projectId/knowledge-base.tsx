@@ -231,7 +231,7 @@ function KnowledgeBase() {
           deleting={deleteSource.isPending}
           onConfirm={() => deleteSource.mutate(selected.id)}
           {...(deleteSource.error instanceof Error ? { error: deleteSource.error.message } : {})}
-          retentionDescription="The Knowledge Base record is soft-deleted with a deletion timestamp. Its LiteLLM Vector Store registration and Project permission are permanently removed."
+          impactDescription="The Vector Store disappears from this Project. Its LiteLLM registration and Project access are permanently removed."
         />
       ) : null}
 

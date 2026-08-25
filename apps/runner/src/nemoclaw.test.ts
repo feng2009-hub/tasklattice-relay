@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   encodeTerminalResize,
-  parseTerminalResize,
+  parseTerminalClientMessage,
 } from "@tali/contracts";
 import { agentMemoryInstructions, nemoClawTerminalArguments, onboardCommand } from "./nemoclaw.js";
 import { getAgentPlatformRuntime } from "./agent-platform.js";
@@ -98,8 +98,12 @@ describe("OpenShell Kubernetes command contract", () => {
     expect(command.args.join(" ")).not.toContain("database-secret-value");
     expect(command.args).toContain(taliLiteLlmProviderProfileId);
     expect(command.args).toContain("OPENAI_API_KEY");
+    expect(command.args).toContain("DEEPAGENTS_CODE_OPENAI_API_KEY");
     expect(command.args).toContain("OPENAI_BASE_URL=http://tali-litellm:4000/v1");
     expect(command.env.OPENAI_API_KEY).toBe("database-secret-value");
+    expect(command.env.DEEPAGENTS_CODE_OPENAI_API_KEY).toBe(
+      "database-secret-value",
+    );
   });
 
   it("keeps the shared LiteLLM Provider profile in platform scope", () => {
@@ -139,6 +143,7 @@ describe("OpenShell Kubernetes command contract", () => {
 
     expect(profile).toContain("id: tali-litellm");
     expect(profile).toContain("env_vars:\n      - OPENAI_API_KEY");
+    expect(profile).toContain("- DEEPAGENTS_CODE_OPENAI_API_KEY");
     expect(profile).toContain("auth_style: bearer");
     expect(profile).toContain("header_name: authorization");
     expect(profile).toContain(
@@ -403,6 +408,9 @@ describe("OpenShell Kubernetes command contract", () => {
       'NEMOCLAW_UPSTREAM_ENDPOINT_URL="$upstream_endpoint"',
     );
     expect(bootstrap).toContain(
+      'NEMOCLAW_INFERENCE_BASE_URL="$upstream_endpoint"',
+    );
+    expect(bootstrap).not.toContain(
       "NEMOCLAW_INFERENCE_BASE_URL=https://inference.local/v1",
     );
     expect(bootstrap).toContain("exec /usr/local/bin/nemoclaw-start");
@@ -593,12 +601,23 @@ describe("OpenShell Kubernetes command contract", () => {
   });
 
   it("round-trips bounded browser terminal resize messages", () => {
-    expect(parseTerminalResize(encodeTerminalResize({ cols: 120, rows: 36 }))).toEqual({
-      cols: 120,
-      rows: 36,
+    expect(
+      parseTerminalClientMessage(
+        encodeTerminalResize({ cols: 120, rows: 36 }),
+      ),
+    ).toEqual({ type: "resize", cols: 120, rows: 36 });
+    expect(parseTerminalClientMessage("plain terminal input")).toEqual({
+      type: "input",
+      data: "plain terminal input",
     });
-    expect(parseTerminalResize("plain terminal input")).toBeUndefined();
-    expect(parseTerminalResize("\u0000TALI_RESIZE:120:36:1")).toBeUndefined();
-    expect(parseTerminalResize(encodeTerminalResize({ cols: 2, rows: 1 }))).toBeUndefined();
+    expect(parseTerminalClientMessage("\u0000TALI_RESIZE:120:36:1")).toEqual({
+      type: "invalid-control",
+    });
+    expect(
+      parseTerminalClientMessage(encodeTerminalResize({ cols: 2, rows: 1 })),
+    ).toEqual({ type: "resize", cols: 2, rows: 1 });
+    expect(
+      parseTerminalClientMessage(encodeTerminalResize({ cols: 0, rows: 0 })),
+    ).toEqual({ type: "invalid-control" });
   });
 });

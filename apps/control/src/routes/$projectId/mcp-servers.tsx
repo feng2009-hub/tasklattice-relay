@@ -329,7 +329,7 @@ function McpServers() {
           deleting={deleteServer.isPending}
           onConfirm={() => deleteServer.mutate(selected.id)}
           {...(deleteServer.error instanceof Error ? { error: deleteServer.error.message } : {})}
-          retentionDescription="The MCP Server registration and local tool snapshot are soft-deleted with a deletion timestamp. Its LiteLLM registration and Project permission are permanently removed."
+          impactDescription="The MCP Server disappears from this Project. Its LiteLLM registration and Project access are permanently removed."
         />
       ) : null}
 

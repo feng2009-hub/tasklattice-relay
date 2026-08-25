@@ -11,6 +11,7 @@
   "scripts": {
     "build": "npm run build --workspace @tali/contracts && npm run build --workspace @tali/control && npm run build --workspace @tali/runner && npm run build --workspace @tali/example-mcp-server",
     "skills:package": "python3 scripts/package-vendor-skills.py",
+    "skills:check": "python3 scripts/package-vendor-skills.py --check",
     "dev": "npm run dev --workspace @tali/control",
     "dev:control": "npm run dev --workspace @tali/control",
     "dev:runner": "npm run dev --workspace @tali/runner",
