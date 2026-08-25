@@ -20,11 +20,13 @@ import {
   scopedEntityIdLimits,
   scopedEntityNameLimits,
   type PlatformOrganizationView,
+  type PlatformInfrastructureValidationView,
   type PlatformSecuritySettingsView,
   type PlatformSettingsSection,
   type PlatformSettingsView,
   type UpdatePlatformEmailSettingsInput,
   type UpdatePlatformSettingsInput,
+  type ValidatePlatformInfrastructureSettingsInput,
   type ValidatePlatformEmailSettingsInput,
   type ValidatePlatformSsoSettingsInput,
 } from "@tali/contracts";
@@ -34,6 +36,7 @@ import {
   CheckCircle2,
   ChevronDown,
   Container,
+  Database,
   KeyRound,
   Mail,
   Network,
@@ -43,6 +46,7 @@ import {
   RotateCcw,
   Save,
   Search,
+  ServerCog,
   Shield,
   ShieldAlert,
   ShieldCheck,
@@ -104,8 +108,10 @@ import {
   replaceExternalRoleBindings,
   updatePlatformSecuritySettings,
   updatePlatformEmailSettings,
+  updatePlatformInfrastructureSettings,
   updatePlatformSettings,
   validatePlatformEmailSettings,
+  validatePlatformInfrastructureSettings,
   validatePlatformSsoSettings,
 } from "@/services/platform-settings";
 
@@ -131,6 +137,7 @@ const sectionGroups = [
   {
     label: "Runtime & sandbox",
     items: [
+      { id: "infrastructure", label: "Infrastructure", icon: ServerCog },
       { id: "runtime", label: "Runtime", icon: Container },
       { id: "sandbox", label: "Sandbox", icon: Box },
     ],
@@ -269,6 +276,9 @@ function PlatformSettingsPage() {
         {section === "departments" ? <DepartmentsSettings /> : null}
         {section === "people" ? <PeopleSettings /> : null}
         {section === "project-roles" ? <RolePresetsSettings /> : null}
+        {section === "infrastructure" ? (
+          <InfrastructureSettings settings={settings.data} />
+        ) : null}
         {section === "runtime" ? (
           <RuntimeImagesSettings
             settings={settings.data}
@@ -289,6 +299,287 @@ function PlatformSettingsPage() {
         {section === "email" ? <EmailSettings settings={settings.data} /> : null}
       </section>
     </div>,
+  );
+}
+
+function InfrastructureSettings({ settings }: { settings: PlatformSettingsView }) {
+  const queryClient = useQueryClient();
+  const current = settings.infrastructure;
+  const [controlInternalUrl, setControlInternalUrl] = useState(current.controlInternalUrl);
+  const [runnerUrl, setRunnerUrl] = useState(current.runner.url);
+  const [runnerToken, setRunnerToken] = useState("");
+  const [litellmUrl, setLitellmUrl] = useState(current.litellm.url);
+  const [litellmMasterKey, setLitellmMasterKey] = useState("");
+  const [namespacesEnabled, setNamespacesEnabled] = useState(
+    current.runtimeNamespaces.enabled,
+  );
+  const [clusterId, setClusterId] = useState(current.runtimeNamespaces.clusterId);
+  const [namespacePrefix, setNamespacePrefix] = useState(
+    current.runtimeNamespaces.namePrefix,
+  );
+  const validate = useMutation({
+    mutationFn: validatePlatformInfrastructureSettings,
+  });
+  const save = useMutation({
+    mutationFn: updatePlatformInfrastructureSettings,
+    onSuccess: (updated) => {
+      queryClient.setQueryData<PlatformSettingsView>(
+        platformSettingsQueryKey,
+        (value) => value ? { ...value, infrastructure: updated } : value,
+      );
+      setControlInternalUrl(updated.controlInternalUrl);
+      setRunnerUrl(updated.runner.url);
+      setRunnerToken("");
+      setLitellmUrl(updated.litellm.url);
+      setLitellmMasterKey("");
+      setNamespacesEnabled(updated.runtimeNamespaces.enabled);
+      setClusterId(updated.runtimeNamespaces.clusterId);
+      setNamespacePrefix(updated.runtimeNamespaces.namePrefix);
+      validate.reset();
+    },
+  });
+  const draft = useMemo<ValidatePlatformInfrastructureSettingsInput>(() => ({
+    controlInternalUrl: controlInternalUrl.trim(),
+    runner: {
+      url: runnerUrl.trim(),
+      token: runnerToken
+        ? { action: "replace", value: runnerToken }
+        : { action: "preserve" },
+    },
+    litellm: {
+      url: litellmUrl.trim(),
+      masterKey: litellmMasterKey
+        ? { action: "replace", value: litellmMasterKey }
+        : { action: "preserve" },
+    },
+    runtimeNamespaces: {
+      enabled: namespacesEnabled,
+      clusterId: clusterId.trim(),
+      namePrefix: namespacePrefix.trim(),
+    },
+  }), [
+    clusterId,
+    controlInternalUrl,
+    litellmMasterKey,
+    litellmUrl,
+    namespacePrefix,
+    namespacesEnabled,
+    runnerToken,
+    runnerUrl,
+  ]);
+  const dirty =
+    draft.controlInternalUrl !== current.controlInternalUrl
+    || draft.runner.url !== current.runner.url
+    || Boolean(runnerToken)
+    || draft.litellm.url !== current.litellm.url
+    || Boolean(litellmMasterKey)
+    || draft.runtimeNamespaces.enabled !== current.runtimeNamespaces.enabled
+    || draft.runtimeNamespaces.clusterId !== current.runtimeNamespaces.clusterId
+    || draft.runtimeNamespaces.namePrefix !== current.runtimeNamespaces.namePrefix;
+  const complete = Boolean(
+    draft.controlInternalUrl
+    && draft.runner.url
+    && (current.runner.tokenConfigured || runnerToken)
+    && draft.litellm.url
+    && (current.litellm.masterKeyConfigured || litellmMasterKey)
+    && draft.runtimeNamespaces.clusterId
+    && draft.runtimeNamespaces.namePrefix,
+  );
+  const change = <T,>(setter: (value: T) => void, value: T) => {
+    setter(value);
+    validate.reset();
+    save.reset();
+  };
+  const validation = validate.data;
+
+  return (
+    <SettingsSection
+      title="Infrastructure"
+      description="Configure the live Control, Runner, LiteLLM, and Runtime Namespace connections. A draft must pass every probe before it can be saved."
+      action={<Badge variant="outline" className="h-8 text-muted-foreground"><PlugZap />Validation required</Badge>}
+    >
+      <div className="grid gap-8 xl:grid-cols-2 xl:gap-x-10">
+        <fieldset className="min-w-0 space-y-4">
+          <legend className="flex items-center gap-2 text-sm font-semibold">
+            <ServerCog className="size-4 text-muted-foreground" />
+            Control and Runner
+          </legend>
+          <p className="text-xs leading-5 text-muted-foreground">
+            Control uses its internal URL for Sandbox callbacks. Runner credentials stay encrypted and are never returned to the browser.
+          </p>
+          <div className="space-y-2">
+            <Label htmlFor="infrastructure-control-url">Control internal URL</Label>
+            <Input
+              id="infrastructure-control-url"
+              type="url"
+              className="h-11 font-mono text-xs"
+              value={controlInternalUrl}
+              onChange={(event) => change(setControlInternalUrl, event.target.value)}
+              placeholder="http://tali-relay-control:38080"
+            />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="infrastructure-runner-url">Runner URL</Label>
+              <Input
+                id="infrastructure-runner-url"
+                type="url"
+                className="h-11 font-mono text-xs"
+                value={runnerUrl}
+                onChange={(event) => change(setRunnerUrl, event.target.value)}
+                placeholder="http://tali-relay-runner:9090"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="infrastructure-runner-token">Runner token</Label>
+              <Input
+                id="infrastructure-runner-token"
+                type="password"
+                autoComplete="new-password"
+                className="h-11 font-mono text-xs"
+                value={runnerToken}
+                onChange={(event) => change(setRunnerToken, event.target.value)}
+                placeholder={current.runner.tokenConfigured ? "Leave blank to keep current token" : "Enter Runner token"}
+              />
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset className="min-w-0 space-y-4">
+          <legend className="flex items-center gap-2 text-sm font-semibold">
+            <Database className="size-4 text-muted-foreground" />
+            LiteLLM gateway
+          </legend>
+          <p className="text-xs leading-5 text-muted-foreground">
+            Validation calls LiteLLM's authenticated health endpoint. The master key is encrypted before it is stored.
+          </p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="infrastructure-litellm-url">LiteLLM URL</Label>
+              <Input
+                id="infrastructure-litellm-url"
+                type="url"
+                className="h-11 font-mono text-xs"
+                value={litellmUrl}
+                onChange={(event) => change(setLitellmUrl, event.target.value)}
+                placeholder="http://tali-relay-litellm:4000"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="infrastructure-litellm-key">Master key</Label>
+              <Input
+                id="infrastructure-litellm-key"
+                type="password"
+                autoComplete="new-password"
+                className="h-11 font-mono text-xs"
+                value={litellmMasterKey}
+                onChange={(event) => change(setLitellmMasterKey, event.target.value)}
+                placeholder={current.litellm.masterKeyConfigured ? "Leave blank to keep current key" : "Enter LiteLLM master key"}
+              />
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset className="min-w-0 space-y-4 xl:col-span-2">
+          <legend className="flex items-center gap-2 text-sm font-semibold">
+            <Box className="size-4 text-muted-foreground" />
+            Runtime Namespaces
+          </legend>
+          <p className="max-w-3xl text-xs leading-5 text-muted-foreground">
+            New Projects receive a stable Kubernetes Namespace. Validation prevents changing the cluster identity while existing Runtime Targets belong to another cluster.
+          </p>
+          <div className="grid gap-4 md:grid-cols-[minmax(13rem,0.7fr)_minmax(13rem,1fr)_minmax(13rem,1fr)] md:items-end">
+            <label className="flex min-h-11 items-center justify-between gap-4 rounded-md border px-3 py-2">
+              <span>
+                <span className="block text-sm font-medium">Manage Namespaces</span>
+                <span className="mt-0.5 block text-xs text-muted-foreground">Applies to new Projects</span>
+              </span>
+              <Switch
+                checked={namespacesEnabled}
+                onCheckedChange={(value) => change(setNamespacesEnabled, value)}
+                aria-label="Manage Runtime Namespaces"
+              />
+            </label>
+            <div className="space-y-2">
+              <Label htmlFor="infrastructure-cluster-id">Cluster ID</Label>
+              <Input
+                id="infrastructure-cluster-id"
+                className="h-11 font-mono text-xs"
+                value={clusterId}
+                onChange={(event) => change(setClusterId, event.target.value)}
+                placeholder="in-cluster"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="infrastructure-namespace-prefix">Namespace prefix</Label>
+              <Input
+                id="infrastructure-namespace-prefix"
+                className="h-11 font-mono text-xs"
+                value={namespacePrefix}
+                onChange={(event) => change(setNamespacePrefix, event.target.value)}
+                placeholder="tali-p"
+              />
+            </div>
+          </div>
+        </fieldset>
+      </div>
+
+      {validation ? <InfrastructureValidationSummary validation={validation} /> : null}
+      {validate.error ? (
+        <p className="mt-6 border-l-2 border-destructive bg-destructive/5 px-4 py-3 text-sm text-destructive" role="alert">
+          {validate.error.message}
+        </p>
+      ) : null}
+      {save.isSuccess ? (
+        <p className="mt-6 flex items-center gap-2 border-l-2 border-emerald-500 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-300" role="status">
+          <CheckCircle2 className="size-4" />Infrastructure configuration saved.
+        </p>
+      ) : null}
+      {save.error ? (
+        <p className="mt-6 border-l-2 border-destructive bg-destructive/5 px-4 py-3 text-sm text-destructive" role="alert">
+          {save.error.message}
+        </p>
+      ) : null}
+      <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+        <Button
+          className="h-11"
+          variant="outline"
+          disabled={!complete || validate.isPending || save.isPending}
+          onClick={() => validate.mutate(draft)}
+        >
+          {validate.isPending ? <Spinner /> : <ShieldCheck />}
+          Validate configuration
+        </Button>
+        <Button
+          className="h-11"
+          disabled={!dirty || !validation || validate.isPending || save.isPending}
+          onClick={() => validation && save.mutate({
+            ...draft,
+            validationToken: validation.validationToken,
+          })}
+        >
+          {save.isPending ? <Spinner /> : <Save />}
+          Save verified configuration
+        </Button>
+      </div>
+    </SettingsSection>
+  );
+}
+
+function InfrastructureValidationSummary({
+  validation,
+}: {
+  validation: PlatformInfrastructureValidationView;
+}) {
+  return (
+    <div className="mt-6 border-l-2 border-emerald-500 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-900 dark:text-emerald-200" role="status">
+      <p className="flex items-center gap-2 font-medium">
+        <CheckCircle2 className="size-4" />Configuration validated
+      </p>
+      <p className="mt-1 text-xs leading-5">
+        Control is healthy, Runner responded in {validation.runner.mode} mode, LiteLLM is reachable{validation.litellm.version ? ` (${validation.litellm.version})` : ""}, and {validation.runtimeNamespaces.existingTargetCount} existing Runtime Target{validation.runtimeNamespaces.existingTargetCount === 1 ? "" : "s"} match the cluster identity. Save before {new Date(validation.expiresAt).toLocaleTimeString()}.
+      </p>
+    </div>
   );
 }
 
@@ -359,7 +650,7 @@ function RuntimeImageRow({ effective, error, onChange, onReset, onSave, overridd
   const dirty = value !== persistedValue;
   return (
     <div className="grid gap-5 py-5 lg:min-h-40 lg:grid-cols-[minmax(12rem,0.55fr)_minmax(24rem,1.45fr)_10rem] lg:grid-rows-[1.25rem_2.75rem_1.25rem_1.25rem] lg:gap-x-5 lg:gap-y-2 lg:py-4">
-      <div className="flex min-w-0 items-center gap-3 lg:col-start-1 lg:row-start-2 lg:row-span-3 lg:self-start">
+      <div className="flex min-w-0 items-start gap-3 lg:col-start-1 lg:row-start-2 lg:row-span-3 lg:self-start">
         <AgentPlatformIcon platform={presentation} className="size-12" imageClassName="size-9" />
         <span className="min-w-0">
           <strong className="block truncate text-sm">{presentation.name}</strong>
@@ -481,7 +772,7 @@ function SandboxSettings({ settings }: { settings: PlatformSettingsView }) {
     >
       <div className="border-y">
         <div className="grid gap-5 py-5 lg:min-h-40 lg:grid-cols-[minmax(12rem,0.55fr)_minmax(11.5rem,0.725fr)_minmax(11.5rem,0.725fr)_10rem] lg:grid-rows-[1.25rem_2.75rem_1.25rem_1.25rem] lg:gap-x-4 lg:gap-y-2 lg:py-4">
-          <div className="flex min-w-0 items-center gap-3 lg:col-start-1 lg:row-start-2 lg:row-span-3 lg:self-start">
+          <div className="flex min-w-0 items-start gap-3 lg:col-start-1 lg:row-start-2 lg:row-span-3 lg:self-start">
             <span className="grid size-12 shrink-0 place-items-center rounded-md border bg-muted/25 text-muted-foreground">
               <Box className="size-5" />
             </span>
@@ -1231,6 +1522,9 @@ function CreateDepartmentSheet({ onCreated, onOpenChange, open, people }: { onCr
 function SecuritySettings({ settings }: { settings: PlatformSettingsView }) {
   const { security } = settings;
   const queryClient = useQueryClient();
+  const [localAuthenticationEnabled, setLocalAuthenticationEnabled] = useState(
+    security.localAuthenticationEnabled,
+  );
   const [enabled, setEnabled] = useState(security.sso.enabled);
   const [displayName, setDisplayName] = useState(security.sso.displayName);
   const [issuer, setIssuer] = useState(security.sso.issuer);
@@ -1259,6 +1553,7 @@ function SecuritySettings({ settings }: { settings: PlatformSettingsView }) {
         : current,
     );
     setEnabled(updated.sso.enabled);
+    setLocalAuthenticationEnabled(updated.localAuthenticationEnabled);
     setDisplayName(updated.sso.displayName);
     setIssuer(updated.sso.issuer);
     setClientId(updated.sso.clientId);
@@ -1302,7 +1597,8 @@ function SecuritySettings({ settings }: { settings: PlatformSettingsView }) {
       setBindingSheetOpen(false);
     },
   });
-  const dirty = enabled !== security.sso.enabled
+  const dirty = localAuthenticationEnabled !== security.localAuthenticationEnabled
+    || enabled !== security.sso.enabled
     || displayName !== security.sso.displayName
     || issuer !== security.sso.issuer
     || clientId !== security.sso.clientId
@@ -1311,20 +1607,18 @@ function SecuritySettings({ settings }: { settings: PlatformSettingsView }) {
     || clearSecret;
   const configuredSecret = Boolean(clientSecret)
     || (security.sso.clientSecretConfigured && !clearSecret);
-  const clientSecretUpdate: ValidatePlatformSsoSettingsInput["clientSecret"] = clientSecret
+  const clientSecretUpdate: ValidatePlatformSsoSettingsInput["sso"]["clientSecret"] = clientSecret
     ? { action: "replace", value: clientSecret }
     : clearSecret
       ? { action: "clear" }
       : { action: "preserve" };
-  const complete = !enabled
+  const complete = (localAuthenticationEnabled || enabled) && (!enabled
     || (Boolean(displayName.trim())
       && Boolean(issuer.trim())
       && Boolean(clientId.trim())
       && Boolean(groupClaim.trim())
-      && configuredSecret);
-  const validationComplete = Boolean(issuer.trim())
-    && Boolean(clientId.trim())
-    && configuredSecret;
+      && configuredSecret));
+  const validationComplete = complete;
   const busy = updateSecurity.isPending
     || validateSso.isPending
     || updateBindings.isPending;
@@ -1335,7 +1629,24 @@ function SecuritySettings({ settings }: { settings: PlatformSettingsView }) {
   };
 
   const save = () => {
+    if (!validateSso.data) return;
     updateSecurity.mutate({
+      localAuthenticationEnabled,
+      sso: {
+        clientId: clientId.trim(),
+        clientSecret: clientSecretUpdate,
+        displayName: displayName.trim(),
+        enabled,
+        groupClaim: groupClaim.trim(),
+        issuer: issuer.trim(),
+      },
+      validationToken: validateSso.data.validationToken,
+    });
+  };
+
+  const validate = () => {
+    validateSso.mutate({
+      localAuthenticationEnabled,
       sso: {
         clientId: clientId.trim(),
         clientSecret: clientSecretUpdate,
@@ -1347,22 +1658,14 @@ function SecuritySettings({ settings }: { settings: PlatformSettingsView }) {
     });
   };
 
-  const validate = () => {
-    validateSso.mutate({
-      clientId: clientId.trim(),
-      clientSecret: clientSecretUpdate,
-      issuer: issuer.trim(),
-    });
-  };
-
   return (
     <SettingsSection
       title="Authentication & SSO"
-      description="Configure the database-owned OIDC provider. Local authentication stays deployment-managed as the recovery path for Platform Administrators."
-      action={<Badge variant="outline" className="border-primary/25 text-primary">Database managed</Badge>}
+      description="Configure database-owned local and OIDC sign-in. Validate the complete authentication draft before saving it."
+      action={<Badge variant="outline" className="border-primary/25 text-primary">Validation required</Badge>}
     >
-      <div className="divide-y border-y">
-        <SecurityStatusRow icon={KeyRound} title="Local authentication" description="Username and password sign-in for locally managed accounts." enabled={security.localAuthenticationEnabled} />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <SecurityStatusRow icon={KeyRound} title="Local authentication" description="Username and password sign-in for locally managed accounts." enabled={localAuthenticationEnabled} />
         <SecurityStatusRow icon={Shield} title={displayName || "Enterprise SSO"} description="OIDC discovery, PKCE, and ID-token verification through Better Auth." enabled={enabled} />
       </div>
 
@@ -1371,12 +1674,11 @@ function SecuritySettings({ settings }: { settings: PlatformSettingsView }) {
           {security.configurationError} Replace the Client secret and save.
         </p>
       ) : null}
-      {!security.canEditOnline ? (
-        <p className="mt-5 border-l-2 border-amber-500 bg-amber-500/5 px-4 py-3 text-xs leading-5 text-amber-900 dark:text-amber-200">
-          Online SSO editing is locked because Local authentication is disabled. Restore Local authentication in <code>control.toml</code> before changing the active sign-in provider.
-        </p>
-      ) : null}
       <div className="mt-6 grid gap-5 lg:grid-cols-2">
+        <div className="flex min-h-11 items-center justify-between gap-4 rounded-md border px-3 py-2 lg:col-span-2">
+          <span><Label htmlFor="security-local-enabled">Enable local authentication</Label><span className="mt-0.5 block text-xs text-muted-foreground">Keep enabled until a validated SSO administrator can recover access.</span></span>
+          <Switch id="security-local-enabled" disabled={!editable} checked={localAuthenticationEnabled} onCheckedChange={(next) => { draftChanged(); setLocalAuthenticationEnabled(next); }} />
+        </div>
         <div className="space-y-2">
           <Label htmlFor="security-oidc-display-name">Provider display name</Label>
           <Input id="security-oidc-display-name" className="h-11" disabled={!editable} value={displayName} onChange={(event) => { draftChanged(); setDisplayName(event.target.value); }} placeholder="Company SSO" />
@@ -1426,37 +1728,37 @@ function SecuritySettings({ settings }: { settings: PlatformSettingsView }) {
         </div>
         <ReadOnlySetting id="security-oidc-callback" label="Callback URL" value={security.sso.callbackUrl} />
       </div>
-      <div className="mt-7 border-t pt-5">
+      <div className="mt-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className="text-sm font-semibold">Validate and apply</h3>
-            <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">Complete the provider configuration, validate Discovery and JWKS, then save the validated revision.</p>
+            <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">Validation checks the local recovery credential and, when enabled, OIDC Discovery and JWKS.</p>
           </div>
           <div className="flex flex-wrap gap-2 sm:justify-end">
             <Button className="h-11" variant="outline" disabled={!editable || !validationComplete} onClick={validate}>
               {validateSso.isPending ? <Spinner /> : <ShieldCheck />}
-              Validate SSO
+              Validate security
             </Button>
-            <Button className="h-11" disabled={!editable || !dirty || !complete || (enabled && !validateSso.isSuccess)} onClick={save}>
+            <Button className="h-11" disabled={!editable || !dirty || !complete || !validateSso.isSuccess} onClick={save}>
               {updateSecurity.isPending ? <Spinner /> : <Save />}
-              Save SSO
+              Save verified security
             </Button>
           </div>
         </div>
-        {enabled && dirty && !validateSso.isSuccess ? (
-          <p className="mt-3 text-xs text-muted-foreground">Validation is required before an enabled SSO configuration can be saved.</p>
+        {dirty && !validateSso.isSuccess ? (
+          <p className="mt-3 text-xs text-muted-foreground">Validation is required before the authentication configuration can be saved.</p>
         ) : null}
         {validateSso.data ? (
           <div className="mt-4 border-l-2 border-emerald-500 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-900 dark:text-emerald-200" role="status">
-            <p className="flex items-center gap-2 font-medium"><CheckCircle2 className="size-4" />SSO configuration validated</p>
-            <p className="mt-1 text-xs leading-5">Discovery issuer matched and {validateSso.data.signingKeyCount} JWKS signing {validateSso.data.signingKeyCount === 1 ? "key was" : "keys were"} found. Client credentials are verified during an actual SSO sign-in.</p>
+            <p className="flex items-center gap-2 font-medium"><CheckCircle2 className="size-4" />Authentication configuration validated</p>
+            <p className="mt-1 text-xs leading-5">{validateSso.data.localCredentialReady ? "The local recovery credential is ready. " : ""}{enabled ? `Discovery issuer matched and ${validateSso.data.signingKeyCount} JWKS signing ${validateSso.data.signingKeyCount === 1 ? "key was" : "keys were"} found. ` : ""}Save before {new Date(validateSso.data.expiresAt).toLocaleTimeString()}.</p>
           </div>
         ) : null}
         {validateSso.error ? <p className="mt-4 border-l-2 border-destructive bg-destructive/5 px-4 py-3 text-sm text-destructive" role="alert">{validateSso.error.message}</p> : null}
-        {updateSecurity.isSuccess ? <p className="mt-4 flex items-center gap-2 border-l-2 border-emerald-500 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-300" role="status"><CheckCircle2 className="size-4" />SSO settings applied to new authentication requests.</p> : null}
+        {updateSecurity.isSuccess ? <p className="mt-4 flex items-center gap-2 border-l-2 border-emerald-500 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-300" role="status"><CheckCircle2 className="size-4" />Authentication settings applied to new requests.</p> : null}
         {updateSecurity.error ? <p className="mt-4 border-l-2 border-destructive bg-destructive/5 px-4 py-3 text-sm text-destructive" role="alert">{updateSecurity.error.message}</p> : null}
       </div>
-      <div className="mt-7 border-t pt-6">
+      <div className="mt-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className="text-sm font-semibold">Group role bindings</h3>
@@ -1545,14 +1847,7 @@ function SecuritySettings({ settings }: { settings: PlatformSettingsView }) {
         }}
       />
       <div className="mt-6 border-l-2 border-amber-500 bg-amber-500/5 px-4 py-3 text-xs leading-5 text-amber-900 dark:text-amber-200">
-        The Client secret is encrypted in the Platform database and is never returned to the browser. There is no deployment-file fallback. Every Control replica observes the shared settings revision before serving its next SSO request.
-      </div>
-      <div className="mt-7 border-t pt-6">
-        <h3 className="text-sm font-semibold">Configuration ownership review</h3>
-        <div className="mt-3 divide-y border-y text-xs">
-          <OwnershipRow title="Platform database" description="Departments, people and roles, Runtime policy, Provider admission, OIDC, and encrypted email delivery credentials." />
-          <OwnershipRow title="Keep deployment-managed" description="Database, Runner and LiteLLM connectivity; signing keys; cluster identity; bootstrap credentials; public and internal service URLs." />
-        </div>
+        Authentication policy and the Client secret are stored in the Platform database. The secret is encrypted and is never returned to the browser.
       </div>
     </SettingsSection>
   );
@@ -1885,10 +2180,6 @@ function SecurityStatusRow({ description, enabled, icon: Icon, title }: { descri
 
 function ReadOnlySetting({ id, label, placeholder, value }: { id: string; label: string; placeholder?: string; value: string }) {
   return <div className="min-w-0 space-y-2"><Label htmlFor={id}>{label}</Label><Input id={id} readOnly className="h-11 font-mono text-xs" value={value} placeholder={placeholder} /></div>;
-}
-
-function OwnershipRow({ description, title }: { description: string; title: string }) {
-  return <div className="grid gap-1 py-3 sm:grid-cols-[12rem_minmax(0,1fr)] sm:gap-4"><strong>{title}</strong><span className="leading-5 text-muted-foreground">{description}</span></div>;
 }
 
 function SettingsSection({ action, children, description, title }: { action: ReactNode; children: ReactNode; description: string; title: string }) {

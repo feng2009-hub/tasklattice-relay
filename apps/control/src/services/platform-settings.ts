@@ -7,14 +7,18 @@ import type {
   PlatformPeopleView,
   PlatformEmailSettingsView,
   PlatformEmailValidationView,
+  PlatformInfrastructureSettingsView,
+  PlatformInfrastructureValidationView,
   PlatformSecuritySettingsView,
   PlatformSettingsView,
   PlatformSsoValidationView,
   ReplaceExternalRoleBindingsInput,
   UpdatePlatformSecuritySettingsInput,
   UpdatePlatformEmailSettingsInput,
+  UpdatePlatformInfrastructureSettingsInput,
   UpdatePlatformSettingsInput,
   ValidatePlatformEmailSettingsInput,
+  ValidatePlatformInfrastructureSettingsInput,
   ValidatePlatformSsoSettingsInput,
 } from "@tali/contracts";
 import type { Project, ProjectRole } from "@/types/project";
@@ -56,6 +60,24 @@ export function updatePlatformSettings(
   input: UpdatePlatformSettingsInput,
 ): Promise<PlatformSettingsView> {
   return platformRequest("/api/v1/platform/settings", {
+    method: "PUT",
+    body: JSON.stringify(input),
+  });
+}
+
+export function validatePlatformInfrastructureSettings(
+  input: ValidatePlatformInfrastructureSettingsInput,
+): Promise<PlatformInfrastructureValidationView> {
+  return platformRequest("/api/v1/platform/infrastructure/validate", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function updatePlatformInfrastructureSettings(
+  input: UpdatePlatformInfrastructureSettingsInput,
+): Promise<PlatformInfrastructureSettingsView> {
+  return platformRequest("/api/v1/platform/infrastructure", {
     method: "PUT",
     body: JSON.stringify(input),
   });

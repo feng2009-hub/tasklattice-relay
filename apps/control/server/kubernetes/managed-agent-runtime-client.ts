@@ -10,7 +10,7 @@ import {
   type V1Service,
 } from "@kubernetes/client-node";
 import type { OnboardContainerImageAgentInput } from "@tali/contracts";
-import { getControlConfig } from "../config/control-config";
+import { loadPlatformRuntimeConfiguration } from "../platform/platform-runtime-config";
 
 const FIELD_MANAGER = "tali-control-managed-agent";
 const DEFAULT_ONBOARD_TIMEOUT_MS = 120_000;
@@ -584,11 +584,20 @@ export class KubernetesManagedAgentRuntimeClient
 }
 
 export function createManagedAgentRuntimeClient(): ManagedAgentRuntimeClient {
-  if (!getControlConfig().runtime_namespaces.enabled) {
-    return new DisabledManagedAgentRuntimeClient();
-  }
-  if (!process.env.KUBERNETES_SERVICE_HOST) {
-    return new UnavailableManagedAgentRuntimeClient();
-  }
-  return new KubernetesManagedAgentRuntimeClient();
+  let kubernetes: KubernetesManagedAgentRuntimeClient | undefined;
+  const current = async (): Promise<ManagedAgentRuntimeClient> => {
+    if (!(await loadPlatformRuntimeConfiguration()).runtimeNamespaces.enabled)
+      return new DisabledManagedAgentRuntimeClient();
+    if (!process.env.KUBERNETES_SERVICE_HOST)
+      return new UnavailableManagedAgentRuntimeClient();
+    return (kubernetes ??= new KubernetesManagedAgentRuntimeClient());
+  };
+  return {
+    async onboard(input) {
+      return (await current()).onboard(input);
+    },
+    async remove(input) {
+      return (await current()).remove(input);
+    },
+  };
 }

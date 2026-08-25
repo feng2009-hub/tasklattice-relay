@@ -1,11 +1,27 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { providerKinds, updatePlatformSettingsSchema } from "@tali/contracts";
+import {
+  providerKinds,
+  updatePlatformSettingsSchema,
+  type ValidatePlatformSsoSettingsInput,
+} from "@tali/contracts";
 import {
   developmentControlConfig,
   setControlConfigForTests,
 } from "../config/control-config";
 import { createTestPrisma } from "../test/prisma";
 import { PlatformSettingsService } from "./platform-settings-service";
+
+async function saveValidatedSecurity(
+  service: PlatformSettingsService,
+  input: ValidatePlatformSsoSettingsInput,
+  actor = "platform-admin",
+) {
+  const validation = await service.validateSecurity(input);
+  return service.updateSecurity(
+    { ...input, validationToken: validation.validationToken },
+    actor,
+  );
+}
 
 describe("PlatformSettingsService", () => {
   beforeEach(() => {
@@ -17,6 +33,95 @@ describe("PlatformSettingsService", () => {
   afterEach(() => {
     setControlConfigForTests(undefined);
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it("validates runtime connections before saving encrypted infrastructure settings", async () => {
+    const db = createTestPrisma();
+    const runtimeFetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "http://control.internal/api/health") {
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      }
+      if (url === "http://runner.internal/health") {
+        expect(new Headers(init?.headers).get("authorization"))
+          .toBe("Bearer runner-secret");
+        return new Response(JSON.stringify({
+          ok: true,
+          mode: "openshell-kubernetes",
+        }), { status: 200 });
+      }
+      if (url === "http://litellm.internal/health/liveliness") {
+        expect(new Headers(init?.headers).get("authorization"))
+          .toBe("Bearer litellm-secret");
+        return new Response(JSON.stringify({
+          status: "healthy",
+          version: "1.2.3",
+        }), { status: 200 });
+      }
+      return new Response("not found", { status: 404 });
+    }) as unknown as typeof fetch;
+    vi.stubGlobal("fetch", runtimeFetch);
+    const verifyRuntimeNamespaceAccess = vi.fn(async () => {});
+    const service = new PlatformSettingsService(
+      db,
+      runtimeFetch,
+      undefined,
+      verifyRuntimeNamespaceAccess,
+    );
+    const draft = {
+      controlInternalUrl: "http://control.internal",
+      runner: {
+        url: "http://runner.internal",
+        token: { action: "replace" as const, value: "runner-secret" },
+      },
+      litellm: {
+        url: "http://litellm.internal",
+        masterKey: { action: "replace" as const, value: "litellm-secret" },
+      },
+      runtimeNamespaces: {
+        enabled: true,
+        clusterId: "in-cluster",
+        namePrefix: "tali-p",
+      },
+    };
+
+    const validation = await service.validateInfrastructure(draft);
+    expect(validation).toMatchObject({
+      control: { ok: true },
+      runner: { ok: true, mode: "openshell-kubernetes" },
+      litellm: { ok: true, version: "1.2.3" },
+      runtimeNamespaces: { ok: true, existingTargetCount: 0 },
+    });
+    expect(verifyRuntimeNamespaceAccess).toHaveBeenCalledOnce();
+    await expect(service.updateInfrastructure({
+      ...draft,
+      runner: { ...draft.runner, url: "http://changed.internal" },
+      validationToken: validation.validationToken,
+    }, "platform-admin")).rejects.toThrow("changed after validation");
+
+    const updated = await service.updateInfrastructure({
+      ...draft,
+      validationToken: validation.validationToken,
+    }, "platform-admin");
+    expect(updated).toEqual({
+      controlInternalUrl: "http://control.internal",
+      runner: { url: "http://runner.internal", tokenConfigured: true },
+      litellm: { url: "http://litellm.internal", masterKeyConfigured: true },
+      runtimeNamespaces: {
+        enabled: true,
+        clusterId: "in-cluster",
+        namePrefix: "tali-p",
+      },
+    });
+    const record = await db.platformSettingsRecord.findUniqueOrThrow({
+      where: { id: "platform" },
+    });
+    expect(record.runnerTokenEncrypted).toMatch(/^v1:/);
+    expect(record.litellmMasterKeyEncrypted).toMatch(/^v1:/);
+    expect(JSON.stringify(record)).not.toContain("runner-secret");
+    expect(JSON.stringify(record)).not.toContain("litellm-secret");
   });
 
   it("rejects quota configuration at the Platform scope", () => {
@@ -136,18 +241,23 @@ describe("PlatformSettingsService", () => {
 
   it("validates and encrypts an online OIDC override without returning its secret", async () => {
     const db = createTestPrisma();
-    const oidcFetch = vi.fn(async () => new Response(JSON.stringify({
-      issuer: "https://identity.example",
-      authorization_endpoint: "https://identity.example/authorize",
-      token_endpoint: "https://identity.example/token",
-      jwks_uri: "https://identity.example/jwks",
-    }), {
+    const oidcFetch = vi.fn(async (input: string | URL | Request) => new Response(JSON.stringify(
+      String(input).endsWith("/jwks")
+        ? { keys: [{ kid: "signing-key", kty: "RSA" }] }
+        : {
+            issuer: "https://identity.example",
+            authorization_endpoint: "https://identity.example/authorize",
+            token_endpoint: "https://identity.example/token",
+            jwks_uri: "https://identity.example/jwks",
+          },
+    ), {
       headers: { "content-type": "application/json" },
       status: 200,
     })) as unknown as typeof fetch;
     const service = new PlatformSettingsService(db, oidcFetch);
 
-    const updated = await service.updateSecurity({
+    const updated = await saveValidatedSecurity(service, {
+      localAuthenticationEnabled: false,
       sso: {
         clientId: "tali-control",
         clientSecret: { action: "replace", value: "provider-secret" },
@@ -155,7 +265,7 @@ describe("PlatformSettingsService", () => {
         enabled: true,
         issuer: "https://identity.example",
       },
-    }, "platform-admin");
+    });
 
     expect(updated).toMatchObject({
       configurationError: null,
@@ -183,15 +293,16 @@ describe("PlatformSettingsService", () => {
       sso: { clientSecret: "provider-secret", enabled: true },
     });
 
-    await service.updateSecurity({
+    await saveValidatedSecurity(service, {
+      localAuthenticationEnabled: false,
       sso: {
         clientId: "tali-control-v2",
         clientSecret: { action: "preserve" },
         displayName: "Company SSO",
-        enabled: false,
+        enabled: true,
         issuer: "https://identity.example",
       },
-    }, "platform-admin");
+    });
     await expect(service.authRuntimeSettings()).resolves.toMatchObject({
       revision: 2,
       sso: { clientId: "tali-control-v2", clientSecret: "provider-secret" },
@@ -205,7 +316,8 @@ describe("PlatformSettingsService", () => {
     })) as unknown as typeof fetch;
     const service = new PlatformSettingsService(createTestPrisma(), oidcFetch);
 
-    await expect(service.updateSecurity({
+    await expect(saveValidatedSecurity(service, {
+      localAuthenticationEnabled: false,
       sso: {
         clientId: "tali-control",
         clientSecret: { action: "replace", value: "provider-secret" },
@@ -213,7 +325,7 @@ describe("PlatformSettingsService", () => {
         enabled: true,
         issuer: "https://identity.example",
       },
-    }, "platform-admin")).rejects.toThrow(
+    })).rejects.toThrow(
       "OIDC discovery returned HTTP 503",
     );
   });
@@ -240,9 +352,14 @@ describe("PlatformSettingsService", () => {
     const service = new PlatformSettingsService(db, oidcFetch as unknown as typeof fetch);
 
     await expect(service.validateSecurity({
-      clientId: "tali-control",
-      clientSecret: { action: "replace", value: "provider-secret" },
-      issuer: "https://identity.example",
+      localAuthenticationEnabled: false,
+      sso: {
+        clientId: "tali-control",
+        clientSecret: { action: "replace", value: "provider-secret" },
+        displayName: "Company SSO",
+        enabled: true,
+        issuer: "https://identity.example",
+      },
     })).resolves.toMatchObject({
       discoveryUrl: "https://identity.example/.well-known/openid-configuration",
       issuer: "https://identity.example",
@@ -272,28 +389,31 @@ describe("PlatformSettingsService", () => {
     );
 
     await expect(service.validateSecurity({
-      clientId: "tali-control",
-      clientSecret: { action: "replace", value: "provider-secret" },
-      issuer: "https://identity.example",
-    })).rejects.toThrow("OIDC JWKS does not contain any signing keys");
-  });
-
-  it("requires Local authentication before online SSO changes", async () => {
-    const config = developmentControlConfig();
-    config.auth.local.enabled = false;
-    setControlConfigForTests(config);
-    const service = new PlatformSettingsService(createTestPrisma());
-
-    await expect(service.updateSecurity({
+      localAuthenticationEnabled: false,
       sso: {
         clientId: "tali-control",
         clientSecret: { action: "replace", value: "provider-secret" },
         displayName: "Company SSO",
+        enabled: true,
+        issuer: "https://identity.example",
+      },
+    })).rejects.toThrow("OIDC JWKS does not contain any signing keys");
+  });
+
+  it("rejects a draft that disables every authentication method", async () => {
+    const service = new PlatformSettingsService(createTestPrisma());
+
+    await expect(service.validateSecurity({
+      localAuthenticationEnabled: false,
+      sso: {
+        clientId: "tali-control",
+        clientSecret: { action: "clear" },
+        displayName: "Company SSO",
         enabled: false,
         issuer: "https://identity.example",
       },
-    }, "platform-admin")).rejects.toThrow(
-      "require Local authentication as a recovery path",
+    })).rejects.toThrow(
+      "at least one Platform authentication method",
     );
   });
 

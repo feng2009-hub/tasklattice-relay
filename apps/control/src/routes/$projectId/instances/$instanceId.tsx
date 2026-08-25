@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 import { AgentCreationExperience } from "@/components/agents/agent-creation-experience";
-import { DeleteInstanceDialog } from "@/components/instances/delete-instance-dialog";
+import { DeleteInstanceSheet } from "@/components/instances/delete-instance-sheet";
 import { InstanceAuditorLogTab } from "@/components/instances/instance-auditor-log-tab";
 import { InstanceCapabilitiesTab } from "@/components/instances/instance-capabilities-tab";
 import { InstanceConfigurationTab } from "@/components/instances/instance-configuration-tab";
@@ -88,16 +88,6 @@ function AgentDetail() {
     retry: 1,
     staleTime: 5_000,
     refetchInterval: activeTab === "terminal" ? 5_000 : false,
-  });
-  const audit = useQuery({
-    queryKey: scope.key("agent-audit", agentId),
-    queryFn: () => api.getInstanceAudit(agentId),
-    enabled:
-      permissions.canViewSensitiveAgentAudit
-      && Boolean(agent.data)
-      && !search.creating,
-    retry: 1,
-    staleTime: 10_000,
   });
   const remove = useMutation({
     mutationFn: () => api.deleteInstance(agentId),
@@ -187,7 +177,7 @@ function AgentDetail() {
       <InstanceHeader access={access} agent={visibleAgent} canDelete={permissions.canDeleteAgents} platform={platform} onDelete={() => setDeleteOpen(true)} />
       <InstanceTabs active={renderedTab} agentId={agentId} terminal={access.terminal} />
       {terminalNotice ? <p role="status" className="mt-4 border-l-2 border-amber-500 bg-amber-500/5 px-4 py-3 text-sm">{terminalNotice}</p> : null}
-      {renderedTab === "overview" ? <InstanceOverviewTab access={access} agent={visibleAgent} platform={platform} auditLoading={audit.isLoading} {...(audit.data ? { auditEvents: audit.data } : {})} {...(modelRouting.data?.name ? { modelRoutingName: modelRouting.data.name } : {})} /> : null}
+      {renderedTab === "overview" ? <InstanceOverviewTab access={access} agent={visibleAgent} platform={platform} {...(modelRouting.data?.name ? { modelRoutingName: modelRouting.data.name } : {})} /> : null}
       {renderedTab === "configuration" ? <InstanceConfigurationTab agent={visibleAgent} platform={platform} /> : null}
       {renderedTab === "capabilities" ? <InstanceCapabilitiesTab agent={visibleAgent} /> : null}
       {renderedTab === "terminal" ? <InstanceTerminalTab agent={visibleAgent} targets={(terminalTargets.data ?? []).filter((target) => target.available)} /> : null}
@@ -197,7 +187,7 @@ function AgentDetail() {
           includeSandboxAudit={permissions.canViewSensitiveAgentAudit}
         />
       ) : null}
-      {permissions.canDeleteAgents ? <DeleteInstanceDialog open={deleteOpen} onOpenChange={setDeleteOpen} instanceName={visibleAgent.name} deleting={remove.isPending} onConfirm={() => remove.mutate()} {...(remove.error instanceof Error ? { error: remove.error.message } : {})} /> : null}
+      {permissions.canDeleteAgents ? <DeleteInstanceSheet open={deleteOpen} onOpenChange={setDeleteOpen} instanceName={visibleAgent.name} deleting={remove.isPending} onConfirm={() => remove.mutate()} {...(remove.error instanceof Error ? { error: remove.error.message } : {})} /> : null}
     </div>
   );
 }

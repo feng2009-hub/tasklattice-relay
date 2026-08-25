@@ -976,7 +976,7 @@ describe("ProjectService", () => {
 
   it("removes membership without synchronizing human users to LiteLLM", async () => {
     const config = developmentControlConfig();
-    config.litellm.master_key = "test-master-key";
+    config.litellm!.master_key = "test-master-key";
     setControlConfigForTests(config);
     try {
       const db = createTestPrisma();

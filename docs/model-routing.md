@@ -4,10 +4,12 @@ A Model Routing is TaskLattice Relay's stable access contract for routing manage
 
 ## Gateway configuration
 
-The built-in Gateway connection is configured by the `[litellm]` table in
-`control.toml`. The URL is the LiteLLM API base URL without `/v1`; the master
-key is a control-plane credential and is never returned by the API or passed
-to an Instance. The administrator UI URL is derived by appending `/ui`.
+The built-in Gateway connection is configured under **Platform Setting ->
+Infrastructure**. The URL is the LiteLLM API base URL without `/v1`; the master
+key is an encrypted control-plane credential and is never returned by the API
+or passed to an Instance. The draft must pass LiteLLM's authenticated health
+probe before it can be saved. The administrator UI URL is derived by appending
+`/ui`.
 
 Every Instance receives a separate Team-scoped Virtual Key restricted to the routing's public model alias. Only the key fingerprint and LiteLLM token identifier are persisted; plaintext key material exists only while the Sandbox is being created.
 

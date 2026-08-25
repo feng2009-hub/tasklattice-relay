@@ -171,7 +171,7 @@ export class ProjectOverviewService {
       this.store.list(),
       this.store.listSkillDefinitions(),
       this.db.accessPolicyRecord.findMany({
-        where: { projectId: this.store.projectId },
+        where: { projectId: this.store.projectId, deletedAt: null },
         select: { payload: true },
       }),
     ]);

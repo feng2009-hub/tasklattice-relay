@@ -45,6 +45,8 @@ import ssoRoleBindingsMigration from "../../prisma/migrations/20260824040000_sso
 import builtinRoleCatalogMigration from "../../prisma/migrations/20260824050000_builtin_role_catalog/migration.sql?raw";
 import departmentSettingsMigration from "../../prisma/migrations/20260824060000_department_settings/migration.sql?raw";
 import compactSsoGroupPathsMigration from "../../prisma/migrations/20260824070000_compact_sso_group_paths/migration.sql?raw";
+import platformRuntimeSettingsMigration from "../../prisma/migrations/20260825000000_platform_runtime_settings/migration.sql?raw";
+import businessRecordSoftDeleteMigration from "../../prisma/migrations/20260826000000_business_record_soft_delete/migration.sql?raw";
 import { developmentResourceCatalog } from "../catalog/development-resource-catalog";
 import { PrismaClient } from "../generated/prisma/client";
 
@@ -479,6 +481,8 @@ export function createTestPrisma(): PrismaClient {
         "",
       ),
   );
+  memory.public.none(platformRuntimeSettingsMigration);
+  memory.public.none(businessRecordSoftDeleteMigration);
   const pg = memory.adapters.createPg();
   const query = pg.Client.prototype.query;
   pg.Client.prototype.query = function (

@@ -86,8 +86,13 @@ Workspace, service route base, service CIDRs, OpenShell Gateway/Supervisor/base
 images, pull policy, and TLS mode are also reported to the page, but remain
 read-only deployment topology.
 
-`projectRuntimeNamespaces.enabled=true` makes Project creation synchronously
-ensure an opaque, stable Namespace before the API returns success. The exact
+`projectRuntimeNamespaces` seeds the initial Platform Infrastructure setting
+when the database has no runtime configuration. After bootstrap, change
+Namespace enablement, cluster identity, and prefix under **Platform Setting ->
+Infrastructure**; validation checks Kubernetes access and existing Runtime
+Targets before save. The Chart always installs the reviewed runtime RBAC so the
+feature can be enabled online. When enabled, Project creation synchronously
+ensures an opaque, stable Namespace before the API returns success. The exact
 Project name is stored as an annotation and a DNS-safe form is stored as a
 label. Relay does not install a tenant ServiceAccount, quota, limit range, or
 network policy. Set `projectRuntimeNamespaces.namePrefix` to a value unique to
@@ -155,10 +160,14 @@ the namespace `LimitRange` exists on a first installation.
 When `secrets.existingSecret` is used it must contain `control.toml`,
 `runner-token`, `litellm-master-key`, `postgres-password`, `database-url`,
 `litellm-ui-username`, `litellm-ui-password`, and `litellm-salt-key`.
-`control.toml` contains Control Plane infrastructure connectivity, Local
-authentication recovery, Runner, and LiteLLM settings. OIDC and SMTP are
-configured after sign-in from Platform Setting and are stored only in the
-Platform database. Set `runner.gatewayEndpoint`
+`control.toml` contains only the public URL, database and signing bootstrap,
+and the initial Platform Administrator credential. The chart supplies Runner,
+LiteLLM, internal Control, and Runtime Namespace values as one-time bootstrap
+environment values; Control imports them into the Platform database. Later
+changes are made under **Platform Setting -> Infrastructure**, where the
+complete draft must validate before save. Local authentication policy, OIDC,
+and SMTP are also configured after sign-in from Platform Setting. Set
+`runner.gatewayEndpoint`
 when `openshell.enabled=false` and the gateway is managed outside this release.
 Set `runner.workspace` to the same OpenShell workspace used by that gateway;
 service routes include this value as their first hostname segment.

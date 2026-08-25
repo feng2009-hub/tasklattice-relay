@@ -1,5 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { getControlConfig } from "../config/control-config";
+import type { PrismaClient } from "../generated/prisma/client";
+import { loadPlatformRuntimeConfiguration } from "../platform/platform-runtime-config";
 
 const bridgePurpose = "tali:vector-store-bridge:v1";
 
@@ -9,12 +11,14 @@ export function vectorStoreBridgeApiKey(): string {
     .digest("hex");
 }
 
-export function vectorStoreBridgeApiBase(projectId: string): string {
-  const config = getControlConfig();
-  const controlUrl = config.server.internal_url ?? config.server.public_url;
+export async function vectorStoreBridgeApiBase(
+  projectId: string,
+  db?: PrismaClient,
+): Promise<string> {
+  const controlUrl = (await loadPlatformRuntimeConfiguration(db)).controlInternalUrl;
   if (!controlUrl) {
     throw new Error(
-      "The Vector Store bridge requires server.internal_url or server.public_url.",
+      "The Vector Store bridge requires a Control internal URL in Platform Infrastructure settings.",
     );
   }
   return `${controlUrl.replace(/\/+$/, "")}/api/internal/vector-stores/${encodeURIComponent(projectId)}`;

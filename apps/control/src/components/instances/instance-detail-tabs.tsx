@@ -8,7 +8,7 @@ import { useCurrentProjectId } from "@/hooks/use-project";
 const labels: Record<InstanceDetailTab, string> = {
   overview: "Overview",
   configuration: "Configuration",
-  capabilities: "Access",
+  capabilities: "Capabilities",
   terminal: "Terminal",
   "auditor-log": "Auditor Log",
 };
@@ -30,7 +30,7 @@ export function InstanceTabs({ active, agentId, terminal }: { active: InstanceDe
                         value={tab}
                         disabled
                         aria-label={`Terminal unavailable. ${terminal.disabledReason ?? "Terminal access is unavailable."}`}
-                        className="pointer-events-none"
+                        className="pointer-events-none min-h-11"
                       >
                         {labels[tab]}
                       </TabsTrigger>
@@ -40,7 +40,7 @@ export function InstanceTabs({ active, agentId, terminal }: { active: InstanceDe
                 </Tooltip>
               );
             return (
-              <TabsTrigger key={tab} value={tab} asChild>
+              <TabsTrigger key={tab} value={tab} asChild className="min-h-11">
                 <Link
                   to="/$projectId/instances/$instanceId"
                   params={{ projectId, instanceId: agentId }}

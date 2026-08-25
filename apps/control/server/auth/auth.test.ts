@@ -21,6 +21,18 @@ import {
 import { betterAuthSessionCookieName } from "./cookies";
 import { corporateSsoProviderId } from "./external-role-bindings";
 import { handleSsoSignOut } from "./sso-sign-out";
+import type { ValidatePlatformSsoSettingsInput } from "@tali/contracts";
+
+async function saveValidatedSecurity(
+  service: PlatformSettingsService,
+  input: ValidatePlatformSsoSettingsInput,
+) {
+  const validation = await service.validateSecurity(input);
+  return service.updateSecurity(
+    { ...input, validationToken: validation.validationToken },
+    "admin",
+  );
+}
 
 function cookieHeader(response: Response): string {
   return (response.headers.get("set-cookie") ?? "")
@@ -174,13 +186,18 @@ describe("Better Auth platform authentication", () => {
   });
 
   it("publishes enabled login methods without exposing Better Auth secrets", async () => {
-    const discoveryFetch = vi.fn(async () => new Response(JSON.stringify({
-      issuer: "https://identity.example/realms/agents",
-      authorization_endpoint: "https://identity.example/authorize",
-      token_endpoint: "https://identity.example/token",
-      jwks_uri: "https://identity.example/jwks",
-    }), { status: 200 })) as unknown as typeof fetch;
-    await new PlatformSettingsService(db, discoveryFetch).updateSecurity({
+    const discoveryFetch = vi.fn(async (input: string | URL | Request) => new Response(JSON.stringify(
+      String(input).endsWith("/jwks")
+        ? { keys: [{ kid: "signing-key", kty: "RSA" }] }
+        : {
+            issuer: "https://identity.example/realms/agents",
+            authorization_endpoint: "https://identity.example/authorize",
+            token_endpoint: "https://identity.example/token",
+            jwks_uri: "https://identity.example/jwks",
+          },
+    ), { status: 200 })) as unknown as typeof fetch;
+    await saveValidatedSecurity(new PlatformSettingsService(db, discoveryFetch), {
+      localAuthenticationEnabled: true,
       sso: {
         clientId: "tali",
         clientSecret: { action: "replace", value: "provider-secret" },
@@ -188,7 +205,7 @@ describe("Better Auth platform authentication", () => {
         enabled: true,
         issuer: "https://identity.example/realms/agents",
       },
-    }, "admin");
+    });
 
     expect(await publicAuthConfig()).toEqual({
       authRequired: true,
@@ -205,17 +222,22 @@ describe("Better Auth platform authentication", () => {
   });
 
   it("refreshes the authentication provider after the shared settings revision changes", async () => {
-    const discoveryFetch = vi.fn(async () => new Response(JSON.stringify({
-      issuer: "https://identity.example",
-      authorization_endpoint: "https://identity.example/authorize",
-      token_endpoint: "https://identity.example/token",
-      jwks_uri: "https://identity.example/jwks",
-    }), { status: 200 })) as unknown as typeof fetch;
+    const discoveryFetch = vi.fn(async (input: string | URL | Request) => new Response(JSON.stringify(
+      String(input).endsWith("/jwks")
+        ? { keys: [{ kid: "signing-key", kty: "RSA" }] }
+        : {
+            issuer: "https://identity.example",
+            authorization_endpoint: "https://identity.example/authorize",
+            token_endpoint: "https://identity.example/token",
+            jwks_uri: "https://identity.example/jwks",
+          },
+    ), { status: 200 })) as unknown as typeof fetch;
     vi.stubGlobal("fetch", discoveryFetch);
     const settings = new PlatformSettingsService(db, discoveryFetch);
     const before = await ssoAuth();
 
-    await settings.updateSecurity({
+    await saveValidatedSecurity(settings, {
+      localAuthenticationEnabled: true,
       sso: {
         clientId: "online-client",
         clientSecret: { action: "replace", value: "online-secret" },
@@ -223,7 +245,7 @@ describe("Better Auth platform authentication", () => {
         enabled: true,
         issuer: "https://identity.example",
       },
-    }, "admin");
+    });
 
     expect(await publicAuthConfig()).toEqual({
       authRequired: true,
@@ -248,6 +270,11 @@ describe("Better Auth platform authentication", () => {
       if (String(input) === `${issuer}/revoke`) {
         return new Response(null, { status: 204 });
       }
+      if (String(input) === `${issuer}/jwks`) {
+        return new Response(JSON.stringify({
+          keys: [{ kid: "signing-key", kty: "RSA" }],
+        }), { status: 200 });
+      }
       return new Response(JSON.stringify({
         issuer,
         authorization_endpoint: `${issuer}/authorize`,
@@ -260,7 +287,8 @@ describe("Better Auth platform authentication", () => {
     });
     const discoveryFetch = discoveryFetchMock as unknown as typeof fetch;
     vi.stubGlobal("fetch", discoveryFetch);
-    await new PlatformSettingsService(db, discoveryFetch).updateSecurity({
+    await saveValidatedSecurity(new PlatformSettingsService(db, discoveryFetch), {
+      localAuthenticationEnabled: true,
       sso: {
         clientId: "tali-control-plane",
         clientSecret: { action: "replace", value: "provider-secret" },
@@ -268,7 +296,7 @@ describe("Better Auth platform authentication", () => {
         enabled: true,
         issuer,
       },
-    }, "admin");
+    });
     const idToken = "header.payload.signature";
     const refreshToken = "refresh-token-value";
     await db.authAccount.create({
@@ -340,13 +368,18 @@ describe("Better Auth platform authentication", () => {
   });
 
   it("keeps Local authentication available when OIDC discovery is offline", async () => {
-    const discoveryFetch = vi.fn(async () => new Response(JSON.stringify({
-      issuer: "https://identity.example",
-      authorization_endpoint: "https://identity.example/authorize",
-      token_endpoint: "https://identity.example/token",
-      jwks_uri: "https://identity.example/jwks",
-    }), { status: 200 })) as unknown as typeof fetch;
-    await new PlatformSettingsService(db, discoveryFetch).updateSecurity({
+    const discoveryFetch = vi.fn(async (input: string | URL | Request) => new Response(JSON.stringify(
+      String(input).endsWith("/jwks")
+        ? { keys: [{ kid: "signing-key", kty: "RSA" }] }
+        : {
+            issuer: "https://identity.example",
+            authorization_endpoint: "https://identity.example/authorize",
+            token_endpoint: "https://identity.example/token",
+            jwks_uri: "https://identity.example/jwks",
+          },
+    ), { status: 200 })) as unknown as typeof fetch;
+    await saveValidatedSecurity(new PlatformSettingsService(db, discoveryFetch), {
+      localAuthenticationEnabled: true,
       sso: {
         clientId: "online-client",
         clientSecret: { action: "replace", value: "online-secret" },
@@ -354,7 +387,7 @@ describe("Better Auth platform authentication", () => {
         enabled: true,
         issuer: "https://identity.example",
       },
-    }, "admin");
+    });
     vi.stubGlobal("fetch", vi.fn(async () => {
       throw new Error("identity provider offline");
     }));

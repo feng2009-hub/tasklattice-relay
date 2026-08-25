@@ -25,9 +25,9 @@ import {
 import { RuntimePolicyService } from "../runtime-policies/runtime-policy-service";
 import { ModelRoutingService } from "../model-routings/model-routing-service";
 import { ProjectQuotaService } from "../quotas/project-quota-service";
-import { getControlConfig } from "../config/control-config";
 import { signRunTelemetryToken } from "../runs/run-telemetry-token";
 import { PlatformSettingsService } from "../platform/platform-settings-service";
+import { loadPlatformRuntimeConfiguration } from "../platform/platform-runtime-config";
 
 export function agentSandboxName(id: string): string {
   const compactId = BigInt(`0x${id.replaceAll("-", "")}`)
@@ -167,8 +167,10 @@ export class InstanceService {
     );
     const costKeyAlias = `tali-instance-${id}`;
     const serviceAccountId = `tali-instance-${id}`;
-    const controlOrigin = getControlConfig().server.internal_url
-      ?? getControlConfig().server.public_url;
+    const runtimeConfiguration = await loadPlatformRuntimeConfiguration(
+      this.store.database(),
+    );
+    const controlOrigin = runtimeConfiguration.controlInternalUrl;
     if (!controlOrigin) {
       throw new Error("Control server URL is required for Instance Run telemetry.");
     }
@@ -241,7 +243,8 @@ export class InstanceService {
     } catch (error) {
       await this.litellm.revokeKey(instanceKey.tokenId).catch(() => undefined);
       await this.closeInstanceAttributions(id).catch(() => undefined);
-      await this.store.delete(id).catch(() => undefined);
+      // Creation never completed, so there is no business record to retain.
+      await this.store.hardDelete(id).catch(() => undefined);
       throw error;
     }
     try {
@@ -250,6 +253,9 @@ export class InstanceService {
         platformSettings.runtimeImageOverride(agent.agentPlatform),
         platformSettings.sandboxProvisioningOverrides(),
       ]);
+      const litellmBaseUrl = this.litellm.connectionBaseUrl
+        ? await this.litellm.connectionBaseUrl()
+        : this.litellm.baseUrl;
       agent = await this.store.save(
         applyObservedState(
           agent,
@@ -258,7 +264,7 @@ export class InstanceService {
             agentPlatform: agent.agentPlatform,
             providerName: "LiteLLM",
             model: routing.publicModelAlias,
-            inferenceEndpoint: `${this.litellm.baseUrl}/v1`,
+            inferenceEndpoint: `${litellmBaseUrl}/v1`,
             policyYaml: policy.policyYaml,
             systemPrompt: input.systemPrompt,
             apiKey: instanceKey.secret,
@@ -308,6 +314,7 @@ export class InstanceService {
         updatedAt: new Date().toISOString(),
       });
     }
+    await this.store.softDelete(id);
     this.queueDestroy(id);
     return true;
   }
@@ -322,7 +329,7 @@ export class InstanceService {
         const message = error instanceof Error ? error.message : "unknown error";
         const attempt = (this.destroyRetryAttempts.get(id) ?? 0) + 1;
         this.destroyRetryAttempts.set(id, attempt);
-        const current = await this.store.get(id).catch(() => undefined);
+        const current = await this.store.getIncludingDeleted(id).catch(() => undefined);
         if (current) {
           const logs = current.logs.filter(
             (line) => !line.startsWith("Deletion retry pending:"),
@@ -349,13 +356,12 @@ export class InstanceService {
   }
 
   private async completeDestroy(id: string): Promise<void> {
-    const agent = await this.store.get(id);
+    const agent = await this.store.getIncludingDeleted(id);
     if (!agent) return;
     await this.runner.destroySandbox(agent.sandboxName, agent.agentPlatform);
     if (agent.liteLLMTokenId)
       await this.litellm.revokeKey(agent.liteLLMTokenId);
     await this.closeInstanceAttributions(id);
-    await this.store.delete(id);
   }
 
   async updateAccessPolicies(

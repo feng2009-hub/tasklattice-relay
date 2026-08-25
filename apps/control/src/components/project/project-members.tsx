@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { AccountAvatar } from "@/components/account/account-avatar";
 import { ProjectInviteDialog } from "@/components/project/project-invite-dialog";
+import { DeleteEntitySheet } from "@/components/shared/delete-entity-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,6 +26,7 @@ import {
 } from "@/services/project";
 import {
   projectRoleLabels,
+  type HumanProjectMember,
   type Project,
 } from "@/types/project";
 
@@ -35,6 +37,7 @@ export function ProjectMembers({ project }: { project: Project }) {
     project.effectiveCapabilities,
   );
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [removingMember, setRemovingMember] = useState<HumanProjectMember>();
   const members = useQuery({
     queryKey: ["project", project.id, "members"],
     queryFn: () => getProjectMembers(project.id),
@@ -51,7 +54,10 @@ export function ProjectMembers({ project }: { project: Project }) {
 
   const removeHuman = useMutation({
     mutationFn: (memberId: string) => removeMember(project.id, memberId),
-    onSuccess: refreshTeam,
+    onSuccess: async () => {
+      setRemovingMember(undefined);
+      await refreshTeam();
+    },
   });
 
   const people = members.data ?? [];
@@ -149,7 +155,10 @@ export function ProjectMembers({ project }: { project: Project }) {
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem
                         className="text-destructive focus:text-destructive"
-                        onSelect={() => removeHuman.mutate(member.id)}
+                        onSelect={() => {
+                          removeHuman.reset();
+                          setRemovingMember(member);
+                        }}
                       >
                         <UserX />
                         Remove member
@@ -191,6 +200,23 @@ export function ProjectMembers({ project }: { project: Project }) {
         onOpenChange={setInviteOpen}
         onInvited={refreshTeam}
       />
+      {removingMember ? (
+        <DeleteEntitySheet
+          open
+          onOpenChange={(open) => {
+            if (!open) setRemovingMember(undefined);
+          }}
+          title="Remove Project member"
+          description={<>Revoke <strong>{removingMember.name}</strong>&apos;s access to <strong>{project.name}</strong>.</>}
+          entityName={removingMember.name}
+          confirmLabel="Remove member"
+          pendingLabel="Removing…"
+          deleting={removeHuman.isPending}
+          onConfirm={() => removeHuman.mutate(removingMember.id)}
+          {...(removeHuman.error instanceof Error ? { error: removeHuman.error.message } : {})}
+          retentionDescription="Project access is revoked immediately. Historical actions remain in the audit log; owned Instances or registered Agents must be transferred before access can be removed."
+        />
+      ) : null}
     </div>
   );
 }

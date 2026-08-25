@@ -13,7 +13,7 @@ import { AccountAvatar } from "@/components/account/account-avatar";
 import { AgentPlatformIcon } from "@/components/agents/agent-platform-icon";
 import { CreateInstanceSheet } from "@/components/agents/create-instance-sheet";
 import { resolveProvisioningState } from "@/components/agents/provisioning-state";
-import { DeleteInstanceDialog } from "@/components/instances/delete-instance-dialog";
+import { DeleteInstanceSheet } from "@/components/instances/delete-instance-sheet";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Badge } from "@/components/ui/badge";
@@ -375,7 +375,7 @@ function Instances() {
       </Card>
       </TooltipProvider>
 
-      {permissions.canDeleteAgents && deletingInstance ? <DeleteInstanceDialog open instanceName={deletingInstance.name} deleting={remove.isPending} onOpenChange={(open) => { if (!open) setDeletingInstance(undefined); }} onConfirm={() => remove.mutate(deletingInstance.id)} {...(remove.error instanceof Error ? { error: remove.error.message } : {})} /> : null}
+      {permissions.canDeleteAgents && deletingInstance ? <DeleteInstanceSheet open instanceName={deletingInstance.name} deleting={remove.isPending} onOpenChange={(open) => { if (!open) setDeletingInstance(undefined); }} onConfirm={() => remove.mutate(deletingInstance.id)} {...(remove.error instanceof Error ? { error: remove.error.message } : {})} /> : null}
       {permissions.canCreateAgents && search.create === "instance" ? (
         <CreateInstanceSheet
           open

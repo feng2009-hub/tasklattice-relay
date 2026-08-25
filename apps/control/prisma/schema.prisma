@@ -121,6 +121,15 @@ model User {
 
 model PlatformSettingsRecord {
   id                        String   @id @default("platform")
+  controlInternalUrl        String?  @map("control_internal_url")
+  runnerUrl                 String?  @map("runner_url")
+  runnerTokenEncrypted      String?  @map("runner_token_encrypted")
+  litellmUrl                String?  @map("litellm_url")
+  litellmMasterKeyEncrypted String?  @map("litellm_master_key_encrypted")
+  runtimeNamespacesEnabled  Boolean? @map("runtime_namespaces_enabled")
+  runtimeClusterId          String?  @map("runtime_cluster_id")
+  runtimeNamespacePrefix    String?  @map("runtime_namespace_prefix")
+  localAuthenticationEnabled Boolean? @map("local_authentication_enabled")
   openclawSandboxImage      String?  @map("openclaw_sandbox_image")
   hermesSandboxImage        String?  @map("hermes_sandbox_image")
   sandboxCpu                String?  @map("sandbox_cpu")
@@ -635,6 +644,7 @@ model AgentRecord {
   payload                  Json
   ownerUserId              String                                   @map("owner_user_id")
   createdAt                DateTime                                 @map("created_at") @db.Timestamptz(6)
+  deletedAt                DateTime?                                @map("deleted_at") @db.Timestamptz(6)
   project                  Project                                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   ownerMembership          ProjectMember                            @relation("AgentRecordOwnerMembership", fields: [projectId, ownerUserId], references: [projectId, userId], onDelete: Restrict, map: "agents_owner_membership_fkey")
   outboundAgentConnections AgentConnectionRecord[]                  @relation("CoordinatorAgentConnections")
@@ -642,6 +652,7 @@ model AgentRecord {
 
   @@id([projectId, id])
   @@index([projectId, ownerUserId], map: "agents_project_owner_idx")
+  @@index([projectId, deletedAt, createdAt(sort: Desc)], map: "agents_project_active_created_idx")
   @@map("agents")
   @@schema("tasklattice")
 }
@@ -655,6 +666,7 @@ model AgentCatalogRecord {
   ownerUserId String?  @map("owner_user_id")
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
 
   project          Project                    @relation(fields: [projectId], references: [id], onDelete: Cascade)
   ownerMembership  ProjectMember?             @relation("AgentCatalogRecordOwnerMembership", fields: [projectId, ownerUserId], references: [projectId, userId], onDelete: Restrict, map: "agent_catalog_owner_membership_fkey")
@@ -676,6 +688,7 @@ model ManagedA2aInstanceRecord {
   ownerUserId String   @map("owner_user_id")
   createdAt   DateTime @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
 
   project         Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
   catalogAgent    AgentCatalogRecord @relation(fields: [projectId, agentId], references: [projectId, id], onDelete: Cascade)
@@ -696,13 +709,15 @@ model AgentConnectionRecord {
   payload               Json
   createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt             DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt             DateTime? @map("deleted_at") @db.Timestamptz(6)
 
   project        Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
   coordinator    AgentRecord        @relation("CoordinatorAgentConnections", fields: [projectId, coordinatorInstanceId], references: [projectId, id], onDelete: Cascade)
   connectedAgent AgentCatalogRecord @relation(fields: [projectId, connectedAgentId], references: [projectId, id], onDelete: Restrict)
 
   @@id([projectId, id])
-  @@unique([projectId, coordinatorInstanceId, connectedAgentId], map: "agent_connections_unique_binding")
+  // Active binding uniqueness is enforced by a partial database index so a
+  // disconnected tombstone does not block a future reconnect.
   @@index([projectId, connectedAgentId], map: "agent_connections_connected_idx")
   @@map("agent_connections")
   @@schema("tasklattice")
@@ -714,6 +729,7 @@ model ProviderAccountRecord {
   payload           Json
   credentialPayload String                  @map("credential_payload")
   createdAt         DateTime                @map("created_at") @db.Timestamptz(6)
+  deletedAt         DateTime?               @map("deleted_at") @db.Timestamptz(6)
   project           Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
   modelDeployments  ModelDeploymentRecord[]
 
@@ -728,6 +744,7 @@ model ModelDeploymentRecord {
   providerAccountId String                @map("provider_account_id")
   payload           Json
   createdAt         DateTime              @map("created_at") @db.Timestamptz(6)
+  deletedAt         DateTime?             @map("deleted_at") @db.Timestamptz(6)
   project           Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
   providerAccount   ProviderAccountRecord @relation(fields: [projectId, providerAccountId], references: [projectId, id], onDelete: Cascade)
 
@@ -753,6 +770,7 @@ model ModelRoutingRecord {
   id        String
   payload   Json
   createdAt DateTime                    @map("created_at") @db.Timestamptz(6)
+  deletedAt DateTime?                   @map("deleted_at") @db.Timestamptz(6)
   project   Project                     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   bindings  ModelRoutingBindingRecord[]
 
@@ -797,6 +815,7 @@ model SandboxPolicyRecord {
   id        String
   payload   Json
   createdAt DateTime @map("created_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@id([projectId, id])
@@ -810,6 +829,7 @@ model AccessPolicyRecord {
   payload   Json
   createdAt DateTime @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
 
   project          Project                                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   versions         AccessPolicyVersionRecord[]
@@ -882,6 +902,7 @@ model SkillRecord {
   sortOrder Int      @default(1000) @map("sort_order")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@id([projectId, id])
@@ -901,6 +922,7 @@ model McpServerRecord {
   sortOrder              Int                @default(1000) @map("sort_order")
   createdAt              DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt              DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt              DateTime?          @map("deleted_at") @db.Timestamptz(6)
   project                Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
   tools                  McpToolRecord[]
 
@@ -935,6 +957,7 @@ model KnowledgeSourceRecord {
   sortOrder Int      @default(1000) @map("sort_order")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@id([projectId, id])
@@ -949,6 +972,7 @@ model AgentSpecializationRecord {
   sortOrder Int      @default(1000) @map("sort_order")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@id([projectId, id])

@@ -120,8 +120,10 @@ control:
       memory: 512Mi
   extraEnv: []
 
-# Creates one opaque Kubernetes Namespace synchronously with every Relay
-# Project. A separate one-shot command is available for manual reconciliation.
+# Initial Platform Setting imported only when the database has no runtime
+# configuration yet. Change it later under Platform Setting -> Infrastructure.
+# The Chart always provisions the reviewed RBAC so validation can enable the
+# feature online without another deployment.
 projectRuntimeNamespaces:
   enabled: true
   clusterId: in-cluster
@@ -218,7 +220,6 @@ secrets:
 
 auth:
   local:
-    enabled: true
     username: admin
     email: admin@tasklattice.local
 

@@ -4,10 +4,12 @@ See [Platform configuration ownership](platform-configuration-ownership.md)
 for the reviewed boundary between deployment bootstrap, online Platform policy,
 and external secrets.
 
-TaskLattice Relay Control reads one TOML file. Production starts only when
-`TALI_CONFIG` points to a valid file. The Helm chart renders this file
-as the `control.toml` entry in the TaskLattice Relay Secret and mounts it read-only at
-`/etc/tali/control.toml`.
+TaskLattice Relay Control reads one small bootstrap TOML file. Production starts
+only when `TALI_CONFIG` points to a valid file. The Helm chart renders this file
+as the `control.toml` entry in the TaskLattice Relay Secret and mounts it
+read-only at `/etc/tali/control.toml`. Live infrastructure connections and
+runtime policy are stored in PostgreSQL and do not need to be duplicated in
+this file.
 
 ```toml
 schema_version = 1
@@ -15,7 +17,6 @@ schema_version = 1
 [server]
 # Required canonical browser origin for Better Auth cookies and callbacks.
 public_url = "https://tali.example.com"
-internal_url = "http://tali-relay-control:38080"
 
 [database]
 url = "postgresql://tali:password@postgresql:5432/tali"
@@ -24,23 +25,9 @@ url = "postgresql://tali:password@postgresql:5432/tali"
 secret = "replace-with-at-least-32-random-characters"
 
 [auth.local]
-enabled = true
 initial_platform_administrator_username = "admin"
 initial_platform_administrator_email = "admin@tasklattice.local"
 initial_platform_administrator_password = "replace-with-a-strong-password"
-
-[runner]
-url = "http://tali-relay-runner:9090"
-token = "replace-me"
-
-[litellm]
-url = "http://tali-relay-litellm:4000"
-master_key = "replace-me"
-
-[runtime_namespaces]
-enabled = true
-cluster_id = "in-cluster"
-name_prefix = "tali-p"
 ```
 
 `server.public_url` is always required because Better Auth uses it as the
@@ -64,9 +51,9 @@ The online Client secret is encrypted at rest with a key derived from
 `auth.secret` and is never returned by the API. Keep `auth.secret` stable across
 all Control replicas. Before rotating it, plan to sign in locally and replace
 the stored OIDC Client secret and SMTP password after rotation.
-Online SSO editing is deliberately unavailable when Local authentication is
-disabled so an invalid provider cannot remove the last administrator recovery
-path.
+Local authentication enablement is also database-owned. Security validation
+requires at least one authentication method to remain enabled and confirms the
+bootstrap Local credential exists before a draft can enable Local sign-in.
 
 SMTP is configured only from **Platform Setting -> Email delivery** and is
 stored in the Platform database. There is no `control.toml` fallback.
@@ -81,8 +68,26 @@ New OpenShell Sandbox CPU and memory defaults and the Project Namespace
 deletion timeout are database-owned and can be changed from **Platform Setting
 -> Sandbox**. OpenClaw and Hermes image references remain editable under
 **Platform Setting -> Runtime** because they are resolved when a new Sandbox is
-created. Runtime Namespace enablement, cluster identity, name prefix, and
-OpenShell gateway topology remain deployment configuration.
+created.
+
+Control internal URL, Runner URL and token, LiteLLM URL and master key, and
+Runtime Namespace enablement, cluster identity, and name prefix are configured
+from **Platform Setting -> Infrastructure**. Editing creates a browser-local
+draft. **Validate configuration** probes Control, Runner, and LiteLLM, checks
+Kubernetes permissions when Runtime Namespaces are enabled, and rejects a
+cluster identity that conflicts with existing Runtime Targets. A short-lived
+validation token is bound to the exact draft, so any later edit requires a new
+validation before **Save verified configuration** becomes effective.
+
+On a new Helm installation, the chart supplies the in-cluster service URLs and
+component credentials as one-time bootstrap environment values. Control
+imports them only when the Platform runtime fields are missing. Existing TOML
+files containing the former `[runner]`, `[litellm]`,
+`[runtime_namespaces]`, `server.internal_url`, or `auth.local.enabled` values
+remain accepted during upgrade and are imported the same way. Once stored, the
+database is canonical and later deployment restarts do not overwrite an
+administrator's saved values. OpenShell gateway topology remains
+deployment-owned and read-only in Platform Setting.
 
 ## Identity ownership
 
@@ -100,11 +105,12 @@ Relay namespaces all Better Auth cookies with the `tali-relay` prefix. This is
 required when Relay and another Better Auth application run on different ports
 of the same hostname because browser cookies are not isolated by port.
 
-When Local authentication is enabled, all three initial Platform Administrator
-values are required. On first startup, Better Auth creates one `credential`
-account and hashes the plaintext bootstrap password with its native password
-hasher. Later startups never overwrite an existing database password. Password
-changes run through Better Auth and revoke the user's other sessions.
+All three initial Platform Administrator values are required bootstrap values.
+On first startup, Better Auth creates one `credential` account and hashes the
+plaintext bootstrap password with its native password hasher. Later startups
+never overwrite an existing database identity or password. Password changes
+run through Better Auth and revoke the user's other sessions. Whether Local
+sign-in is active after bootstrap is controlled by Platform Setting.
 
 OIDC login is implemented by Better Auth's Generic OAuth plugin with discovery,
 PKCE, and required ID-token verification. External identities are stored as

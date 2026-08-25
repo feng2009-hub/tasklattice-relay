@@ -66,6 +66,7 @@ export const platformSettingsSections = [
   "departments",
   "people",
   "project-roles",
+  "infrastructure",
   "runtime",
   "sandbox",
   "model-providers",
@@ -113,7 +114,7 @@ export const updatePlatformSettingsSchema = z.object({
 export type UpdatePlatformSettingsInput = z.infer<typeof updatePlatformSettingsSchema>;
 export type PlatformSettingsSection = (typeof platformSettingsSections)[number];
 
-const platformClientSecretUpdateSchema = z.discriminatedUnion("action", [
+export const platformClientSecretUpdateSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("preserve") }).strict(),
   z.object({ action: z.literal("replace"), value: z.string().min(1).max(4_096) }).strict(),
   z.object({ action: z.literal("clear") }).strict(),
@@ -160,9 +161,15 @@ const platformSsoSettingsSchema = z.object({
   }
 });
 
-export const updatePlatformSecuritySettingsSchema = z.object({
+export const validatePlatformSecuritySettingsSchema = z.object({
+  localAuthenticationEnabled: z.boolean(),
   sso: platformSsoSettingsSchema,
 }).strict();
+
+export const updatePlatformSecuritySettingsSchema =
+  validatePlatformSecuritySettingsSchema.extend({
+    validationToken: z.string().min(20).max(2_000),
+  }).strict();
 
 export type UpdatePlatformSecuritySettingsInput = z.infer<
   typeof updatePlatformSecuritySettingsSchema
@@ -278,27 +285,24 @@ export type ReplaceExternalRoleBindingsInput = z.infer<
   typeof replaceExternalRoleBindingsSchema
 >;
 
-export const validatePlatformSsoSettingsSchema = z.object({
-  clientId: z.string().trim().min(1, "Client ID is required.").max(500),
-  clientSecret: platformClientSecretUpdateSchema,
-  issuer: z.string().trim().max(2_000).refine(
-    isHttpUrl,
-    "A valid OIDC issuer URL is required.",
-  ),
-}).strict();
+export const validatePlatformSsoSettingsSchema =
+  validatePlatformSecuritySettingsSchema;
 
 export type ValidatePlatformSsoSettingsInput = z.infer<
   typeof validatePlatformSsoSettingsSchema
 >;
 
 export interface PlatformSsoValidationView {
-  authorizationEndpoint: string;
-  discoveryUrl: string;
-  issuer: string;
-  jwksUri: string;
+  authorizationEndpoint?: string;
+  discoveryUrl?: string;
+  expiresAt: string;
+  issuer?: string;
+  jwksUri?: string;
+  localCredentialReady: boolean;
   signingKeyCount: number;
-  tokenEndpoint: string;
+  tokenEndpoint?: string;
   validatedAt: string;
+  validationToken: string;
 }
 
 export interface PlatformSecuritySettingsView {
@@ -402,6 +406,72 @@ export interface PlatformEmailSettingsView {
   username: string;
 }
 
+const platformInfrastructureSecretSchema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("preserve") }).strict(),
+  z.object({ action: z.literal("replace"), value: z.string().min(1).max(4_096) }).strict(),
+]);
+
+const platformRuntimeNamespacesSchema = z.object({
+  enabled: z.boolean(),
+  clusterId: z.string().trim().min(1).max(120),
+  namePrefix: z.string().trim().min(1).max(20).regex(
+    /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/,
+    "Runtime Namespace prefix must be a DNS label.",
+  ),
+}).strict();
+
+export const validatePlatformInfrastructureSettingsSchema = z.object({
+  controlInternalUrl: z.string().trim().url().refine(isHttpUrl, "Control internal URL must use HTTP or HTTPS."),
+  runner: z.object({
+    url: z.string().trim().url().refine(isHttpUrl, "Runner URL must use HTTP or HTTPS."),
+    token: platformInfrastructureSecretSchema,
+  }).strict(),
+  litellm: z.object({
+    url: z.string().trim().url().refine(isHttpUrl, "LiteLLM URL must use HTTP or HTTPS."),
+    masterKey: platformInfrastructureSecretSchema,
+  }).strict(),
+  runtimeNamespaces: platformRuntimeNamespacesSchema,
+}).strict();
+
+export const updatePlatformInfrastructureSettingsSchema =
+  validatePlatformInfrastructureSettingsSchema.extend({
+    validationToken: z.string().min(20).max(2_000),
+  }).strict();
+
+export type ValidatePlatformInfrastructureSettingsInput = z.infer<
+  typeof validatePlatformInfrastructureSettingsSchema
+>;
+export type UpdatePlatformInfrastructureSettingsInput = z.infer<
+  typeof updatePlatformInfrastructureSettingsSchema
+>;
+
+export interface PlatformInfrastructureSettingsView {
+  controlInternalUrl: string;
+  runner: {
+    url: string;
+    tokenConfigured: boolean;
+  };
+  litellm: {
+    url: string;
+    masterKeyConfigured: boolean;
+  };
+  runtimeNamespaces: {
+    enabled: boolean;
+    clusterId: string;
+    namePrefix: string;
+  };
+}
+
+export interface PlatformInfrastructureValidationView {
+  control: { ok: true };
+  runner: { ok: true; mode: string };
+  litellm: { ok: true; version?: string };
+  runtimeNamespaces: { ok: true; existingTargetCount: number };
+  expiresAt: string;
+  validatedAt: string;
+  validationToken: string;
+}
+
 export const createPlatformDepartmentSchema = z.object({
   administratorUserId: z.string().trim().min(1),
   description: z.string().trim().max(500).nullable(),
@@ -414,6 +484,7 @@ export type CreatePlatformDepartmentInput = z.infer<
 >;
 
 export interface PlatformSettingsView extends UpdatePlatformSettingsInput {
+  infrastructure: PlatformInfrastructureSettingsView;
   effectiveRuntimeImages: {
     openclaw: string;
     hermes: string;

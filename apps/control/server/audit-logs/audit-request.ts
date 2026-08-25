@@ -11,7 +11,7 @@ import {
 
 const maxBodyBytes = 64 * 1024;
 const sensitiveKey =
-  /(?:authorization|cookie|password|passphrase|secret|token|credential|api[-_]?key|private[-_]?key|client[-_]?secret|code[-_]?verifier)/i;
+  /(?:authorization|cookie|password|passphrase|secret|token|credential|api[-_]?key|master[-_]?key|private[-_]?key|client[-_]?secret|code[-_]?verifier)/i;
 const operationSegments = new Set([
   "discover",
   "provision",
@@ -147,6 +147,25 @@ function descriptor(method: string, path: string): AuditDescriptor | undefined {
       objectId: "platform",
       objectType: "Platform Settings",
       operation: "update",
+    };
+  }
+  if (method === "PUT" && path === "/api/v1/platform/infrastructure") {
+    return {
+      action: "platform.infrastructure_update",
+      objectId: "platform",
+      objectType: "Platform Infrastructure",
+      operation: "update",
+    };
+  }
+  if (
+    method === "POST"
+    && path === "/api/v1/platform/infrastructure/validate"
+  ) {
+    return {
+      action: "platform.infrastructure_validate",
+      objectId: "platform",
+      objectType: "Platform Infrastructure",
+      operation: "validate",
     };
   }
   if (method === "PUT" && path === "/api/v1/platform/security") {

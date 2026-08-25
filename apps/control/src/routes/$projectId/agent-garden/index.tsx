@@ -14,13 +14,10 @@ import type {
   AgentPlatformId,
 } from "@tali/contracts";
 import {
-  AlertTriangle,
   Bot,
   ChevronDown,
-  LoaderCircle,
   Plus,
   Search,
-  Trash2,
 } from "lucide-react";
 import { AgentDetailSheet } from "@/components/agent-garden/agent-detail-sheet";
 import { AgentGardenCard } from "@/components/agent-garden/agent-garden-card";
@@ -30,16 +27,8 @@ import { RegisterAgentSheet } from "@/components/agent-garden/register-agent-she
 import { TryDemoAgentSheet } from "@/components/agent-garden/try-demo-agent-sheet";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
+import { DeleteEntitySheet } from "@/components/shared/delete-entity-sheet";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -470,65 +459,23 @@ function AgentGarden() {
         agent={tryAgent}
       />
 
-      <Dialog
+      {removingAgent ? (
+      <DeleteEntitySheet
         open={Boolean(removingAgent)}
         onOpenChange={(open) => {
           if (!open && !remove.isPending) setRemovingId("");
         }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="size-5 text-destructive" />
-              Remove registered Agent?
-            </DialogTitle>
-            <DialogDescription>
-              This removes the Project registration and discovery snapshot.
-              Existing connections must be disconnected first.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="px-6 py-5 text-sm">
-            <strong>{removingAgent?.name}</strong>
-            <p className="mt-1 text-muted-foreground">
-              The remote Agent itself will not be deleted.
-            </p>
-            {remove.error ? (
-              <p
-                role="alert"
-                className="mt-4 border-l-2 border-destructive bg-destructive/5 px-3 py-2 text-destructive"
-              >
-                {remove.error.message}
-              </p>
-            ) : null}
-          </div>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={remove.isPending}
-              >
-                Cancel
-              </Button>
-            </DialogClose>
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={remove.isPending}
-              onClick={() =>
-                removingAgent && remove.mutate(removingAgent.id)
-              }
-            >
-              {remove.isPending ? (
-                <LoaderCircle className="animate-spin motion-reduce:animate-none" />
-              ) : (
-                <Trash2 />
-              )}
-              {remove.isPending ? "Removing…" : "Remove registration"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        title="Delete registered Agent"
+        description={<>Remove <strong>{removingAgent.name}</strong> from this Project. Existing connections must be disconnected first.</>}
+        entityName={removingAgent.name}
+        confirmLabel="Delete registration"
+        pendingLabel="Deleting…"
+        deleting={remove.isPending}
+        onConfirm={() => remove.mutate(removingAgent.id)}
+        {...(remove.error instanceof Error ? { error: remove.error.message } : {})}
+        retentionDescription="The registration, discovery snapshot, and managed Instance metadata are soft-deleted with a deletion timestamp. A platform-managed Deployment and Service are physically removed; an externally hosted Agent is not deleted."
+      />
+      ) : null}
     </div>
   );
 }

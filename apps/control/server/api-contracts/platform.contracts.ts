@@ -2,10 +2,12 @@ import {
   createPlatformDepartmentSchema,
   platformPeopleQuerySchema,
   replaceExternalRoleBindingsSchema,
+  updatePlatformInfrastructureSettingsSchema,
   updatePlatformEmailSettingsSchema,
   updatePlatformSecuritySettingsSchema,
   updatePlatformSettingsSchema,
   validatePlatformEmailSettingsSchema,
+  validatePlatformInfrastructureSettingsSchema,
   validatePlatformSsoSettingsSchema,
 } from "@tali/contracts";
 import { defineContracts } from "./contract";
@@ -13,6 +15,26 @@ import { response, route } from "./helpers";
 import { createProjectInputSchema, openObjectSchema, projectSummarySchema } from "./schemas";
 
 export const platformContracts = defineContracts([
+  route({
+    method: "post",
+    path: "/platform/infrastructure/validate",
+    operationId: "validatePlatformInfrastructureSettings",
+    summary: "Validate Platform runtime connections",
+    description: "Probe the draft Control, Runner, LiteLLM, and Runtime Namespace configuration without saving it.",
+    tags: ["Platform administration"],
+    request: { body: validatePlatformInfrastructureSettingsSchema },
+    responses: { 200: response("Infrastructure validation result", openObjectSchema) },
+  }),
+  route({
+    method: "put",
+    path: "/platform/infrastructure",
+    operationId: "updatePlatformInfrastructureSettings",
+    summary: "Update Platform runtime connections",
+    description: "Save a recently validated database-owned runtime connection configuration.",
+    tags: ["Platform administration"],
+    request: { body: updatePlatformInfrastructureSettingsSchema },
+    responses: { 200: response("Updated Platform infrastructure settings", openObjectSchema) },
+  }),
   route({
     method: "get",
     path: "/platform/people",
@@ -66,8 +88,8 @@ export const platformContracts = defineContracts([
     method: "post",
     path: "/platform/security/validate",
     operationId: "validatePlatformSsoSettings",
-    summary: "Validate a platform OIDC configuration",
-    description: "Validate OIDC discovery, issuer identity, and signing-key availability without saving the draft.",
+    summary: "Validate Platform authentication settings",
+    description: "Validate the complete Local and OIDC authentication draft without saving it.",
     tags: ["Platform administration"],
     request: { body: validatePlatformSsoSettingsSchema },
     responses: { 200: response("OIDC validation result", openObjectSchema) },
@@ -76,8 +98,8 @@ export const platformContracts = defineContracts([
     method: "put",
     path: "/platform/security",
     operationId: "updatePlatformSecuritySettings",
-    summary: "Update platform SSO",
-    description: "Validate and activate the database-owned OIDC configuration.",
+    summary: "Update Platform authentication settings",
+    description: "Save a recently validated database-owned Local and OIDC authentication configuration.",
     tags: ["Platform administration"],
     request: { body: updatePlatformSecuritySettingsSchema },
     responses: { 200: response("Updated Platform security settings", openObjectSchema) },

@@ -1,9 +1,9 @@
 # Platform configuration ownership
 
-TaskLattice Relay separates deployment topology from Platform Administrator
+TaskLattice Relay separates process bootstrap from Platform Administrator
 policy. Platform settings are database-owned and audited; deployment settings
-describe how Control reaches infrastructure and how the first administrator
-recovers access.
+provide only the values required to start Control and establish the first
+administrator recovery credential.
 
 Department-owned model, routing, and quota defaults are documented in
 [Department Setting](./department-settings.md). They are not Platform fallbacks
@@ -11,17 +11,14 @@ and require an explicit Department Administrator role.
 
 ## Current boundary
 
-`control.toml` contains 15 operational fields plus `schema_version`:
+`control.toml` contains six bootstrap fields plus `schema_version`:
 
-- public and internal service URLs;
+- the public browser URL;
 - the database URL and Better Auth secret;
-- Local authentication enablement and the three initial Platform Administrator
-  bootstrap values;
-- Runner and LiteLLM URLs and credentials;
-- Runtime Namespace enablement, cluster ID, and name prefix.
+- the three initial Platform Administrator identity and credential values.
 
-These values remain deployment-managed because changing them affects process
-bootstrap, infrastructure connectivity, or the administrator recovery path.
+These values remain deployment-managed because Control cannot reach the
+Platform database or establish its first recovery credential without them.
 
 The Platform database is the only source for:
 
@@ -29,6 +26,10 @@ The Platform database is the only source for:
 - new OpenShell Sandbox CPU and memory overrides;
 - Runtime Namespace deletion timeout;
 - Model Provider admission;
+- Control internal URL, Runner URL and encrypted token, LiteLLM URL and
+  encrypted master key;
+- Runtime Namespace enablement, cluster ID, and name prefix;
+- Local authentication enablement;
 - OIDC enabled state, display name, issuer, Client ID, and encrypted Client
   secret;
 - SMTP enabled state, connection metadata, sender identity, and encrypted
@@ -39,9 +40,10 @@ The Platform database is the only source for:
   Role-to-Capability grants.
 
 OIDC, SMTP, Sandbox resource overrides, and Runtime deletion policy have no
-`control.toml` fallback. A
-missing database record means the feature is disabled or uses the documented
-application default; it does not read a legacy deployment value.
+`control.toml` fallback. Infrastructure settings accept former TOML fields only
+as an upgrade bridge: missing database fields are imported once, while any
+stored Platform value wins on every replica and is never overwritten at
+restart.
 
 The effective Sandbox image still follows this runtime precedence because the
 deployed Runner reports image compatibility:
@@ -61,20 +63,29 @@ configuration.
 
 ## Secrets and live updates
 
-OIDC Client secrets and SMTP passwords are encrypted with AES-256-GCM using a
-domain-separated key derived from `auth.secret`. APIs return only whether a
-secret is configured. Keep `auth.secret` stable across every Control replica.
-Rotating it makes stored Platform secrets unreadable; use Local authentication
-to replace both secrets after rotation.
+OIDC Client secrets, SMTP passwords, Runner tokens, and LiteLLM master keys are
+encrypted with AES-256-GCM using domain-separated keys derived from
+`auth.secret`. APIs return only whether a secret is configured. Keep
+`auth.secret` stable across every Control replica. Rotating it makes stored
+Platform secrets unreadable; plan to replace all four secret types after
+rotation.
 
-SSO changes require Local authentication to remain enabled as a recovery path.
-An enabled SSO draft must pass Discovery and JWKS validation before it can be
-saved. Better Auth checks the shared revision before SSO requests and rebuilds
-its provider configuration without a process restart.
+Security changes must keep Local authentication or SSO enabled. The complete
+draft must pass Local credential checks and, for enabled SSO, Discovery and
+JWKS validation before it can be saved. Better Auth checks the shared revision
+before authentication requests and rebuilds its configuration without a
+process restart.
 
-The invitation mailer and Runtime Namespace cleanup read the current Platform
-settings when work begins, so changes are visible to every replica without
-rewriting a mounted Secret or restarting Control.
+Infrastructure changes must pass live Control, Runner, and LiteLLM probes.
+Enabling Runtime Namespaces additionally verifies the Control ServiceAccount's
+Kubernetes permissions, and the cluster ID must match every stored Runtime
+Target. Validation issues a short-lived token bound to the complete draft,
+including secret values; saving a changed or expired draft is rejected.
+
+Runner and LiteLLM clients, the invitation mailer, authentication, and Runtime
+Namespace work read the current Platform settings when an operation begins, so
+changes are visible to every replica without rewriting a mounted Secret or
+restarting Control.
 
 ## Requirements for future migrations
 

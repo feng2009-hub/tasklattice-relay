@@ -5,7 +5,7 @@ import type {
   RunnerSandbox,
   SandboxAuditEvent,
 } from "@tali/contracts";
-import { getControlConfig } from "../config/control-config";
+import { loadPlatformRuntimeConfiguration } from "../platform/platform-runtime-config";
 
 export interface CreateSandboxInput {
   name: string;
@@ -52,18 +52,28 @@ export interface RunnerClient {
   getSandboxAudit(name: string): Promise<SandboxAuditEvent[]>;
   destroySandbox(name: string, agentPlatform: AgentPlatformId): Promise<RunnerSandbox>;
   getHealth(): Promise<RunnerHealth>;
-  terminalWebSocketUrl(name: string, agentPlatform: AgentPlatformId): string;
-  authorizationHeaders(): Record<string, string>;
+  terminalWebSocketUrl(name: string, agentPlatform: AgentPlatformId): Promise<string>;
+  authorizationHeaders(): Promise<Record<string, string>>;
 }
 
 export class NemoClawRunnerClient implements RunnerClient {
-  readonly baseUrl: string;
-
   constructor(
-    baseUrl = getControlConfig().runner.url,
-    private readonly token = getControlConfig().runner.token,
-  ) {
-    this.baseUrl = baseUrl.replace(/\/$/, "");
+    private readonly baseUrlOverride?: string,
+    private readonly tokenOverride?: string,
+  ) {}
+
+  private async connection(): Promise<{ baseUrl: string; token: string }> {
+    const runtime = this.baseUrlOverride !== undefined && this.tokenOverride !== undefined
+      ? undefined
+      : await loadPlatformRuntimeConfiguration();
+    const baseUrl = (this.baseUrlOverride ?? runtime?.runner.url ?? "").replace(/\/$/, "");
+    const token = this.tokenOverride ?? runtime?.runner.token ?? "";
+    if (!baseUrl || !token) {
+      throw new Error(
+        "Runner is not configured. Validate and save Runtime Connections in Platform Setting.",
+      );
+    }
+    return { baseUrl, token };
   }
 
   private async request<T>(
@@ -71,10 +81,11 @@ export class NemoClawRunnerClient implements RunnerClient {
     init?: RequestInit,
     timeoutMs = 15_000,
   ): Promise<T> {
-    const response = await fetch(`${this.baseUrl}${path}`, {
+    const { baseUrl, token } = await this.connection();
+    const response = await fetch(`${baseUrl}${path}`, {
       ...init,
       headers: {
-        authorization: `Bearer ${this.token}`,
+        authorization: `Bearer ${token}`,
         "content-type": "application/json",
         ...init?.headers,
       },
@@ -141,18 +152,20 @@ export class NemoClawRunnerClient implements RunnerClient {
     return this.request<RunnerHealth>("/health");
   }
 
-  terminalWebSocketUrl(
+  async terminalWebSocketUrl(
     name: string,
     agentPlatform: AgentPlatformId,
-  ): string {
-    const url = new URL(this.baseUrl);
+  ): Promise<string> {
+    const { baseUrl } = await this.connection();
+    const url = new URL(baseUrl);
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
     url.pathname = `/v1/sandboxes/${encodeURIComponent(name)}/terminal`;
     url.searchParams.set("agentPlatform", agentPlatform);
     return url.toString();
   }
 
-  authorizationHeaders(): Record<string, string> {
-    return { authorization: `Bearer ${this.token}` };
+  async authorizationHeaders(): Promise<Record<string, string>> {
+    const { token } = await this.connection();
+    return { authorization: `Bearer ${token}` };
   }
 }

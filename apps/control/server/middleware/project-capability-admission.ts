@@ -60,8 +60,8 @@ async function ownership(
   }
   if (resolver === "INSTANCE") {
     const row = resourceId
-      ? await prisma().agentRecord.findUnique({
-          where: { projectId_id: { projectId: scopedProjectId, id: resourceId } },
+      ? await prisma().agentRecord.findFirst({
+          where: { projectId: scopedProjectId, id: resourceId, deletedAt: null },
           select: { ownerUserId: true },
         })
       : undefined;
@@ -69,8 +69,8 @@ async function ownership(
   }
   if (resolver === "REGISTERED_AGENT") {
     const row = resourceId
-      ? await prisma().agentCatalogRecord.findUnique({
-          where: { projectId_id: { projectId: scopedProjectId, id: resourceId } },
+      ? await prisma().agentCatalogRecord.findFirst({
+          where: { projectId: scopedProjectId, id: resourceId, deletedAt: null },
           select: { ownerUserId: true },
         })
       : undefined;
@@ -84,19 +84,18 @@ async function ownership(
         ? body.coordinatorInstanceId
         : undefined;
     } else if (resourceId) {
-      const connection = await prisma().agentConnectionRecord.findUnique({
-        where: { projectId_id: { projectId: scopedProjectId, id: resourceId } },
+      const connection = await prisma().agentConnectionRecord.findFirst({
+        where: { projectId: scopedProjectId, id: resourceId, deletedAt: null },
         select: { coordinatorInstanceId: true },
       });
       coordinatorInstanceId = connection?.coordinatorInstanceId;
     }
     const instance = coordinatorInstanceId
-      ? await prisma().agentRecord.findUnique({
+      ? await prisma().agentRecord.findFirst({
           where: {
-            projectId_id: {
-              projectId: scopedProjectId,
-              id: coordinatorInstanceId,
-            },
+            projectId: scopedProjectId,
+            id: coordinatorInstanceId,
+            deletedAt: null,
           },
           select: { ownerUserId: true },
         })

@@ -24,6 +24,7 @@ import { McpTemplateCatalog } from "@/components/mcp/mcp-template-catalog";
 import { McpBrandIcon, resolveMcpServerBrand } from "@/components/mcp/mcp-brand-icon";
 import { McpToolList } from "@/components/mcp/mcp-tool-list";
 import { EntityDetailList, EntitySheet } from "@/components/shared/entity-sheet";
+import { DeleteEntitySheet } from "@/components/shared/delete-entity-sheet";
 import { StatusDot } from "@/components/shared/status-dot";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -100,6 +101,7 @@ function McpServers() {
   const templates = catalog.data?.mcpServerTemplates ?? [];
   const [selectedId, setSelectedId] = useState("");
   const [detailOpen, setDetailOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -136,6 +138,7 @@ function McpServers() {
   const deleteServer = useMutation({
     mutationFn: (id: string) => api.deleteResource("mcp-servers", id),
     onSuccess: async () => {
+      setDeleteOpen(false);
       setDetailOpen(false);
       setSelectedId("");
       setNotice("MCP Server, its Project permission binding, and its local tool snapshot were removed.");
@@ -260,8 +263,8 @@ function McpServers() {
         width="lg"
         footer={(
           <>
-            <Button variant="destructive" disabled={deleteServer.isPending} onClick={() => selected && deleteServer.mutate(selected.id)}>
-              <Trash2 />{deleteServer.isPending ? "Removing…" : "Remove MCP"}
+            <Button variant="destructive" disabled={deleteServer.isPending} onClick={() => { deleteServer.reset(); setDetailOpen(false); setDeleteOpen(true); }}>
+              <Trash2 />Remove MCP
             </Button>
             <Button variant="outline" onClick={() => selected && openForm(selected)}><Pencil /> Update configuration</Button>
             <Button disabled={checkServer.isPending} onClick={() => selected && checkServer.mutate(selected)}>
@@ -314,6 +317,21 @@ function McpServers() {
           </div>
         ) : null}
       </EntitySheet>
+
+      {selected ? (
+        <DeleteEntitySheet
+          open={deleteOpen}
+          onOpenChange={setDeleteOpen}
+          title="Delete MCP Server"
+          description={<>Remove <strong>{selected.name}</strong> from this Project.</>}
+          entityName={selected.name}
+          confirmLabel="Delete MCP"
+          deleting={deleteServer.isPending}
+          onConfirm={() => deleteServer.mutate(selected.id)}
+          {...(deleteServer.error instanceof Error ? { error: deleteServer.error.message } : {})}
+          retentionDescription="The MCP Server registration and local tool snapshot are soft-deleted with a deletion timestamp. Its LiteLLM registration and Project permission are permanently removed."
+        />
+      ) : null}
 
       <EntitySheet
         open={formOpen}

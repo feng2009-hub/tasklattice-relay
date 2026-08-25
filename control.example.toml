@@ -3,7 +3,6 @@ schema_version = 1
 [server]
 # Canonical browser origin used by Better Auth for cookies and callbacks.
 public_url = "http://192.168.139.2:38080"
-internal_url = "http://tali-control:38080"
 
 [database]
 url = "postgresql://tali:CHANGE_ME@postgresql:5432/tali"
@@ -12,21 +11,6 @@ url = "postgresql://tali:CHANGE_ME@postgresql:5432/tali"
 secret = "CHANGE_TO_AT_LEAST_32_RANDOM_CHARACTERS"
 
 [auth.local]
-enabled = true
 initial_platform_administrator_username = "admin"
 initial_platform_administrator_email = "admin@tasklattice.local"
 initial_platform_administrator_password = "CHANGE_TO_A_STRONG_PASSWORD"
-
-[runner]
-url = "http://tali-runner:9090"
-token = "CHANGE_ME"
-
-[litellm]
-url = "http://tali-litellm:4000"
-master_key = "CHANGE_ME"
-
-[runtime_namespaces]
-enabled = true
-cluster_id = "in-cluster"
-# Must be unique to this Relay installation when sharing a Kubernetes cluster.
-name_prefix = "tali-p"

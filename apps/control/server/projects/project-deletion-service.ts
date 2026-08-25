@@ -1,5 +1,4 @@
 import type { AgentPlatformId } from "@tali/contracts";
-import { getControlConfig } from "../config/control-config";
 import { prisma } from "../db/prisma";
 import type { Prisma, PrismaClient } from "../generated/prisma/client";
 import {
@@ -117,7 +116,7 @@ export class ProjectDeletionService {
     runtimeTargets?: ProjectRuntimeTargetCleanup,
   ) {
     this.externalCleanupEnabled =
-      options.externalCleanupEnabled ?? Boolean(getControlConfig().litellm.master_key);
+      options.externalCleanupEnabled ?? true;
     this.runtimeTargets =
       runtimeTargets ?? new ProjectRuntimeTargetService(this.db);
   }
@@ -355,15 +354,37 @@ export class ProjectDeletionService {
     // confirms that the Project Runtime Namespace is absent.
     await this.runtimeTargets.deleteProjectNamespace(projectId);
 
-    const deleted = await this.db.$transaction(async (transaction) => {
-      // Agent ownership deliberately uses a restrictive membership FK. Remove
-      // Instances first so the remaining Project-owned rows can use their
-      // database cascades without weakening that invariant during normal use.
-      await transaction.agentRecord.deleteMany({ where: { projectId } });
-      return transaction.project.deleteMany({
-        where: { id: projectId, deletedAt: { not: null } },
+    await this.db.$transaction(async (transaction) => {
+      // Business records remain as tombstones. Only runtime and external
+      // integration resources above are physically destroyed.
+      await transaction.agentRecord.updateMany({
+        where: { projectId, deletedAt: null },
+        data: { deletedAt: project.deletedAt },
+      });
+      await Promise.all([
+        transaction.agentCatalogRecord.updateMany({ where: { projectId, deletedAt: null }, data: { deletedAt: project.deletedAt } }),
+        transaction.managedA2aInstanceRecord.updateMany({ where: { projectId, deletedAt: null }, data: { deletedAt: project.deletedAt } }),
+        transaction.agentConnectionRecord.updateMany({ where: { projectId, deletedAt: null }, data: { deletedAt: project.deletedAt } }),
+        transaction.providerAccountRecord.updateMany({ where: { projectId, deletedAt: null }, data: { deletedAt: project.deletedAt } }),
+        transaction.modelDeploymentRecord.updateMany({ where: { projectId, deletedAt: null }, data: { deletedAt: project.deletedAt } }),
+        transaction.modelRoutingRecord.updateMany({ where: { projectId, deletedAt: null }, data: { deletedAt: project.deletedAt } }),
+        transaction.sandboxPolicyRecord.updateMany({ where: { projectId, deletedAt: null }, data: { deletedAt: project.deletedAt } }),
+        transaction.accessPolicyRecord.updateMany({ where: { projectId, deletedAt: null }, data: { deletedAt: project.deletedAt } }),
+        transaction.skillRecord.updateMany({ where: { projectId, deletedAt: null }, data: { deletedAt: project.deletedAt } }),
+        transaction.mcpServerRecord.updateMany({ where: { projectId, deletedAt: null }, data: { deletedAt: project.deletedAt } }),
+        transaction.knowledgeSourceRecord.updateMany({ where: { projectId, deletedAt: null }, data: { deletedAt: project.deletedAt } }),
+        transaction.agentSpecializationRecord.updateMany({ where: { projectId, deletedAt: null }, data: { deletedAt: project.deletedAt } }),
+      ]);
+      await transaction.projectDeletionTask.updateMany({
+        where: { projectId, status: "running" },
+        data: {
+          lastError: null,
+          leaseExpiresAt: null,
+          leaseOwner: null,
+          status: "completed",
+        },
       });
     });
-    return deleted.count > 0;
+    return true;
   }
 }

@@ -87,13 +87,20 @@ Runtime workloads receive neither identity.
 
 ## Configuration
 
-Set `projectRuntimeNamespaces.enabled=true` in Helm to enable Namespace
-creation. The cluster identifier and Namespace prefix are configured under
-`projectRuntimeNamespaces`; the corresponding Control Plane TOML section is
-`[runtime_namespaces]`.
+Configure Namespace creation under **Platform Setting -> Infrastructure**. The
+Helm `projectRuntimeNamespaces` values provide the initial setting for a new
+database only; they are not written to `control.toml` and later Helm upgrades
+do not replace the saved Platform configuration. The Chart always installs the
+reviewed Control and cleanup RBAC so a Platform Administrator can validate and
+enable the feature without another deployment.
 
-`projectRuntimeNamespaces.namePrefix` defaults to `tali-p`, but a shared
-cluster should use an installation-specific value such as `acme-relay-p`.
+Before save, validation confirms that the in-cluster Kubernetes API is
+available and uses SelfSubjectAccessReview to check the Control
+ServiceAccount's required Namespace and managed workload permissions. It also
+rejects a cluster ID that differs from any existing Runtime Target.
+
+The Namespace prefix defaults to `tali-p`, but a shared cluster should use an
+installation-specific value such as `acme-relay-p`.
 Prefixes are validated as DNS labels and limited to 20 characters so the full
 Namespace name remains within Kubernetes' 63-character limit.
 

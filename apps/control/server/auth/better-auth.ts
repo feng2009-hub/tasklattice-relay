@@ -162,24 +162,22 @@ interface BetterAuthState {
 
 declare global {
   var taliBetterAuth: BetterAuthInstance | undefined;
+  var taliBetterAuthLocalState: BetterAuthState | undefined;
   var taliBetterAuthSsoState: BetterAuthState | undefined;
 }
 
 export async function auth(): Promise<BetterAuthInstance> {
-  const config = getControlConfig();
-  globalThis.taliBetterAuth ??= createBetterAuth({
-    localAuthenticationEnabled: config.auth.local.enabled,
-    revision: 0,
-    sso: {
-      clientId: "",
-      clientSecret: "",
-      displayName: "SSO",
-      enabled: false,
-      groupClaim: "groups",
-      issuer: "",
-    },
+  const runtime = await new PlatformSettingsService().authRuntimeSettings();
+  const revisionKey = `${runtime.revision}:${runtime.localAuthenticationEnabled}`;
+  if (globalThis.taliBetterAuthLocalState?.revisionKey === revisionKey) {
+    return globalThis.taliBetterAuthLocalState.instance;
+  }
+  const instance = createBetterAuth({
+    ...runtime,
+    sso: { ...runtime.sso, enabled: false },
   });
-  return globalThis.taliBetterAuth;
+  globalThis.taliBetterAuthLocalState = { instance, revisionKey };
+  return instance;
 }
 
 export async function ssoAuth(): Promise<BetterAuthInstance> {
@@ -199,17 +197,18 @@ export async function ssoAuth(): Promise<BetterAuthInstance> {
 
 export function resetBetterAuthForTests(): void {
   globalThis.taliBetterAuth = undefined;
+  globalThis.taliBetterAuthLocalState = undefined;
   globalThis.taliBetterAuthSsoState = undefined;
 }
 
 export async function ensureInitialPlatformAdministrator(): Promise<void> {
   await ensureBuiltinRoleCatalog();
   const local = getControlConfig().auth.local;
-  if (!local.enabled) return;
   const username = local.initial_platform_administrator_username;
   const email = local.initial_platform_administrator_email;
   const password = local.initial_platform_administrator_password;
   if (!username || !email || !password) {
+    if (!local.enabled) return;
     throw new Error(
       "Local authentication requires an initial Platform Administrator username, email, and password.",
     );
@@ -226,13 +225,9 @@ export async function ensureInitialPlatformAdministrator(): Promise<void> {
       systemRole: "platform_administrator",
       status: "active",
     },
-    update: {
-      username,
-      email,
-      emailVerified: true,
-      systemRole: "platform_administrator",
-      status: "active",
-    },
+    // Bootstrap values are create-only. Platform-managed identity changes
+    // must not be silently reverted during a later process restart.
+    update: {},
   });
 
   const issuer = createLocalAccountIssuer("credential");

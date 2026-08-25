@@ -8,7 +8,7 @@ import type {
   ProviderModelSelection,
 } from "@tali/contracts";
 import { complianceDomains } from "@tali/contracts";
-import { getControlConfig } from "../config/control-config";
+import { loadPlatformRuntimeConfiguration } from "../platform/platform-runtime-config";
 
 interface LiteLLMVirtualKeyResponse {
   key: string;
@@ -193,6 +193,7 @@ export interface LiteLLMVectorStoreInput {
 
 export interface LiteLLMAdminClient {
   readonly baseUrl: string;
+  connectionBaseUrl?(): Promise<string>;
   registerModel(input: {
     accountId: string;
     providerKind: ProviderKind;
@@ -234,11 +235,29 @@ export class LiteLLMClient implements LiteLLMAdminClient {
   readonly baseUrl: string;
 
   constructor(
-    baseUrl = getControlConfig().litellm.url,
-    private readonly masterKey = getControlConfig().litellm.master_key,
+    private readonly baseUrlOverride?: string,
+    private readonly masterKeyOverride?: string,
     private readonly requestTimeoutMs = 20_000,
   ) {
-    this.baseUrl = baseUrl.replace(/\/+$/, "");
+    this.baseUrl = (baseUrlOverride ?? "").replace(/\/+$/, "");
+  }
+
+  private async connection(): Promise<{ baseUrl: string; masterKey: string }> {
+    const runtime = this.baseUrlOverride !== undefined && this.masterKeyOverride !== undefined
+      ? undefined
+      : await loadPlatformRuntimeConfiguration();
+    const baseUrl = (this.baseUrlOverride ?? runtime?.litellm.url ?? "").replace(/\/+$/, "");
+    const masterKey = this.masterKeyOverride ?? runtime?.litellm.masterKey ?? "";
+    if (!baseUrl || !masterKey) {
+      throw new Error(
+        "LiteLLM is not configured. Validate and save Runtime Connections in Platform Setting.",
+      );
+    }
+    return { baseUrl, masterKey };
+  }
+
+  async connectionBaseUrl(): Promise<string> {
+    return (await this.connection()).baseUrl;
   }
 
   async registerModel(input: {
@@ -855,8 +874,8 @@ export class LiteLLMClient implements LiteLLMAdminClient {
   }
 
   private assertConfigured(): void {
-    if (!this.masterKey)
-      throw new Error("LiteLLM is not configured. Set LITELLM_MASTER_KEY before registering models or creating Instances.");
+    if (this.masterKeyOverride === "")
+      throw new Error("LiteLLM is not configured. Validate and save Runtime Connections in Platform Setting.");
   }
 
   private async reconcileFallback(modelAlias: string, fallbackModels: string[]): Promise<void> {
@@ -901,11 +920,12 @@ export class LiteLLMClient implements LiteLLMAdminClient {
   }
 
   private async request<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
+    const { baseUrl, masterKey } = await this.connection();
     const formData = typeof FormData !== "undefined" && init.body instanceof FormData;
-    const response = await fetch(`${this.baseUrl}${path}`, {
+    const response = await fetch(`${baseUrl}${path}`, {
       ...init,
       headers: {
-        authorization: `Bearer ${this.masterKey}`,
+        authorization: `Bearer ${masterKey}`,
         ...(!formData ? { "content-type": "application/json" } : {}),
         ...init.headers,
       },
@@ -913,7 +933,7 @@ export class LiteLLMClient implements LiteLLMAdminClient {
     });
     const body = await response.text();
     if (!response.ok) {
-      const detail = formatLiteLLMErrorDetail(body, this.masterKey);
+      const detail = formatLiteLLMErrorDetail(body, masterKey);
       throw new LiteLLMRequestError(
         response.status,
         `LiteLLM returned ${response.status}${detail ? `: ${detail}` : "."}`,

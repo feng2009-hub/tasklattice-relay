@@ -21,7 +21,7 @@ export class AccessPolicyStore {
 
   async list(): Promise<AccessPolicy[]> {
     const rows = await this.db.accessPolicyRecord.findMany({
-      where: { projectId: this.projectId },
+      where: { projectId: this.projectId, deletedAt: null },
       orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
       select: { payload: true },
     });
@@ -29,8 +29,8 @@ export class AccessPolicyStore {
   }
 
   async get(id: string): Promise<AccessPolicy | undefined> {
-    const row = await this.db.accessPolicyRecord.findUnique({
-      where: { projectId_id: { projectId: this.projectId, id } },
+    const row = await this.db.accessPolicyRecord.findFirst({
+      where: { projectId: this.projectId, id, deletedAt: null },
       select: { payload: true },
     });
     return row ? decode<AccessPolicy>(row.payload) : undefined;
@@ -88,8 +88,9 @@ export class AccessPolicyStore {
   }
 
   async delete(id: string): Promise<boolean> {
-    return (await this.db.accessPolicyRecord.deleteMany({
-      where: { projectId: this.projectId, id },
+    return (await this.db.accessPolicyRecord.updateMany({
+      where: { projectId: this.projectId, id, deletedAt: null },
+      data: { deletedAt: new Date() },
     })).count > 0;
   }
 }

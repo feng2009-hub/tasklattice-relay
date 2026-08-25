@@ -234,8 +234,8 @@ function runnerAdapter(): RunnerClient {
       logs: [],
     })),
     getHealth: vi.fn(async () => ({ ok: true, mode: "fixture" })),
-    terminalWebSocketUrl: vi.fn(() => "ws://runner/terminal"),
-    authorizationHeaders: vi.fn(() => ({ authorization: "Bearer token" })),
+    terminalWebSocketUrl: vi.fn(async () => "ws://runner/terminal"),
+    authorizationHeaders: vi.fn(async () => ({ authorization: "Bearer token" })),
   };
 }
 
@@ -579,7 +579,10 @@ describe("Instance Access Policy lifecycle", () => {
     );
 
     await expect(setup.service.destroy(agent.id)).resolves.toBe(true);
-    expect((await setup.store.get(agent.id))?.status).toBe("DESTROYING");
+    expect(await setup.store.get(agent.id)).toBeUndefined();
+    expect((await setup.store.getIncludingDeleted(agent.id))?.status).toBe(
+      "DESTROYING",
+    );
     expect(setup.litellm.revokeKey).not.toHaveBeenCalled();
 
     finishRuntimeCleanup({
@@ -590,7 +593,13 @@ describe("Instance Access Policy lifecycle", () => {
     });
     await vi.waitFor(async () => {
       expect(await setup.store.get(agent.id)).toBeUndefined();
+      expect(await setup.store.getIncludingDeleted(agent.id)).toBeDefined();
     });
+    await expect(setup.store.database().agentRecord.findUnique({
+      where: {
+        projectId_id: { projectId: setup.store.projectId, id: agent.id },
+      },
+    })).resolves.toMatchObject({ deletedAt: expect.any(Date) });
   });
 
   it("updates permissions without recreating the Sandbox", async () => {

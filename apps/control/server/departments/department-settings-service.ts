@@ -59,13 +59,13 @@ export class DepartmentSettingsService {
           },
         }),
         this.db.agentRecord.count({
-          where: { project: { departmentId, deletedAt: null } },
+          where: { deletedAt: null, project: { departmentId, deletedAt: null } },
         }),
         this.db.mcpServerRecord.count({
-          where: { project: { departmentId, deletedAt: null } },
+          where: { deletedAt: null, project: { departmentId, deletedAt: null } },
         }),
         this.db.knowledgeSourceRecord.count({
-          where: { project: { departmentId, deletedAt: null } },
+          where: { deletedAt: null, project: { departmentId, deletedAt: null } },
         }),
       ]);
     if (!department) throw new Error("Department not found.");

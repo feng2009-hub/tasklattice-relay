@@ -4,17 +4,22 @@ import {
   type ExternalRoleBindingView,
   type PlatformEmailValidationView,
   type PlatformEmailSettingsView,
+  type PlatformInfrastructureSettingsView,
+  type PlatformInfrastructureValidationView,
   type PlatformSecuritySettingsView,
   type PlatformSettingsView,
   type PlatformSsoValidationView,
   type ProviderKind,
   type RunnerHealth,
+  type UpdatePlatformInfrastructureSettingsInput,
   type UpdatePlatformSecuritySettingsInput,
   type UpdatePlatformEmailSettingsInput,
   type UpdatePlatformSettingsInput,
   type ValidatePlatformEmailSettingsInput,
+  type ValidatePlatformInfrastructureSettingsInput,
   type ValidatePlatformSsoSettingsInput,
 } from "@tali/contracts";
+import { AuthorizationV1Api, KubeConfig } from "@kubernetes/client-node";
 import { getControlConfig } from "../config/control-config";
 import { prisma } from "../db/prisma";
 import {
@@ -27,6 +32,13 @@ import {
   encryptPlatformSecret,
 } from "./platform-secret-crypto";
 import { ExternalRoleBindingService } from "../auth/external-role-bindings";
+import { NemoClawRunnerClient } from "../runtime/nemoclaw-runner-client";
+import { LiteLLMClient } from "../providers/litellm-client";
+import {
+  assertPlatformSettingsValidation,
+  issuePlatformSettingsValidation,
+} from "./platform-settings-validation";
+import { deploymentBootstrapRuntimeConfiguration } from "./platform-runtime-config";
 
 const fallbackRuntimeImages = {
   openclaw: "ghcr.io/tasklattice/tali-nemoclaw-sandbox:dev",
@@ -83,6 +95,52 @@ interface OidcDiscoveryDocument {
   tokenEndpoint: string;
 }
 
+const runtimeNamespacePermissions = [
+  { group: "", resource: "namespaces", verb: "get" },
+  { group: "", resource: "namespaces", verb: "create" },
+  { group: "", resource: "namespaces", verb: "patch" },
+  { group: "", resource: "services", verb: "get" },
+  { group: "", resource: "services", verb: "create" },
+  { group: "", resource: "services", verb: "patch" },
+  { group: "", resource: "services", verb: "delete" },
+  { group: "", resource: "pods", verb: "get" },
+  { group: "", resource: "pods", verb: "list" },
+  { group: "apps", resource: "deployments", verb: "get" },
+  { group: "apps", resource: "deployments", verb: "create" },
+  { group: "apps", resource: "deployments", verb: "patch" },
+  { group: "apps", resource: "deployments", verb: "delete" },
+] as const;
+
+async function verifyRuntimeNamespaceAccess(): Promise<void> {
+  if (!process.env.KUBERNETES_SERVICE_HOST) {
+    throw new Error(
+      "Runtime Namespaces cannot be enabled because the Kubernetes in-cluster API is unavailable.",
+    );
+  }
+  const kubeConfig = new KubeConfig();
+  kubeConfig.loadFromCluster();
+  const authorization = kubeConfig.makeApiClient(AuthorizationV1Api);
+  const reviews = await Promise.all(runtimeNamespacePermissions.map(
+    (attributes) => authorization.createSelfSubjectAccessReview({
+      body: {
+        apiVersion: "authorization.k8s.io/v1",
+        kind: "SelfSubjectAccessReview",
+        spec: { resourceAttributes: attributes },
+      },
+    }),
+  ));
+  const denied = reviews.flatMap((review, index) =>
+    review.status?.allowed ? [] : [runtimeNamespacePermissions[index]!]
+  );
+  if (denied.length) {
+    throw new Error(
+      `Control ServiceAccount is missing Kubernetes access: ${denied
+        .map(({ group, resource, verb }) => `${verb} ${group ? `${group}/` : ""}${resource}`)
+        .join(", ")}.`,
+    );
+  }
+}
+
 export class PlatformSettingsService {
   constructor(
     private readonly db: PrismaClient = prisma(),
@@ -90,6 +148,8 @@ export class PlatformSettingsService {
     private readonly smtpVerify: (
       settings: SmtpConnectionSettings,
     ) => Promise<void> = verifySmtpConnection,
+    private readonly runtimeNamespaceAccessVerify: () => Promise<void> =
+      verifyRuntimeNamespaceAccess,
   ) {}
 
   private stored() {
@@ -202,6 +262,7 @@ export class PlatformSettingsService {
         namespaceDeletionTimeoutSeconds:
           settings?.runtimeNamespaceDeletionTimeoutSeconds ?? 120,
       },
+      infrastructure: this.infrastructureView(settings),
       security: this.securityView(settings, roleBindings),
       email: this.emailView(settings),
       enabledProviderKinds: providerKindList(settings?.enabledProviderKinds),
@@ -244,6 +305,131 @@ export class PlatformSettingsService {
     return this.get(health);
   }
 
+  async getInfrastructure(): Promise<PlatformInfrastructureSettingsView> {
+    return this.infrastructureView(await this.stored());
+  }
+
+  async validateInfrastructure(
+    input: ValidatePlatformInfrastructureSettingsInput,
+  ): Promise<PlatformInfrastructureValidationView> {
+    const current = await this.stored();
+    const runnerToken = input.runner.token.action === "replace"
+      ? input.runner.token.value
+      : this.currentRunnerToken(current);
+    const litellmMasterKey = input.litellm.masterKey.action === "replace"
+      ? input.litellm.masterKey.value
+      : this.currentLiteLlmMasterKey(current);
+    if (!runnerToken) throw new Error("A Runner token is required before validation.");
+    if (!litellmMasterKey) throw new Error("A LiteLLM master key is required before validation.");
+
+    const controlUrl = input.controlInternalUrl.replace(/\/+$/, "");
+    const controlProbe = this.oidcFetch(`${controlUrl}/api/health`, {
+      headers: { accept: "application/json" },
+      signal: AbortSignal.timeout(8_000),
+    }).then(async (response) => {
+      if (!response.ok) throw new Error(`Control internal URL returned HTTP ${response.status}.`);
+      const payload = await response.json() as { ok?: unknown };
+      if (payload.ok !== true) throw new Error("Control internal URL did not report a healthy service.");
+      return { ok: true as const };
+    }).catch((error) => {
+      throw new Error(
+        `Control internal URL validation failed: ${error instanceof Error ? error.message : "connection failed"}`,
+      );
+    });
+    const runnerProbe = new NemoClawRunnerClient(
+      input.runner.url,
+      runnerToken,
+    ).getHealth().then((health) => ({ ok: true as const, mode: health.mode }));
+    const litellmProbe = new LiteLLMClient(
+      input.litellm.url,
+      litellmMasterKey,
+    ).testConnection().then((result) => ({
+      ok: true as const,
+      ...(result.version ? { version: result.version } : {}),
+    }));
+
+    const [control, runner, litellm, existingTargetCount, mismatchedTarget] =
+      await Promise.all([
+        controlProbe,
+        runnerProbe,
+        litellmProbe,
+        this.db.projectRuntimeTarget.count(),
+        this.db.projectRuntimeTarget.findFirst({
+          where: { clusterId: { not: input.runtimeNamespaces.clusterId } },
+          select: { clusterId: true },
+        }),
+      ]);
+    if (input.runtimeNamespaces.enabled) {
+      await this.runtimeNamespaceAccessVerify();
+    }
+    if (mismatchedTarget) {
+      throw new Error(
+        `Existing Runtime Targets belong to cluster ${mismatchedTarget.clusterId}. Migrate them before changing the Platform cluster identity.`,
+      );
+    }
+    const validation = issuePlatformSettingsValidation(
+      "infrastructure",
+      this.infrastructureValidationPayload(input, runnerToken, litellmMasterKey),
+    );
+    return {
+      control,
+      runner,
+      litellm,
+      runtimeNamespaces: { ok: true, existingTargetCount },
+      ...validation,
+    };
+  }
+
+  async updateInfrastructure(
+    input: UpdatePlatformInfrastructureSettingsInput,
+    actor: string,
+  ): Promise<PlatformInfrastructureSettingsView> {
+    const current = await this.stored();
+    const runnerToken = input.runner.token.action === "replace"
+      ? input.runner.token.value
+      : this.currentRunnerToken(current);
+    const litellmMasterKey = input.litellm.masterKey.action === "replace"
+      ? input.litellm.masterKey.value
+      : this.currentLiteLlmMasterKey(current);
+    if (!runnerToken || !litellmMasterKey) {
+      throw new Error("Runner and LiteLLM credentials must be configured.");
+    }
+    assertPlatformSettingsValidation(
+      "infrastructure",
+      this.infrastructureValidationPayload(input, runnerToken, litellmMasterKey),
+      input.validationToken,
+    );
+    const config = getControlConfig();
+    await this.db.platformSettingsRecord.upsert({
+      where: { id: "platform" },
+      create: {
+        id: "platform",
+        controlInternalUrl: input.controlInternalUrl.replace(/\/+$/, ""),
+        runnerUrl: input.runner.url.replace(/\/+$/, ""),
+        runnerTokenEncrypted: encryptPlatformSecret(runnerToken, config.auth.secret),
+        litellmUrl: input.litellm.url.replace(/\/+$/, ""),
+        litellmMasterKeyEncrypted: encryptPlatformSecret(litellmMasterKey, config.auth.secret),
+        runtimeNamespacesEnabled: input.runtimeNamespaces.enabled,
+        runtimeClusterId: input.runtimeNamespaces.clusterId,
+        runtimeNamespacePrefix: input.runtimeNamespaces.namePrefix,
+        updatedBy: actor,
+      },
+      update: {
+        controlInternalUrl: input.controlInternalUrl.replace(/\/+$/, ""),
+        runnerUrl: input.runner.url.replace(/\/+$/, ""),
+        runnerTokenEncrypted: encryptPlatformSecret(runnerToken, config.auth.secret),
+        litellmUrl: input.litellm.url.replace(/\/+$/, ""),
+        litellmMasterKeyEncrypted: encryptPlatformSecret(litellmMasterKey, config.auth.secret),
+        runtimeNamespacesEnabled: input.runtimeNamespaces.enabled,
+        runtimeClusterId: input.runtimeNamespaces.clusterId,
+        runtimeNamespacePrefix: input.runtimeNamespaces.namePrefix,
+        updatedBy: actor,
+        revision: { increment: 1 },
+      },
+    });
+    return this.infrastructureView(await this.stored());
+  }
+
   async authRuntimeSettings(): Promise<PlatformAuthRuntimeSettings> {
     const settings = await this.stored();
     const config = getControlConfig();
@@ -263,7 +449,8 @@ export class PlatformSettingsService {
     }
     try {
       return {
-        localAuthenticationEnabled: config.auth.local.enabled,
+        localAuthenticationEnabled:
+          settings.localAuthenticationEnabled ?? config.auth.local.enabled,
         revision: settings.revision,
         sso: {
           clientId: settings.oidcClientId,
@@ -280,7 +467,7 @@ export class PlatformSettingsService {
         },
       };
     } catch (error) {
-      if (!config.auth.local.enabled) throw error;
+      if (!(settings.localAuthenticationEnabled ?? config.auth.local.enabled)) throw error;
       console.error(
         "Platform SSO override is unreadable; continuing with Local authentication only.",
         error,
@@ -310,11 +497,6 @@ export class PlatformSettingsService {
     actor: string,
   ): Promise<PlatformSecuritySettingsView> {
     const config = getControlConfig();
-    if (!config.auth.local.enabled) {
-      throw new Error(
-        "Online SSO changes require Local authentication as a recovery path.",
-      );
-    }
     const current = await this.stored();
     const effectiveSecret = input.sso.clientSecret.action === "replace"
       ? input.sso.clientSecret.value
@@ -324,9 +506,13 @@ export class PlatformSettingsService {
     if (input.sso.enabled && !effectiveSecret) {
       throw new Error("A Client secret is required when SSO is enabled.");
     }
-    if (input.sso.enabled) {
-      await this.validateOidcDiscovery(input.sso.issuer);
-    }
+    if (!input.localAuthenticationEnabled && !input.sso.enabled)
+      throw new Error("Keep at least one Platform authentication method enabled.");
+    assertPlatformSettingsValidation(
+      "security",
+      this.securityValidationPayload(input, effectiveSecret),
+      input.validationToken,
+    );
     const encryptedSecret = effectiveSecret
       ? encryptPlatformSecret(effectiveSecret, config.auth.secret)
       : null;
@@ -340,6 +526,7 @@ export class PlatformSettingsService {
         oidcClientId: input.sso.clientId,
         oidcGroupClaim: input.sso.groupClaim ?? "groups",
         oidcClientSecretEncrypted: encryptedSecret,
+        localAuthenticationEnabled: input.localAuthenticationEnabled,
         updatedBy: actor,
       },
       update: {
@@ -349,6 +536,7 @@ export class PlatformSettingsService {
         oidcClientId: input.sso.clientId,
         oidcGroupClaim: input.sso.groupClaim ?? "groups",
         oidcClientSecretEncrypted: encryptedSecret,
+        localAuthenticationEnabled: input.localAuthenticationEnabled,
         updatedBy: actor,
         revision: { increment: 1 },
       },
@@ -474,16 +662,41 @@ export class PlatformSettingsService {
     input: ValidatePlatformSsoSettingsInput,
   ): Promise<PlatformSsoValidationView> {
     const current = await this.stored();
-    const effectiveSecret = input.clientSecret.action === "replace"
-      ? input.clientSecret.value
-      : input.clientSecret.action === "clear"
+    const effectiveSecret = input.sso.clientSecret.action === "replace"
+      ? input.sso.clientSecret.value
+      : input.sso.clientSecret.action === "clear"
         ? ""
         : this.currentClientSecret(current);
-    if (!effectiveSecret) {
+    if (!input.localAuthenticationEnabled && !input.sso.enabled) {
+      throw new Error("Keep at least one Platform authentication method enabled.");
+    }
+    if (input.sso.enabled && !effectiveSecret) {
       throw new Error("A Client secret is required to validate SSO.");
     }
+    const localCredentialReady = Boolean(await this.db.authAccount.findFirst({
+      where: { providerId: "credential", userId: "local-admin" },
+      select: { id: true },
+    }));
+    if (input.localAuthenticationEnabled && !localCredentialReady) {
+      throw new Error(
+        "Local authentication cannot be enabled until the bootstrap Platform Administrator has a credential.",
+      );
+    }
+    const validation = issuePlatformSettingsValidation(
+      "security",
+      this.securityValidationPayload(input, effectiveSecret),
+    );
+    if (!input.sso.enabled) {
+      return {
+        expiresAt: validation.expiresAt,
+        localCredentialReady,
+        signingKeyCount: 0,
+        validatedAt: validation.validatedAt,
+        validationToken: validation.validationToken,
+      };
+    }
 
-    const discovery = await this.readOidcDiscovery(input.issuer);
+    const discovery = await this.readOidcDiscovery(input.sso.issuer);
     let response: Response;
     try {
       response = await this.oidcFetch(discovery.jwksUri, {
@@ -510,9 +723,105 @@ export class PlatformSettingsService {
 
     return {
       ...discovery,
+      expiresAt: validation.expiresAt,
+      localCredentialReady,
       signingKeyCount: jwks.keys.length,
-      validatedAt: new Date().toISOString(),
+      validatedAt: validation.validatedAt,
+      validationToken: validation.validationToken,
     };
+  }
+
+  private infrastructureView(
+    settings: Awaited<ReturnType<PlatformSettingsService["stored"]>>,
+  ): PlatformInfrastructureSettingsView {
+    const bootstrap = deploymentBootstrapRuntimeConfiguration();
+    return {
+      controlInternalUrl:
+        settings?.controlInternalUrl ?? bootstrap.controlInternalUrl,
+      runner: {
+        url: settings?.runnerUrl ?? bootstrap.runner.url,
+        tokenConfigured: Boolean(
+          settings?.runnerTokenEncrypted ?? bootstrap.runner.token,
+        ),
+      },
+      litellm: {
+        url: settings?.litellmUrl ?? bootstrap.litellm.url,
+        masterKeyConfigured: Boolean(
+          settings?.litellmMasterKeyEncrypted ?? bootstrap.litellm.masterKey,
+        ),
+      },
+      runtimeNamespaces: {
+        enabled:
+          settings?.runtimeNamespacesEnabled
+          ?? bootstrap.runtimeNamespaces.enabled,
+        clusterId:
+          settings?.runtimeClusterId ?? bootstrap.runtimeNamespaces.clusterId,
+        namePrefix:
+          settings?.runtimeNamespacePrefix
+          ?? bootstrap.runtimeNamespaces.namePrefix,
+      },
+    };
+  }
+
+  private infrastructureValidationPayload(
+    input:
+      | ValidatePlatformInfrastructureSettingsInput
+      | UpdatePlatformInfrastructureSettingsInput,
+    runnerToken: string,
+    litellmMasterKey: string,
+  ): unknown {
+    return {
+      controlInternalUrl: input.controlInternalUrl.replace(/\/+$/, ""),
+      runner: {
+        url: input.runner.url.replace(/\/+$/, ""),
+        token: runnerToken,
+      },
+      litellm: {
+        url: input.litellm.url.replace(/\/+$/, ""),
+        masterKey: litellmMasterKey,
+      },
+      runtimeNamespaces: input.runtimeNamespaces,
+    };
+  }
+
+  private securityValidationPayload(
+    input:
+      | ValidatePlatformSsoSettingsInput
+      | UpdatePlatformSecuritySettingsInput,
+    clientSecret: string,
+  ): unknown {
+    return {
+      localAuthenticationEnabled: input.localAuthenticationEnabled,
+      sso: {
+        clientId: input.sso.clientId,
+        clientSecret,
+        displayName: input.sso.displayName,
+        enabled: input.sso.enabled,
+        groupClaim: input.sso.groupClaim ?? "groups",
+        issuer: input.sso.issuer.replace(/\/+$/, ""),
+      },
+    };
+  }
+
+  private currentRunnerToken(
+    settings: Awaited<ReturnType<PlatformSettingsService["stored"]>>,
+  ): string {
+    const config = getControlConfig();
+    return settings?.runnerTokenEncrypted
+      ? decryptPlatformSecret(settings.runnerTokenEncrypted, config.auth.secret)
+      : deploymentBootstrapRuntimeConfiguration().runner.token;
+  }
+
+  private currentLiteLlmMasterKey(
+    settings: Awaited<ReturnType<PlatformSettingsService["stored"]>>,
+  ): string {
+    const config = getControlConfig();
+    return settings?.litellmMasterKeyEncrypted
+      ? decryptPlatformSecret(
+          settings.litellmMasterKeyEncrypted,
+          config.auth.secret,
+        )
+      : deploymentBootstrapRuntimeConfiguration().litellm.masterKey;
   }
 
   private currentClientSecret(
@@ -555,9 +864,10 @@ export class PlatformSettingsService {
       }
     }
     return {
-      canEditOnline: config.auth.local.enabled,
+      canEditOnline: true,
       configurationError,
-      localAuthenticationEnabled: config.auth.local.enabled,
+      localAuthenticationEnabled:
+        settings?.localAuthenticationEnabled ?? config.auth.local.enabled,
       sso: {
         callbackUrl: `${publicUrl}/api/auth/callback/corporate-sso`,
         clientId: settings?.oidcClientId ?? "",

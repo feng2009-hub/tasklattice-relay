@@ -23,7 +23,7 @@ export function InstanceCapabilitiesTab({ agent }: { agent: Agent }) {
   const mcpServers = (agent.mcpServerIds ?? []).map((id) => catalog.data?.mcpServers.find((item) => item.id === id) ?? { id, name: id, status: "UNCHECKED" as const, tools: undefined, transport: undefined });
   const knowledgeBases = (agent.knowledgeSourceIds ?? []).map((id) => catalog.data?.knowledgeSources.find((item) => item.id === id) ?? { id, name: id, description: "Catalog details unavailable.", provider: undefined });
   return (
-    <div role="tabpanel" aria-label="Access" className="space-y-4 pt-5">
+    <div role="tabpanel" aria-label="Capabilities" className="space-y-4 pt-5">
       <InstanceEffectiveAccessPreview agent={agent} />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Card id="skills" className="scroll-mt-24">

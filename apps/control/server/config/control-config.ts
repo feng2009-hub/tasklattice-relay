@@ -19,7 +19,9 @@ const runtimeNamespacesConfigSchema = z.object({
 });
 
 const localAuthConfigSchema = z.object({
-  enabled: z.boolean(),
+  // Legacy deployment-owned switch. New configuration files omit it and
+  // Platform Settings owns the live authentication policy.
+  enabled: z.boolean().optional().default(true),
   initial_platform_administrator_username: z.string().trim().min(1).optional(),
   initial_platform_administrator_email: z.string().email().optional(),
   initial_platform_administrator_password: z.string().min(1).max(128).optional(),
@@ -94,14 +96,17 @@ const controlConfigSchema = z.object({
       });
     }
   }),
+  // Accepted while upgrading existing sealed configuration files. Runtime
+  // connectivity is imported into Platform Settings and is no longer
+  // required for a new deployment.
   runner: z.object({
     url: z.string().url(),
     token: z.string().min(1),
-  }),
+  }).optional(),
   litellm: z.object({
     url: z.string().url(),
     master_key: z.string(),
-  }),
+  }).optional(),
   runtime_namespaces: runtimeNamespacesConfigSchema.default(
     defaultRuntimeNamespacesConfig,
   ),

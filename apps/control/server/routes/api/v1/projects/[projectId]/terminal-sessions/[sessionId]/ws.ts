@@ -52,13 +52,14 @@ export default defineWebSocketHandler({
     console.info(
       `[terminal ${connectionId}] browser connected; opening runner terminal for ${session.sandboxName}`,
     );
-    const upstream = new WebSocket(
+    const [upstreamUrl, headers] = await Promise.all([
       service.runner.terminalWebSocketUrl(
         session.sandboxName,
         session.agentPlatform,
       ),
-      { headers: service.runner.authorizationHeaders() },
-    );
+      service.runner.authorizationHeaders(),
+    ]);
+    const upstream = new WebSocket(upstreamUrl, { headers });
     const timeout = setTimeout(() => {
       peer.send(
         "\r\nUnable to open the runtime terminal before the connection timeout.\r\n",

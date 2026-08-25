@@ -43,7 +43,7 @@ export function InstanceConnectedAgentsCard({ agent }: { agent: Agent }) {
         title="Connected Agents"
         description="Remote Agents this Coordinator is authorized to call for matching tasks."
         action={(
-          <Button asChild variant="outline" size="sm">
+          <Button asChild variant="outline" size="sm" className="min-h-11">
             <Link
               to="/$projectId/agent-garden"
               params={{ projectId }}

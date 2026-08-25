@@ -5,6 +5,7 @@ import type { SandboxPolicy } from "@tali/contracts";
 import { AlertTriangle, FileLock2, LockKeyhole, Pencil, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { RuntimePolicyEditorDrawer } from "@/components/runtime-policies/runtime-policy-editor-drawer";
+import { DeleteEntitySheet } from "@/components/shared/delete-entity-sheet";
 import { EntityDetailList, EntitySheet } from "@/components/shared/entity-sheet";
 import { StatusDot } from "@/components/shared/status-dot";
 import { Badge } from "@/components/ui/badge";
@@ -21,12 +22,14 @@ function PolicyPage() {
   const scope = useProjectQueryScope();
   const [selectedId, setSelectedId] = useState("");
   const [detailOpen, setDetailOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [editor, setEditor] = useState<{ open: boolean; policy?: SandboxPolicy }>({ open: false });
   const catalog = useQuery({ queryKey: scope.key("runtime-policies"), queryFn: api.listRuntimePolicies });
   const selected = catalog.data?.policies.find((policy) => policy.id === selectedId);
   const remove = useMutation({
     mutationFn: api.deleteRuntimePolicy,
     onSuccess: async () => {
+      setDeleteOpen(false);
       setDetailOpen(false);
       setSelectedId("");
       await queryClient.invalidateQueries({ queryKey: scope.key("runtime-policies") });
@@ -35,7 +38,9 @@ function PolicyPage() {
 
   const deleteSelected = () => {
     if (!selected || selected.immutable) return;
-    if (window.confirm(`Delete the custom Policy “${selected.name}”?`)) remove.mutate(selected.id);
+    remove.reset();
+    setDetailOpen(false);
+    setDeleteOpen(true);
   };
   const openCreate = () => {
     setDetailOpen(false);
@@ -161,6 +166,21 @@ function PolicyPage() {
           </div>
         ) : null}
       </EntitySheet>
+
+      {selected && !selected.immutable ? (
+        <DeleteEntitySheet
+          open={deleteOpen}
+          onOpenChange={setDeleteOpen}
+          title="Delete Runtime Policy"
+          description={<>Delete the custom Policy <strong>{selected.name}</strong>.</>}
+          entityName={selected.name}
+          confirmLabel="Delete Policy"
+          deleting={remove.isPending}
+          onConfirm={() => remove.mutate(selected.id)}
+          {...(remove.error instanceof Error ? { error: remove.error.message } : {})}
+          retentionDescription="The Runtime Policy is marked as deleted and retained with a deletion timestamp. Existing Sandbox resources are not restarted or changed."
+        />
+      ) : null}
 
       <RuntimePolicyEditorDrawer
         open={editor.open}

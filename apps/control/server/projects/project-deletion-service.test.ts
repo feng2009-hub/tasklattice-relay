@@ -26,7 +26,7 @@ function deletionDependencies() {
 }
 
 describe("ProjectDeletionService", () => {
-  it("leases due work before cascading Project cleanup", async () => {
+  it("leases due work, destroys runtime resources, and keeps business tombstones", async () => {
     const db = createTestPrisma();
     const dependencies = deletionDependencies();
     const requestedAt = new Date("2026-08-15T08:00:00.000Z");
@@ -122,9 +122,21 @@ describe("ProjectDeletionService", () => {
     expect(dependencies.deleteProjectTeam).toHaveBeenCalledWith("project-team-1");
     expect(deleteProjectNamespace).toHaveBeenCalledWith("individual");
     await expect(db.project.findUnique({ where: { id: "individual" } }))
-      .resolves.toBeNull();
+      .resolves.toMatchObject({ deletedAt: requestedAt });
     await expect(db.agentRecord.count({ where: { projectId: "individual" } }))
-      .resolves.toBe(0);
+      .resolves.toBe(1);
+    await expect(db.agentRecord.findUnique({
+      where: {
+        projectId_id: { projectId: "individual", id: "cleanup-agent" },
+      },
+    })).resolves.toMatchObject({ deletedAt: requestedAt });
+    await expect(db.projectDeletionTask.findUnique({
+      where: { projectId: "individual" },
+    })).resolves.toMatchObject({
+      leaseExpiresAt: null,
+      leaseOwner: null,
+      status: "completed",
+    });
   });
 
   it("keeps the tombstone for retry when external cleanup fails", async () => {

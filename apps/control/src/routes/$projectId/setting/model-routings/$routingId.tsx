@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { complianceDomainCatalog, providerPresets, type ModelRouting } from "@tali/contracts";
 import { Activity, ArrowLeft, ArrowRight, Boxes, Cable, Check, CheckCircle2, CircleAlert, Database, Ellipsis, ExternalLink, FileClock, KeyRound, RefreshCw, Route as RouteIcon, ShieldCheck, SlidersHorizontal, Trash2 } from "lucide-react";
-import { DeleteModelRoutingDialog } from "@/components/providers/delete-model-routing-dialog";
+import { DeleteModelRoutingSheet } from "@/components/providers/delete-model-routing-sheet";
 import { GatewaySyncStatus } from "@/components/providers/gateway-sync-status";
 import { ProviderIcon } from "@/components/providers/provider-icon";
 import { Button } from "@/components/ui/button";
@@ -66,7 +66,7 @@ function ModelRoutingDetailPage() {
       <TabsContent value="consumers"><ConsumersTab routingId={current.id} /></TabsContent>
       <TabsContent value="audit"><AuditTab routingId={current.id} /></TabsContent>
     </Tabs>
-    <DeleteModelRoutingDialog
+    <DeleteModelRoutingSheet
       consumers={current.consumers}
       deleting={remove.isPending}
       {...(remove.error?.message ? { error: remove.error.message } : {})}

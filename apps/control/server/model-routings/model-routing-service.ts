@@ -398,11 +398,14 @@ export class ModelRoutingService {
   private async ensureDefaultGateway(): Promise<void> {
     if ((await this.store.listInferenceGateways()).length) return;
     const now = new Date().toISOString();
+    const baseUrl = this.litellm.connectionBaseUrl
+      ? await this.litellm.connectionBaseUrl()
+      : this.litellm.baseUrl;
     await this.store.saveInferenceGateway({
       id: "litellm-default",
       name: "Primary LiteLLM Gateway",
-      baseUrl: this.litellm.baseUrl,
-      adminUiUrl: trustedAdminUiUrl(undefined, this.litellm.baseUrl),
+      baseUrl,
+      adminUiUrl: trustedAdminUiUrl(undefined, baseUrl),
       credentialSource: "ENVIRONMENT",
       status: "UNKNOWN",
       validationMessage: "The gateway has not been validated yet.",

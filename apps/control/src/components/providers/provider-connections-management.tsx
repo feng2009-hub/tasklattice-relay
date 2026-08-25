@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { ProviderIcon } from "./provider-icon";
 import { DataBoundaryLabel } from "@/components/shared/data-boundary-label";
+import { DeleteEntitySheet } from "@/components/shared/delete-entity-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -227,6 +228,7 @@ function ProviderActions({
   onError: (message: string) => void;
   onRegisterModels: () => void;
 }) {
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const scope = useProjectQueryScope();
   const queryClient = useQueryClient();
   const invalidateRegistry = async () =>
@@ -247,13 +249,17 @@ function ProviderActions({
   const remove = useMutation({
     mutationFn: () => api.deleteProviderAccount(account.id),
     onMutate: () => onError(""),
-    onSuccess: invalidateRegistry,
+    onSuccess: async () => {
+      setDeleteOpen(false);
+      await invalidateRegistry();
+    },
     onError: (error) => onError(error.message),
   });
   const pending = revalidate.isPending || remove.isPending;
 
   if (!canDelete && !canRegisterModels && !canValidate) return null;
   return (
+    <>
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
@@ -288,13 +294,8 @@ function ProviderActions({
               className="text-destructive focus:text-destructive"
               disabled={remove.isPending}
               onSelect={() => {
-                if (
-                  window.confirm(
-                    `Delete ${account.name} and all of its unused registered models?`,
-                  )
-                ) {
-                  remove.mutate();
-                }
+                remove.reset();
+                setDeleteOpen(true);
               }}
             >
               <Trash2 />
@@ -304,6 +305,19 @@ function ProviderActions({
         ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
+    <DeleteEntitySheet
+      open={deleteOpen}
+      onOpenChange={setDeleteOpen}
+      title="Delete Provider connection"
+      description={<>Delete <strong>{account.name}</strong> and its unused registered models.</>}
+      entityName={account.name}
+      confirmLabel="Delete connection"
+      deleting={remove.isPending}
+      onConfirm={() => remove.mutate()}
+      {...(remove.error instanceof Error ? { error: remove.error.message } : {})}
+      retentionDescription="The Provider connection and its unused model records are soft-deleted with a deletion timestamp. The encrypted credential remains in the retained tombstone; LiteLLM model registrations are permanently removed."
+    />
+    </>
   );
 }
 

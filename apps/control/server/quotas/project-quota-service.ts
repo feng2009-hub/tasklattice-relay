@@ -35,13 +35,13 @@ export class ProjectQuotaService {
           _sum: { totalCostUsd: true, totalTokens: true },
         }),
         this.db.agentRecord.count({
-          where: { projectId: this.store.projectId },
+          where: { projectId: this.store.projectId, deletedAt: null },
         }),
         this.db.mcpServerRecord.count({
-          where: { projectId: this.store.projectId },
+          where: { projectId: this.store.projectId, deletedAt: null },
         }),
         this.db.knowledgeSourceRecord.count({
-          where: { projectId: this.store.projectId },
+          where: { projectId: this.store.projectId, deletedAt: null },
         }),
       ]);
     return {
@@ -261,7 +261,7 @@ export class ProjectQuotaService {
         ? [
             quota.maxInstances,
             await this.db.agentRecord.count({
-              where: { projectId: this.store.projectId },
+              where: { projectId: this.store.projectId, deletedAt: null },
             }),
             "Instance",
           ]
@@ -269,14 +269,14 @@ export class ProjectQuotaService {
           ? [
               quota.maxMcpIntegrations,
               await this.db.mcpServerRecord.count({
-                where: { projectId: this.store.projectId },
+                where: { projectId: this.store.projectId, deletedAt: null },
               }),
               "MCP integration",
             ]
           : [
               quota.maxKnowledgeBaseIntegrations,
               await this.db.knowledgeSourceRecord.count({
-                where: { projectId: this.store.projectId },
+                where: { projectId: this.store.projectId, deletedAt: null },
               }),
               "Knowledge Base integration",
             ];
@@ -302,20 +302,20 @@ export class ProjectQuotaService {
       ? [
           project.department.hardMaxInstances,
           await this.db.agentRecord.count({
-            where: { project: { departmentId: project.departmentId, deletedAt: null } },
+            where: { deletedAt: null, project: { departmentId: project.departmentId, deletedAt: null } },
           }),
         ]
       : resource === "mcp"
         ? [
             project.department.hardMaxMcpIntegrations,
             await this.db.mcpServerRecord.count({
-              where: { project: { departmentId: project.departmentId, deletedAt: null } },
+              where: { deletedAt: null, project: { departmentId: project.departmentId, deletedAt: null } },
             }),
           ]
         : [
             project.department.hardMaxKnowledgeBaseIntegrations,
             await this.db.knowledgeSourceRecord.count({
-              where: { project: { departmentId: project.departmentId, deletedAt: null } },
+              where: { deletedAt: null, project: { departmentId: project.departmentId, deletedAt: null } },
             }),
           ];
     if (departmentLimit !== null && departmentCount >= departmentLimit) {

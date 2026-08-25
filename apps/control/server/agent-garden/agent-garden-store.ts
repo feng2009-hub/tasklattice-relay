@@ -91,6 +91,7 @@ export class AgentGardenStore {
     const rows = await this.db.agentCatalogRecord.findMany({
       where: {
         projectId: this.projectId,
+        deletedAt: null,
         id: { in: agents.map((agent) => agent.id) },
       },
       select: { id: true, payload: true },
@@ -113,21 +114,16 @@ export class AgentGardenStore {
   }
 
   async getAgent(id: string): Promise<AgentGardenEntry | undefined> {
-    const row = await this.db.agentCatalogRecord.findUnique({
-      where: {
-        projectId_id: {
-          projectId: this.projectId,
-          id,
-        },
-      },
+    const row = await this.db.agentCatalogRecord.findFirst({
+      where: { projectId: this.projectId, id, deletedAt: null },
       select: { payload: true },
     });
     return row ? agentGardenEntrySchema.parse(row.payload) : undefined;
   }
 
   async ownerUserId(id: string): Promise<string | undefined> {
-    const row = await this.db.agentCatalogRecord.findUnique({
-      where: { projectId_id: { projectId: this.projectId, id } },
+    const row = await this.db.agentCatalogRecord.findFirst({
+      where: { projectId: this.projectId, id, deletedAt: null },
       select: { ownerUserId: true },
     });
     return row?.ownerUserId ?? undefined;
@@ -137,6 +133,7 @@ export class AgentGardenStore {
     const rows = await this.db.agentCatalogRecord.findMany({
       where: {
         projectId: this.projectId,
+        deletedAt: null,
         ...(ownerUserId ? { ownerUserId } : {}),
       },
       orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
@@ -146,8 +143,9 @@ export class AgentGardenStore {
   }
 
   async deleteAgent(id: string): Promise<boolean> {
-    const result = await this.db.agentCatalogRecord.deleteMany({
-      where: { projectId: this.projectId, id },
+    const result = await this.db.agentCatalogRecord.updateMany({
+      where: { projectId: this.projectId, id, deletedAt: null },
+      data: { deletedAt: new Date() },
     });
     return result.count > 0;
   }
@@ -197,7 +195,7 @@ export class AgentGardenStore {
     agentId: string,
   ): Promise<ManagedA2aInstance | undefined> {
     const row = await this.db.managedA2aInstanceRecord.findFirst({
-      where: { projectId: this.projectId, agentId },
+      where: { projectId: this.projectId, agentId, deletedAt: null },
       orderBy: { createdAt: "asc" },
       select: {
         payload: true,
@@ -224,6 +222,7 @@ export class AgentGardenStore {
     const rows = await this.db.managedA2aInstanceRecord.findMany({
       where: {
         projectId: this.projectId,
+        deletedAt: null,
         ...(ownerUserId ? { ownerUserId } : {}),
       },
       orderBy: [{ createdAt: "desc" }, { id: "asc" }],
@@ -245,8 +244,9 @@ export class AgentGardenStore {
   }
 
   async deleteManagedInstanceForAgent(agentId: string): Promise<boolean> {
-    const result = await this.db.managedA2aInstanceRecord.deleteMany({
-      where: { projectId: this.projectId, agentId },
+    const result = await this.db.managedA2aInstanceRecord.updateMany({
+      where: { projectId: this.projectId, agentId, deletedAt: null },
+      data: { deletedAt: new Date() },
     });
     return result.count > 0;
   }
@@ -258,6 +258,7 @@ export class AgentGardenStore {
     await this.db.agentConnectionRecord.create({
       data: {
         projectId: this.projectId,
+        deletedAt: null,
         id: parsed.id,
         coordinatorInstanceId: parsed.coordinatorInstanceId,
         connectedAgentId: parsed.connectedAgentId,
@@ -273,6 +274,7 @@ export class AgentGardenStore {
     const rows = await this.db.agentConnectionRecord.findMany({
       where: {
         projectId: this.projectId,
+        deletedAt: null,
         ...(ownerUserId ? { coordinator: { ownerUserId } } : {}),
       },
       orderBy: [{ createdAt: "desc" }, { id: "asc" }],
@@ -285,13 +287,12 @@ export class AgentGardenStore {
     coordinatorInstanceId: string,
     connectedAgentId: string,
   ): Promise<AgentConnection | undefined> {
-    const row = await this.db.agentConnectionRecord.findUnique({
+    const row = await this.db.agentConnectionRecord.findFirst({
       where: {
-        projectId_coordinatorInstanceId_connectedAgentId: {
-          projectId: this.projectId,
-          coordinatorInstanceId,
-          connectedAgentId,
-        },
+        projectId: this.projectId,
+        coordinatorInstanceId,
+        connectedAgentId,
+        deletedAt: null,
       },
       select: { payload: true },
     });
@@ -303,13 +304,15 @@ export class AgentGardenStore {
       where: {
         projectId: this.projectId,
         connectedAgentId,
+        deletedAt: null,
       },
     });
   }
 
   async deleteConnection(id: string): Promise<boolean> {
-    const result = await this.db.agentConnectionRecord.deleteMany({
-      where: { projectId: this.projectId, id },
+    const result = await this.db.agentConnectionRecord.updateMany({
+      where: { projectId: this.projectId, id, deletedAt: null },
+      data: { deletedAt: new Date() },
     });
     return result.count > 0;
   }

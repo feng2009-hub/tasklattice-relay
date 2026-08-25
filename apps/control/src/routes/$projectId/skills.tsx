@@ -26,6 +26,7 @@ import {
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { EntityDetailList, EntitySheet } from "@/components/shared/entity-sheet";
+import { DeleteEntitySheet } from "@/components/shared/delete-entity-sheet";
 import { StatusDot } from "@/components/shared/status-dot";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -119,6 +120,7 @@ function SkillCatalog() {
   const items = catalog.data?.skills ?? [];
   const [selectedId, setSelectedId] = useState("");
   const [detailOpen, setDetailOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [categories, setCategories] = useState<SkillDefinition["category"][]>([]);
   const [trustLevels, setTrustLevels] = useState<SkillTrustLevel[]>([]);
@@ -201,6 +203,7 @@ function SkillCatalog() {
   const deleteSkill = useMutation({
     mutationFn: (id: string) => api.deleteResource("skills", id),
     onSuccess: async () => {
+      setDeleteOpen(false);
       setDetailOpen(false);
       setSelectedId("");
       setNotice("Skill removed from the PostgreSQL catalog.");
@@ -284,7 +287,9 @@ function SkillCatalog() {
   };
   const remove = () => {
     if (!selected) return;
-    deleteSkill.mutate(selected.id);
+    deleteSkill.reset();
+    setDetailOpen(false);
+    setDeleteOpen(true);
   };
 
   return (
@@ -552,6 +557,21 @@ function SkillCatalog() {
           </div>
         ) : null}
       </EntitySheet>
+
+      {selected ? (
+        <DeleteEntitySheet
+          open={deleteOpen}
+          onOpenChange={setDeleteOpen}
+          title="Delete Skill"
+          description={<>Remove <strong>{selected.name}</strong> from this Project.</>}
+          entityName={selected.name}
+          confirmLabel="Delete Skill"
+          deleting={deleteSkill.isPending}
+          onConfirm={() => deleteSkill.mutate(selected.id)}
+          {...(deleteSkill.error instanceof Error ? { error: deleteSkill.error.message } : {})}
+          retentionDescription="The Skill catalog record is soft-deleted with a deletion timestamp. Its immutable artifact archive remains retained for provenance and audit history."
+        />
+      ) : null}
 
       <EntitySheet
         open={formOpen}

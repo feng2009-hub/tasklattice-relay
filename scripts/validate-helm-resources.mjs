@@ -318,13 +318,43 @@ const localSecret = localObjects.find(
 const localControlToml = localSecret?.stringData?.["control.toml"] ?? "";
 if (!/^public_url\s*=\s*"http:\/\/localhost:38080"$/m.test(localControlToml)) {
   throw new Error(
-    "Local authentication must render Better Auth's canonical server.public_url.",
+    "Control bootstrap must render Better Auth's canonical server.public_url.",
   );
 }
-if (!/\[runtime_namespaces\][\s\S]*?enabled\s*=\s*true[\s\S]*?name_prefix\s*=\s*"tali-p"/.test(localControlToml)) {
+if (/\[(?:runner|litellm|runtime_namespaces)\]|internal_url\s*=|^enabled\s*=/m.test(localControlToml)) {
   throw new Error(
-    "Project Runtime Namespace settings must be present in the Control configuration.",
+    "Runtime connectivity and policy must not be rendered into control.toml.",
   );
+}
+const localControl = localObjects.find(
+  (object) =>
+    object.kind === "Deployment"
+    && object.metadata?.name === `${releaseName}-control`,
+);
+const localControlEnv = localControl?.spec?.template?.spec?.containers
+  ?.find((container) => container.name === "control")?.env ?? [];
+for (const [name, value] of [
+  ["TALI_BOOTSTRAP_INTERNAL_URL", `http://${releaseName}-control:38080`],
+  ["TALI_BOOTSTRAP_RUNNER_URL", `http://${releaseName}-runner:9090`],
+  ["TALI_BOOTSTRAP_LITELLM_URL", `http://${releaseName}-litellm:4000`],
+  ["TALI_BOOTSTRAP_RUNTIME_NAMESPACES_ENABLED", "true"],
+  ["TALI_BOOTSTRAP_RUNTIME_CLUSTER_ID", "in-cluster"],
+  ["TALI_BOOTSTRAP_RUNTIME_NAMESPACE_PREFIX", "tali-p"],
+]) {
+  if (localControlEnv.find((entry) => entry.name === name)?.value !== value) {
+    throw new Error(`${name} must seed the initial Platform infrastructure setting.`);
+  }
+}
+for (const [name, key] of [
+  ["TALI_BOOTSTRAP_RUNNER_TOKEN", "runner-token"],
+  ["TALI_BOOTSTRAP_LITELLM_MASTER_KEY", "litellm-master-key"],
+]) {
+  if (
+    localControlEnv.find((entry) => entry.name === name)?.valueFrom
+      ?.secretKeyRef?.key !== key
+  ) {
+    throw new Error(`${name} must seed Platform settings from the component Secret.`);
+  }
 }
 
 const deletionWorker = requireObject(
@@ -402,12 +432,12 @@ for (const [kind, name] of [
   ["ClusterRoleBinding", runtimeCleanupClusterRoleName],
 ]) {
   if (
-    runtimeDisabledObjects.some(
+    !runtimeDisabledObjects.some(
       (object) => object.kind === kind && object.metadata?.name === name,
     )
   ) {
     throw new Error(
-      `${kind}/${name} must not render when Project Runtime Namespaces are disabled.`,
+      `${kind}/${name} must remain available so Platform validation can enable Runtime Namespaces online.`,
     );
   }
 }
@@ -418,12 +448,12 @@ const runtimeDisabledDeletionWorker = runtimeDisabledObjects.find(
 );
 if (
   runtimeDisabledDeletionWorker?.spec?.template?.spec?.serviceAccountName !==
-    `${releaseName}-control` ||
+    runtimeCleanupName ||
   runtimeDisabledDeletionWorker?.spec?.template?.spec
-    ?.automountServiceAccountToken !== false
+    ?.automountServiceAccountToken !== true
 ) {
   throw new Error(
-    "The deletion worker must not receive Kubernetes credentials when Project Runtime Namespaces are disabled.",
+    "The deletion worker must retain its narrow cleanup identity when Runtime Namespaces are disabled in the initial Platform setting.",
   );
 }
 

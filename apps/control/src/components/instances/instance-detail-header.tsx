@@ -26,7 +26,7 @@ export function InstanceHeader({ access, agent, canDelete, onDelete, platform }:
     <header className="border-b">
       <div className="flex flex-col gap-5 pb-5 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-          <Button asChild variant="ghost" size="icon" className="shrink-0"><Link to="/$projectId/instances" params={{ projectId }} aria-label="Back to Instances"><ArrowLeft /></Link></Button>
+          <Button asChild variant="ghost" size="icon" className="size-11 shrink-0"><Link to="/$projectId/instances" params={{ projectId }} aria-label="Back to Instances"><ArrowLeft /></Link></Button>
           <AgentPlatformIcon platform={platform} className="size-14 bg-[#171717]" imageClassName="size-10" />
           <div className="min-w-0">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -41,12 +41,12 @@ export function InstanceHeader({ access, agent, canDelete, onDelete, platform }:
 
         <div className="flex flex-wrap items-center gap-2 pl-14 sm:pl-[7.5rem] lg:pl-0">
           {access.webUI.enabled && access.webUI.url ? (
-            <Button asChild><a href={access.webUI.url} target="_blank" rel="noopener noreferrer">Open Web UI <ExternalLink /></a></Button>
+            <Button asChild className="min-h-11"><a href={access.webUI.url} target="_blank" rel="noopener noreferrer">Open Agent <ExternalLink /></a></Button>
           ) : (
-            <DisabledAction reason={access.webUI.disabledReason ?? "Web UI unavailable"}><Button disabled>Open Web UI <ExternalLink /></Button></DisabledAction>
+            <DisabledAction reason={access.webUI.disabledReason ?? "Agent unavailable"}><Button disabled className="min-h-11">Open Agent <ExternalLink /></Button></DisabledAction>
           )}
           <DropdownMenu>
-            <DropdownMenuTrigger asChild><Button variant="outline">More <MoreHorizontal /></Button></DropdownMenuTrigger>
+            <DropdownMenuTrigger asChild><Button variant="outline" className="min-h-11">More <MoreHorizontal /></Button></DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-64">
               <DropdownMenuItem disabled className="items-start"><Pencil className="mt-0.5" /><span><span className="block">Edit configuration</span><span className="block text-[10px] font-normal text-muted-foreground">Runtime reconciliation is not available.</span></span></DropdownMenuItem>
               <DropdownMenuItem disabled className="items-start"><RefreshCw className="mt-0.5" /><span><span className="block">Restart Instance</span><span className="block text-[10px] font-normal text-muted-foreground">No restart API is configured.</span></span></DropdownMenuItem>

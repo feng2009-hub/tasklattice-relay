@@ -167,9 +167,12 @@ export class ProjectStore {
 
   private resourceDelegate(name: ResourceDelegateName): {
     upsert(args: unknown): Promise<unknown>;
-    findUnique(args: unknown): Promise<{ payload: Prisma.JsonValue } | null>;
+    findUnique(args: unknown): Promise<{
+      deletedAt: Date | null;
+      payload: Prisma.JsonValue;
+    } | null>;
     findMany(args: unknown): Promise<Array<{ payload: Prisma.JsonValue }>>;
-    deleteMany(args: unknown): Promise<{ count: number }>;
+    updateMany(args: unknown): Promise<{ count: number }>;
   } {
     return this.db[name] as never;
   }
@@ -196,14 +199,16 @@ export class ProjectStore {
   ): Promise<T | undefined> {
     const row = await this.resourceDelegate(delegateName).findUnique({
       where: { projectId_id: { projectId: this.projectId, id } },
-      select: { payload: true },
+      select: { payload: true, deletedAt: true },
     });
-    return row ? decode<T>(row.payload) : undefined;
+    return row && !row.deletedAt
+      ? decode<T>(row.payload)
+      : undefined;
   }
 
   private async listResourceRecords<T>(delegateName: ResourceDelegateName): Promise<T[]> {
     const rows = await this.resourceDelegate(delegateName).findMany({
-      where: { projectId: this.projectId },
+      where: { projectId: this.projectId, deletedAt: null },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }, { id: "asc" }],
       select: { payload: true },
     });
@@ -211,8 +216,9 @@ export class ProjectStore {
   }
 
   private async deleteResourceRecord(delegateName: ResourceDelegateName, id: string): Promise<boolean> {
-    const result = await this.resourceDelegate(delegateName).deleteMany({
-      where: { projectId: this.projectId, id },
+    const result = await this.resourceDelegate(delegateName).updateMany({
+      where: { projectId: this.projectId, id, deletedAt: null },
+      data: { deletedAt: new Date() },
     });
     return result.count > 0;
   }
@@ -261,15 +267,15 @@ export class ProjectStore {
     return server;
   }
   async getMcpServerDefinition(id: string): Promise<McpServerDefinition | undefined> {
-    const row = await this.db.mcpServerRecord.findUnique({
-      where: { projectId_id: { projectId: this.projectId, id } },
+    const row = await this.db.mcpServerRecord.findFirst({
+      where: { projectId: this.projectId, id, deletedAt: null },
       include: { tools: { orderBy: { name: "asc" } } },
     });
     return row ? this.decodeMcpServer(row) : undefined;
   }
   async listMcpServerDefinitions(): Promise<McpServerDefinition[]> {
     const rows = await this.db.mcpServerRecord.findMany({
-      where: { projectId: this.projectId },
+      where: { projectId: this.projectId, deletedAt: null },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }, { id: "asc" }],
       include: { tools: { orderBy: { name: "asc" } } },
     });
@@ -420,8 +426,23 @@ export class ProjectStore {
   }
 
   async get(id: string): Promise<Agent | undefined> {
-    const row = await this.db.agentRecord.findUnique({
-      where: { projectId_id: { projectId: this.projectId, id } },
+    return this.getAgentRecord(id, false);
+  }
+
+  async getIncludingDeleted(id: string): Promise<Agent | undefined> {
+    return this.getAgentRecord(id, true);
+  }
+
+  private async getAgentRecord(
+    id: string,
+    includeDeleted: boolean,
+  ): Promise<Agent | undefined> {
+    const row = await this.db.agentRecord.findFirst({
+      where: {
+        projectId: this.projectId,
+        id,
+        ...(!includeDeleted ? { deletedAt: null } : {}),
+      },
       select: {
         payload: true,
         ownerMembership: {
@@ -447,8 +468,8 @@ export class ProjectStore {
   }
 
   async ownerUserId(id: string): Promise<string | undefined> {
-    const row = await this.db.agentRecord.findUnique({
-      where: { projectId_id: { projectId: this.projectId, id } },
+    const row = await this.db.agentRecord.findFirst({
+      where: { projectId: this.projectId, id, deletedAt: null },
       select: { ownerUserId: true },
     });
     return row?.ownerUserId ?? undefined;
@@ -458,6 +479,7 @@ export class ProjectStore {
     const rows = await this.db.agentRecord.findMany({
       where: {
         projectId: this.projectId,
+        deletedAt: null,
         ...(ownerUserId ? { ownerUserId } : {}),
       },
       orderBy: { createdAt: "desc" },
@@ -499,14 +521,22 @@ export class ProjectStore {
     ) throw new Error("Select between 1 and 64 unique Access Policies.");
 
     return this.db.$transaction(async (transaction) => {
-      const instance = await transaction.agentRecord.findUnique({
-        where: { projectId_id: { projectId: this.projectId, id: instanceId } },
+      const instance = await transaction.agentRecord.findFirst({
+        where: {
+          projectId: this.projectId,
+          id: instanceId,
+          deletedAt: null,
+        },
         select: { id: true },
       });
       if (!instance) throw new Error("Agent Instance not found.");
 
       const policies = await transaction.accessPolicyRecord.findMany({
-        where: { projectId: this.projectId, id: { in: uniquePolicyIds } },
+        where: {
+          projectId: this.projectId,
+          id: { in: uniquePolicyIds },
+          deletedAt: null,
+        },
         select: { id: true },
       });
       const available = new Set(policies.map((policy) => policy.id));
@@ -562,7 +592,15 @@ export class ProjectStore {
     }));
   }
 
-  async delete(id: string): Promise<void> {
+  async softDelete(id: string, deletedAt = new Date()): Promise<boolean> {
+    const result = await this.db.agentRecord.updateMany({
+      where: { projectId: this.projectId, id, deletedAt: null },
+      data: { deletedAt },
+    });
+    return result.count > 0;
+  }
+
+  async hardDelete(id: string): Promise<void> {
     await this.db.agentRecord.deleteMany({ where: { projectId: this.projectId, id } });
   }
 
@@ -587,23 +625,23 @@ export class ProjectStore {
   }
 
   async getProviderAccount(id: string): Promise<ProviderAccount | undefined> {
-    const row = await this.db.providerAccountRecord.findUnique({
-      where: { projectId_id: { projectId: this.projectId, id } },
+    const row = await this.db.providerAccountRecord.findFirst({
+      where: { projectId: this.projectId, id, deletedAt: null },
       select: { payload: true },
     });
     return row ? parseProviderAccount(row.payload) : undefined;
   }
   async listProviderAccounts(): Promise<ProviderAccount[]> {
     const rows = await this.db.providerAccountRecord.findMany({
-      where: { projectId: this.projectId },
+      where: { projectId: this.projectId, deletedAt: null },
       orderBy: { createdAt: "desc" },
       select: { payload: true },
     });
     return rows.map((row) => parseProviderAccount(row.payload));
   }
   async getProviderAccountCredential(id: string): Promise<string | undefined> {
-    const row = await this.db.providerAccountRecord.findUnique({
-      where: { projectId_id: { projectId: this.projectId, id } },
+    const row = await this.db.providerAccountRecord.findFirst({
+      where: { projectId: this.projectId, id, deletedAt: null },
       select: { credentialPayload: true },
     });
     return row?.credentialPayload;
@@ -640,8 +678,8 @@ export class ProjectStore {
   }
 
   async getModelDeployment(id: string): Promise<ModelDeployment | undefined> {
-    const row = await this.db.modelDeploymentRecord.findUnique({
-      where: { projectId_id: { projectId: this.projectId, id } },
+    const row = await this.db.modelDeploymentRecord.findFirst({
+      where: { projectId: this.projectId, id, deletedAt: null },
       select: { payload: true },
     });
     return row ? parseModelDeployment(row.payload) : undefined;
@@ -653,6 +691,7 @@ export class ProjectStore {
     const rows = await this.db.modelDeploymentRecord.findMany({
       where: {
         projectId: this.projectId,
+        deletedAt: null,
         ...(providerAccountId ? { providerAccountId } : {}),
       },
       orderBy: { createdAt: "desc" },
@@ -661,8 +700,9 @@ export class ProjectStore {
     return rows.map((row) => parseModelDeployment(row.payload));
   }
   async deleteModelDeployment(id: string): Promise<boolean> {
-    const result = await this.db.modelDeploymentRecord.deleteMany({
-      where: { projectId: this.projectId, id },
+    const result = await this.db.modelDeploymentRecord.updateMany({
+      where: { projectId: this.projectId, id, deletedAt: null },
+      data: { deletedAt: new Date() },
     });
     return result.count > 0;
   }
@@ -674,10 +714,18 @@ export class ProjectStore {
     );
   }
   async deleteProviderAccount(id: string): Promise<boolean> {
-    const result = await this.db.providerAccountRecord.deleteMany({
-      where: { projectId: this.projectId, id },
+    const deletedAt = new Date();
+    return this.db.$transaction(async (transaction) => {
+      await transaction.modelDeploymentRecord.updateMany({
+        where: { projectId: this.projectId, providerAccountId: id, deletedAt: null },
+        data: { deletedAt },
+      });
+      const result = await transaction.providerAccountRecord.updateMany({
+        where: { projectId: this.projectId, id, deletedAt: null },
+        data: { deletedAt },
+      });
+      return result.count > 0;
     });
-    return result.count > 0;
   }
 
   async saveInferenceGateway(gateway: InferenceGateway): Promise<InferenceGateway> {
@@ -778,23 +826,24 @@ export class ProjectStore {
     });
   }
   async getModelRouting(id: string): Promise<ModelRouting | undefined> {
-    const row = await this.db.modelRoutingRecord.findUnique({
-      where: { projectId_id: { projectId: this.projectId, id } },
+    const row = await this.db.modelRoutingRecord.findFirst({
+      where: { projectId: this.projectId, id, deletedAt: null },
       select: { payload: true },
     });
     return row ? parseModelRouting(row.payload) : undefined;
   }
   async listModelRoutings(): Promise<ModelRouting[]> {
     const rows = await this.db.modelRoutingRecord.findMany({
-      where: { projectId: this.projectId },
+      where: { projectId: this.projectId, deletedAt: null },
       orderBy: { createdAt: "desc" },
       select: { payload: true },
     });
     return rows.map((row) => parseModelRouting(row.payload));
   }
   async deleteModelRouting(id: string): Promise<boolean> {
-    const result = await this.db.modelRoutingRecord.deleteMany({
-      where: { projectId: this.projectId, id },
+    const result = await this.db.modelRoutingRecord.updateMany({
+      where: { projectId: this.projectId, id, deletedAt: null },
+      data: { deletedAt: new Date() },
     });
     return result.count > 0;
   }
@@ -895,14 +944,17 @@ export class ProjectStore {
   }
   async listSandboxPolicies(): Promise<SandboxPolicy[]> {
     const rows = await this.db.sandboxPolicyRecord.findMany({
-      where: { projectId: this.projectId },
+      where: { projectId: this.projectId, deletedAt: null },
       orderBy: { createdAt: "desc" },
       select: { payload: true },
     });
     return rows.map((row) => decode<SandboxPolicy>(row.payload));
   }
   async deleteSandboxPolicy(id: string): Promise<void> {
-    await this.db.sandboxPolicyRecord.deleteMany({ where: { projectId: this.projectId, id } });
+    await this.db.sandboxPolicyRecord.updateMany({
+      where: { projectId: this.projectId, id, deletedAt: null },
+      data: { deletedAt: new Date() },
+    });
   }
   async isSandboxPolicyInUse(id: string): Promise<boolean> {
     return (await this.list()).some((agent) => agent.policyId === id);

@@ -100,7 +100,6 @@ schema_version = 1
 {{- with .Values.control.publicUrl }}
 public_url = {{ . | quote }}
 {{- end }}
-internal_url = {{ printf "http://%s:%v" (include "tali.componentName" (dict "root" . "component" "control")) .Values.control.service.port | quote }}
 
 [database]
 url = {{ include "tali.databaseUrl" . | quote }}
@@ -109,25 +108,9 @@ url = {{ include "tali.databaseUrl" . | quote }}
 secret = {{ required "secrets.authSecret is required" .Values.secrets.authSecret | quote }}
 
 [auth.local]
-enabled = {{ .Values.auth.local.enabled }}
-{{ if .Values.auth.local.enabled }}
-initial_platform_administrator_username = {{ required "auth.local.username is required when Local authentication is enabled" .Values.auth.local.username | quote }}
-initial_platform_administrator_email = {{ required "auth.local.email is required when Local authentication is enabled" .Values.auth.local.email | quote }}
-initial_platform_administrator_password = {{ required "secrets.initialPlatformAdministratorPassword is required when Local authentication is enabled" (default .Values.secrets.initialSuperAdminPassword .Values.secrets.initialPlatformAdministratorPassword) | quote }}
-{{ end }}
-
-[runner]
-url = {{ printf "http://%s:9090" (include "tali.componentName" (dict "root" . "component" "runner")) | quote }}
-token = {{ required "secrets.runnerToken is required" .Values.secrets.runnerToken | quote }}
-
-[litellm]
-url = {{ printf "http://%s:4000" (include "tali.componentName" (dict "root" . "component" "litellm")) | quote }}
-master_key = {{ required "secrets.litellmMasterKey is required" .Values.secrets.litellmMasterKey | quote }}
-
-[runtime_namespaces]
-enabled = {{ .Values.projectRuntimeNamespaces.enabled }}
-cluster_id = {{ .Values.projectRuntimeNamespaces.clusterId | quote }}
-name_prefix = {{ .Values.projectRuntimeNamespaces.namePrefix | quote }}
+initial_platform_administrator_username = {{ required "auth.local.username is required for the initial Platform Administrator bootstrap" .Values.auth.local.username | quote }}
+initial_platform_administrator_email = {{ required "auth.local.email is required for the initial Platform Administrator bootstrap" .Values.auth.local.email | quote }}
+initial_platform_administrator_password = {{ required "secrets.initialPlatformAdministratorPassword is required for the initial Platform Administrator bootstrap" (default .Values.secrets.initialSuperAdminPassword .Values.secrets.initialPlatformAdministratorPassword) | quote }}
 {{- end }}
 
 {{- define "tali.controlConfigChecksum" -}}

@@ -329,7 +329,10 @@ export class ResourceCatalogService {
       litellmParams: {
         ...(usesElasticsearchBridge
           ? {
-              api_base: vectorStoreBridgeApiBase(this.store.projectId),
+              api_base: await vectorStoreBridgeApiBase(
+                this.store.projectId,
+                this.store.database(),
+              ),
               api_key: vectorStoreBridgeApiKey(),
             }
           : {

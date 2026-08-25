@@ -14,6 +14,7 @@ import {
   VectorStoreProviderSelect,
 } from "@/components/knowledge/vector-store-provider";
 import { EntityDetailList, EntitySheet } from "@/components/shared/entity-sheet";
+import { DeleteEntitySheet } from "@/components/shared/delete-entity-sheet";
 import { StatusDot } from "@/components/shared/status-dot";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,6 +51,7 @@ function KnowledgeBase() {
   const items = catalog.data?.knowledgeSources ?? [];
   const [selectedId, setSelectedId] = useState("");
   const [detailOpen, setDetailOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<CreateKnowledgeSourceDefinitionInput>(emptyDraft);
@@ -83,6 +85,7 @@ function KnowledgeBase() {
   const deleteSource = useMutation({
     mutationFn: (id: string) => api.deleteResource("knowledge-sources", id),
     onSuccess: async () => {
+      setDeleteOpen(false);
       setDetailOpen(false);
       setSelectedId("");
       setNotice("LiteLLM Vector Store registration and its Project permission were removed.");
@@ -170,8 +173,8 @@ function KnowledgeBase() {
         width="md"
         footer={(
           <>
-            <Button variant="destructive" disabled={deleteSource.isPending} onClick={() => selected && deleteSource.mutate(selected.id)}>
-              <Trash2 />{deleteSource.isPending ? "Removing…" : "Remove Vector Store"}
+            <Button variant="destructive" disabled={deleteSource.isPending} onClick={() => { deleteSource.reset(); setDetailOpen(false); setDeleteOpen(true); }}>
+              <Trash2 />Remove Vector Store
             </Button>
             <Button variant="outline" onClick={() => selected && openForm(selected)}><Pencil /> Update metadata</Button>
             <Button disabled={reconcileSource.isPending} onClick={() => selected && reconcileSource.mutate(selected)}>
@@ -216,6 +219,21 @@ function KnowledgeBase() {
           </div>
         ) : null}
       </EntitySheet>
+
+      {selected ? (
+        <DeleteEntitySheet
+          open={deleteOpen}
+          onOpenChange={setDeleteOpen}
+          title="Delete Vector Store"
+          description={<>Remove <strong>{selected.name}</strong> from this Project.</>}
+          entityName={selected.name}
+          confirmLabel="Delete Vector Store"
+          deleting={deleteSource.isPending}
+          onConfirm={() => deleteSource.mutate(selected.id)}
+          {...(deleteSource.error instanceof Error ? { error: deleteSource.error.message } : {})}
+          retentionDescription="The Knowledge Base record is soft-deleted with a deletion timestamp. Its LiteLLM Vector Store registration and Project permission are permanently removed."
+        />
+      ) : null}
 
       <EntitySheet
         open={formOpen}

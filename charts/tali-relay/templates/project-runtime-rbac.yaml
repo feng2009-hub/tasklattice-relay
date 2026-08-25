@@ -1,4 +1,3 @@
-{{- if .Values.projectRuntimeNamespaces.enabled }}
 {{- $component := "project-runtime-control" -}}
 {{- $name := include "tali.componentName" (dict "root" . "component" $component) -}}
 {{- $clusterScopeId := printf "%s/%s" .Release.Namespace $name -}}
@@ -86,5 +85,4 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: {{ $cleanupClusterRoleName }}
-{{- end }}
 {{- end }}

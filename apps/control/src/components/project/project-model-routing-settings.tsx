@@ -29,6 +29,7 @@ import { ProviderConnectionsManagement } from "@/components/providers/provider-c
 import { ProviderIcon } from "@/components/providers/provider-icon";
 import { RegisterModelsDrawer } from "@/components/providers/register-models-drawer";
 import { DataBoundaryLabel } from "@/components/shared/data-boundary-label";
+import { DeleteEntitySheet } from "@/components/shared/delete-entity-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -85,6 +86,7 @@ export function ProjectModelRoutingsSettings({
   const [createOpen, setCreateOpen] = useState(false);
   const [registerOpen, setRegisterOpen] = useState(false);
   const [registerAccount, setRegisterAccount] = useState<ProviderAccount>();
+  const [removingModel, setRemovingModel] = useState<ModelDeployment>();
   const [registrationMode, setRegistrationMode] =
     useState<"existing" | "new">("existing");
   const [successMessage, setSuccessMessage] = useState("");
@@ -135,15 +137,17 @@ export function ProjectModelRoutingsSettings({
   const removeModel = useMutation({
     mutationFn: (model: ModelDeployment) =>
       api.deleteModelDeployment(model.id),
-    onSuccess: async () =>
-      Promise.all([
+    onSuccess: async () => {
+      setRemovingModel(undefined);
+      await Promise.all([
         queryClient.invalidateQueries({
           queryKey: scope.key("model-deployments"),
         }),
         queryClient.invalidateQueries({
           queryKey: scope.key("provider-accounts"),
         }),
-      ]),
+      ]);
+    },
   });
   const routingItems = routings.data ?? [];
   const models = deployments.data ?? [];
@@ -329,13 +333,8 @@ export function ProjectModelRoutingsSettings({
                   ? { removingId: removeModel.variables.id }
                   : {})}
                 onRemove={(model) => {
-                  if (
-                    window.confirm(
-                      `Remove ${model.displayName} from this Project?`,
-                    )
-                  ) {
-                    removeModel.mutate(model);
-                  }
+                  removeModel.reset();
+                  setRemovingModel(model);
                 }}
               />
             ) : (
@@ -510,6 +509,22 @@ export function ProjectModelRoutingsSettings({
           openModelRegistration();
         }}
       />
+      {removingModel ? (
+        <DeleteEntitySheet
+          open
+          onOpenChange={(open) => {
+            if (!open) setRemovingModel(undefined);
+          }}
+          title="Delete registered model"
+          description={<>Remove <strong>{removingModel.displayName}</strong> from this Project.</>}
+          entityName={removingModel.displayName}
+          confirmLabel="Delete model"
+          deleting={removeModel.isPending}
+          onConfirm={() => removeModel.mutate(removingModel)}
+          {...(removeModel.error instanceof Error ? { error: removeModel.error.message } : {})}
+          retentionDescription="The registered model record is soft-deleted with a deletion timestamp. Its LiteLLM model registration is runtime configuration and is permanently removed."
+        />
+      ) : null}
       <RegisterModelsDrawer
         accounts={providerAccounts}
         initialAccount={registerAccount}

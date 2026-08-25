@@ -1,8 +1,11 @@
 import { createHash } from "node:crypto";
-import { getControlConfig } from "../config/control-config";
 import { prisma } from "../db/prisma";
 import type { PrismaClient } from "../generated/prisma/client";
 import { PlatformSettingsService } from "../platform/platform-settings-service";
+import {
+  deploymentBootstrapRuntimeConfiguration,
+  loadPlatformRuntimeConfiguration,
+} from "../platform/platform-runtime-config";
 import {
   createProjectNamespaceClient,
   type ProjectNamespaceClient,
@@ -27,7 +30,7 @@ export interface ProjectRuntimeReconciliationSummary {
 
 export function projectRuntimeNamespace(
   projectId: string,
-  prefix = getControlConfig().runtime_namespaces.name_prefix,
+  prefix = deploymentBootstrapRuntimeConfiguration().runtimeNamespaces.namePrefix,
 ): string {
   // SHA-256 stays available in FIPS-enabled OpenShift environments. The hash
   // is an opaque stable identifier, not a security boundary.
@@ -56,18 +59,19 @@ function safeError(error: unknown): string {
 export class ProjectRuntimeTargetService
   implements ProjectRuntimeNamespaceProvisioner
 {
-  private readonly config = getControlConfig().runtime_namespaces;
-  private readonly namespaces: ProjectNamespaceClient;
-
   constructor(
     private readonly db: PrismaClient = prisma(),
-    namespaces?: ProjectNamespaceClient,
-  ) {
-    this.namespaces = namespaces ?? createProjectNamespaceClient(this.config);
-  }
+    private readonly namespaces?: ProjectNamespaceClient,
+  ) {}
 
   async ensureProjectNamespace(projectId: string): Promise<boolean> {
-    if (!this.config.enabled) return false;
+    const runtime = (await loadPlatformRuntimeConfiguration(this.db)).runtimeNamespaces;
+    if (!runtime.enabled) return false;
+    const namespaces = this.namespaces ?? createProjectNamespaceClient({
+      enabled: runtime.enabled,
+      cluster_id: runtime.clusterId,
+      name_prefix: runtime.namePrefix,
+    });
     const project = await this.db.project.findUnique({
       where: { id: projectId },
       select: {
@@ -91,10 +95,10 @@ export class ProjectRuntimeTargetService
       project.runtimeTarget ??
       (await this.db.projectRuntimeTarget.create({
         data: {
-          clusterId: this.config.cluster_id,
+          clusterId: runtime.clusterId,
           namespace: projectRuntimeNamespace(
             project.id,
-            this.config.name_prefix,
+            runtime.namePrefix,
           ),
           projectId: project.id,
         },
@@ -104,10 +108,10 @@ export class ProjectRuntimeTargetService
           namespace: true,
         },
       }));
-    this.assertConfiguredCluster(target.clusterId);
+    this.assertConfiguredCluster(target.clusterId, runtime.clusterId);
 
     try {
-      await this.namespaces.reconcile({
+      await namespaces.reconcile({
         namespace: target.namespace,
         projectId: project.id,
         projectName: project.name,
@@ -168,13 +172,19 @@ export class ProjectRuntimeTargetService
   }
 
   async deleteProjectNamespace(projectId: string): Promise<boolean> {
-    if (!this.config.enabled) return false;
+    const runtime = (await loadPlatformRuntimeConfiguration(this.db)).runtimeNamespaces;
+    if (!runtime.enabled) return false;
+    const namespaces = this.namespaces ?? createProjectNamespaceClient({
+      enabled: runtime.enabled,
+      cluster_id: runtime.clusterId,
+      name_prefix: runtime.namePrefix,
+    });
     const target = await this.db.projectRuntimeTarget.findUnique({
       where: { projectId },
       select: { clusterId: true, namespace: true },
     });
     if (!target) return false;
-    this.assertConfiguredCluster(target.clusterId);
+    this.assertConfiguredCluster(target.clusterId, runtime.clusterId);
     await this.db.projectRuntimeTarget.update({
       where: { projectId },
       data: { lastError: null, status: "deleting" },
@@ -183,7 +193,7 @@ export class ProjectRuntimeTargetService
       const deletionTimeoutSeconds = await new PlatformSettingsService(
         this.db,
       ).runtimeNamespaceDeletionTimeoutSeconds();
-      await this.namespaces.deleteAndWait(
+      await namespaces.deleteAndWait(
         target.namespace,
         projectId,
         deletionTimeoutSeconds * 1_000,
@@ -198,10 +208,10 @@ export class ProjectRuntimeTargetService
     }
   }
 
-  private assertConfiguredCluster(clusterId: string): void {
-    if (clusterId !== this.config.cluster_id) {
+  private assertConfiguredCluster(clusterId: string, configuredClusterId: string): void {
+    if (clusterId !== configuredClusterId) {
       throw new Error(
-        `Project Runtime Target belongs to cluster ${clusterId}, but this Control Plane manages ${this.config.cluster_id}.`,
+        `Project Runtime Target belongs to cluster ${clusterId}, but this Control Plane manages ${configuredClusterId}.`,
       );
     }
   }

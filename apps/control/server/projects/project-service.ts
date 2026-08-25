@@ -8,7 +8,6 @@ import { ensureDefaultAccessPolicy } from "../access-policies/default-access-pol
 import { RoleCatalogService } from "../authorization/role-catalog";
 import type { PlatformPrincipal } from "../auth/auth";
 import { requireAuth } from "../auth/auth";
-import { getControlConfig } from "../config/control-config";
 import { prisma } from "../db/prisma";
 import { requireDepartmentAdministrator } from "../departments/department-access";
 import type { DepartmentRole } from "../departments/department-service";
@@ -26,6 +25,7 @@ import { ProjectQuotaService } from "../quotas/project-quota-service";
 import { ProjectStore } from "./project-store";
 import { developmentResourceCatalog } from "../catalog/development-resource-catalog";
 import { BuiltInRuntimePolicyCatalogSource } from "../runtime-policies/runtime-policy-service";
+import { loadPlatformRuntimeConfiguration } from "../platform/platform-runtime-config";
 import {
   accessForMembership,
   activeRoleForMembership,
@@ -548,7 +548,9 @@ export class ProjectService {
         ?? (department.hardMaxKnowledgeBaseIntegrations === null ? null : 0),
     } as const;
     await assertDepartmentAllocationAvailable(this.db, department, inheritedQuota);
-    const runtimeNamespaceConfig = getControlConfig().runtime_namespaces;
+    const runtimeNamespaceConfig = (
+      await loadPlatformRuntimeConfiguration(this.db)
+    ).runtimeNamespaces;
     const project = await this.db.project.create({
       data: {
         id: projectId,
@@ -609,10 +611,10 @@ export class ProjectService {
         },
         runtimeTarget: {
           create: {
-            clusterId: runtimeNamespaceConfig.cluster_id,
+            clusterId: runtimeNamespaceConfig.clusterId,
             namespace: projectRuntimeNamespace(
               projectId,
-              runtimeNamespaceConfig.name_prefix,
+              runtimeNamespaceConfig.namePrefix,
             ),
           },
         },
@@ -831,8 +833,8 @@ export class ProjectService {
       store.listModelRoutings(),
       store.listMcpServerDefinitions(),
       store.listKnowledgeSourceDefinitions(),
-      this.db.accessPolicyRecord.count({ where: { projectId } }),
-      this.db.skillRecord.count({ where: { projectId } }),
+      this.db.accessPolicyRecord.count({ where: { projectId, deletedAt: null } }),
+      this.db.skillRecord.count({ where: { projectId, deletedAt: null } }),
     ]);
     const activeResources: ProjectDeletionActiveResource[] = [
       ...instances
@@ -1209,7 +1211,7 @@ export class ProjectService {
   }
 
   private async syncProjectTeam(projectId: string): Promise<void> {
-    if (!getControlConfig().litellm.master_key) return;
+    if (!(await loadPlatformRuntimeConfiguration(this.db)).litellm.masterKey) return;
     await new ProjectQuotaService(
       new ProjectStore(projectId, this.db),
       this.litellm,
