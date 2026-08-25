@@ -34,7 +34,6 @@ COPY apps ./apps
 COPY artifacts ./artifacts
 COPY docs ./docs
 COPY packages ./packages
-COPY skills ./skills
 RUN npm run build --workspace @tali/contracts \
     && npm run build --workspace @tali/control \
     && npm run build --workspace @tali/runner \
