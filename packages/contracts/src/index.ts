@@ -92,6 +92,7 @@ export const updatePlatformSettingsSchema = z.object({
   runtimeImages: z.object({
     openclaw: optionalContainerImageSchema,
     hermes: optionalContainerImageSchema,
+    deepagents: optionalContainerImageSchema,
   }).strict(),
   sandbox: z.object({
     cpu: optionalSandboxCpuSchema,
@@ -488,6 +489,7 @@ export interface PlatformSettingsView extends UpdatePlatformSettingsInput {
   effectiveRuntimeImages: {
     openclaw: string;
     hermes: string;
+    deepagents: string;
   };
   effectiveSandbox: {
     cpu: string;
@@ -1075,7 +1077,7 @@ export const createProviderConnectionSchema = z.object({
   complianceDomain: z.enum(complianceDomains),
 });
 
-export const agentPlatformIds = ["openclaw", "hermes"] as const;
+export const agentPlatformIds = ["openclaw", "hermes", "deepagents"] as const;
 
 export const agentPlatforms = [
   {
@@ -1084,6 +1086,7 @@ export const agentPlatforms = [
     description: "Gateway-based Agent with a plugin ecosystem and browser UI.",
     terminalLabel: "OpenClaw TUI",
     endpointLabel: "OpenClaw Web UI",
+    interactionSurface: "web-ui",
     isDefault: true,
   },
   {
@@ -1092,12 +1095,23 @@ export const agentPlatforms = [
     description: "Self-improving Agent with durable memory and a learning loop.",
     terminalLabel: "Hermes TUI",
     endpointLabel: "Hermes dashboard",
+    interactionSurface: "web-ui",
+    isDefault: false,
+  },
+  {
+    id: "deepagents",
+    name: "Deep Agents Code",
+    description: "Terminal coding Agent built on the LangChain Deep Agents SDK.",
+    terminalLabel: "Deep Agents TUI",
+    endpointLabel: "No Web UI",
+    interactionSurface: "terminal",
     isDefault: false,
   },
 ] as const satisfies ReadonlyArray<{
   description: string;
   endpointLabel: string;
   id: (typeof agentPlatformIds)[number];
+  interactionSurface: "web-ui" | "terminal";
   isDefault: boolean;
   name: string;
   terminalLabel: string;
@@ -2641,6 +2655,7 @@ export interface RunnerHealth {
   runtimeImages?: {
     openclaw: string;
     hermes: string;
+    deepagents: string;
   };
   sandbox?: {
     provider: "openshell";

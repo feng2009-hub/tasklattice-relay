@@ -587,6 +587,7 @@ function RuntimeImagesSettings({ settings }: { settings: PlatformSettingsView })
   const queryClient = useQueryClient();
   const [openclaw, setOpenclaw] = useState(settings.runtimeImages.openclaw ?? "");
   const [hermes, setHermes] = useState(settings.runtimeImages.hermes ?? "");
+  const [deepagents, setDeepagents] = useState(settings.runtimeImages.deepagents ?? "");
   const imageSave = useMutation({
     mutationFn: ({ platform, value }: { platform: RuntimePlatform; value: string }) =>
       updatePlatformSettings(settingsInput(settings, {
@@ -603,7 +604,7 @@ function RuntimeImagesSettings({ settings }: { settings: PlatformSettingsView })
   return (
     <SettingsSection
       title="Runtime sandbox images"
-      description="Set the default image used when a new OpenClaw or Hermes Instance is provisioned. Existing Sandboxes are not restarted or migrated."
+      description="Set the default image used when a new OpenClaw, Hermes, or Deep Agents Instance is provisioned. Existing Sandboxes are not restarted or migrated."
       action={<Badge variant="outline" className="h-8 text-muted-foreground"><Container />New Instances only</Badge>}
     >
       <div className="divide-y border-y">
@@ -635,6 +636,20 @@ function RuntimeImagesSettings({ settings }: { settings: PlatformSettingsView })
           value={hermes}
           persistedValue={settings.runtimeImages.hermes ?? ""}
         />
+        <RuntimeImageRow
+          effective={settings.effectiveRuntimeImages.deepagents}
+          error={imageSave.variables?.platform === "deepagents" ? imageSave.error : null}
+          onChange={(value) => { imageSave.reset(); setDeepagents(value); }}
+          onReset={() => { imageSave.reset(); setDeepagents(""); }}
+          onSave={() => imageSave.mutate({ platform: "deepagents", value: deepagents })}
+          overridden={settings.runtimeImages.deepagents !== null}
+          platform="deepagents"
+          saved={imageSave.isSuccess && imageSave.variables?.platform === "deepagents"}
+          saving={imageSave.isPending && imageSave.variables?.platform === "deepagents"}
+          saveDisabled={anySaving}
+          value={deepagents}
+          persistedValue={settings.runtimeImages.deepagents ?? ""}
+        />
       </div>
       <p className="mt-5 border-l-2 border-amber-500 bg-amber-500/5 px-4 py-3 text-xs leading-5 text-amber-900 dark:text-amber-200">
         Use immutable tags or digests for release environments. Clearing an override returns that Runtime to the image supplied by the Runner deployment.
@@ -643,7 +658,7 @@ function RuntimeImagesSettings({ settings }: { settings: PlatformSettingsView })
   );
 }
 
-type RuntimePlatform = "openclaw" | "hermes";
+type RuntimePlatform = "openclaw" | "hermes" | "deepagents";
 
 function RuntimeImageRow({ effective, error, onChange, onReset, onSave, overridden, persistedValue, platform, saveDisabled, saved, saving, value }: { effective: string; error: Error | null; onChange: (value: string) => void; onReset: () => void; onSave: () => void; overridden: boolean; persistedValue: string; platform: RuntimePlatform; saveDisabled: boolean; saved: boolean; saving: boolean; value: string }) {
   const presentation = getAgentPlatformPresentation(platform);
@@ -923,6 +938,7 @@ function SandboxSettings({ settings }: { settings: PlatformSettingsView }) {
         <dl className="mt-5 divide-y border-y">
           <SandboxReadOnlyRow label="OpenClaw Agent image" value={settings.effectiveRuntimeImages.openclaw} source="Runtime setting" />
           <SandboxReadOnlyRow label="Hermes Agent image" value={settings.effectiveRuntimeImages.hermes} source="Runtime setting" />
+          <SandboxReadOnlyRow label="Deep Agents image" value={settings.effectiveRuntimeImages.deepagents} source="Runtime setting" />
           {deploymentRows.map(([label, value, source]) => (
             <SandboxReadOnlyRow key={label} label={label} value={value} source={source} />
           ))}

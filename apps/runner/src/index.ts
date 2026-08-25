@@ -171,7 +171,12 @@ async function provision(
         ["SANDBOX", "Fixture Sandbox policy applied."],
         ["POD", "Fixture Kubernetes Pod created and initializing."],
         ["RUNTIME", "Fixture NemoClaw services starting inside the Pod."],
-        ["ENDPOINT", "Fixture Web UI endpoint publishing."],
+        [
+          "ENDPOINT",
+          platformRuntime.endpointKind
+            ? "Fixture Web UI endpoint publishing."
+            : "Fixture terminal-only interaction surface confirmed.",
+        ],
       ];
       const fixtureDelayMs = Number(
         process.env.NEMOCLAW_FIXTURE_PROVISION_DELAY_MS ?? "350",
@@ -193,34 +198,42 @@ async function provision(
       });
       updateProvisioningStage(state, "RUNTIME", "Initializing NemoClaw services inside the Pod.");
       state.logs.push(...platformRuntime.startupLogs);
-      try {
+      if (platformRuntime.endpointKind) {
+        try {
+          updateProvisioningStage(
+            state,
+            "ENDPOINT",
+            `Publishing the ${input.agentPlatform} browser endpoint.`,
+          );
+          httpEndpoint = {
+            kind: platformRuntime.endpointKind,
+            status: "READY",
+            url: await ensureOpenShellWebUiEndpoint(
+              input.name,
+              input.agentPlatform,
+            ),
+          };
+          state.logs.push(
+            `${input.agentPlatform} browser endpoint exposed through OpenShell service routing.`,
+          );
+        } catch (error) {
+          httpEndpoint = {
+            kind: platformRuntime.endpointKind,
+            status: "UNAVAILABLE",
+            reason:
+              error instanceof Error
+                ? error.message
+                : `Unable to expose the ${input.agentPlatform} browser endpoint.`,
+          };
+          state.logs.push(
+            `${input.agentPlatform} Web UI unavailable: ${httpEndpoint.reason}`,
+          );
+        }
+      } else {
         updateProvisioningStage(
           state,
           "ENDPOINT",
-          `Publishing the ${input.agentPlatform} browser endpoint.`,
-        );
-        httpEndpoint = {
-          kind: platformRuntime.endpointKind,
-          status: "READY",
-          url: await ensureOpenShellWebUiEndpoint(
-            input.name,
-            input.agentPlatform,
-          ),
-        };
-        state.logs.push(
-          `${input.agentPlatform} browser endpoint exposed through OpenShell service routing.`,
-        );
-      } catch (error) {
-        httpEndpoint = {
-          kind: platformRuntime.endpointKind,
-          status: "UNAVAILABLE",
-          reason:
-            error instanceof Error
-              ? error.message
-              : `Unable to expose the ${input.agentPlatform} browser endpoint.`,
-        };
-        state.logs.push(
-          `${input.agentPlatform} Web UI unavailable: ${httpEndpoint.reason}`,
+          `${input.agentPlatform} is terminal-only; no browser endpoint is published.`,
         );
       }
     } else {
@@ -263,6 +276,7 @@ app.get("/health", (_request, response) => response.json({
   runtimeImages: {
     openclaw: getAgentPlatformRuntime("openclaw").sandboxImage(),
     hermes: getAgentPlatformRuntime("hermes").sandboxImage(),
+    deepagents: getAgentPlatformRuntime("deepagents").sandboxImage(),
   },
   ...(isOpenShell
     ? {
@@ -368,6 +382,11 @@ app.get("/v1/sandboxes/:name/interaction", async (request, response, next) => {
         error: "Web UI access is available only when the Sandbox is ready.",
       });
     const platformRuntime = getAgentPlatformRuntime(agentPlatform);
+    if (!platformRuntime.endpointKind)
+      return void response.status(409).json({
+        error:
+          `${agentPlatform} is a terminal-only Agent and does not publish a Web UI endpoint.`,
+      });
     if (!isOpenShell) {
       const httpEndpoint = state.httpEndpoint;
       return void response.json(
@@ -427,7 +446,11 @@ app.get("/v1/sandboxes/:name", async (request, response, next) => {
             : "PROVISIONING";
       let httpEndpoint = local?.httpEndpoint;
       const platformRuntime = getAgentPlatformRuntime(agentPlatform);
-      if (phase === "READY" && httpEndpoint?.status !== "READY") {
+      if (
+        phase === "READY" &&
+        platformRuntime.endpointKind &&
+        httpEndpoint?.status !== "READY"
+      ) {
         try {
           httpEndpoint = {
             kind: platformRuntime.endpointKind,
@@ -521,7 +544,8 @@ app.delete("/v1/sandboxes/:name", async (request, response, next) => {
     };
     states.set(name, { ...current, phase: "DESTROYING" });
     if (isOpenShell) {
-      await deleteOpenShellWebUiEndpoint(name);
+      if (getAgentPlatformRuntime(agentPlatform).endpointKind)
+        await deleteOpenShellWebUiEndpoint(name);
       await deleteOpenShellSandbox(name);
       await deleteOpenShellProvider(name);
     } else if (mode !== "fixture") {

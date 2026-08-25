@@ -69,7 +69,9 @@ function deletionAgent(payload: Prisma.JsonValue): DeletionAgent {
     typeof value.id !== "string" ||
     typeof value.name !== "string" ||
     typeof value.sandboxName !== "string" ||
-    (agentPlatform !== "openclaw" && agentPlatform !== "hermes")
+    (agentPlatform !== "openclaw" &&
+      agentPlatform !== "hermes" &&
+      agentPlatform !== "deepagents")
   ) {
     throw new Error(
       "Project cleanup stopped because stored Agent Instance data is incomplete.",

@@ -232,6 +232,12 @@ jobs:
           - agent: hermes
             architecture: arm64
             runner: ubuntu-24.04-arm
+          - agent: deepagents
+            architecture: amd64
+            runner: ubuntu-24.04
+          - agent: deepagents
+            architecture: arm64
+            runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
@@ -252,11 +258,14 @@ jobs:
           if [[ "${NEMOCLAW_AGENT_PLATFORM}" == "openclaw" ]]; then
             image="${registry}/tali-nemoclaw-sandbox"
             export NEMOCLAW_IMAGE="${image}:${version}-${{ matrix.architecture }}"
-          else
+          elif [[ "${NEMOCLAW_AGENT_PLATFORM}" == "hermes" ]]; then
             image="${registry}/tali-nemoclaw-hermes-sandbox"
             export NEMOCLAW_HERMES_IMAGE="${image}:${version}-${{ matrix.architecture }}"
+          else
+            image="${registry}/tali-nemoclaw-deepagents-sandbox"
+            export NEMOCLAW_DEEPAGENTS_IMAGE="${image}:${version}-${{ matrix.architecture }}"
           fi
-          export NEMOCLAW_BUILD_OUTPUT=push
+          export NEMOCLAW_BUILD_OUTPUT=ci-push
           export NEMOCLAW_UPSTREAM_IMAGE="${image}:build-upstream-${version}-${{ matrix.architecture }}"
           export NEMOCLAW_FALLBACK_BASE_IMAGE="${image}:build-base-${version}-${{ matrix.architecture }}"
           bash scripts/build-nemoclaw-sandbox.sh
@@ -272,6 +281,7 @@ jobs:
         image:
           - tali-nemoclaw-sandbox
           - tali-nemoclaw-hermes-sandbox
+          - tali-nemoclaw-deepagents-sandbox
     steps:
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3

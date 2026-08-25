@@ -110,6 +110,9 @@ export function taliLiteLlmProviderProfile(
         "/usr/local/bin/python",
         "/usr/local/bin/python3",
         "/usr/bin/python3.*",
+        "/usr/local/bin/dcode",
+        "/opt/venv/bin/python3*",
+        "/opt/venv/lib/python3.13/**",
       ],
       inference_capable: true,
       discovery: { credentials: ["api_key"] },
@@ -748,6 +751,11 @@ export async function ensureOpenShellWebUiEndpoint(
   name: string,
   agentPlatform: AgentPlatformId,
 ): Promise<string> {
+  if (!getAgentPlatformRuntime(agentPlatform).endpointKind) {
+    throw new Error(
+      `${agentPlatform} is a terminal-only Agent and does not publish a Web UI endpoint.`,
+    );
+  }
   const existing = await runCommand(
     openShellBinary(),
     openShellWebUiServiceArguments(name, "get"),

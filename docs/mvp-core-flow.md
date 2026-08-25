@@ -14,7 +14,7 @@ Everything else in the historical marketplace design is later scope. The UI keep
 
 ## Agent resource and runtime boundary
 
-The Agent is a first-class TaskLattice Relay resource. It is not the sandbox itself: TaskLattice Relay persists the desired Agent identity, platform, and configuration, then projects that resource into one NemoClaw sandbox containing the selected OpenClaw or Hermes Agent process.
+The Agent is a first-class TaskLattice Relay resource. It is not the sandbox itself: TaskLattice Relay persists the desired Agent identity, platform, and configuration, then projects that resource into one NemoClaw sandbox containing the selected OpenClaw, Hermes, or Deep Agents Code process.
 
 ```mermaid
 flowchart TD
@@ -25,7 +25,7 @@ flowchart TD
     ADAPTER --> CONTROL["NemoClaw Control"]
     CONTROL --> GATEWAY["OpenShell Gateway"]
     GATEWAY --> SANDBOX["NemoClaw Sandbox"]
-    SANDBOX --> AGENT["Selected Agent Process<br/>OpenClaw or Hermes"]
+    SANDBOX --> AGENT["Selected Agent Process<br/>OpenClaw, Hermes, or Deep Agents Code"]
     GATEWAY --> INFERENCE["DeepSeek compatible API"]
 ```
 
@@ -107,7 +107,7 @@ Disabled actions use native `disabled` behavior, reduced contrast, a not-allowed
 ```
 
 The API rejects any runtime other than `nemoclaw` and any Agent platform outside
-`openclaw` and `hermes`. Agent creation accepts only a validated LLM deployment
+`openclaw`, `hermes`, and `deepagents`. Agent creation accepts only a validated LLM deployment
 registered under a validated Provider Account. OpenClaw remains the default
 when older clients omit `agentPlatform`.
 
@@ -115,7 +115,9 @@ The REST response is the durable Agent resource, not raw NemoClaw CLI output. De
 
 During creation, the runner uploads the submitted instruction section to the
 selected platform's workspace before starting `nemoclaw-start`. READY is
-published only after that platform's health endpoint responds.
+published only after that platform's health contract succeeds. OpenClaw and
+Hermes include HTTP health checks; Deep Agents verifies the generated config,
+OpenShell proxy environment, and `dcode` executable without publishing HTTP.
 
 ## Provider and cost boundary
 

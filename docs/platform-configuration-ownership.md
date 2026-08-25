@@ -22,7 +22,7 @@ Platform database or establish its first recovery credential without them.
 
 The Platform database is the only source for:
 
-- OpenClaw and Hermes Sandbox image overrides;
+- OpenClaw, Hermes, and Deep Agents Sandbox image overrides;
 - new OpenShell Sandbox CPU and memory overrides;
 - Runtime Namespace deletion timeout;
 - Model Provider admission;

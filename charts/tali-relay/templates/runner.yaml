@@ -82,6 +82,8 @@ spec:
               value: {{ include "tali.image" (dict "root" . "image" .Values.images.openclawSandbox) | quote }}
             - name: OPENSHELL_HERMES_SANDBOX_IMAGE
               value: {{ include "tali.image" (dict "root" . "image" .Values.images.hermesSandbox) | quote }}
+            - name: OPENSHELL_DEEPAGENTS_SANDBOX_IMAGE
+              value: {{ include "tali.image" (dict "root" . "image" .Values.images.deepagentsSandbox) | quote }}
             - name: OPENSHELL_KUBERNETES_SERVICE_CIDRS
               value: {{ .Values.runner.kubernetesServiceCidrs | quote }}
             - name: OPENSHELL_SANDBOX_CPU

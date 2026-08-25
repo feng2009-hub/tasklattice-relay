@@ -132,6 +132,7 @@ model PlatformSettingsRecord {
   localAuthenticationEnabled Boolean? @map("local_authentication_enabled")
   openclawSandboxImage      String?  @map("openclaw_sandbox_image")
   hermesSandboxImage        String?  @map("hermes_sandbox_image")
+  deepagentsSandboxImage    String?  @map("deepagents_sandbox_image")
   sandboxCpu                String?  @map("sandbox_cpu")
   sandboxMemory             String?  @map("sandbox_memory")
   enabledProviderKinds      Json?    @map("enabled_provider_kinds")

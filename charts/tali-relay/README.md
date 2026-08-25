@@ -392,7 +392,7 @@ Secret reference: k8s://<namespace>/tali-relay-example-mcp-auth#auth-value
 Build and deploy the local example together with Keycloak:
 
 ```bash
-npm run images:build:example-mcp
+npm run images:build:dev:example-mcp
 npm run helm:deploy:dev:keycloak:example-mcp
 ```
 

@@ -14,7 +14,7 @@ const claimsSchema = z.object({
   iss: z.literal(issuer),
   projectId: z.string().min(1),
   instanceId: z.string().uuid(),
-  agentPlatform: z.enum(["openclaw", "hermes"]),
+  agentPlatform: z.enum(["openclaw", "hermes", "deepagents"]),
 }).strict();
 
 export type RunTelemetryClaims = z.infer<typeof claimsSchema>;

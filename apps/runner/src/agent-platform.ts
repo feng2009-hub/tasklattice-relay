@@ -23,8 +23,9 @@ export interface AgentPlatformRuntime {
   id: AgentPlatformId;
   instructionsPath: string;
   terminalCommand: string;
+  headlessCommand?: string;
   inferenceBinaries: readonly string[];
-  endpointKind: HttpEndpoint["kind"];
+  endpointKind?: HttpEndpoint["kind"];
   embeddedRunTelemetry: boolean;
   sandboxImage: () => string;
   bootstrapScript: (
@@ -241,6 +242,45 @@ exec env "NEMOCLAW_DASHBOARD_PORT=$webui_upstream_port" "NEMOCLAW_MODEL_OVERRIDE
 `;
 };
 
+const deepAgentsBootstrapScript = (
+  _dashboardOrigin: string,
+  _dashboardPort: string,
+  inferenceEndpoint: string,
+  model: string,
+  _memory?: RuntimeMemoryConfiguration,
+) => {
+  const modelPayload = Buffer.from(model, "utf8").toString("base64");
+  const endpointPayload = Buffer.from(inferenceEndpoint, "utf8").toString(
+    "base64",
+  );
+  return `#!/usr/bin/env bash
+set -euo pipefail
+
+readonly config_generator=/opt/nemoclaw-deepagents-code/generate-config.ts
+readonly config_file=/sandbox/.deepagents/config.toml
+readonly selected_model="$(printf '%s' '${modelPayload}' | base64 -d)"
+readonly upstream_endpoint="$(printf '%s' '${endpointPayload}' | base64 -d)"
+
+if [ ! -f "$config_generator" ] || [ ! -x /usr/local/bin/dcode ]; then
+  echo "Deep Agents Code runtime is unavailable in this image" >&2
+  exit 1
+fi
+
+env \
+  NEMOCLAW_MODEL="$selected_model" \
+  NEMOCLAW_INFERENCE_PROVIDER_ID=inference \
+  NEMOCLAW_UPSTREAM_PROVIDER=tali-litellm \
+  NEMOCLAW_UPSTREAM_ENDPOINT_URL="$upstream_endpoint" \
+  NEMOCLAW_INFERENCE_BASE_URL=https://inference.local/v1 \
+  NEMOCLAW_INFERENCE_API=openai-completions \
+  node --experimental-strip-types "$config_generator"
+
+chown sandbox:sandbox "$config_file"
+chmod 0660 "$config_file"
+exec /usr/local/bin/nemoclaw-start
+`;
+};
+
 const agentPlatformRuntimeRegistry = {
   openclaw: {
     id: "openclaw",
@@ -285,6 +325,29 @@ const agentPlatformRuntimeRegistry = {
       "Hermes Agent instructions uploaded to the sandbox state directory.",
       "NemoClaw supervisor started the Hermes gateway.",
       "Hermes API health check: Ready",
+    ],
+  },
+  deepagents: {
+    id: "deepagents",
+    instructionsPath: "/sandbox/.deepagents/agent/AGENTS.md",
+    terminalCommand: "exec dcode",
+    headlessCommand: "dcode -n",
+    inferenceBinaries: [
+      "/usr/local/bin/dcode",
+      "/opt/venv/bin/python3*",
+      "/opt/venv/lib/python3.13/**",
+    ],
+    embeddedRunTelemetry: false,
+    sandboxImage: () =>
+      process.env.OPENSHELL_DEEPAGENTS_SANDBOX_IMAGE ??
+      "ghcr.io/tasklattice/tali-nemoclaw-deepagents-sandbox:dev",
+    bootstrapScript: deepAgentsBootstrapScript,
+    healthProbe: () =>
+      "test -x /usr/local/bin/dcode && test -s /sandbox/.deepagents/config.toml && test -s /tmp/nemoclaw-proxy-env.sh && dcode --version >/dev/null",
+    startupLogs: [
+      "Deep Agents instructions uploaded to the managed Agent state directory.",
+      "NemoClaw initialized the terminal-oriented Deep Agents runtime.",
+      "Deep Agents TUI and headless runtime check: Ready",
     ],
   },
 } as const satisfies Record<AgentPlatformId, AgentPlatformRuntime>;

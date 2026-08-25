@@ -117,6 +117,7 @@ images=(
   "$image_registry/tali-litellm:$image_tag"
   "$image_registry/tali-nemoclaw-sandbox:$image_tag"
   "$image_registry/tali-nemoclaw-hermes-sandbox:$image_tag"
+  "$image_registry/tali-nemoclaw-deepagents-sandbox:$image_tag"
 )
 if [[ "$enable_example_mcp" == "true" ]]; then
   images+=("$image_registry/tali-example-mcp:$image_tag")
@@ -131,7 +132,7 @@ done
 if (( ${#missing_images[@]} > 0 )); then
   echo "Build all local development images before deploying:" >&2
   printf '  %s\n' "${missing_images[@]}" >&2
-  echo "Run: npm run images:build" >&2
+  echo "Run: npm run images:build:dev" >&2
   exit 1
 fi
 

@@ -43,6 +43,7 @@ import { deploymentBootstrapRuntimeConfiguration } from "./platform-runtime-conf
 const fallbackRuntimeImages = {
   openclaw: "ghcr.io/tasklattice/tali-nemoclaw-sandbox:dev",
   hermes: "ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:dev",
+  deepagents: "ghcr.io/tasklattice/tali-nemoclaw-deepagents-sandbox:dev",
 } as const;
 
 const fallbackSandboxDefaults = {
@@ -162,9 +163,11 @@ export class PlatformSettingsService {
     agentPlatform: AgentPlatformId,
   ): Promise<string | null> {
     const settings = await this.stored();
-    return agentPlatform === "openclaw"
-      ? settings?.openclawSandboxImage ?? null
-      : settings?.hermesSandboxImage ?? null;
+    if (agentPlatform === "openclaw")
+      return settings?.openclawSandboxImage ?? null;
+    if (agentPlatform === "hermes")
+      return settings?.hermesSandboxImage ?? null;
+    return settings?.deepagentsSandboxImage ?? null;
   }
 
   async sandboxProvisioningOverrides(): Promise<{
@@ -193,10 +196,12 @@ export class PlatformSettingsService {
     const roleBindings = await new ExternalRoleBindingService(this.db).list();
     const openclawOverride = settings?.openclawSandboxImage ?? null;
     const hermesOverride = settings?.hermesSandboxImage ?? null;
+    const deepagentsOverride = settings?.deepagentsSandboxImage ?? null;
     return {
       runtimeImages: {
         openclaw: openclawOverride,
         hermes: hermesOverride,
+        deepagents: deepagentsOverride,
       },
       effectiveRuntimeImages: {
         openclaw:
@@ -207,6 +212,10 @@ export class PlatformSettingsService {
           hermesOverride
           ?? health?.runtimeImages?.hermes
           ?? fallbackRuntimeImages.hermes,
+        deepagents:
+          deepagentsOverride
+          ?? health?.runtimeImages?.deepagents
+          ?? fallbackRuntimeImages.deepagents,
       },
       sandbox: {
         cpu: settings?.sandboxCpu ?? null,
@@ -283,6 +292,7 @@ export class PlatformSettingsService {
         id: "platform",
         openclawSandboxImage: input.runtimeImages.openclaw,
         hermesSandboxImage: input.runtimeImages.hermes,
+        deepagentsSandboxImage: input.runtimeImages.deepagents,
         sandboxCpu: input.sandbox.cpu,
         sandboxMemory: input.sandbox.memory,
         enabledProviderKinds: input.enabledProviderKinds,
@@ -293,6 +303,7 @@ export class PlatformSettingsService {
       update: {
         openclawSandboxImage: input.runtimeImages.openclaw,
         hermesSandboxImage: input.runtimeImages.hermes,
+        deepagentsSandboxImage: input.runtimeImages.deepagents,
         sandboxCpu: input.sandbox.cpu,
         sandboxMemory: input.sandbox.memory,
         enabledProviderKinds: input.enabledProviderKinds,

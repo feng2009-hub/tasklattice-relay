@@ -12,12 +12,13 @@ TaskLattice Relay publishes **seven first-party images**:
 | `tali-example-mcp` | `infra/docker/Dockerfile`, target `example-mcp` | Reference MCP integration used by examples | amd64, arm64 |
 | `tali-nemoclaw-sandbox` | `scripts/build-nemoclaw-sandbox.sh` (`openclaw`) + `Dockerfile.nemoclaw-openclaw` | Dynamic Sandbox for the OpenClaw Agent | amd64, arm64 |
 | `tali-nemoclaw-hermes-sandbox` | The same script (`hermes`) + `Dockerfile.nemoclaw-hermes` | Dynamic Sandbox for the Hermes Agent | amd64, arm64 |
+| `tali-nemoclaw-deepagents-sandbox` | The same script (`deepagents`) + `Dockerfile.nemoclaw-deepagents` | Dynamic terminal Sandbox for Deep Agents Code | amd64, arm64 |
 
 A complete deployment also pulls **four version-tagged third-party images**: PostgreSQL,
 the OpenShell gateway, the OpenShell supervisor, and the Agent Sandbox
 controller. A deployment using the optional example MCP server and running at
-least one OpenClaw Instance and one Hermes Instance therefore uses **eleven
-unique images**. The two Agent images and the supervisor do not create
+least one OpenClaw, one Hermes, and one Deep Agents Code Instance therefore uses
+**eleven unique images**. The three Agent images and the supervisor do not create
 long-lived Pods immediately after installation and before an Agent Instance is
 created, but the runner already retains their released image references.
 
@@ -28,19 +29,25 @@ stages. The runner also downloads the selected OpenShell CLI release. LiteLLM us
 version-tagged database variant and runs UI initialization and Prisma generation in
 advance so that its runtime container can remain non-root.
 
-Both Agent images are built from a selected NemoClaw release tag and then passed through
+All three Agent images are built from a selected NemoClaw release tag and then passed through
 their respective thin, repository-owned wrapper layers to produce the final
 published images. OpenClaw applies the repository's no-proxy patch before the
 upstream build, while `Dockerfile.nemoclaw-openclaw` provides the customization
 boundary for future TaskLattice Relay changes. If the upstream Hermes image cannot be
 pulled anonymously, the Hermes build first creates its selected-tag base fallback and
 then uses `Dockerfile.nemoclaw-hermes` to align the UID/GID with OpenShell's
-requirements and add the configuration bootstrap. The release workflow builds
-both pipelines independently for amd64 and arm64, then combines them into
+requirements and add the configuration bootstrap. Deep Agents Code retains the
+upstream `dcode` TUI/headless runtime and adds a Relay-owned image boundary; its
+runtime configuration is regenerated for the Instance's LiteLLM route before
+`nemoclaw-start` begins. The release workflow builds all three pipelines
+independently for amd64 and arm64, then combines them into
 multi-architecture manifests.
 
-Local Agent builds keep both stages in the Docker daemon. Release builds use
-Buildx registry output instead: the selected upstream stage is pushed under an
+`npm run images:build:dev` builds all seven first-party images from the current
+checkout and selected upstream sources, then stores the results only in the
+local Docker daemon under `:dev`. It never pulls and retags a published
+TaskLattice image. Release builds use Buildx registry output instead: the
+selected upstream stage is pushed under an
 architecture-specific `build-upstream-<release>-<architecture>` tag in the final
 image repository, and the wrapper stage is then pushed directly to its release
 tag. This avoids importing two complete Agent images into the hosted runner's
@@ -74,6 +81,11 @@ example:
 git tag v0.3.0
 git push origin v0.3.0
 ```
+
+This tag-triggered GitHub Actions workflow is the only supported entry point for
+building or publishing Release images and charts. Local npm commands build
+`:dev` images and a development chart only; the release-output paths reject
+non-GitHub-Actions, non-release-workflow, and non-semantic-tag environments.
 
 The workflow runs tests, type checking, and Helm rendering before building the
 seven GHCR images in parallel. Each image publishes `X.Y.Z`. Stable releases also update `latest`, while

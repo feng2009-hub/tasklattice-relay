@@ -53,6 +53,7 @@ helm upgrade --install "$release_name" "$chart_path" \
   --set "images.exampleMcp.pullPolicy=Always" \
   --set-string "images.openclawSandbox.tag=$image_tag" \
   --set-string "images.hermesSandbox.tag=$image_tag" \
+  --set-string "images.deepagentsSandbox.tag=$image_tag" \
   --set "control.service.type=ClusterIP" \
   --set "litellm.service.type=ClusterIP" \
   --set "openshell.service.type=ClusterIP" \

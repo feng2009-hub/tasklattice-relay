@@ -71,6 +71,9 @@ images:
   hermesSandbox:
     repository: tali-nemoclaw-hermes-sandbox
     tag: ""
+  deepagentsSandbox:
+    repository: tali-nemoclaw-deepagents-sandbox
+    tag: ""
   postgres:
     repository: postgres
     tag: 17-alpine
