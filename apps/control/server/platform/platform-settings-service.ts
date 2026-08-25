@@ -411,7 +411,6 @@ export class PlatformSettingsService {
         litellmMasterKeyEncrypted: encryptPlatformSecret(litellmMasterKey, config.auth.secret),
         runtimeNamespacesEnabled: input.runtimeNamespaces.enabled,
         runtimeClusterId: input.runtimeNamespaces.clusterId,
-        runtimeNamespacePrefix: input.runtimeNamespaces.namePrefix,
         updatedBy: actor,
       },
       update: {
@@ -422,7 +421,6 @@ export class PlatformSettingsService {
         litellmMasterKeyEncrypted: encryptPlatformSecret(litellmMasterKey, config.auth.secret),
         runtimeNamespacesEnabled: input.runtimeNamespaces.enabled,
         runtimeClusterId: input.runtimeNamespaces.clusterId,
-        runtimeNamespacePrefix: input.runtimeNamespaces.namePrefix,
         updatedBy: actor,
         revision: { increment: 1 },
       },
@@ -756,9 +754,6 @@ export class PlatformSettingsService {
           ?? bootstrap.runtimeNamespaces.enabled,
         clusterId:
           settings?.runtimeClusterId ?? bootstrap.runtimeNamespaces.clusterId,
-        namePrefix:
-          settings?.runtimeNamespacePrefix
-          ?? bootstrap.runtimeNamespaces.namePrefix,
       },
     };
   }

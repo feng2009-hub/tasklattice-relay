@@ -10,7 +10,6 @@ export interface PlatformRuntimeConfiguration {
   runtimeNamespaces: {
     enabled: boolean;
     clusterId: string;
-    namePrefix: string;
   };
   localAuthenticationEnabled: boolean;
 }
@@ -58,9 +57,6 @@ export function deploymentBootstrapRuntimeConfiguration(): PlatformRuntimeConfig
       clusterId:
         process.env.TALI_BOOTSTRAP_RUNTIME_CLUSTER_ID?.trim()
         || config.runtime_namespaces.cluster_id,
-      namePrefix:
-        process.env.TALI_BOOTSTRAP_RUNTIME_NAMESPACE_PREFIX?.trim()
-        || config.runtime_namespaces.name_prefix,
     },
     localAuthenticationEnabled: config.auth.local.enabled,
   };
@@ -92,7 +88,6 @@ export async function ensurePlatformRuntimeSettings(
         litellmMasterKeyEncrypted,
         runtimeNamespacesEnabled: bootstrap.runtimeNamespaces.enabled,
         runtimeClusterId: bootstrap.runtimeNamespaces.clusterId,
-        runtimeNamespacePrefix: bootstrap.runtimeNamespaces.namePrefix,
         localAuthenticationEnabled: bootstrap.localAuthenticationEnabled,
         updatedBy: "system:bootstrap",
       },
@@ -123,9 +118,6 @@ export async function ensurePlatformRuntimeSettings(
       : {}),
     ...(current.runtimeClusterId === null
       ? { runtimeClusterId: bootstrap.runtimeNamespaces.clusterId }
-      : {}),
-    ...(current.runtimeNamespacePrefix === null
-      ? { runtimeNamespacePrefix: bootstrap.runtimeNamespaces.namePrefix }
       : {}),
     ...(current.localAuthenticationEnabled === null
       ? { localAuthenticationEnabled: bootstrap.localAuthenticationEnabled }
@@ -164,7 +156,6 @@ export async function loadPlatformRuntimeConfiguration(
     runtimeNamespaces: {
       enabled: settings?.runtimeNamespacesEnabled ?? bootstrap.runtimeNamespaces.enabled,
       clusterId: settings?.runtimeClusterId || bootstrap.runtimeNamespaces.clusterId,
-      namePrefix: settings?.runtimeNamespacePrefix || bootstrap.runtimeNamespaces.namePrefix,
     },
     localAuthenticationEnabled:
       settings?.localAuthenticationEnabled ?? bootstrap.localAuthenticationEnabled,

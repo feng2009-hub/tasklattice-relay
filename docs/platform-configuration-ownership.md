@@ -28,7 +28,7 @@ The Platform database is the only source for:
 - Model Provider admission;
 - Control internal URL, Runner URL and encrypted token, LiteLLM URL and
   encrypted master key;
-- Runtime Namespace enablement, cluster ID, and name prefix;
+- Runtime Namespace enablement and cluster ID;
 - Local authentication enablement;
 - OIDC enabled state, display name, issuer, Client ID, and encrypted Client
   secret;

@@ -62,11 +62,11 @@ domain model.
 
 ## Namespace identity and scope
 
-Namespace names use the configured installation prefix and an opaque,
-deterministic SHA-256 hash of the Project ID, for example
-`acme-relay-p-2d218f...`. This is the stable identity and avoids collisions with
-unrelated cluster resources. The prefix must be unique when multiple Relay
-installations share one cluster.
+Namespace names use an opaque, deterministic 80-bit SHA-256 identifier encoded
+as lowercase Base32, for example `tp-k7m2p5cx4v6dq2rw`. The fixed `tp-` prefix
+makes the result exactly 19 characters. This lets the same identifier serve as
+the Kubernetes Namespace and OpenShell Workspace while satisfying OpenShell's
+DNS-routable name limit.
 
 The Namespace also contains:
 
@@ -106,10 +106,9 @@ available and uses SelfSubjectAccessReview to check the Control
 ServiceAccount's required Namespace and managed workload permissions. It also
 rejects a cluster ID that differs from any existing Runtime Target.
 
-The Namespace prefix defaults to `tali-p`, but a shared cluster should use an
-installation-specific value such as `acme-relay-p`.
-Prefixes are validated as DNS labels and limited to 20 characters so the full
-Namespace name remains within Kubernetes' 63-character limit.
+Runtime Namespace names are derived from the Project ID and are not
+configurable. The database enforces uniqueness before Relay creates the
+Namespace.
 
 The adapter is in-cluster only. It refuses to create or delete a target whose
 stored `cluster_id` differs from the current configuration, preventing an

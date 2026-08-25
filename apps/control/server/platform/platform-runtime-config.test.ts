@@ -19,7 +19,6 @@ describe("Platform runtime configuration", () => {
     vi.stubEnv("TALI_BOOTSTRAP_LITELLM_MASTER_KEY", "litellm-bootstrap-key");
     vi.stubEnv("TALI_BOOTSTRAP_RUNTIME_NAMESPACES_ENABLED", "true");
     vi.stubEnv("TALI_BOOTSTRAP_RUNTIME_CLUSTER_ID", "cluster-bootstrap");
-    vi.stubEnv("TALI_BOOTSTRAP_RUNTIME_NAMESPACE_PREFIX", "relay-p");
   });
 
   afterEach(() => {
@@ -41,7 +40,6 @@ describe("Platform runtime configuration", () => {
       litellmUrl: "http://litellm.bootstrap",
       runtimeNamespacesEnabled: true,
       runtimeClusterId: "cluster-bootstrap",
-      runtimeNamespacePrefix: "relay-p",
       localAuthenticationEnabled: true,
       updatedBy: "system:bootstrap",
     });
@@ -61,7 +59,6 @@ describe("Platform runtime configuration", () => {
       runtimeNamespaces: {
         enabled: true,
         clusterId: "cluster-bootstrap",
-        namePrefix: "relay-p",
       },
       localAuthenticationEnabled: true,
     });

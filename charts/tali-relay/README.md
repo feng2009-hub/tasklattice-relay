@@ -87,15 +87,14 @@ read-only deployment topology.
 
 `projectRuntimeNamespaces` seeds the initial Platform Infrastructure setting
 when the database has no runtime configuration. After bootstrap, change
-Namespace enablement, cluster identity, and prefix under **Platform Setting ->
+Namespace enablement and cluster identity under **Platform Setting ->
 Infrastructure**; validation checks Kubernetes access and existing Runtime
 Targets before save. The Chart always installs the reviewed runtime RBAC so the
 feature can be enabled online. When enabled, Project creation synchronously
-ensures an opaque, stable Namespace before the API returns success. The exact
-Project name is stored as an annotation and a DNS-safe form is stored as a
-label. Relay does not install a tenant ServiceAccount, quota, limit range, or
-network policy. Set `projectRuntimeNamespaces.namePrefix` to a value unique to
-the Relay installation when multiple control planes share a cluster. The main
+ensures an opaque, stable `tp-<16-character-base32>` Namespace before the API
+returns success. The exact Project name is stored as an annotation and a
+DNS-safe form is stored as a label. Relay does not install a tenant
+ServiceAccount, quota, limit range, or network policy. The main
 Control Plane ServiceAccount can ensure Namespaces and manage Deployments and
 Services carrying matching Relay Project/Agent ownership metadata; it reads
 Pods only to resolve a running image to its immutable digest. The separate

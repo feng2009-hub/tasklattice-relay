@@ -6,8 +6,6 @@ import {
   PatchStrategy,
   type V1Namespace,
 } from "@kubernetes/client-node";
-import type { ControlConfig } from "../config/control-config";
-
 const FIELD_MANAGER = "tali-control-project-runtime";
 
 export interface ProjectNamespaceInput {
@@ -263,7 +261,7 @@ export class KubernetesProjectNamespaceClient
 }
 
 export function createProjectNamespaceClient(
-  config: ControlConfig["runtime_namespaces"],
+  config: { enabled: boolean },
 ): ProjectNamespaceClient {
   if (!config.enabled) return new DisabledProjectNamespaceClient();
   if (!process.env.KUBERNETES_SERVICE_HOST) {
