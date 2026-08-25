@@ -83,6 +83,8 @@ workflow:
 1. Publishes `oci://ghcr.io/<owner>/charts/tali-relay:X.Y.Z`.
 2. Creates a GitHub Release.
 3. Attaches the self-contained `tali-X.Y.Z.tgz` package to the Release.
+4. Triggers a fresh Kind smoke test that downloads the attached package, pulls
+   the `X.Y.Z` images, installs the packaged Chart, and waits for healthy Pods.
 
 Upstream image references are refreshed on every Release build, and the
 OpenShell CLI download stage bypasses the build cache. Rerunning the workflow

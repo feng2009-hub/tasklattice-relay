@@ -15,31 +15,75 @@ on:
       - "charts/tali-relay/**"
       - "scripts/helm-kind-smoke.sh"
       - "scripts/prepare-helm-dependencies.sh"
+  workflow_run:
+    workflows:
+      - "Release images and Helm chart"
+    types:
+      - completed
   workflow_dispatch:
 
 concurrency:
-  group: helm-kind-smoke-${{ github.ref }}
+  group: helm-kind-smoke-${{ github.event.workflow_run.id || github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
 
 env:
-  CONTROL_IMAGE_PULL_POLICY: Never
-  CONTROL_IMAGE_TAG: ci-${{ github.sha }}
   KIND_CLUSTER_NAME: tali-ci
   HELM_RELEASE_NAME: tali
   HELM_NAMESPACE: tali-smoke
-  IMAGE_REGISTRY: ghcr.io/tasklattice
-  IMAGE_TAG: latest
   HELM_TIMEOUT: 15m
 
 jobs:
   smoke-test:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - id: smoke-inputs
+        name: Resolve chart and image inputs
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          set -euo pipefail
+          image_registry="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}"
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_run" ]]; then
+            if [[ ! "${RELEASE_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+              echo "Release workflow did not report a semantic version tag: ${RELEASE_TAG}" >&2
+              exit 2
+            fi
+            version="${RELEASE_TAG#v}"
+            chart_directory="${RUNNER_TEMP}/release-chart"
+            chart_path="${chart_directory}/tali-relay-${version}.tgz"
+            mkdir -p "${chart_directory}"
+            gh release download "${RELEASE_TAG}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --pattern "tali-relay-${version}.tgz" \
+              --dir "${chart_directory}"
+            test -f "${chart_path}"
+            control_image_tag="${version}"
+            control_image_pull_policy="Always"
+            image_tag="${version}"
+          else
+            chart_path="${GITHUB_WORKSPACE}/charts/tali-relay"
+            control_image_tag="ci-${GITHUB_SHA}"
+            control_image_pull_policy="Never"
+            image_tag="latest"
+          fi
+          {
+            echo "chart_path=${chart_path}"
+            echo "control_image_tag=${control_image_tag}"
+            echo "control_image_pull_policy=${control_image_pull_policy}"
+            echo "image_registry=${image_registry}"
+            echo "image_tag=${image_tag}"
+          } >> "${GITHUB_OUTPUT}"
 
       - uses: azure/setup-helm@v4
         with:
@@ -55,7 +99,11 @@ jobs:
           wait: 120s
 
       - name: Build and load current Control Plane image
+        if: github.event_name != 'workflow_run'
         shell: bash
+        env:
+          CONTROL_IMAGE_TAG: ${{ steps.smoke-inputs.outputs.control_image_tag }}
+          IMAGE_REGISTRY: ${{ steps.smoke-inputs.outputs.image_registry }}
         run: |
           set -euo pipefail
           control_image="${IMAGE_REGISTRY}/tali-control:${CONTROL_IMAGE_TAG}"
@@ -74,6 +122,12 @@ jobs:
             "${control_image}"
 
       - name: Install chart and wait for healthy Pods
+        env:
+          CONTROL_IMAGE_PULL_POLICY: ${{ steps.smoke-inputs.outputs.control_image_pull_policy }}
+          CONTROL_IMAGE_TAG: ${{ steps.smoke-inputs.outputs.control_image_tag }}
+          HELM_CHART_PATH: ${{ steps.smoke-inputs.outputs.chart_path }}
+          IMAGE_REGISTRY: ${{ steps.smoke-inputs.outputs.image_registry }}
+          IMAGE_TAG: ${{ steps.smoke-inputs.outputs.image_tag }}
         run: bash scripts/helm-kind-smoke.sh
 
       - name: Collect failure diagnostics
