@@ -6,7 +6,6 @@ node_modules
 !skills/vendor/dist/**
 !dist/control-plane-chart
 !dist/control-plane-chart/**
-!dist/release-dependencies.json
 **/.output
 **/.tanstack
 coverage

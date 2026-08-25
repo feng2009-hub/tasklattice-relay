@@ -6,7 +6,6 @@ FROM ${BASE_IMAGE}
 # the final image remains runnable by containerd/OrbStack's 127-layer limit.
 COPY scripts/bootstrap-hermes-config.py \
      runtime-integrations/hermes-webui-auth-proxy.py \
-     dist/release-dependencies.json \
      /tmp/tali-hermes-overlay/
 
 # OpenShell's Kubernetes driver executes the named sandbox identity as the
@@ -20,7 +19,6 @@ USER root
 RUN set -eux; \
     install -D -m 0555 /tmp/tali-hermes-overlay/bootstrap-hermes-config.py /usr/local/lib/tali/bootstrap-hermes-config.py; \
     install -D -m 0555 /tmp/tali-hermes-overlay/hermes-webui-auth-proxy.py /usr/local/lib/tali/hermes-webui-auth-proxy.py; \
-    install -D -m 0444 /tmp/tali-hermes-overlay/release-dependencies.json /opt/tali/release-dependencies.json; \
     rm -rf /tmp/tali-hermes-overlay; \
     uid_owner="$(getent passwd "${OPENSHELL_SANDBOX_UID}" | cut -d: -f1 || true)"; \
     gid_owner="$(getent group "${OPENSHELL_SANDBOX_GID}" | cut -d: -f1 || true)"; \

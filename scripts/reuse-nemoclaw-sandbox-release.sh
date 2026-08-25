@@ -18,12 +18,5 @@ for repository in tali-nemoclaw-sandbox tali-nemoclaw-hermes-sandbox; do
   docker pull "$release_image"
   docker tag "$release_image" "$development_image"
 
-  release_id="$(docker image inspect "$release_image" --format '{{.Id}}')"
-  development_id="$(docker image inspect "$development_image" --format '{{.Id}}')"
-  if [[ "$release_id" != "$development_id" ]]; then
-    echo "Development image does not match the pulled Sandbox Release: $development_image" >&2
-    exit 1
-  fi
-
-  echo "Prepared $development_image from $release_image ($development_id)."
+  echo "Prepared $development_image from $release_image."
 done

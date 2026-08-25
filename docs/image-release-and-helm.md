@@ -13,7 +13,7 @@ TaskLattice Relay publishes **seven first-party images**:
 | `tali-nemoclaw-sandbox` | `scripts/build-nemoclaw-sandbox.sh` (`openclaw`) + `Dockerfile.nemoclaw-openclaw` | Dynamic Sandbox for the OpenClaw Agent | amd64, arm64 |
 | `tali-nemoclaw-hermes-sandbox` | The same script (`hermes`) + `Dockerfile.nemoclaw-hermes` | Dynamic Sandbox for the Hermes Agent | amd64, arm64 |
 
-A complete deployment also pulls **four pinned third-party images**: PostgreSQL,
+A complete deployment also pulls **four version-tagged third-party images**: PostgreSQL,
 the OpenShell gateway, the OpenShell supervisor, and the Agent Sandbox
 controller. A deployment using the optional example MCP server and running at
 least one OpenClaw Instance and one Hermes Instance therefore uses **eleven
@@ -24,24 +24,24 @@ created, but the runner already retains their released image references.
 ## Build Relationships
 
 `control` and `runner` share the Node 22 dependency and TypeScript compilation
-stages. The runner also downloads a pinned OpenShell CLI release. LiteLLM uses a
-pinned database variant and runs UI initialization and Prisma generation in
+stages. The runner also downloads the selected OpenShell CLI release. LiteLLM uses a
+version-tagged database variant and runs UI initialization and Prisma generation in
 advance so that its runtime container can remain non-root.
 
-Both Agent images are built from pinned NemoClaw commits and then passed through
+Both Agent images are built from a selected NemoClaw release tag and then passed through
 their respective thin, repository-owned wrapper layers to produce the final
 published images. OpenClaw applies the repository's no-proxy patch before the
 upstream build, while `Dockerfile.nemoclaw-openclaw` provides the customization
 boundary for future TaskLattice Relay changes. If the upstream Hermes image cannot be
-pulled anonymously, the Hermes build first creates its pinned base fallback and
+pulled anonymously, the Hermes build first creates its selected-tag base fallback and
 then uses `Dockerfile.nemoclaw-hermes` to align the UID/GID with OpenShell's
 requirements and add the configuration bootstrap. The release workflow builds
 both pipelines independently for amd64 and arm64, then combines them into
 multi-architecture manifests.
 
 Local Agent builds keep both stages in the Docker daemon. Release builds use
-Buildx registry output instead: the pinned upstream stage is pushed under an
-architecture-specific `build-upstream-<sha>-<architecture>` tag in the final
+Buildx registry output instead: the selected upstream stage is pushed under an
+architecture-specific `build-upstream-<release>-<architecture>` tag in the final
 image repository, and the wrapper stage is then pushed directly to its release
 tag. This avoids importing two complete Agent images into the hosted runner's
 local Docker layer store.
@@ -49,14 +49,14 @@ local Docker layer store.
 Every Agent build pipeline follows the same layering convention:
 
 ```text
-pinned upstream source + pinned base digest
-  -> tali-nemoclaw-<agent>-upstream:<revision> (build-time only)
+selected upstream source tag + selected base image tag
+  -> tali-nemoclaw-<agent>-upstream:<release> (build-time only)
   -> infra/docker/Dockerfile.nemoclaw-<agent>
   -> ghcr.io/<owner>/tali-nemoclaw-<agent>-sandbox:<release>
 ```
 
-The upstream Dockerfiles are not copied into this repository, which prevents
-them from drifting away from the pinned NemoClaw revisions. TaskLattice Relay-owned
+The upstream Dockerfiles are not copied into this repository, so each build uses
+the content currently published under the selected NemoClaw tag. TaskLattice Relay-owned
 startup scripts, configuration bootstraps, identity adaptations, and runtime
 extensions belong only in the wrapper layers. New Agent runtimes should follow
 the same convention with a dedicated wrapper Dockerfile instead of accumulating
@@ -76,14 +76,18 @@ git push origin v0.3.0
 ```
 
 The workflow runs tests, type checking, and Helm rendering before building the
-seven GHCR images in parallel. Each image publishes `X.Y.Z` and
-`sha-<12-character-commit>`. Stable releases also update `latest`, while
+seven GHCR images in parallel. Each image publishes `X.Y.Z`. Stable releases also update `latest`, while
 prerelease tags such as `v0.3.0-rc.1` do not. After a successful build, the
 workflow:
 
 1. Publishes `oci://ghcr.io/<owner>/charts/tali-relay:X.Y.Z`.
 2. Creates a GitHub Release.
 3. Attaches the self-contained `tali-X.Y.Z.tgz` package to the Release.
+
+Upstream image references are refreshed on every Release build, and the
+OpenShell CLI download stage bypasses the build cache. Rerunning the workflow
+therefore resolves the current content of the declared upstream tags and
+replaces the images and release asset published under the same Relay version.
 
 GHCR packages must be public unless the target cluster is configured with a
 pull secret. After publishing packages from the repository for the first time,
