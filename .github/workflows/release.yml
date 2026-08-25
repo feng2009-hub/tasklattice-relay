@@ -15,6 +15,8 @@ permissions:
 # Upstream dependencies are selected by human-readable release tags. Rebuilding
 # a release resolves those tags again and replaces the TaskLattice artifacts.
 env:
+  DOCKER_BUILD_RECORD_UPLOAD: "false"
+  DOCKER_BUILD_SUMMARY: "false"
   NODE_VERSION: "22"
   HELM_VERSION: "v3.18.4"
   OPENSHELL_VERSION: "0.0.106"
@@ -27,21 +29,7 @@ jobs:
   validate:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Summarize selected upstream tags
-        shell: bash
-        run: |
-          {
-            echo "## Selected upstream tags"
-            echo
-            echo "| Dependency | Tag |"
-            echo "| --- | --- |"
-            echo "| OpenShell | \`${OPENSHELL_VERSION}\` |"
-            echo "| NemoClaw | \`${NEMOCLAW_VERSION}\` |"
-            echo "| Agent Sandbox | source \`${AGENT_SANDBOX_VERSION}\`, Helm chart \`${AGENT_SANDBOX_CHART_VERSION}\` |"
-            echo "| LiteLLM image | \`${LITELLM_IMAGE}\` |"
-            echo "| Build toolchain | Node.js \`${NODE_VERSION}\`, Helm \`${HELM_VERSION}\` |"
-          } >> "${GITHUB_STEP_SUMMARY}"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Validate release tag
         shell: bash
         run: |
@@ -50,14 +38,14 @@ jobs:
             echo "Release tag must look like v1.2.3 or v1.2.3-rc.1" >&2
             exit 2
           fi
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
       - run: npm test
       - run: npm run typecheck
-      - uses: azure/setup-helm@bf6a7d304bc2fdb57e0331155b7ebf2c504acf0a # v4
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
           version: ${{ env.HELM_VERSION }}
       - run: npm run helm:dependencies
@@ -127,14 +115,14 @@ jobs:
             architecture: arm64
             runner: ubuntu-24.04-arm
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
-      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: azure/setup-helm@bf6a7d304bc2fdb57e0331155b7ebf2c504acf0a # v4
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         if: matrix.image == 'tali-control'
         with:
           version: ${{ env.HELM_VERSION }}
@@ -160,7 +148,7 @@ jobs:
             echo "${image}:${version}-${{ matrix.architecture }}"
             echo "EOF"
           } >> "${GITHUB_OUTPUT}"
-      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+      - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
           file: ${{ matrix.dockerfile }}
@@ -192,8 +180,8 @@ jobs:
           - tali-litellm
           - tali-example-mcp
     steps:
-      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
-      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -239,9 +227,9 @@ jobs:
             architecture: arm64
             runner: ubuntu-24.04-arm
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
-      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -283,8 +271,8 @@ jobs:
           - tali-nemoclaw-hermes-sandbox
           - tali-nemoclaw-deepagents-sandbox
     steps:
-      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
-      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -308,11 +296,11 @@ jobs:
       contents: write
       packages: write
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: azure/setup-helm@bf6a7d304bc2fdb57e0331155b7ebf2c504acf0a # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
           version: ${{ env.HELM_VERSION }}
-      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -328,6 +316,40 @@ jobs:
             bash scripts/package-control-plane-chart.sh "${version}"
           cp dist/control-plane-chart/tali-relay.tgz "dist/tali-relay-${version}.tgz"
           helm push "dist/tali-relay-${version}.tgz" "oci://${registry}/charts"
+      - name: Create image transfer list
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          registry="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}"
+          image_list="dist/tasklattice-images-${version}.txt"
+          images=(
+            tali-control
+            tali-openshell-runner
+            tali-litellm
+            tali-example-mcp
+            tali-nemoclaw-sandbox
+            tali-nemoclaw-hermes-sandbox
+            tali-nemoclaw-deepagents-sandbox
+          )
+          : > "${image_list}"
+          for image in "${images[@]}"; do
+            echo "${registry}/${image}:${version}" >> "${image_list}"
+          done
+          {
+            echo "## Image transfer list"
+            echo
+            echo '```text'
+            cat "${image_list}"
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+      - name: Upload image transfer list
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: tasklattice-image-list-${{ github.ref_name }}
+          path: dist/tasklattice-images-*.txt
+          if-no-files-found: error
+          retention-days: 90
       - name: Create or update GitHub Release
         shell: bash
         env:
