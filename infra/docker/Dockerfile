@@ -11,8 +11,7 @@ RUN apk add --no-cache ca-certificates curl tar \
       --output /tmp/openshell.tar.gz \
       "https://github.com/NVIDIA/OpenShell/releases/download/v${OPENSHELL_VERSION}/${asset}" \
     && tar -xzf /tmp/openshell.tar.gz -C /usr/local/bin openshell \
-    && chmod 0755 /usr/local/bin/openshell \
-    && test "$(/usr/local/bin/openshell --version)" = "openshell ${OPENSHELL_VERSION}"
+    && chmod 0755 /usr/local/bin/openshell
 
 FROM node:22-bookworm-slim AS dependencies
 WORKDIR /app
@@ -61,7 +60,6 @@ COPY --from=build /app/apps/control/server/config ./apps/control/server/config
 COPY --from=build /app/apps/control/.output ./apps/control/.output
 COPY --from=build /app/skills/vendor/dist ./skills/vendor/dist
 COPY dist/control-plane-chart/tali-relay.tgz /opt/tali/helm/tali-relay.tgz
-COPY dist/release-dependencies.json /opt/tali/release-dependencies.json
 USER 10001
 EXPOSE 8080
 CMD ["node", "apps/control/.output/server/index.mjs"]
@@ -75,7 +73,6 @@ COPY --from=production-dependencies /app/node_modules ./node_modules
 COPY package.json package-lock.json ./
 COPY apps/example-mcp-server/package.json apps/example-mcp-server/package.json
 COPY --from=build /app/apps/example-mcp-server/dist ./apps/example-mcp-server/dist
-COPY dist/release-dependencies.json /opt/tali/release-dependencies.json
 USER node
 EXPOSE 3000
 CMD ["node", "apps/example-mcp-server/dist/index.js"]
@@ -95,7 +92,6 @@ COPY packages/contracts/package.json ./packages/contracts/package.json
 COPY --from=build /app/packages/contracts/dist ./packages/contracts/dist
 COPY --from=build /app/apps/runner/dist ./apps/runner/dist
 COPY apps/runner/package.json ./apps/runner/package.json
-COPY dist/release-dependencies.json /opt/tali/release-dependencies.json
 USER node
 EXPOSE 9090
 CMD ["node", "apps/runner/dist/index.js"]

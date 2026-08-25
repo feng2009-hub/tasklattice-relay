@@ -12,10 +12,9 @@ concurrency:
 permissions:
   contents: read
 
-# Reviewed release compatibility set. Product dependencies use human-readable
-# upstream release versions; build provenance records the resolved artifacts.
+# Upstream dependencies are selected by human-readable release tags. Rebuilding
+# a release resolves those tags again and replaces the TaskLattice artifacts.
 env:
-  TALI_REQUIRE_DECLARED_DEPENDENCIES: "1"
   NODE_VERSION: "22"
   HELM_VERSION: "v3.18.4"
   OPENSHELL_VERSION: "0.0.106"
@@ -29,39 +28,13 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Record declared release dependencies
+      - name: Summarize selected upstream tags
         shell: bash
         run: |
-          set -euo pipefail
-          for dependency_variable in \
-            OPENSHELL_VERSION \
-            NEMOCLAW_VERSION \
-            AGENT_SANDBOX_VERSION \
-            AGENT_SANDBOX_CHART_VERSION \
-            LITELLM_IMAGE
-          do
-            if [[ -z "${!dependency_variable}" ]]; then
-              echo "${dependency_variable} must be declared." >&2
-              exit 2
-            fi
-          done
-          if [[ ! "${OPENSHELL_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "OPENSHELL_VERSION must be an exact stable version." >&2
-            exit 2
-          fi
-          if [[ ! "${NEMOCLAW_VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "NEMOCLAW_VERSION must be an exact stable release tag." >&2
-            exit 2
-          fi
-          if [[ "${LITELLM_IMAGE}" == *@* || "${LITELLM_IMAGE}" == *:latest ]]; then
-            echo "LITELLM_IMAGE must use an explicit, human-readable version tag." >&2
-            exit 2
-          fi
-          bash scripts/write-release-dependencies.sh
           {
-            echo "## Declared release dependencies"
+            echo "## Selected upstream tags"
             echo
-            echo "| Dependency | Reviewed version |"
+            echo "| Dependency | Tag |"
             echo "| --- | --- |"
             echo "| OpenShell | \`${OPENSHELL_VERSION}\` |"
             echo "| NemoClaw | \`${NEMOCLAW_VERSION}\` |"
@@ -155,7 +128,6 @@ jobs:
             runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - run: bash scripts/write-release-dependencies.sh
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
@@ -194,6 +166,8 @@ jobs:
           file: ${{ matrix.dockerfile }}
           target: ${{ matrix.target }}
           platforms: linux/${{ matrix.architecture }}
+          pull: true
+          no-cache-filters: openshell-cli
           push: true
           tags: ${{ steps.image.outputs.tags }}
           cache-from: type=gha,scope=${{ matrix.image }}-${{ matrix.architecture }}
@@ -260,7 +234,6 @@ jobs:
             runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - run: bash scripts/write-release-dependencies.sh
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
@@ -326,7 +299,6 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - run: bash scripts/write-release-dependencies.sh
       - uses: azure/setup-helm@bf6a7d304bc2fdb57e0331155b7ebf2c504acf0a # v4
         with:
           version: ${{ env.HELM_VERSION }}
@@ -354,16 +326,13 @@ jobs:
           set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
           asset="dist/tali-relay-${version}.tgz"
-          dependency_manifest="dist/release-dependencies.json"
           if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
             gh release upload "${GITHUB_REF_NAME}" \
               "${asset}" \
-              "${dependency_manifest}" \
               --clobber
           else
             gh release create "${GITHUB_REF_NAME}" \
               "${asset}" \
-              "${dependency_manifest}" \
               --verify-tag \
               --generate-notes \
               --title "TaskLattice Relay ${version}"

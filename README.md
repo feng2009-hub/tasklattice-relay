@@ -60,8 +60,8 @@ OpenShell Gateway ---- Agent Sandbox CR
 The default installation target is the
 [latest published GitHub Release](https://github.com/tasklattice/tasklattice-relay/releases/latest).
 Set `VERSION` to that Release version without its leading `v`. The Chart and
-all seven first-party images then use that exact immutable version; TaskLattice Relay
-does not deploy the floating `latest` image tag.
+all seven first-party images then use that versioned tag; TaskLattice Relay does
+not deploy the floating `latest` image tag.
 
 Download the self-contained Chart attached to the Release:
 
@@ -159,11 +159,11 @@ resolves to that exact value.
 
 The OpenShell supervisor and selected Agent image are pulled when an Instance
 creates its Sandbox rather than running as permanent control-plane Pods.
-Every GitHub Release also includes `release-dependencies.json`, generated from
-the reviewed dependency manifest at the top of `.github/workflows/release.yml`.
-It records the exact OpenShell version and checksums, Agent Sandbox source and
-Chart versions, NemoClaw commits and base-image digests, and LiteLLM image
-digest used for that build.
+The release workflow selects upstream dependencies by the tags declared at the
+top of `.github/workflows/release.yml`. Each build uses the content currently
+published under those tags. Release builds refresh upstream image tags and the
+OpenShell CLI download instead of reusing those inputs from cache; rerunning a
+release rebuilds and replaces the TaskLattice artifacts for that release.
 
 ## Access
 

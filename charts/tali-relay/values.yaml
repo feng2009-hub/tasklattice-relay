@@ -15,7 +15,7 @@ global:
       exposure: "50"
   # Set by local deployment tooling to restart first-party workloads after a
   # mutable :dev image is rebuilt. Released charts leave this empty because
-  # their image tag is the immutable Chart appVersion.
+  # their image tag is the versioned Chart appVersion.
   rolloutRevision: ""
 
 # OpenShift-specific resources and security behavior are opt-in so regular
@@ -350,7 +350,7 @@ resourceDefaults:
     cpu: 500m
     memory: 512Mi
 
-# Pinned kubernetes-sigs/agent-sandbox v0.5.1 dependency. Its upstream Chart is
+# Selected kubernetes-sigs/agent-sandbox v0.5.1 dependency. Its upstream Chart is
 # fetched and packaged by scripts/prepare-helm-dependencies.sh; upstream source
 # is not copied into this repository.
 agentSandbox:
@@ -375,7 +375,7 @@ agentSandbox:
       cpu: 500m
       memory: 256Mi
 
-# Pinned upstream OpenShell OCI chart. Plaintext/unauthenticated mode matches
+# Selected upstream OpenShell OCI chart. Plaintext/unauthenticated mode matches
 # TaskLattice Relay's current trusted-cluster integration. Put the services behind an
 # authenticated ingress or configure OpenShell TLS/OIDC for shared clusters.
 openshell:

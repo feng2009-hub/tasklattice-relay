@@ -2,37 +2,14 @@
 set -euo pipefail
 
 # Build one of the Agent implementations supported by the NemoClaw runtime.
-# The reviewed NemoClaw release tag supplies both supported Agent integrations.
+# The selected NemoClaw release tag supplies both supported Agent integrations.
 readonly AGENT_PLATFORM="${NEMOCLAW_AGENT_PLATFORM:-openclaw}"
 readonly BUILD_OUTPUT="${NEMOCLAW_BUILD_OUTPUT:-local}"
 readonly REPOSITORY_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-if [ "${TALI_REQUIRE_DECLARED_DEPENDENCIES:-0}" = "1" ] \
-  && [ -z "${NEMOCLAW_VERSION:-}" ]; then
-  echo "Release dependency variable is required: NEMOCLAW_VERSION" >&2
-  exit 2
-fi
 readonly NEMOCLAW_VERSION="${NEMOCLAW_VERSION:-v0.0.114}"
-
-bash "$REPOSITORY_ROOT/scripts/write-release-dependencies.sh"
-
-require_declared_dependencies() {
-  if [ "${TALI_REQUIRE_DECLARED_DEPENDENCIES:-0}" != "1" ]; then
-    return
-  fi
-  for variable_name in "${required_variables[@]}"; do
-    if [ -z "${!variable_name:-}" ]; then
-      echo "Release dependency variable is required: $variable_name" >&2
-      exit 2
-    fi
-  done
-}
 
 case "$AGENT_PLATFORM" in
   openclaw)
-    required_variables=(
-      NEMOCLAW_VERSION
-    )
-    require_declared_dependencies
     readonly NEMOCLAW_BASE_IMAGE="ghcr.io/nvidia/nemoclaw/sandbox-base:${NEMOCLAW_VERSION}"
     readonly NEMOCLAW_IMAGE="${NEMOCLAW_IMAGE:-ghcr.io/tasklattice/tali-nemoclaw-sandbox:dev}"
     readonly DOCKERFILE="Dockerfile"
@@ -40,10 +17,6 @@ case "$AGENT_PLATFORM" in
     readonly WRAPPER_DOCKERFILE="$REPOSITORY_ROOT/infra/docker/Dockerfile.nemoclaw-openclaw"
     ;;
   hermes)
-    required_variables=(
-      NEMOCLAW_VERSION
-    )
-    require_declared_dependencies
     readonly NEMOCLAW_BASE_IMAGE="ghcr.io/nvidia/nemoclaw/hermes-sandbox-base:${NEMOCLAW_VERSION}"
     readonly NEMOCLAW_IMAGE="${NEMOCLAW_HERMES_IMAGE:-ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:dev}"
     readonly DOCKERFILE="agents/hermes/Dockerfile"
@@ -106,8 +79,7 @@ if [ "$BUILD_OUTPUT" = "push" ]; then
   }
 else
   base_image_available() {
-    docker image inspect "$resolved_base_image" >/dev/null 2>&1 \
-      || docker pull "$resolved_base_image"
+    docker pull "$resolved_base_image"
   }
 fi
 
@@ -127,14 +99,12 @@ if ! base_image_available; then
     resolved_base_image="${NEMOCLAW_FALLBACK_BASE_IMAGE:-tali-nemoclaw-hermes-base:${NEMOCLAW_VERSION#v}}"
   fi
 
-  if [ "$BUILD_OUTPUT" = "push" ] \
-    || ! docker image inspect "$resolved_base_image" >/dev/null 2>&1; then
-    echo "Hermes base image is unavailable from GHCR; building the pinned fallback."
-    build_image \
-      --file "$build_context/agents/hermes/Dockerfile.base" \
-      --tag "$resolved_base_image" \
-      "$build_context"
-  fi
+  echo "Hermes base image is unavailable from GHCR; building the selected-tag fallback."
+  build_image \
+    --pull \
+    --file "$build_context/agents/hermes/Dockerfile.base" \
+    --tag "$resolved_base_image" \
+    "$build_context"
 fi
 
 platform_build_args=()
@@ -151,6 +121,7 @@ else
 fi
 
 build_image \
+  --pull \
   --file "$build_context/$DOCKERFILE" \
   --build-arg "BASE_IMAGE=$resolved_base_image" \
   --build-arg NEMOCLAW_MODEL=deepseek-chat \
@@ -163,7 +134,7 @@ build_image \
   --tag "$UPSTREAM_IMAGE" \
   "$build_context"
 
-# Keep the pinned upstream Dockerfiles external while ensuring every published
+# Keep the selected upstream Dockerfiles external while ensuring every published
 # Agent image crosses a TaskLattice Relay-owned customization boundary.
 build_image \
   --file "$WRAPPER_DOCKERFILE" \

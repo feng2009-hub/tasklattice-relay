@@ -62,7 +62,7 @@ describe("NemoClaw OpenClaw NO_PROXY patch", () => {
     expect(result.stderr).toContain("already present in NO_PROXY");
   });
 
-  it("fails closed when the pinned upstream layout changes", async () => {
+  it("fails closed when the selected upstream layout changes", async () => {
     const file = await fixture(
       `#!/usr/bin/env bash\n${gatewayExport}\n_NO_PROXY_VAL="localhost"\n`,
     );

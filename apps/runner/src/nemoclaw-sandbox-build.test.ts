@@ -25,7 +25,7 @@ afterEach(async () => {
 });
 
 describe("NemoClaw sandbox image build", () => {
-  it("passes the pinned OpenClaw upstream image through the local wrapper", async () => {
+  it("refreshes the selected OpenClaw tag before applying the local wrapper", async () => {
     const root = await mkdtemp(join(tmpdir(), "tali-nemoclaw-build-"));
     temporaryDirectories.push(root);
     const bin = join(root, "bin");
@@ -69,14 +69,15 @@ exit 0
     });
 
     expect(result.status, result.stderr).toBe(0);
-    const builds = (await readFile(log, "utf8"))
-      .trim()
-      .split("\n")
-      .filter((line) => line.startsWith("build "));
+    const commands = (await readFile(log, "utf8")).trim().split("\n");
+    const builds = commands.filter((line) => line.startsWith("build "));
     const upstreamImage = "tali-nemoclaw-openclaw-upstream:0.0.114";
 
+    expect(commands[0]).toBe(
+      "pull ghcr.io/nvidia/nemoclaw/sandbox-base:v0.0.114",
+    );
     expect(builds).toHaveLength(2);
-    expect(builds[0]).toMatch(/^build --file .*\/Dockerfile /);
+    expect(builds[0]).toMatch(/^build --pull --file .*\/Dockerfile /);
     expect(builds[0]).toContain(
       "--build-arg BASE_IMAGE=ghcr.io/nvidia/nemoclaw/sandbox-base:v0.0.114",
     );
@@ -140,7 +141,7 @@ exit 0
 
     expect(commands[0]).toMatch(/^buildx imagetools inspect /);
     expect(builds).toHaveLength(2);
-    expect(builds[0]).toContain("--platform linux/arm64 --push");
+    expect(builds[0]).toContain("--platform linux/arm64 --push --pull");
     expect(builds[0]).toContain(`--tag ${upstreamImage}`);
     expect(builds[1]).toBe(
       `buildx build --platform linux/arm64 --push --file ${openClawWrapper} --build-arg BASE_IMAGE=${upstreamImage} --tag ${finalImage} ${repositoryRoot}`,

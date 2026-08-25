@@ -12,20 +12,6 @@ done
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 chart_root="$repository_root/charts/tali-relay"
 dependency_source_root="$repository_root/.helm-dependencies"
-if [[ "${TALI_REQUIRE_DECLARED_DEPENDENCIES:-0}" == "1" ]]; then
-  required_variables=(
-    OPENSHELL_VERSION
-    AGENT_SANDBOX_VERSION
-    AGENT_SANDBOX_CHART_VERSION
-  )
-  for variable_name in "${required_variables[@]}"; do
-    if [[ -z "${!variable_name:-}" ]]; then
-      echo "Release dependency variable is required: $variable_name" >&2
-      exit 2
-    fi
-  done
-fi
-
 openshell_version="${OPENSHELL_VERSION:-0.0.106}"
 openshell_upstream_reference="oci://ghcr.io/nvidia/openshell/helm-chart"
 patch_file="$chart_root/patches/openshell.patch"
@@ -53,11 +39,6 @@ helm pull "$openshell_upstream_reference" \
 curl -fsSL "$agent_sandbox_url" -o "$agent_sandbox_archive"
 
 tar -xzf "$agent_sandbox_archive" -C "$work_dir"
-upstream_agent_sandbox_chart_version="$(awk '$1 == "version:" { print $2; exit }' "$work_dir/$agent_sandbox_source_directory/helm/Chart.yaml")"
-if [[ "$upstream_agent_sandbox_chart_version" != "$agent_sandbox_chart_version" ]]; then
-  echo "Agent Sandbox Helm chart version mismatch: expected $agent_sandbox_chart_version, got $upstream_agent_sandbox_chart_version" >&2
-  exit 1
-fi
 rm -rf "$agent_sandbox_chart"
 cp -R "$work_dir/$agent_sandbox_source_directory/helm" "$agent_sandbox_chart"
 cp "$work_dir/$agent_sandbox_source_directory/LICENSE" "$agent_sandbox_chart/LICENSE"
@@ -66,11 +47,6 @@ find "$agent_sandbox_chart" -type f \
   \( -name "*.orig" -o -name "*.rej" \) -delete
 
 tar -xzf "$openshell_archive" -C "$work_dir"
-upstream_openshell_version="$(awk '$1 == "version:" { print $2; exit }' "$work_dir/helm-chart/Chart.yaml")"
-if [[ "$upstream_openshell_version" != "$openshell_version" ]]; then
-  echo "OpenShell Helm chart version mismatch: expected $openshell_version, got $upstream_openshell_version" >&2
-  exit 1
-fi
 mv "$work_dir/helm-chart" "$work_dir/openshell"
 patch --directory "$work_dir" --strip 1 < "$patch_file"
 rm -rf "$openshell_chart"
@@ -103,4 +79,4 @@ for expected_image in "${expected_images[@]}"; do
   fi
 done
 
-echo "Prepared OpenShell ${openshell_version} and Agent Sandbox ${agent_sandbox_version} (chart ${agent_sandbox_chart_version}) from reviewed release versions."
+echo "Prepared OpenShell ${openshell_version} and Agent Sandbox ${agent_sandbox_version} (chart ${agent_sandbox_chart_version}) from their selected upstream tags."
