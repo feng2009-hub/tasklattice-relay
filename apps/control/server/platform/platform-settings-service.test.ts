@@ -83,7 +83,6 @@ describe("PlatformSettingsService", () => {
       runtimeNamespaces: {
         enabled: true,
         clusterId: "in-cluster",
-        namePrefix: "tali-p",
       },
     };
 
@@ -112,7 +111,6 @@ describe("PlatformSettingsService", () => {
       runtimeNamespaces: {
         enabled: true,
         clusterId: "in-cluster",
-        namePrefix: "tali-p",
       },
     });
     const record = await db.platformSettingsRecord.findUniqueOrThrow({

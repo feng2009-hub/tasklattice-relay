@@ -339,7 +339,6 @@ for (const [name, value] of [
   ["TALI_BOOTSTRAP_LITELLM_URL", `http://${releaseName}-litellm:4000`],
   ["TALI_BOOTSTRAP_RUNTIME_NAMESPACES_ENABLED", "true"],
   ["TALI_BOOTSTRAP_RUNTIME_CLUSTER_ID", "in-cluster"],
-  ["TALI_BOOTSTRAP_RUNTIME_NAMESPACE_PREFIX", "tali-p"],
 ]) {
   if (localControlEnv.find((entry) => entry.name === name)?.value !== value) {
     throw new Error(`${name} must seed the initial Platform infrastructure setting.`);

@@ -3,7 +3,6 @@ import { prisma } from "../db/prisma";
 import type { PrismaClient } from "../generated/prisma/client";
 import { PlatformSettingsService } from "../platform/platform-settings-service";
 import {
-  deploymentBootstrapRuntimeConfiguration,
   loadPlatformRuntimeConfiguration,
 } from "../platform/platform-runtime-config";
 import {
@@ -28,17 +27,39 @@ export interface ProjectRuntimeReconciliationSummary {
   total: number;
 }
 
-export function projectRuntimeNamespace(
-  projectId: string,
-  prefix = deploymentBootstrapRuntimeConfiguration().runtimeNamespaces.namePrefix,
-): string {
-  // SHA-256 stays available in FIPS-enabled OpenShift environments. The hash
-  // is an opaque stable identifier, not a security boundary.
-  const identifier = createHash("sha256")
-    .update(projectId)
-    .digest("hex")
-    .slice(0, 32);
-  return `${prefix}-${identifier}`;
+const BASE32_ALPHABET = "abcdefghijklmnopqrstuvwxyz234567";
+const PROJECT_RUNTIME_IDENTIFIER_BYTES = 10;
+
+export const OPENSHELL_ROUTABLE_NAME_MAX_LENGTH = 19;
+export const PROJECT_RUNTIME_NAMESPACE_PREFIX = "tp-";
+
+function encodeBase32(input: Uint8Array): string {
+  let accumulator = 0;
+  let bits = 0;
+  let result = "";
+  for (const byte of input) {
+    accumulator = (accumulator << 8) | byte;
+    bits += 8;
+    while (bits >= 5) {
+      bits -= 5;
+      result += BASE32_ALPHABET[(accumulator >> bits) & 31];
+      accumulator &= (1 << bits) - 1;
+    }
+  }
+  return result;
+}
+
+export function projectRuntimeNamespace(projectId: string): string {
+  // Ten SHA-256 bytes encode to exactly 16 lowercase Base32 characters. With
+  // the fixed prefix the result is a 19-character DNS-1123 label that can be
+  // used unchanged as an OpenShell workspace, namespace, or route segment.
+  const identifier = encodeBase32(
+    createHash("sha256")
+      .update(projectId)
+      .digest()
+      .subarray(0, PROJECT_RUNTIME_IDENTIFIER_BYTES),
+  );
+  return `${PROJECT_RUNTIME_NAMESPACE_PREFIX}${identifier}`;
 }
 
 function safeError(error: unknown): string {
@@ -72,8 +93,6 @@ export class ProjectRuntimeTargetService
     if (!runtime.enabled) return false;
     const namespaces = this.namespaces ?? createProjectNamespaceClient({
       enabled: runtime.enabled,
-      cluster_id: runtime.clusterId,
-      name_prefix: runtime.namePrefix,
     });
     const project = await this.db.project.findUnique({
       where: { id: projectId },
@@ -99,10 +118,7 @@ export class ProjectRuntimeTargetService
       (await this.db.projectRuntimeTarget.create({
         data: {
           clusterId: runtime.clusterId,
-          namespace: projectRuntimeNamespace(
-            project.id,
-            runtime.namePrefix,
-          ),
+          namespace: projectRuntimeNamespace(project.id),
           projectId: project.id,
         },
         select: {
@@ -259,8 +275,6 @@ export class ProjectRuntimeTargetService
     if (!runtime.enabled) return false;
     const namespaces = this.namespaces ?? createProjectNamespaceClient({
       enabled: runtime.enabled,
-      cluster_id: runtime.clusterId,
-      name_prefix: runtime.namePrefix,
     });
     const target = await this.db.projectRuntimeTarget.findUnique({
       where: { projectId },

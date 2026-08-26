@@ -359,7 +359,7 @@ describe("AgentGardenService", () => {
       data: {
         projectId: projectStore.projectId,
         clusterId: "in-cluster",
-        namespace: "tali-p-test-agent-garden",
+        namespace: "tp-abcdefghijklmnop",
         status: "ready",
       },
     });
@@ -428,7 +428,7 @@ describe("AgentGardenService", () => {
         agentId: agent.id,
         id: agent.configuration.managedInstanceId,
         status: "READY",
-        runtimeNamespace: "tali-p-test-agent-garden",
+        runtimeNamespace: "tp-abcdefghijklmnop",
         deploymentName: "tali-a2a-managed",
         podName: "tali-a2a-managed-76d8d9f4d9-h7k2p",
         imageDigest: expect.stringContaining("@sha256:"),
@@ -466,7 +466,7 @@ describe("AgentGardenService", () => {
       data: {
         projectId: projectStore.projectId,
         clusterId: "in-cluster",
-        namespace: "tali-p-test-agent-garden",
+        namespace: "tp-abcdefghijklmnop",
         status: "ready",
       },
     });

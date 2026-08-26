@@ -617,10 +617,7 @@ export class ProjectService {
         runtimeTarget: {
           create: {
             clusterId: runtimeNamespaceConfig.clusterId,
-            namespace: projectRuntimeNamespace(
-              projectId,
-              runtimeNamespaceConfig.namePrefix,
-            ),
+            namespace: projectRuntimeNamespace(projectId),
           },
         },
       },

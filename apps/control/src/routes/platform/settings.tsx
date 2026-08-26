@@ -317,9 +317,6 @@ function InfrastructureSettings({ settings }: { settings: PlatformSettingsView }
     current.runtimeNamespaces.enabled,
   );
   const [clusterId, setClusterId] = useState(current.runtimeNamespaces.clusterId);
-  const [namespacePrefix, setNamespacePrefix] = useState(
-    current.runtimeNamespaces.namePrefix,
-  );
   const validate = useMutation({
     mutationFn: validatePlatformInfrastructureSettings,
   });
@@ -337,7 +334,6 @@ function InfrastructureSettings({ settings }: { settings: PlatformSettingsView }
       setLitellmMasterKey("");
       setNamespacesEnabled(updated.runtimeNamespaces.enabled);
       setClusterId(updated.runtimeNamespaces.clusterId);
-      setNamespacePrefix(updated.runtimeNamespaces.namePrefix);
       validate.reset();
     },
   });
@@ -358,14 +354,12 @@ function InfrastructureSettings({ settings }: { settings: PlatformSettingsView }
     runtimeNamespaces: {
       enabled: namespacesEnabled,
       clusterId: clusterId.trim(),
-      namePrefix: namespacePrefix.trim(),
     },
   }), [
     clusterId,
     controlInternalUrl,
     litellmMasterKey,
     litellmUrl,
-    namespacePrefix,
     namespacesEnabled,
     runnerToken,
     runnerUrl,
@@ -377,16 +371,14 @@ function InfrastructureSettings({ settings }: { settings: PlatformSettingsView }
     || draft.litellm.url !== current.litellm.url
     || Boolean(litellmMasterKey)
     || draft.runtimeNamespaces.enabled !== current.runtimeNamespaces.enabled
-    || draft.runtimeNamespaces.clusterId !== current.runtimeNamespaces.clusterId
-    || draft.runtimeNamespaces.namePrefix !== current.runtimeNamespaces.namePrefix;
+    || draft.runtimeNamespaces.clusterId !== current.runtimeNamespaces.clusterId;
   const complete = Boolean(
     draft.controlInternalUrl
     && draft.runner.url
     && (current.runner.tokenConfigured || runnerToken)
     && draft.litellm.url
     && (current.litellm.masterKeyConfigured || litellmMasterKey)
-    && draft.runtimeNamespaces.clusterId
-    && draft.runtimeNamespaces.namePrefix,
+    && draft.runtimeNamespaces.clusterId,
   );
   const change = <T,>(setter: (value: T) => void, value: T) => {
     setter(value);
@@ -489,9 +481,9 @@ function InfrastructureSettings({ settings }: { settings: PlatformSettingsView }
             Runtime Namespaces
           </legend>
           <p className="max-w-3xl text-xs leading-5 text-muted-foreground">
-            New Projects receive a stable Kubernetes Namespace. Validation prevents changing the cluster identity while existing Runtime Targets belong to another cluster.
+            New Projects receive a stable 19-character Kubernetes Namespace that is also valid as an OpenShell Workspace. Validation prevents changing the cluster identity while existing Runtime Targets belong to another cluster.
           </p>
-          <div className="grid gap-4 md:grid-cols-[minmax(13rem,0.7fr)_minmax(13rem,1fr)_minmax(13rem,1fr)] md:items-end">
+          <div className="grid gap-4 md:grid-cols-[minmax(13rem,0.7fr)_minmax(13rem,1fr)] md:items-end">
             <label className="flex min-h-11 items-center justify-between gap-4 rounded-md border px-3 py-2">
               <span>
                 <span className="block text-sm font-medium">Manage Namespaces</span>
@@ -511,16 +503,6 @@ function InfrastructureSettings({ settings }: { settings: PlatformSettingsView }
                 value={clusterId}
                 onChange={(event) => change(setClusterId, event.target.value)}
                 placeholder="in-cluster"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="infrastructure-namespace-prefix">Namespace prefix</Label>
-              <Input
-                id="infrastructure-namespace-prefix"
-                className="h-11 font-mono text-xs"
-                value={namespacePrefix}
-                onChange={(event) => change(setNamespacePrefix, event.target.value)}
-                placeholder="tali-p"
               />
             </div>
           </div>

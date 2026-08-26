@@ -42,4 +42,4 @@ ALTER TABLE "tasklattice"."project_runtime_targets"
   ON UPDATE CASCADE;
 
 -- Existing Projects are backfilled by the runtime-target worker so the active
--- cluster identifier and installation-specific Namespace prefix are honored.
+-- cluster identifier and canonical Project Runtime Namespace format are honored.

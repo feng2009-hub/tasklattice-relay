@@ -10,6 +10,8 @@ import {
 } from "../kubernetes/project-namespace-client";
 import { createTestPrisma } from "../test/prisma";
 import {
+  OPENSHELL_ROUTABLE_NAME_MAX_LENGTH,
+  PROJECT_RUNTIME_NAMESPACE_PREFIX,
   projectRuntimeNamespace,
   ProjectRuntimeTargetService,
 } from "./project-runtime-target-service";
@@ -42,13 +44,15 @@ describe("ProjectRuntimeTargetService", () => {
     const first = projectRuntimeNamespace("customer-support-12345678");
     const second = projectRuntimeNamespace("customer-support-12345678");
     expect(first).toBe(second);
-    expect(first).toMatch(/^tali-p-[a-f0-9]{32}$/);
+    expect(first).toMatch(/^tp-[a-z2-7]{16}$/);
+    expect(first).toHaveLength(OPENSHELL_ROUTABLE_NAME_MAX_LENGTH);
+    expect(first.startsWith(PROJECT_RUNTIME_NAMESPACE_PREFIX)).toBe(true);
     expect(first).not.toContain("customer-support");
   });
 
-  it("keeps an installation-specific Namespace prefix", () => {
-    expect(projectRuntimeNamespace("project-a", "acme-relay-p"))
-      .toMatch(/^acme-relay-p-[a-f0-9]{32}$/);
+  it("gives distinct Projects distinct OpenShell-compatible names", () => {
+    expect(projectRuntimeNamespace("project-a"))
+      .not.toBe(projectRuntimeNamespace("project-b"));
   });
 
   it("ensures one Namespace synchronously and records readiness", async () => {
@@ -129,7 +133,7 @@ describe("ProjectRuntimeTargetService", () => {
     await db.projectRuntimeTarget.create({
       data: {
         clusterId: "in-cluster",
-        namespace: projectRuntimeNamespace("individual", "tali-p"),
+        namespace: projectRuntimeNamespace("individual"),
         projectId: "individual",
       },
     });
@@ -165,10 +169,7 @@ describe("ProjectRuntimeTargetService", () => {
     await db.projectRuntimeTarget.create({
       data: {
         clusterId: config.runtime_namespaces.cluster_id,
-        namespace: projectRuntimeNamespace(
-          "individual",
-          config.runtime_namespaces.name_prefix,
-        ),
+        namespace: projectRuntimeNamespace("individual"),
         projectId: "individual",
       },
     });
@@ -194,8 +195,9 @@ describe("ProjectRuntimeTargetService", () => {
 
 describe("projectNamespaceResource", () => {
   it("includes stable ownership and human-readable Project metadata", () => {
+    const namespace = projectRuntimeNamespace("project-a");
     const resource = projectNamespaceResource({
-      namespace: "tali-p-0123456789abcdef0123456789abcdef",
+      namespace,
       projectId: "project-a",
       projectName: "Customer Support",
     });
@@ -214,7 +216,7 @@ describe("projectNamespaceResource", () => {
           "tali.io/project-name": "customer-support",
           "tali.io/runtime-target": "true",
         },
-        name: "tali-p-0123456789abcdef0123456789abcdef",
+        name: namespace,
       },
     });
   });

@@ -422,10 +422,6 @@ const platformInfrastructureSecretSchema = z.discriminatedUnion("action", [
 const platformRuntimeNamespacesSchema = z.object({
   enabled: z.boolean(),
   clusterId: z.string().trim().min(1).max(120),
-  namePrefix: z.string().trim().min(1).max(20).regex(
-    /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/,
-    "Runtime Namespace prefix must be a DNS label.",
-  ),
 }).strict();
 
 export const validatePlatformInfrastructureSettingsSchema = z.object({
@@ -466,7 +462,6 @@ export interface PlatformInfrastructureSettingsView {
   runtimeNamespaces: {
     enabled: boolean;
     clusterId: string;
-    namePrefix: string;
   };
 }
 

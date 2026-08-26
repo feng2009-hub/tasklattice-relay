@@ -134,8 +134,6 @@ spec:
               value: {{ .Values.projectRuntimeNamespaces.enabled | quote }}
             - name: TALI_BOOTSTRAP_RUNTIME_CLUSTER_ID
               value: {{ .Values.projectRuntimeNamespaces.clusterId | quote }}
-            - name: TALI_BOOTSTRAP_RUNTIME_NAMESPACE_PREFIX
-              value: {{ .Values.projectRuntimeNamespaces.namePrefix | quote }}
             - name: NODE_EXTRA_CA_CERTS
               value: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
             {{- with .Values.control.extraEnv }}

@@ -71,7 +71,7 @@ deletion timeout are database-owned and can be changed from **Platform Setting
 created.
 
 Control internal URL, Runner URL and token, LiteLLM URL and master key, and
-Runtime Namespace enablement, cluster identity, and name prefix are configured
+Runtime Namespace enablement and cluster identity are configured
 from **Platform Setting -> Infrastructure**. Editing creates a browser-local
 draft. **Validate configuration** probes Control, Runner, and LiteLLM, checks
 Kubernetes permissions when Runtime Namespaces are enabled, and rejects a

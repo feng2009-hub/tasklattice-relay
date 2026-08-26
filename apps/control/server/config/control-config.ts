@@ -6,16 +6,11 @@ import { z } from "zod";
 const defaultRuntimeNamespacesConfig = {
   enabled: false,
   cluster_id: "in-cluster",
-  name_prefix: "tali-p",
 };
 
 const runtimeNamespacesConfigSchema = z.object({
   enabled: z.boolean(),
   cluster_id: z.string().trim().min(1).max(120),
-  name_prefix: z.string().trim().min(1).max(20).regex(
-    /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/,
-    "runtime_namespaces.name_prefix must be a DNS label prefix.",
-  ),
 });
 
 const localAuthConfigSchema = z.object({
