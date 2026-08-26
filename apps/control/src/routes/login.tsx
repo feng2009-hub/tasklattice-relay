@@ -6,7 +6,6 @@ import { z } from "zod";
 import { useAuth } from "@/components/auth/auth-provider";
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { LanguageSwitcher } from "@/components/i18n/language-switcher";
-import { getStoredProjectId, projectPath } from "@/lib/project-storage";
 import { authClient } from "@/lib/auth-client";
 
 export const Route = createFileRoute("/login")({
@@ -27,10 +26,7 @@ function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(search.error ?? "");
-  const redirect =
-    search.redirect?.startsWith("/") && !search.redirect.startsWith("//")
-      ? search.redirect
-      : projectPath(getStoredProjectId() ?? "proj1");
+  const redirect = "/access";
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

@@ -1,4 +1,5 @@
 import type {
+  BuiltinRoleId,
   BuiltinProjectRoleId,
   ProjectCapability,
   ProjectMembershipRole,
@@ -33,8 +34,22 @@ function uniqueRoles(roles: readonly ProjectRole[]): ProjectRole[] {
   return Array.from(new Set(roles));
 }
 
+export function projectRoleFromBuiltinRole(
+  roleId: BuiltinRoleId | string | undefined,
+): ProjectRole | undefined {
+  switch (roleId) {
+    case "ROLE_PROJECT_ADMIN": return "admin";
+    case "ROLE_AUDITOR": return "auditor";
+    case "ROLE_AGENT_DEVELOPER": return "developer";
+    case "ROLE_USER": return "user";
+    case "ROLE_REVIEWER": return "reviewer";
+    default: return undefined;
+  }
+}
+
 function membershipRoleState(
   membership: MembershipAccessRecord,
+  preferredRole?: ProjectRole,
 ) {
   const assignedRoles = uniqueRoles([
     ...membership.roleAssignments
@@ -44,23 +59,27 @@ function membershipRoleState(
       .map(({ role }) => role),
     ...(membership.manualAccess !== false ? [membership.role] : []),
   ]);
-  const activeRole = assignedRoles.includes(membership.role)
-    ? membership.role
-    : assignedRoles[0] ?? membership.role;
+  const activeRole = preferredRole && assignedRoles.includes(preferredRole)
+    ? preferredRole
+    : assignedRoles.includes(membership.role)
+      ? membership.role
+      : assignedRoles[0] ?? membership.role;
   return { assignedRoles, activeRole };
 }
 
 export function activeRoleForMembership(
   membership: MembershipAccessRecord,
+  preferredRole?: ProjectRole,
 ): ProjectRole {
-  return membershipRoleState(membership).activeRole;
+  return membershipRoleState(membership, preferredRole).activeRole;
 }
 
 export async function accessForMembership(
   membership: MembershipAccessRecord,
   database: PrismaClient | Prisma.TransactionClient = prisma(),
+  preferredRole?: ProjectRole,
 ): Promise<ProjectAccessView> {
-  const state = membershipRoleState(membership);
+  const state = membershipRoleState(membership, preferredRole);
   const role = await new RoleCatalogService(database).role(
     membershipRoleToBuiltinRole[state.activeRole],
   );
@@ -84,9 +103,12 @@ export function membershipHasAccess(
 
 export function activeBuiltinRoleIds(
   membership: MembershipAccessRecord,
+  preferredRole?: ProjectRole,
 ): BuiltinProjectRoleId[] {
   if (!membershipHasAccess(membership)) return [];
-  return [membershipRoleToBuiltinRole[membershipRoleState(membership).activeRole]];
+  return [membershipRoleToBuiltinRole[
+    membershipRoleState(membership, preferredRole).activeRole
+  ]];
 }
 
 export const membershipAccessInclude = {

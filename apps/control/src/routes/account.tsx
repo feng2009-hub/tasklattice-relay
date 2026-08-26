@@ -22,6 +22,7 @@ import {
   Sun,
 } from "lucide-react";
 import { AccountAvatar } from "@/components/account/account-avatar";
+import { useAccessContext } from "@/components/auth/access-context-provider";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -55,7 +56,7 @@ import {
 } from "@/features/account/project-permission-group";
 import { useProject } from "@/hooks/use-project";
 import type { SupportedLanguage } from "@/i18n/config";
-import { switchProjectRole } from "@/services/project";
+import { projectRoleToBuiltinRole } from "@/services/access-context";
 import {
   applyPlatformPreferences,
   detectedTimezone,
@@ -548,10 +549,21 @@ function AccessPanel({
   onAccessChanged: () => Promise<Project[]>;
   project: Project;
 }) {
+  const { options: accessOptions, select: selectAccess } = useAccessContext();
   const roleSwitch = useMutation({
-    mutationFn: (role: Project["assignedRoles"][number]) =>
-      switchProjectRole(project.id, role),
-    onSuccess: onAccessChanged,
+    mutationFn: async (role: Project["assignedRoles"][number]) => {
+      const option = accessOptions.find((candidate) =>
+        candidate.level === "project"
+        && candidate.resourceId === project.id
+        && candidate.roleId === projectRoleToBuiltinRole[role]
+      );
+      if (!option) throw new Error("This Project role is not available.");
+      return selectAccess(option);
+    },
+    onSuccess: async (selected) => {
+      await onAccessChanged();
+      window.location.assign(selected.target);
+    },
   });
   const permissionGroups = groupProjectCapabilities(
     project.effectiveCapabilities,

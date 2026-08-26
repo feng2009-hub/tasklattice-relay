@@ -5,6 +5,7 @@ import {
   navGroups,
   routeIsGlobal,
   routeUsesFullBleedLayout,
+  routeUsesStandaloneContextSidebar,
 } from "./app-shell";
 
 describe("Project control-plane navigation", () => {
@@ -75,6 +76,16 @@ describe("Project control-plane navigation", () => {
     expect(routeUsesFullBleedLayout("/proj1/instances")).toBe(false);
     expect(routeUsesFullBleedLayout("/proj1/help/article")).toBe(false);
     expect(routeUsesFullBleedLayout("/proj1/setting/model-routings/routing-1")).toBe(false);
+  });
+
+  it("promotes Platform and Department settings to standalone sidebars", () => {
+    expect(routeUsesStandaloneContextSidebar("/platform/settings")).toBe(true);
+    expect(routeUsesStandaloneContextSidebar("/platform/settings/")).toBe(true);
+    expect(routeUsesStandaloneContextSidebar("/departments/dep1")).toBe(true);
+    expect(routeUsesStandaloneContextSidebar("/departments/dep1/")).toBe(true);
+    expect(routeUsesStandaloneContextSidebar("/proj1/setting")).toBe(false);
+    expect(routeUsesStandaloneContextSidebar("/proj1/help")).toBe(false);
+    expect(routeUsesStandaloneContextSidebar("/proj1/instances")).toBe(false);
   });
 
   it("keeps Account available outside Project context", () => {

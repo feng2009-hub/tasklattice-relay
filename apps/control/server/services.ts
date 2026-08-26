@@ -15,6 +15,7 @@ import { CostService } from "./providers/cost-service";
 import { LiteLLMClient } from "./providers/litellm-client";
 import { ProviderService } from "./providers/provider-service";
 import { ProjectService, type ProjectRole } from "./projects/project-service";
+import { projectRoleFromBuiltinRole } from "./projects/project-access";
 import { ProjectQuotaService } from "./quotas/project-quota-service";
 import { AuditLogService } from "./audit-logs/audit-log-service";
 import { ProjectOverviewService } from "./overview/project-overview-service";
@@ -138,7 +139,17 @@ export async function requireProjectCapability(
   capability: ProjectCapability,
   options: ProjectCapabilityOptions,
 ): Promise<AdmissionResult> {
-  const { userId } = await projectService.authenticate(request);
+  const { auth, userId } = await projectService.authenticate(request);
+  const match = new URL(request.url).pathname.match(
+    /^\/api\/v1\/projects\/([^/]+)(?:\/|$)/,
+  );
+  const projectId = match ? decodeURIComponent(match[1]!) : "";
+  const preferredRole = auth.accessContext?.level === "project"
+    && auth.accessContext.resourceId === projectId
+    ? projectRoleFromBuiltinRole(auth.accessContext.roleId)
+    : auth.sessionId
+      ? null
+      : undefined;
   return projectAdmissionService.authorize(
     request,
     userId,
@@ -146,6 +157,7 @@ export async function requireProjectCapability(
     {
       ...options,
     },
+    preferredRole,
   );
 }
 

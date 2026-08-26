@@ -37,6 +37,15 @@ enum SystemRole {
   @@schema("tasklattice")
 }
 
+enum AccessContextLevel {
+  PLATFORM
+  DEPARTMENT
+  PROJECT
+
+  @@map("access_context_level")
+  @@schema("tasklattice")
+}
+
 enum UserStatus {
   active
   disabled
@@ -344,10 +353,26 @@ model AuthSession {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  accessContext AccessContextSession?
 
   @@index([userId])
   @@map("auth_sessions")
+  @@schema("tasklattice")
+}
+
+model AccessContextSession {
+  sessionId  String             @id @map("session_id")
+  level      AccessContextLevel
+  resourceId String?            @map("resource_id")
+  roleId     String             @map("role_id")
+  selectedAt DateTime           @default(now()) @map("selected_at") @db.Timestamptz(6)
+  updatedAt  DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  session AuthSession @relation(fields: [sessionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([level, resourceId])
+  @@map("access_context_sessions")
   @@schema("tasklattice")
 }
 

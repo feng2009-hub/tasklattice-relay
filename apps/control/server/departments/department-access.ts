@@ -29,6 +29,18 @@ export async function requireDepartmentAdministrator(
     requireActiveDepartment?: boolean;
   } = {},
 ): Promise<string> {
+  if (
+    auth.sessionId
+    && (
+      auth.accessContext?.level !== "department"
+      || auth.accessContext.resourceId !== departmentId
+      || auth.accessContext.roleId !== "ROLE_DEPARTMENT_ADMIN"
+    )
+  ) {
+    throw new Error(
+      "Access denied: select this Department Administrator access for the session.",
+    );
+  }
   const userId = await requireActiveDepartmentUser(auth, database);
   const [membership, externalAdministrator] = await Promise.all([
     database.departmentMember.findUnique({

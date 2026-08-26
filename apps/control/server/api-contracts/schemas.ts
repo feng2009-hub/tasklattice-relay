@@ -1,5 +1,6 @@
 import {
   assignableProjectMembershipRoles,
+  builtinProjectRoleIds,
   departmentNameSchema,
   projectIdSchema,
   projectNameSchema,
@@ -109,6 +110,37 @@ export const currentUserSchema = z.object({
   }),
   user: authUserSchema,
 }).meta({ id: "CurrentUser" });
+
+export const accessContextInputSchema = z.discriminatedUnion("level", [
+  z.object({
+    level: z.literal("platform"),
+    resourceId: z.null(),
+    roleId: z.literal("ROLE_PLATFORM_ADMIN"),
+  }),
+  z.object({
+    level: z.literal("department"),
+    resourceId: id,
+    roleId: z.literal("ROLE_DEPARTMENT_ADMIN"),
+  }),
+  z.object({
+    level: z.literal("project"),
+    resourceId: id,
+    roleId: z.enum(builtinProjectRoleIds),
+  }),
+]).meta({ id: "SelectAccessContextInput" });
+
+export const accessContextOptionSchema = accessContextInputSchema.and(z.object({
+  description: z.string(),
+  id,
+  resourceName: z.string(),
+  roleLabel: z.string(),
+  target: z.string().startsWith("/"),
+})).meta({ id: "AccessContextOption" });
+
+export const accessContextStateSchema = z.object({
+  active: accessContextOptionSchema.nullable(),
+  options: z.array(accessContextOptionSchema),
+}).meta({ id: "AccessContextState" });
 
 export const profileInputSchema = z.object({
   language: z.enum(["en-US", "zh-CN", "zh-TW"]),

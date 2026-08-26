@@ -118,6 +118,13 @@ async function captureBody(request: Request): Promise<unknown> {
 }
 
 function descriptor(method: string, path: string): AuditDescriptor | undefined {
+  if (method === "PUT" && path === "/api/v1/access-context") {
+    return {
+      action: "user.access_context_select",
+      objectType: "Access Context",
+      operation: "switch",
+    };
+  }
   if (method === "GET" && path === "/api/v1/projects") {
     return {
       action: "user.project_context_sync",

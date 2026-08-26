@@ -13,6 +13,7 @@ import {
   activeBuiltinRoleIds,
   membershipHasAccess,
   membershipAccessInclude,
+  type ProjectRole,
 } from "../projects/project-access";
 
 export interface AdmissionInput {
@@ -173,6 +174,7 @@ export class ProjectAdmissionService {
     actorId: string,
     capability: ProjectCapability,
     requirement: ProjectCapabilityRequirement,
+    preferredRole?: ProjectRole | null,
   ): Promise<AdmissionResult> {
     const projectId = projectIdFromRequest(request);
     const membership = await this.db.projectMember.findUnique({
@@ -189,7 +191,8 @@ export class ProjectAdmissionService {
     const roleIds = membership
       && membershipHasAccess(membership)
       && !membership.project.deletedAt
-      ? activeBuiltinRoleIds(membership)
+      && preferredRole !== null
+      ? activeBuiltinRoleIds(membership, preferredRole)
       : [];
     const roleDefinitions = await new RoleCatalogService(this.db).roles(roleIds);
     const evidence = evaluateAdmission({

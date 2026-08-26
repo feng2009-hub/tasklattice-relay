@@ -7,6 +7,7 @@ export function projectIdFromPathname(pathname: string): string | null {
     || projectId === "login"
     || projectId === "auth"
     || projectId === "account"
+    || projectId === "access"
     || projectId === "departments"
     || projectId === "platform"
   ) return null;

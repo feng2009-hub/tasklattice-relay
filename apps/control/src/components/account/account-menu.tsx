@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Bell, ChevronDown, CircleUserRound, LogOut } from "lucide-react";
+import { ArrowLeftRight, Bell, ChevronDown, CircleUserRound, LogOut } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { AccountAvatar } from "@/components/account/account-avatar";
+import { useAccessContext } from "@/components/auth/access-context-provider";
 import type { AuthUser } from "@/components/auth/auth-provider";
 import {
   DropdownMenu,
@@ -51,10 +52,14 @@ export function AccountMenu({
   user,
 }: AccountMenuProps) {
   const { t } = useTranslation("sidebar");
+  const { active } = useAccessContext();
   const displayName = user?.displayName || user?.username || t("account.user");
   const accountLabel = user?.hasPassword
     ? t("account.localAccount")
     : t("account.ssoAccount");
+  const activeAccessLabel = active
+    ? `${active.roleLabel} · ${active.resourceName}`
+    : accountLabel;
   const notifications = useQuery({
     queryKey: notificationsQueryKey,
     queryFn: getNotifications,
@@ -82,7 +87,7 @@ export function AccountMenu({
                   {displayName}
                 </strong>
                 <span className="block truncate text-[10px] text-muted-foreground">
-                  {accountLabel}
+                  {activeAccessLabel}
                 </span>
               </span>
               <ChevronDown className="size-3.5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
@@ -110,6 +115,12 @@ export function AccountMenu({
           </span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <a href="/access">
+            <ArrowLeftRight className="size-4" />
+            Switch access
+          </a>
+        </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link to="/account">
             <CircleUserRound className="size-4" />

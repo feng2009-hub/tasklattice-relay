@@ -2,13 +2,11 @@ import { Navigate, createFileRoute } from "@tanstack/react-router";
 import { LoaderCircle } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { BrandLogo } from "@/components/brand/brand-logo";
-import { getStoredProjectId } from "@/lib/project-storage";
 
 export const Route = createFileRoute("/")({ component: ControlEntry });
 
 function ControlEntry() {
   const { loading, user } = useAuth();
-  const projectId = getStoredProjectId() ?? "proj1";
 
   if (loading) {
     return (
@@ -27,6 +25,6 @@ function ControlEntry() {
   if (!user) return <Navigate to="/login" replace />;
 
   return (
-    <Navigate to="/$projectId" params={{ projectId }} replace />
+    <Navigate to="/access" replace />
   );
 }

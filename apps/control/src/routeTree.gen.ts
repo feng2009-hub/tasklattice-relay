@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AccessRouteImport } from './routes/access'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ProjectIdIndexRouteImport } from './routes/$projectId/index'
@@ -40,6 +41,11 @@ import { Route as ProjectIdSettingModelRoutingsRoutingIdRouteImport } from './ro
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AccessRoute = AccessRouteImport.update({
+  id: '/access',
+  path: '/access',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AccountRoute = AccountRouteImport.update({
@@ -182,6 +188,7 @@ const ProjectIdSettingModelRoutingsRoutingIdRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/access': typeof AccessRoute
   '/account': typeof AccountRoute
   '/login': typeof LoginRoute
   '/$projectId/cost': typeof ProjectIdCostRoute
@@ -211,6 +218,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/access': typeof AccessRoute
   '/account': typeof AccountRoute
   '/login': typeof LoginRoute
   '/$projectId/cost': typeof ProjectIdCostRoute
@@ -241,6 +249,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/access': typeof AccessRoute
   '/account': typeof AccountRoute
   '/login': typeof LoginRoute
   '/$projectId/cost': typeof ProjectIdCostRoute
@@ -272,6 +281,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/access'
     | '/account'
     | '/login'
     | '/$projectId/cost'
@@ -301,6 +311,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/access'
     | '/account'
     | '/login'
     | '/$projectId/cost'
@@ -330,6 +341,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/access'
     | '/account'
     | '/login'
     | '/$projectId/cost'
@@ -360,6 +372,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AccessRoute: typeof AccessRoute
   AccountRoute: typeof AccountRoute
   LoginRoute: typeof LoginRoute
   ProjectIdCostRoute: typeof ProjectIdCostRoute
@@ -395,6 +408,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/access': {
+      id: '/access'
+      path: '/access'
+      fullPath: '/access'
+      preLoaderRoute: typeof AccessRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/account': {
@@ -584,6 +604,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AccessRoute: AccessRoute,
   AccountRoute: AccountRoute,
   LoginRoute: LoginRoute,
   ProjectIdCostRoute: ProjectIdCostRoute,

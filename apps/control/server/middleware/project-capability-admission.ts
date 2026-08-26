@@ -14,6 +14,7 @@ import {
   activeRoleForMembership,
   membershipHasAccess,
   membershipAccessInclude,
+  projectRoleFromBuiltinRole,
   type ProjectRole,
 } from "../projects/project-access";
 
@@ -37,6 +38,7 @@ async function ownership(
   actorId: string,
   resolver: RelationResolver,
   resourceId?: string,
+  preferredRole?: ProjectRole,
 ): Promise<{
   collectionRole?: ProjectRole;
   ownedByActor: boolean;
@@ -51,7 +53,7 @@ async function ownership(
       include: membershipAccessInclude,
     });
     const collectionRole = membership && membershipHasAccess(membership)
-      ? activeRoleForMembership(membership)
+      ? activeRoleForMembership(membership, preferredRole)
       : undefined;
     return {
       ...(collectionRole ? { collectionRole } : {}),
@@ -118,8 +120,14 @@ export default defineMiddleware(async (event) => {
   if (admission.skipBecauseCapabilityToken) return;
 
   let actorId: string;
+  let preferredRole: ProjectRole | undefined;
   try {
-    actorId = (await requireAuth(event.req)).user.id;
+    const auth = await requireAuth(event.req);
+    actorId = auth.user.id;
+    preferredRole = auth.accessContext?.level === "project"
+      && auth.accessContext.resourceId === projectId(url.pathname)
+      ? projectRoleFromBuiltinRole(auth.accessContext.roleId)
+      : undefined;
   } catch (error) {
     return unauthorizedResponse(error);
   }
@@ -130,6 +138,7 @@ export default defineMiddleware(async (event) => {
       actorId,
       admission.relation,
       admission.resourceId,
+      preferredRole,
     );
     const relation = concreteRelation(
       admission.relation,

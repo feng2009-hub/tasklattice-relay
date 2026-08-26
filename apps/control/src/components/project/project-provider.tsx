@@ -7,6 +7,7 @@ import {
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
+import { useAccessContext } from "@/components/auth/access-context-provider";
 import {
   getStoredProjectId,
   projectIdFromPathname,
@@ -20,6 +21,7 @@ import {
   ProjectContext,
 } from "@/components/project/project-context";
 import type { Project } from "@/types/project";
+import { projectRoleToBuiltinRole } from "@/services/access-context";
 
 function projectIdFromUrl(): string | null {
   if (typeof window === "undefined") return null;
@@ -27,6 +29,7 @@ function projectIdFromUrl(): string | null {
 }
 
 export function ProjectProvider({ children }: { children: ReactNode }) {
+  const { options: accessOptions, select: selectAccess } = useAccessContext();
   const queryClient = useQueryClient();
   const router = useRouter();
   const [availableProjects, setAvailableProjects] = useState<Project[]>([]);
@@ -129,6 +132,15 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       setSwitchingProjectId(nextProject.id);
       setError("");
       try {
+        const accessOption = accessOptions.find((option) =>
+          option.level === "project"
+          && option.resourceId === nextProject.id
+          && option.roleId === projectRoleToBuiltinRole[nextProject.activeRole]
+        );
+        if (!accessOption) {
+          throw new Error("No assigned access is available for this Project.");
+        }
+        await selectAccess(accessOption);
         if (currentProject) {
           await queryClient.cancelQueries({
             queryKey: ["project", currentProject.id],
@@ -164,9 +176,11 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     },
     [
       availableProjects,
+      accessOptions,
       currentProject?.id,
       queryClient,
       replaceProjectInUrl,
+      selectAccess,
       switchingProjectId,
     ],
   );
