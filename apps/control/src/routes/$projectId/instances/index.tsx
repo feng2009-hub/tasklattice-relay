@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactElement } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type ReactElement } from "react";
 import {
   agentPlatformIds,
   type Instance as Agent,
@@ -8,18 +8,28 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
-import { AlertTriangle, Box, Boxes, Eye, Globe2, Info, MoreHorizontal, Plus, RefreshCw, Search, SquareTerminal, Trash2, X } from "lucide-react";
+import { AlertTriangle, Boxes, Columns3Cog, Eye, Globe2, Info, MoreHorizontal, Plus, RefreshCw, RotateCcw, Search, SquareTerminal, Trash2, X } from "lucide-react";
 import { AccountAvatar } from "@/components/account/account-avatar";
+import { AgentGardenIcon } from "@/components/agent-garden/agent-garden-icon";
 import { AgentPlatformIcon } from "@/components/agents/agent-platform-icon";
 import { CreateInstanceSheet } from "@/components/agents/create-instance-sheet";
 import { resolveProvisioningState } from "@/components/agents/provisioning-state";
 import { DeleteInstanceSheet } from "@/components/instances/delete-instance-sheet";
+import {
+  INSTANCE_COLUMNS_STORAGE_KEY,
+  instanceListColumns,
+  instanceListGridTemplate,
+  parseHiddenInstanceColumns,
+  toggleHiddenInstanceColumn,
+  type InstanceListColumnId,
+} from "@/components/instances/instance-list-columns";
+import { formatRelativeTime } from "@/components/instances/instance-detail-model";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
@@ -27,7 +37,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { api } from "@/lib/api";
 import { getAgentPlatformPresentation } from "@/lib/agent-platforms";
 import { cn } from "@/lib/utils";
-import { formatPlatformDate } from "@/lib/platform-preferences";
+import { formatPlatformDateTime } from "@/lib/platform-preferences";
 import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
 import { useCurrentProjectId } from "@/hooks/use-project";
 import { useProjectPermissions } from "@/hooks/use-project-permissions";
@@ -44,14 +54,56 @@ export const Route = createFileRoute("/$projectId/instances/")({
 
 const statusFilters = ["ALL", "PROVISIONING", "READY", "FAILED", "DESTROYING"] as const satisfies readonly (InstanceStatus | "ALL")[];
 
-function relativeTime(value: string): string {
-  const elapsed = Date.now() - new Date(value).getTime();
-  if (elapsed < 60_000) return "Less than a minute ago";
-  const minutes = Math.floor(elapsed / 60_000);
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} hr ago`;
-  return formatPlatformDate(value);
+type InstanceGridStyle = CSSProperties & { "--instance-grid-columns": string };
+
+function InstanceTime({ value }: { value: string }) {
+  return (
+    <time dateTime={value} title={formatPlatformDateTime(value)} className="block min-w-0">
+      <span className="block truncate text-xs font-medium text-foreground">{formatRelativeTime(value)}</span>
+      <span className="mt-1 block truncate text-[11px] text-muted-foreground">{formatPlatformDateTime(value)}</span>
+    </time>
+  );
+}
+
+function ColumnVisibilityMenu({
+  hiddenColumns,
+  onReset,
+  onToggle,
+}: {
+  hiddenColumns: readonly InstanceListColumnId[];
+  onReset: () => void;
+  onToggle: (column: InstanceListColumnId) => void;
+}) {
+  const hidden = new Set(hiddenColumns);
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button type="button" variant="outline" className="h-11 px-3" aria-label="Customize Instance columns">
+          <Columns3Cog className="size-4" />
+          <span className="hidden sm:inline">Columns</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuLabel>Visible columns</DropdownMenuLabel>
+        {instanceListColumns.map((column) => (
+          <DropdownMenuCheckboxItem
+            key={column.id}
+            checked={!hidden.has(column.id)}
+            onCheckedChange={() => onToggle(column.id)}
+            onSelect={(event) => event.preventDefault()}
+          >
+            {column.label}
+          </DropdownMenuCheckboxItem>
+        ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem disabled={!hiddenColumns.length} onSelect={onReset}>
+          <RotateCcw className="size-4" />
+          Restore defaults
+        </DropdownMenuItem>
+        <p className="px-2 py-2 text-[11px] leading-4 text-muted-foreground">Saved on this device.</p>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 }
 
 function CreationNotice({ onClose }: { onClose: () => void }) {
@@ -187,45 +239,55 @@ function InstanceActions({ canDelete, canUseTerminal, instance, onDelete }: { ca
   );
 }
 
-function ManagedA2aInstanceRow({ instance }: { instance: A2aAgentInstance }) {
+function ManagedA2aInstanceRow({
+  gridStyle,
+  hiddenColumns,
+  instance,
+}: {
+  gridStyle: InstanceGridStyle;
+  hiddenColumns: readonly InstanceListColumnId[];
+  instance: A2aAgentInstance;
+}) {
   const projectId = useCurrentProjectId();
+  const hidden = new Set(hiddenColumns);
   const details = (
     <Link
-      to="/$projectId/agent-garden/$agentId"
-      params={{ projectId, agentId: instance.agentId }}
+      to="/$projectId/instances/$instanceId"
+      params={{ projectId, instanceId: instance.id }}
       aria-label={`View Agent and runtime details for ${instance.name}`}
     ><Eye className="size-[18px]" /></Link>
   );
   return (
-    <div className="group relative grid min-h-[5.25rem] grid-cols-[minmax(0,1fr)_2.75rem_2.75rem] items-center gap-3 border-b px-4 py-3 text-sm transition-colors hover:bg-muted/30 xl:grid-cols-[minmax(13rem,1.3fr)_minmax(9rem,.9fr)_minmax(9rem,.75fr)_8rem_9rem_3.5rem_3rem]">
+    <div style={gridStyle} className="group relative grid min-h-[5.25rem] grid-cols-[minmax(0,1fr)_2.75rem_2.75rem] items-center gap-3 border-b px-4 py-3 text-sm transition-colors hover:bg-muted/30 xl:grid-cols-[var(--instance-grid-columns)]">
       <Link
-        to="/$projectId/agent-garden/$agentId"
-        params={{ projectId, agentId: instance.agentId }}
-        aria-label={`View Agent Garden details for ${instance.name}`}
+        to="/$projectId/instances/$instanceId"
+        params={{ projectId, instanceId: instance.id }}
+        aria-label={`View Instance details for ${instance.name}`}
         className="absolute inset-0 z-0 focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
       />
       <span className="pointer-events-none relative z-10 col-span-3 flex min-w-0 items-center gap-3 xl:col-span-1">
-        <span aria-hidden="true" className="grid size-11 shrink-0 place-items-center rounded-md border bg-background shadow-xs transition-colors group-hover:border-primary/30 group-hover:bg-primary/5"><Box className="size-5 text-muted-foreground" /></span>
+        <AgentGardenIcon type="a2a" className="transition-colors group-hover:border-primary/30 group-hover:bg-primary/5" />
         <span className="min-w-0">
-          <Link to="/$projectId/agent-garden/$agentId" params={{ projectId, agentId: instance.agentId }} className="pointer-events-auto block truncate font-medium text-foreground hover:text-primary hover:underline">{instance.name}</Link>
+          <Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: instance.id }} className="pointer-events-auto block truncate font-medium text-foreground hover:text-primary hover:underline">{instance.name}</Link>
           <span className="mt-1 block truncate font-mono text-xs text-muted-foreground">{instance.id.slice(0, 8)} · A2A Standard</span>
           <span className="mt-1 block truncate text-xs text-muted-foreground xl:hidden">Pod {instance.podName ?? "pending"}</span>
         </span>
       </span>
-      <span className="pointer-events-none relative z-10 hidden min-w-0 xl:block">
+      {!hidden.has("runtime") ? <span className="pointer-events-none relative z-10 hidden min-w-0 xl:block">
         <strong className="block truncate text-xs font-medium">Kubernetes · Project Main Space</strong>
         <span className="mt-1 block truncate font-mono text-xs text-muted-foreground">{instance.podName ?? instance.deploymentName ?? "Pod pending"}</span>
-      </span>
-      <span className="pointer-events-none relative z-10 hidden min-w-0 items-center gap-2 xl:flex">
+      </span> : null}
+      {!hidden.has("createdBy") ? <span className="pointer-events-none relative z-10 hidden min-w-0 items-center gap-2 xl:flex">
         <AccountAvatar identity={instance.createdBy} className="size-7" />
         <span className="min-w-0">
           <strong className="block truncate text-xs font-medium">{instance.createdBy?.displayName ?? "Unknown user"}</strong>
           <span className="mt-1 block truncate text-xs text-muted-foreground">{instance.createdBy ? `@${instance.createdBy.username}` : "Creator unavailable"}</span>
         </span>
-      </span>
-      <span className="pointer-events-none relative z-10 hidden text-xs text-muted-foreground xl:block">{relativeTime(instance.updatedAt)}</span>
-      <span className="relative z-20" onClick={(event) => event.stopPropagation()}><ManagedA2aLifecycleStatus instance={instance} /></span>
-      <span className="relative z-20 justify-self-end lg:justify-self-start" onClick={(event) => event.stopPropagation()}>
+      </span> : null}
+      {!hidden.has("createdAt") ? <span className="pointer-events-none relative z-10 hidden min-w-0 xl:block"><InstanceTime value={instance.createdAt} /></span> : null}
+      {!hidden.has("updatedAt") ? <span className="pointer-events-none relative z-10 hidden min-w-0 xl:block"><InstanceTime value={instance.updatedAt} /></span> : null}
+      <span className={cn("relative z-20", hidden.has("status") && "xl:hidden")} onClick={(event) => event.stopPropagation()}><ManagedA2aLifecycleStatus instance={instance} /></span>
+      <span className={cn("relative z-20 justify-self-end lg:justify-self-start", hidden.has("access") && "xl:hidden")} onClick={(event) => event.stopPropagation()}>
         <ActionTooltip label="View Agent and runtime details"><Button asChild variant="outline" size="icon">{details}</Button></ActionTooltip>
       </span>
       <span className="relative z-20 justify-self-end" onClick={(event) => event.stopPropagation()}>
@@ -247,6 +309,7 @@ function Instances() {
   const search = Route.useSearch();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<(typeof statusFilters)[number]>("ALL");
+  const [hiddenColumns, setHiddenColumns] = useState<InstanceListColumnId[]>([]);
   const [deletingInstance, setDeletingInstance] = useState<Agent>();
   const agents = useQuery({ queryKey: scope.key("agents"), queryFn: api.listInstances, refetchInterval: 2_000 });
   const garden = useQuery({ queryKey: scope.key("agent-garden"), queryFn: api.getAgentGarden });
@@ -261,6 +324,34 @@ function Instances() {
   }), [garden.data?.instances, query, status]);
   const totalInstances = (agents.data?.length ?? 0) + (garden.data?.instances.length ?? 0);
   const visibleInstances = filtered.length + managed.length;
+  const gridStyle = useMemo<InstanceGridStyle>(() => ({
+    "--instance-grid-columns": instanceListGridTemplate(hiddenColumns),
+  }), [hiddenColumns]);
+
+  useEffect(() => {
+    const syncColumns = (value: string | null) => {
+      setHiddenColumns(parseHiddenInstanceColumns(value));
+    };
+    try {
+      syncColumns(window.localStorage.getItem(INSTANCE_COLUMNS_STORAGE_KEY));
+    } catch {
+      syncColumns(null);
+    }
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === INSTANCE_COLUMNS_STORAGE_KEY) syncColumns(event.newValue);
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
+  const persistHiddenColumns = (next: InstanceListColumnId[]) => {
+    setHiddenColumns(next);
+    try {
+      window.localStorage.setItem(INSTANCE_COLUMNS_STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      // The list remains usable when browser storage is unavailable.
+    }
+  };
   const remove = useMutation({
     mutationFn: api.deleteInstance,
     onSuccess: async () => {
@@ -297,6 +388,11 @@ function Instances() {
               <SelectContent>{statusFilters.map((value) => <SelectItem key={value} value={value}>{value === "ALL" ? "All statuses" : value.charAt(0) + value.slice(1).toLowerCase()}</SelectItem>)}</SelectContent>
             </Select>
             <span className="ml-auto hidden text-xs tabular-nums text-muted-foreground sm:block">{visibleInstances} of {totalInstances} Instances</span>
+            <ColumnVisibilityMenu
+              hiddenColumns={hiddenColumns}
+              onReset={() => persistHiddenColumns([])}
+              onToggle={(column) => persistHiddenColumns(toggleHiddenInstanceColumn(hiddenColumns, column))}
+            />
             <ActionTooltip label={agents.isFetching || garden.isFetching ? "Refreshing Instances" : "Refresh Instances"}>
               <Button type="button" variant="outline" size="icon" className="size-11" disabled={agents.isFetching || garden.isFetching} aria-label="Refresh Instances" onClick={() => void Promise.all([agents.refetch(), garden.refetch()])}>
                 {agents.isFetching || garden.isFetching ? <Spinner /> : <RefreshCw className="size-4" />}
@@ -306,16 +402,18 @@ function Instances() {
         </CardHeader>
         <CardContent className="px-0">
           {visibleInstances ? (
-            <>
-              <div className="hidden grid-cols-[minmax(13rem,1.3fr)_minmax(9rem,.9fr)_minmax(9rem,.75fr)_8rem_9rem_3.5rem_3rem] items-center gap-3 border-b bg-muted/20 px-4 py-3 text-xs text-muted-foreground xl:grid">
-                <span>Instance</span><span>Runtime</span><span>Created by</span><span>Updated</span><span>Status</span><span>Access</span><span className="sr-only">Actions</span>
+            <div className="overflow-x-auto">
+              <div style={gridStyle} className="hidden items-center gap-3 border-b bg-muted/20 px-4 py-3 text-xs text-muted-foreground xl:grid xl:grid-cols-[var(--instance-grid-columns)]">
+                <span>Instance</span>
+                {instanceListColumns.filter((column) => !hiddenColumns.includes(column.id)).map((column) => <span key={column.id}>{column.label}</span>)}
+                <span className="sr-only">Actions</span>
               </div>
-              {managed.map((instance) => <ManagedA2aInstanceRow key={instance.id} instance={instance} />)}
+              {managed.map((instance) => <ManagedA2aInstanceRow key={instance.id} instance={instance} hiddenColumns={hiddenColumns} gridStyle={gridStyle} />)}
               {filtered.map((agent) => {
                 const platform = getAgentPlatformPresentation(agent.agentPlatform);
                 return (
-                  <div key={agent.id} className={cn(
-                    "group relative grid min-h-[5.25rem] grid-cols-[minmax(0,1fr)_2.75rem_2.75rem] items-center gap-3 border-b px-4 py-3 text-sm transition-colors last:border-b-0 hover:bg-muted/30 xl:grid-cols-[minmax(13rem,1.3fr)_minmax(9rem,.9fr)_minmax(9rem,.75fr)_8rem_9rem_3.5rem_3rem]",
+                  <div key={agent.id} style={gridStyle} className={cn(
+                    "group relative grid min-h-[5.25rem] grid-cols-[minmax(0,1fr)_2.75rem_2.75rem] items-center gap-3 border-b px-4 py-3 text-sm transition-colors last:border-b-0 hover:bg-muted/30 xl:grid-cols-[var(--instance-grid-columns)]",
                     search.created === agent.id && "bg-primary/5 shadow-[inset_3px_0_0_var(--primary)]",
                   )}>
                     <Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: agent.id }} aria-label={`View details for ${agent.name}`} className="absolute inset-0 z-0 focus-visible:outline-2 focus-visible:outline-offset-[-2px]" />
@@ -327,8 +425,8 @@ function Instances() {
                         <span className="mt-1 block truncate text-xs text-muted-foreground xl:hidden">Created by {agent.createdBy?.displayName ?? "Unknown user"}</span>
                       </span>
                     </span>
-                    <span className="pointer-events-none relative z-10 hidden min-w-0 xl:block"><strong className="block truncate text-xs font-medium">{platform.runtimeName}</strong><span className="mt-1 block truncate font-mono text-xs text-muted-foreground">{agent.sandboxName}</span></span>
-                    <span className="pointer-events-none relative z-10 hidden min-w-0 items-center gap-2 xl:flex">
+                    {!hiddenColumns.includes("runtime") ? <span className="pointer-events-none relative z-10 hidden min-w-0 xl:block"><strong className="block truncate text-xs font-medium">{platform.runtimeName}</strong><span className="mt-1 block truncate font-mono text-xs text-muted-foreground">{agent.sandboxName}</span></span> : null}
+                    {!hiddenColumns.includes("createdBy") ? <span className="pointer-events-none relative z-10 hidden min-w-0 items-center gap-2 xl:flex">
                       <AccountAvatar
                         identity={agent.createdBy}
                         className="size-7"
@@ -337,15 +435,16 @@ function Instances() {
                         <strong className="block truncate text-xs font-medium">{agent.createdBy?.displayName ?? "Unknown user"}</strong>
                         <span className="mt-1 block truncate text-xs text-muted-foreground">{agent.createdBy ? `@${agent.createdBy.username}` : "Creator unavailable"}</span>
                       </span>
-                    </span>
-                    <span className="pointer-events-none relative z-10 hidden text-xs text-muted-foreground xl:block">{relativeTime(agent.updatedAt)}</span>
-                    <span className="relative z-20" onClick={(event) => event.stopPropagation()}><InstanceLifecycleStatus instance={agent} /></span>
-                    <span className="relative z-20 justify-self-end lg:justify-self-start" onClick={(event) => event.stopPropagation()}><PrimaryInstanceAction canInteract={permissions.canInteractWithAgents} instance={agent} /></span>
+                    </span> : null}
+                    {!hiddenColumns.includes("createdAt") ? <span className="pointer-events-none relative z-10 hidden min-w-0 xl:block"><InstanceTime value={agent.createdAt} /></span> : null}
+                    {!hiddenColumns.includes("updatedAt") ? <span className="pointer-events-none relative z-10 hidden min-w-0 xl:block"><InstanceTime value={agent.updatedAt} /></span> : null}
+                    <span className={cn("relative z-20", hiddenColumns.includes("status") && "xl:hidden")} onClick={(event) => event.stopPropagation()}><InstanceLifecycleStatus instance={agent} /></span>
+                    <span className={cn("relative z-20 justify-self-end lg:justify-self-start", hiddenColumns.includes("access") && "xl:hidden")} onClick={(event) => event.stopPropagation()}><PrimaryInstanceAction canInteract={permissions.canInteractWithAgents} instance={agent} /></span>
                     <span className="relative z-20 justify-self-end" onClick={(event) => event.stopPropagation()}><InstanceActions canDelete={permissions.canDeleteAgents} canUseTerminal={permissions.canUseAgentTerminal} instance={agent} onDelete={() => setDeletingInstance(agent)} /></span>
                   </div>
                 );
               })}
-            </>
+            </div>
           ) : totalInstances ? (
             <EmptyState
               icon={Boxes}
