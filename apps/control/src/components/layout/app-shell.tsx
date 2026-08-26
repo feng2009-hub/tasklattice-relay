@@ -156,6 +156,13 @@ export function routeUsesFullBleedLayout(pathname: string): boolean {
     || /^\/[^/]+\/help$/.test(normalizedPathname);
 }
 
+export function routeIsGlobal(pathname: string): boolean {
+  const normalizedPathname = pathname.replace(/\/$/, "");
+  return normalizedPathname === "/account"
+    || normalizedPathname.startsWith("/departments/")
+    || normalizedPathname.startsWith("/platform/");
+}
+
 function NavigationItem({ item, pathname, projectId }: {
   item: NavItemDefinition;
   pathname: string;
@@ -389,9 +396,7 @@ export function AppShell() {
     refreshProjects,
   } = useProject();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const platformRoute = pathname.startsWith("/platform/");
-  const departmentRoute = pathname.startsWith("/departments/");
-  const globalRoute = departmentRoute || platformRoute;
+  const globalRoute = routeIsGlobal(pathname);
   const fullBleedRoute = routeUsesFullBleedLayout(pathname);
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);

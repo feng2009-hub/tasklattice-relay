@@ -72,7 +72,7 @@ import {
   type ThemePreference,
 } from "@/services/personal-profile";
 
-export const Route = createFileRoute("/$projectId/account")({
+export const Route = createFileRoute("/account")({
   validateSearch: (search): { section?: AccountSection } => {
     const section =
       search.section === "general" ||

@@ -53,9 +53,7 @@ describe("getHeaderBreadcrumbItems", () => {
   });
 
   it("distinguishes Account from Project settings", () => {
-    expect(getHeaderBreadcrumbItems("/individual/account", englishT)).toEqual([
-      { href: "/individual/account", label: "Account" },
-    ]);
+    expect(getHeaderBreadcrumbItems("/account", englishT)).toEqual([]);
     expect(getHeaderBreadcrumbItems("/individual/setting", englishT)).toEqual([
       { href: "/individual/setting", label: "Project Settings" },
     ]);

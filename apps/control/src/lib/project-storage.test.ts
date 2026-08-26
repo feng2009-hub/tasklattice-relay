@@ -3,6 +3,7 @@ import { projectIdFromPathname } from "./project-storage";
 
 describe("projectIdFromPathname", () => {
   it("keeps global administration routes outside Project URL rewriting", () => {
+    expect(projectIdFromPathname("/account")).toBeNull();
     expect(projectIdFromPathname("/platform/settings")).toBeNull();
     expect(projectIdFromPathname("/departments/dep1/settings")).toBeNull();
   });

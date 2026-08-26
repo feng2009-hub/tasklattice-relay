@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { createPlatformI18n } from "@/i18n/create-i18n";
-import { itemIsActive, navGroups, routeUsesFullBleedLayout } from "./app-shell";
+import {
+  itemIsActive,
+  navGroups,
+  routeIsGlobal,
+  routeUsesFullBleedLayout,
+} from "./app-shell";
 
 describe("Project control-plane navigation", () => {
   it("uses Home as a section label with Instances and Memory beneath it", () => {
@@ -70,5 +75,11 @@ describe("Project control-plane navigation", () => {
     expect(routeUsesFullBleedLayout("/proj1/instances")).toBe(false);
     expect(routeUsesFullBleedLayout("/proj1/help/article")).toBe(false);
     expect(routeUsesFullBleedLayout("/proj1/setting/model-routings/routing-1")).toBe(false);
+  });
+
+  it("keeps Account available outside Project context", () => {
+    expect(routeIsGlobal("/account")).toBe(true);
+    expect(routeIsGlobal("/account/")).toBe(true);
+    expect(routeIsGlobal("/proj1/account")).toBe(false);
   });
 });
