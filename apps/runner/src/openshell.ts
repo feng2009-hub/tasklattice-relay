@@ -553,6 +553,7 @@ export function composeOpenShellInferencePolicy(
   _inferenceEndpoint: string,
   agentPlatform: AgentPlatformId,
   telemetryEndpoint?: string,
+  projectRuntimeBridgeUrl?: string,
 ): string {
   const document = parse(policyYaml) as unknown;
   if (!isRecord(document) || document.version !== 1)
@@ -592,6 +593,30 @@ export function composeOpenShellInferencePolicy(
         ...(isKubernetesService ? { allowed_ips: openShellKubernetesServiceCidrs() } : {}),
       }],
       binaries: ["/usr/local/bin/node"].map((path) => ({ path })),
+    };
+  }
+  if (projectRuntimeBridgeUrl) {
+    const endpoint = new URL(projectRuntimeBridgeUrl);
+    if (
+      endpoint.protocol !== "http:"
+      || !endpoint.hostname.endsWith(`.${kubernetesServiceDnsSuffix}`)
+    ) {
+      throw new Error(
+        "The Project Runtime Bridge must use an in-cluster HTTP Service URL.",
+      );
+    }
+    networkPolicies.tali_project_runtime_bridge = {
+      name: "tali-project-runtime-bridge",
+      endpoints: [{
+        host: endpoint.hostname,
+        port: endpoint.port ? Number(endpoint.port) : 80,
+        protocol: "rest",
+        enforcement: "enforce",
+        access: "full",
+        allowed_ips: openShellKubernetesServiceCidrs(),
+      }],
+      binaries: [...getAgentPlatformRuntime(agentPlatform).inferenceBinaries]
+        .map((path) => ({ path })),
     };
   }
   if (Object.keys(networkPolicies).length > 0)
@@ -1203,10 +1228,23 @@ export async function provisionOpenShellSandbox(
   const telemetryFile = capabilities.embeddedRunTelemetry
     ? join(temporaryDirectory, "tali-run-telemetry.env")
     : undefined;
+  const projectRuntimeBridgeUrl = target && input.projectRuntimeBridgeToken
+    ? `http://tali-agent-runtime-bridge.${target.workspace}.svc.cluster.local:8080`
+    : undefined;
+  const hermesRuntimeInstructions = input.agentPlatform === "hermes"
+    ? [
+        "",
+        "## Project orchestration",
+        "For multi-step requests, create and maintain a Hermes Kanban plan before dispatching work.",
+        "Use a2a_list and a2a_discover to inspect Project-enabled remote specialists.",
+        "Before every a2a_call, create a Kanban card with assignee 'tali-a2a' and initial_status 'blocked'; pass that card's task_id to a2a_call.",
+        "The A2A tool claims that reserved card as running and records dispatch events. Add returned evidence, then complete or block the card explicitly.",
+      ].join("\n")
+    : "";
   try {
     await writeFile(
       instructionsFile,
-      `## TaskLattice Relay Agent Instructions\n\n${input.systemPrompt.trim()}${agentMemoryInstructions(input.memory)}\n`,
+      `## TaskLattice Relay Agent Instructions\n\n${input.systemPrompt.trim()}${agentMemoryInstructions(input.memory)}${hermesRuntimeInstructions}\n`,
       { mode: 0o600 },
     );
     await writeFile(
@@ -1217,6 +1255,9 @@ export async function provisionOpenShellSandbox(
         input.inferenceEndpoint,
         input.model,
         input.memory,
+        projectRuntimeBridgeUrl,
+        input.instanceId,
+        input.projectRuntimeBridgeToken,
       ),
       { mode: 0o600 },
     );
@@ -1227,6 +1268,7 @@ export async function provisionOpenShellSandbox(
         input.inferenceEndpoint,
         input.agentPlatform,
         capabilities.embeddedRunTelemetry ? input.runTelemetry.endpoint : undefined,
+        projectRuntimeBridgeUrl,
       ),
       { mode: 0o600 },
     );

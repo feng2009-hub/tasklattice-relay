@@ -13,6 +13,11 @@ import {
   createProjectOpenShellGatewayClient,
   type ProjectOpenShellGatewayClient,
 } from "../kubernetes/project-openshell-gateway-client";
+import {
+  createProjectRuntimeBridgeClient,
+  type ProjectRuntimeBridgeClient,
+} from "../kubernetes/project-runtime-bridge-client";
+import { signProjectRuntimeBridgeToken } from "../runtime-bridge/project-runtime-bridge-token";
 
 export interface ProjectRuntimeNamespaceProvisioner {
   ensureProjectNamespace(projectId: string): Promise<boolean>;
@@ -91,15 +96,18 @@ export class ProjectRuntimeTargetService
     private readonly db: PrismaClient = prisma(),
     private readonly namespaces?: ProjectNamespaceClient,
     private readonly gateways?: ProjectOpenShellGatewayClient,
+    private readonly bridges?: ProjectRuntimeBridgeClient,
   ) {}
 
   async ensureProjectNamespace(projectId: string): Promise<boolean> {
-    const runtime = (await loadPlatformRuntimeConfiguration(this.db)).runtimeNamespaces;
+    const platformRuntime = await loadPlatformRuntimeConfiguration(this.db);
+    const runtime = platformRuntime.runtimeNamespaces;
     if (!runtime.enabled) return false;
     const namespaces = this.namespaces ?? createProjectNamespaceClient({
       enabled: runtime.enabled,
     });
     const gateways = this.gateways ?? createProjectOpenShellGatewayClient();
+    const bridges = this.bridges ?? createProjectRuntimeBridgeClient();
     const project = await this.db.project.findUnique({
       where: { id: projectId },
       select: {
@@ -173,6 +181,16 @@ export class ProjectRuntimeTargetService
         namespace: target.namespace,
         projectId: project.id,
         projectName: project.name,
+      });
+      await bridges.reconcile({
+        namespace: target.namespace,
+        projectId: project.id,
+        projectName: project.name,
+        controlUrl: platformRuntime.controlInternalUrl,
+        token: signProjectRuntimeBridgeToken(
+          { namespace: target.namespace, projectId: project.id },
+          platformRuntime.runner.token,
+        ),
       });
       const observed = await this.db.projectRuntimeTarget.updateMany({
         where: {

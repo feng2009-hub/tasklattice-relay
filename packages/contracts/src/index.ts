@@ -1725,6 +1725,12 @@ export const updateInstanceAccessPoliciesSchema = z.object({
   accessPolicyIds: agentAccessPolicyIdsSchema,
 }).strict();
 
+export const createInstanceLogSessionSchema = z.object({
+  tailLines: z.number().int().min(1).max(2_000).default(200),
+  timestamps: z.boolean().default(true),
+  previous: z.boolean().default(false),
+}).strict();
+
 const nullableQuotaInteger = z.number().int().min(0).max(1_000_000_000).nullable();
 
 export const updateProjectQuotaSchema = z.object({
@@ -1983,6 +1989,9 @@ export type CreateModelDeploymentInput = z.infer<typeof createModelDeploymentSch
 export type CreateInstanceInput = z.infer<typeof createInstanceSchema>;
 export type UpdateInstanceAccessPoliciesInput = z.infer<
   typeof updateInstanceAccessPoliciesSchema
+>;
+export type CreateInstanceLogSessionInput = z.infer<
+  typeof createInstanceLogSessionSchema
 >;
 export type UpdateProjectQuotaInput = z.infer<typeof updateProjectQuotaSchema>;
 export type ComplianceDomain = (typeof complianceDomains)[number];
@@ -2563,6 +2572,111 @@ export interface Instance extends Omit<CreateInstanceInput, "policyId"> {
   logs: string[];
   httpEndpoint?: HttpEndpoint;
   error?: string;
+}
+
+export type AgentInstanceRole = "SUPERVISOR" | "SPECIALIST" | "HYBRID";
+export type AgentInstanceRuntimeType = "OPENSHELL" | "KUBERNETES" | "EXTERNAL";
+
+export interface AgentInstanceRuntimeView {
+  type: AgentInstanceRuntimeType;
+  managed: boolean;
+  namespace?: string;
+  workloadName?: string;
+  serviceName?: string;
+  podName?: string;
+  imageReference?: string;
+  imageDigest?: string;
+}
+
+export interface A2aAgentProtocolView {
+  type: "A2A";
+  version: "1.0";
+  direction: Array<"CLIENT" | "SERVER">;
+  binding?: "JSONRPC" | "HTTP+JSON";
+  endpoint?: string;
+  agentCardUrl?: string;
+  agentCardStatus: "VALID" | "INVALID" | "UNCHECKED";
+  lastDiscoveredAt?: string;
+  lastDiscoveryError?: string;
+  capabilities: {
+    streaming: boolean;
+    pushNotifications: boolean;
+    extendedAgentCard: boolean;
+    defaultInputModes: string[];
+    defaultOutputModes: string[];
+  };
+  skills: AgentGardenSkill[];
+}
+
+export type AgentProtocolView = A2aAgentProtocolView;
+
+export interface AgentInstanceCapabilityView {
+  interactive: boolean;
+  canPlan: boolean;
+  canDelegate: boolean;
+  acceptsDelegation: boolean;
+  terminal: boolean;
+  liveLogs: boolean;
+}
+
+export interface AgentInstanceObservabilityView {
+  logSources: Array<"RUNTIME" | "LIFECYCLE" | "PROTOCOL" | "AUDIT">;
+  terminal: {
+    supported: boolean;
+    reason?: string;
+  };
+}
+
+interface AgentInstanceDetailBase {
+  resourceType: "AGENT_INSTANCE";
+  id: string;
+  name: string;
+  description: string;
+  role: AgentInstanceRole;
+  status: InstanceStatus;
+  platform: { id: string; name: string };
+  runtimeView: AgentInstanceRuntimeView;
+  protocols: AgentProtocolView[];
+  capabilities: AgentInstanceCapabilityView;
+  observability: AgentInstanceObservabilityView;
+  connections: AgentConnection[];
+  createdBy?: InstanceCreator;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SupervisorAgentInstanceDetail extends AgentInstanceDetailBase {
+  kind: "SUPERVISOR";
+  instance: Instance;
+  definition: null;
+}
+
+export interface A2aStandardAgentInstanceDetail extends AgentInstanceDetailBase {
+  kind: "A2A";
+  instance: A2aAgentInstance;
+  definition: AgentGardenEntry;
+}
+
+export type AgentInstanceDetail =
+  | SupervisorAgentInstanceDetail
+  | A2aStandardAgentInstanceDetail;
+
+export interface AgentInstanceActivityEvent {
+  id: string;
+  kind: "LIFECYCLE" | "CONNECTION" | "INVOCATION";
+  status: "INFO" | "SUCCESS" | "WARNING" | "ERROR";
+  title: string;
+  description: string;
+  occurredAt: string;
+  coordinatorInstanceId?: string;
+  requestId?: string;
+  durationMs?: number;
+}
+
+export interface AgentInstanceLogSessionResponse {
+  id: string;
+  expiresAt: string;
+  websocketUrl: string;
 }
 
 /**

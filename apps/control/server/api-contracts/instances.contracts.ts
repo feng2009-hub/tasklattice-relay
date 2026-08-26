@@ -1,6 +1,7 @@
 import {
   createAccessPolicySchema,
   createInstanceSchema,
+  createInstanceLogSessionSchema,
   createTerminalSessionInputSchema,
   updateAccessPolicySchema,
   updateInstanceAccessPoliciesSchema,
@@ -96,6 +97,12 @@ export const instanceContracts = defineContracts([
     method: "get", path: "/instances/{instanceId}/logs", operationId: "getInstanceLogs",
     summary: "Read Instance runtime logs", tags: ["Instances"], request: { params: instanceParamsSchema },
     responses: { 200: response("Instance runtime logs", openObjectSchema) },
+  }),
+  projectRoute({
+    method: "post", path: "/instances/{instanceId}/log-sessions", operationId: "createInstanceLogSession",
+    summary: "Create a read-only Instance live log session", tags: ["Instances"],
+    request: { params: instanceParamsSchema, body: createInstanceLogSessionSchema },
+    responses: { 201: response("Created live log session", openObjectSchema) },
   }),
   projectRoute({
     method: "post", path: "/instances/{instanceId}/terminal-sessions", operationId: "createInstanceTerminalSession",

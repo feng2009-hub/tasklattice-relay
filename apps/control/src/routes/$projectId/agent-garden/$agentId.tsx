@@ -464,9 +464,8 @@ function MarketplaceActions({
         {agent.configuration.managedInstanceId ? (
           <Button asChild variant="outline" className="h-11 w-full">
             <Link
-              to="/$projectId/instances"
-              params={{ projectId }}
-              search={{ created: agent.configuration.managedInstanceId }}
+              to="/$projectId/instances/$instanceId"
+              params={{ projectId, instanceId: agent.configuration.managedInstanceId }}
             >
               <Boxes /> View managed Instance
             </Link>

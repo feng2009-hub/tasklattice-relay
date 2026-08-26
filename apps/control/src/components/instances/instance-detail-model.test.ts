@@ -51,8 +51,8 @@ const agent = {
 describe("instance detail model", () => {
   it("normalizes invalid tabs to overview", () => {
     expect(normalizeInstanceDetailTab("capabilities")).toBe("capabilities");
-    expect(normalizeInstanceDetailTab("auditor-log")).toBe("auditor-log");
-    expect(normalizeInstanceDetailTab("activity")).toBe("auditor-log");
+    expect(normalizeInstanceDetailTab("auditor-log")).toBe("logs");
+    expect(normalizeInstanceDetailTab("activity")).toBe("activity");
     expect(normalizeInstanceDetailTab("terminal")).toBe("terminal");
     expect(normalizeInstanceDetailTab("runtime")).toBe("overview");
     expect(normalizeInstanceDetailTab("unknown")).toBe("overview");

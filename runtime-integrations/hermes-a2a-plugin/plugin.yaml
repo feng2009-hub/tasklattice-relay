@@ -1,0 +1,9 @@
+name: tali-a2a
+version: 0.1.0
+description: "TaskLattice Relay outbound A2A tools with Project-scoped discovery and Kanban dispatch auditing."
+author: TaskLattice
+kind: standalone
+provides_tools:
+  - a2a_list
+  - a2a_discover
+  - a2a_call

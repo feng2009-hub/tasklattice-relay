@@ -40,6 +40,7 @@ import {
   issuePlatformSettingsValidation,
 } from "./platform-settings-validation";
 import { deploymentBootstrapRuntimeConfiguration } from "./platform-runtime-config";
+import { controlNetworkTarget } from "../kubernetes/project-runtime-bridge-client";
 
 const fallbackRuntimeImages = mapAgentPlatforms(
   (platform) => platform.sandboxImage,
@@ -335,6 +336,12 @@ export class PlatformSettingsService {
     if (!litellmMasterKey) throw new Error("A LiteLLM master key is required before validation.");
 
     const controlUrl = input.controlInternalUrl.replace(/\/+$/, "");
+    if (
+      input.runtimeNamespaces.enabled
+      && process.env.PROJECT_RUNTIME_BRIDGES_ENABLED === "true"
+    ) {
+      controlNetworkTarget(controlUrl);
+    }
     const controlProbe = this.oidcFetch(`${controlUrl}/api/health`, {
       headers: { accept: "application/json" },
       signal: AbortSignal.timeout(8_000),

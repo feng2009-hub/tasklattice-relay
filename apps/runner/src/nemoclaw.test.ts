@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
 import {
   encodeTerminalResize,
@@ -280,6 +281,24 @@ describe("OpenShell Kubernetes command contract", () => {
     expect(policy).toBe("version: 1\n");
   });
 
+  it("allows Hermes binaries to reach only the Project Runtime Bridge service", () => {
+    const policy = composeOpenShellInferencePolicy(
+      "version: 1\n",
+      "https://inference.example.com/v1",
+      "hermes",
+      undefined,
+      "http://tali-agent-runtime-bridge.tp-abcdefghijklmnop.svc.cluster.local:8080",
+    );
+
+    expect(policy).toContain("tali_project_runtime_bridge:");
+    expect(policy).toContain(
+      "host: tali-agent-runtime-bridge.tp-abcdefghijklmnop.svc.cluster.local",
+    );
+    expect(policy).toContain("port: 8080");
+    expect(policy).toContain("path: /opt/hermes/.venv/bin/python3");
+    expect(policy).not.toContain("path: /usr/bin/curl");
+  });
+
   it("allows only the runtime binary to post lifecycle telemetry to Control", () => {
     const policy = composeOpenShellInferencePolicy(
       "version: 1\n",
@@ -392,6 +411,24 @@ describe("OpenShell Kubernetes command contract", () => {
         hermesInput.agentPlatform,
       ).at(-1),
     ).toBe("exec hermes --tui");
+
+    const bootstrap = getAgentPlatformRuntime("hermes").bootstrapScript(
+      "https://hermes.example.test",
+      "18789",
+      "http://inference.example.test/v1",
+      "tali/provider/deepseek-chat",
+      undefined,
+      "http://tali-agent-runtime-bridge.tp-abcdefghijklmnop.svc.cluster.local:8080",
+      hermesInput.instanceId,
+      "tali_prc_v1.test-payload.test-signature",
+    );
+    expect(bootstrap).toContain("--a2a-registry-url");
+    expect(bootstrap).toContain(
+      '--a2a-registry-token "tali_prc_v1.test-payload.test-signature"',
+    );
+    expect(bootstrap).toContain(
+      `coordinatorInstanceId=${hermesInput.instanceId}`,
+    );
   });
 
   it("uses the Deep Agents image, managed state path, TUI, and headless contract", () => {
@@ -481,6 +518,25 @@ describe("OpenShell Kubernetes command contract", () => {
     expect(bootstrap.indexOf("chmod 0770 /sandbox")).toBeLessThan(
       bootstrap.indexOf("/usr/local/bin/nemoclaw-start"),
     );
+  });
+
+  it("bakes authenticated loopback health probes into the Hermes image", async () => {
+    const dockerfile = await readFile(
+      new URL("../../../infra/docker/Dockerfile.nemoclaw-hermes", import.meta.url),
+      "utf8",
+    );
+
+    expect(dockerfile).toContain("patch-hermes-dashboard-health-auth.py");
+    expect(dockerfile).toContain("patch-hermes-nonroot-cron-drain.py");
+    expect(dockerfile).toContain(
+      "patch-hermes-dashboard-credential-placeholder.py",
+    );
+    expect(dockerfile).toContain("/opt/hermes/hermes_cli/web_server.py");
+    expect(dockerfile).toContain(
+      "/usr/local/lib/nemoclaw/seed-hermes-dashboard-config.py",
+    );
+    expect(dockerfile).toContain("/opt/hermes/gateway/drain_control.py");
+    expect(dockerfile).toContain("python3 -m py_compile");
   });
 
   it("bootstraps native OpenClaw Memory without enabling semantic search", () => {

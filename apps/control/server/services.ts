@@ -1,4 +1,5 @@
 import { InstanceService } from "./instances/instance-service";
+import { AgentInstanceDetailService } from "./instances/agent-instance-detail-service";
 import { AgentGardenService } from "./agent-garden/agent-garden-service";
 import { AgentGardenStore } from "./agent-garden/agent-garden-store";
 import { AccessPolicyService } from "./access-policies/access-policy-service";
@@ -34,6 +35,7 @@ import { requireDepartmentAdministrator } from "./departments/department-access"
 interface ProjectServices {
   store: ProjectStore;
   instances: InstanceService;
+  agentInstanceDetails: AgentInstanceDetailService;
   agentGarden: AgentGardenService;
   accessPolicies: AccessPolicyService;
   cost: CostService;
@@ -79,6 +81,10 @@ function createServices(projectId: string): ProjectServices {
     store,
     auditLogs: new AuditLogService(projectId, store.database()),
     instances,
+    agentInstanceDetails: new AgentInstanceDetailService(
+      instances,
+      new AgentGardenStore(projectId, store.database()),
+    ),
     overview: new ProjectOverviewService(store, instances),
     agentGarden: new AgentGardenService(
       new AgentGardenStore(projectId, store.database()),
@@ -169,6 +175,18 @@ export async function requireProjectCreateCapability(
 
 export async function getInstanceService(request?: Request): Promise<InstanceService> {
   return (await forRequest(request)).instances;
+}
+
+export async function getAgentInstanceDetailService(
+  request?: Request,
+): Promise<AgentInstanceDetailService> {
+  return (await forRequest(request)).agentInstanceDetails;
+}
+
+export function getAgentInstanceDetailServiceForProject(
+  projectId: string,
+): AgentInstanceDetailService {
+  return forProject(projectId).agentInstanceDetails;
 }
 
 export function getInstanceServiceForProject(projectId: string): InstanceService {

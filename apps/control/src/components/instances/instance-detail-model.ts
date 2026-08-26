@@ -1,12 +1,12 @@
 import type { Instance as Agent, InstanceStatus, TerminalTarget } from "@tali/contracts";
 import { formatPlatformDateTime } from "@/lib/platform-preferences";
 
-export const instanceDetailTabs = ["overview", "configuration", "capabilities", "terminal", "auditor-log"] as const;
+export const instanceDetailTabs = ["overview", "configuration", "capabilities", "activity", "logs", "terminal"] as const;
 export type InstanceDetailTab = (typeof instanceDetailTabs)[number];
-export const instanceDetailTabSearchValues = [...instanceDetailTabs, "activity"] as const;
+export const instanceDetailTabSearchValues = [...instanceDetailTabs, "auditor-log"] as const;
 
 export function normalizeInstanceDetailTab(value: unknown): InstanceDetailTab {
-  if (value === "activity") return "auditor-log";
+  if (value === "auditor-log") return "logs";
   return typeof value === "string" && instanceDetailTabs.includes(value as InstanceDetailTab)
     ? (value as InstanceDetailTab)
     : "overview";

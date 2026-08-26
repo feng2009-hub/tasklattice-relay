@@ -307,6 +307,17 @@ function descriptor(method: string, path: string): AuditDescriptor | undefined {
       operation: "execute",
     };
   }
+  const runtimeBridgeDispatch = path.match(
+    /^\/api\/v1\/runtime-bridge\/coordinators\/([^/]+)\/agents\/([^/]+)$/,
+  );
+  if (runtimeBridgeDispatch && method === "POST") {
+    return {
+      action: "agent_delegation.execute",
+      objectId: decodeURIComponent(runtimeBridgeDispatch[2]!),
+      objectType: "A2A Agent",
+      operation: "execute",
+    };
+  }
 
   const projectMatch = path.match(/^\/api\/v1\/projects\/([^/]+)(?:\/(.*))?$/);
   if (!projectMatch) return undefined;

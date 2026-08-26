@@ -11,8 +11,10 @@ not part of the onboarding API. It deliberately separates three concepts:
 - **Agent definition** — a reusable built-in template, a Project-managed
   container, or an existing remote Agent.
 - **Agent Instance** — a running workload in the shared `agents` identity
-  space. Its role is `SUPERVISOR` for an OpenClaw, Hermes, or Deep Agents
-  workbench and `A2A` for a Project-managed callable service.
+  space. Role, platform, runtime, protocols, and capabilities are independent
+  dimensions. Hermes, OpenClaw, and Deep Agents are normally `SUPERVISOR`;
+  a Project-managed callable service is normally `SPECIALIST` and advertises
+  an A2A server protocol.
 - **Agent connection** — an explicit authorization for one Coordinator
   Instance to delegate tasks to one callable built-in or Project-registered
   Agent.
@@ -30,7 +32,7 @@ flowchart LR
   K -->|"Ready + discover"| D["A2A 1.0 Agent Card snapshot"]
   R["Callable built-in or Project-registered Agent"] -->|"Publish capabilities"| D
   C -->|"Explicit connection + policy"| D
-  D -.->|"Future runtime gateway: delegate task"| A["A2A Agent runtime"]
+  D -->|"Project Runtime Bridge: delegate task"| A["A2A Agent runtime"]
 ```
 
 ## Capability model
@@ -58,7 +60,7 @@ The connection service enforces the same rules as the UI:
 The catalog has two layers:
 
 - application-owned platform definitions generated from the shared runtime
-  manifest: OpenClaw Generalist, Hermes Deep Researcher, Deep Agents Code, and
+  manifest: Hermes Deep Researcher, OpenClaw Generalist, Deep Agents Code, and
   Claude Code. The first three are available Supervisors; Claude Code is
   **Coming soon**;
 - a versioned, database-backed example catalog seeded into each Project's
@@ -199,7 +201,9 @@ non-callable Supervisor platform definitions remain application-owned.
 `agent_connections` stores Coordinator-to-Agent authorization, approval
 behavior, and an optional skill allowlist.
 `agents` stores both Supervisor and onboarded A2A runtime Instances. The `kind`
-discriminator represents their role at the same structural level;
+discriminator selects the persistence/runtime adapter; it is not the user-facing
+role or protocol type. The unified detail view derives `SUPERVISOR`,
+`SPECIALIST`, or `HYBRID` role plus an independent A2A protocol profile.
 `catalog_agent_id` links an A2A runtime to its reusable definition. Its payload
 contains lifecycle state, namespace, Deployment, Service, Pod, pinned image,
 discovered endpoint/card, skills, creator, and logs.
@@ -218,6 +222,31 @@ catalog Agent.
 | `DELETE` | `/agent-garden/agents/:id` | Remove a Project registration |
 | `POST` | `/agent-garden/connections` | Authorize a Coordinator connection |
 | `DELETE` | `/agent-garden/connections/:id` | Revoke a connection |
+
+All deployed workloads use the same detail route and normalized response:
+
+| Method | Path suffix | Purpose |
+| --- | --- | --- |
+| `GET` | `/instances/:id` | Read normalized identity, role, platform, runtime, protocols, capabilities, observability, and connections |
+| `GET` | `/instances/:id/logs` | Read redacted stored lifecycle diagnostics under `CAP_AGENT_INSTANCE_LOG_VIEW` |
+| `POST` | `/instances/:id/log-sessions` | Mint a short-lived, single-use capability for a read-only live Pod log WebSocket |
+
+The detail UI is capability-driven and keeps the same six tabs for every
+runtime: Overview, Configuration, Capabilities, Activity, Logs, and Terminal.
+Unsupported tabs remain visible with a reason. A managed A2A service exposes
+live stdout/stderr but not executable terminal input; Supervisor runtimes keep
+their existing interactive TUI terminal. OpenClaw compatibility therefore
+requires only a runtime/protocol adapter that populates the normalized view,
+not another detail page.
+
+Live logs use a separate security and transport path from interactive terminal
+sessions. Control verifies the Pod's Project, Agent, Instance, runtime-kind,
+and `agent` container metadata, then follows Kubernetes `pods/log` with a
+bounded tail. Output is streamed into the terminal renderer in read-only mode
+and conservative credential patterns are redacted before browser delivery.
+The short-lived log token is minted only after
+`CAP_AGENT_INSTANCE_LOG_VIEW`; terminal execution continues to require
+`CAP_AGENT_INSTANCE_TERMINAL_EXEC`.
 
 All Project-scoped Agent Garden routes pass through Capability admission. The
 snapshot read requires both `CAP_AGENT_REGISTRATION_VIEW` and
@@ -246,21 +275,12 @@ endpoints:
 
 ## Runtime boundary
 
-The current implementation delivers the Agent Garden catalog and real
-Container Image onboarding lifecycle: deployment, internal service creation,
-digest pinning, Agent Card discovery, refresh, and removal. It also stores
-capability-enforced desired connection state. A Coordinator connection means
-“authorized for delegation”; it does not claim that a task has already run.
+The Project Agent Runtime Bridge now implements the first runtime gateway
+slice. See [`project-agent-runtime-bridge.md`](project-agent-runtime-bridge.md).
+It authenticates a Project/Namespace-scoped Bridge identity, loads only the
+calling Coordinator's active connections, filters advertised skills, enforces
+approval mode, resolves credentials in Control, and proxies A2A 1.0 messages.
 
-The runtime phase should expose one TaskLattice Relay delegation tool inside each
-Coordinator. That tool will:
-
-1. authenticate the calling Instance service account;
-2. load only that Instance's active connections;
-3. validate the requested discovered skill and approval mode;
-4. dispatch through the selected A2A protocol binding;
-5. persist task state and emit an audit event;
-6. return a normalized task result to the coordinating runtime.
-
-This gateway should be implemented before labeling connections as
-“runtime-synced” or allowing autonomous Agent-to-Agent execution.
+Hermes owns plan and scheduling state in its Kanban database. Normalized
+cross-runtime delegation/event persistence remains a later neutral Bridge API
+extension instead of being coupled to the first Hermes adapter.

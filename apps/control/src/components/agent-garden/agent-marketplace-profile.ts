@@ -22,7 +22,7 @@ function fallbackBrief(agent: AgentGardenEntry): AgentMarketplaceBrief {
     requirements: [
       "Applicable Project access and approval policies",
       agent.usageCapabilities.acceptsDelegation
-        ? "A READY OpenClaw or Hermes Coordinator"
+        ? "A READY Hermes or OpenClaw Coordinator"
         : "A supported interactive runtime",
     ],
   };

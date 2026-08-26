@@ -27,6 +27,8 @@ import {
   gardenAgentParamsSchema,
   gardenConnectionParamsSchema,
   messageSchema,
+  runtimeBridgeAgentParamsSchema,
+  runtimeBridgeCoordinatorParamsSchema,
 } from "./schemas";
 
 const catalogSchema = z.object({
@@ -141,5 +143,32 @@ export const catalogContracts = defineContracts([
     operationId: "sendDemoAgentMessage", summary: "Send a message to a demo Agent", tags: ["Demo Agents"],
     request: { params: demoAgentParamsSchema, body: demoAgentMessageInputSchema },
     responses: { 200: response("Demo Agent response", domainObjectSchema) },
+  }),
+  route({
+    auth: "runtime-bridge", method: "get",
+    path: "/runtime-bridge/coordinators/{coordinatorInstanceId}/agents",
+    operationId: "listRuntimeBridgeAgents",
+    summary: "List Project-enabled A2A Agents for a Coordinator",
+    tags: ["Runtime Bridge"],
+    request: { params: runtimeBridgeCoordinatorParamsSchema },
+    responses: { 200: response("Project A2A peer directory", domainObjectSchema) },
+  }),
+  route({
+    auth: "runtime-bridge", method: "get",
+    path: "/runtime-bridge/coordinators/{coordinatorInstanceId}/agents/{agentId}/agent-card",
+    operationId: "getRuntimeBridgeAgentCard",
+    summary: "Read a connected Agent Card through the Project Runtime Bridge",
+    tags: ["Runtime Bridge"],
+    request: { params: runtimeBridgeAgentParamsSchema },
+    responses: { 200: response("Proxied A2A Agent Card", domainObjectSchema) },
+  }),
+  route({
+    auth: "runtime-bridge", method: "post",
+    path: "/runtime-bridge/coordinators/{coordinatorInstanceId}/agents/{agentId}",
+    operationId: "sendRuntimeBridgeAgentMessage",
+    summary: "Send an A2A message through the Project Runtime Bridge",
+    tags: ["Runtime Bridge"],
+    request: { params: runtimeBridgeAgentParamsSchema, body: domainObjectSchema },
+    responses: { 200: response("Proxied A2A response", domainObjectSchema) },
   }),
 ]);

@@ -1,6 +1,7 @@
 import express from "express";
 import {
   agentPlatformIds,
+  defaultAgentPlatformId,
   mapAgentPlatforms,
   parseTerminalClientMessage,
   type AgentPlatformId,
@@ -86,7 +87,7 @@ const runtimeMemorySchema = z.discriminatedUnion("mode", [
 ]);
 const createSchema = z.object({
   name: z.string().regex(/^[a-z][a-z0-9-]{0,61}[a-z0-9]$/),
-  agentPlatform: agentPlatformSchema.default("openclaw"),
+  agentPlatform: agentPlatformSchema.default(defaultAgentPlatformId),
   providerName: z.string().min(1).max(80),
   model: z.string().min(1).max(200),
   inferenceEndpoint: z.string().url(),
@@ -94,6 +95,10 @@ const createSchema = z.object({
   policyYaml: z.string().min(10).max(64_000),
   apiKey: z.string().min(16).max(512).optional(),
   instanceId: z.string().uuid(),
+  projectRuntimeBridgeToken: z.string()
+    .regex(/^tali_prc_v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/)
+    .max(2_048)
+    .optional(),
   sandboxImage: z.string().trim().min(3).max(500).regex(/^\S+$/).optional(),
   sandboxResources: z.object({
     cpu: z.string().trim().min(1).max(32).regex(
@@ -376,6 +381,9 @@ app.post("/v1/sandboxes", (request, response, next) => {
       systemPrompt: parsedInput.systemPrompt,
       policyYaml: parsedInput.policyYaml,
       ...(parsedInput.apiKey ? { apiKey: parsedInput.apiKey } : {}),
+      ...(parsedInput.projectRuntimeBridgeToken
+        ? { projectRuntimeBridgeToken: parsedInput.projectRuntimeBridgeToken }
+        : {}),
       ...(parsedInput.sandboxImage
         ? { sandboxImage: parsedInput.sandboxImage }
         : {}),
@@ -418,7 +426,7 @@ app.get("/v1/sandboxes/:name/interaction", async (request, response, next) => {
       .regex(/^[a-z][a-z0-9-]{0,61}[a-z0-9]$/)
       .parse(request.params.name);
     const agentPlatform = agentPlatformSchema.parse(
-      request.query.agentPlatform ?? "openclaw",
+      request.query.agentPlatform ?? defaultAgentPlatformId,
     );
     const subject = z.string().min(1).max(200).parse(request.query.subject);
     const runtimeTarget = runtimeTargetFromQuery(request.query.runtimeTarget);
@@ -477,7 +485,7 @@ app.get("/v1/sandboxes/:name", async (request, response, next) => {
   try {
     const name = z.string().parse(request.params.name);
     const agentPlatform = agentPlatformSchema.parse(
-      request.query.agentPlatform ?? "openclaw",
+      request.query.agentPlatform ?? defaultAgentPlatformId,
     );
     const runtimeTarget = runtimeTargetFromQuery(request.query.runtimeTarget);
     const key = sandboxStateKey(name, runtimeTarget);
@@ -603,7 +611,7 @@ app.delete("/v1/sandboxes/:name", async (request, response, next) => {
   try {
     const name = z.string().parse(request.params.name);
     const agentPlatform = agentPlatformSchema.parse(
-      request.query.agentPlatform ?? "openclaw",
+      request.query.agentPlatform ?? defaultAgentPlatformId,
     );
     const runtimeTarget = runtimeTargetFromQuery(request.query.runtimeTarget);
     const key = sandboxStateKey(name, runtimeTarget);
@@ -651,7 +659,7 @@ server.on("upgrade", async (request, socket, head) => {
     return void rejectTerminalUpgrade(socket, 409, "Unknown terminal path.");
   const sandboxName = match[1] ?? "";
   const parsedAgentPlatform = agentPlatformSchema.safeParse(
-    url.searchParams.get("agentPlatform") ?? "openclaw",
+    url.searchParams.get("agentPlatform") ?? defaultAgentPlatformId,
   );
   if (!parsedAgentPlatform.success)
     return void rejectTerminalUpgrade(socket, 409, "Unknown Agent platform.");

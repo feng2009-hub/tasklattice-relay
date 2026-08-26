@@ -9,11 +9,12 @@ const labels: Record<InstanceDetailTab, string> = {
   overview: "Overview",
   configuration: "Configuration",
   capabilities: "Capabilities",
+  activity: "Activity",
+  logs: "Logs",
   terminal: "Terminal",
-  "auditor-log": "Auditor Log",
 };
 
-export function InstanceTabs({ active, agentId, terminal }: { active: InstanceDetailTab; agentId: string; terminal: InstanceAccessState["terminal"] }) {
+export function InstanceTabs({ active, instanceId, terminal }: { active: InstanceDetailTab; instanceId: string; terminal: InstanceAccessState["terminal"] }) {
   const projectId = useCurrentProjectId();
   return (
     <Tabs value={active} activationMode="manual">
@@ -43,7 +44,7 @@ export function InstanceTabs({ active, agentId, terminal }: { active: InstanceDe
               <TabsTrigger key={tab} value={tab} asChild className="min-h-11">
                 <Link
                   to="/$projectId/instances/$instanceId"
-                  params={{ projectId, instanceId: agentId }}
+                  params={{ projectId, instanceId }}
                   search={{ tab }}
                 >
                   {labels[tab]}

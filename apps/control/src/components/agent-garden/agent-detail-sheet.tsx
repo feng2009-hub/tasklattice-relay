@@ -120,9 +120,8 @@ export function AgentDetailSheet({
           {managedContainer && agent?.configuration.managedInstanceId ? (
             <Button asChild variant="outline">
               <Link
-                to="/$projectId/instances"
-                params={{ projectId }}
-                search={{ created: agent.configuration.managedInstanceId }}
+                to="/$projectId/instances/$instanceId"
+                params={{ projectId, instanceId: agent.configuration.managedInstanceId }}
               >
                 <Boxes /> View Instance
               </Link>
@@ -423,7 +422,7 @@ export function AgentDetailSheet({
                         </strong>
                         <span className="mt-1 block text-xs text-muted-foreground">
                           {connection.approvalMode === "AUTO_READ_ONLY"
-                            ? "Read-only automatic delegation"
+                            ? "Provider-declared read-only delegation"
                             : "Approval before every task"}
                         </span>
                       </span>

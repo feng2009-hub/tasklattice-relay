@@ -1,4 +1,4 @@
-export const agentPlatformIds = ["openclaw", "hermes", "deepagents"] as const;
+export const agentPlatformIds = ["hermes", "openclaw", "deepagents"] as const;
 
 export type AgentPlatformId = (typeof agentPlatformIds)[number];
 
@@ -32,39 +32,13 @@ export interface AgentPlatformDefinition {
 
 export const agentPlatforms = [
   {
-    id: "openclaw",
-    name: "OpenClaw",
-    description: "Gateway-based Agent with a plugin ecosystem and browser UI.",
-    terminalLabel: "OpenClaw TUI",
-    endpointLabel: "OpenClaw Web UI",
-    interactionSurface: "web-ui",
-    isDefault: true,
-    sandboxImage: "ghcr.io/tasklattice/tali-nemoclaw-sandbox:dev",
-    capabilities: {
-      interactive: true,
-      canDelegate: true,
-      acceptsDelegation: false,
-      embeddedRunTelemetry: true,
-      memory: "native-hybrid",
-    },
-    catalog: {
-      id: "openclaw-generalist",
-      name: "OpenClaw Generalist",
-      description:
-        "A general-purpose interactive Agent for browser tasks, terminal work, and multi-step automation.",
-      category: "General",
-      tags: ["Automation", "Browser", "Coding"],
-      specializationId: "general-purpose",
-    },
-  },
-  {
     id: "hermes",
     name: "Hermes",
     description: "Self-improving Agent with durable memory and a learning loop.",
     terminalLabel: "Hermes TUI",
     endpointLabel: "Hermes dashboard",
     interactionSurface: "web-ui",
-    isDefault: false,
+    isDefault: true,
     sandboxImage: "ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:dev",
     capabilities: {
       interactive: true,
@@ -81,6 +55,32 @@ export const agentPlatforms = [
       category: "Research",
       tags: ["Research", "RAG", "Memory"],
       specializationId: "research-analyst",
+    },
+  },
+  {
+    id: "openclaw",
+    name: "OpenClaw",
+    description: "Gateway-based Agent with a plugin ecosystem and browser UI.",
+    terminalLabel: "OpenClaw TUI",
+    endpointLabel: "OpenClaw Web UI",
+    interactionSurface: "web-ui",
+    isDefault: false,
+    sandboxImage: "ghcr.io/tasklattice/tali-nemoclaw-sandbox:dev",
+    capabilities: {
+      interactive: true,
+      canDelegate: true,
+      acceptsDelegation: false,
+      embeddedRunTelemetry: true,
+      memory: "native-hybrid",
+    },
+    catalog: {
+      id: "openclaw-generalist",
+      name: "OpenClaw Generalist",
+      description:
+        "A general-purpose interactive Agent for browser tasks, terminal work, and multi-step automation.",
+      category: "General",
+      tags: ["Automation", "Browser", "Coding"],
+      specializationId: "general-purpose",
     },
   },
   {

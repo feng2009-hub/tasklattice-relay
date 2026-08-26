@@ -66,7 +66,7 @@ internal relay.
 
 New OpenShell Sandbox CPU and memory defaults and the Project Namespace
 deletion timeout are database-owned and can be changed from **Platform Setting
--> Sandbox**. OpenClaw, Hermes, and Deep Agents image references remain editable under
+-> Sandbox**. Hermes, OpenClaw, and Deep Agents image references remain editable under
 **Platform Setting -> Runtime** because they are resolved when a new Sandbox is
 created.
 
@@ -80,6 +80,11 @@ using Project OpenShell target routing also rejects disabling Runtime
 Namespaces because Agent operations would no longer have a routable target. A short-lived
 validation token is bound to the exact draft, so any later edit requires a new
 validation before **Save verified configuration** becomes effective.
+When Project Runtime Bridges are enabled, the Control internal URL must be the
+full in-cluster HTTP Service name
+(`http://<service>.<namespace>.svc.cluster.local:<port>`). Bridge egress is
+restricted to Control Pods in that Namespace rather than to an arbitrary host
+sharing the same port.
 
 On a new Helm installation, the chart supplies the in-cluster service URLs and
 component credentials as one-time bootstrap environment values. Control

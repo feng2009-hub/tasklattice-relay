@@ -1,9 +1,16 @@
 import type {
+  A2aAgentInstance,
   Instance as Agent,
   InstanceInteractionAccess,
   InstanceRuntimeLogView,
   HttpEndpoint,
 } from "@tali/contracts";
+
+export function a2aInstanceConfigurationView(
+  instance: A2aAgentInstance,
+): A2aAgentInstance {
+  return { ...instance, logs: [], error: null };
+}
 
 /**
  * Configuration reads must not disclose the browser endpoint. Runtime Web UI
@@ -67,5 +74,15 @@ export function instanceRuntimeLogView(agent: Agent): InstanceRuntimeLogView {
     instanceId: agent.id,
     logs: agent.logs.map(redactRuntimeDiagnostic),
     ...(agent.error ? { error: redactRuntimeDiagnostic(agent.error) } : {}),
+  };
+}
+
+export function a2aInstanceRuntimeLogView(
+  instance: A2aAgentInstance,
+): InstanceRuntimeLogView {
+  return {
+    instanceId: instance.id,
+    logs: instance.logs.map(redactRuntimeDiagnostic),
+    ...(instance.error ? { error: redactRuntimeDiagnostic(instance.error) } : {}),
   };
 }

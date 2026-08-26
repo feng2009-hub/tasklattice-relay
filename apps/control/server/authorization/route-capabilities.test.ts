@@ -30,7 +30,7 @@ describe("Project route capability declarations", () => {
       const pathname = `/api/v1/projects/individual${route ? `/${route}` : ""}`;
       if (!projectRouteAdmissionPolicy(method, pathname)) uncovered.push(file);
     }
-    expect(files).toHaveLength(82);
+    expect(files).toHaveLength(84);
     expect(uncovered).toEqual([]);
   });
 
@@ -134,6 +134,13 @@ describe("Project route capability declarations", () => {
       capability: "CAP_AGENT_INSTANCE_LOG_VIEW",
       resourceType: "AgentInstance",
     }]);
+    expect(projectRouteAdmissionPolicy(
+      "POST",
+      "/api/v1/projects/individual/instances/agent-1/log-sessions",
+    )?.requirements).toEqual([{
+      capability: "CAP_AGENT_INSTANCE_LOG_VIEW",
+      resourceType: "AgentInstance",
+    }]);
   });
 
   it("requires every underlying read capability for the Project overview", () => {
@@ -189,6 +196,13 @@ describe("Project route capability declarations", () => {
       "GET",
       "/api/v1/projects/individual/terminal-sessions/session-1/ws/extra",
     )).toBeUndefined();
+    expect(projectRouteAdmissionPolicy(
+      "GET",
+      "/api/v1/projects/individual/agent-log-sessions/session-1/ws",
+    )).toMatchObject({
+      requirements: [],
+      skipBecauseCapabilityToken: true,
+    });
   });
 
   it("does not let unknown nested routes inherit a parent capability", () => {

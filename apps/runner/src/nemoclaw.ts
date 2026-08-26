@@ -18,6 +18,7 @@ export interface ProvisionInput {
   systemPrompt: string;
   apiKey?: string;
   instanceId: string;
+  projectRuntimeBridgeToken?: string;
   sandboxImage?: string;
   sandboxResources?: {
     cpu?: string | undefined;

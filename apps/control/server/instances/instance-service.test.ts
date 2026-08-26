@@ -9,6 +9,9 @@ import { describe, expect, it, vi } from "vitest";
 import type { LiteLLMAdminClient } from "../providers/litellm-client";
 import type { RunnerClient } from "../runtime/nemoclaw-runner-client";
 import { RuntimePolicyService } from "../runtime-policies/runtime-policy-service";
+import { ProjectAgentRuntimeService } from "../runtime-bridge/project-agent-runtime-service";
+import { AgentGardenStore } from "../agent-garden/agent-garden-store";
+import { demoAgentEndpoint } from "../agent-garden/demo-agent-runtime";
 import { createTestStore } from "../test/store";
 import {
   InstanceService,
@@ -162,8 +165,8 @@ describe("Agent selection", () => {
     systemPrompt: "Research the request and report the resulting evidence.",
   };
 
-  it("uses OpenClaw as the default Agent implementation", () => {
-    expect(createInstanceSchema.parse(input).agentPlatform).toBe("openclaw");
+  it("uses Hermes as the default Agent implementation", () => {
+    expect(createInstanceSchema.parse(input).agentPlatform).toBe("hermes");
   });
 
   it("accepts Hermes as an Agent configured by NemoClaw", () => {
@@ -203,6 +206,7 @@ describe("Agent selection", () => {
     expect(
       createInstanceSchema.parse({
         ...input,
+        agentPlatform: "openclaw",
         memory: { mode: "native" },
       }).memory,
     ).toEqual({ mode: "native", citations: "auto" });
@@ -433,6 +437,180 @@ async function createConfiguredInstance(
 }
 
 describe("Instance Access Policy lifecycle", () => {
+  it("connects the two MVP A2A specialists to a new Hermes Supervisor", async () => {
+    const setup = await configuredService();
+    const agent = await createConfiguredInstance(setup, {
+      agentPlatform: "hermes",
+    });
+
+    const connections = await setup.store.database().agentConnectionRecord
+      .findMany({
+        where: {
+          projectId: setup.store.projectId,
+          coordinatorInstanceId: agent.id,
+          deletedAt: null,
+        },
+        orderBy: { createdAt: "asc" },
+        select: { connectedAgentId: true },
+      });
+    expect(connections.map(({ connectedAgentId }) => connectedAgentId))
+      .toEqual([
+        "a2a-github-daily-triage",
+        "a2a-pull-request-risk-scanner",
+      ]);
+    const runtime = new ProjectAgentRuntimeService(
+      setup.store.projectId,
+      setup.store.database(),
+    );
+    await expect(runtime.listPeers(agent.id)).resolves.toMatchObject([
+      {
+        id: "a2a-github-daily-triage",
+        approvalMode: "AUTO_READ_ONLY",
+        protocolVersion: "1.0",
+      },
+      {
+        id: "a2a-pull-request-risk-scanner",
+        approvalMode: "AUTO_READ_ONLY",
+        protocolVersion: "1.0",
+      },
+    ]);
+    const fetchRequest = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify({
+        jsonrpc: "2.0",
+        id: "dispatch-1",
+        result: {
+          message: {
+            role: "ROLE_AGENT",
+            parts: [{ text: "Triage complete." }],
+          },
+        },
+      }), { status: 200, headers: { "content-type": "application/json" } }),
+    );
+    await expect(runtime.sendMessage(
+      agent.id,
+      "a2a-github-daily-triage",
+      {
+        jsonrpc: "2.0",
+        id: "dispatch-1",
+        method: "SendMessage",
+        params: {
+          message: {
+            messageId: "message-1",
+            role: "ROLE_USER",
+            parts: [{ text: "Triage today's work." }],
+          },
+        },
+      },
+    )).resolves.toMatchObject({
+      status: 200,
+      body: { id: "dispatch-1" },
+    });
+    expect(fetchRequest).toHaveBeenCalledWith(
+      demoAgentEndpoint("a2a-github-daily-triage"),
+      expect.objectContaining({ method: "POST", redirect: "error" }),
+    );
+    fetchRequest.mockRestore();
+  });
+
+  it("translates Hermes JSON-RPC delegation to an HTTP+JSON A2A Agent", async () => {
+    const setup = await configuredService();
+    const coordinator = await createConfiguredInstance(setup, {
+      agentPlatform: "hermes",
+    });
+    const garden = new AgentGardenStore(
+      setup.store.projectId,
+      setup.store.database(),
+    );
+    const peer = await garden.getAgent("a2a-github-daily-triage");
+    expect(peer?.a2a).toBeDefined();
+    await garden.saveAgent({
+      ...peer!,
+      endpoint: "https://expert.example/a2a",
+      a2a: { ...peer!.a2a!, protocolBinding: "HTTP+JSON" },
+    });
+    const fetchRequest = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify({
+        message: {
+          messageId: "reply-1",
+          role: "ROLE_AGENT",
+          parts: [{ text: "HTTP+JSON complete." }],
+        },
+      }), { status: 200, headers: { "content-type": "application/a2a+json" } }),
+    );
+    const request = {
+      jsonrpc: "2.0",
+      id: "dispatch-http-json",
+      method: "SendMessage",
+      params: {
+        message: {
+          messageId: "message-1",
+          role: "ROLE_USER",
+          parts: [{ text: "Run the HTTP+JSON specialist." }],
+        },
+      },
+    };
+
+    await expect(new ProjectAgentRuntimeService(
+      setup.store.projectId,
+      setup.store.database(),
+    ).sendMessage(
+      coordinator.id,
+      "a2a-github-daily-triage",
+      request,
+    )).resolves.toEqual({
+      status: 200,
+      body: {
+        jsonrpc: "2.0",
+        id: "dispatch-http-json",
+        result: expect.objectContaining({
+          message: expect.objectContaining({ messageId: "reply-1" }),
+        }),
+      },
+    });
+    expect(fetchRequest).toHaveBeenCalledWith(
+      "https://expert.example/a2a/message:send",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify(request.params),
+      }),
+    );
+    fetchRequest.mockRestore();
+  });
+
+  it("rejects an oversized A2A Agent response", async () => {
+    const setup = await configuredService();
+    const coordinator = await createConfiguredInstance(setup, {
+      agentPlatform: "hermes",
+    });
+    const fetchRequest = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response("x".repeat(1024 * 1024 + 1), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    await expect(new ProjectAgentRuntimeService(
+      setup.store.projectId,
+      setup.store.database(),
+    ).sendMessage(
+      coordinator.id,
+      "a2a-github-daily-triage",
+      {
+        jsonrpc: "2.0",
+        id: "oversized",
+        method: "SendMessage",
+        params: {
+          message: {
+            messageId: "message-oversized",
+            role: "ROLE_USER",
+            parts: [{ text: "Return too much data." }],
+          },
+        },
+      },
+    )).rejects.toThrow("exceeded the 1 MiB limit");
+    fetchRequest.mockRestore();
+  });
+
   it("passes Platform Sandbox resource overrides to the Runner", async () => {
     const setup = await configuredService();
     await setup.store.database().platformSettingsRecord.create({

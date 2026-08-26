@@ -9,6 +9,7 @@ import {
   type ProjectNamespaceClient,
 } from "../kubernetes/project-namespace-client";
 import type { ProjectOpenShellGatewayClient } from "../kubernetes/project-openshell-gateway-client";
+import type { ProjectRuntimeBridgeClient } from "../kubernetes/project-runtime-bridge-client";
 import { createTestPrisma } from "../test/prisma";
 import {
   OPENSHELL_ROUTABLE_NAME_MAX_LENGTH,
@@ -52,6 +53,14 @@ function gatewayClient() {
       delete: deleteGateway,
     } as ProjectOpenShellGatewayClient,
     deleteGateway,
+    reconcile,
+  };
+}
+
+function bridgeClient() {
+  const reconcile = vi.fn(async () => undefined);
+  return {
+    client: { reconcile } as ProjectRuntimeBridgeClient,
     reconcile,
   };
 }
@@ -150,10 +159,12 @@ describe("ProjectRuntimeTargetService", () => {
     const db = createTestPrisma();
     const fake = namespaceClient();
     const gateway = gatewayClient();
+    const bridge = bridgeClient();
     const service = new ProjectRuntimeTargetService(
       db,
       fake.client,
       gateway.client,
+      bridge.client,
     );
 
     await expect(
@@ -169,6 +180,13 @@ describe("ProjectRuntimeTargetService", () => {
       namespace: projectRuntimeNamespace("individual"),
       projectId: "individual",
       projectName: "admin",
+    });
+    expect(bridge.reconcile).toHaveBeenCalledWith({
+      namespace: projectRuntimeNamespace("individual"),
+      projectId: "individual",
+      projectName: "admin",
+      controlUrl: "http://127.0.0.1:8080",
+      token: expect.stringMatching(/^tali_prb_v1\./),
     });
     await expect(db.projectRuntimeTarget.findUnique({
       where: { projectId: "individual" },

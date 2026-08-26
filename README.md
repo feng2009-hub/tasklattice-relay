@@ -3,9 +3,8 @@
 TaskLattice Relay is a Project-scoped Kubernetes control plane for operating AI
 Agents. It manages model Providers and routing, Instance-bound access and
 runtime policies, Agent resources, and observability around
-OpenShell sandboxes. OpenShell is the fixed runtime; OpenClaw is the default
-Agent implementation, with Hermes and Deep Agents Code as additional supported
-implementations.
+OpenShell sandboxes. OpenShell is the fixed runtime; Hermes is the default
+Supervisor implementation, followed by OpenClaw and Deep Agents Code.
 
 TaskLattice is the open-source project name; Relay is this module. User-facing
 copy uses **TaskLattice Relay**, while code, package scopes, environment
@@ -51,7 +50,7 @@ TaskLattice Relay OpenShell Runner
   per-Instance virtual keys, spend attribution, and cost views.
 - Direct, many-to-many Instance bindings to reusable Access Policies, with
   independently selected OpenShell Runtime Policies.
-- OpenClaw and Hermes Instances with browser UI and terminal access, plus Deep
+- Hermes and OpenClaw Instances with browser UI and terminal access, plus Deep
   Agents Code Instances with native TUI and headless CLI access.
 - Agent Garden registration and Agent-to-Agent connections, plus Skills, MCP
   Servers, and Knowledge Base catalogs.
@@ -153,8 +152,8 @@ resolves to that exact value.
 | Runtime runner           | `ghcr.io/tasklattice/tali-openshell-runner:<release>`          | OpenShell sandbox lifecycle and terminal relay     |
 | LiteLLM                  | `ghcr.io/tasklattice/tali-litellm:<release>`                   | Model gateway, virtual keys, and spend attribution |
 | Example MCP server       | `ghcr.io/tasklattice/tali-example-mcp:<release>`               | Reference MCP integration used by examples         |
-| OpenClaw sandbox         | `ghcr.io/tasklattice/tali-nemoclaw-sandbox:<release>`          | Default Agent sandbox                              |
-| Hermes sandbox           | `ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:<release>`   | Hermes Agent sandbox                               |
+| OpenClaw sandbox         | `ghcr.io/tasklattice/tali-nemoclaw-sandbox:<release>`          | OpenClaw Agent sandbox                             |
+| Hermes sandbox           | `ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:<release>`   | Default Supervisor sandbox                         |
 | Deep Agents sandbox      | `ghcr.io/tasklattice/tali-nemoclaw-deepagents-sandbox:<release>` | Deep Agents Code terminal sandbox                |
 | LiteLLM PostgreSQL       | `postgres:17-alpine`                                            | LiteLLM configuration and usage data               |
 | OpenShell gateway        | `ghcr.io/nvidia/openshell/gateway:0.0.106`                      | Policy enforcement, audit, exec, and HTTP routing  |
@@ -213,11 +212,11 @@ After signing in:
 3. Review the automatically configured `Default` Access Policy. It is Active
    and intentionally has no MCP allow rules, so a new Project starts from a
    deny-all baseline. Add narrower policies when the Instance needs tools.
-4. Create an Instance, choose OpenClaw, Hermes, or Deep Agents Code, select an Agent Role and one
+4. Create an Instance, choose Hermes, OpenClaw, or Deep Agents Code, select an Agent Role and one
    or more Active Access Policies, and keep the built-in Unrestricted Runtime
    Policy for the first validation run. The Instance uses the Project's READY
    default Model Routing.
-5. Wait for the Instance to reach `READY`. OpenClaw and Hermes publish their
+5. Wait for the Instance to reach `READY`. Hermes and OpenClaw publish their
    Agent UI and terminal; Deep Agents opens its `dcode` TUI in the terminal and
    also supports `dcode -n` for headless use.
 

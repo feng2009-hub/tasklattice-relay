@@ -8,7 +8,7 @@ const validationUsername =
 const validationPassword =
   process.env.TALI_VALIDATION_PASSWORD ?? "password";
 const validationAgentPlatform =
-  process.env.TALI_VALIDATION_AGENT_PLATFORM ?? "openclaw";
+  process.env.TALI_VALIDATION_AGENT_PLATFORM ?? "hermes";
 const validationProjectId = process.env.TALI_VALIDATION_PROJECT_ID;
 const validationAgentId = process.env.TALI_VALIDATION_AGENT_ID;
 const validationTimeoutMs = Number(

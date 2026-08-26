@@ -76,7 +76,7 @@ export function projectRouteAdmissionPolicy(
   if (
     method === "GET"
     && tail.length === 3
-    && tail[0] === "terminal-sessions"
+    && (tail[0] === "terminal-sessions" || tail[0] === "agent-log-sessions")
     && tail[2] === "ws"
   ) {
     return {
@@ -166,6 +166,9 @@ export function projectRouteAdmissionPolicy(
       return policy("INSTANCE", [requirement("CAP_AGENT_INSTANCE_INTERACT", "AgentInstance")], instanceId);
     }
     if (tail.length === 3 && tail[2] === "logs" && method === "GET") {
+      return policy("INSTANCE", [requirement("CAP_AGENT_INSTANCE_LOG_VIEW", "AgentInstance")], instanceId);
+    }
+    if (tail.length === 3 && tail[2] === "log-sessions" && method === "POST") {
       return policy("INSTANCE", [requirement("CAP_AGENT_INSTANCE_LOG_VIEW", "AgentInstance")], instanceId);
     }
     if (tail.length === 3 && tail[2] === "access-policies" && method === "PUT") {

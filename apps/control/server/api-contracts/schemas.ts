@@ -40,6 +40,11 @@ export const catalogCollectionParamsSchema = projectParamsSchema.extend({
 export const catalogResourceParamsSchema = catalogCollectionParamsSchema.extend({ id });
 export const catalogNamedResourceParamsSchema = projectParamsSchema.extend({ id });
 export const demoAgentParamsSchema = z.object({ id });
+export const runtimeBridgeCoordinatorParamsSchema = z.object({
+  coordinatorInstanceId: id,
+});
+export const runtimeBridgeAgentParamsSchema = runtimeBridgeCoordinatorParamsSchema
+  .extend({ agentId: id });
 export const demoAgentMessageInputSchema = z.object({
   jsonrpc: z.literal("2.0"),
   id: z.union([z.string(), z.number(), z.null()]),
