@@ -129,6 +129,73 @@ initial_platform_administrator_password = {{ required "secrets.initialPlatformAd
 {{- end -}}
 {{- end }}
 
+{{/* Environment shared by synchronous Control and background Worker runtime reconciliation. */}}
+{{- define "tali.projectOpenShellReconcilerEnv" -}}
+- name: PROJECT_OPENSHELL_GATEWAYS_ENABLED
+  value: {{ .Values.projectOpenShell.enabled | quote }}
+- name: PROJECT_OPENSHELL_TARGET_ROUTING_ENABLED
+  value: {{ .Values.runner.projectTargetRouting.enabled | quote }}
+- name: PROJECT_OPENSHELL_HELM_CHART
+  value: {{ .Values.projectOpenShell.helmChart | quote }}
+- name: PROJECT_OPENSHELL_RELEASE_NAME
+  value: {{ .Values.projectOpenShell.releaseName | quote }}
+- name: PROJECT_OPENSHELL_SERVICE_NAME_PREFIX
+  value: {{ .Values.projectOpenShell.serviceNamePrefix | quote }}
+- name: PROJECT_OPENSHELL_GATEWAY_IMAGE
+  value: {{ printf "%s:%s" .Values.openshell.image.repository .Values.openshell.image.tag | quote }}
+- name: PROJECT_OPENSHELL_GATEWAY_RESOURCES_JSON
+  value: {{ .Values.openshell.resources | toJson | quote }}
+- name: PROJECT_OPENSHELL_IMAGE_PULL_SECRETS_JSON
+  value: {{ .Values.openshell.imagePullSecrets | toJson | quote }}
+- name: PROJECT_OPENSHELL_SUPERVISOR_IMAGE
+  value: {{ printf "%s:%s" .Values.openshell.supervisor.image.repository .Values.openshell.supervisor.image.tag | quote }}
+- name: PROJECT_OPENSHELL_DEFAULT_SANDBOX_IMAGE
+  value: {{ .Values.openshell.server.sandboxImage | quote }}
+- name: PROJECT_OPENSHELL_IMAGE_PULL_POLICY
+  value: {{ .Values.openshell.image.pullPolicy | quote }}
+- name: PROJECT_OPENSHELL_SANDBOX_IMAGE_PULL_POLICY
+  value: {{ .Values.openshell.server.sandboxImagePullPolicy | quote }}
+- name: PROJECT_OPENSHELL_SANDBOX_IMAGE_PULL_SECRETS_JSON
+  value: {{ .Values.openshell.server.sandboxImagePullSecrets | toJson | quote }}
+- name: PROJECT_OPENSHELL_WORKSPACE_STORAGE_SIZE
+  value: {{ .Values.projectOpenShell.workspace.storageSize | quote }}
+{{- with .Values.projectOpenShell.workspace.storageClass }}
+- name: PROJECT_OPENSHELL_WORKSPACE_STORAGE_CLASS
+  value: {{ . | quote }}
+{{- end }}
+{{- end -}}
+
+{{/* Exact resource APIs required to install the pinned official OpenShell chart. */}}
+{{- define "tali.projectOpenShellControllerRules" -}}
+- apiGroups: [""]
+  resources: ["configmaps", "persistentvolumeclaims", "secrets", "serviceaccounts", "services"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: [""]
+  resources: ["events", "pods"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["authentication.k8s.io"]
+  resources: ["tokenreviews"]
+  verbs: ["create"]
+- apiGroups: ["agents.x-k8s.io"]
+  resources: ["sandboxes", "sandboxes/status"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["apps"]
+  resources: ["statefulsets"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["batch"]
+  resources: ["jobs"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["networking.k8s.io"]
+  resources: ["networkpolicies"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["roles", "rolebindings", "clusterroles", "clusterrolebindings"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+{{- end -}}
+
 {{- define "tali.postgresqlSecretChecksum" -}}
 {{- if .Values.secrets.existingSecret -}}
 {{- printf "existing:%s" .Values.secrets.existingSecret | sha256sum -}}

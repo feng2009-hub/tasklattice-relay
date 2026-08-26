@@ -350,7 +350,7 @@ describe("NemoClaw Deep Agents Kubernetes profile patch", () => {
     expect(result.status, result.stderr).toBe(0);
     const patched = await readFile(target, "utf8");
     expect(patched).toContain("verify_tali_kubernetes_dcode_login_profile");
-    expect(patched).toContain('[ "${OPENSHELL_SANDBOX:-}" = "1" ]');
+    expect(patched).toContain('[ -n "${OPENSHELL_SANDBOX:-}" ]');
     expect(patched).toContain('= "$current_uid:$current_gid:2777"');
     expect(patched).toContain('= "root:sandbox:1775"');
     expect(patched).toContain(
@@ -417,7 +417,8 @@ describe("NemoClaw Deep Agents Provider v2 inference patch", () => {
     expect(patched).toContain("import tomllib");
     expect(patched).toContain("def managed_inference_api_key()");
     expect(patched).toContain("def _tali_openshell_inference_base_url()");
-    expect(patched).toContain('os.environ.get("OPENSHELL_SANDBOX") != "1"');
+    expect(patched).toContain('if not os.environ.get("OPENSHELL_SANDBOX")');
+    expect(patched).toContain("OpenShell 0.0.106 exports the sandbox name");
     expect(patched).toContain(
       '_is_openshell_placeholder_for_name(credential_name, credential)',
     );

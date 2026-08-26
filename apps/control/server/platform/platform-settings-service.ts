@@ -50,6 +50,17 @@ const fallbackSandboxDefaults = {
   memory: "2Gi",
 } as const;
 
+function assertProjectRuntimeTopology(runtimeNamespacesEnabled: boolean): void {
+  if (
+    process.env.PROJECT_OPENSHELL_TARGET_ROUTING_ENABLED === "true"
+    && !runtimeNamespacesEnabled
+  ) {
+    throw new Error(
+      "Runtime Namespaces cannot be disabled while Project OpenShell target routing is enabled by the deployment.",
+    );
+  }
+}
+
 function providerKindList(value: Prisma.JsonValue | null | undefined): ProviderKind[] {
   if (value === null || value === undefined) return [...providerKinds];
   if (!Array.isArray(value)) return [...providerKinds];
@@ -312,6 +323,7 @@ export class PlatformSettingsService {
   async validateInfrastructure(
     input: ValidatePlatformInfrastructureSettingsInput,
   ): Promise<PlatformInfrastructureValidationView> {
+    assertProjectRuntimeTopology(input.runtimeNamespaces.enabled);
     const current = await this.stored();
     const runnerToken = input.runner.token.action === "replace"
       ? input.runner.token.value
@@ -384,6 +396,7 @@ export class PlatformSettingsService {
     input: UpdatePlatformInfrastructureSettingsInput,
     actor: string,
   ): Promise<PlatformInfrastructureSettingsView> {
+    assertProjectRuntimeTopology(input.runtimeNamespaces.enabled);
     const current = await this.stored();
     const runnerToken = input.runner.token.action === "replace"
       ? input.runner.token.value

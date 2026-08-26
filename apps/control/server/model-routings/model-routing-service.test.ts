@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createInstanceSchema,
   createModelRoutingSchema,
+  updateModelRoutingSchema,
 } from "@tali/contracts";
 import { createTestStore } from "../test/store";
 import type {
@@ -145,6 +146,12 @@ async function saveDefaultRoutingModel(
 }
 
 describe("Model Routing contracts", () => {
+  it("does not inject create defaults into a default-only update", () => {
+    expect(updateModelRoutingSchema.parse({ isDefault: true })).toEqual({
+      isDefault: true,
+    });
+  });
+
   it("keeps model selection out of Instance creation", () => {
     expect(() =>
       createInstanceSchema.parse({

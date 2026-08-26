@@ -79,6 +79,7 @@ export default defineWebSocketHandler({
         service.runner.terminalWebSocketUrl(
           session.sandboxName,
           session.agentPlatform,
+          await service.runnerRuntimeTarget(),
         ),
         service.runner.authorizationHeaders(),
       ]);

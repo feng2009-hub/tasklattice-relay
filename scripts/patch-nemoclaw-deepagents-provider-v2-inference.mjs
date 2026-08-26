@@ -70,7 +70,11 @@ const patchedFunction = `def _validated_managed_inference_base_url(value: str, s
 
 def managed_inference_api_key() -> str:
     """Return only an endpoint-bound OpenShell placeholder or the baked sentinel."""
-    if os.environ.get("OPENSHELL_SANDBOX") != "1":
+    # OpenShell 0.0.106 exports the sandbox name (for example i-abc), while
+    # newer runtimes may use the legacy boolean marker 1. Presence
+    # is the stable boundary; the endpoint-bound placeholder below remains the
+    # credential authority and prevents an ambient marker from granting access.
+    if not os.environ.get("OPENSHELL_SANDBOX"):
         return "nemoclaw-managed-inference"
 
     credential_name = "DEEPAGENTS_CODE_OPENAI_API_KEY"
@@ -108,7 +112,7 @@ def ${compatibilityMarker}() -> str | None:
     effective egress policy remain authoritative. Remove this compatibility
     path when Provider v2 can mount attached providers at inference.local.
     """
-    if os.environ.get("OPENSHELL_SANDBOX") != "1":
+    if not os.environ.get("OPENSHELL_SANDBOX"):
         return None
 
     managed_inference_api_key()

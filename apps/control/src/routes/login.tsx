@@ -85,7 +85,7 @@ function LoginPage() {
           ) : null}
           {config?.developmentDefaults ? (
             <div className="mt-7 border-l-2 border-primary bg-primary/5 px-4 py-3 text-sm text-foreground">
-              {t("developmentAccount.before")} <strong>admin / admin</strong>.{" "}
+              {t("developmentAccount.before")} <strong>admin / password</strong>.{" "}
               {t("developmentAccount.after")}
             </div>
           ) : null}

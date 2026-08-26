@@ -34,6 +34,7 @@
     "helm:dependencies": "bash scripts/prepare-helm-dependencies.sh",
     "helm:package:control": "bash scripts/package-control-plane-chart.sh",
     "helm:validate:resources": "node scripts/validate-helm-resources.mjs",
+    "helm:validate:dev-defaults": "node scripts/validate-development-defaults.mjs",
     "helm:validate:openshift": "node scripts/validate-helm-openshift.mjs",
     "helm:validate:airgap": "node scripts/validate-helm-airgap.mjs",
     "k8s:deploy": "npm run helm:deploy:dev",

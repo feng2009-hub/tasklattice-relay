@@ -14,6 +14,7 @@ import {
   InstanceService,
   agentSandboxName,
   applyObservedState,
+  isRunnerRuntimeTargetRoutable,
 } from "./instance-service";
 
 const accessPolicyId = "11111111-1111-4111-8111-111111111111";
@@ -30,6 +31,24 @@ describe("Agent sandbox naming", () => {
   it("keeps separate UUIDs distinct within the compact identifier", () => {
     expect(agentSandboxName("abcdef01-1234-4000-8000-123456789abc"))
       .toBe("i-td6hwjapuayo42xmk");
+  });
+});
+
+describe("Project Runtime Target availability", () => {
+  it("keeps the last observed generation routable during periodic reconciliation", () => {
+    expect(isRunnerRuntimeTargetRoutable({
+      generation: 3,
+      observedGeneration: 3,
+      status: "reconciling",
+    })).toBe(true);
+  });
+
+  it("blocks an unobserved generation while reconciliation is in progress", () => {
+    expect(isRunnerRuntimeTargetRoutable({
+      generation: 4,
+      observedGeneration: 3,
+      status: "reconciling",
+    })).toBe(false);
   });
 });
 

@@ -1,0 +1,9 @@
+{{- if and .Values.projectOpenShell.enabled (not .Values.runner.projectTargetRouting.enabled) -}}
+{{- fail "projectOpenShell.enabled requires runner.projectTargetRouting.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.runner.projectTargetRouting.enabled (not .Values.projectRuntimeNamespaces.enabled) -}}
+{{- fail "runner.projectTargetRouting.enabled requires projectRuntimeNamespaces.enabled=true" -}}
+{{- end -}}
+{{- if and .Values.projectOpenShell.enabled .Values.openshell.enabled -}}
+{{- fail "projectOpenShell.enabled and the legacy shared openshell.enabled topology are mutually exclusive" -}}
+{{- end -}}

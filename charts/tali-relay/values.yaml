@@ -95,10 +95,10 @@ control:
     resources:
       requests:
         cpu: 25m
-        memory: 96Mi
+        memory: 128Mi
       limits:
         cpu: 250m
-        memory: 256Mi
+        memory: 512Mi
     extraEnv: []
   # Canonical browser origin used by Better Auth for cookies and callbacks.
   publicUrl: http://localhost:38080
@@ -140,7 +140,17 @@ runner:
   kubernetesServiceCidrs: 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
   sandbox:
     cpu: "1"
+    # Optional Kubernetes scheduling request. When empty, request equals cpu.
+    cpuRequest: ""
     memory: 2Gi
+  projectTargetRouting:
+    enabled: false
+    gatewayEndpointTemplate: "http://openshell-{namespace}.{namespace}.svc.cluster.local:8080"
+    serviceProxy:
+      enabled: true
+      type: LoadBalancer
+      port: 8080
+      annotations: {}
   resources:
     requests:
       cpu: 50m
@@ -149,6 +159,23 @@ runner:
       cpu: 500m
       memory: 384Mi
   extraEnv: []
+
+# Compatibility topology for OpenShell releases whose Kubernetes driver has
+# one fixed sandbox Namespace per Gateway. The Control Plane installs the
+# repository-pinned official OpenShell subchart once in each Project Runtime
+# Namespace; the central Runner routes by ProjectRuntimeTarget. Keep this
+# boundary stable when migrating later: 0.0.111+ may retain dedicated releases
+# for higher-SLA Projects or use a shared Gateway adapter for standard tiers.
+# Gateway resources and pull Secrets reuse their openshell.* values.
+projectOpenShell:
+  enabled: false
+  nemoclawVersion: 0.0.114
+  releaseName: openshell
+  serviceNamePrefix: openshell-
+  helmChart: /opt/tali/helm/openshell.tgz
+  workspace:
+    storageSize: 1Gi
+    storageClass: ""
 
 litellm:
   replicaCount: 1
@@ -208,14 +235,14 @@ secrets:
   postgresPassword: tali-local
   databaseUrl: ""
   authSecret: tali-local-development-auth-secret-32-chars
-  initialPlatformAdministratorPassword: admin
+  initialPlatformAdministratorPassword: password
   # Deprecated compatibility alias. Prefer initialPlatformAdministratorPassword.
   initialSuperAdminPassword: ""
-  keycloakAdminPassword: admin
+  keycloakAdminPassword: password
   keycloakClientSecret: tali-keycloak-test-client-secret
   keycloakTestUserPassword: password
   litellmUiUsername: admin
-  litellmUiPassword: tali-local-admin
+  litellmUiPassword: password
   litellmSaltKey: tali-local-litellm-salt-v1
 
 auth:
@@ -232,6 +259,13 @@ keycloak:
   enabled: false
   publicUrl: ""
   adminUsername: admin
+  # Realm groups for the historical fixture and the two development isolation
+  # Projects. The post-deploy configurator binds every Project it discovers,
+  # so additional development Projects do not require script changes.
+  testProjectIds:
+    - proj1
+    - isolation-1
+    - isolation-2
   service:
     type: LoadBalancer
     port: 8080
@@ -247,6 +281,8 @@ keycloak:
       lastName: Operator
       groups:
         - /tali/d/dep1/p/proj1/r/ROLE_PROJECT_ADMIN
+        - /tali/d/dep1/p/isolation-1/r/ROLE_PROJECT_ADMIN
+        - /tali/d/dep1/p/isolation-2/r/ROLE_PROJECT_ADMIN
     - id: 71000000-0000-4000-8000-000000000001
       username: adm
       email: adm@tali.test
@@ -260,13 +296,21 @@ keycloak:
         - /tali/d/dep1/p/proj1/r/ROLE_AGENT_DEVELOPER
         - /tali/d/dep1/p/proj1/r/ROLE_REVIEWER
         - /tali/d/dep1/p/proj1/r/ROLE_USER
+        - /tali/d/dep1/p/isolation-1/r/ROLE_PROJECT_ADMIN
+        - /tali/d/dep1/p/isolation-1/r/ROLE_AUDITOR
+        - /tali/d/dep1/p/isolation-1/r/ROLE_AGENT_DEVELOPER
+        - /tali/d/dep1/p/isolation-1/r/ROLE_REVIEWER
+        - /tali/d/dep1/p/isolation-1/r/ROLE_USER
+        - /tali/d/dep1/p/isolation-2/r/ROLE_PROJECT_ADMIN
+        - /tali/d/dep1/p/isolation-2/r/ROLE_AUDITOR
+        - /tali/d/dep1/p/isolation-2/r/ROLE_AGENT_DEVELOPER
+        - /tali/d/dep1/p/isolation-2/r/ROLE_REVIEWER
+        - /tali/d/dep1/p/isolation-2/r/ROLE_USER
     - id: 71000000-0000-4000-8000-000000000007
       username: sso-admin
       email: sso-admin@tali.test
       firstName: SSO
       lastName: Administrator
-      # Test-only override. Other users use secrets.keycloakTestUserPassword.
-      password: admin
       groups:
         - /tali/r/ROLE_PLATFORM_ADMIN
         - /tali/d/dep1/r/ROLE_DEPARTMENT_ADMIN
@@ -275,6 +319,16 @@ keycloak:
         - /tali/d/dep1/p/proj1/r/ROLE_AGENT_DEVELOPER
         - /tali/d/dep1/p/proj1/r/ROLE_REVIEWER
         - /tali/d/dep1/p/proj1/r/ROLE_USER
+        - /tali/d/dep1/p/isolation-1/r/ROLE_PROJECT_ADMIN
+        - /tali/d/dep1/p/isolation-1/r/ROLE_AUDITOR
+        - /tali/d/dep1/p/isolation-1/r/ROLE_AGENT_DEVELOPER
+        - /tali/d/dep1/p/isolation-1/r/ROLE_REVIEWER
+        - /tali/d/dep1/p/isolation-1/r/ROLE_USER
+        - /tali/d/dep1/p/isolation-2/r/ROLE_PROJECT_ADMIN
+        - /tali/d/dep1/p/isolation-2/r/ROLE_AUDITOR
+        - /tali/d/dep1/p/isolation-2/r/ROLE_AGENT_DEVELOPER
+        - /tali/d/dep1/p/isolation-2/r/ROLE_REVIEWER
+        - /tali/d/dep1/p/isolation-2/r/ROLE_USER
     - id: 71000000-0000-4000-8000-000000000002
       username: project-admin
       email: project-admin@tali.test
@@ -282,6 +336,8 @@ keycloak:
       lastName: Administrator
       groups:
         - /tali/d/dep1/p/proj1/r/ROLE_PROJECT_ADMIN
+        - /tali/d/dep1/p/isolation-1/r/ROLE_PROJECT_ADMIN
+        - /tali/d/dep1/p/isolation-2/r/ROLE_PROJECT_ADMIN
     - id: 71000000-0000-4000-8000-000000000008
       username: department-admin
       email: department-admin@tali.test
@@ -296,6 +352,8 @@ keycloak:
       lastName: Developer
       groups:
         - /tali/d/dep1/p/proj1/r/ROLE_AGENT_DEVELOPER
+        - /tali/d/dep1/p/isolation-1/r/ROLE_AGENT_DEVELOPER
+        - /tali/d/dep1/p/isolation-2/r/ROLE_AGENT_DEVELOPER
     - id: 71000000-0000-4000-8000-000000000004
       username: reviewer
       email: reviewer@tali.test
@@ -303,6 +361,8 @@ keycloak:
       lastName: Reviewer
       groups:
         - /tali/d/dep1/p/proj1/r/ROLE_REVIEWER
+        - /tali/d/dep1/p/isolation-1/r/ROLE_REVIEWER
+        - /tali/d/dep1/p/isolation-2/r/ROLE_REVIEWER
     - id: 71000000-0000-4000-8000-000000000005
       username: end-user
       email: end-user@tali.test
@@ -310,6 +370,8 @@ keycloak:
       lastName: User
       groups:
         - /tali/d/dep1/p/proj1/r/ROLE_USER
+        - /tali/d/dep1/p/isolation-1/r/ROLE_USER
+        - /tali/d/dep1/p/isolation-2/r/ROLE_USER
     - id: 71000000-0000-4000-8000-000000000006
       username: auditor
       email: auditor@tali.test
@@ -317,6 +379,8 @@ keycloak:
       lastName: Auditor
       groups:
         - /tali/d/dep1/p/proj1/r/ROLE_AUDITOR
+        - /tali/d/dep1/p/isolation-1/r/ROLE_AUDITOR
+        - /tali/d/dep1/p/isolation-2/r/ROLE_AUDITOR
   resources:
     requests:
       cpu: 250m

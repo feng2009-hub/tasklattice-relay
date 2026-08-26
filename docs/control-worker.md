@@ -24,7 +24,8 @@ The initial queues are:
 
 - `control-project-delete`: delayed Project cleanup, including external
   resources and final Namespace deletion.
-- `control-project-runtime-reconcile`: one Project Runtime Namespace repair.
+- `control-project-runtime-reconcile`: one Project Runtime Namespace and
+  compatibility OpenShell Gateway repair.
 - `control-maintenance`: a short periodic scan that attaches pre-migration
   deletion tasks and fans out stale Runtime Targets.
 - `control-dead-letter`: terminal failures after the configured retry limit.
@@ -51,8 +52,11 @@ that queue initialization completed and PostgreSQL remains available.
 
 PostgreSQL claims and per-Project queue groups make multiple replicas safe.
 The default is one replica because normal control-plane task volume is low.
+OpenShell Gateway reconciliation is serial within each Worker because each job
+may hold a Helm child process and its rendered release state in memory.
 The Worker has its own ServiceAccount. It can reconcile and delete Project
-Namespaces but does not pass those credentials to runtime workloads.
+Namespaces and their official OpenShell Helm releases but does not pass those
+credentials to runtime workloads.
 
 For Helm upgrades, `control.deletionWorker` has been replaced by
 `control.worker`; move any replica, resource, or extra environment overrides to

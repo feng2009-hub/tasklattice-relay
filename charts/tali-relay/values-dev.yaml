@@ -28,13 +28,54 @@ images:
 control:
   service:
     type: LoadBalancer
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
 
 litellm:
   service:
     type: LoadBalancer
 
 openshell:
+  # OpenShell 0.0.106 has one fixed sandbox Namespace per Gateway. Local
+  # development exercises the Project-isolated compatibility topology.
+  enabled: false
+  # Keep the two Project Gateways and their certificate hooks schedulable on
+  # the constrained single-node development cluster. Production defaults stay
+  # at 100m/128Mi in values.yaml.
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
   service:
     type: LoadBalancer
   server:
     sandboxImagePullPolicy: IfNotPresent
+
+projectOpenShell:
+  enabled: true
+
+runner:
+  # Keep two Project-isolation acceptance Sandboxes schedulable alongside the
+  # local control stack and any developer Sandboxes already on a single node.
+  sandbox:
+    cpu: "1"
+    cpuRequest: 500m
+  extraEnv:
+    - name: NEMOCLAW_START_TIMEOUT_MS
+      value: "600000"
+  projectTargetRouting:
+    enabled: true
+
+keycloak:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi

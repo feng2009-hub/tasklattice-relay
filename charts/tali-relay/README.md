@@ -60,7 +60,7 @@ helm upgrade --install tali-relay \
 ```
 
 Defaults preserve the repository's trusted local-cluster setup and use
-`admin/admin`. Before shared or internet-facing use, provide a private values
+`admin/password`. Before shared or internet-facing use, provide a private values
 file that changes every `secrets.*` value and configures OpenShell TLS/OIDC.
 If the Agent Sandbox controller already exists cluster-wide, set
 `agentSandbox.enabled=false`. For private GHCR packages, create a registry
@@ -93,25 +93,54 @@ Targets before save. The Chart always installs the reviewed runtime RBAC so the
 feature can be enabled online. When enabled, Project creation synchronously
 ensures an opaque, stable `tp-<16-character-base32>` Namespace before the API
 returns success. The exact Project name is stored as an annotation and a
-DNS-safe form is stored as a label. Relay does not install a tenant
-ServiceAccount, quota, limit range, or network policy. The main
-Control Plane ServiceAccount can ensure Namespaces and manage Deployments and
-Services carrying matching Relay Project/Agent ownership metadata; it reads
-Pods only to resolve a running image to its immutable digest. The separate
-Control Worker uses a PostgreSQL-backed durable queue for delayed Project
-deletion and periodic Runtime Namespace repair. Its dedicated identity can
-get/create/patch/delete Project Namespaces. Operators can also repair all
-mappings with the packaged one-shot command:
+DNS-safe form is stored as a label.
+
+When `projectOpenShell.enabled=true`, the same reconciliation installs the
+repository-pinned official OpenShell chart as a separate Helm release in that
+Project Namespace. It sets the Gateway's fixed sandbox Namespace to the
+Project Namespace, uses a private `ClusterIP` Service and NetworkPolicy, and
+reuses `openshell.resources`, image pull Secrets, images, and workspace storage
+settings. Relay does not create a tenant ServiceAccount, quota, or LimitRange.
+
+The main Control Plane ServiceAccount can ensure Namespaces and reconcile the
+official per-Project OpenShell releases. The separate Control Worker uses a
+PostgreSQL-backed durable queue for delayed Project deletion and periodic
+Namespace plus Gateway repair. Runtime workloads receive neither identity.
+Operators can also repair all mappings with the packaged one-shot command:
 
 ```bash
 kubectl -n <control-namespace> exec deployment/<release>-control -- \
   node apps/control/.output/tools/project-runtime-reconcile.mjs
 ```
 
-The current Relay configuration keeps OpenShell in its default `shared`
-workspace mode, so these Project Namespaces are immediately usable by managed
-A2A workloads but do not yet move existing OpenClaw or Hermes sandboxes. See
+OpenShell 0.0.106 fixes one Kubernetes sandbox Namespace per Gateway. The
+compatibility topology therefore runs one Gateway per Project but keeps one
+central Runner. Every Agent lifecycle, audit, terminal, and Web UI operation
+carries the stable Project Runtime Target; the Runner derives the trusted
+Gateway Service address from `runner.projectTargetRouting.gatewayEndpointTemplate`.
+It never accepts a Gateway URL from an API request. Browser service hostnames
+are forwarded by the central Runner's workspace-aware service proxy.
+
+The routing contract does not require Gateways to be shared. A validated
+OpenShell 0.0.111-or-newer deployment can continue using the same dedicated
+Gateway-per-Project topology for higher-SLA tenants, or disable the
+per-Project provisioner and point the endpoint template at a shared Gateway for
+standard-SLA tenants. Both choices preserve Project Namespace/workspace
+identity and the centralized Runner; only the Gateway provisioner and endpoint
+resolution policy differ.
+
+`projectOpenShell.enabled`, the legacy shared `openshell.enabled` topology, and
+`runner.projectTargetRouting.enabled` are validated together at Helm render
+time. Runtime Namespace disablement is also rejected by Platform Setting while
+Project target routing is deployment-enabled. See
 [Project Runtime Namespaces](../../docs/project-runtime-namespaces.md).
+
+The Control-to-Runner contract intentionally contains only the Project
+Namespace. After a newer OpenShell/NemoClaw compatibility set is validated,
+the per-Project Helm provisioner can be replaced by a shared Gateway/operator
+adapter and the endpoint template can point to that shared service. Project
+and Agent APIs, runtime-target rows, Sandbox identity, and central Runner
+deployment do not need a topology rewrite.
 
 Workload rollout checksums are component-scoped. Updating Control-only
 settings such as `control.publicUrl` restarts the Control Deployment but does
@@ -166,10 +195,12 @@ environment values; Control imports them into the Platform database. Later
 changes are made under **Platform Setting -> Infrastructure**, where the
 complete draft must validate before save. Local authentication policy, OIDC,
 and SMTP are also configured after sign-in from Platform Setting. Set
-`runner.gatewayEndpoint`
-when `openshell.enabled=false` and the gateway is managed outside this release.
-Set `runner.workspace` to the same OpenShell workspace used by that gateway;
-service routes include this value as their first hostname segment.
+`runner.gatewayEndpoint` when both `openshell.enabled=false` and
+`runner.projectTargetRouting.enabled=false` and the Gateway is managed outside
+this release. Set `runner.workspace` to the same OpenShell workspace used by
+that Gateway; service routes include this value as their first hostname
+segment. In Project target-routing mode, the Project Namespace is also the
+workspace and those two legacy settings are not used for target selection.
 
 To deliver Project invitations, sign in as a Platform Administrator and
 configure **Platform Setting -> Email delivery**. Port 587 uses STARTTLS; use
@@ -320,14 +351,28 @@ The repository's local deployment script performs this mapping automatically:
 npm run helm:deploy:dev:keycloak
 ```
 
+Every local deployment idempotently creates `isolation-1` and `isolation-2`
+under `dep1` from `config/development-projects.json`. The Keycloak command also
+signs in to Control with the local development administrator,
+validates and saves the embedded Keycloak provider through the Control API,
+keeps Local authentication enabled, and merges test Group bindings for every
+Project discovered under the development Department. If the local
+administrator credentials have changed, provide
+`CONTROL_LOCAL_ADMIN_USERNAME` and `CONTROL_LOCAL_ADMIN_PASSWORD`.
+Set `CONTROL_DEVELOPMENT_PROJECTS_ENABLED=false` to skip these development
+fixtures, or point `CONTROL_DEVELOPMENT_PROJECTS_FILE` at a compatible JSON
+list to exercise another Project/SLA layout.
+
 The development credentials are:
 
 | Purpose | Username | Password |
 | --- | --- | --- |
-| Keycloak administration | `admin` | `admin` |
+| Local Relay administration | `admin` | `password` |
+| LiteLLM administration | `admin` | `password` |
+| Keycloak administration | `admin` | `password` |
 | TaskLattice Relay Project Administrator | `alice` | `password` |
-| Relay development administrator (all built-in `proj1` roles) | `adm` | `password` |
-| Relay SSO authorization test administrator (all built-in `proj1` roles) | `sso-admin` | `admin` |
+| Relay development administrator (all development Project roles) | `adm` | `password` |
+| Relay SSO authorization test administrator (all development Project roles) | `sso-admin` | `password` |
 | Relay Department Administrator (`dep1` only) | `department-admin` | `password` |
 | Relay Project Administrator | `project-admin` | `password` |
 | Relay Agent Developer | `developer` | `password` |
@@ -343,25 +388,24 @@ needed. Test user profile fields can be replaced through
 This mode runs Keycloak with `start-dev` and ephemeral storage. Realm changes
 are lost when its pod is replaced. It intentionally cannot be combined with
 `secrets.existingSecret`, because the Chart must generate matching Keycloak
-credentials. After the first Local sign-in, configure its issuer and Client
+credentials. For a manual Helm installation, configure its issuer and Client
 credentials in **Platform Setting -> Security & SSO**, keep the Group claim as
 `groups`, and add the exact test bindings represented by these Group paths:
 
 ```text
 /tali/r/ROLE_PLATFORM_ADMIN
 /tali/d/dep1/r/ROLE_DEPARTMENT_ADMIN
-/tali/d/dep1/p/proj1/r/ROLE_PROJECT_ADMIN
-/tali/d/dep1/p/proj1/r/ROLE_AUDITOR
-/tali/d/dep1/p/proj1/r/ROLE_AGENT_DEVELOPER
-/tali/d/dep1/p/proj1/r/ROLE_REVIEWER
-/tali/d/dep1/p/proj1/r/ROLE_USER
+/tali/d/dep1/p/<project-id>/r/ROLE_PROJECT_ADMIN
+/tali/d/dep1/p/<project-id>/r/ROLE_AUDITOR
+/tali/d/dep1/p/<project-id>/r/ROLE_AGENT_DEVELOPER
+/tali/d/dep1/p/<project-id>/r/ROLE_REVIEWER
+/tali/d/dep1/p/<project-id>/r/ROLE_USER
 ```
 
 `adm` and `sso-admin` are both Platform Administrators, `dep1` Department
-Administrators, and members of every built-in `proj1` Project role so the
+Administrators, and members of every configured development Project role so the
 complete authorization surface can be exercised during development.
-`sso-admin` uses its explicit per-user test password; the other profiles use
-`secrets.keycloakTestUserPassword`. The remaining users isolate one
+All SSO profiles use `secrets.keycloakTestUserPassword`. The remaining users isolate one
 administrative scope or Project role each. A
 successful SSO sign-in
 materializes the corresponding externally managed Project membership and shows

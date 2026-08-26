@@ -46,6 +46,12 @@ export interface OpenShellSandbox {
   phase: string;
 }
 
+export interface OpenShellTarget {
+  gatewayEndpoint: string;
+  serviceBaseUrl: string;
+  workspace: string;
+}
+
 export interface ProvisioningObserver {
   onLog?: (lines: string[]) => void;
   onStage?: (stage: ProvisioningStage, message: string) => void;
@@ -131,20 +137,43 @@ export function openShellBinary(): string {
   return process.env.OPENSHELL_BIN ?? "openshell";
 }
 
-export function openShellGatewayEndpoint(): string {
-  return process.env.OPENSHELL_GATEWAY_ENDPOINT
+export function openShellGatewayEndpoint(target?: OpenShellTarget): string {
+  return target?.gatewayEndpoint ?? process.env.OPENSHELL_GATEWAY_ENDPOINT
     ?? "http://openshell.openshell.svc.cluster.local:8080";
 }
 
-export function openShellArguments(args: string[]): string[] {
+export function openShellArguments(
+  args: string[],
+  target?: OpenShellTarget,
+): string[] {
   return [
     "--gateway-endpoint",
-    openShellGatewayEndpoint(),
+    openShellGatewayEndpoint(target),
+    "--workspace",
+    openShellWorkspace(target),
     ...args,
   ];
 }
 
-export function openShellAuditArguments(name: string): string[] {
+export function openShellWorkspaceAdminArguments(
+  args: string[],
+  target?: OpenShellTarget,
+): string[] {
+  return [
+    "--gateway-endpoint",
+    openShellGatewayEndpoint(target),
+    // Every OpenShell Gateway bootstraps this workspace. Workspace creation
+    // must be issued from a scope that already exists on 0.0.106.
+    "--workspace",
+    "default",
+    ...args,
+  ];
+}
+
+export function openShellAuditArguments(
+  name: string,
+  target?: OpenShellTarget,
+): string[] {
   return openShellArguments([
     "logs",
     name,
@@ -152,7 +181,7 @@ export function openShellAuditArguments(name: string): string[] {
     "sandbox",
     "--since",
     "24h",
-  ]);
+  ], target);
 }
 
 function auditTimestamp(value: string): string {
@@ -207,10 +236,11 @@ export function parseOpenShellAuditLog(output: string): SandboxAuditEvent[] {
 
 export async function getOpenShellAuditEvents(
   name: string,
+  target?: OpenShellTarget,
 ): Promise<SandboxAuditEvent[]> {
   const result = await runCommand(
     openShellBinary(),
-    openShellAuditArguments(name),
+    openShellAuditArguments(name, target),
   );
   if (result.exitCode !== 0)
     throw new Error(
@@ -219,7 +249,10 @@ export async function getOpenShellAuditEvents(
   return parseOpenShellAuditLog(result.stdout);
 }
 
-export function deepSeekProviderCreateCommand(input: ProvisionInput): {
+export function deepSeekProviderCreateCommand(
+  input: ProvisionInput,
+  target?: OpenShellTarget,
+): {
   args: string[];
   env: NodeJS.ProcessEnv;
 } {
@@ -238,7 +271,7 @@ export function deepSeekProviderCreateCommand(input: ProvisionInput): {
       "DEEPAGENTS_CODE_OPENAI_API_KEY",
       "--config",
       `OPENAI_BASE_URL=${input.inferenceEndpoint}`,
-    ]),
+    ], target),
     env: {
       ...process.env,
       ...(apiKey
@@ -251,19 +284,22 @@ export function deepSeekProviderCreateCommand(input: ProvisionInput): {
   };
 }
 
-export function openShellLiteLlmProfileExportArguments(): string[] {
+export function openShellLiteLlmProfileExportArguments(
+  target?: OpenShellTarget,
+): string[] {
   return openShellArguments([
     "provider",
     "profile",
     "export",
     "--global",
     taliLiteLlmProviderProfileId,
-  ]);
+  ], target);
 }
 
 export function openShellLiteLlmProfileApplyArguments(
   profileFile: string,
   resourceVersion?: number,
+  target?: OpenShellTarget,
 ): string[] {
   return openShellArguments(
     resourceVersion !== undefined
@@ -283,12 +319,14 @@ export function openShellLiteLlmProfileApplyArguments(
           "--global",
           "--file",
           profileFile,
-        ],
+    ],
+    target,
   );
 }
 
 async function ensureLiteLlmProviderProfile(
   inferenceEndpoint: string,
+  target?: OpenShellTarget,
 ): Promise<void> {
   const temporaryDirectory = await mkdtemp(
     join(tmpdir(), "tali-openshell-profile-"),
@@ -297,7 +335,7 @@ async function ensureLiteLlmProviderProfile(
   try {
     const existing = await runCommand(
       openShellBinary(),
-      openShellLiteLlmProfileExportArguments(),
+      openShellLiteLlmProfileExportArguments(target),
     );
     let resourceVersion: number | undefined;
     const desiredProfile = parse(
@@ -336,7 +374,7 @@ async function ensureLiteLlmProviderProfile(
           "lint",
           "--file",
           profileFile,
-        ]),
+        ], target),
       );
       if (linted.exitCode !== 0)
         throw new Error(
@@ -346,12 +384,16 @@ async function ensureLiteLlmProviderProfile(
     }
     let applied = await runCommand(
       openShellBinary(),
-      openShellLiteLlmProfileApplyArguments(profileFile, resourceVersion),
+      openShellLiteLlmProfileApplyArguments(
+        profileFile,
+        resourceVersion,
+        target,
+      ),
     );
     if (applied.exitCode !== 0 && existing.exitCode !== 0) {
       // A concurrent Instance may have imported the shared profile after the
       // export probe. Re-enter once so its resource_version is preserved.
-      await ensureLiteLlmProviderProfile(inferenceEndpoint);
+      await ensureLiteLlmProviderProfile(inferenceEndpoint, target);
       return;
     }
     if (applied.exitCode !== 0)
@@ -364,10 +406,12 @@ async function ensureLiteLlmProviderProfile(
   }
 }
 
-async function ensureProviderPolicyCompositionEnabled(): Promise<void> {
+async function ensureProviderPolicyCompositionEnabled(
+  target?: OpenShellTarget,
+): Promise<void> {
   const current = await runCommand(
     openShellBinary(),
-    openShellArguments(["settings", "get", "--global", "--json"]),
+    openShellArguments(["settings", "get", "--global", "--json"], target),
   );
   if (current.exitCode !== 0)
     throw new Error(
@@ -391,7 +435,7 @@ async function ensureProviderPolicyCompositionEnabled(): Promise<void> {
       "--value",
       "true",
       "--yes",
-    ]),
+    ], target),
   );
   if (enabled.exitCode !== 0)
     throw new Error(
@@ -429,6 +473,75 @@ function openShellDeletionTiming(): { pollMs: number; timeoutMs: number } {
 
 function waitForDeletionPoll(delayMs: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, delayMs));
+}
+
+async function waitForOpenShellGateway(
+  target: OpenShellTarget | undefined,
+  observer?: ProvisioningObserver,
+): Promise<void> {
+  const timeoutMs = Number(
+    process.env.OPENSHELL_GATEWAY_READY_TIMEOUT_MS ?? "180000",
+  );
+  const deadline = Date.now() + timeoutMs;
+  let lastError = "Gateway is not ready.";
+  observer?.onLog?.([
+    `Waiting for Project OpenShell Gateway ${openShellGatewayEndpoint(target)}.`,
+  ]);
+  while (Date.now() < deadline) {
+    const result = await runCommand(
+      openShellBinary(),
+      openShellArguments(["status"], target),
+    );
+    if (result.exitCode === 0) return;
+    lastError = result.stderr.trim() || result.stdout.trim() || lastError;
+    await waitForDeletionPoll(1_000);
+  }
+  throw new Error(
+    `Project OpenShell Gateway did not become ready within ${timeoutMs}ms: ${lastError.slice(-2_000)}`,
+  );
+}
+
+async function ensureOpenShellWorkspace(
+  target: OpenShellTarget | undefined,
+  observer?: ProvisioningObserver,
+): Promise<void> {
+  if (!target || target.workspace === "default") return;
+  const workspace = openShellWorkspace(target);
+  const existing = await runCommand(
+    openShellBinary(),
+    openShellWorkspaceAdminArguments(["workspace", "get", workspace], target),
+  );
+  if (existing.exitCode === 0) return;
+
+  observer?.onLog?.([
+    `Initializing OpenShell workspace ${workspace} for the Project Runtime Target.`,
+  ]);
+  const created = await runCommand(
+    openShellBinary(),
+    openShellWorkspaceAdminArguments([
+      "workspace",
+      "create",
+      "--name",
+      workspace,
+      "--label",
+      "tali.io/managed=true",
+      "--label",
+      `tali.io/project-namespace=${workspace}`,
+    ], target),
+  );
+  if (created.exitCode === 0) return;
+
+  // A concurrent first Agent may have created the same Project workspace.
+  const retry = await runCommand(
+    openShellBinary(),
+    openShellWorkspaceAdminArguments(["workspace", "get", workspace], target),
+  );
+  if (retry.exitCode !== 0)
+    throw new Error(
+      created.stderr.trim()
+        || created.stdout.trim()
+        || `Unable to initialize OpenShell workspace ${workspace}.`,
+    );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -495,10 +608,32 @@ export function openShellSandboxCreateArguments(
   bootstrapFile: string,
   policyFile: string,
   telemetryFile?: string,
+  target?: OpenShellTarget,
 ): string[] {
   const runtime = getAgentPlatformRuntime(input.agentPlatform);
   const capabilities = getAgentPlatformDefinition(input.agentPlatform)
     .capabilities;
+  const cpuLimit = input.sandboxResources?.cpu
+    ?? process.env.OPENSHELL_SANDBOX_CPU
+    ?? "1";
+  const cpuRequest = process.env.OPENSHELL_SANDBOX_CPU_REQUEST?.trim();
+  const cpuArguments = cpuRequest && cpuRequest !== cpuLimit
+    ? [
+        "--driver-config-json",
+        JSON.stringify({
+          kubernetes: {
+            containers: {
+              agent: {
+                resources: {
+                  limits: { cpu: cpuLimit },
+                  requests: { cpu: cpuRequest },
+                },
+              },
+            },
+          },
+        }),
+      ]
+    : ["--cpu", cpuLimit];
   return openShellArguments([
     "sandbox",
     "create",
@@ -506,8 +641,7 @@ export function openShellSandboxCreateArguments(
     input.name,
     "--from",
     input.sandboxImage ?? runtime.sandboxImage(),
-    "--cpu",
-    input.sandboxResources?.cpu ?? process.env.OPENSHELL_SANDBOX_CPU ?? "1",
+    ...cpuArguments,
     "--memory",
     input.sandboxResources?.memory ?? process.env.OPENSHELL_SANDBOX_MEMORY ?? "2Gi",
     "--provider",
@@ -518,6 +652,10 @@ export function openShellSandboxCreateArguments(
     "tali.ai/managed=true",
     "--label",
     `tali.io/instance-id=${input.instanceId}`,
+    "--label",
+    "tali.io/runtime-provider=nemoclaw",
+    "--label",
+    `tali.io/nemoclaw-version=${process.env.NEMOCLAW_VERSION ?? "0.0.114"}`,
     "--env",
     `TALI_AGENT_INSTANCE_ID=${input.instanceId}`,
     ...(input.agentPlatform === "hermes"
@@ -534,7 +672,7 @@ export function openShellSandboxCreateArguments(
     "--",
     "/bin/bash",
     "/tmp/tali-nemoclaw-start",
-  ]);
+  ], target);
 }
 
 export function runTelemetryEnvironmentFile(input: ProvisionInput): string {
@@ -548,6 +686,7 @@ export function runTelemetryEnvironmentFile(input: ProvisionInput): string {
 export function openShellNemoClawProbeArguments(
   name: string,
   agentPlatform: AgentPlatformId,
+  target?: OpenShellTarget,
 ): string[] {
   const runtime = getAgentPlatformRuntime(agentPlatform);
   return openShellArguments([
@@ -559,12 +698,13 @@ export function openShellNemoClawProbeArguments(
     "/bin/sh",
     "-lc",
     runtime.healthProbe(nemoClawGatewayPort),
-  ]);
+  ], target);
 }
 
 export function openShellTerminalArguments(
   name: string,
   agentPlatform: AgentPlatformId,
+  target?: OpenShellTarget,
 ): string[] {
   const runtime = getAgentPlatformRuntime(agentPlatform);
   return openShellArguments([
@@ -583,12 +723,13 @@ export function openShellTerminalArguments(
     "/bin/bash",
     "-lc",
     runtime.terminalCommand,
-  ]);
+  ], target);
 }
 
 export function openShellWebUiServiceArguments(
   name: string,
   action: "delete" | "expose" | "get",
+  target?: OpenShellTarget,
 ): string[] {
   return openShellArguments([
     "service",
@@ -596,11 +737,13 @@ export function openShellWebUiServiceArguments(
     name,
     ...(action === "expose" ? [nemoClawGatewayPort] : []),
     nemoClawWebUiService,
-  ]);
+  ], target);
 }
 
-export function openShellWorkspace(): string {
-  const workspace = process.env.OPENSHELL_WORKSPACE?.trim() || "default";
+export function openShellWorkspace(target?: OpenShellTarget): string {
+  const workspace = target?.workspace
+    ?? process.env.OPENSHELL_WORKSPACE?.trim()
+    ?? "default";
   if (
     workspace.length > 19 ||
     !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(workspace) ||
@@ -612,18 +755,24 @@ export function openShellWorkspace(): string {
   return workspace;
 }
 
-export function openShellServiceBaseUrl(): string {
-  return process.env.OPENSHELL_SERVICE_BASE_URL
+export function openShellServiceBaseUrl(target?: OpenShellTarget): string {
+  return target?.serviceBaseUrl ?? process.env.OPENSHELL_SERVICE_BASE_URL
     ?? "http://openshell.localhost:8080";
 }
 
-export function openShellWebUiOrigin(name: string): string {
-  const base = new URL(openShellServiceBaseUrl());
-  base.hostname = `${openShellWorkspace()}--${name}--${nemoClawWebUiService}.${base.hostname}`;
+export function openShellWebUiOrigin(
+  name: string,
+  target?: OpenShellTarget,
+): string {
+  const base = new URL(openShellServiceBaseUrl(target));
+  base.hostname = `${openShellWorkspace(target)}--${name}--${nemoClawWebUiService}.${base.hostname}`;
   return base.origin;
 }
 
-export function openShellWebUiTokenArguments(name: string): string[] {
+export function openShellWebUiTokenArguments(
+  name: string,
+  target?: OpenShellTarget,
+): string[] {
   return openShellArguments([
     "sandbox",
     "exec",
@@ -633,10 +782,13 @@ export function openShellWebUiTokenArguments(name: string): string[] {
     "node",
     "-e",
     'const c=require("/sandbox/.openclaw/openclaw.json");process.stdout.write(c.gateway.auth.token)',
-  ]);
+  ], target);
 }
 
-export function openShellHermesWebUiSecretArguments(name: string): string[] {
+export function openShellHermesWebUiSecretArguments(
+  name: string,
+  target?: OpenShellTarget,
+): string[] {
   return openShellArguments([
     "sandbox",
     "exec",
@@ -646,10 +798,13 @@ export function openShellHermesWebUiSecretArguments(name: string): string[] {
     "/bin/sh",
     "-lc",
     `test -s ${hermesWebUiSecretFile} && cat ${hermesWebUiSecretFile}`,
-  ]);
+  ], target);
 }
 
-export function openShellHermesWebUiProbeArguments(name: string): string[] {
+export function openShellHermesWebUiProbeArguments(
+  name: string,
+  target?: OpenShellTarget,
+): string[] {
   return openShellArguments([
     "sandbox",
     "exec",
@@ -659,12 +814,13 @@ export function openShellHermesWebUiProbeArguments(name: string): string[] {
     "/bin/sh",
     "-lc",
     `curl -fsS --max-time 3 http://127.0.0.1:${nemoClawGatewayPort}/__tali/health >/dev/null && dashboard_status="$(curl -sS --max-time 3 -o /dev/null -w '%{http_code}' http://127.0.0.1:${hermesDashboardUpstreamPort}/)" && test "$dashboard_status" -ge 200 && test "$dashboard_status" -lt 500 && test -s ${hermesWebUiSecretFile}`,
-  ]);
+  ], target);
 }
 
 export function openShellWebUiOriginProbeArguments(
   name: string,
   endpointUrl: string,
+  target?: OpenShellTarget,
 ): string[] {
   return openShellArguments([
     "sandbox",
@@ -676,12 +832,13 @@ export function openShellWebUiOriginProbeArguments(
     "-e",
     'const c=require("/sandbox/.openclaw/openclaw.json");if(!c.gateway?.controlUi?.allowedOrigins?.includes(process.argv[1]))process.exit(1)',
     new URL(endpointUrl).origin,
-  ]);
+  ], target);
 }
 
 export function openShellWebUiOriginEnsureArguments(
   name: string,
   endpointUrl: string,
+  target?: OpenShellTarget,
 ): string[] {
   return openShellArguments([
     "sandbox",
@@ -693,7 +850,7 @@ export function openShellWebUiOriginEnsureArguments(
     "-e",
     'const fs=require("node:fs");const p="/sandbox/.openclaw/openclaw.json";const c=JSON.parse(fs.readFileSync(p,"utf8"));const u=(c.gateway??={}).controlUi??={};const a=Array.isArray(u.allowedOrigins)?u.allowedOrigins:[];const o=process.argv[1];if(!a.includes(o)){u.allowedOrigins=[...new Set([...a,o])];const t=`${p}.tali-${process.pid}.tmp`;try{fs.writeFileSync(t,JSON.stringify(c,null,2)+"\\n",{mode:0o660});fs.chmodSync(t,0o660);fs.renameSync(t,p)}finally{if(fs.existsSync(t))fs.unlinkSync(t)}}',
     new URL(endpointUrl).origin,
-  ]);
+  ], target);
 }
 
 export function tokenizedOpenClawUrl(endpointUrl: string, token: string): string {
@@ -737,10 +894,11 @@ export function tokenizedHermesDashboardUrl(
 
 export async function deleteOpenShellWebUiEndpoint(
   name: string,
+  target?: OpenShellTarget,
 ): Promise<void> {
   const result = await runCommand(
     openShellBinary(),
-    openShellWebUiServiceArguments(name, "delete"),
+    openShellWebUiServiceArguments(name, "delete", target),
   );
   const output = `${result.stdout}\n${result.stderr}`;
   if (result.exitCode !== 0 && !output.includes("service endpoint not found"))
@@ -768,6 +926,7 @@ export function parseOpenShellServiceUrl(output: string): string | undefined {
 export async function ensureOpenShellWebUiEndpoint(
   name: string,
   agentPlatform: AgentPlatformId,
+  target?: OpenShellTarget,
 ): Promise<string> {
   if (!getAgentPlatformRuntime(agentPlatform).endpointKind) {
     throw new Error(
@@ -776,13 +935,13 @@ export async function ensureOpenShellWebUiEndpoint(
   }
   const existing = await runCommand(
     openShellBinary(),
-    openShellWebUiServiceArguments(name, "get"),
+    openShellWebUiServiceArguments(name, "get", target),
   );
   let endpointUrl = parseOpenShellServiceUrl(existing.stdout);
   if (existing.exitCode !== 0 || !endpointUrl) {
     const exposed = await runCommand(
       openShellBinary(),
-      openShellWebUiServiceArguments(name, "expose"),
+      openShellWebUiServiceArguments(name, "expose", target),
     );
     endpointUrl = parseOpenShellServiceUrl(exposed.stdout);
     if (exposed.exitCode !== 0 || !endpointUrl)
@@ -793,9 +952,10 @@ export async function ensureOpenShellWebUiEndpoint(
       );
   }
 
-  const expectedOrigin = openShellWebUiOrigin(name);
+  const expectedOrigin = openShellWebUiOrigin(name, target);
   if (new URL(endpointUrl).origin !== expectedOrigin) {
-    if (agentPlatform === "hermes") await deleteOpenShellWebUiEndpoint(name);
+    if (agentPlatform === "hermes")
+      await deleteOpenShellWebUiEndpoint(name, target);
     throw new Error(
       "The OpenShell service URL does not match OPENSHELL_SERVICE_BASE_URL and OPENSHELL_WORKSPACE; Web UI access was not issued.",
     );
@@ -804,13 +964,13 @@ export async function ensureOpenShellWebUiEndpoint(
   if (agentPlatform === "hermes") {
     const proxyProbe = await runCommand(
       openShellBinary(),
-      openShellHermesWebUiProbeArguments(name),
+      openShellHermesWebUiProbeArguments(name, target),
     );
     if (proxyProbe.exitCode !== 0) {
       // An older Hermes image may still have the unauthenticated Dashboard on
       // this port. Never leave the predictable route published when the
       // authentication boundary cannot prove it owns the listener.
-      await deleteOpenShellWebUiEndpoint(name);
+      await deleteOpenShellWebUiEndpoint(name, target);
       throw new Error(
         "The Hermes Dashboard authentication proxy is not ready; the unauthenticated endpoint remains unavailable.",
       );
@@ -823,7 +983,7 @@ export async function ensureOpenShellWebUiEndpoint(
   // has passed the exact trusted-origin check above.
   const originEnsure = await runCommand(
     openShellBinary(),
-    openShellWebUiOriginEnsureArguments(name, endpointUrl),
+    openShellWebUiOriginEnsureArguments(name, endpointUrl, target),
   );
   if (originEnsure.exitCode !== 0)
     throw new Error(
@@ -833,7 +993,7 @@ export async function ensureOpenShellWebUiEndpoint(
 
   const originProbe = await runCommand(
     openShellBinary(),
-    openShellWebUiOriginProbeArguments(name, endpointUrl),
+    openShellWebUiOriginProbeArguments(name, endpointUrl, target),
   );
   if (originProbe.exitCode !== 0)
     throw new Error(
@@ -842,7 +1002,7 @@ export async function ensureOpenShellWebUiEndpoint(
 
   const token = await runCommand(
     openShellBinary(),
-    openShellWebUiTokenArguments(name),
+    openShellWebUiTokenArguments(name, target),
   );
   if (token.exitCode !== 0 || !token.stdout.trim())
     throw new Error(
@@ -856,12 +1016,17 @@ export async function issueOpenShellWebUiEndpoint(
   name: string,
   agentPlatform: AgentPlatformId,
   subject: string,
+  target?: OpenShellTarget,
 ): Promise<string> {
-  const endpointUrl = await ensureOpenShellWebUiEndpoint(name, agentPlatform);
+  const endpointUrl = await ensureOpenShellWebUiEndpoint(
+    name,
+    agentPlatform,
+    target,
+  );
   if (agentPlatform !== "hermes") return endpointUrl;
   const secret = await runCommand(
     openShellBinary(),
-    openShellHermesWebUiSecretArguments(name),
+    openShellHermesWebUiSecretArguments(name, target),
   );
   if (secret.exitCode !== 0 || !secret.stdout.trim())
     throw new Error("Unable to issue Hermes Web UI access.");
@@ -874,6 +1039,7 @@ async function createOpenShellNemoClawSandbox(
   bootstrapFile: string,
   policyFile: string,
   telemetryFile: string | undefined,
+  target: OpenShellTarget | undefined,
   observer?: ProvisioningObserver,
 ): Promise<string[]> {
   const timeoutMs = Number(process.env.NEMOCLAW_START_TIMEOUT_MS ?? "180000");
@@ -886,6 +1052,7 @@ async function createOpenShellNemoClawSandbox(
         bootstrapFile,
         policyFile,
         telemetryFile,
+        target,
       ),
       { env: process.env, stdio: ["ignore", "pipe", "pipe"] },
     );
@@ -926,7 +1093,11 @@ async function createOpenShellNemoClawSandbox(
       try {
         const probe = await runCommand(
           openShellBinary(),
-          openShellNemoClawProbeArguments(input.name, input.agentPlatform),
+          openShellNemoClawProbeArguments(
+            input.name,
+            input.agentPlatform,
+            target,
+          ),
         );
         if (probe.exitCode === 0) {
           // OpenShell 0.0.106 keeps the startup command attached to the create
@@ -965,13 +1136,16 @@ async function createOpenShellNemoClawSandbox(
   });
 }
 
-async function ensureInstanceProvider(input: ProvisionInput): Promise<void> {
-  await ensureProviderPolicyCompositionEnabled();
-  await ensureLiteLlmProviderProfile(input.inferenceEndpoint);
+async function ensureInstanceProvider(
+  input: ProvisionInput,
+  target?: OpenShellTarget,
+): Promise<void> {
+  await ensureProviderPolicyCompositionEnabled(target);
+  await ensureLiteLlmProviderProfile(input.inferenceEndpoint, target);
   const providerName = openShellProviderName(input.name);
   const existing = await runCommand(
     openShellBinary(),
-    openShellArguments(["provider", "get", providerName]),
+    openShellArguments(["provider", "get", providerName], target),
   );
   if (existing.exitCode === 0) {
     const plain = existing.stdout.replace(/\u001b\[[0-9;]*m/g, "");
@@ -988,7 +1162,7 @@ async function ensureInstanceProvider(input: ProvisionInput): Promise<void> {
       "A LiteLLM virtual key is required to create the OpenShell provider.",
     );
 
-  const command = deepSeekProviderCreateCommand(input);
+  const command = deepSeekProviderCreateCommand(input, target);
   const created = await runCommand(
     openShellBinary(),
     command.args,
@@ -998,7 +1172,7 @@ async function ensureInstanceProvider(input: ProvisionInput): Promise<void> {
     // Another concurrent request may have created the shared provider.
     const retry = await runCommand(
       openShellBinary(),
-      openShellArguments(["provider", "get", providerName]),
+      openShellArguments(["provider", "get", providerName], target),
     );
     if (retry.exitCode !== 0)
       throw new Error(
@@ -1009,10 +1183,13 @@ async function ensureInstanceProvider(input: ProvisionInput): Promise<void> {
 
 export async function provisionOpenShellSandbox(
   input: ProvisionInput,
+  target?: OpenShellTarget,
   observer?: ProvisioningObserver,
 ): Promise<string[]> {
+  await waitForOpenShellGateway(target, observer);
+  await ensureOpenShellWorkspace(target, observer);
   observer?.onStage?.("PROVIDER", "Creating an isolated LiteLLM Provider for this Instance.");
-  await ensureInstanceProvider(input);
+  await ensureInstanceProvider(input, target);
 
   observer?.onStage?.("SANDBOX", "Applying the OpenShell policy and scoped Provider attachment.");
 
@@ -1035,7 +1212,7 @@ export async function provisionOpenShellSandbox(
     await writeFile(
       bootstrapFile,
       runtime.bootstrapScript(
-        openShellWebUiOrigin(input.name),
+        openShellWebUiOrigin(input.name, target),
         nemoClawGatewayPort,
         input.inferenceEndpoint,
         input.model,
@@ -1065,24 +1242,31 @@ export async function provisionOpenShellSandbox(
       bootstrapFile,
       policyFile,
       telemetryFile,
+      target,
       observer,
     );
   } catch (error) {
-    await deleteOpenShellSandbox(input.name).catch(() => undefined);
-    await deleteOpenShellProvider(input.name).catch(() => undefined);
+    await deleteOpenShellSandbox(input.name, target).catch(() => undefined);
+    await deleteOpenShellProvider(input.name, target).catch(() => undefined);
     throw error;
   } finally {
     await rm(temporaryDirectory, { recursive: true, force: true });
   }
 }
 
-export async function deleteOpenShellProvider(name: string): Promise<void> {
+export async function deleteOpenShellProvider(
+  name: string,
+  target?: OpenShellTarget,
+): Promise<void> {
   const timing = openShellDeletionTiming();
   const deadline = Date.now() + timing.timeoutMs;
   while (true) {
     const result = await runCommand(
       openShellBinary(),
-      openShellArguments(["provider", "delete", openShellProviderName(name)]),
+      openShellArguments(
+        ["provider", "delete", openShellProviderName(name)],
+        target,
+      ),
     );
     const output = `${result.stdout}\n${result.stderr}`;
     if (result.exitCode === 0 || output.toLowerCase().includes("not found"))
@@ -1097,10 +1281,11 @@ export async function deleteOpenShellProvider(name: string): Promise<void> {
 
 export async function observeOpenShellSandbox(
   name: string,
+  target?: OpenShellTarget,
 ): Promise<OpenShellSandbox | undefined> {
   const result = await runCommand(
     openShellBinary(),
-    openShellArguments(["sandbox", "list", "-o", "json"]),
+    openShellArguments(["sandbox", "list", "-o", "json"], target),
   );
   if (result.exitCode !== 0)
     throw new Error(
@@ -1110,10 +1295,13 @@ export async function observeOpenShellSandbox(
   return sandboxes.find((sandbox) => sandbox.name === name);
 }
 
-export async function deleteOpenShellSandbox(name: string): Promise<void> {
+export async function deleteOpenShellSandbox(
+  name: string,
+  target?: OpenShellTarget,
+): Promise<void> {
   const result = await runCommand(
     openShellBinary(),
-    openShellArguments(["sandbox", "delete", name]),
+    openShellArguments(["sandbox", "delete", name], target),
   );
   const output = `${result.stdout}\n${result.stderr}`.toLowerCase();
   if (
@@ -1126,7 +1314,7 @@ export async function deleteOpenShellSandbox(name: string): Promise<void> {
     );
   const timing = openShellDeletionTiming();
   const deadline = Date.now() + timing.timeoutMs;
-  while (await observeOpenShellSandbox(name)) {
+  while (await observeOpenShellSandbox(name, target)) {
     if (Date.now() >= deadline)
       throw new Error(
         `OpenShell sandbox ${name} is still present after the deletion timeout.`,

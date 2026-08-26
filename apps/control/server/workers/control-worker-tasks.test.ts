@@ -5,6 +5,7 @@ import type {
   ProjectDeletionJobPayload,
   ProjectRuntimeReconcileJobPayload,
 } from "../jobs/control-job-queue";
+import { CONTROL_JOB_QUEUES } from "../jobs/control-job-queue";
 import type { StructuredLogger } from "../observability/structured-logger";
 import type { ProjectDeletionService } from "../projects/project-deletion-service";
 import type { ProjectRuntimeTargetService } from "../projects/project-runtime-target-service";
@@ -30,6 +31,28 @@ function quietLogger(): StructuredLogger {
 }
 
 describe("ControlWorkerTasks", () => {
+  it("serializes Project Gateway reconciliation within each Worker", async () => {
+    const work = vi.fn(async (
+      name: string,
+      _options: unknown,
+      _handler: unknown,
+    ) => name);
+    const tasks = new ControlWorkerTasks({
+      db: createTestPrisma(),
+      deletionService: {} as ProjectDeletionService,
+      jobs: { boss: { work } } as unknown as PgBossControlJobQueue,
+      logger: quietLogger(),
+      runtimeTargets: {} as ProjectRuntimeTargetService,
+    });
+
+    await tasks.register();
+
+    const registration = work.mock.calls.find(
+      ([name]) => name === CONTROL_JOB_QUEUES.projectRuntimeReconcile,
+    );
+    expect(registration?.[1]).toMatchObject({ localConcurrency: 1 });
+  });
+
   it("records retry and terminal failure state around Project deletion", async () => {
     const db = createTestPrisma();
     const requestedAt = new Date("2026-08-27T08:00:00.000Z");

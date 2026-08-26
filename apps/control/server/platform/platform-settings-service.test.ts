@@ -37,6 +37,26 @@ describe("PlatformSettingsService", () => {
     vi.unstubAllEnvs();
   });
 
+  it("rejects disabling Runtime Namespaces in the Project Gateway topology", async () => {
+    vi.stubEnv("PROJECT_OPENSHELL_TARGET_ROUTING_ENABLED", "true");
+    const service = new PlatformSettingsService(createTestPrisma());
+
+    await expect(service.validateInfrastructure({
+      controlInternalUrl: "http://control.internal",
+      runner: {
+        url: "http://runner.internal",
+        token: { action: "replace", value: "runner-secret" },
+      },
+      litellm: {
+        url: "http://litellm.internal",
+        masterKey: { action: "replace", value: "litellm-secret" },
+      },
+      runtimeNamespaces: { enabled: false, clusterId: "in-cluster" },
+    })).rejects.toThrow(
+      "Runtime Namespaces cannot be disabled while Project OpenShell target routing is enabled",
+    );
+  });
+
   it("validates runtime connections before saving encrypted infrastructure settings", async () => {
     const db = createTestPrisma();
     const runtimeFetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
