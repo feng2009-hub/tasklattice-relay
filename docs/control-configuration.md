@@ -75,7 +75,9 @@ Runtime Namespace enablement and cluster identity are configured
 from **Platform Setting -> Infrastructure**. Editing creates a browser-local
 draft. **Validate configuration** probes Control, Runner, and LiteLLM, checks
 Kubernetes permissions when Runtime Namespaces are enabled, and rejects a
-cluster identity that conflicts with existing Runtime Targets. A short-lived
+cluster identity that conflicts with existing Runtime Targets. A deployment
+using Project OpenShell target routing also rejects disabling Runtime
+Namespaces because Agent operations would no longer have a routable target. A short-lived
 validation token is bound to the exact draft, so any later edit requires a new
 validation before **Save verified configuration** becomes effective.
 

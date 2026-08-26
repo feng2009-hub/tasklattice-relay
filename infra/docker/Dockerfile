@@ -13,6 +13,16 @@ RUN apk add --no-cache ca-certificates curl tar \
     && tar -xzf /tmp/openshell.tar.gz -C /usr/local/bin openshell \
     && chmod 0755 /usr/local/bin/openshell
 
+FROM alpine:3.22 AS helm-cli
+ARG TARGETARCH
+ARG HELM_VERSION=3.19.0
+RUN apk add --no-cache ca-certificates curl tar \
+    && curl --fail --location --retry 5 \
+      --output /tmp/helm.tar.gz \
+      "https://get.helm.sh/helm-v${HELM_VERSION}-linux-${TARGETARCH}.tar.gz" \
+    && tar -xzf /tmp/helm.tar.gz -C /tmp \
+    && install -m 0755 "/tmp/linux-${TARGETARCH}/helm" /usr/local/bin/helm
+
 FROM node:22-bookworm-slim AS dependencies
 WORKDIR /app
 RUN apt-get update \
@@ -34,6 +44,7 @@ COPY apps ./apps
 COPY artifacts ./artifacts
 COPY docs ./docs
 COPY packages ./packages
+COPY scripts/validate-prisma-migrations.mjs ./scripts/validate-prisma-migrations.mjs
 RUN npm run build --workspace @tali/contracts \
     && npm run build --workspace @tali/control \
     && npm run build --workspace @tali/runner \
@@ -46,12 +57,16 @@ FROM node:22-bookworm-slim AS control
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=8080 \
-    TALI_HELM_CHART=/opt/tali/helm/tali-relay.tgz
+    TALI_HELM_CHART=/opt/tali/helm/tali-relay.tgz \
+    HELM_CACHE_HOME=/tmp/helm/cache \
+    HELM_CONFIG_HOME=/tmp/helm/config \
+    HELM_DATA_HOME=/tmp/helm/data
 WORKDIR /app
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates openssl \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=production-dependencies /app/node_modules ./node_modules
+COPY --from=helm-cli /usr/local/bin/helm /usr/local/bin/helm
 COPY package.json package-lock.json ./
 COPY apps/control/package.json apps/control/package.json
 COPY --from=build /app/apps/control/prisma ./apps/control/prisma
@@ -60,6 +75,7 @@ COPY --from=build /app/apps/control/server/config ./apps/control/server/config
 COPY --from=build /app/apps/control/.output ./apps/control/.output
 COPY --from=build /app/artifacts/skills/vendor ./artifacts/skills/vendor
 COPY dist/control-plane-chart/tali-relay.tgz /opt/tali/helm/tali-relay.tgz
+COPY charts/tali-relay/charts/openshell-*.tgz /opt/tali/helm/openshell.tgz
 USER 10001
 EXPOSE 8080
 CMD ["node", "apps/control/.output/server/index.mjs"]

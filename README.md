@@ -35,17 +35,18 @@ TaskLattice Relay Control API ---- LiteLLM ---- Provider API
           v
 TaskLattice Relay OpenShell Runner
           |
-          | OpenShell CLI / gRPC
-          v
-OpenShell Gateway ---- Agent Sandbox CR
-                           |
-                           `---- Sandbox Pod + workspace PVC
-                                 (OpenClaw, Hermes, or Deep Agents Code)
+          | request-scoped Project Runtime Target
+          +---- Project Namespace A: OpenShell Gateway ---- Agent Sandbox CR
+          |                                              `---- Sandbox Pod + PVC
+          `---- Project Namespace B: OpenShell Gateway ---- Agent Sandbox CR
+                                                         `---- Sandbox Pod + PVC
 ```
 
 ## Core capabilities
 
 - Project-scoped membership, quotas, configuration, and resource ownership.
+- One Kubernetes Namespace and OpenShell Gateway per Project on the pinned
+  OpenShell 0.0.106 compatibility path, routed by one central Runner.
 - Provider registration, model discovery, LiteLLM-backed Model Routings,
   per-Instance virtual keys, spend attribution, and cost views.
 - Direct, many-to-many Instance bindings to reusable Access Policies, with

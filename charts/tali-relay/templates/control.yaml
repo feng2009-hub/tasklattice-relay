@@ -115,7 +115,7 @@ spec:
                 fieldRef:
                   fieldPath: metadata.namespace
             - name: TALI_BOOTSTRAP_INTERNAL_URL
-              value: {{ printf "http://%s:%v" $name .Values.control.service.port | quote }}
+              value: {{ printf "http://%s.%s.svc.cluster.local:%v" $name .Release.Namespace .Values.control.service.port | quote }}
             - name: TALI_BOOTSTRAP_RUNNER_URL
               value: {{ printf "http://%s:9090" (include "tali.componentName" (dict "root" . "component" "runner")) | quote }}
             - name: TALI_BOOTSTRAP_RUNNER_TOKEN
@@ -124,7 +124,7 @@ spec:
                   name: {{ include "tali.secretName" . }}
                   key: runner-token
             - name: TALI_BOOTSTRAP_LITELLM_URL
-              value: {{ printf "http://%s:4000" (include "tali.componentName" (dict "root" . "component" "litellm")) | quote }}
+              value: {{ printf "http://%s.%s.svc.cluster.local:4000" (include "tali.componentName" (dict "root" . "component" "litellm")) .Release.Namespace | quote }}
             - name: TALI_BOOTSTRAP_LITELLM_MASTER_KEY
               valueFrom:
                 secretKeyRef:
@@ -136,6 +136,7 @@ spec:
               value: {{ .Values.projectRuntimeNamespaces.clusterId | quote }}
             - name: NODE_EXTRA_CA_CERTS
               value: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+            {{- include "tali.projectOpenShellReconcilerEnv" . | nindent 12 }}
             {{- with .Values.control.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

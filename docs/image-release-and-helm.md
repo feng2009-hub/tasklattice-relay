@@ -137,7 +137,7 @@ helm upgrade --install tali-relay \
 ```
 
 The default values match the current local validation path: control and
-OpenShell use `LoadBalancer`, local sign-in uses `admin/admin`, and OpenShell
+OpenShell use `LoadBalancer`, local sign-in uses `admin/password`, and OpenShell
 uses plaintext communication inside the cluster while accepting unauthenticated
 clients. These defaults allow a trusted local cluster to start directly, but
 they are not suitable for a shared or public environment. At a minimum,

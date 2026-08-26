@@ -52,6 +52,10 @@ spec:
           ports:
             - name: http
               containerPort: 9090
+            {{- if and .Values.runner.projectTargetRouting.enabled .Values.runner.projectTargetRouting.serviceProxy.enabled }}
+            - name: service-proxy
+              containerPort: {{ .Values.runner.projectTargetRouting.serviceProxy.port }}
+            {{- end }}
           env:
             - name: NEMOCLAW_RUNNER_MODE
               value: openshell-kubernetes
@@ -60,9 +64,11 @@ spec:
                 secretKeyRef:
                   name: {{ include "tali.secretName" . }}
                   key: runner-token
+            {{- if not .Values.runner.projectTargetRouting.enabled }}
             - name: OPENSHELL_GATEWAY_ENDPOINT
-              value: {{ required "runner.gatewayEndpoint is required when openshell.enabled=false" $gatewayEndpoint | quote }}
-            {{- if .Values.openshell.enabled }}
+              value: {{ required "runner.gatewayEndpoint is required when openshell.enabled=false and runner.projectTargetRouting.enabled=false" $gatewayEndpoint | quote }}
+            {{- end }}
+            {{- if or .Values.openshell.enabled .Values.projectOpenShell.enabled }}
             - name: OPENSHELL_GATEWAY_IMAGE
               value: {{ printf "%s:%s" .Values.openshell.image.repository .Values.openshell.image.tag | quote }}
             - name: OPENSHELL_SUPERVISOR_IMAGE
@@ -74,6 +80,18 @@ spec:
             - name: OPENSHELL_TLS_DISABLED
               value: {{ .Values.openshell.server.disableTls | quote }}
             {{- end }}
+            - name: OPENSHELL_PROJECT_TARGET_ROUTING
+              value: {{ .Values.runner.projectTargetRouting.enabled | quote }}
+            - name: OPENSHELL_GATEWAY_ENDPOINT_TEMPLATE
+              value: {{ .Values.runner.projectTargetRouting.gatewayEndpointTemplate | quote }}
+            - name: OPENSHELL_PROJECT_GATEWAY_SERVICE_NAME_PREFIX
+              value: {{ .Values.projectOpenShell.serviceNamePrefix | quote }}
+            - name: OPENSHELL_PROJECT_SERVICE_PROXY_ENABLED
+              value: {{ and .Values.runner.projectTargetRouting.enabled .Values.runner.projectTargetRouting.serviceProxy.enabled | quote }}
+            - name: OPENSHELL_SERVICE_PROXY_PORT
+              value: {{ .Values.runner.projectTargetRouting.serviceProxy.port | quote }}
+            - name: NEMOCLAW_VERSION
+              value: {{ .Values.projectOpenShell.nemoclawVersion | quote }}
             - name: OPENSHELL_WORKSPACE
               value: {{ .Values.runner.workspace | quote }}
             - name: OPENSHELL_SERVICE_BASE_URL
@@ -88,6 +106,10 @@ spec:
               value: {{ .Values.runner.kubernetesServiceCidrs | quote }}
             - name: OPENSHELL_SANDBOX_CPU
               value: {{ .Values.runner.sandbox.cpu | quote }}
+            {{- with .Values.runner.sandbox.cpuRequest }}
+            - name: OPENSHELL_SANDBOX_CPU_REQUEST
+              value: {{ . | quote }}
+            {{- end }}
             - name: OPENSHELL_SANDBOX_MEMORY
               value: {{ .Values.runner.sandbox.memory | quote }}
             - name: NEMOCLAW_RUNNER_SHUTDOWN_TIMEOUT_MS
@@ -142,3 +164,22 @@ spec:
     - name: http
       port: 9090
       targetPort: http
+{{- if and .Values.runner.projectTargetRouting.enabled .Values.runner.projectTargetRouting.serviceProxy.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ printf "%s-openshell-services" $name | trunc 63 | trimSuffix "-" }}
+  labels:
+    {{- include "tali.labels" . | nindent 4 }}
+  annotations:
+    {{- include "tali.resourceAnnotations" (dict "root" . "wave" "exposure" "annotations" .Values.runner.projectTargetRouting.serviceProxy.annotations) | nindent 4 }}
+spec:
+  type: {{ .Values.runner.projectTargetRouting.serviceProxy.type }}
+  selector:
+    {{- include "tali.selectorLabels" (dict "root" . "component" $component) | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.runner.projectTargetRouting.serviceProxy.port }}
+      targetPort: service-proxy
+{{- end }}

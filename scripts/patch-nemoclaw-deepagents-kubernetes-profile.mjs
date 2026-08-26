@@ -41,7 +41,7 @@ ${compatibilityMarker}() {
   current_uid="$(id -u)"
   current_gid="$(id -g)"
 
-  [ "\${OPENSHELL_SANDBOX:-}" = "1" ] \\
+  [ -n "\${OPENSHELL_SANDBOX:-}" ] \\
     && [ "$current_uid" != "0" ] \\
     && [ -d /sandbox ] \\
     && [ ! -L /sandbox ] \\

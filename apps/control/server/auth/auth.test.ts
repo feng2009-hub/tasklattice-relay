@@ -133,11 +133,11 @@ describe("Better Auth platform authentication", () => {
     expect(defaultCookieMe.status).toBe(401);
   });
 
-  it("bootstraps the canonical admin / admin development credentials", async () => {
+  it("bootstraps the canonical admin / password development credentials", async () => {
     const config = developmentControlConfig();
     config.server.public_url = "http://tali.local";
     expect(config.auth.local.initial_platform_administrator_username).toBe("admin");
-    expect(config.auth.local.initial_platform_administrator_password).toBe("admin");
+    expect(config.auth.local.initial_platform_administrator_password).toBe("password");
 
     setControlConfigForTests(config);
     resetBetterAuthForTests();
@@ -145,7 +145,7 @@ describe("Better Auth platform authentication", () => {
     await db.authAccount.deleteMany();
     await ensureInitialPlatformAdministrator();
 
-    const response = await signIn("admin");
+    const response = await signIn("password");
     expect(response.status).toBe(200);
   });
 

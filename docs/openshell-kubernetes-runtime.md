@@ -31,7 +31,7 @@ NemoClaw plugin, generated OpenClaw configuration, supervisor, and health check.
 flowchart TD
     UI["TanStack UI"] -->|"REST + WebSocket"| API["TaskLattice Relay Control API"]
     API -->|"typed private REST"| RUNNER["TaskLattice Relay OpenShell Runner"]
-    RUNNER -->|"OpenShell CLI / gRPC"| GATEWAY["OpenShell Gateway"]
+    RUNNER -->|"Project-targeted OpenShell CLI / gRPC"| GATEWAY["Project OpenShell Gateway"]
     GATEWAY --> CR["Agent Sandbox CR"]
     CR --> POD["NemoClaw Sandbox Pod"]
     POD --> SUPERVISOR["nemoclaw-start"]
@@ -61,9 +61,9 @@ external secret management, durable runner operation state, startup-command
 reconciliation after a Sandbox Pod recreation, and concurrency-safe inference
 profiles.
 
-Relay now provisions one baseline Namespace, quota, limits, and network policy
-set per Project. OpenShell `0.0.106` supports multiple workspace Namespace
-modes, but Relay currently keeps its Gateway in the default `shared` mode and
-does not place an individual sandbox in a Project Namespace. See
-[Project Runtime Namespaces](project-runtime-namespaces.md) for the implemented
-lifecycle and the remaining runtime-placement boundary.
+Relay provisions one Namespace and one official OpenShell Gateway release per
+Project for the pinned 0.0.106 compatibility path. The Gateway's fixed sandbox
+Namespace and workspace both equal the Project Namespace, while one central
+Runner routes every lifecycle and interaction operation by its typed Project
+Runtime Target. See [Project Runtime Namespaces](project-runtime-namespaces.md)
+for reconciliation, isolation, and the later shared-Gateway migration seam.

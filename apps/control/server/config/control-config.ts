@@ -135,7 +135,7 @@ const developmentConfig: ControlConfig = {
       enabled: true,
       initial_platform_administrator_username: "admin",
       initial_platform_administrator_email: "admin@tasklattice.local",
-      initial_platform_administrator_password: "admin",
+      initial_platform_administrator_password: "password",
     },
   },
   runner: {

@@ -4,6 +4,7 @@ import type {
   RunnerHealth,
   RunnerSandbox,
   SandboxAuditEvent,
+  RunnerRuntimeTarget,
 } from "@tali/contracts";
 import { loadPlatformRuntimeConfiguration } from "../platform/platform-runtime-config";
 
@@ -41,18 +42,39 @@ export interface CreateSandboxInput {
       };
 }
 
+export type { RunnerRuntimeTarget } from "@tali/contracts";
+
 export interface RunnerClient {
-  createSandbox(input: CreateSandboxInput): Promise<RunnerSandbox>;
-  getSandbox(name: string, agentPlatform: AgentPlatformId): Promise<RunnerSandbox>;
+  createSandbox(
+    input: CreateSandboxInput,
+    runtimeTarget?: RunnerRuntimeTarget,
+  ): Promise<RunnerSandbox>;
+  getSandbox(
+    name: string,
+    agentPlatform: AgentPlatformId,
+    runtimeTarget?: RunnerRuntimeTarget,
+  ): Promise<RunnerSandbox>;
   getSandboxInteraction(
     name: string,
     agentPlatform: AgentPlatformId,
     subject: string,
+    runtimeTarget?: RunnerRuntimeTarget,
   ): Promise<HttpEndpoint>;
-  getSandboxAudit(name: string): Promise<SandboxAuditEvent[]>;
-  destroySandbox(name: string, agentPlatform: AgentPlatformId): Promise<RunnerSandbox>;
+  getSandboxAudit(
+    name: string,
+    runtimeTarget?: RunnerRuntimeTarget,
+  ): Promise<SandboxAuditEvent[]>;
+  destroySandbox(
+    name: string,
+    agentPlatform: AgentPlatformId,
+    runtimeTarget?: RunnerRuntimeTarget,
+  ): Promise<RunnerSandbox>;
   getHealth(): Promise<RunnerHealth>;
-  terminalWebSocketUrl(name: string, agentPlatform: AgentPlatformId): Promise<string>;
+  terminalWebSocketUrl(
+    name: string,
+    agentPlatform: AgentPlatformId,
+    runtimeTarget?: RunnerRuntimeTarget,
+  ): Promise<string>;
   authorizationHeaders(): Promise<Record<string, string>>;
 }
 
@@ -102,19 +124,28 @@ export class NemoClawRunnerClient implements RunnerClient {
     return payload as T;
   }
 
-  createSandbox(input: CreateSandboxInput): Promise<RunnerSandbox> {
+  createSandbox(
+    input: CreateSandboxInput,
+    runtimeTarget?: RunnerRuntimeTarget,
+  ): Promise<RunnerSandbox> {
     return this.request<RunnerSandbox>("/v1/sandboxes", {
       method: "POST",
-      body: JSON.stringify(input),
+      body: JSON.stringify({
+        ...input,
+        ...(runtimeTarget ? { runtimeTarget } : {}),
+      }),
     });
   }
 
   getSandbox(
     name: string,
     agentPlatform: AgentPlatformId,
+    runtimeTarget?: RunnerRuntimeTarget,
   ): Promise<RunnerSandbox> {
+    const query = new URLSearchParams({ agentPlatform });
+    if (runtimeTarget) query.set("runtimeTarget", runtimeTarget.namespace);
     return this.request<RunnerSandbox>(
-      `/v1/sandboxes/${encodeURIComponent(name)}?agentPlatform=${agentPlatform}`,
+      `/v1/sandboxes/${encodeURIComponent(name)}?${query}`,
     );
   }
 
@@ -122,17 +153,24 @@ export class NemoClawRunnerClient implements RunnerClient {
     name: string,
     agentPlatform: AgentPlatformId,
     subject: string,
+    runtimeTarget?: RunnerRuntimeTarget,
   ): Promise<HttpEndpoint> {
     const query = new URLSearchParams({ agentPlatform, subject });
+    if (runtimeTarget) query.set("runtimeTarget", runtimeTarget.namespace);
     return this.request<HttpEndpoint>(
       `/v1/sandboxes/${encodeURIComponent(name)}/interaction?${query}`,
     );
   }
 
-  async getSandboxAudit(name: string): Promise<SandboxAuditEvent[]> {
+  async getSandboxAudit(
+    name: string,
+    runtimeTarget?: RunnerRuntimeTarget,
+  ): Promise<SandboxAuditEvent[]> {
+    const query = new URLSearchParams();
+    if (runtimeTarget) query.set("runtimeTarget", runtimeTarget.namespace);
     return (
       await this.request<{ data: SandboxAuditEvent[] }>(
-        `/v1/sandboxes/${encodeURIComponent(name)}/audit`,
+        `/v1/sandboxes/${encodeURIComponent(name)}/audit${query.size ? `?${query}` : ""}`,
       )
     ).data;
   }
@@ -140,9 +178,12 @@ export class NemoClawRunnerClient implements RunnerClient {
   destroySandbox(
     name: string,
     agentPlatform: AgentPlatformId,
+    runtimeTarget?: RunnerRuntimeTarget,
   ): Promise<RunnerSandbox> {
+    const query = new URLSearchParams({ agentPlatform });
+    if (runtimeTarget) query.set("runtimeTarget", runtimeTarget.namespace);
     return this.request<RunnerSandbox>(
-      `/v1/sandboxes/${encodeURIComponent(name)}?agentPlatform=${agentPlatform}`,
+      `/v1/sandboxes/${encodeURIComponent(name)}?${query}`,
       { method: "DELETE" },
       90_000,
     );
@@ -155,12 +196,15 @@ export class NemoClawRunnerClient implements RunnerClient {
   async terminalWebSocketUrl(
     name: string,
     agentPlatform: AgentPlatformId,
+    runtimeTarget?: RunnerRuntimeTarget,
   ): Promise<string> {
     const { baseUrl } = await this.connection();
     const url = new URL(baseUrl);
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
     url.pathname = `/v1/sandboxes/${encodeURIComponent(name)}/terminal`;
     url.searchParams.set("agentPlatform", agentPlatform);
+    if (runtimeTarget)
+      url.searchParams.set("runtimeTarget", runtimeTarget.namespace);
     return url.toString();
   }
 

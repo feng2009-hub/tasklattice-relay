@@ -9,6 +9,10 @@ import {
   createProjectNamespaceClient,
   type ProjectNamespaceClient,
 } from "../kubernetes/project-namespace-client";
+import {
+  createProjectOpenShellGatewayClient,
+  type ProjectOpenShellGatewayClient,
+} from "../kubernetes/project-openshell-gateway-client";
 
 export interface ProjectRuntimeNamespaceProvisioner {
   ensureProjectNamespace(projectId: string): Promise<boolean>;
@@ -86,6 +90,7 @@ export class ProjectRuntimeTargetService
   constructor(
     private readonly db: PrismaClient = prisma(),
     private readonly namespaces?: ProjectNamespaceClient,
+    private readonly gateways?: ProjectOpenShellGatewayClient,
   ) {}
 
   async ensureProjectNamespace(projectId: string): Promise<boolean> {
@@ -94,6 +99,7 @@ export class ProjectRuntimeTargetService
     const namespaces = this.namespaces ?? createProjectNamespaceClient({
       enabled: runtime.enabled,
     });
+    const gateways = this.gateways ?? createProjectOpenShellGatewayClient();
     const project = await this.db.project.findUnique({
       where: { id: projectId },
       select: {
@@ -159,6 +165,11 @@ export class ProjectRuntimeTargetService
         );
       }
       await namespaces.reconcile({
+        namespace: target.namespace,
+        projectId: project.id,
+        projectName: project.name,
+      });
+      await gateways.reconcile({
         namespace: target.namespace,
         projectId: project.id,
         projectName: project.name,
@@ -276,6 +287,7 @@ export class ProjectRuntimeTargetService
     const namespaces = this.namespaces ?? createProjectNamespaceClient({
       enabled: runtime.enabled,
     });
+    const gateways = this.gateways ?? createProjectOpenShellGatewayClient();
     const target = await this.db.projectRuntimeTarget.findUnique({
       where: { projectId },
       select: { clusterId: true, namespace: true },
@@ -287,6 +299,7 @@ export class ProjectRuntimeTargetService
       data: { lastError: null, status: "deleting" },
     });
     try {
+      await gateways.delete(target.namespace);
       const deletionTimeoutSeconds = await new PlatformSettingsService(
         this.db,
       ).runtimeNamespaceDeletionTimeoutSeconds();

@@ -23,6 +23,7 @@ import {
   openShellWebUiServiceArguments,
   openShellWebUiTokenArguments,
   openShellWorkspace,
+  openShellWorkspaceAdminArguments,
   parseOpenShellServiceUrl,
   parseOpenShellAuditLog,
   runTelemetryEnvironmentFile,
@@ -169,6 +170,8 @@ describe("OpenShell Kubernetes command contract", () => {
     );
     expect(args).toContain("ghcr.io/tasklattice/tali-nemoclaw-sandbox:dev");
     expect(args).toContain("tali.ai/managed=true");
+    expect(args).toContain("tali.io/runtime-provider=nemoclaw");
+    expect(args).toContain("tali.io/nemoclaw-version=0.0.114");
     expect(args).toContain(
       "/tmp/AGENTS.md:/sandbox/.openclaw/workspace/AGENTS.md",
     );
@@ -224,6 +227,34 @@ describe("OpenShell Kubernetes command contract", () => {
 
     expect(args[args.indexOf("--cpu") + 1]).toBe("1500m");
     expect(args[args.indexOf("--memory") + 1]).toBe("4Gi");
+  });
+
+  it("uses the official Kubernetes driver config for separate CPU request and limit", () => {
+    vi.stubEnv("OPENSHELL_SANDBOX_CPU", "1");
+    vi.stubEnv("OPENSHELL_SANDBOX_CPU_REQUEST", "500m");
+    const args = openShellSandboxCreateArguments(
+      input,
+      "/tmp/AGENTS.md",
+      "/tmp/tali-nemoclaw-start",
+      "/tmp/openshell-policy.yaml",
+    );
+
+    expect(args).not.toContain("--cpu");
+    expect(
+      JSON.parse(args[args.indexOf("--driver-config-json") + 1] ?? "null"),
+    ).toEqual({
+      kubernetes: {
+        containers: {
+          agent: {
+            resources: {
+              limits: { cpu: "1" },
+              requests: { cpu: "500m" },
+            },
+          },
+        },
+      },
+    });
+    vi.unstubAllEnvs();
   });
 
   it("leaves inference routing to the attached Provider profile", () => {
@@ -563,6 +594,32 @@ describe("OpenShell Kubernetes command contract", () => {
     vi.stubEnv("OPENSHELL_WORKSPACE", "team--a");
     expect(() => openShellWorkspace()).toThrow("OPENSHELL_WORKSPACE");
     vi.unstubAllEnvs();
+  });
+
+  it("initializes a routed workspace through the bootstrapped default scope", () => {
+    const target = {
+      gatewayEndpoint:
+        "http://openshell-tp-abcdefghijklmnop.tp-abcdefghijklmnop.svc.cluster.local:8080",
+      serviceBaseUrl: "http://openshell.localhost:8080",
+      workspace: "tp-abcdefghijklmnop",
+    };
+    expect(
+      openShellWorkspaceAdminArguments([
+        "workspace",
+        "create",
+        "--name",
+        target.workspace,
+      ], target),
+    ).toEqual([
+      "--gateway-endpoint",
+      target.gatewayEndpoint,
+      "--workspace",
+      "default",
+      "workspace",
+      "create",
+      "--name",
+      target.workspace,
+    ]);
   });
 
   it("issues a short-lived user-scoped Hermes dashboard access token", () => {

@@ -2,11 +2,15 @@ import WebSocket from "ws";
 
 const baseUrl = process.env.TALI_BASE_URL ?? "http://127.0.0.1:18080";
 const expectNemoClawRuntime = process.env.TALI_EXPECT_NEMOCLAW_RUNTIME === "1";
+const keepValidationAgent = process.env.TALI_VALIDATION_KEEP_AGENT === "1";
 const validationUsername =
   process.env.TALI_VALIDATION_USERNAME ?? "admin";
 const validationPassword =
-  process.env.TALI_VALIDATION_PASSWORD ?? "admin";
+  process.env.TALI_VALIDATION_PASSWORD ?? "password";
+const validationAgentPlatform =
+  process.env.TALI_VALIDATION_AGENT_PLATFORM ?? "openclaw";
 const validationProjectId = process.env.TALI_VALIDATION_PROJECT_ID;
+const validationAgentId = process.env.TALI_VALIDATION_AGENT_ID;
 const validationTimeoutMs = Number(
   process.env.TALI_VALIDATION_TIMEOUT_MS ?? "180000",
 );
@@ -88,18 +92,20 @@ const activeAccessPolicy = accessPolicies.data.find(
 if (!activeAccessPolicy)
   throw new Error("No ACTIVE Access Policy is available for Instance creation.");
 
-const created = await projectRequest("/instances", {
-  method: "POST",
-  body: JSON.stringify({
-    name: `validation-${Date.now().toString().slice(-6)}`,
-    description: "REST and terminal contract validation",
-    runtime: "openshell",
-    agentPlatform: "openclaw",
-    accessPolicyIds: [activeAccessPolicy.id],
-    modelRoutingId: validatedRouting.id,
-    systemPrompt: "You are a validation agent. Report runtime evidence clearly.",
-  }),
-});
+const created = validationAgentId
+  ? await projectRequest(`/instances/${encodeURIComponent(validationAgentId)}`)
+  : await projectRequest("/instances", {
+      method: "POST",
+      body: JSON.stringify({
+        name: `validation-${Date.now().toString().slice(-6)}`,
+        description: "REST and terminal contract validation",
+        runtime: "openshell",
+        agentPlatform: validationAgentPlatform,
+        accessPolicyIds: [activeAccessPolicy.id],
+        modelRoutingId: validatedRouting.id,
+        systemPrompt: "You are a validation agent. Report runtime evidence clearly.",
+      }),
+    });
 
 let agent = created;
 for (
@@ -114,7 +120,9 @@ if (agent.status !== "READY") throw new Error(`Agent did not become READY: ${JSO
 
 let httpEndpointEvidence;
 let interactionEndpoint;
-if (expectNemoClawRuntime) {
+const expectsHttpEndpoint =
+  expectNemoClawRuntime && validationAgentPlatform !== "deepagents";
+if (expectsHttpEndpoint) {
   const interaction = await projectRequest(`/instances/${agent.id}/interaction`);
   interactionEndpoint = interaction.httpEndpoint;
   if (interactionEndpoint?.status !== "READY" || !interactionEndpoint.url)
@@ -125,6 +133,13 @@ if (expectNemoClawRuntime) {
   if (!endpointResponse.ok)
     throw new Error(`NemoClaw HTTP Endpoint returned ${endpointResponse.status}.`);
   httpEndpointEvidence = `${interactionEndpoint.kind} returned HTTP ${endpointResponse.status}.`;
+} else if (expectNemoClawRuntime) {
+  const interaction = await projectRequest(`/instances/${agent.id}/interaction`);
+  if (interaction.httpEndpoint !== undefined)
+    throw new Error(
+      `Terminal-only Agent unexpectedly exposed an HTTP Endpoint: ${JSON.stringify(interaction.httpEndpoint)}`,
+    );
+  httpEndpointEvidence = `${validationAgentPlatform} is terminal-only; no HTTP Endpoint was published.`;
 } else {
   httpEndpointEvidence = "Not required for the fixture runtime.";
 }
@@ -171,42 +186,52 @@ if (!runtime.terminal.available) {
       if (runtimeConnected && chunk.length > 0) {
         clearTimeout(timer);
         socket.close();
-        resolve("NemoClaw runtime connected and OpenClaw TUI produced its first PTY frame.");
+        resolve(
+          `NemoClaw runtime connected and ${validationAgentPlatform} TUI produced its first PTY frame.`,
+        );
       }
     });
     socket.on("error", reject);
   });
 }
 
-const destroyed = await projectRequest(`/instances/${agent.id}`, {
-  method: "DELETE",
-});
-let deletedResource;
-for (let attempt = 0; attempt < validationPollAttempts; attempt += 1) {
-  deletedResource = await fetch(
-    `${baseUrl}${projectBasePath}/instances/${agent.id}`,
-    { headers: { cookie: sessionCookie } },
-  );
-  if (deletedResource.status === 404) break;
-  await new Promise((resolve) => setTimeout(resolve, 1_000));
+let deleteEvidence = "Agent retained for post-validation isolation checks.";
+if (!keepValidationAgent) {
+  const destroyed = await projectRequest(`/instances/${agent.id}`, {
+    method: "DELETE",
+  });
+  let deletedResource;
+  for (let attempt = 0; attempt < validationPollAttempts; attempt += 1) {
+    deletedResource = await fetch(
+      `${baseUrl}${projectBasePath}/instances/${agent.id}`,
+      { headers: { cookie: sessionCookie } },
+    );
+    if (deletedResource.status === 404) break;
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+  }
+  const deletedEndpoint = interactionEndpoint?.url
+    ? await fetch(interactionEndpoint.url)
+    : undefined;
+  if (
+    destroyed.status !== "DESTROYING"
+    || destroyed.accepted !== true
+    || deletedResource?.status !== 404
+  ) {
+    throw new Error(
+      `Instance delete contract failed: ${JSON.stringify({
+        destroyed,
+        getStatus: deletedResource?.status ?? "no response",
+      })}`,
+    );
+  }
+  if (
+    expectNemoClawRuntime
+    && interactionEndpoint?.url
+    && deletedEndpoint?.status !== 404
+  )
+    throw new Error(`Deleted HTTP Endpoint returned ${deletedEndpoint?.status ?? "no response"}.`);
+  deleteEvidence = `${destroyed.status} accepted / Instance GET ${deletedResource.status} / Endpoint GET ${deletedEndpoint?.status ?? "N/A"}`;
 }
-const deletedEndpoint = interactionEndpoint?.url
-  ? await fetch(interactionEndpoint.url)
-  : undefined;
-if (
-  destroyed.status !== "DESTROYING"
-  || destroyed.accepted !== true
-  || deletedResource?.status !== 404
-) {
-  throw new Error(
-    `Instance delete contract failed: ${JSON.stringify({
-      destroyed,
-      getStatus: deletedResource?.status ?? "no response",
-    })}`,
-  );
-}
-if (expectNemoClawRuntime && deletedEndpoint?.status !== 404)
-  throw new Error(`Deleted HTTP Endpoint returned ${deletedEndpoint?.status ?? "no response"}.`);
 
 console.log(JSON.stringify({
   result: "PASS",
@@ -218,5 +243,5 @@ console.log(JSON.stringify({
   provider: agent.providerName,
   httpEndpointEvidence,
   terminalEvidence: String(terminalEvidence).replace(/\u001b\[[0-9;?]*[A-Za-z]/g, "").trim(),
-  deleteEvidence: `${destroyed.status} accepted / Instance GET ${deletedResource.status} / Endpoint GET ${deletedEndpoint?.status ?? "N/A"}`,
+  deleteEvidence,
 }, null, 2));

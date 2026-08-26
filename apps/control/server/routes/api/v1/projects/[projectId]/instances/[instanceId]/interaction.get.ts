@@ -22,6 +22,7 @@ export default defineHandler(async (event) => {
             instance.sandboxName,
             instance.agentPlatform,
             subject,
+            await service.runnerRuntimeTarget(),
           )
         : instance?.httpEndpoint;
     return instance

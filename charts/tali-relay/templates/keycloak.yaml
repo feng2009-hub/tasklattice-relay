@@ -5,6 +5,9 @@
 {{- if not .Values.keycloak.testUsers }}
 {{- fail "keycloak.testUsers must contain at least one complete test user when the embedded Keycloak is enabled" }}
 {{- end }}
+{{- if not .Values.keycloak.testProjectIds }}
+{{- fail "keycloak.testProjectIds must contain at least one Project ID when the embedded Keycloak is enabled" }}
+{{- end }}
 {{- $component := "keycloak" -}}
 {{- $name := include "tali.componentName" (dict "root" . "component" $component) -}}
 {{- $publicUrl := trimSuffix "/" (required "keycloak.publicUrl is required when the embedded Keycloak is enabled" .Values.keycloak.publicUrl) -}}
@@ -179,8 +182,10 @@ data:
                     {
                       "name": "p",
                       "subGroups": [
+                        {{- range $projectIndex, $projectId := .Values.keycloak.testProjectIds }}
+                        {{- if $projectIndex }},{{ end }}
                         {
-                          "name": "proj1",
+                          "name": {{ required "every keycloak.testProjectIds entry requires a Project ID" $projectId | quote }},
                           "subGroups": [
                             {
                               "name": "r",
@@ -194,6 +199,7 @@ data:
                             }
                           ]
                         }
+                        {{- end }}
                       ]
                     }
                   ]

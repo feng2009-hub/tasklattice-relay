@@ -262,7 +262,10 @@ export class ControlWorkerTasks {
         {
           groupConcurrency: 1,
           includeMetadata: true,
-          localConcurrency: 4,
+          // A compatibility reconciliation can run the official OpenShell
+          // Helm client for several minutes. Keep one child Helm process per
+          // Worker so a burst of stale Projects cannot exhaust Worker memory.
+          localConcurrency: 1,
           pollingIntervalSeconds: 2,
         },
         async ([job]) => this.projectRuntimeReconcile(

@@ -80,6 +80,7 @@ spec:
               value: /etc/tali/control.toml
             - name: CONTROL_WORKER_HEALTH_PORT
               value: "9090"
+            {{- include "tali.projectOpenShellReconcilerEnv" . | nindent 12 }}
             {{- with .Values.control.worker.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

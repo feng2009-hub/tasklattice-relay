@@ -37,7 +37,19 @@ import {
   openShellWorkspace,
   issueOpenShellWebUiEndpoint,
   provisionOpenShellSandbox,
+  type OpenShellTarget,
 } from "./openshell.js";
+import {
+  projectTargetRoutingEnabled,
+  resolveOpenShellTarget,
+  runnerRuntimeTargetSchema,
+  sandboxStateKey,
+  type RunnerRuntimeTarget,
+} from "./runtime-target.js";
+import {
+  projectServiceProxyEnabled,
+  startProjectServiceProxy,
+} from "./project-service-proxy.js";
 
 type Phase = RunnerSandbox["phase"];
 type SandboxState = RunnerSandbox;
@@ -96,6 +108,7 @@ const createSchema = z.object({
     token: z.string().min(32).max(2_048),
   }).strict(),
   memory: runtimeMemorySchema.optional(),
+  runtimeTarget: runnerRuntimeTargetSchema.optional(),
 });
 
 function authorized(header: string | undefined): boolean {
@@ -131,12 +144,17 @@ function rejectTerminalUpgrade(
 async function readySandboxState(
   name: string,
   agentPlatform: AgentPlatformId,
+  runtimeTarget?: RunnerRuntimeTarget,
 ): Promise<SandboxState | undefined> {
-  const local = states.get(name);
+  const key = sandboxStateKey(name, runtimeTarget);
+  const local = states.get(key);
   if (local?.phase === "READY") return local;
   if (!isOpenShell) return undefined;
 
-  const observed = await observeOpenShellSandbox(name);
+  const observed = await observeOpenShellSandbox(
+    name,
+    resolveOpenShellTarget(runtimeTarget),
+  );
   if (observed?.phase.toLowerCase() !== "ready") return undefined;
   const recovered: SandboxState = {
     name,
@@ -145,18 +163,23 @@ async function readySandboxState(
     provisioningStage: "READY",
     logs: local?.logs ?? [],
   };
-  states.set(name, recovered);
+  states.set(key, recovered);
   return recovered;
 }
 
 async function provision(
   input: ProvisionInput,
   operationId: string,
+  runtimeTarget?: RunnerRuntimeTarget,
 ): Promise<void> {
-  activeProvisions.add(input.name);
-  const state = states.get(input.name);
+  const key = sandboxStateKey(input.name, runtimeTarget);
+  const openShellTarget = isOpenShell
+    ? resolveOpenShellTarget(runtimeTarget)
+    : undefined;
+  activeProvisions.add(key);
+  const state = states.get(key);
   if (!state) {
-    activeProvisions.delete(input.name);
+    activeProvisions.delete(key);
     return;
   }
   try {
@@ -193,7 +216,7 @@ async function provision(
         "Sandbox phase: Ready",
       );
     } else if (isOpenShell) {
-      await provisionOpenShellSandbox(input, {
+      await provisionOpenShellSandbox(input, openShellTarget, {
         onStage: (stage, message) => updateProvisioningStage(state, stage, message),
         onLog: (lines) => state.logs.push(...lines),
       });
@@ -212,6 +235,7 @@ async function provision(
             url: await ensureOpenShellWebUiEndpoint(
               input.name,
               input.agentPlatform,
+              openShellTarget,
             ),
           };
           state.logs.push(
@@ -251,7 +275,7 @@ async function provision(
         `Agent instructions installed for ${input.agentPlatform}.`,
       );
     }
-    states.set(input.name, {
+    states.set(key, {
       ...state,
       phase: "READY",
       provisioningStage: "READY",
@@ -259,15 +283,25 @@ async function provision(
       ...(httpEndpoint ? { httpEndpoint } : {}),
     });
   } catch (error) {
-    states.set(input.name, {
+    states.set(key, {
       ...state,
       phase: "FAILED",
       operationId,
       error: error instanceof Error ? error.message : "Provisioning failed.",
     });
   } finally {
-    activeProvisions.delete(input.name);
+    activeProvisions.delete(key);
   }
+}
+
+function runtimeTargetFromQuery(value: unknown): RunnerRuntimeTarget | undefined {
+  if (value === undefined) {
+    if (projectTargetRoutingEnabled()) {
+      throw new Error("A Project Runtime Target is required for this operation.");
+    }
+    return undefined;
+  }
+  return runnerRuntimeTargetSchema.parse({ namespace: value });
 }
 
 app.use(express.json({ limit: "32kb" }));
@@ -283,10 +317,19 @@ app.get("/health", (_request, response) => response.json({
           provider: "openshell",
           cpu: process.env.OPENSHELL_SANDBOX_CPU ?? "1",
           memory: process.env.OPENSHELL_SANDBOX_MEMORY ?? "2Gi",
-          gatewayEndpoint: openShellGatewayEndpoint(),
-          workspace: openShellWorkspace(),
+          ...(projectTargetRoutingEnabled()
+            ? {
+                gatewayEndpoint: "project-runtime-target",
+                workspace: "project-runtime-target",
+              }
+            : {
+                gatewayEndpoint: openShellGatewayEndpoint(),
+                workspace: openShellWorkspace(),
+              }),
           serviceBaseUrl: openShellServiceBaseUrl(),
           kubernetesServiceCidrs: openShellKubernetesServiceCidrs(),
+          projectTargetRouting: projectTargetRoutingEnabled(),
+          projectServiceProxy: projectServiceProxyEnabled(),
           ...(process.env.OPENSHELL_GATEWAY_IMAGE
             ? { gatewayImage: process.env.OPENSHELL_GATEWAY_IMAGE }
             : {}),
@@ -322,6 +365,8 @@ app.post("/v1/sandboxes", (request, response, next) => {
         .status(503)
         .json({ error: "Runtime Runner is draining for shutdown." });
     const parsedInput = createSchema.parse(request.body);
+    const runtimeTarget = parsedInput.runtimeTarget;
+    if (isOpenShell) resolveOpenShellTarget(runtimeTarget);
     const input: ProvisionInput = {
       name: parsedInput.name,
       agentPlatform: parsedInput.agentPlatform,
@@ -341,7 +386,8 @@ app.post("/v1/sandboxes", (request, response, next) => {
       instanceId: parsedInput.instanceId,
       runTelemetry: parsedInput.runTelemetry,
     };
-    if (states.has(input.name))
+    const key = sandboxStateKey(input.name, runtimeTarget);
+    if (states.has(key))
       return void response
         .status(409)
         .json({ error: "Sandbox already exists." });
@@ -354,11 +400,11 @@ app.post("/v1/sandboxes", (request, response, next) => {
       operationId,
       logs: ["NemoClaw provisioning queued."],
     };
-    states.set(input.name, state);
-    const task = provision(input, operationId).finally(() => {
-      provisionTasks.delete(input.name);
+    states.set(key, state);
+    const task = provision(input, operationId, runtimeTarget).finally(() => {
+      provisionTasks.delete(key);
     });
-    provisionTasks.set(input.name, task);
+    provisionTasks.set(key, task);
     response.status(202).json(responseState(state));
   } catch (error) {
     next(error);
@@ -375,7 +421,11 @@ app.get("/v1/sandboxes/:name/interaction", async (request, response, next) => {
       request.query.agentPlatform ?? "openclaw",
     );
     const subject = z.string().min(1).max(200).parse(request.query.subject);
-    const state = await readySandboxState(name, agentPlatform);
+    const runtimeTarget = runtimeTargetFromQuery(request.query.runtimeTarget);
+    const openShellTarget = isOpenShell
+      ? resolveOpenShellTarget(runtimeTarget)
+      : undefined;
+    const state = await readySandboxState(name, agentPlatform, runtimeTarget);
     if (!state)
       return void response.status(409).json({
         error: "Web UI access is available only when the Sandbox is ready.",
@@ -401,7 +451,12 @@ app.get("/v1/sandboxes/:name/interaction", async (request, response, next) => {
       response.json({
         kind: platformRuntime.endpointKind,
         status: "READY",
-        url: await issueOpenShellWebUiEndpoint(name, agentPlatform, subject),
+        url: await issueOpenShellWebUiEndpoint(
+          name,
+          agentPlatform,
+          subject,
+          openShellTarget,
+        ),
       });
     } catch (error) {
       response.json({
@@ -424,17 +479,22 @@ app.get("/v1/sandboxes/:name", async (request, response, next) => {
     const agentPlatform = agentPlatformSchema.parse(
       request.query.agentPlatform ?? "openclaw",
     );
-    const local = states.get(name);
+    const runtimeTarget = runtimeTargetFromQuery(request.query.runtimeTarget);
+    const key = sandboxStateKey(name, runtimeTarget);
+    const openShellTarget = isOpenShell
+      ? resolveOpenShellTarget(runtimeTarget)
+      : undefined;
+    const local = states.get(key);
     if (
       local?.phase === "FAILED" ||
       mode === "fixture" ||
-      activeProvisions.has(name)
+      activeProvisions.has(key)
     )
       return void response.json(
         local ?? { name, agentPlatform, phase: "NOT_FOUND", logs: [] },
       );
     if (isOpenShell) {
-      const observed = await observeOpenShellSandbox(name);
+      const observed = await observeOpenShellSandbox(name, openShellTarget);
       const normalized = observed?.phase.toLowerCase();
       const phase: Phase = !observed
         ? "NOT_FOUND"
@@ -454,7 +514,11 @@ app.get("/v1/sandboxes/:name", async (request, response, next) => {
           httpEndpoint = {
             kind: platformRuntime.endpointKind,
             status: "READY",
-            url: await ensureOpenShellWebUiEndpoint(name, agentPlatform),
+            url: await ensureOpenShellWebUiEndpoint(
+              name,
+              agentPlatform,
+              openShellTarget,
+            ),
           };
         } catch (error) {
           httpEndpoint = {
@@ -482,8 +546,8 @@ app.get("/v1/sandboxes/:name", async (request, response, next) => {
         logs: local?.logs ?? [],
         ...(httpEndpoint ? { httpEndpoint } : {}),
       };
-      if (phase === "NOT_FOUND") states.delete(name);
-      else states.set(name, next);
+      if (phase === "NOT_FOUND") states.delete(key);
+      else states.set(key, next);
       return void response.json(next);
     }
     const result = await runCommand("nemoclaw", [
@@ -522,8 +586,14 @@ app.get("/v1/sandboxes/:name", async (request, response, next) => {
 app.get("/v1/sandboxes/:name/audit", async (request, response, next) => {
   try {
     const name = z.string().parse(request.params.name);
+    const runtimeTarget = runtimeTargetFromQuery(request.query.runtimeTarget);
     if (!isOpenShell) return void response.json({ data: [] });
-    response.json({ data: await getOpenShellAuditEvents(name) });
+    response.json({
+      data: await getOpenShellAuditEvents(
+        name,
+        resolveOpenShellTarget(runtimeTarget),
+      ),
+    });
   } catch (error) {
     next(error);
   }
@@ -535,24 +605,29 @@ app.delete("/v1/sandboxes/:name", async (request, response, next) => {
     const agentPlatform = agentPlatformSchema.parse(
       request.query.agentPlatform ?? "openclaw",
     );
-    const current = states.get(name) ?? {
+    const runtimeTarget = runtimeTargetFromQuery(request.query.runtimeTarget);
+    const key = sandboxStateKey(name, runtimeTarget);
+    const openShellTarget = isOpenShell
+      ? resolveOpenShellTarget(runtimeTarget)
+      : undefined;
+    const current = states.get(key) ?? {
       name,
       agentPlatform,
       phase: "DESTROYING" as const,
       logs: [],
     };
-    states.set(name, { ...current, phase: "DESTROYING" });
+    states.set(key, { ...current, phase: "DESTROYING" });
     if (isOpenShell) {
       if (getAgentPlatformRuntime(agentPlatform).endpointKind)
-        await deleteOpenShellWebUiEndpoint(name);
-      await deleteOpenShellSandbox(name);
-      await deleteOpenShellProvider(name);
+        await deleteOpenShellWebUiEndpoint(name, openShellTarget);
+      await deleteOpenShellSandbox(name, openShellTarget);
+      await deleteOpenShellProvider(name, openShellTarget);
     } else if (mode !== "fixture") {
       const result = await runCommand("nemoclaw", [name, "destroy", "--yes"]);
       if (result.exitCode !== 0)
         throw new Error(result.stderr.trim() || "NemoClaw destroy failed.");
     }
-    states.delete(name);
+    states.delete(key);
     response.status(202).json({
       name,
       agentPlatform,
@@ -581,9 +656,21 @@ server.on("upgrade", async (request, socket, head) => {
   if (!parsedAgentPlatform.success)
     return void rejectTerminalUpgrade(socket, 409, "Unknown Agent platform.");
   const agentPlatform = parsedAgentPlatform.data;
+  let runtimeTarget: RunnerRuntimeTarget | undefined;
+  let openShellTarget: ReturnType<typeof resolveOpenShellTarget>;
   let state: SandboxState | undefined;
   try {
-    state = await readySandboxState(sandboxName, agentPlatform);
+    runtimeTarget = runtimeTargetFromQuery(
+      url.searchParams.get("runtimeTarget") ?? undefined,
+    );
+    openShellTarget = isOpenShell
+      ? resolveOpenShellTarget(runtimeTarget)
+      : undefined;
+    state = await readySandboxState(
+      sandboxName,
+      agentPlatform,
+      runtimeTarget,
+    );
   } catch (error) {
     console.error(
       `[terminal ${sandboxName}] unable to recover sandbox state: ${error instanceof Error ? error.message : "unknown error"}`,
@@ -611,7 +698,11 @@ server.on("upgrade", async (request, socket, head) => {
       const terminal = pty.spawn(
         isOpenShell ? openShellBinary() : "nemoclaw",
         isOpenShell
-          ? openShellTerminalArguments(state.name, agentPlatform)
+          ? openShellTerminalArguments(
+              state.name,
+              agentPlatform,
+              openShellTarget,
+            )
           : nemoClawTerminalArguments(state.name, agentPlatform),
         {
           name: "xterm-256color",
@@ -700,11 +791,13 @@ app.use(
 server.listen(port, host, () =>
   console.log(`TaskLattice Relay Runtime Runner listening on ${host}:${port} (${mode})`),
 );
+const projectServiceProxy = startProjectServiceProxy();
 
 async function gracefulShutdown(signal: NodeJS.Signals): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
   server.close();
+  projectServiceProxy?.close();
   console.info(
     `${signal} received; draining ${provisionTasks.size} active provisioning task(s).`,
   );

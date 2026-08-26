@@ -17,6 +17,7 @@ import {
   NemoClawRunnerClient,
   type CreateSandboxInput,
   type RunnerClient,
+  type RunnerRuntimeTarget,
 } from "../runtime/nemoclaw-runner-client";
 import {
   LiteLLMClient,
@@ -36,6 +37,15 @@ export function agentSandboxName(id: string): string {
     .padStart(25, "0")
     .slice(-17);
   return `i-${compactId}`;
+}
+
+export function isRunnerRuntimeTargetRoutable(target: {
+  generation: number;
+  observedGeneration: number;
+  status: string;
+}): boolean {
+  return target.observedGeneration === target.generation
+    && (target.status === "ready" || target.status === "reconciling");
 }
 
 export function applyObservedState(
@@ -109,7 +119,36 @@ export class InstanceService {
 
   async getAudit(id: string): Promise<SandboxAuditEvent[] | undefined> {
     const agent = await this.store.get(id);
-    return agent ? this.runner.getSandboxAudit(agent.sandboxName) : undefined;
+    if (!agent) return undefined;
+    const target = await this.runnerRuntimeTarget();
+    return target
+      ? this.runner.getSandboxAudit(agent.sandboxName, target)
+      : this.runner.getSandboxAudit(agent.sandboxName);
+  }
+
+  async runnerRuntimeTarget(): Promise<RunnerRuntimeTarget | undefined> {
+    if (process.env.PROJECT_OPENSHELL_TARGET_ROUTING_ENABLED !== "true") {
+      return undefined;
+    }
+    const runtime = await loadPlatformRuntimeConfiguration(
+      this.store.database(),
+    );
+    if (!runtime.runtimeNamespaces.enabled) return undefined;
+    const target = await this.store.database().projectRuntimeTarget.findUnique({
+      where: { projectId: this.store.projectId },
+      select: {
+        generation: true,
+        namespace: true,
+        observedGeneration: true,
+        status: true,
+      },
+    });
+    if (!target || !isRunnerRuntimeTargetRoutable(target)) {
+      throw new Error(
+        "The Project Runtime Target is not ready for Agent lifecycle operations.",
+      );
+    }
+    return { namespace: target.namespace };
   }
 
   async create(input: CreateInstanceInput, ownerUserId?: string): Promise<Agent> {
@@ -261,7 +300,7 @@ export class InstanceService {
       agent = await this.store.save(
         applyObservedState(
           agent,
-          await this.runner.createSandbox({
+          await this.createRunnerSandbox({
             name: agent.sandboxName,
             agentPlatform: agent.agentPlatform,
             providerName: "LiteLLM",
@@ -360,7 +399,16 @@ export class InstanceService {
   private async completeDestroy(id: string): Promise<void> {
     const agent = await this.store.getIncludingDeleted(id);
     if (!agent) return;
-    await this.runner.destroySandbox(agent.sandboxName, agent.agentPlatform);
+    const target = await this.runnerRuntimeTarget();
+    if (target) {
+      await this.runner.destroySandbox(
+        agent.sandboxName,
+        agent.agentPlatform,
+        target,
+      );
+    } else {
+      await this.runner.destroySandbox(agent.sandboxName, agent.agentPlatform);
+    }
     if (agent.liteLLMTokenId)
       await this.litellm.revokeKey(agent.liteLLMTokenId);
     await this.closeInstanceAttributions(id);
@@ -548,7 +596,7 @@ export class InstanceService {
       return await this.store.save(
         applyObservedState(
           agent,
-          await this.runner.getSandbox(agent.sandboxName, agent.agentPlatform),
+          await this.getRunnerSandbox(agent),
         ),
       );
     } catch (error) {
@@ -572,5 +620,21 @@ export class InstanceService {
       },
       data: { validTo: now, updatedAt: now },
     });
+  }
+
+  private async createRunnerSandbox(
+    input: CreateSandboxInput,
+  ): Promise<RunnerSandbox> {
+    const target = await this.runnerRuntimeTarget();
+    return target
+      ? this.runner.createSandbox(input, target)
+      : this.runner.createSandbox(input);
+  }
+
+  private async getRunnerSandbox(agent: Agent): Promise<RunnerSandbox> {
+    const target = await this.runnerRuntimeTarget();
+    return target
+      ? this.runner.getSandbox(agent.sandboxName, agent.agentPlatform, target)
+      : this.runner.getSandbox(agent.sandboxName, agent.agentPlatform);
   }
 }

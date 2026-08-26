@@ -8,6 +8,7 @@ import {
   projectNamespaceResource,
   type ProjectNamespaceClient,
 } from "../kubernetes/project-namespace-client";
+import type { ProjectOpenShellGatewayClient } from "../kubernetes/project-openshell-gateway-client";
 import { createTestPrisma } from "../test/prisma";
 import {
   OPENSHELL_ROUTABLE_NAME_MAX_LENGTH,
@@ -23,13 +24,34 @@ function enabledConfig() {
 }
 
 function namespaceClient(input?: { reconcileError?: Error }) {
-  const reconcile = vi.fn(async () => {
+  const reconcile = vi.fn(async (_target: {
+    namespace: string;
+    projectId: string;
+    projectName: string;
+  }) => {
     if (input?.reconcileError) throw input.reconcileError;
   });
   const deleteAndWait = vi.fn(async () => undefined);
   return {
     client: { reconcile, deleteAndWait } as ProjectNamespaceClient,
     deleteAndWait,
+    reconcile,
+  };
+}
+
+function gatewayClient() {
+  const reconcile = vi.fn(async (_target: {
+    namespace: string;
+    projectId: string;
+    projectName: string;
+  }) => undefined);
+  const deleteGateway = vi.fn(async () => undefined);
+  return {
+    client: {
+      reconcile,
+      delete: deleteGateway,
+    } as ProjectOpenShellGatewayClient,
+    deleteGateway,
     reconcile,
   };
 }
@@ -55,17 +77,95 @@ describe("ProjectRuntimeTargetService", () => {
       .not.toBe(projectRuntimeNamespace("project-b"));
   });
 
+  it("keeps two Projects in one Department bound to disjoint Namespace and Gateway targets", async () => {
+    setControlConfigForTests(enabledConfig());
+    const db = createTestPrisma();
+    await db.project.createMany({
+      data: [
+        {
+          createdBy: "local-admin",
+          departmentId: "dep1",
+          id: "isolation-1",
+          name: "Isolation 1",
+        },
+        {
+          createdBy: "local-admin",
+          departmentId: "dep1",
+          id: "isolation-2",
+          name: "Isolation 2",
+        },
+      ],
+    });
+    const namespaces = namespaceClient();
+    const gateways = gatewayClient();
+    const service = new ProjectRuntimeTargetService(
+      db,
+      namespaces.client,
+      gateways.client,
+    );
+
+    await service.ensureProjectNamespace("isolation-1");
+    await service.ensureProjectNamespace("isolation-2");
+
+    const expectedTargets = [
+      {
+        namespace: projectRuntimeNamespace("isolation-1"),
+        projectId: "isolation-1",
+        projectName: "Isolation 1",
+      },
+      {
+        namespace: projectRuntimeNamespace("isolation-2"),
+        projectId: "isolation-2",
+        projectName: "Isolation 2",
+      },
+    ];
+    expect(namespaces.reconcile.mock.calls.map(([input]) => input))
+      .toEqual(expectedTargets);
+    expect(gateways.reconcile.mock.calls.map(([input]) => input))
+      .toEqual(expectedTargets);
+    const persisted = await db.projectRuntimeTarget.findMany({
+      where: { projectId: { in: ["isolation-1", "isolation-2"] } },
+      orderBy: { projectId: "asc" },
+    });
+    expect(persisted.map(({ namespace, projectId, status }) => ({
+      namespace,
+      projectId,
+      status,
+    }))).toEqual(expectedTargets.map(({ namespace, projectId }) => ({
+      namespace,
+      projectId,
+      status: "ready",
+    })));
+    expect(new Set(persisted.map(({ namespace }) => namespace)).size).toBe(2);
+    await expect(db.project.count({
+      where: {
+        departmentId: "dep1",
+        id: { in: ["isolation-1", "isolation-2"] },
+      },
+    })).resolves.toBe(2);
+  });
+
   it("ensures one Namespace synchronously and records readiness", async () => {
     setControlConfigForTests(enabledConfig());
     const db = createTestPrisma();
     const fake = namespaceClient();
-    const service = new ProjectRuntimeTargetService(db, fake.client);
+    const gateway = gatewayClient();
+    const service = new ProjectRuntimeTargetService(
+      db,
+      fake.client,
+      gateway.client,
+    );
 
     await expect(
       service.ensureProjectNamespace("individual"),
     ).resolves.toBe(true);
 
     expect(fake.reconcile).toHaveBeenCalledWith({
+      namespace: projectRuntimeNamespace("individual"),
+      projectId: "individual",
+      projectName: "admin",
+    });
+    expect(gateway.reconcile).toHaveBeenCalledWith({
       namespace: projectRuntimeNamespace("individual"),
       projectId: "individual",
       projectName: "admin",

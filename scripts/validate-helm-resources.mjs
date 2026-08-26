@@ -334,9 +334,9 @@ const localControl = localObjects.find(
 const localControlEnv = localControl?.spec?.template?.spec?.containers
   ?.find((container) => container.name === "control")?.env ?? [];
 for (const [name, value] of [
-  ["TALI_BOOTSTRAP_INTERNAL_URL", `http://${releaseName}-control:38080`],
+  ["TALI_BOOTSTRAP_INTERNAL_URL", `http://${releaseName}-control.${releaseNamespace}.svc.cluster.local:38080`],
   ["TALI_BOOTSTRAP_RUNNER_URL", `http://${releaseName}-runner:9090`],
-  ["TALI_BOOTSTRAP_LITELLM_URL", `http://${releaseName}-litellm:4000`],
+  ["TALI_BOOTSTRAP_LITELLM_URL", `http://${releaseName}-litellm.${releaseNamespace}.svc.cluster.local:4000`],
   ["TALI_BOOTSTRAP_RUNTIME_NAMESPACES_ENABLED", "true"],
   ["TALI_BOOTSTRAP_RUNTIME_CLUSTER_ID", "in-cluster"],
 ]) {

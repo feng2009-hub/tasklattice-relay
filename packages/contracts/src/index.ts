@@ -46,6 +46,20 @@ export const provisioningStages = [
   "READY",
 ] as const;
 
+// Stable Control-to-Runner routing contract. The implementation behind this
+// target can be a dedicated 0.0.106 Gateway today or an operator-managed
+// workspace on a newer OpenShell release without changing Agent APIs.
+export const projectRuntimeNamespaceSchema = z.string().regex(
+  /^tp-[a-z2-7]{16}$/,
+  "Project Runtime Target must be a Relay-managed Namespace.",
+);
+
+export const runnerRuntimeTargetSchema = z.object({
+  namespace: projectRuntimeNamespaceSchema,
+}).strict();
+
+export type RunnerRuntimeTarget = z.infer<typeof runnerRuntimeTargetSchema>;
+
 export const providerKinds = [
   "openai",
   "anthropic",
@@ -1847,16 +1861,25 @@ export const modelRoutingPolicySchema = z.discriminatedUnion("mode", [
   }
 });
 
-const modelRoutingKeyPolicySchema = z.object({
+const modelRoutingKeyPolicyValueSchema = z.object({
   perInstance: z.literal(true).default(true),
   rotationDays: z.number().int().min(1).max(365).default(90),
-}).default({ perInstance: true, rotationDays: 90 });
+});
+const modelRoutingKeyPolicySchema = modelRoutingKeyPolicyValueSchema.default({
+  perInstance: true,
+  rotationDays: 90,
+});
 
-const modelRoutingAuditPolicySchema = z.object({
+const modelRoutingAuditPolicyValueSchema = z.object({
   controlPlane: z.literal(true).default(true),
   requestLogs: z.boolean().default(true),
   capturePrompts: z.literal(false).default(false),
-}).default({ controlPlane: true, requestLogs: true, capturePrompts: false });
+});
+const modelRoutingAuditPolicySchema = modelRoutingAuditPolicyValueSchema.default({
+  controlPlane: true,
+  requestLogs: true,
+  capturePrompts: false,
+});
 
 const createModelRoutingBaseSchema = z.object({
   name: z.string().trim().min(2).max(64),
@@ -1875,8 +1898,8 @@ export const updateModelRoutingSchema = z.object({
   name: z.string().trim().min(2).max(64).optional(),
   description: z.string().trim().max(300).optional(),
   isDefault: z.boolean().optional(),
-  keyPolicy: modelRoutingKeyPolicySchema.optional(),
-  auditPolicy: modelRoutingAuditPolicySchema.optional(),
+  keyPolicy: modelRoutingKeyPolicyValueSchema.optional(),
+  auditPolicy: modelRoutingAuditPolicyValueSchema.optional(),
   routingPolicy: modelRoutingPolicySchema.optional(),
   suspended: z.boolean().optional(),
 }).strict();

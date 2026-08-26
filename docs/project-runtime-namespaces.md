@@ -12,7 +12,9 @@ Project creation is synchronous:
 2. Before returning a successful API response, the Control Plane uses
    server-side apply to ensure that the mapped Namespace exists with the
    Relay-owned labels and annotations.
-3. If Namespace creation fails, Project creation fails and Relay compensates by
+3. In the OpenShell 0.0.106 compatibility topology, it reconciles the pinned
+   official OpenShell Helm chart into that Namespace and waits for readiness.
+4. If Namespace or Gateway creation fails, Project creation fails and Relay compensates by
    deleting the new database Project.
 
 The independent Control Worker also reconciles active Runtime Targets in the
@@ -82,10 +84,10 @@ an existing Namespace whose owner annotation does not match the database
 mapping. A Kubernetes UID precondition also prevents deleting a Namespace that
 was recreated between the ownership check and delete request.
 
-This phase creates only the Namespace. It does not inject a ServiceAccount,
-`LimitRange`, `ResourceQuota`, or `NetworkPolicy`. Those objects change workload
-admission and networking behavior and should be introduced later as explicit,
-independently configurable Project policies.
+The Project reconciler does not inject a tenant ServiceAccount, `LimitRange`,
+or `ResourceQuota`. When the compatibility Gateway topology is enabled, the
+official OpenShell chart owns its own ServiceAccount, RBAC, private Service,
+NetworkPolicy, StatefulSet, configuration, and persistence in the Namespace.
 
 The main Control Plane ServiceAccount can get, create, and patch Namespaces for
 synchronous creation and direct managed-workload operations. The independent
@@ -121,16 +123,50 @@ Namespace reconciliation jobs until the saved Platform setting enables the
 feature. This keeps local development independent from Kubernetes and
 preserves the desired mapping for a later rollout.
 
-## Current OpenShell boundary
+## OpenShell 0.0.106 compatibility topology
 
-The current Relay deployment keeps OpenShell `0.0.106` in its default `shared`
-workspace mode, so the sandbox Namespace remains a Gateway-level setting.
-Consequently, a `ready` Project Runtime Target currently means that the Project
-Namespace mapping exists; it does **not** mean existing OpenClaw or Hermes
-sandboxes have moved into it.
+OpenShell 0.0.106 fixes the Kubernetes sandbox Namespace at the Gateway level.
+Relay therefore deploys one official OpenShell Gateway release inside every
+Project Namespace while retaining one centralized Runner. The Project
+Namespace is also the OpenShell workspace. Each Agent operation carries a
+typed `{ namespace }` Runtime Target, so lifecycle, observation, audit,
+terminal, and service routing all reach the matching Gateway. A `ready`
+Runtime Target means both the Namespace and its Gateway release reconciled.
 
-Repository-managed A2A Agent Deployments can target the mapped Namespace
-directly. Moving OpenShell-backed instances requires either an upstream
-per-sandbox Namespace option or one OpenShell Gateway per isolation boundary.
-That runtime placement change must land before Namespace separation can be
-described as complete workload isolation.
+The Gateway is a private, unauthenticated plaintext `ClusterIP` because this
+compatibility path is restricted to the trusted in-cluster network. Do not
+publish it directly. The central Runner service proxy validates the
+workspace-qualified hostname and forwards browser traffic to the derived
+Gateway Service; it does not trust an endpoint supplied by the caller.
+
+Project deletion uninstalls the official Helm release before deleting the
+Namespace. The periodic Worker repairs both resources idempotently. Existing
+Agents remain NemoClaw-shaped Sandboxes: the pinned image runs OpenShell as PID
+1, `nemoclaw-start` as the long-lived child, and the Agent platform beneath it.
+Before each upgrade, the adapter inspects Helm release state. If a Worker
+rollout interrupted a prior operation, it rolls the release back to the latest
+deployed revision (or removes an incomplete first install) before reconciling
+the desired values.
+
+Runtime Targets created by older previews with names outside the current
+`tp-<16-character-base32>` contract require an explicit data-plane migration.
+The Project Gateway adapter refuses to install into those legacy Namespaces so
+it cannot silently claim compatibility with a workspace name that OpenShell
+0.0.106 cannot route.
+
+## Migration to a newer OpenShell
+
+The Project-to-Namespace mapping and Control-to-Runner `{ namespace }` contract
+are topology-neutral. OpenShell 0.0.111 support does not require Relay to share
+a Gateway: dedicated Gateway-per-Project remains a valid deployment choice for
+customers that need a stronger failure domain, independent upgrade window, or
+higher SLA. Standard-SLA customers may instead use a validated shared Gateway.
+
+The dedicated mode keeps the per-Project provisioner and Namespace-derived
+endpoint template. Shared mode replaces only the Gateway provisioner with the
+shared Gateway/operator adapter and points
+`runner.projectTargetRouting.gatewayEndpointTemplate` at that Service. Agent
+APIs, lifecycle ownership, Runtime Target data, workspace identity, and the
+central Runner remain unchanged in both modes. The later 0.0.111-compatible
+path is therefore an adapter/version update and an operator-selected topology,
+not a tenant-routing redesign.
