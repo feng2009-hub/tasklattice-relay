@@ -448,6 +448,7 @@ model Project {
   skills                       SkillRecord[]
   mcpServers                   McpServerRecord[]
   knowledgeSources             KnowledgeSourceRecord[]
+  knowledgeVectorDatabases     KnowledgeVectorDatabase[]
   specializations              AgentSpecializationRecord[]
   costAttributions             CostAttributionMappingRecord[]
   modelEndpointMaps            ModelEndpointMappingRecord[]
@@ -1037,9 +1038,50 @@ model KnowledgeSourceRecord {
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  vectorDatabase KnowledgeVectorDatabase?
 
   @@id([projectId, id])
   @@map("knowledge_sources")
+  @@schema("tasklattice")
+}
+
+model KnowledgeVectorDatabase {
+  projectId            String   @map("project_id")
+  id                   String
+  vectorStoreId        String   @map("vector_store_id")
+  embeddingModel       String   @map("embedding_model")
+  embeddingDimensions  Int      @map("embedding_dimensions")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  project Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  source  KnowledgeSourceRecord  @relation(fields: [projectId, id], references: [projectId, id], onDelete: Cascade)
+  chunks  KnowledgeVectorChunk[]
+
+  @@id([projectId, id])
+  @@unique([projectId, vectorStoreId], map: "knowledge_vector_databases_vector_store_key")
+  @@unique([projectId, id, embeddingDimensions], map: "knowledge_vector_databases_dimensions_key")
+  @@map("knowledge_vector_databases")
+  @@schema("tasklattice")
+}
+
+model KnowledgeVectorChunk {
+  projectId            String   @map("project_id")
+  databaseId           String   @map("database_id")
+  id                   String
+  content              String
+  filename             String
+  attributes           Json     @default("{}")
+  embeddingDimensions  Int      @map("embedding_dimensions")
+  embedding            Unsupported("vector")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  database KnowledgeVectorDatabase @relation(fields: [projectId, databaseId, embeddingDimensions], references: [projectId, id, embeddingDimensions], onDelete: Cascade)
+
+  @@id([projectId, databaseId, id])
+  @@index([projectId, databaseId], map: "knowledge_vector_chunks_database_idx")
+  @@map("knowledge_vector_chunks")
   @@schema("tasklattice")
 }
 

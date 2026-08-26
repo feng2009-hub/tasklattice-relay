@@ -7,12 +7,14 @@ import {
   createMcpServerDefinitionSchema,
   createSkillDefinitionSchema,
   knowledgeSourceDefinitionSchema,
+  knowledgeVectorChunkMutationResultSchema,
   mcpServerDefinitionSchema,
   onboardAgentSchema,
   skillDefinitionSchema,
   updateKnowledgeSourceDefinitionSchema,
   updateMcpServerDefinitionSchema,
   updateSkillDefinitionSchema,
+  upsertKnowledgeVectorChunksSchema,
 } from "@tali/contracts";
 import { z } from "zod";
 import { defineContracts } from "./contract";
@@ -26,6 +28,7 @@ import {
   domainObjectSchema,
   gardenAgentParamsSchema,
   gardenConnectionParamsSchema,
+  knowledgeVectorChunkParamsSchema,
   messageSchema,
   runtimeBridgeAgentParamsSchema,
   runtimeBridgeCoordinatorParamsSchema,
@@ -76,6 +79,18 @@ export const catalogContracts = defineContracts([
     summary: "Delete a catalog resource", tags: ["Resource catalog"],
     request: { params: catalogResourceParamsSchema },
     responses: { 200: response("Deleted catalog resource", messageSchema) },
+  }),
+  projectRoute({
+    method: "put", path: "/catalog/knowledge-sources/{id}/chunks", operationId: "upsertKnowledgeVectorChunks",
+    summary: "Embed and upsert PostgreSQL knowledge chunks", tags: ["Resource catalog"],
+    request: { params: catalogNamedResourceParamsSchema, body: upsertKnowledgeVectorChunksSchema },
+    responses: { 200: response("Upserted knowledge chunks", knowledgeVectorChunkMutationResultSchema) },
+  }),
+  projectRoute({
+    method: "delete", path: "/catalog/knowledge-sources/{id}/chunks/{chunkId}", operationId: "deleteKnowledgeVectorChunk",
+    summary: "Delete a PostgreSQL knowledge chunk", tags: ["Resource catalog"],
+    request: { params: knowledgeVectorChunkParamsSchema },
+    responses: { 200: response("Deleted knowledge chunk", messageSchema) },
   }),
   projectRoute({
     method: "post", path: "/catalog/mcp-servers/{id}/discover", operationId: "discoverMcpServerTools",

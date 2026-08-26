@@ -313,11 +313,18 @@ forwarding for private evaluation or configure OpenShell's `grpcRoute` with a
 supported Gateway API implementation. Do not expose the default plaintext,
 unauthenticated OpenShell configuration publicly.
 
-This Chart deploys the Docker Official `postgres:17-alpine` image and mounts
+This Chart deploys `pgvector/pgvector:0.8.6-pg17`, which extends the Docker
+Official PostgreSQL 17 image with pgvector, and mounts
 `/var/lib/postgresql/data`. A database log referring to
 `/opt/bitnami/postgresql` comes from an image override or a different release;
-do not substitute a Bitnami image without also replacing its environment and
-volume configuration.
+do not substitute an image without pgvector or a Bitnami image without also
+replacing its environment and volume configuration.
+
+The pgvector image runs PostgreSQL as UID/GID `999`; the StatefulSet security
+context matches it. Releases created with the former Alpine image used UID/GID
+`70`. Before upgrading an existing PVC, take a tested backup and arrange a
+maintenance-window ownership migration for the data volume. Do not weaken the
+Pod to run as root as an upgrade shortcut.
 
 ## Embedded Keycloak for end-to-end tests
 

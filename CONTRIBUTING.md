@@ -203,7 +203,7 @@ Terminal 2:
 docker run --rm --name tali-dev-postgres \
   -e POSTGRES_PASSWORD=tali \
   -e POSTGRES_DB=tali \
-  -p 5432:5432 postgres:17-alpine
+  -p 5432:5432 pgvector/pgvector:0.8.6-pg17
 ```
 
 Terminal 3:

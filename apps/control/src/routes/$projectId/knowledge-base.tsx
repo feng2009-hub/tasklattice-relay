@@ -121,7 +121,7 @@ function KnowledgeBase() {
     <div className="space-y-6">
       <PageHeader
         title="Knowledge Base"
-        description="Project-isolated LiteLLM Vector Stores available to explicitly selected Instance Keys."
+        description="Project-isolated provider stores and PostgreSQL knowledge vectors available to explicitly selected Instance Keys."
         actions={<Button className="h-11" onClick={() => openForm()}><Plus /> Register Vector Store</Button>}
       />
       {catalog.isPending ? <p className="border p-4 text-sm text-muted-foreground">Loading LiteLLM Vector Stores…</p> : null}
@@ -132,7 +132,7 @@ function KnowledgeBase() {
       <Card>
         <CardHeader className="border-b">
           <CardTitle>Managed Vector Stores</CardTitle>
-          <CardDescription>TaskLattice Relay owns desired state; LiteLLM owns provider routing and object permissions.</CardDescription>
+          <CardDescription>TaskLattice Relay owns desired state and built-in PostgreSQL vectors; LiteLLM owns routing and object permissions.</CardDescription>
         </CardHeader>
         <CardContent className="px-0">
           {items.length ? items.map((item) => (
@@ -203,11 +203,14 @@ function KnowledgeBase() {
               { label: "Provider", value: getVectorStoreProvider(selected.provider).label },
               { label: "API base", value: selected.apiBase ?? "Provider default", mono: Boolean(selected.apiBase) },
               { label: "Embedding model", value: selected.embeddingModel ?? "Provider default" },
+              ...(selected.provider === "postgresql" ? [
+                { label: "Embedding dimensions", value: String(selected.embeddingDimensions ?? "Not configured"), mono: true },
+              ] : []),
               ...(selected.provider === "elasticsearch" ? [
                 { label: "semantic_text field", value: selected.semanticField ?? "Not configured", mono: true },
                 { label: "Content field", value: selected.contentField ?? "Not configured", mono: true },
               ] : []),
-              { label: "Credential", value: selected.credentialReference || "Provider workload identity", mono: Boolean(selected.credentialReference) },
+              { label: "Credential", value: selected.provider === "postgresql" ? "Internal Control bridge" : selected.credentialReference || "Provider workload identity", mono: Boolean(selected.credentialReference) },
             ]} />
             <div className="border bg-muted/25 p-4 text-sm">
               <div className="flex items-start gap-3">
@@ -245,7 +248,7 @@ function KnowledgeBase() {
         }}
         eyebrow="Knowledge Base"
         title={editingId ? "Update Vector Store" : "Register Vector Store"}
-        description="Register an existing provider Vector Store in LiteLLM. Secret values remain server-side."
+        description="Register a provider Vector Store or create a built-in PostgreSQL Knowledge Vector Database. Secret values remain server-side."
         width="md"
         footer={(
           <>
@@ -257,14 +260,14 @@ function KnowledgeBase() {
         <div className="space-y-4">
           <div className="space-y-2"><Label htmlFor="kb-name">Name</Label><Input id="kb-name" className="h-11" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="Engineering Handbook" /></div>
           <div className="space-y-2">
-            <Label htmlFor="kb-vector-store-id">{draft.provider === "elasticsearch" ? "Elasticsearch index or alias" : "Provider Vector Store ID"}</Label>
+            <Label htmlFor="kb-vector-store-id">{draft.provider === "elasticsearch" ? "Elasticsearch index or alias" : draft.provider === "postgresql" ? "Knowledge Vector Database ID" : "Provider Vector Store ID"}</Label>
             <Input
               id="kb-vector-store-id"
               className="h-11 font-mono"
               value={draft.vectorStoreId}
               disabled={Boolean(editingId)}
               onChange={(event) => setDraft({ ...draft, vectorStoreId: event.target.value })}
-              placeholder={draft.provider === "elasticsearch" ? "knowledge-chunks" : draft.provider === "pg_vector" ? "vs_pgvector" : "vs_..."}
+              placeholder={draft.provider === "elasticsearch" ? "knowledge-chunks" : draft.provider === "postgresql" ? "engineering-handbook" : draft.provider === "pg_vector" ? "vs_pgvector" : "vs_..."}
             />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -276,12 +279,17 @@ function KnowledgeBase() {
               Connects LiteLLM to an OpenAI-compatible PGVector service. Enter the connector URL—not a PostgreSQL DSN.
             </p>
           ) : null}
+          {draft.provider === "postgresql" ? (
+            <p className="border-l-2 border-[#4169E1] bg-muted/35 px-4 py-3 text-xs leading-5 text-muted-foreground">
+              Stores chunks inside Relay&apos;s Project-isolated PostgreSQL schema and uses the selected LiteLLM model for embeddings. No PostgreSQL DSN or connector service is required.
+            </p>
+          ) : null}
           {draft.provider === "elasticsearch" ? (
             <p className="border-l-2 border-[#005571] bg-muted/35 px-4 py-3 text-xs leading-5 text-muted-foreground">
               TaskLattice Relay bridges LiteLLM search to this index. The semantic field must be mapped as <span className="font-mono text-foreground">semantic_text</span> with an inference endpoint.
             </p>
           ) : null}
-          <div className="space-y-2">
+          {draft.provider !== "postgresql" ? <div className="space-y-2">
             <Label htmlFor="kb-api-base">
               {draft.provider === "elasticsearch" ? "Elasticsearch URL" : draft.provider === "pg_vector" ? "PGVector connector API base" : "API base (optional)"}
             </Label>
@@ -292,7 +300,7 @@ function KnowledgeBase() {
               onChange={(event) => setDraft({ ...draft, apiBase: event.target.value })}
               placeholder={draft.provider === "elasticsearch" ? "https://cluster.es.us-central1.gcp.cloud.es.io" : draft.provider === "pg_vector" ? "https://pgvector.example.com" : "https://resource.openai.azure.com"}
             />
-          </div>
+          </div> : null}
           {draft.provider === "elasticsearch" ? (
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
@@ -306,9 +314,14 @@ function KnowledgeBase() {
             </div>
           ) : null}
           {draft.provider !== "elasticsearch" && draft.provider !== "pg_vector" ? (
-            <div className="space-y-2"><Label htmlFor="kb-embedding">LiteLLM embedding model (optional)</Label><Input id="kb-embedding" className="h-11 font-mono" value={draft.embeddingModel ?? ""} onChange={(event) => setDraft({ ...draft, embeddingModel: event.target.value })} placeholder="text-embedding-3-large" /></div>
+            <div className={draft.provider === "postgresql" ? "grid gap-4 sm:grid-cols-2" : ""}>
+              <div className="space-y-2"><Label htmlFor="kb-embedding">LiteLLM embedding model{draft.provider === "postgresql" ? "" : " (optional)"}</Label><Input id="kb-embedding" className="h-11 font-mono" value={draft.embeddingModel ?? ""} onChange={(event) => setDraft({ ...draft, embeddingModel: event.target.value })} placeholder="tali/openai/text-embedding-3-small" /></div>
+              {draft.provider === "postgresql" ? (
+                <div className="space-y-2"><Label htmlFor="kb-embedding-dimensions">Embedding dimensions</Label><Input id="kb-embedding-dimensions" className="h-11 font-mono" type="number" min={1} max={16000} value={draft.embeddingDimensions ?? ""} onChange={(event) => setDraft({ ...draft, embeddingDimensions: event.target.value ? Number(event.target.value) : undefined })} placeholder="1536" /></div>
+              ) : null}
+            </div>
           ) : null}
-          <div className="space-y-2">
+          {draft.provider !== "postgresql" ? <div className="space-y-2">
             <Label htmlFor="kb-auth">Credential Secret reference</Label>
             <Input id="kb-auth" className="h-11 font-mono" value={draft.credentialReference} onChange={(event) => setDraft({ ...draft, credentialReference: event.target.value })} placeholder={draft.provider === "elasticsearch" ? "k8s://namespace/secret#ELASTICSEARCH_API_KEY" : "k8s://namespace/secret#VECTOR_STORE_CREDENTIAL"} />
             <p className="text-xs leading-5 text-muted-foreground">
@@ -318,7 +331,7 @@ function KnowledgeBase() {
                   ? "Required. Reference the bearer token accepted by the PGVector connector."
                 : "Use a JSON object for AWS or multi-field provider credentials. Leave blank for workload identity."}
             </p>
-          </div>
+          </div> : null}
           {formError || saveSource.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 px-3 py-2 text-sm text-destructive">{formError || saveSource.error?.message}</p> : null}
         </div>
       </EntitySheet>

@@ -75,8 +75,8 @@ images:
     repository: tali-nemoclaw-deepagents-sandbox
     tag: ""
   postgres:
-    repository: postgres
-    tag: 17-alpine
+    repository: pgvector/pgvector
+    tag: 0.8.6-pg17
     pullPolicy: IfNotPresent
     useGlobalRegistry: false
   keycloak:

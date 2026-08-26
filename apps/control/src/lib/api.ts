@@ -64,6 +64,7 @@ import type {
   UpdateAccessPolicyInput,
   UpdateMcpServerDefinitionInput,
   UpdateSkillDefinitionInput,
+  UpsertKnowledgeVectorChunksInput,
 } from "@tali/contracts";
 import { projectIdFromPathname } from "./project-storage";
 
@@ -294,6 +295,16 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(input),
     }),
+  upsertKnowledgeVectorChunks: (id: string, input: UpsertKnowledgeVectorChunksInput) =>
+    request<{ upserted: number }>(
+      `/api/v1/catalog/knowledge-sources/${encodeURIComponent(id)}/chunks`,
+      { method: "PUT", body: JSON.stringify(input) },
+    ),
+  deleteKnowledgeVectorChunk: (id: string, chunkId: string) =>
+    request<{ message: string }>(
+      `/api/v1/catalog/knowledge-sources/${encodeURIComponent(id)}/chunks/${encodeURIComponent(chunkId)}`,
+      { method: "DELETE" },
+    ),
   deleteResource: (kind: ResourceKind, id: string) =>
     request<{ message: string }>(`/api/v1/catalog/${kind}/${encodeURIComponent(id)}`, {
       method: "DELETE",

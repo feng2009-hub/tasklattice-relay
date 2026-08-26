@@ -40,6 +40,9 @@ export const catalogCollectionParamsSchema = projectParamsSchema.extend({
 });
 export const catalogResourceParamsSchema = catalogCollectionParamsSchema.extend({ id });
 export const catalogNamedResourceParamsSchema = projectParamsSchema.extend({ id });
+export const knowledgeVectorChunkParamsSchema = catalogNamedResourceParamsSchema.extend({
+  chunkId: id,
+});
 export const demoAgentParamsSchema = z.object({ id });
 export const runtimeBridgeCoordinatorParamsSchema = z.object({
   coordinatorInstanceId: id,

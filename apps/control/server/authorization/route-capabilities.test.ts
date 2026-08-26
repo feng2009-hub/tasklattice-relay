@@ -30,7 +30,7 @@ describe("Project route capability declarations", () => {
       const pathname = `/api/v1/projects/individual${route ? `/${route}` : ""}`;
       if (!projectRouteAdmissionPolicy(method, pathname)) uncovered.push(file);
     }
-    expect(files).toHaveLength(84);
+    expect(files).toHaveLength(86);
     expect(uncovered).toEqual([]);
   });
 
@@ -67,6 +67,17 @@ describe("Project route capability declarations", () => {
       "POST",
       "/api/v1/projects/individual/catalog/skills/skill-1/verify",
     )?.requirements[0]?.capability).toBe("CAP_SKILL_VERIFY");
+    expect(projectRouteAdmissionPolicy(
+      "PUT",
+      "/api/v1/projects/individual/catalog/knowledge-sources/knowledge-1/chunks",
+    )?.requirements[0]).toEqual({
+      capability: "CAP_KNOWLEDGE_SOURCE_UPDATE",
+      resourceType: "KnowledgeVectorChunk",
+    });
+    expect(projectRouteAdmissionPolicy(
+      "DELETE",
+      "/api/v1/projects/individual/catalog/knowledge-sources/knowledge-1/chunks/chunk-1",
+    )?.requirements[0]?.capability).toBe("CAP_KNOWLEDGE_SOURCE_UPDATE");
   });
 
   it("preserves conditional route semantics with a trailing slash", () => {

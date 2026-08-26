@@ -10,8 +10,8 @@ global:
 # runtime images use full repository paths so they can be mirrored separately.
 images:
   postgres:
-    repository: registry.airgap.example.com/third-party/postgres
-    tag: 17-alpine
+    repository: registry.airgap.example.com/third-party/pgvector
+    tag: 0.8.6-pg17
     useGlobalRegistry: false
   keycloak:
     repository: registry.airgap.example.com/third-party/keycloak

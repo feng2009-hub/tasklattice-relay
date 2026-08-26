@@ -6,6 +6,7 @@ import type {
   ResourceCatalog,
   ResourceKind,
   KnowledgeSourceDefinition,
+  UpsertKnowledgeVectorChunksInput,
   McpServerDefinition,
   SkillDefinition,
   UpdateKnowledgeSourceDefinitionInput,
@@ -22,6 +23,7 @@ import { ProjectStore } from "../projects/project-store";
 import { ProjectQuotaService } from "../quotas/project-quota-service";
 import { createSecretStore, type SecretStore } from "../secrets/secret-store";
 import { mcpServerTemplates } from "./mcp-server-templates";
+import { KnowledgeVectorDatabase } from "./knowledge-vector-database";
 import {
   vectorStoreBridgeApiBase,
   vectorStoreBridgeApiKey,
@@ -42,13 +44,30 @@ function liteLLMServerId(projectId: string, resourceId: string): string {
   return `tali_${projectHash}_${resourceId.replace(/[^a-zA-Z0-9_]/g, "_").slice(0, 80)}`;
 }
 
+function liteLLMVectorStoreProvider(
+  provider: KnowledgeSourceDefinition["provider"],
+): LiteLLMVectorStoreInput["provider"] {
+  if (provider === "elasticsearch" || provider === "postgresql") {
+    return "pg_vector";
+  }
+  return provider;
+}
+
 export class ResourceCatalogService {
+  readonly vectorDatabase: KnowledgeVectorDatabase;
+
   constructor(
     readonly store = new ProjectStore(),
     readonly quotas = new ProjectQuotaService(store),
     readonly litellm: LiteLLMAdminClient = new LiteLLMClient(),
     readonly secrets: SecretStore = createSecretStore(),
-  ) {}
+    vectorDatabase?: KnowledgeVectorDatabase,
+  ) {
+    this.vectorDatabase = vectorDatabase ?? new KnowledgeVectorDatabase(store, {
+      createEmbeddings: (model, input) =>
+        this.requireAdapter("createEmbeddings")(model, input),
+    });
+  }
 
   async catalog(): Promise<ResourceCatalog> {
     return {
@@ -185,6 +204,9 @@ export class ResourceCatalogService {
       lastReconciliationError: null,
     });
     try {
+      if (source.provider === "postgresql") {
+        await this.vectorDatabase.provision(source);
+      }
       await this.requireAdapter("registerVectorStore")(await this.liteLLMVectorStoreInput(source));
       await this.syncProjectObjectPermissions();
       return this.store.saveKnowledgeSourceDefinition({
@@ -207,16 +229,23 @@ export class ResourceCatalogService {
     if (current.vectorStoreId !== input.vectorStoreId) {
       throw new Error("The provider Vector Store ID is immutable. Register a new Knowledge Base instead.");
     }
-    const next = await this.store.saveKnowledgeSourceDefinition({
+    const candidate: KnowledgeSourceDefinition = {
       ...current,
       ...input,
       id,
       status: "UNAVAILABLE",
       lastReconciliationError: null,
-    });
+    };
+    if (candidate.provider === "postgresql") {
+      await this.vectorDatabase.provision(candidate);
+    }
+    const next = await this.store.saveKnowledgeSourceDefinition(candidate);
     try {
       await this.requireAdapter("updateVectorStore")(await this.liteLLMVectorStoreInput(next));
       await this.syncProjectObjectPermissions();
+      if (next.provider !== "postgresql") {
+        await this.vectorDatabase.drop(next.id);
+      }
       return this.store.saveKnowledgeSourceDefinition({
         ...next,
         status: "REGISTERED",
@@ -252,9 +281,26 @@ export class ResourceCatalogService {
       .catch((error) => {
         if (!isRemoteNotFound(error)) throw error;
       });
+    if (source.provider === "postgresql") {
+      await this.vectorDatabase.drop(source.id);
+    }
     const deleted = await this.store.deleteKnowledgeSourceDefinition(id);
     await this.syncProjectObjectPermissions();
     return deleted;
+  }
+
+  async upsertKnowledgeVectorChunks(
+    sourceId: string,
+    input: UpsertKnowledgeVectorChunksInput,
+  ): Promise<{ upserted: number }> {
+    return this.vectorDatabase.upsertChunks(sourceId, input);
+  }
+
+  async deleteKnowledgeVectorChunk(
+    sourceId: string,
+    chunkId: string,
+  ): Promise<boolean> {
+    return this.vectorDatabase.deleteChunk(sourceId, chunkId);
   }
 
   private async syncProjectObjectPermissions(): Promise<void> {
@@ -311,13 +357,14 @@ export class ResourceCatalogService {
   }
 
   private async liteLLMVectorStoreInput(source: KnowledgeSourceDefinition): Promise<LiteLLMVectorStoreInput> {
-    const credential = source.provider !== "elasticsearch" && source.credentialReference
+    const usesInternalBridge = source.provider === "elasticsearch"
+      || source.provider === "postgresql";
+    const credential = !usesInternalBridge && source.credentialReference
       ? await this.secrets.get(source.credentialReference)
       : undefined;
-    const usesElasticsearchBridge = source.provider === "elasticsearch";
     return {
       vectorStoreId: source.vectorStoreId,
-      provider: source.provider === "elasticsearch" ? "pg_vector" : source.provider,
+      provider: liteLLMVectorStoreProvider(source.provider),
       name: source.name,
       description: source.description,
       metadata: {
@@ -327,7 +374,7 @@ export class ResourceCatalogService {
         top_k: source.topK,
       },
       litellmParams: {
-        ...(usesElasticsearchBridge
+        ...(usesInternalBridge
           ? {
               api_base: await vectorStoreBridgeApiBase(
                 this.store.projectId,

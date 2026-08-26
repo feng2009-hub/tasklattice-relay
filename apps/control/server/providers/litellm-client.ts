@@ -8,6 +8,7 @@ import type {
   ProviderModelSelection,
 } from "@tali/contracts";
 import { complianceDomains } from "@tali/contracts";
+import { z } from "zod";
 import { loadPlatformRuntimeConfiguration } from "../platform/platform-runtime-config";
 
 interface LiteLLMVirtualKeyResponse {
@@ -228,6 +229,7 @@ export interface LiteLLMAdminClient {
   registerVectorStore?(input: LiteLLMVectorStoreInput): Promise<void>;
   updateVectorStore?(input: LiteLLMVectorStoreInput): Promise<void>;
   deleteVectorStore?(vectorStoreId: string): Promise<void>;
+  createEmbeddings?(model: string, input: string[]): Promise<number[][]>;
   testConnection?(): Promise<{ ok: boolean; version?: string }>;
 }
 
@@ -312,6 +314,23 @@ export class LiteLLMClient implements LiteLLMAdminClient {
       method: "POST",
       body: JSON.stringify({ id: modelId }),
     });
+  }
+
+  async createEmbeddings(model: string, input: string[]): Promise<number[][]> {
+    if (!input.length) return [];
+    const response = await this.request<{
+      data?: Array<{ index?: number; embedding?: unknown }>;
+    }>("/embeddings", {
+      method: "POST",
+      body: JSON.stringify({ model, input, encoding_format: "float" }),
+    });
+    const data = response.data ?? [];
+    const ordered = [...data].sort((left, right) =>
+      (left.index ?? 0) - (right.index ?? 0)
+    );
+    return ordered.map((item) =>
+      z.array(z.number()).parse(item.embedding)
+    );
   }
 
   async reconcileModelRoutingRoute(input: LiteLLMModelRoutingRouteInput): Promise<void> {

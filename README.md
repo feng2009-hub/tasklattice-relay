@@ -155,7 +155,7 @@ resolves to that exact value.
 | OpenClaw sandbox         | `ghcr.io/tasklattice/tali-nemoclaw-sandbox:<release>`          | OpenClaw Agent sandbox                             |
 | Hermes sandbox           | `ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:<release>`   | Default Supervisor sandbox                         |
 | Deep Agents sandbox      | `ghcr.io/tasklattice/tali-nemoclaw-deepagents-sandbox:<release>` | Deep Agents Code terminal sandbox                |
-| LiteLLM PostgreSQL       | `postgres:17-alpine`                                            | LiteLLM configuration and usage data               |
+| PostgreSQL + pgvector    | `pgvector/pgvector:0.8.6-pg17`                                  | Control data, LiteLLM data, and knowledge vectors  |
 | OpenShell gateway        | `ghcr.io/nvidia/openshell/gateway:0.0.106`                      | Policy enforcement, audit, exec, and HTTP routing  |
 | OpenShell supervisor     | `ghcr.io/nvidia/openshell/supervisor:0.0.106`                   | Supervisor injected into Agent sandboxes           |
 | Agent Sandbox controller | `registry.k8s.io/agent-sandbox/agent-sandbox-controller:v0.5.1` | Sandbox CR, Pod, and workspace PVC lifecycle       |
