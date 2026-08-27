@@ -148,7 +148,7 @@ describe("ProjectQuotaService", () => {
     );
     await expect(service.assertCanCreate("mcp")).resolves.toBeUndefined();
     await expect(service.assertCanCreate("knowledge-base")).rejects.toThrow(
-      "Knowledge Base integration quota exceeded",
+      "Vector Database integration quota exceeded",
     );
   });
 

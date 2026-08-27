@@ -93,7 +93,7 @@ describe("ResourceCatalogService", () => {
       ]),
     );
     expect(catalog.mcpServers).toEqual([]);
-    expect(catalog.knowledgeSources).toEqual([]);
+    expect(catalog.vectorDatabases).toEqual([]);
     expect(
       catalog.specializations.find((item) => item.id === "hr"),
     ).toMatchObject({
@@ -110,7 +110,7 @@ describe("ResourceCatalogService", () => {
       catalog.mcpServers.map((item) => item.id),
     );
     const availableKnowledgeSourceIds = new Set(
-      catalog.knowledgeSources.map((item) => item.id),
+      catalog.vectorDatabases.map((item) => item.id),
     );
     for (const role of catalog.specializations) {
       expect(role.defaultSkillIds.every((id) => availableSkillIds.has(id))).toBe(true);

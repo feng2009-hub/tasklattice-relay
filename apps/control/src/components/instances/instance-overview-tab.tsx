@@ -168,7 +168,7 @@ function capabilitySentence({ allowedToolCount, knowledgeCount, memoryEnabled, s
   if (skillCount) parts.push(`${skillCount} specialist skill${skillCount === 1 ? "" : "s"}`);
   if (serverCount && toolAccessKnown) parts.push(`${allowedToolCount} approved tool${allowedToolCount === 1 ? "" : "s"}`);
   else if (serverCount) parts.push("tool access awaiting verification");
-  if (knowledgeCount) parts.push(`${knowledgeCount} grounded knowledge source${knowledgeCount === 1 ? "" : "s"}`);
+  if (knowledgeCount) parts.push(`${knowledgeCount} Vector Database${knowledgeCount === 1 ? "" : "s"}`);
   if (memoryEnabled) parts.push("durable memory");
 
   if (!parts.length) {
@@ -213,10 +213,10 @@ export function InstanceOverviewTab({ access, agent, modelRoutingName, platform 
     catalog.data?.mcpServers.find((item) => item.id === id) ?? { id, name: id, tools: [] },
   );
   const selectedKnowledge = (agent.knowledgeSourceIds ?? []).map((id) =>
-    catalog.data?.knowledgeSources.find((item) => item.id === id) ?? {
+    catalog.data?.vectorDatabases.find((item) => item.id === id) ?? {
       id,
       name: id,
-      description: "Knowledge source details are currently unavailable.",
+      description: "Vector Database details are currently unavailable.",
     },
   );
   const toolAccessKnown = Boolean(catalog.data && policies.data);
@@ -337,7 +337,7 @@ export function InstanceOverviewTab({ access, agent, modelRoutingName, platform 
                       : "Checking…"
                 }
               />
-              <ContextFact label="Knowledge" value={selectedKnowledge.length} />
+              <ContextFact label="Vector Databases" value={selectedKnowledge.length} />
               <ContextFact label="Memory" value={agent.memory ? `${agent.memory.mode} enabled` : "Not attached"} />
               <ContextFact label="Data boundary" value={boundary} />
             </dl>
@@ -423,11 +423,11 @@ export function InstanceOverviewTab({ access, agent, modelRoutingName, platform 
 
             <CapabilitySection
               icon={BookOpen}
-              title={`Knowledge & memory · ${selectedKnowledge.length + (agent.memory ? 1 : 0)}`}
+              title={`Vector Databases & memory · ${selectedKnowledge.length + (agent.memory ? 1 : 0)}`}
               description="Approved sources and durable context available for grounded, continuous work."
               action={(
                 <Button asChild variant="link" className="min-h-11 px-0">
-                  <Link {...capabilityHref} hash="knowledge-bases">Review context</Link>
+                  <Link {...capabilityHref} hash="vector-databases">Review context</Link>
                 </Button>
               )}
             >
@@ -444,7 +444,7 @@ export function InstanceOverviewTab({ access, agent, modelRoutingName, platform 
                       }]
                     : []),
                 ]}
-                empty="No grounded knowledge sources or durable memory are attached."
+                empty="No Vector Databases or durable memory are attached."
               />
             </CapabilitySection>
           </CardContent>

@@ -2,20 +2,24 @@ import {
   agentGardenEntrySchema,
   agentGardenSnapshotSchema,
   a2aAgentInstanceSchema,
-  createKnowledgeSourceDefinitionSchema,
+  createVectorDatabaseDefinitionSchema,
   createMcpServerDefinitionSchema,
   createSkillDefinitionSchema,
-  knowledgeSourceDefinitionSchema,
-  knowledgePdfIngestionResultSchema,
-  knowledgePdfUploadFormSchema,
-  knowledgeVectorChunkMutationResultSchema,
   mcpServerDefinitionSchema,
   onboardAgentSchema,
   skillDefinitionSchema,
-  updateKnowledgeSourceDefinitionSchema,
+  updateVectorDatabaseDefinitionSchema,
   updateMcpServerDefinitionSchema,
   updateSkillDefinitionSchema,
-  upsertKnowledgeVectorChunksSchema,
+  upsertVectorChunksSchema,
+  vectorDatabaseDefinitionSchema,
+  vectorDatabaseOverviewSchema,
+  vectorDatabaseSearchInputSchema,
+  vectorDatabaseSearchResultSchema,
+  vectorChunkMutationResultSchema,
+  vectorDocumentDetailSchema,
+  vectorDocumentSchema,
+  vectorIngestionJobSchema,
 } from "@tali/contracts";
 import { z } from "zod";
 import { defineContracts } from "./contract";
@@ -28,33 +32,41 @@ import {
   demoAgentMessageInputSchema,
   domainObjectSchema,
   gardenAgentParamsSchema,
-  knowledgeVectorChunkParamsSchema,
+  vectorChunkParamsSchema,
   messageSchema,
   runtimeBridgeAgentParamsSchema,
   runtimeBridgeCoordinatorParamsSchema,
+  vectorDocumentParamsSchema,
 } from "./schemas";
 
 const catalogSchema = z.object({
   skills: z.array(skillDefinitionSchema),
   mcpServers: z.array(mcpServerDefinitionSchema),
-  knowledgeSources: z.array(knowledgeSourceDefinitionSchema),
+  vectorDatabases: z.array(vectorDatabaseDefinitionSchema),
 }).loose().meta({ id: "ResourceCatalog" });
 
 const createCatalogInputSchema = z.union([
   createSkillDefinitionSchema,
   createMcpServerDefinitionSchema,
-  createKnowledgeSourceDefinitionSchema,
+  createVectorDatabaseDefinitionSchema,
 ]);
 const updateCatalogInputSchema = z.union([
   updateSkillDefinitionSchema,
   updateMcpServerDefinitionSchema,
-  updateKnowledgeSourceDefinitionSchema,
+  updateVectorDatabaseDefinitionSchema,
 ]);
 const catalogResourceSchema = z.union([
   skillDefinitionSchema,
   mcpServerDefinitionSchema,
-  knowledgeSourceDefinitionSchema,
+  vectorDatabaseDefinitionSchema,
 ]);
+const vectorDocumentUploadSchema = z.object({
+  file: z.string().meta({ contentEncoding: "binary" }),
+}).strict().meta({ id: "VectorDocumentUploadForm" });
+const queuedVectorDocumentSchema = z.object({
+  document: vectorDocumentSchema,
+  job: vectorIngestionJobSchema,
+}).strict().meta({ id: "QueuedVectorDocument" });
 
 export const catalogContracts = defineContracts([
   projectRoute({
@@ -81,26 +93,50 @@ export const catalogContracts = defineContracts([
     responses: { 200: response("Deleted catalog resource", messageSchema) },
   }),
   projectRoute({
-    method: "put", path: "/catalog/knowledge-sources/{id}/chunks", operationId: "upsertKnowledgeVectorChunks",
-    summary: "Embed and upsert PostgreSQL knowledge chunks", tags: ["Resource catalog"],
-    request: { params: catalogNamedResourceParamsSchema, body: upsertKnowledgeVectorChunksSchema },
-    responses: { 200: response("Upserted knowledge chunks", knowledgeVectorChunkMutationResultSchema) },
+    method: "put", path: "/catalog/vector-databases/{id}/chunks", operationId: "upsertVectorChunks",
+    summary: "Embed and upsert built-in PostgreSQL vector chunks", tags: ["Vector Databases"],
+    request: { params: catalogNamedResourceParamsSchema, body: upsertVectorChunksSchema },
+    responses: { 200: response("Upserted vector chunks", vectorChunkMutationResultSchema) },
   }),
   projectRoute({
-    method: "post", path: "/catalog/knowledge-sources/{id}/documents", operationId: "ingestKnowledgePdf",
-    summary: "Ingest a PDF into a PostgreSQL knowledge source", tags: ["Resource catalog"],
+    method: "get", path: "/catalog/vector-databases/{id}", operationId: "getVectorDatabaseOverview",
+    summary: "Read a Vector Database, its documents, and ingestion activity", tags: ["Vector Databases"],
+    request: { params: catalogNamedResourceParamsSchema },
+    responses: { 200: response("Vector Database overview", vectorDatabaseOverviewSchema) },
+  }),
+  projectRoute({
+    method: "post", path: "/catalog/vector-databases/{id}/documents", operationId: "queueVectorDocument",
+    summary: "Queue a document for Docling parsing and vector indexing", tags: ["Vector Databases"],
     request: {
       params: catalogNamedResourceParamsSchema,
-      body: knowledgePdfUploadFormSchema,
+      body: vectorDocumentUploadSchema,
       contentType: "multipart/form-data",
     },
-    responses: { 201: response("Ingested PDF", knowledgePdfIngestionResultSchema) },
+    responses: { 202: response("Queued Vector Document", queuedVectorDocumentSchema) },
   }),
   projectRoute({
-    method: "delete", path: "/catalog/knowledge-sources/{id}/chunks/{chunkId}", operationId: "deleteKnowledgeVectorChunk",
-    summary: "Delete a PostgreSQL knowledge chunk", tags: ["Resource catalog"],
-    request: { params: knowledgeVectorChunkParamsSchema },
-    responses: { 200: response("Deleted knowledge chunk", messageSchema) },
+    method: "get", path: "/catalog/vector-databases/{id}/documents/{documentId}", operationId: "getVectorDocument",
+    summary: "Read a Vector Document and its active chunks", tags: ["Vector Databases"],
+    request: { params: vectorDocumentParamsSchema },
+    responses: { 200: response("Vector Document", vectorDocumentDetailSchema) },
+  }),
+  projectRoute({
+    method: "delete", path: "/catalog/vector-databases/{id}/documents/{documentId}", operationId: "deleteVectorDocument",
+    summary: "Delete a Vector Document and its chunks", tags: ["Vector Databases"],
+    request: { params: vectorDocumentParamsSchema },
+    responses: { 200: response("Deleted Vector Document", messageSchema) },
+  }),
+  projectRoute({
+    method: "post", path: "/catalog/vector-databases/{id}/search", operationId: "searchVectorDatabase",
+    summary: "Test Vector Database recall", tags: ["Vector Databases"],
+    request: { params: catalogNamedResourceParamsSchema, body: vectorDatabaseSearchInputSchema },
+    responses: { 200: response("Vector Database search results", vectorDatabaseSearchResultSchema) },
+  }),
+  projectRoute({
+    method: "delete", path: "/catalog/vector-databases/{id}/chunks/{chunkId}", operationId: "deleteVectorChunk",
+    summary: "Delete a built-in PostgreSQL vector chunk", tags: ["Vector Databases"],
+    request: { params: vectorChunkParamsSchema },
+    responses: { 200: response("Deleted vector chunk", messageSchema) },
   }),
   projectRoute({
     method: "post", path: "/catalog/mcp-servers/{id}/discover", operationId: "discoverMcpServerTools",

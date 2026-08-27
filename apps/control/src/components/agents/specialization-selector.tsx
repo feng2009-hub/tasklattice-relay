@@ -54,7 +54,7 @@ export function SpecializationSummary({ knowledgeCount, mcpCount, onViewPrompt, 
       <div className="flex flex-wrap gap-2 text-xs">
         <span className="rounded-full bg-muted px-3 py-1">{skillCount} {skillCount === 1 ? "Skill" : "Skills"}</span>
         <span className="rounded-full bg-muted px-3 py-1">{mcpCount} MCP {mcpCount === 1 ? "Server" : "Servers"}</span>
-        <span className="rounded-full bg-muted px-3 py-1">{knowledgeCount} Knowledge {knowledgeCount === 1 ? "Base" : "Bases"}</span>
+        <span className="rounded-full bg-muted px-3 py-1">{knowledgeCount} Vector {knowledgeCount === 1 ? "Database" : "Databases"}</span>
       </div>
       <div className="flex min-h-14 items-center justify-between gap-4 rounded-md border px-4 py-3">
         <div>

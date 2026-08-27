@@ -7,12 +7,12 @@ export default defineHandler(async (event) => {
   try { await requireAuth(event.req); } catch (error) { return unauthorizedResponse(error); }
   try {
     await requireProjectRole(event.req, ["admin"]);
-    const sourceId = decodeURIComponent(event.context.params?.id ?? "");
-    const chunkId = decodeURIComponent(event.context.params?.chunkId ?? "");
+    const databaseId = decodeURIComponent(event.context.params?.id ?? "");
+    const documentId = decodeURIComponent(event.context.params?.documentId ?? "");
     const deleted = await (await getResourceCatalogService(event.req))
-      .deleteKnowledgeVectorChunk(sourceId, chunkId);
-    if (!deleted) return problemResponse(404, "Knowledge vector chunk was not found.");
-    return jsonResponse({ message: "Knowledge vector chunk deleted." });
+      .deleteVectorDocument(databaseId, documentId);
+    if (!deleted) return problemResponse(404, "Vector Document was not found.");
+    return jsonResponse({ message: "Vector Document deleted." });
   } catch (error) {
     return errorResponse(error);
   }

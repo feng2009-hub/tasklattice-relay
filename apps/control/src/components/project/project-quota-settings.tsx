@@ -193,7 +193,7 @@ export function ProjectQuotaSettings({ project }: { project: Project }) {
             />
             <QuotaField
               id="knowledge-limit"
-              label="Knowledge Base integrations"
+              label="Vector Database integrations"
               value={form.maxKnowledgeBaseIntegrations}
               placeholder="Unlimited"
               disabled={!canEdit}

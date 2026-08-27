@@ -53,6 +53,7 @@ import controlWorkerQueueMigration from "../../prisma/migrations/20260827000000_
 import accessContextSessionsMigration from "../../prisma/migrations/20260827010000_access_context_sessions/migration.sql?raw";
 import knowledgeVectorDatabaseMigration from "../../prisma/migrations/20260827020000_knowledge_vector_database/migration.sql?raw";
 import departmentResourceAssignmentsMigration from "../../prisma/migrations/20260827030000_department_resource_assignments/migration.sql?raw";
+import vectorDatabaseDocumentsMigration from "../../prisma/migrations/20260827120000_vector_database_documents/migration.sql?raw";
 import { developmentResourceCatalog } from "../catalog/development-resource-catalog";
 import { PrismaClient } from "../generated/prisma/client";
 
@@ -535,6 +536,7 @@ export function createTestPrisma(): PrismaClient {
       ),
   );
   memory.public.none(departmentResourceAssignmentsMigration);
+  memory.public.none(vectorDatabaseDocumentsMigration);
   const pg = memory.adapters.createPg();
   const query = pg.Client.prototype.query;
   pg.Client.prototype.query = function (
@@ -545,6 +547,26 @@ export function createTestPrisma(): PrismaClient {
     if (typeof input === "object") {
       const arrayRows = input.rowMode === "array";
       const { rowMode: _rowMode, types: _types, ...compatible } = input;
+      // Prisma's pg adapter serializes Uint8Array parameters into the Node
+      // Buffer JSON shape before they reach pg-mem. Real PostgreSQL's driver
+      // accepts the binary value directly, so restore that representation in
+      // the in-memory adapter used by service tests.
+      const values = (compatible as { values?: unknown[] }).values;
+      if (values) {
+        (compatible as { values: unknown[] }).values = values.map((value) => {
+          if (typeof value !== "string" || !value.startsWith('{"type":"Buffer","data":[')) {
+            return value;
+          }
+          try {
+            const parsed = JSON.parse(value) as { type?: string; data?: number[] };
+            return parsed.type === "Buffer" && Array.isArray(parsed.data)
+              ? Buffer.from(parsed.data)
+              : value;
+          } catch {
+            return value;
+          }
+        });
+      }
       const transform = (result: { fields?: Array<{ name: string }>; rows?: Array<Record<string, unknown>> }) => {
         if (arrayRows && result.rows) {
           const fieldNames = result.fields?.map((field) => field.name) ?? [];
@@ -553,7 +575,8 @@ export function createTestPrisma(): PrismaClient {
             : Object.keys(result.rows[0] ?? {});
           const sample = result.rows[0] ?? {};
           const oid = (value: unknown) =>
-            value instanceof Date ? 1184
+            Buffer.isBuffer(value) ? 17
+              : value instanceof Date ? 1184
               : typeof value === "boolean" ? 16
                 : typeof value === "number" ? 701
                   : typeof value === "bigint" ? 20

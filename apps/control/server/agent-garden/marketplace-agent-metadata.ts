@@ -101,7 +101,7 @@ const marketplaceBriefs: Record<string, AgentMarketplaceBrief> = {
     ],
     inputs: [
       "Research question and scope constraints",
-      "Approved search and knowledge sources",
+      "Approved search and Vector Databases",
       "Source-quality and freshness criteria",
     ],
     outputs: [

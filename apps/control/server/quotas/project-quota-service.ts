@@ -150,7 +150,7 @@ export class ProjectQuotaService {
       const capacityChecks = [
         ["Instance", input.maxInstances, siblingCapacity._sum.maxInstances, project.department.hardMaxInstances],
         ["MCP integration", input.maxMcpIntegrations, siblingCapacity._sum.maxMcpIntegrations, project.department.hardMaxMcpIntegrations],
-        ["Knowledge Base integration", input.maxKnowledgeBaseIntegrations, siblingCapacity._sum.maxKnowledgeBaseIntegrations, project.department.hardMaxKnowledgeBaseIntegrations],
+        ["Vector Database integration", input.maxKnowledgeBaseIntegrations, siblingCapacity._sum.maxKnowledgeBaseIntegrations, project.department.hardMaxKnowledgeBaseIntegrations],
       ] as const;
       for (const [label, requested, siblingAllocation, departmentHard] of capacityChecks) {
         if (departmentHard === null) continue;
@@ -278,7 +278,7 @@ export class ProjectQuotaService {
               await this.db.knowledgeSourceRecord.count({
                 where: { projectId: this.store.projectId, deletedAt: null },
               }),
-              "Knowledge Base integration",
+              "Vector Database integration",
             ];
     if (limit !== null && count >= limit) {
       throw new Error(

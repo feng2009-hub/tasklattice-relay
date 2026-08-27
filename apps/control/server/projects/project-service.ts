@@ -73,7 +73,7 @@ export interface ProjectDeletionActiveResource {
     | "gateway"
     | "routing"
     | "mcp-server"
-    | "knowledge-source";
+    | "vector-database";
   kindLabel: string;
   name: string;
   status: string;
@@ -707,7 +707,7 @@ export class ProjectService {
       [this.db.skillRecord, developmentResourceCatalog.skills],
       [
         this.db.knowledgeSourceRecord,
-        developmentResourceCatalog.knowledgeSources,
+        developmentResourceCatalog.vectorDatabases,
       ],
       [
         this.db.agentSpecializationRecord,
@@ -912,8 +912,8 @@ export class ProjectService {
         .filter((resource) => resource.status === "REGISTERED")
         .map((resource) => ({
           id: resource.id,
-          kind: "knowledge-source" as const,
-          kindLabel: "Knowledge source",
+          kind: "vector-database" as const,
+          kindLabel: "Vector Database",
           name: resource.name,
           status: resource.status,
         })),
@@ -938,8 +938,8 @@ export class ProjectService {
         count: mcpServers.length,
       },
       {
-        kind: "knowledge-sources",
-        label: "Knowledge sources",
+        kind: "vector-databases",
+        label: "Vector Databases",
         count: knowledgeSources.length,
       },
       { kind: "skills", label: "Skills", count: skillCount },
@@ -1277,7 +1277,7 @@ async function assertDepartmentAllocationAvailable(
     ["budget", Number(allocated._sum.hardBudgetUsd ?? 0), defaults.hardBudgetUsd, department.hardBudgetUsd === null ? null : Number(department.hardBudgetUsd)],
     ["Instance", Number(allocated._sum.maxInstances ?? 0), defaults.maxInstances, department.hardMaxInstances],
     ["MCP integration", Number(allocated._sum.maxMcpIntegrations ?? 0), defaults.maxMcpIntegrations, department.hardMaxMcpIntegrations],
-    ["Knowledge Base integration", Number(allocated._sum.maxKnowledgeBaseIntegrations ?? 0), defaults.maxKnowledgeBaseIntegrations, department.hardMaxKnowledgeBaseIntegrations],
+    ["Vector Database integration", Number(allocated._sum.maxKnowledgeBaseIntegrations ?? 0), defaults.maxKnowledgeBaseIntegrations, department.hardMaxKnowledgeBaseIntegrations],
   ] as const;
   for (const [label, current, projectDefault, hard] of checks) {
     if (hard !== null && current + Number(projectDefault ?? 0) > hard) {

@@ -18,7 +18,7 @@ describe("Project control-plane navigation", () => {
     ]);
     expect(navGroups.map((group) => group.items.map((item) => item.labelKey))).toEqual([
       ["instances", "memory"],
-      ["specialistAgents", "skills", "mcpConnections", "knowledgeSources"],
+      ["specialistAgents", "skills", "mcpConnections", "vectorDatabases"],
       ["accessPolicies", "runtimePolicies"],
       ["traces", "auditLogs", "cost"],
     ]);
@@ -37,7 +37,7 @@ describe("Project control-plane navigation", () => {
       t(`navigation.items.${item.labelKey}`),
     ))).toEqual([
       ["实例", "记忆"],
-      ["专家智能体", "技能", "MCP 连接", "知识源"],
+      ["专家智能体", "技能", "MCP 连接", "向量数据库"],
       ["访问策略", "运行时策略"],
       ["追踪记录", "审计日志", "成本"],
     ]);

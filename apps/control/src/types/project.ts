@@ -34,7 +34,7 @@ export interface ProjectDeletionActiveResource {
     | "gateway"
     | "routing"
     | "mcp-server"
-    | "knowledge-source";
+    | "vector-database";
   kindLabel: string;
   name: string;
   status: string;

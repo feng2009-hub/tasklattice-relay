@@ -1,5 +1,5 @@
 import {
-  createKnowledgeSourceDefinitionSchema,
+  createVectorDatabaseDefinitionSchema,
   createMcpServerDefinitionSchema,
   createSkillDefinitionSchema,
   resourceKindSchema,
@@ -20,7 +20,7 @@ export default defineHandler(async (event) => {
       ? service.createSkill(createSkillDefinitionSchema.parse(body))
       : kind === "mcp-servers"
         ? service.createMcpServer(createMcpServerDefinitionSchema.parse(body))
-        : service.createKnowledgeSource(createKnowledgeSourceDefinitionSchema.parse(body)));
+        : service.createKnowledgeSource(createVectorDatabaseDefinitionSchema.parse(body)));
     return jsonResponse(created, {
       status: 201,
       headers: { location: `/api/v1/projects/${encodeURIComponent(event.context.params?.projectId ?? "")}/catalog/${kind}/${created.id}` },

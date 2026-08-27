@@ -1451,22 +1451,115 @@ export const knowledgeVectorChunkMutationResultSchema = z.object({
   upserted: z.number().int().min(0),
 }).strict().meta({ id: "KnowledgeVectorChunkMutationResult" });
 
-export const knowledgePdfUploadFormSchema = z.object({
-  file: z.string().meta({
-    contentEncoding: "binary",
-    contentMediaType: "application/pdf",
-  }),
-}).strict().meta({ id: "KnowledgePdfUploadForm" });
+// Vector Databases are the product-facing resource. The existing knowledge
+// source definition remains the internal LiteLLM attachment representation so
+// Agent runtime contracts do not leak provider-specific storage details.
+export const vectorDatabaseDefinitionSchema = knowledgeSourceDefinitionSchema
+  .meta({ id: "VectorDatabaseDefinition" });
+export const createVectorDatabaseDefinitionSchema = createKnowledgeSourceDefinitionSchema
+  .meta({ id: "CreateVectorDatabaseDefinition" });
+export const updateVectorDatabaseDefinitionSchema = updateKnowledgeSourceDefinitionSchema
+  .meta({ id: "UpdateVectorDatabaseDefinition" });
+export const vectorChunkInputSchema = knowledgeVectorChunkInputSchema
+  .meta({ id: "VectorChunkInput" });
+export const upsertVectorChunksSchema = z.object({
+  chunks: z.array(vectorChunkInputSchema).min(1).max(128),
+}).strict().meta({ id: "UpsertVectorChunks" });
+export const vectorChunkMutationResultSchema = z.object({
+  upserted: z.number().int().min(0),
+}).strict().meta({ id: "VectorChunkMutationResult" });
 
-export const knowledgePdfIngestionResultSchema = z.object({
-  documentId: z.string().trim().min(1).max(160),
+export const vectorDocumentStatuses = [
+  "QUEUED",
+  "PARSING",
+  "EMBEDDING",
+  "READY",
+  "FAILED",
+] as const;
+
+export const vectorDocumentSchema = z.object({
+  id: z.string().trim().min(1).max(160),
+  databaseId: z.string().trim().min(1).max(160),
   filename: z.string().trim().min(1).max(500),
-  bytes: z.number().int().min(1),
-  pageCount: z.number().int().min(1),
-  extractedPages: z.number().int().min(0),
-  ocrPages: z.number().int().min(0),
-  chunks: z.number().int().min(1),
-}).strict().meta({ id: "KnowledgePdfIngestionResult" });
+  mediaType: z.string().trim().min(1).max(160),
+  byteSize: z.number().int().min(1),
+  contentHash: z.string().trim().min(1).max(160),
+  status: z.enum(vectorDocumentStatuses),
+  activeRevision: z.number().int().min(1),
+  pageCount: z.number().int().min(0),
+  chunkCount: z.number().int().min(0),
+  ocrPageCount: z.number().int().min(0),
+  parser: z.literal("docling"),
+  uploadedBy: z.string().trim().min(1).nullable(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+  error: z.string().max(4_000).nullable(),
+}).strict().meta({ id: "VectorDocument" });
+
+export const vectorDocumentChunkSchema = z.object({
+  id: z.string().trim().min(1).max(240),
+  content: z.string(),
+  pageNumber: z.number().int().min(1).nullable(),
+  chunkIndex: z.number().int().min(0),
+  tokenCount: z.number().int().min(0),
+  sectionPath: z.array(z.string().max(500)).max(32),
+  label: z.string().trim().max(120).nullable(),
+  attributes: z.record(z.string(), z.unknown()),
+}).strict().meta({ id: "VectorDocumentChunk" });
+
+export const vectorDocumentDetailSchema = vectorDocumentSchema.extend({
+  chunks: z.array(vectorDocumentChunkSchema),
+}).strict().meta({ id: "VectorDocumentDetail" });
+
+export const vectorIngestionJobSchema = z.object({
+  id: z.string().uuid(),
+  databaseId: z.string().trim().min(1).max(160),
+  documentId: z.string().trim().min(1).max(160),
+  revision: z.number().int().min(1),
+  status: z.enum(["QUEUED", "RUNNING", "COMPLETED", "FAILED"]),
+  phase: z.enum(["QUEUED", "PARSING", "EMBEDDING", "FINALIZING", "COMPLETED", "FAILED"]),
+  progress: z.number().int().min(0).max(100),
+  attempts: z.number().int().min(0),
+  error: z.string().max(4_000).nullable(),
+  createdAt: z.string().datetime(),
+  startedAt: z.string().datetime().nullable(),
+  completedAt: z.string().datetime().nullable(),
+  updatedAt: z.string().datetime(),
+}).strict().meta({ id: "VectorIngestionJob" });
+
+export const vectorDatabaseStatsSchema = z.object({
+  documentCount: z.number().int().min(0),
+  readyDocumentCount: z.number().int().min(0),
+  chunkCount: z.number().int().min(0),
+  failedDocumentCount: z.number().int().min(0),
+  processingDocumentCount: z.number().int().min(0),
+}).strict().meta({ id: "VectorDatabaseStats" });
+
+export const vectorDatabaseOverviewSchema = z.object({
+  database: vectorDatabaseDefinitionSchema,
+  stats: vectorDatabaseStatsSchema,
+  documents: z.array(vectorDocumentSchema),
+  jobs: z.array(vectorIngestionJobSchema),
+}).strict().meta({ id: "VectorDatabaseOverview" });
+
+export const vectorDatabaseSearchInputSchema = z.object({
+  query: z.string().trim().min(1).max(8_000),
+  topK: z.number().int().min(1).max(50).default(8),
+}).strict().meta({ id: "VectorDatabaseSearchInput" });
+
+export const vectorDatabaseSearchResultSchema = z.object({
+  query: z.string(),
+  durationMs: z.number().int().min(0),
+  results: z.array(z.object({
+    id: z.string(),
+    content: z.string(),
+    filename: z.string(),
+    score: z.number(),
+    pageNumber: z.number().int().min(1).nullable(),
+    sectionPath: z.array(z.string()),
+    attributes: z.record(z.string(), z.unknown()),
+  }).strict()),
+}).strict().meta({ id: "VectorDatabaseSearchResult" });
 
 export const agentSpecializationDefinitionSchema = z.object({
   id: z.string().trim().min(1).max(64),
@@ -1713,7 +1806,7 @@ export const agentGardenSnapshotSchema = z.object({
 export const resourceKindSchema = z.enum([
   "skills",
   "mcp-servers",
-  "knowledge-sources",
+  "vector-databases",
 ]);
 
 export const createModelDeploymentSchema = z.object({
@@ -2023,7 +2116,19 @@ export type CreateKnowledgeSourceDefinitionInput = z.infer<typeof createKnowledg
 export type UpdateKnowledgeSourceDefinitionInput = z.infer<typeof updateKnowledgeSourceDefinitionSchema>;
 export type KnowledgeVectorChunkInput = z.infer<typeof knowledgeVectorChunkInputSchema>;
 export type UpsertKnowledgeVectorChunksInput = z.infer<typeof upsertKnowledgeVectorChunksSchema>;
-export type KnowledgePdfIngestionResult = z.infer<typeof knowledgePdfIngestionResultSchema>;
+export type VectorDatabaseDefinition = z.infer<typeof vectorDatabaseDefinitionSchema>;
+export type CreateVectorDatabaseDefinitionInput = z.infer<typeof createVectorDatabaseDefinitionSchema>;
+export type UpdateVectorDatabaseDefinitionInput = z.infer<typeof updateVectorDatabaseDefinitionSchema>;
+export type VectorChunkInput = z.infer<typeof vectorChunkInputSchema>;
+export type UpsertVectorChunksInput = z.infer<typeof upsertVectorChunksSchema>;
+export type VectorDocument = z.infer<typeof vectorDocumentSchema>;
+export type VectorDocumentChunk = z.infer<typeof vectorDocumentChunkSchema>;
+export type VectorDocumentDetail = z.infer<typeof vectorDocumentDetailSchema>;
+export type VectorIngestionJob = z.infer<typeof vectorIngestionJobSchema>;
+export type VectorDatabaseStats = z.infer<typeof vectorDatabaseStatsSchema>;
+export type VectorDatabaseOverview = z.infer<typeof vectorDatabaseOverviewSchema>;
+export type VectorDatabaseSearchInput = z.infer<typeof vectorDatabaseSearchInputSchema>;
+export type VectorDatabaseSearchResult = z.infer<typeof vectorDatabaseSearchResultSchema>;
 export type AgentSpecializationDefinition = z.infer<typeof agentSpecializationDefinitionSchema>;
 export type ResourceKind = z.infer<typeof resourceKindSchema>;
 export type ProviderConnectionDraft = z.infer<typeof providerConnectionDraftSchema>;
@@ -2159,7 +2264,7 @@ export interface ResourceCatalog {
   skills: SkillDefinition[];
   mcpServers: McpServerDefinition[];
   mcpServerTemplates: McpServerTemplate[];
-  knowledgeSources: KnowledgeSourceDefinition[];
+  vectorDatabases: VectorDatabaseDefinition[];
   specializations: AgentSpecializationDefinition[];
 }
 

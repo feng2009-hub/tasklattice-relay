@@ -11,7 +11,7 @@ import type {
   AgentGardenEntry,
   AgentGardenSnapshot,
   A2aAgentInstance,
-  CreateKnowledgeSourceDefinitionInput,
+  CreateVectorDatabaseDefinitionInput,
   DepartmentInferenceAvailability,
   DepartmentInferenceResourceAssignmentView,
   CreateAccessPolicyInput,
@@ -34,8 +34,13 @@ import type {
   CreateSkillDefinitionInput,
   ResourceCatalog,
   ResourceKind,
-  KnowledgeSourceDefinition,
-  KnowledgePdfIngestionResult,
+  VectorDatabaseDefinition,
+  VectorDatabaseOverview,
+  VectorDatabaseSearchInput,
+  VectorDatabaseSearchResult,
+  VectorDocumentDetail,
+  VectorDocument,
+  VectorIngestionJob,
   InferenceGateway,
   ModelRouting,
   ModelRoutingAuditEvent,
@@ -62,11 +67,11 @@ import type {
   TraceDetail,
   TraceListResponse,
   SkillDefinition,
-  UpdateKnowledgeSourceDefinitionInput,
+  UpdateVectorDatabaseDefinitionInput,
   UpdateAccessPolicyInput,
   UpdateMcpServerDefinitionInput,
   UpdateSkillDefinitionInput,
-  UpsertKnowledgeVectorChunksInput,
+  UpsertVectorChunksInput,
 } from "@tali/contracts";
 import { projectIdFromPathname } from "./project-storage";
 
@@ -289,32 +294,48 @@ export const api = {
       method: "POST",
       body: "{}",
     }),
-  createKnowledgeSource: (input: CreateKnowledgeSourceDefinitionInput) =>
-    request<KnowledgeSourceDefinition>("/api/v1/catalog/knowledge-sources", {
+  createVectorDatabase: (input: CreateVectorDatabaseDefinitionInput) =>
+    request<VectorDatabaseDefinition>("/api/v1/catalog/vector-databases", {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  updateKnowledgeSource: (id: string, input: UpdateKnowledgeSourceDefinitionInput) =>
-    request<KnowledgeSourceDefinition>(`/api/v1/catalog/knowledge-sources/${encodeURIComponent(id)}`, {
+  updateVectorDatabase: (id: string, input: UpdateVectorDatabaseDefinitionInput) =>
+    request<VectorDatabaseDefinition>(`/api/v1/catalog/vector-databases/${encodeURIComponent(id)}`, {
       method: "PUT",
       body: JSON.stringify(input),
     }),
-  upsertKnowledgeVectorChunks: (id: string, input: UpsertKnowledgeVectorChunksInput) =>
+  getVectorDatabase: (id: string) =>
+    request<VectorDatabaseOverview>(`/api/v1/catalog/vector-databases/${encodeURIComponent(id)}`),
+  upsertVectorChunks: (id: string, input: UpsertVectorChunksInput) =>
     request<{ upserted: number }>(
-      `/api/v1/catalog/knowledge-sources/${encodeURIComponent(id)}/chunks`,
+      `/api/v1/catalog/vector-databases/${encodeURIComponent(id)}/chunks`,
       { method: "PUT", body: JSON.stringify(input) },
     ),
-  ingestKnowledgePdf: (id: string, file: File) => {
+  queueVectorDocument: (id: string, file: File) => {
     const body = new FormData();
     body.set("file", file);
-    return request<KnowledgePdfIngestionResult>(
-      `/api/v1/catalog/knowledge-sources/${encodeURIComponent(id)}/documents`,
+    return request<{ document: VectorDocument; job: VectorIngestionJob }>(
+      `/api/v1/catalog/vector-databases/${encodeURIComponent(id)}/documents`,
       { method: "POST", body },
     );
   },
-  deleteKnowledgeVectorChunk: (id: string, chunkId: string) =>
+  getVectorDocument: (id: string, documentId: string) =>
+    request<VectorDocumentDetail>(
+      `/api/v1/catalog/vector-databases/${encodeURIComponent(id)}/documents/${encodeURIComponent(documentId)}`,
+    ),
+  deleteVectorDocument: (id: string, documentId: string) =>
     request<{ message: string }>(
-      `/api/v1/catalog/knowledge-sources/${encodeURIComponent(id)}/chunks/${encodeURIComponent(chunkId)}`,
+      `/api/v1/catalog/vector-databases/${encodeURIComponent(id)}/documents/${encodeURIComponent(documentId)}`,
+      { method: "DELETE" },
+    ),
+  searchVectorDatabase: (id: string, input: VectorDatabaseSearchInput) =>
+    request<VectorDatabaseSearchResult>(
+      `/api/v1/catalog/vector-databases/${encodeURIComponent(id)}/search`,
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+  deleteVectorChunk: (id: string, chunkId: string) =>
+    request<{ message: string }>(
+      `/api/v1/catalog/vector-databases/${encodeURIComponent(id)}/chunks/${encodeURIComponent(chunkId)}`,
       { method: "DELETE" },
     ),
   deleteResource: (kind: ResourceKind, id: string) =>

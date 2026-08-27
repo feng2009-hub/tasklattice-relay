@@ -85,9 +85,9 @@ describe("platform audit request capture", () => {
     ))).toBeUndefined();
   });
 
-  it("classifies PostgreSQL knowledge chunk mutations independently from source metadata", async () => {
+  it("classifies PostgreSQL vector chunk mutations independently from database metadata", async () => {
     await expect(captureAuditRequest(new Request(
-      "http://tali.local/api/v1/projects/individual/catalog/knowledge-sources/engineering/chunks",
+      "http://tali.local/api/v1/projects/individual/catalog/vector-databases/engineering/chunks",
       {
         method: "PUT",
         headers: { "content-type": "application/json" },
@@ -95,21 +95,21 @@ describe("platform audit request capture", () => {
       },
     ))).resolves.toMatchObject({
       descriptor: {
-        action: "knowledge_vector_chunk.batch_upsert",
+        action: "vector_chunk.batch_upsert",
         objectId: "engineering",
-        objectType: "Knowledge Vector Chunk",
+        objectType: "Vector Chunk",
         operation: "update",
         projectId: "individual",
       },
     });
     await expect(captureAuditRequest(new Request(
-      "http://tali.local/api/v1/projects/individual/catalog/knowledge-sources/engineering/chunks/chunk-1",
+      "http://tali.local/api/v1/projects/individual/catalog/vector-databases/engineering/chunks/chunk-1",
       { method: "DELETE" },
     ))).resolves.toMatchObject({
       descriptor: {
-        action: "knowledge_vector_chunk.delete",
+        action: "vector_chunk.delete",
         objectId: "chunk-1",
-        objectType: "Knowledge Vector Chunk",
+        objectType: "Vector Chunk",
         operation: "delete",
         projectId: "individual",
       },
@@ -352,7 +352,7 @@ describe("platform audit request capture", () => {
     }
 
     expect(uncovered).toEqual([]);
-    expect(routeFiles).toHaveLength(80);
+    expect(routeFiles).toHaveLength(82);
   });
 
   it("records direct Project role switches", async () => {

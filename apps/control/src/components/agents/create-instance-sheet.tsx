@@ -156,7 +156,7 @@ export function CreateInstanceSheet({
   });
   const skills = resourceCatalog.data?.skills ?? [];
   const mcpServers = resourceCatalog.data?.mcpServers ?? [];
-  const knowledgeSources = resourceCatalog.data?.knowledgeSources ?? [];
+  const knowledgeSources = resourceCatalog.data?.vectorDatabases ?? [];
   const specializations = resourceCatalog.data?.specializations ?? [];
   const specialization = getSpecialization(specializations, specializationId);
   const pendingSpecialization = pendingSpecializationId
@@ -1249,7 +1249,7 @@ export function CreateInstanceSheet({
                             )}
                           </ReviewSection>
                           <ReviewSection
-                            title={`Knowledge (${selectedKnowledgeSources.length})`}
+                            title={`Vector Databases (${selectedKnowledgeSources.length})`}
                           >
                             {selectedKnowledgeSources.length ? (
                               selectedKnowledgeSources.map((item) => (
@@ -1264,7 +1264,7 @@ export function CreateInstanceSheet({
                                 />
                               ))
                             ) : (
-                              <EmptyReview label="No Knowledge selected" />
+                              <EmptyReview label="No Vector Database selected" />
                             )}
                           </ReviewSection>
                         </div>

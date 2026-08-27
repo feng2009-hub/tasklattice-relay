@@ -53,7 +53,7 @@ TaskLattice Relay OpenShell Runner
 - Hermes and OpenClaw Instances with browser UI and terminal access, plus Deep
   Agents Code Instances with native TUI and headless CLI access.
 - Agent Garden registration and Agent-to-Agent connections, plus Skills, MCP
-  Servers, and Knowledge Base catalogs.
+  Servers, and built-in or externally managed Vector Databases.
 - Project audit logs and a preview Trace workbench for Agent, model, tool, MCP,
   and external-system interactions.
 

@@ -18,7 +18,7 @@ describe("getHeaderBreadcrumbItems", () => {
     ["agent-garden", "Agent Garden"],
     ["skills", "Skills"],
     ["mcp-servers", "MCP Servers"],
-    ["knowledge-base", "Knowledge Base"],
+    ["vector-databases", "Vector Databases"],
     ["access-policies", "Access Policies"],
     ["runtime-policies", "Runtime Policies"],
     ["setting", "Project Settings"],

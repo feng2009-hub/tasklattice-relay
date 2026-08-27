@@ -176,6 +176,8 @@ for (const [kind, name, wave] of [
   ["Service", `${releaseName}-control`, "10"],
   ["Service", `${releaseName}-runner`, "10"],
   ["Service", `${releaseName}-example-mcp`, "10"],
+  ["Service", `${releaseName}-docling`, "10"],
+  ["PersistentVolumeClaim", `${releaseName}-docling-models`, "10"],
   ["StatefulSet", `${releaseName}-postgresql`, "20"],
   ["Deployment", `${releaseName}-litellm`, "30"],
   ["Deployment", `${releaseName}-keycloak`, "30"],
@@ -183,6 +185,7 @@ for (const [kind, name, wave] of [
   ["Deployment", controlWorkerName, "40"],
   ["Deployment", `${releaseName}-runner`, "40"],
   ["Deployment", `${releaseName}-example-mcp`, "40"],
+  ["Deployment", `${releaseName}-docling`, "30"],
 ]) {
   assertSyncWave(kind, name, wave);
 }

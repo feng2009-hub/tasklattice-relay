@@ -229,6 +229,7 @@ export interface LiteLLMAdminClient {
   registerVectorStore?(input: LiteLLMVectorStoreInput): Promise<void>;
   updateVectorStore?(input: LiteLLMVectorStoreInput): Promise<void>;
   deleteVectorStore?(vectorStoreId: string): Promise<void>;
+  searchVectorStore?(vectorStoreId: string, input: unknown): Promise<unknown>;
   createEmbeddings?(
     model: string,
     input: string[],
@@ -264,6 +265,13 @@ export class LiteLLMClient implements LiteLLMAdminClient {
 
   async connectionBaseUrl(): Promise<string> {
     return (await this.connection()).baseUrl;
+  }
+
+  async searchVectorStore(vectorStoreId: string, input: unknown): Promise<unknown> {
+    return this.request(
+      `/v1/vector_stores/${encodeURIComponent(vectorStoreId)}/search`,
+      { method: "POST", body: JSON.stringify(input) },
+    );
   }
 
   async registerModel(input: {

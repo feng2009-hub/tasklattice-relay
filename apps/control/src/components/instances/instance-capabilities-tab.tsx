@@ -21,7 +21,7 @@ export function InstanceCapabilitiesTab({ agent }: { agent: Agent }) {
   const catalog = useQuery({ queryKey: scope.key("resource-catalog"), queryFn: api.getResourceCatalog });
   const skills = (agent.skillIds ?? []).map((id) => catalog.data?.skills.find((item) => item.id === id) ?? { id, name: id, description: "Catalog details unavailable.", version: undefined });
   const mcpServers = (agent.mcpServerIds ?? []).map((id) => catalog.data?.mcpServers.find((item) => item.id === id) ?? { id, name: id, status: "UNCHECKED" as const, tools: undefined, transport: undefined });
-  const knowledgeBases = (agent.knowledgeSourceIds ?? []).map((id) => catalog.data?.knowledgeSources.find((item) => item.id === id) ?? { id, name: id, description: "Catalog details unavailable.", provider: undefined });
+  const knowledgeBases = (agent.knowledgeSourceIds ?? []).map((id) => catalog.data?.vectorDatabases.find((item) => item.id === id) ?? { id, name: id, description: "Catalog details unavailable.", provider: undefined });
   return (
     <div role="tabpanel" aria-label="Capabilities" className="space-y-4 pt-5">
       <InstanceEffectiveAccessPreview agent={agent} />
@@ -53,15 +53,15 @@ export function InstanceCapabilitiesTab({ agent }: { agent: Agent }) {
           </CardContent>
         </Card>
 
-        <Card id="knowledge-bases" className="scroll-mt-24">
-          <DetailCardHeader title="Knowledge Bases" description="Approved sources used for grounded answers." action={<BookOpen className="size-5 text-primary" />} />
+        <Card id="vector-databases" className="scroll-mt-24">
+          <DetailCardHeader title="Vector Databases" description="Approved vector retrieval sources used for grounded answers." action={<BookOpen className="size-5 text-primary" />} />
           <CardContent className="divide-y">
             {knowledgeBases.length ? knowledgeBases.map((source) => (
               <article key={source.id} className="py-4 first:pt-0 last:pb-0">
                 <div className="flex items-start justify-between gap-3"><h3 className="text-sm font-medium">{source.name}</h3>{source.provider ? <Badge variant="secondary">{source.provider.toUpperCase()}</Badge> : null}</div>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">{source.description}</p>
               </article>
-            )) : <EmptyCapability label="Knowledge Bases" />}
+            )) : <EmptyCapability label="Vector Databases" />}
           </CardContent>
         </Card>
 

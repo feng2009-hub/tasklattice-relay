@@ -40,7 +40,7 @@ const helpRoutes = [
   "/$projectId/audit-logs",
   "/$projectId/cost",
   "/$projectId/instances",
-  "/$projectId/knowledge-base",
+  "/$projectId/vector-databases",
   "/$projectId/mcp-servers",
   "/$projectId/memory",
   "/$projectId/requests",

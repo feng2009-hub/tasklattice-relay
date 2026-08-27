@@ -84,6 +84,11 @@ images:
     tag: 26.7.0
     pullPolicy: IfNotPresent
     useGlobalRegistry: false
+  docling:
+    repository: ghcr.io/docling-project/docling-serve-cpu
+    tag: v1.29.0
+    pullPolicy: IfNotPresent
+    useGlobalRegistry: false
 
 control:
   replicaCount: 1
@@ -122,6 +127,30 @@ control:
       cpu: 500m
       memory: 512Mi
   extraEnv: []
+
+# Built-in document parsing for PostgreSQL Vector Databases. Docling remains a
+# separate Python workload; the TypeScript Control Worker calls its stable API.
+docling:
+  enabled: true
+  replicaCount: 1
+  service:
+    port: 5001
+  device: cpu
+  threads: 4
+  maxFileSize: 26214400
+  maxNumPages: 100
+  maxSyncWaitSeconds: 600
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+    limits:
+      cpu: "4"
+      memory: 8Gi
 
 # Initial Platform Setting imported only when the database has no runtime
 # configuration yet. Change it later under Platform Setting -> Infrastructure.
@@ -179,7 +208,7 @@ projectOpenShell:
 
 # One lightweight capability proxy is reconciled into every Project Runtime
 # Namespace. The MVP exports connected A2A Agents; the mounted claim is the
-# stable extension boundary for packaged MCP, Knowledge Base, and Skill assets.
+# stable extension boundary for packaged MCP, Vector Database, and Skill assets.
 projectRuntimeBridge:
   enabled: true
   storageSize: 1Gi

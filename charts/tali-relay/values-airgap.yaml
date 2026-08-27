@@ -17,6 +17,10 @@ images:
     repository: registry.airgap.example.com/third-party/keycloak
     tag: 26.7.0
     useGlobalRegistry: false
+  docling:
+    repository: registry.airgap.example.com/third-party/docling-serve-cpu
+    tag: v1.29.0
+    useGlobalRegistry: false
 
 agentSandbox:
   image:

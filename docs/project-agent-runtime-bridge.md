@@ -85,7 +85,7 @@ call.
 
 The PVC is intentionally present in the MVP although A2A discovery remains API
 backed. Later reconcilers can materialize Project-approved MCP configuration,
-Knowledge Base indexes/manifests, Skill archives, and other capability bundles
+Vector Database indexes/manifests, Skill archives, and other capability bundles
 there without changing the Bridge Service contract.
 
 ## Hermes adapter

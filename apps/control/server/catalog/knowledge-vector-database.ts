@@ -11,6 +11,7 @@ import {
   vectorStoreSearchQuery,
   vectorStoreSearchRequestSchema,
 } from "./vector-store-protocol";
+import type { DoclingParsedChunk } from "./docling-client";
 
 type EmbeddingClient = Pick<Required<LiteLLMAdminClient>, "createEmbeddings">;
 
@@ -139,6 +140,101 @@ export class KnowledgeVectorDatabase {
     return { upserted: input.chunks.length };
   }
 
+  async replaceDocumentChunks(
+    sourceId: string,
+    input: {
+      contentHash: string;
+      documentId: string;
+      filename: string;
+      revision: number;
+      chunks: DoclingParsedChunk[];
+    },
+  ): Promise<{ upserted: number }> {
+    const { database, source } = await this.databaseForSource(sourceId);
+    const vectors: string[] = [];
+    for (let start = 0; start < input.chunks.length; start += 64) {
+      const batch = input.chunks.slice(start, start + 64);
+      const embedded = await this.embeddings.createEmbeddings(
+        database.embeddingModel,
+        batch.map((chunk) => chunk.content),
+        "passage",
+      );
+      if (embedded.length !== batch.length) {
+        throw new Error(
+          `The embedding model returned ${embedded.length} vectors for ${batch.length} Docling chunks.`,
+        );
+      }
+      vectors.push(...embedded.map((vector) => vectorLiteral(
+        vector,
+        database.embeddingDimensions,
+      )));
+    }
+
+    await this.db.$transaction(async (transaction) => {
+      await transaction.$executeRaw`
+        DELETE FROM tasklattice.knowledge_vector_chunks
+        WHERE project_id = ${this.store.projectId}
+          AND database_id = ${source.id}
+          AND document_id = ${input.documentId}
+          AND document_revision = ${input.revision}
+      `;
+      for (const [index, chunk] of input.chunks.entries()) {
+        const chunkId = `${input.documentId}-r${input.revision}-c${String(index + 1).padStart(5, "0")}`;
+        const sectionPath = chunk.sectionPath.length
+          ? Prisma.sql`ARRAY[${Prisma.join(chunk.sectionPath)}]::TEXT[]`
+          : Prisma.sql`ARRAY[]::TEXT[]`;
+        const attributes = {
+          ...chunk.attributes,
+          content_hash: input.contentHash,
+          document_id: input.documentId,
+          document_revision: input.revision,
+          page_number: chunk.pageNumber,
+          section_path: chunk.sectionPath,
+        };
+        await transaction.$executeRaw(Prisma.sql`
+          INSERT INTO tasklattice.knowledge_vector_chunks (
+            project_id,
+            database_id,
+            id,
+            content,
+            filename,
+            attributes,
+            document_id,
+            document_revision,
+            page_number,
+            chunk_index,
+            token_count,
+            section_path,
+            label,
+            embedding_dimensions,
+            embedding,
+            created_at,
+            updated_at
+          ) VALUES (
+            ${this.store.projectId},
+            ${source.id},
+            ${chunkId},
+            ${chunk.content},
+            ${input.filename},
+            ${JSON.stringify(attributes)}::jsonb,
+            ${input.documentId},
+            ${input.revision},
+            ${chunk.pageNumber},
+            ${index},
+            ${chunk.tokenCount},
+            ${sectionPath},
+            ${chunk.label},
+            ${database.embeddingDimensions},
+            ${vectors[index]}::public.vector,
+            CURRENT_TIMESTAMP,
+            CURRENT_TIMESTAMP
+          )
+        `);
+      }
+    });
+    return { upserted: input.chunks.length };
+  }
+
   async deleteChunk(sourceId: string, chunkId: string): Promise<boolean> {
     const { source } = await this.databaseForSource(sourceId);
     const deleted = await this.db.$executeRaw`
@@ -171,7 +267,7 @@ export class KnowledgeVectorDatabase {
     const source = (await this.store.listKnowledgeSourceDefinitions())
       .find((candidate) => candidate.vectorStoreId === vectorStoreId);
     if (!source || source.provider !== "postgresql") {
-      throw new Error("PostgreSQL Knowledge Vector Database was not found.");
+      throw new Error("Built-in PostgreSQL Vector Database was not found.");
     }
     const database = await this.db.knowledgeVectorDatabase.findUnique({
       where: {
@@ -179,7 +275,7 @@ export class KnowledgeVectorDatabase {
       },
     });
     if (!database) {
-      throw new Error("PostgreSQL Knowledge Vector Database is not provisioned.");
+      throw new Error("Built-in PostgreSQL Vector Database is not provisioned.");
     }
     const [embedding] = await this.embeddings.createEmbeddings(
       database.embeddingModel,
@@ -202,6 +298,17 @@ export class KnowledgeVectorDatabase {
       FROM tasklattice.knowledge_vector_chunks AS chunk
       WHERE chunk.project_id = ${this.store.projectId}
         AND chunk.database_id = ${source.id}
+        AND (
+          chunk.document_id IS NULL
+          OR EXISTS (
+            SELECT 1
+            FROM tasklattice.vector_documents AS document
+            WHERE document.project_id = chunk.project_id
+              AND document.database_id = chunk.database_id
+              AND document.id = chunk.document_id
+              AND document.active_revision = chunk.document_revision
+          )
+        )
         ${filter}
       ORDER BY chunk.embedding <=> ${encoded}::public.vector
       LIMIT ${limit}
@@ -222,7 +329,7 @@ export class KnowledgeVectorDatabase {
   private async databaseForSource(sourceId: string) {
     const source = await this.store.getKnowledgeSourceDefinition(sourceId);
     if (!source || source.provider !== "postgresql") {
-      throw new Error("PostgreSQL Knowledge Vector Database was not found.");
+      throw new Error("Built-in PostgreSQL Vector Database was not found.");
     }
     const database = await this.db.knowledgeVectorDatabase.findUnique({
       where: {
@@ -230,7 +337,7 @@ export class KnowledgeVectorDatabase {
       },
     });
     if (!database) {
-      throw new Error("PostgreSQL Knowledge Vector Database is not provisioned.");
+      throw new Error("Built-in PostgreSQL Vector Database is not provisioned.");
     }
     return { database, source };
   }

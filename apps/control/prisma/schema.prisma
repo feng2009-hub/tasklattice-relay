@@ -448,6 +448,8 @@ model Project {
   mcpServers                   McpServerRecord[]
   knowledgeSources             KnowledgeSourceRecord[]
   knowledgeVectorDatabases     KnowledgeVectorDatabase[]
+  vectorDocuments              VectorDocument[]
+  vectorIngestionJobs          VectorIngestionJob[]
   specializations              AgentSpecializationRecord[]
   costAttributions             CostAttributionMappingRecord[]
   modelEndpointMaps            ModelEndpointMappingRecord[]
@@ -1043,6 +1045,8 @@ model KnowledgeVectorDatabase {
   project Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
   source  KnowledgeSourceRecord  @relation(fields: [projectId, id], references: [projectId, id], onDelete: Cascade)
   chunks  KnowledgeVectorChunk[]
+  documents VectorDocument[]
+  ingestionJobs VectorIngestionJob[]
 
   @@id([projectId, id])
   @@unique([projectId, vectorStoreId], map: "knowledge_vector_databases_vector_store_key")
@@ -1058,16 +1062,104 @@ model KnowledgeVectorChunk {
   content              String
   filename             String
   attributes           Json     @default("{}")
+  documentId           String?  @map("document_id")
+  documentRevision     Int?     @map("document_revision")
+  pageNumber           Int?     @map("page_number")
+  chunkIndex           Int?     @map("chunk_index")
+  tokenCount           Int?     @map("token_count")
+  sectionPath          String[] @default([]) @map("section_path")
+  label                String?
   embeddingDimensions  Int      @map("embedding_dimensions")
   embedding            Unsupported("vector")
   createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   database KnowledgeVectorDatabase @relation(fields: [projectId, databaseId, embeddingDimensions], references: [projectId, id, embeddingDimensions], onDelete: Cascade)
+  revision VectorDocumentRevision? @relation(fields: [projectId, databaseId, documentId, documentRevision], references: [projectId, databaseId, documentId, revision], onDelete: Cascade)
 
   @@id([projectId, databaseId, id])
   @@index([projectId, databaseId], map: "knowledge_vector_chunks_database_idx")
+  @@index([projectId, databaseId, documentId, documentRevision], map: "knowledge_vector_chunks_document_idx")
   @@map("knowledge_vector_chunks")
+  @@schema("tasklattice")
+}
+
+model VectorDocument {
+  projectId       String   @map("project_id")
+  databaseId      String   @map("database_id")
+  id              String
+  filename        String
+  mediaType       String   @map("media_type")
+  byteSize        Int      @map("byte_size")
+  contentHash     String   @map("content_hash")
+  status          String   @default("QUEUED")
+  activeRevision  Int      @default(1) @map("active_revision")
+  pageCount       Int      @default(0) @map("page_count")
+  chunkCount      Int      @default(0) @map("chunk_count")
+  ocrPageCount    Int      @default(0) @map("ocr_page_count")
+  parser          String   @default("docling")
+  uploadedBy      String?  @map("uploaded_by")
+  error           String?
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  project   Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  database  KnowledgeVectorDatabase  @relation(fields: [projectId, databaseId], references: [projectId, id], onDelete: Cascade)
+  revisions VectorDocumentRevision[]
+  jobs      VectorIngestionJob[]
+
+  @@id([projectId, databaseId, id])
+  @@index([projectId, databaseId, status, updatedAt], map: "vector_documents_database_status_idx")
+  @@map("vector_documents")
+  @@schema("tasklattice")
+}
+
+model VectorDocumentRevision {
+  projectId        String    @map("project_id")
+  databaseId       String    @map("database_id")
+  documentId       String    @map("document_id")
+  revision         Int
+  contentHash      String    @map("content_hash")
+  sourceBytes      Bytes?    @map("source_bytes") @db.ByteA
+  doclingDocument  Json?     @map("docling_document")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt      DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  document VectorDocument       @relation(fields: [projectId, databaseId, documentId], references: [projectId, databaseId, id], onDelete: Cascade)
+  chunks   KnowledgeVectorChunk[]
+  jobs     VectorIngestionJob[]
+
+  @@id([projectId, databaseId, documentId, revision])
+  @@unique([projectId, databaseId, documentId, revision, contentHash], map: "vector_document_revisions_content_key")
+  @@map("vector_document_revisions")
+  @@schema("tasklattice")
+}
+
+model VectorIngestionJob {
+  id             String    @id @default(uuid()) @db.Uuid
+  projectId      String    @map("project_id")
+  databaseId     String    @map("database_id")
+  documentId     String    @map("document_id")
+  revision       Int
+  queueJobId     String?   @map("queue_job_id") @db.Uuid
+  status         String    @default("QUEUED")
+  phase          String    @default("QUEUED")
+  progress       Int       @default(0)
+  attempts       Int       @default(0)
+  error          String?
+  startedAt      DateTime? @map("started_at") @db.Timestamptz(6)
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  project  Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  database KnowledgeVectorDatabase @relation(fields: [projectId, databaseId], references: [projectId, id], onDelete: Cascade)
+  document VectorDocument          @relation(fields: [projectId, databaseId, documentId], references: [projectId, databaseId, id], onDelete: Cascade)
+  revisionRecord VectorDocumentRevision @relation(fields: [projectId, databaseId, documentId, revision], references: [projectId, databaseId, documentId, revision], onDelete: Cascade)
+
+  @@index([projectId, databaseId, createdAt], map: "vector_ingestion_jobs_database_idx")
+  @@index([projectId, status, updatedAt], map: "vector_ingestion_jobs_status_idx")
+  @@map("vector_ingestion_jobs")
   @@schema("tasklattice")
 }
 

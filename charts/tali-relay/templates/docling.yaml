@@ -1,0 +1,136 @@
+{{- if .Values.docling.enabled }}
+{{- $component := "docling" -}}
+{{- $name := include "tali.componentName" (dict "root" . "component" $component) -}}
+{{- if .Values.docling.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $name }}-models
+  labels:
+    {{- include "tali.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
+  annotations:
+    {{- include "tali.resourceAnnotations" (dict "root" . "wave" "foundation") | nindent 4 }}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  {{- with .Values.docling.persistence.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.docling.persistence.size }}
+---
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tali.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
+  annotations:
+    {{- include "tali.resourceAnnotations" (dict "root" . "wave" "platform") | nindent 4 }}
+spec:
+  replicas: {{ .Values.docling.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "tali.selectorLabels" (dict "root" . "component" $component) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tali.selectorLabels" (dict "root" . "component" $component) | nindent 8 }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: docling
+          image: {{ include "tali.image" (dict "root" . "image" .Values.images.docling) }}
+          imagePullPolicy: {{ .Values.images.docling.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 5001
+          env:
+            - name: UVICORN_HOST
+              value: "0.0.0.0"
+            - name: UVICORN_PORT
+              value: "5001"
+            - name: UVICORN_WORKERS
+              value: "1"
+            - name: DOCLING_DEVICE
+              value: {{ .Values.docling.device | quote }}
+            - name: DOCLING_NUM_THREADS
+              value: {{ .Values.docling.threads | quote }}
+            - name: DOCLING_SERVE_ENG_KIND
+              value: local
+            - name: DOCLING_SERVE_ENG_LOC_NUM_WORKERS
+              value: "1"
+            - name: DOCLING_SERVE_MAX_FILE_SIZE
+              value: {{ .Values.docling.maxFileSize | quote }}
+            - name: DOCLING_SERVE_MAX_NUM_PAGES
+              value: {{ .Values.docling.maxNumPages | quote }}
+            - name: DOCLING_SERVE_MAX_SYNC_WAIT
+              value: {{ .Values.docling.maxSyncWaitSeconds | quote }}
+            - name: HOME
+              value: /tmp
+            - name: XDG_CACHE_HOME
+              value: /var/lib/docling/models/cache
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+          resources:
+            {{- toYaml .Values.docling.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: models
+              mountPath: /var/lib/docling/models
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 1Gi
+        - name: models
+          {{- if .Values.docling.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ $name }}-models
+          {{- else }}
+          emptyDir:
+            sizeLimit: {{ .Values.docling.persistence.size }}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tali.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
+  annotations:
+    {{- include "tali.resourceAnnotations" (dict "root" . "wave" "foundation") | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "tali.selectorLabels" (dict "root" . "component" $component) | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.docling.service.port }}
+      targetPort: http
+{{- end }}

@@ -348,22 +348,12 @@ helm upgrade --install tali-relay charts/tali-relay \
   --set keycloak.service.loadBalancerIP=192.168.139.3
 ```
 
-To enable OCR for scanned PDFs without a Project NVIDIA Provider connection,
-store the NVIDIA API key in a Kubernetes Secret and expose it only to Control:
-
-```yaml
-control:
-  extraEnv:
-    - name: NVIDIA_API_KEY
-      valueFrom:
-        secretKeyRef:
-          name: tali-nvidia-api
-          key: NVIDIA_API_KEY
-```
-
-`NVAPI_API_KEY` is accepted as a compatibility alias. Text-based PDFs do not
-use this key. When the Knowledge Base selects an NVIDIA NIM embedding model,
-Control automatically reuses that model's stored Provider credential for OCR.
+The Chart deploys Docling Serve for built-in Vector Database document parsing.
+It performs layout extraction, table understanding, and OCR independently of
+the selected embedding Provider; `NVIDIA_API_KEY` and `NVAPI_API_KEY` are not
+required. Disable the bundled parser with `docling.enabled=false` only when
+document upload is intentionally unavailable or the Control Worker is pointed
+at a separately managed Docling Serve endpoint through `DOCLING_BASE_URL`.
 
 For local environments where the browser uses a loopback hostname while the
 Control pod reaches the same endpoint through the node address, map that

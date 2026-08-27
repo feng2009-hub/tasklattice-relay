@@ -29,7 +29,7 @@ const resourceDefinition = {
     departmentHard: "hardMaxKnowledgeBaseIntegrations",
     projectLimit: "maxKnowledgeBaseIntegrations",
     countRelation: "knowledgeSources",
-    label: "Knowledge Base integration",
+    label: "Vector Database integration",
   },
 } as const;
 
@@ -174,7 +174,7 @@ export class DepartmentSettingsService {
         input.quota.hardMaxMcpIntegrations,
       );
       assertAllocatedWithinHardQuota(
-        "Knowledge Base integration",
+        "Vector Database integration",
         sumNullable(quotas.map((quota) => quota.maxKnowledgeBaseIntegrations)),
         input.quota.hardMaxKnowledgeBaseIntegrations,
       );

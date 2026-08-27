@@ -274,7 +274,7 @@ complete downstream workflow.
 | Agent Memory | 20 | 2 | 18 |
 | Skill | 10 | 6 | 4 |
 | MCP | 8 | 5 | 3 |
-| Knowledge Source | 7 | 4 | 3 |
+| Vector Database | 7 | 4 | 3 |
 | Agent Specialization | 4 | 1 | 3 |
 | Access Policy | 5 | 5 | 0 |
 | Runtime Policy | 5 | 4 | 1 |
@@ -299,9 +299,9 @@ two service-only capabilities (`CAP_APPROVED_CHANGE_APPLY` and
 
 ## Memory implementation status
 
-Memory and Knowledge Source are separate resource domains. Memory is
-Instance-isolated runtime context; Knowledge Source represents Project-scoped
-external vector-store content.
+Memory and Vector Database are separate resource domains. Memory is
+Instance-isolated runtime context; Vector Database represents Project-scoped
+built-in or external vector-store content.
 
 All 20 Memory capabilities are registered, but only two are currently consumed
 by admission:

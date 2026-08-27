@@ -25,7 +25,7 @@ const tagDescriptions: Record<string, string> = {
   Projects: "Business isolation, authorization, and runtime ownership boundary.",
   Providers: "Provider credentials and model discovery.",
   Quota: "Project budget and resource quotas.",
-  "Resource catalog": "Skills, MCP servers, and knowledge sources available to a Project.",
+  "Resource catalog": "Skills, MCP servers, and Vector Databases available to a Project.",
   Runtime: "Runtime and runner health.",
   "Runtime Bridge": "Project-isolated capability discovery and A2A delegation proxy.",
   "Runtime policies": "Sandbox execution constraints used by runtime Instances.",

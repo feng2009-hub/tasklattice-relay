@@ -11,7 +11,7 @@ The control plane and LiteLLM use the same PostgreSQL instance and database:
 - TaskLattice Relay keeps its tables and Prisma migration history in the
   compatibility `tasklattice` schema. The stable schema name is intentionally
   not shortened because existing deployments already persist data there.
-- The `vector` extension is installed in `public`. Built-in Knowledge Vector
+- The `vector` extension is installed in `public`. Built-in Vector
   Databases keep their metadata and chunks in `tasklattice`, alongside the
   Project boundary that owns them.
 - Every Project-owned control record includes `project_id`.
@@ -23,17 +23,17 @@ prevent table and migration-name collisions, but do not isolate CPU, memory,
 connections, storage, or failure domains. Production deployments should set
 connection limits, monitor both workloads, and back up the whole database.
 
-## Built-in knowledge vectors
+## Built-in Vector Databases
 
-The `postgresql` Knowledge Base provider stores text chunks, JSON attributes,
+The `postgresql` Vector Database provider stores text chunks, JSON attributes,
 and pgvector embeddings in `tasklattice.knowledge_vector_chunks`. The parent
 `KnowledgeVectorDatabase` record fixes the LiteLLM embedding model and vector
-dimensions for one Project-scoped Knowledge Base. Changing either setting is
+dimensions for one Project-scoped Vector Database. Changing either setting is
 rejected after the first chunk is stored, preventing mixed-dimensional data.
 
 Search uses exact cosine distance initially. This gives deterministic recall
 for small and medium knowledge collections and permits different embedding
-dimensions across Knowledge Bases. Add per-database partial HNSW indexes only
+dimensions across Vector Databases. Add per-database partial HNSW indexes only
 after production cardinality and latency measurements justify the additional
 memory, build time, and recall trade-off.
 
@@ -42,7 +42,7 @@ calls the configured LiteLLM embedding model and upserts the resulting vectors
 atomically for the batch:
 
 ```http
-PUT /api/v1/projects/{projectId}/catalog/knowledge-sources/{sourceId}/chunks
+PUT /api/v1/projects/{projectId}/catalog/vector-databases/{databaseId}/chunks
 Content-Type: application/json
 
 {
@@ -61,22 +61,32 @@ Batches contain at most 128 chunks. Reusing a chunk ID replaces its content,
 attributes, and embedding. Delete one chunk with
 `DELETE .../chunks/{chunkId}`.
 
-Project Administrators can also upload a PDF directly from the Knowledge Base
-page or through `POST .../knowledge-sources/{sourceId}/documents` using a
-multipart `file` field. Control validates a 25 MiB and 100-page limit, extracts
-embedded text with Poppler, chunks each page, calls the selected Project-visible
-LiteLLM embedding model, and writes the vectors. Scanned pages are rendered to
-PNG and sent to NVIDIA Nemotron OCR v2. The OCR credential is resolved in this
-order:
+Project Administrators upload PDF, Office, HTML, Markdown, text, or image files
+from a Vector Database detail page or through
+`POST .../vector-databases/{databaseId}/documents` using a multipart `file`
+field. Control validates the 25 MiB limit, persists an immutable document
+revision and a durable pg-boss job, and returns HTTP 202. The Control Worker
+then calls the separate Docling Serve workload. Docling performs layout-aware
+parsing, table understanding, and OCR and returns HybridChunker output with
+headings and page provenance. The worker calls the Vector Database's configured
+Project-visible LiteLLM embedding model and activates the new revision only
+after every vector is stored successfully.
 
-1. the stored credential behind a selected NVIDIA NIM embedding model,
-2. `NVIDIA_API_KEY`,
-3. the compatibility alias `NVAPI_API_KEY`.
+Parser and embedding failures remain visible in ingestion activity and keep the
+previous active revision searchable. Re-uploading the same filename allocates a
+new monotonically increasing revision. Successful activation removes older
+revision chunks; deleting the document cascades through its revisions, jobs,
+chunks, and vectors. Recall can be verified through
+`POST .../vector-databases/{databaseId}/search` or the Search Playground.
 
-Text PDFs require no NVIDIA credential. `NVIDIA_OCR_ENDPOINT` can point at a
-self-hosted OCR NIM; hosted `*.nvidia.com` endpoints require a key. Re-uploading
-the same filename replaces older content-hash revisions after the new vectors
-have been written successfully.
+Docling is a Python service, not an in-process TypeScript dependency. The
+application boundary is its HTTP API (`/v1/chunk/hybrid/file`); all ownership,
+authorization, job state, embedding calls, and PostgreSQL writes stay in the
+TypeScript control plane. The default Chart deploys
+`ghcr.io/docling-project/docling-serve-cpu` and gives the Control Worker its
+cluster-local `DOCLING_BASE_URL`. Its runtime model cache is persisted without
+forcing an empty offline artifacts directory. Docling OCR does not require an
+NVIDIA API key.
 
 The default Chart image includes pgvector. A custom PostgreSQL image must also
 install the extension files before `prisma migrate deploy` runs; merely setting
@@ -93,7 +103,7 @@ maintenance window before the upgraded StatefulSet starts.
 creates the schema and tables. A following idempotent SQL migration inserts:
 
 - the local administrator, bootstrap Project, and administrator membership;
-- built-in Skills, MCP servers, Knowledge Base sources, specializations, and
+- built-in Skills, MCP servers, Vector Database registrations, specializations, and
   sandbox policies.
 
 Helm runs migrations in the control Deployment init container before the

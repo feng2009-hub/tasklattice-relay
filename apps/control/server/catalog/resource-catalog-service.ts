@@ -5,15 +5,21 @@ import type {
   CreateSkillDefinitionInput,
   ResourceCatalog,
   ResourceKind,
-  KnowledgePdfIngestionResult,
   KnowledgeSourceDefinition,
-  UpsertKnowledgeVectorChunksInput,
+  UpsertVectorChunksInput,
   McpServerDefinition,
   SkillDefinition,
   UpdateKnowledgeSourceDefinitionInput,
   UpdateMcpServerDefinitionInput,
   UpdateSkillDefinitionInput,
+  VectorDatabaseOverview,
+  VectorDocument,
+  VectorDocumentDetail,
+  VectorIngestionJob,
+  VectorDatabaseSearchInput,
+  VectorDatabaseSearchResult,
 } from "@tali/contracts";
+import { controlJobQueue } from "../jobs/control-job-queue";
 import {
   LiteLLMClient,
   type LiteLLMAdminClient,
@@ -26,14 +32,14 @@ import { createSecretStore, type SecretStore } from "../secrets/secret-store";
 import { mcpServerTemplates } from "./mcp-server-templates";
 import { KnowledgeVectorDatabase } from "./knowledge-vector-database";
 import {
-  KnowledgePdfIngestionService,
-  nvidiaApiKeyFromStoredProviderCredential,
-  type UploadedPdf,
-} from "./knowledge-pdf-ingestion-service";
-import {
   vectorStoreBridgeApiBase,
   vectorStoreBridgeApiKey,
 } from "./vector-store-bridge-auth";
+import {
+  VectorDocumentService,
+  type UploadedVectorDocument,
+} from "./vector-document-service";
+import type { VectorStoreSearchResponse } from "./vector-store-protocol";
 
 function resourceId(name: string): string {
   const slug = name
@@ -61,22 +67,21 @@ function liteLLMVectorStoreProvider(
 
 export class ResourceCatalogService {
   readonly vectorDatabase: KnowledgeVectorDatabase;
-  readonly pdfIngestion: KnowledgePdfIngestionService;
-
+  readonly vectorDocuments: VectorDocumentService;
   constructor(
     readonly store = new ProjectStore(),
     readonly quotas = new ProjectQuotaService(store),
     readonly litellm: LiteLLMAdminClient = new LiteLLMClient(),
     readonly secrets: SecretStore = createSecretStore(),
     vectorDatabase?: KnowledgeVectorDatabase,
-    pdfIngestion?: KnowledgePdfIngestionService,
+    vectorDocuments?: VectorDocumentService,
   ) {
     this.vectorDatabase = vectorDatabase ?? new KnowledgeVectorDatabase(store, {
       createEmbeddings: (model, input, inputType) =>
         this.requireAdapter("createEmbeddings")(model, input, inputType),
     });
-    this.pdfIngestion = pdfIngestion
-      ?? new KnowledgePdfIngestionService(store, this.vectorDatabase);
+    this.vectorDocuments = vectorDocuments
+      ?? new VectorDocumentService(store, this.vectorDatabase);
   }
 
   async catalog(): Promise<ResourceCatalog> {
@@ -84,7 +89,7 @@ export class ResourceCatalogService {
       skills: await this.store.listSkillDefinitions(),
       mcpServers: await this.store.listMcpServerDefinitions(),
       mcpServerTemplates,
-      knowledgeSources: await this.store.listKnowledgeSourceDefinitions(),
+      vectorDatabases: await this.store.listKnowledgeSourceDefinitions(),
       specializations: await this.store.listAgentSpecializations(),
     };
   }
@@ -236,9 +241,9 @@ export class ResourceCatalogService {
 
   async updateKnowledgeSource(id: string, input: UpdateKnowledgeSourceDefinitionInput): Promise<KnowledgeSourceDefinition> {
     const current = await this.store.getKnowledgeSourceDefinition(id);
-    if (!current) throw new Error("Knowledge source was not found.");
+    if (!current) throw new Error("Vector Database was not found.");
     if (current.vectorStoreId !== input.vectorStoreId) {
-      throw new Error("The provider Vector Store ID is immutable. Register a new Knowledge Base instead.");
+      throw new Error("The provider Vector Store ID is immutable. Create a new Vector Database instead.");
     }
     const resolvedInput = await this.resolveKnowledgeSourceEmbedding(input, current);
     const candidate: KnowledgeSourceDefinition = {
@@ -301,41 +306,76 @@ export class ResourceCatalogService {
     return deleted;
   }
 
-  async upsertKnowledgeVectorChunks(
+  async upsertVectorChunks(
     sourceId: string,
-    input: UpsertKnowledgeVectorChunksInput,
+    input: UpsertVectorChunksInput,
   ): Promise<{ upserted: number }> {
     return this.vectorDatabase.upsertChunks(sourceId, input);
   }
 
-  async deleteKnowledgeVectorChunk(
+  async deleteVectorChunk(
     sourceId: string,
     chunkId: string,
   ): Promise<boolean> {
     return this.vectorDatabase.deleteChunk(sourceId, chunkId);
   }
 
-  async ingestKnowledgePdf(
-    sourceId: string,
-    file: UploadedPdf,
-  ): Promise<KnowledgePdfIngestionResult> {
-    const source = await this.store.getKnowledgeSourceDefinition(sourceId);
-    let nvidiaApiKey: string | undefined;
-    if (source?.embeddingModelDeploymentId) {
-      const deployment = await this.store.getModelDeployment(
-        source.embeddingModelDeploymentId,
-      );
-      if (deployment?.providerPresetId === "nvidia-nim") {
-        nvidiaApiKey = nvidiaApiKeyFromStoredProviderCredential(
-          await this.store.getModelProviderAccountCredential(deployment),
-        );
-      }
+  async vectorDatabaseOverview(id: string): Promise<VectorDatabaseOverview> {
+    return this.vectorDocuments.overview(id);
+  }
+
+  async vectorDocument(id: string, documentId: string): Promise<VectorDocumentDetail> {
+    return this.vectorDocuments.document(id, documentId);
+  }
+
+  async queueVectorDocument(
+    id: string,
+    file: UploadedVectorDocument,
+    uploadedBy: string,
+  ): Promise<{ document: VectorDocument; job: VectorIngestionJob }> {
+    return this.vectorDocuments.queue(id, file, uploadedBy, controlJobQueue());
+  }
+
+  async deleteVectorDocument(id: string, documentId: string): Promise<boolean> {
+    return this.vectorDocuments.delete(id, documentId);
+  }
+
+  async searchVectorDatabase(
+    id: string,
+    input: VectorDatabaseSearchInput,
+  ): Promise<VectorDatabaseSearchResult> {
+    const database = await this.store.getKnowledgeSourceDefinition(id);
+    if (!database) throw new Error("Vector Database was not found.");
+    const startedAt = Date.now();
+    const request = { query: input.query, max_num_results: input.topK };
+    const response = database.provider === "postgresql"
+      ? await this.vectorDatabase.search(database.vectorStoreId, request)
+      : (await this.requireAdapter("searchVectorStore")(database.vectorStoreId, request)) as VectorStoreSearchResponse;
+    if (!response || !Array.isArray(response.data)) {
+      throw new Error("The Vector Database provider returned an invalid search response.");
     }
-    return this.pdfIngestion.ingest(
-      sourceId,
-      file,
-      nvidiaApiKey ? { nvidiaApiKey } : {},
-    );
+    return {
+      query: input.query,
+      durationMs: Date.now() - startedAt,
+      results: response.data.map((item) => {
+        const attributes = jsonRecord(item.attributes);
+        const pageNumber = typeof attributes.page_number === "number"
+          ? attributes.page_number
+          : null;
+        const sectionPath = Array.isArray(attributes.section_path)
+          ? attributes.section_path.filter((value): value is string => typeof value === "string")
+          : [];
+        return {
+          id: item.file_id,
+          content: item.content.map((part) => part.text).join("\n"),
+          filename: item.filename,
+          score: item.score,
+          pageNumber,
+          sectionPath,
+          attributes,
+        };
+      }),
+    };
   }
 
   private async syncProjectObjectPermissions(): Promise<void> {
@@ -371,7 +411,7 @@ export class ResourceCatalogService {
       throw new Error("The selected model is not a text embedding model.");
     }
     if (deployment.status !== "VALIDATED") {
-      throw new Error("The selected embedding model must pass validation before it can back a Knowledge Base.");
+      throw new Error("The selected embedding model must pass validation before it can back a Vector Database.");
     }
     const unchanged = current?.embeddingModelDeploymentId === deployment.id
       && current.embeddingModel === deployment.litellmModelName
@@ -521,4 +561,10 @@ function safeError(error: unknown): string {
 
 function isRemoteNotFound(error: unknown): boolean {
   return /(?:\b404\b|not found)/i.test(safeError(error));
+}
+
+function jsonRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
 }

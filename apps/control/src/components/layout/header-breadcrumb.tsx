@@ -11,7 +11,7 @@ const routeLabelKeys = {
   cost: "routes.cost",
   help: "routes.help",
   instances: "routes.instances",
-  "knowledge-base": "routes.knowledgeBase",
+  "vector-databases": "routes.vectorDatabases",
   memory: "routes.memory",
   "mcp-servers": "routes.mcpServers",
   notifications: "routes.notifications",
@@ -30,6 +30,7 @@ const detailLabelKeys = {
   "access-policies": "details.accessPolicies",
   "agent-garden": "details.agentGarden",
   instances: "details.instances",
+  "vector-databases": "details.vectorDatabases",
   "setting/model-routings": "details.modelRoutings",
 } as const;
 

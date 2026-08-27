@@ -8,6 +8,7 @@ export const CONTROL_JOB_QUEUES = {
   maintenance: "control-maintenance",
   projectDeletion: "control-project-delete",
   projectRuntimeReconcile: "control-project-runtime-reconcile",
+  vectorDocumentIngestion: "control-vector-document-ingestion",
 } as const;
 
 const THIRTY_DAYS_SECONDS = 30 * 24 * 60 * 60;
@@ -26,6 +27,12 @@ export interface ControlMaintenanceJobPayload {
   reason: "scheduled" | "startup";
 }
 
+export interface VectorDocumentIngestionJobPayload {
+  projectId: string;
+  databaseId: string;
+  ingestionJobId: string;
+}
+
 export type ControlJobMetadata<T extends object> = JobWithMetadata<T>;
 
 export interface ControlJobPublisher {
@@ -39,6 +46,10 @@ export interface ControlJobPublisher {
     reason: ProjectRuntimeReconcileJobPayload["reason"],
     transaction?: Prisma.TransactionClient,
   ): Promise<string | undefined>;
+  enqueueVectorDocumentIngestion?(
+    payload: VectorDocumentIngestionJobPayload,
+    transaction?: Prisma.TransactionClient,
+  ): Promise<string>;
   start(): Promise<void>;
 }
 
@@ -121,6 +132,27 @@ export class PgBossControlJobQueue implements ControlJobPublisher {
     return id ?? undefined;
   }
 
+  async enqueueVectorDocumentIngestion(
+    payload: VectorDocumentIngestionJobPayload,
+    transaction?: Prisma.TransactionClient,
+  ): Promise<string> {
+    await this.start();
+    const id = await this.boss.send(
+      CONTROL_JOB_QUEUES.vectorDocumentIngestion,
+      payload,
+      {
+        group: { id: `${payload.projectId}:${payload.databaseId}` },
+        priority: 40,
+        singletonKey: payload.ingestionJobId,
+        ...(transaction ? { db: fromPrisma(transaction) } : {}),
+      },
+    );
+    if (!id) {
+      throw new Error(`Unable to enqueue Vector Document ingestion ${payload.ingestionJobId}.`);
+    }
+    return id;
+  }
+
   async enqueueMaintenance(
     reason: ControlMaintenanceJobPayload["reason"],
   ): Promise<string | undefined> {
@@ -169,6 +201,7 @@ export class PgBossControlJobQueue implements ControlJobPublisher {
     for (const name of [
       CONTROL_JOB_QUEUES.projectDeletion,
       CONTROL_JOB_QUEUES.projectRuntimeReconcile,
+      CONTROL_JOB_QUEUES.vectorDocumentIngestion,
     ]) {
       await this.boss.createQueue(name, {
         ...durableTaskOptions,

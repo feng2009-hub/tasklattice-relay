@@ -60,7 +60,7 @@ function catalogCapability(
   return ({
     skills: `CAP_SKILL_${action}`,
     "mcp-servers": `CAP_MCP_SERVER_${action}`,
-    "knowledge-sources": `CAP_KNOWLEDGE_SOURCE_${action}`,
+    "vector-databases": `CAP_KNOWLEDGE_SOURCE_${action}`,
   } as Record<string, ProjectCapability>)[kind];
 }
 
@@ -239,7 +239,7 @@ export function projectRouteAdmissionPolicy(
       return policy("PROJECT", [
         requirement("CAP_SKILL_VIEW", "Skill"),
         requirement("CAP_MCP_SERVER_VIEW", "McpServer"),
-        requirement("CAP_KNOWLEDGE_SOURCE_VIEW", "KnowledgeSource"),
+        requirement("CAP_KNOWLEDGE_SOURCE_VIEW", "VectorDatabase"),
         requirement("CAP_AGENT_SPECIALIZATION_VIEW", "AgentSpecialization"),
       ]);
     }
@@ -254,37 +254,64 @@ export function projectRouteAdmissionPolicy(
     }
     if (
       tail.length === 4
-      && tail[1] === "knowledge-sources"
+      && tail[1] === "vector-databases"
       && tail[3] === "chunks"
       && method === "PUT"
     ) {
       return policy(
         "PROJECT",
-        [requirement("CAP_KNOWLEDGE_SOURCE_UPDATE", "KnowledgeVectorChunk")],
+        [requirement("CAP_KNOWLEDGE_SOURCE_UPDATE", "VectorChunk")],
         tail[2],
       );
     }
     if (
       tail.length === 4
-      && tail[1] === "knowledge-sources"
+      && tail[1] === "vector-databases"
       && tail[3] === "documents"
       && method === "POST"
     ) {
       return policy(
         "PROJECT",
-        [requirement("CAP_KNOWLEDGE_SOURCE_UPDATE", "KnowledgeDocument")],
+        [requirement("CAP_KNOWLEDGE_SOURCE_UPDATE", "VectorDocument")],
         tail[2],
       );
     }
     if (
       tail.length === 5
-      && tail[1] === "knowledge-sources"
+      && tail[1] === "vector-databases"
       && tail[3] === "chunks"
       && method === "DELETE"
     ) {
       return policy(
         "PROJECT",
-        [requirement("CAP_KNOWLEDGE_SOURCE_UPDATE", "KnowledgeVectorChunk")],
+        [requirement("CAP_KNOWLEDGE_SOURCE_UPDATE", "VectorChunk")],
+        tail[2],
+      );
+    }
+    if (
+      tail[1] === "vector-databases"
+      && tail.length === 3
+      && method === "GET"
+    ) {
+      return policy("PROJECT", [requirement("CAP_KNOWLEDGE_SOURCE_VIEW", "VectorDatabase")], tail[2]);
+    }
+    if (
+      tail[1] === "vector-databases"
+      && tail.length === 4
+      && tail[3] === "search"
+      && method === "POST"
+    ) {
+      return policy("PROJECT", [requirement("CAP_KNOWLEDGE_SOURCE_CONTENT_VIEW", "VectorDatabase")], tail[2]);
+    }
+    if (
+      tail[1] === "vector-databases"
+      && tail.length === 5
+      && tail[3] === "documents"
+      && (method === "GET" || method === "DELETE")
+    ) {
+      return policy(
+        "PROJECT",
+        [requirement(method === "GET" ? "CAP_KNOWLEDGE_SOURCE_CONTENT_VIEW" : "CAP_KNOWLEDGE_SOURCE_UPDATE", "VectorDocument")],
         tail[2],
       );
     }

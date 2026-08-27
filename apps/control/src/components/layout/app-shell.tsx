@@ -71,7 +71,7 @@ type ProjectRoute =
   | "/$projectId/access-policies"
   | "/$projectId/audit-logs"
   | "/$projectId/runtime-policies"
-  | "/$projectId/knowledge-base"
+  | "/$projectId/vector-databases"
   | "/$projectId/memory"
   | "/$projectId/mcp-servers"
   | "/$projectId/skills"
@@ -85,7 +85,7 @@ type NavItemDefinition = {
     | "specialistAgents"
     | "skills"
     | "mcpConnections"
-    | "knowledgeSources"
+    | "vectorDatabases"
     | "accessPolicies"
     | "runtimePolicies"
     | "traces"
@@ -113,7 +113,7 @@ export const navGroups: NavGroupDefinition[] = [
       { icon: Bot, labelKey: "specialistAgents", to: "/$projectId/agent-garden" },
       { icon: Sparkles, labelKey: "skills", to: "/$projectId/skills" },
       { icon: ServerCog, labelKey: "mcpConnections", to: "/$projectId/mcp-servers" },
-      { icon: Network, labelKey: "knowledgeSources", to: "/$projectId/knowledge-base" },
+      { icon: Network, labelKey: "vectorDatabases", to: "/$projectId/vector-databases" },
     ],
   },
   {

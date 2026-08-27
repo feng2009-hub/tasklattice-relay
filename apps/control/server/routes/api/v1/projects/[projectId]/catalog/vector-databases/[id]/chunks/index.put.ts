@@ -1,4 +1,4 @@
-import { upsertKnowledgeVectorChunksSchema } from "@tali/contracts";
+import { upsertVectorChunksSchema } from "@tali/contracts";
 import { defineHandler } from "nitro";
 import { requireAuth, unauthorizedResponse } from "../../../../../../../../../auth/auth";
 import { errorResponse, jsonResponse } from "../../../../../../../../../http/responses";
@@ -8,11 +8,11 @@ export default defineHandler(async (event) => {
   try { await requireAuth(event.req); } catch (error) { return unauthorizedResponse(error); }
   try {
     await requireProjectRole(event.req, ["admin"]);
-    const sourceId = decodeURIComponent(event.context.params?.id ?? "");
-    const input = upsertKnowledgeVectorChunksSchema.parse(await event.req.json());
+    const databaseId = decodeURIComponent(event.context.params?.id ?? "");
+    const input = upsertVectorChunksSchema.parse(await event.req.json());
     return jsonResponse(
       await (await getResourceCatalogService(event.req))
-        .upsertKnowledgeVectorChunks(sourceId, input),
+        .upsertVectorChunks(databaseId, input),
     );
   } catch (error) {
     return errorResponse(error);

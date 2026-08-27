@@ -8,6 +8,7 @@ import {
   type PgBossControlJobQueue,
   type ProjectDeletionJobPayload,
   type ProjectRuntimeReconcileJobPayload,
+  type VectorDocumentIngestionJobPayload,
 } from "../jobs/control-job-queue";
 import {
   createStructuredLogger,
@@ -16,6 +17,8 @@ import {
 } from "../observability/structured-logger";
 import { ProjectDeletionService } from "../projects/project-deletion-service";
 import { ProjectRuntimeTargetService } from "../projects/project-runtime-target-service";
+import { ResourceCatalogService } from "../catalog/resource-catalog-service";
+import { ProjectStore } from "../projects/project-store";
 
 const projectIdPayloadSchema = z.object({ projectId: z.string().trim().min(1) });
 const runtimeReconcilePayloadSchema = projectIdPayloadSchema.extend({
@@ -23,6 +26,11 @@ const runtimeReconcilePayloadSchema = projectIdPayloadSchema.extend({
 });
 const maintenancePayloadSchema = z.object({
   reason: z.enum(["scheduled", "startup"]),
+});
+const vectorDocumentIngestionPayloadSchema = z.object({
+  projectId: z.string().trim().min(1),
+  databaseId: z.string().trim().min(1),
+  ingestionJobId: z.string().uuid(),
 });
 
 export interface ControlWorkerTaskDependencies {
@@ -163,6 +171,7 @@ export class ControlWorkerTasks {
     const queueStatus = (await this.dependencies.jobs.boss.getQueues([
       CONTROL_JOB_QUEUES.projectDeletion,
       CONTROL_JOB_QUEUES.projectRuntimeReconcile,
+      CONTROL_JOB_QUEUES.vectorDocumentIngestion,
       CONTROL_JOB_QUEUES.deadLetter,
     ])).map((queue) => ({
       active: queue.activeCount,
@@ -178,6 +187,29 @@ export class ControlWorkerTasks {
       reason,
       runtimeJobsEnqueued,
     });
+  }
+
+  async vectorDocumentIngestion(
+    job: ControlJobMetadata<VectorDocumentIngestionJobPayload>,
+  ): Promise<void> {
+    const payload = vectorDocumentIngestionPayloadSchema.parse(job.data);
+    const startedAt = Date.now();
+    this.logJob("info", "job.started", job, payload);
+    try {
+      const catalog = new ResourceCatalogService(new ProjectStore(payload.projectId, this.db));
+      await catalog.vectorDocuments.process(payload, job.retryCount);
+      this.logJob("info", "job.completed", job, {
+        ...payload,
+        durationMs: Date.now() - startedAt,
+      });
+    } catch (error) {
+      this.logJob("error", "job.retry", job, {
+        ...payload,
+        durationMs: Date.now() - startedAt,
+        ...serializeError(error),
+      });
+      throw error;
+    }
   }
 
   async attachHistoricalDeletionJobs(referenceTime = new Date()): Promise<number> {
@@ -270,6 +302,18 @@ export class ControlWorkerTasks {
         },
         async ([job]) => this.projectRuntimeReconcile(
           job! as ControlJobMetadata<ProjectRuntimeReconcileJobPayload>,
+        ),
+      ),
+      boss.work<VectorDocumentIngestionJobPayload>(
+        CONTROL_JOB_QUEUES.vectorDocumentIngestion,
+        {
+          groupConcurrency: 1,
+          includeMetadata: true,
+          localConcurrency: 1,
+          pollingIntervalSeconds: 2,
+        },
+        async ([job]) => this.vectorDocumentIngestion(
+          job! as ControlJobMetadata<VectorDocumentIngestionJobPayload>,
         ),
       ),
       boss.work<ControlMaintenanceJobPayload>(

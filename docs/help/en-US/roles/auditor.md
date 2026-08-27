@@ -11,7 +11,7 @@ Review Project behavior, authorization, runtime, usage, and retained evidence wi
 
 ## Read-only review areas
 
-- **Resources and policies.** Inspect Agent configuration, Skills, MCP tools, Knowledge Sources, access policies, runtime policies, models, and routing without modifying them. [Open Access Policies](/__project__/access-policies).
+- **Resources and policies.** Inspect Agent configuration, Skills, MCP tools, Vector Databases, access policies, runtime policies, models, and routing without modifying them. [Open Access Policies](/__project__/access-policies).
 - **Usage and cost.** Review attribution and data-quality signals as well as totals. An incomplete attribution chain must remain visible in the conclusion. [Open Cost](/__project__/cost).
 
 > **Sensitive content remains bounded.** Audit access does not automatically reveal secrets, raw credentials, or every sensitive payload. Report masking as part of the evidence boundary rather than trying to bypass it.

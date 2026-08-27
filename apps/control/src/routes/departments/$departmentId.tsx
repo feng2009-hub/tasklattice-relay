@@ -270,7 +270,7 @@ function OverviewSection({
         <SummaryStat
           label="Resources"
           value={settings.usage.actualMcpIntegrations + settings.usage.actualKnowledgeBaseIntegrations}
-          detail={`${settings.usage.actualMcpIntegrations} MCP · ${settings.usage.actualKnowledgeBaseIntegrations} Knowledge`}
+          detail={`${settings.usage.actualMcpIntegrations} MCP · ${settings.usage.actualKnowledgeBaseIntegrations} Vector DB`}
         />
       </dl>
       <div className="mt-6 grid gap-6 border-y py-5 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.7fr)]">
@@ -378,7 +378,7 @@ function ProjectsSection({ department }: { department: DepartmentDetail }) {
             {projects.map((project) => (
               <article key={project.id} className="space-y-4 p-4">
                 <div className="flex items-start justify-between gap-3"><div className="min-w-0"><strong className="block truncate text-sm">{project.name}</strong><code className="text-[11px] text-muted-foreground">{project.id}</code></div><Button asChild size="icon" variant="ghost"><Link to="/$projectId" params={{ projectId: project.id }} aria-label={`Open ${project.name}`}><ArrowUpRight /></Link></Button></div>
-                <dl className="grid grid-cols-2 gap-3 text-xs"><CompactFact label="People" value={project.memberCount} /><CompactFact label="Instances" value={project.instanceCount} /><CompactFact label="Models / Routing" value={`${project.modelCount} / ${project.routingCount}`} /><CompactFact label="MCP / Knowledge" value={`${project.mcpIntegrationCount} / ${project.knowledgeBaseCount}`} /></dl>
+                <dl className="grid grid-cols-2 gap-3 text-xs"><CompactFact label="People" value={project.memberCount} /><CompactFact label="Instances" value={project.instanceCount} /><CompactFact label="Models / Routing" value={`${project.modelCount} / ${project.routingCount}`} /><CompactFact label="MCP / Vector DB" value={`${project.mcpIntegrationCount} / ${project.knowledgeBaseCount}`} /></dl>
               </article>
             ))}
           </div>
@@ -547,7 +547,7 @@ function QuotaSection({ departmentId, settings }: SettingsSectionProps) {
         <QuotaRow title="Spend budget" description="Aggregate Project budget allocations." actual={settings.usage.allocatedBudgetUsd} allocated={settings.usage.allocatedBudgetUsd} soft={form.softBudgetUsd} hard={form.hardBudgetUsd} money onSoftChange={(value) => set("softBudgetUsd", value)} onHardChange={(value) => set("hardBudgetUsd", value)} />
         <QuotaRow title="Instances" description="All running Agent Instances in the Department." actual={settings.usage.actualInstances} allocated={settings.usage.allocatedInstances} soft={form.softMaxInstances} hard={form.hardMaxInstances} onSoftChange={(value) => set("softMaxInstances", value)} onHardChange={(value) => set("hardMaxInstances", value)} />
         <QuotaRow title="MCP integrations" description="Connected MCP servers across child Projects." actual={settings.usage.actualMcpIntegrations} allocated={settings.usage.allocatedMcpIntegrations} soft={form.softMaxMcpIntegrations} hard={form.hardMaxMcpIntegrations} onSoftChange={(value) => set("softMaxMcpIntegrations", value)} onHardChange={(value) => set("hardMaxMcpIntegrations", value)} />
-        <QuotaRow title="Knowledge Base integrations" description="Knowledge sources across child Projects." actual={settings.usage.actualKnowledgeBaseIntegrations} allocated={settings.usage.allocatedKnowledgeBaseIntegrations} soft={form.softMaxKnowledgeBaseIntegrations} hard={form.hardMaxKnowledgeBaseIntegrations} onSoftChange={(value) => set("softMaxKnowledgeBaseIntegrations", value)} onHardChange={(value) => set("hardMaxKnowledgeBaseIntegrations", value)} />
+        <QuotaRow title="Vector Database integrations" description="Vector Databases across child Projects." actual={settings.usage.actualKnowledgeBaseIntegrations} allocated={settings.usage.allocatedKnowledgeBaseIntegrations} soft={form.softMaxKnowledgeBaseIntegrations} hard={form.hardMaxKnowledgeBaseIntegrations} onSoftChange={(value) => set("softMaxKnowledgeBaseIntegrations", value)} onHardChange={(value) => set("hardMaxKnowledgeBaseIntegrations", value)} />
       </div>
 
       <div className="mt-8">
@@ -561,7 +561,7 @@ function QuotaSection({ departmentId, settings }: SettingsSectionProps) {
           <QuotaInput id="default-project-tpm" label="Tokens per minute" value={form.defaultTpmLimit} onChange={(value) => set("defaultTpmLimit", value)} />
           <QuotaInput id="default-project-instances" label="Instances" value={form.defaultMaxInstances} onChange={(value) => set("defaultMaxInstances", value)} />
           <QuotaInput id="default-project-mcp" label="MCP integrations" value={form.defaultMaxMcpIntegrations} onChange={(value) => set("defaultMaxMcpIntegrations", value)} />
-          <QuotaInput id="default-project-knowledge" label="Knowledge Base integrations" value={form.defaultMaxKnowledgeBaseIntegrations} onChange={(value) => set("defaultMaxKnowledgeBaseIntegrations", value)} />
+          <QuotaInput id="default-project-vector-databases" label="Vector Database integrations" value={form.defaultMaxKnowledgeBaseIntegrations} onChange={(value) => set("defaultMaxKnowledgeBaseIntegrations", value)} />
         </div>
       </div>
       {!parsed.success ? <p className="mt-5 border-l-2 border-amber-500 bg-amber-500/5 px-4 py-3 text-xs text-amber-900 dark:text-amber-200" role="alert">{parsed.error.issues[0]?.message}</p> : null}

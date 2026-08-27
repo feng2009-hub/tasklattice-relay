@@ -6,30 +6,31 @@ import { getResourceCatalogService, requireProjectRole } from "../../../../../..
 const MAX_MULTIPART_BYTES = 26 * 1024 * 1024;
 
 export default defineHandler(async (event) => {
-  try { await requireAuth(event.req); } catch (error) { return unauthorizedResponse(error); }
+  let actorId = "";
+  try { actorId = (await requireAuth(event.req)).user.id; } catch (error) { return unauthorizedResponse(error); }
   try {
     await requireProjectRole(event.req, ["admin"]);
     const contentLength = Number(event.req.headers.get("content-length") ?? "0");
     if (Number.isFinite(contentLength) && contentLength > MAX_MULTIPART_BYTES) {
-      throw new Error("Invalid PDF upload: files may not exceed 25 MiB.");
+      throw new Error("Vector Documents may not exceed 25 MiB.");
     }
     const form = await event.req.formData();
     const file = form.get("file");
-    if (!isUploadedPdf(file)) {
-      throw new Error("Invalid PDF upload: a file is required in the multipart file field.");
+    if (!isUploadedDocument(file)) {
+      throw new Error("A Vector Document is required in the multipart file field.");
     }
-    const sourceId = decodeURIComponent(event.context.params?.id ?? "");
+    const databaseId = decodeURIComponent(event.context.params?.id ?? "");
     return jsonResponse(
       await (await getResourceCatalogService(event.req))
-        .ingestKnowledgePdf(sourceId, file),
-      { status: 201 },
+        .queueVectorDocument(databaseId, file, actorId),
+      { status: 202 },
     );
   } catch (error) {
     return errorResponse(error);
   }
 });
 
-function isUploadedPdf(value: FormDataEntryValue | null): value is File {
+function isUploadedDocument(value: FormDataEntryValue | null): value is File {
   return Boolean(
     value
     && typeof value === "object"

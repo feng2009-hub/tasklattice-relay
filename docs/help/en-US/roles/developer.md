@@ -5,7 +5,7 @@ Build and maintain owned Agents, assemble approved capabilities, and verify obse
 ## Build an Agent
 
 1. **Start from the Agent Garden.** Choose a specialization or registered Agent that matches the task. Confirm its owner, supported runtime, and required capabilities. [Open Specialist Agents](/__project__/agent-garden).
-2. **Assemble approved capabilities.** Select published Skills, MCP connections, Knowledge Sources, memory, model routing, and policies. Do not embed provider or service credentials in prompts. [Open MCP Connections](/__project__/mcp-servers).
+2. **Assemble approved capabilities.** Select published Skills, MCP connections, Vector Databases, memory, model routing, and policies. Do not embed provider or service credentials in prompts. [Open MCP Connections](/__project__/mcp-servers).
 3. **Create and observe the Instance.** Provision the runtime, follow state transitions, and use logs to separate desired configuration from observed health. [Open Runtime Instances](/__project__/instances).
 
 ## Validate before handoff

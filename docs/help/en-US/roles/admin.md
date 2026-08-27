@@ -10,7 +10,7 @@ Set the Project boundary, enable the team, and remain accountable for resources,
 
 ## Enable safe Agent delivery
 
-- **Curate capabilities.** Publish approved Skills, MCP connections, and Knowledge Sources before developers bind them to an Agent. [Open Skills](/__project__/skills).
+- **Curate capabilities.** Publish approved Skills, MCP connections, and Vector Databases before developers bind them to an Agent. [Open Skills](/__project__/skills).
 - **Define access and runtime policy.** Use access policies for tool and data boundaries, and runtime policies for the execution envelope. Review the effective policy before provisioning. [Open Access Policies](/__project__/access-policies).
 - **Review runtime state.** Treat READY as an observed state. Investigate provisioning logs and health signals before assigning a new Instance to users. [Open Runtime Instances](/__project__/instances).
 

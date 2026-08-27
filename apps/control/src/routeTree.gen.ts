@@ -16,7 +16,6 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as ProjectIdIndexRouteImport } from './routes/$projectId/index'
 import { Route as ProjectIdCostRouteImport } from './routes/$projectId/cost'
 import { Route as ProjectIdHelpRouteImport } from './routes/$projectId/help'
-import { Route as ProjectIdKnowledgeBaseRouteImport } from './routes/$projectId/knowledge-base'
 import { Route as ProjectIdMcpServersRouteImport } from './routes/$projectId/mcp-servers'
 import { Route as ProjectIdMemoryRouteImport } from './routes/$projectId/memory'
 import { Route as ProjectIdNotificationsRouteImport } from './routes/$projectId/notifications'
@@ -36,6 +35,8 @@ import { Route as ProjectIdInstancesInstanceIdRouteImport } from './routes/$proj
 import { Route as ProjectIdRequestsIndexRouteImport } from './routes/$projectId/requests/index'
 import { Route as ProjectIdRequestsNewRouteImport } from './routes/$projectId/requests/new'
 import { Route as ProjectIdSettingIndexRouteImport } from './routes/$projectId/setting/index'
+import { Route as ProjectIdVectorDatabasesIndexRouteImport } from './routes/$projectId/vector-databases/index'
+import { Route as ProjectIdVectorDatabasesDatabaseIdRouteImport } from './routes/$projectId/vector-databases/$databaseId'
 import { Route as ProjectIdSettingModelRoutingsRoutingIdRouteImport } from './routes/$projectId/setting/model-routings/$routingId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -71,11 +72,6 @@ const ProjectIdCostRoute = ProjectIdCostRouteImport.update({
 const ProjectIdHelpRoute = ProjectIdHelpRouteImport.update({
   id: '/$projectId/help',
   path: '/$projectId/help',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProjectIdKnowledgeBaseRoute = ProjectIdKnowledgeBaseRouteImport.update({
-  id: '/$projectId/knowledge-base',
-  path: '/$projectId/knowledge-base',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProjectIdMcpServersRoute = ProjectIdMcpServersRouteImport.update({
@@ -179,6 +175,18 @@ const ProjectIdSettingIndexRoute = ProjectIdSettingIndexRouteImport.update({
   path: '/$projectId/setting/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProjectIdVectorDatabasesIndexRoute =
+  ProjectIdVectorDatabasesIndexRouteImport.update({
+    id: '/$projectId/vector-databases/',
+    path: '/$projectId/vector-databases/',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ProjectIdVectorDatabasesDatabaseIdRoute =
+  ProjectIdVectorDatabasesDatabaseIdRouteImport.update({
+    id: '/$projectId/vector-databases/$databaseId',
+    path: '/$projectId/vector-databases/$databaseId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ProjectIdSettingModelRoutingsRoutingIdRoute =
   ProjectIdSettingModelRoutingsRoutingIdRouteImport.update({
     id: '/$projectId/setting/model-routings/$routingId',
@@ -193,7 +201,6 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/$projectId/cost': typeof ProjectIdCostRoute
   '/$projectId/help': typeof ProjectIdHelpRoute
-  '/$projectId/knowledge-base': typeof ProjectIdKnowledgeBaseRoute
   '/$projectId/mcp-servers': typeof ProjectIdMcpServersRoute
   '/$projectId/memory': typeof ProjectIdMemoryRoute
   '/$projectId/notifications': typeof ProjectIdNotificationsRoute
@@ -208,12 +215,14 @@ export interface FileRoutesByFullPath {
   '/$projectId/agent-garden/$agentId': typeof ProjectIdAgentGardenAgentIdRoute
   '/$projectId/instances/$instanceId': typeof ProjectIdInstancesInstanceIdRoute
   '/$projectId/requests/new': typeof ProjectIdRequestsNewRoute
+  '/$projectId/vector-databases/$databaseId': typeof ProjectIdVectorDatabasesDatabaseIdRoute
   '/$projectId/access-policies/': typeof ProjectIdAccessPoliciesIndexRoute
   '/$projectId/agent-garden/': typeof ProjectIdAgentGardenIndexRoute
   '/$projectId/audit-logs/': typeof ProjectIdAuditLogsIndexRoute
   '/$projectId/instances/': typeof ProjectIdInstancesIndexRoute
   '/$projectId/requests/': typeof ProjectIdRequestsIndexRoute
   '/$projectId/setting/': typeof ProjectIdSettingIndexRoute
+  '/$projectId/vector-databases/': typeof ProjectIdVectorDatabasesIndexRoute
   '/$projectId/setting/model-routings/$routingId': typeof ProjectIdSettingModelRoutingsRoutingIdRoute
 }
 export interface FileRoutesByTo {
@@ -223,7 +232,6 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/$projectId/cost': typeof ProjectIdCostRoute
   '/$projectId/help': typeof ProjectIdHelpRoute
-  '/$projectId/knowledge-base': typeof ProjectIdKnowledgeBaseRoute
   '/$projectId/mcp-servers': typeof ProjectIdMcpServersRoute
   '/$projectId/memory': typeof ProjectIdMemoryRoute
   '/$projectId/notifications': typeof ProjectIdNotificationsRoute
@@ -238,12 +246,14 @@ export interface FileRoutesByTo {
   '/$projectId/agent-garden/$agentId': typeof ProjectIdAgentGardenAgentIdRoute
   '/$projectId/instances/$instanceId': typeof ProjectIdInstancesInstanceIdRoute
   '/$projectId/requests/new': typeof ProjectIdRequestsNewRoute
+  '/$projectId/vector-databases/$databaseId': typeof ProjectIdVectorDatabasesDatabaseIdRoute
   '/$projectId/access-policies': typeof ProjectIdAccessPoliciesIndexRoute
   '/$projectId/agent-garden': typeof ProjectIdAgentGardenIndexRoute
   '/$projectId/audit-logs': typeof ProjectIdAuditLogsIndexRoute
   '/$projectId/instances': typeof ProjectIdInstancesIndexRoute
   '/$projectId/requests': typeof ProjectIdRequestsIndexRoute
   '/$projectId/setting': typeof ProjectIdSettingIndexRoute
+  '/$projectId/vector-databases': typeof ProjectIdVectorDatabasesIndexRoute
   '/$projectId/setting/model-routings/$routingId': typeof ProjectIdSettingModelRoutingsRoutingIdRoute
 }
 export interface FileRoutesById {
@@ -254,7 +264,6 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/$projectId/cost': typeof ProjectIdCostRoute
   '/$projectId/help': typeof ProjectIdHelpRoute
-  '/$projectId/knowledge-base': typeof ProjectIdKnowledgeBaseRoute
   '/$projectId/mcp-servers': typeof ProjectIdMcpServersRoute
   '/$projectId/memory': typeof ProjectIdMemoryRoute
   '/$projectId/notifications': typeof ProjectIdNotificationsRoute
@@ -269,12 +278,14 @@ export interface FileRoutesById {
   '/$projectId/agent-garden/$agentId': typeof ProjectIdAgentGardenAgentIdRoute
   '/$projectId/instances/$instanceId': typeof ProjectIdInstancesInstanceIdRoute
   '/$projectId/requests/new': typeof ProjectIdRequestsNewRoute
+  '/$projectId/vector-databases/$databaseId': typeof ProjectIdVectorDatabasesDatabaseIdRoute
   '/$projectId/access-policies/': typeof ProjectIdAccessPoliciesIndexRoute
   '/$projectId/agent-garden/': typeof ProjectIdAgentGardenIndexRoute
   '/$projectId/audit-logs/': typeof ProjectIdAuditLogsIndexRoute
   '/$projectId/instances/': typeof ProjectIdInstancesIndexRoute
   '/$projectId/requests/': typeof ProjectIdRequestsIndexRoute
   '/$projectId/setting/': typeof ProjectIdSettingIndexRoute
+  '/$projectId/vector-databases/': typeof ProjectIdVectorDatabasesIndexRoute
   '/$projectId/setting/model-routings/$routingId': typeof ProjectIdSettingModelRoutingsRoutingIdRoute
 }
 export interface FileRouteTypes {
@@ -286,7 +297,6 @@ export interface FileRouteTypes {
     | '/login'
     | '/$projectId/cost'
     | '/$projectId/help'
-    | '/$projectId/knowledge-base'
     | '/$projectId/mcp-servers'
     | '/$projectId/memory'
     | '/$projectId/notifications'
@@ -301,12 +311,14 @@ export interface FileRouteTypes {
     | '/$projectId/agent-garden/$agentId'
     | '/$projectId/instances/$instanceId'
     | '/$projectId/requests/new'
+    | '/$projectId/vector-databases/$databaseId'
     | '/$projectId/access-policies/'
     | '/$projectId/agent-garden/'
     | '/$projectId/audit-logs/'
     | '/$projectId/instances/'
     | '/$projectId/requests/'
     | '/$projectId/setting/'
+    | '/$projectId/vector-databases/'
     | '/$projectId/setting/model-routings/$routingId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -316,7 +328,6 @@ export interface FileRouteTypes {
     | '/login'
     | '/$projectId/cost'
     | '/$projectId/help'
-    | '/$projectId/knowledge-base'
     | '/$projectId/mcp-servers'
     | '/$projectId/memory'
     | '/$projectId/notifications'
@@ -331,12 +342,14 @@ export interface FileRouteTypes {
     | '/$projectId/agent-garden/$agentId'
     | '/$projectId/instances/$instanceId'
     | '/$projectId/requests/new'
+    | '/$projectId/vector-databases/$databaseId'
     | '/$projectId/access-policies'
     | '/$projectId/agent-garden'
     | '/$projectId/audit-logs'
     | '/$projectId/instances'
     | '/$projectId/requests'
     | '/$projectId/setting'
+    | '/$projectId/vector-databases'
     | '/$projectId/setting/model-routings/$routingId'
   id:
     | '__root__'
@@ -346,7 +359,6 @@ export interface FileRouteTypes {
     | '/login'
     | '/$projectId/cost'
     | '/$projectId/help'
-    | '/$projectId/knowledge-base'
     | '/$projectId/mcp-servers'
     | '/$projectId/memory'
     | '/$projectId/notifications'
@@ -361,12 +373,14 @@ export interface FileRouteTypes {
     | '/$projectId/agent-garden/$agentId'
     | '/$projectId/instances/$instanceId'
     | '/$projectId/requests/new'
+    | '/$projectId/vector-databases/$databaseId'
     | '/$projectId/access-policies/'
     | '/$projectId/agent-garden/'
     | '/$projectId/audit-logs/'
     | '/$projectId/instances/'
     | '/$projectId/requests/'
     | '/$projectId/setting/'
+    | '/$projectId/vector-databases/'
     | '/$projectId/setting/model-routings/$routingId'
   fileRoutesById: FileRoutesById
 }
@@ -377,7 +391,6 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   ProjectIdCostRoute: typeof ProjectIdCostRoute
   ProjectIdHelpRoute: typeof ProjectIdHelpRoute
-  ProjectIdKnowledgeBaseRoute: typeof ProjectIdKnowledgeBaseRoute
   ProjectIdMcpServersRoute: typeof ProjectIdMcpServersRoute
   ProjectIdMemoryRoute: typeof ProjectIdMemoryRoute
   ProjectIdNotificationsRoute: typeof ProjectIdNotificationsRoute
@@ -392,12 +405,14 @@ export interface RootRouteChildren {
   ProjectIdAgentGardenAgentIdRoute: typeof ProjectIdAgentGardenAgentIdRoute
   ProjectIdInstancesInstanceIdRoute: typeof ProjectIdInstancesInstanceIdRoute
   ProjectIdRequestsNewRoute: typeof ProjectIdRequestsNewRoute
+  ProjectIdVectorDatabasesDatabaseIdRoute: typeof ProjectIdVectorDatabasesDatabaseIdRoute
   ProjectIdAccessPoliciesIndexRoute: typeof ProjectIdAccessPoliciesIndexRoute
   ProjectIdAgentGardenIndexRoute: typeof ProjectIdAgentGardenIndexRoute
   ProjectIdAuditLogsIndexRoute: typeof ProjectIdAuditLogsIndexRoute
   ProjectIdInstancesIndexRoute: typeof ProjectIdInstancesIndexRoute
   ProjectIdRequestsIndexRoute: typeof ProjectIdRequestsIndexRoute
   ProjectIdSettingIndexRoute: typeof ProjectIdSettingIndexRoute
+  ProjectIdVectorDatabasesIndexRoute: typeof ProjectIdVectorDatabasesIndexRoute
   ProjectIdSettingModelRoutingsRoutingIdRoute: typeof ProjectIdSettingModelRoutingsRoutingIdRoute
 }
 
@@ -450,13 +465,6 @@ declare module '@tanstack/react-router' {
       path: '/$projectId/help'
       fullPath: '/$projectId/help'
       preLoaderRoute: typeof ProjectIdHelpRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/$projectId/knowledge-base': {
-      id: '/$projectId/knowledge-base'
-      path: '/$projectId/knowledge-base'
-      fullPath: '/$projectId/knowledge-base'
-      preLoaderRoute: typeof ProjectIdKnowledgeBaseRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$projectId/mcp-servers': {
@@ -592,6 +600,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectIdSettingIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/$projectId/vector-databases/': {
+      id: '/$projectId/vector-databases/'
+      path: '/$projectId/vector-databases'
+      fullPath: '/$projectId/vector-databases/'
+      preLoaderRoute: typeof ProjectIdVectorDatabasesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$projectId/vector-databases/$databaseId': {
+      id: '/$projectId/vector-databases/$databaseId'
+      path: '/$projectId/vector-databases/$databaseId'
+      fullPath: '/$projectId/vector-databases/$databaseId'
+      preLoaderRoute: typeof ProjectIdVectorDatabasesDatabaseIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/$projectId/setting/model-routings/$routingId': {
       id: '/$projectId/setting/model-routings/$routingId'
       path: '/$projectId/setting/model-routings/$routingId'
@@ -609,7 +631,6 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   ProjectIdCostRoute: ProjectIdCostRoute,
   ProjectIdHelpRoute: ProjectIdHelpRoute,
-  ProjectIdKnowledgeBaseRoute: ProjectIdKnowledgeBaseRoute,
   ProjectIdMcpServersRoute: ProjectIdMcpServersRoute,
   ProjectIdMemoryRoute: ProjectIdMemoryRoute,
   ProjectIdNotificationsRoute: ProjectIdNotificationsRoute,
@@ -624,12 +645,15 @@ const rootRouteChildren: RootRouteChildren = {
   ProjectIdAgentGardenAgentIdRoute: ProjectIdAgentGardenAgentIdRoute,
   ProjectIdInstancesInstanceIdRoute: ProjectIdInstancesInstanceIdRoute,
   ProjectIdRequestsNewRoute: ProjectIdRequestsNewRoute,
+  ProjectIdVectorDatabasesDatabaseIdRoute:
+    ProjectIdVectorDatabasesDatabaseIdRoute,
   ProjectIdAccessPoliciesIndexRoute: ProjectIdAccessPoliciesIndexRoute,
   ProjectIdAgentGardenIndexRoute: ProjectIdAgentGardenIndexRoute,
   ProjectIdAuditLogsIndexRoute: ProjectIdAuditLogsIndexRoute,
   ProjectIdInstancesIndexRoute: ProjectIdInstancesIndexRoute,
   ProjectIdRequestsIndexRoute: ProjectIdRequestsIndexRoute,
   ProjectIdSettingIndexRoute: ProjectIdSettingIndexRoute,
+  ProjectIdVectorDatabasesIndexRoute: ProjectIdVectorDatabasesIndexRoute,
   ProjectIdSettingModelRoutingsRoutingIdRoute:
     ProjectIdSettingModelRoutingsRoutingIdRoute,
 }

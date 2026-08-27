@@ -57,7 +57,7 @@ const resources: Array<{
   { segment: "access-policies", prefix: "access_policy", type: "Access Policy" },
   { segment: "model-routings", prefix: "model_routing", type: "Routing" },
   { segment: "mcp-servers", prefix: "mcp_server", type: "MCP Server" },
-  { segment: "knowledge-sources", prefix: "knowledge_source", type: "Knowledge Source" },
+  { segment: "vector-databases", prefix: "vector_database", type: "Vector Database" },
   { segment: "invitations", prefix: "project_member", type: "Project Member" },
   { segment: "providers", prefix: "provider", type: "Provider" },
   { segment: "instances", prefix: "instance", type: "Instance" },
@@ -385,23 +385,23 @@ function descriptor(method: string, path: string): AuditDescriptor | undefined {
 
   if (
     tail[0] === "catalog"
-    && tail[1] === "knowledge-sources"
+    && tail[1] === "vector-databases"
     && tail[3] === "chunks"
   ) {
     if (tail.length === 4 && method === "PUT") {
       return {
-        action: "knowledge_vector_chunk.batch_upsert",
+        action: "vector_chunk.batch_upsert",
         ...(tail[2] ? { objectId: tail[2] } : {}),
-        objectType: "Knowledge Vector Chunk",
+        objectType: "Vector Chunk",
         operation: "update",
         projectId,
       };
     }
     if (tail.length === 5 && method === "DELETE") {
       return {
-        action: "knowledge_vector_chunk.delete",
+        action: "vector_chunk.delete",
         ...(tail[4] ? { objectId: tail[4] } : {}),
-        objectType: "Knowledge Vector Chunk",
+        objectType: "Vector Chunk",
         operation: "delete",
         projectId,
       };

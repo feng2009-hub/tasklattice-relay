@@ -175,9 +175,9 @@ export class InstanceService {
         new Set(catalog.mcpServers.map((item) => item.id)),
       ],
       [
-        "Knowledge source",
+        "Vector Database",
         input.knowledgeSourceIds,
-        new Set(catalog.knowledgeSources.map((item) => item.id)),
+        new Set(catalog.vectorDatabases.map((item) => item.id)),
       ],
     ];
     for (const [label, ids, available] of references) {

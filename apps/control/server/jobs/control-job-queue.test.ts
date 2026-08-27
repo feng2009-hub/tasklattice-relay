@@ -71,4 +71,25 @@ describe("PgBossControlJobQueue", () => {
       expect.objectContaining({ singletonKey: "project-a" }),
     );
   });
+
+  it("groups Vector Document ingestion by Project database and keys retries by ingestion job", async () => {
+    const fake = bossClient();
+    const queue = new PgBossControlJobQueue(fake.boss);
+    const payload = {
+      projectId: "project-a",
+      databaseId: "research-vectors",
+      ingestionJobId: "00000000-0000-4000-8000-000000000301",
+    };
+
+    await expect(queue.enqueueVectorDocumentIngestion(payload))
+      .resolves.toBe("00000000-0000-4000-8000-000000000201");
+    expect(fake.send).toHaveBeenCalledWith(
+      CONTROL_JOB_QUEUES.vectorDocumentIngestion,
+      payload,
+      expect.objectContaining({
+        group: { id: "project-a:research-vectors" },
+        singletonKey: payload.ingestionJobId,
+      }),
+    );
+  });
 });

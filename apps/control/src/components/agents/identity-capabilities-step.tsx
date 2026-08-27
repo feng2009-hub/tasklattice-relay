@@ -182,7 +182,7 @@ export function IdentityCapabilitiesStep({ agentPlatform, customSystemPrompt, em
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onSelect={() => setSkillsOpen(true)}><Boxes /> Skills</DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => setMcpOpen(true)}><ServerCog /> MCP Servers</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setKnowledgeOpen(true)}><BookOpenText /> Knowledge Bases</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setKnowledgeOpen(true)}><BookOpenText /> Vector Databases</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -211,7 +211,7 @@ export function IdentityCapabilitiesStep({ agentPlatform, customSystemPrompt, em
           />
           <CapabilityRow
             icon={<Network className="size-4" />}
-            title="Knowledge Bases"
+            title="Vector Databases"
             description="Approved sources the Agent can search for grounded answers."
             open={knowledgeOpen}
             onOpenChange={setKnowledgeOpen}

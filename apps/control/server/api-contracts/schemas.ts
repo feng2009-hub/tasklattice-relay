@@ -45,8 +45,11 @@ export const catalogCollectionParamsSchema = projectParamsSchema.extend({
 });
 export const catalogResourceParamsSchema = catalogCollectionParamsSchema.extend({ id });
 export const catalogNamedResourceParamsSchema = projectParamsSchema.extend({ id });
-export const knowledgeVectorChunkParamsSchema = catalogNamedResourceParamsSchema.extend({
+export const vectorChunkParamsSchema = catalogNamedResourceParamsSchema.extend({
   chunkId: id,
+});
+export const vectorDocumentParamsSchema = catalogNamedResourceParamsSchema.extend({
+  documentId: id,
 });
 export const demoAgentParamsSchema = z.object({ id });
 export const runtimeBridgeCoordinatorParamsSchema = z.object({
@@ -249,7 +252,7 @@ export const projectDeletionImpactSchema = z.object({
   activeResources: z.array(z.object({
     id,
     kind: z.enum([
-      "instance", "provider", "model", "gateway", "routing", "mcp-server", "knowledge-source",
+      "instance", "provider", "model", "gateway", "routing", "mcp-server", "vector-database",
     ]),
     kindLabel: z.string(),
     name: z.string(),

@@ -1,6 +1,6 @@
 import {
   resourceKindSchema,
-  updateKnowledgeSourceDefinitionSchema,
+  updateVectorDatabaseDefinitionSchema,
   updateMcpServerDefinitionSchema,
   updateSkillDefinitionSchema,
 } from "@tali/contracts";
@@ -21,7 +21,7 @@ export default defineHandler(async (event) => {
       ? service.updateSkill(id, updateSkillDefinitionSchema.parse(body))
       : kind === "mcp-servers"
         ? service.updateMcpServer(id, updateMcpServerDefinitionSchema.parse(body))
-        : service.updateKnowledgeSource(id, updateKnowledgeSourceDefinitionSchema.parse(body)));
+        : service.updateKnowledgeSource(id, updateVectorDatabaseDefinitionSchema.parse(body)));
     return jsonResponse(updated);
   } catch (error) {
     return errorResponse(error);

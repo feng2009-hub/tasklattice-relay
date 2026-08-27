@@ -59,7 +59,7 @@ const definitions = [
     id: "resources",
     title: "Tools & knowledge",
     description:
-      "Skills, MCP servers, knowledge sources, and Agent specializations.",
+      "Skills, MCP servers, Vector Databases, and Agent specializations.",
     prefixes: [
       "CAP_SKILL_",
       "CAP_MCP_",
