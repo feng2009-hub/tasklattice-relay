@@ -445,6 +445,87 @@ describe("ResourceCatalogService", () => {
     );
   });
 
+  it("resolves a validated Project embedding model and probes its vector dimensions", async () => {
+    const store = createTestStore();
+    const createEmbeddings = vi.fn(async () => [[0.1, 0.2, 0.3, 0.4]]);
+    const litellm = adapter({ createEmbeddings });
+    const now = new Date().toISOString();
+    await store.saveProviderAccount({
+      id: "nvidia-provider",
+      name: "NVIDIA NIM",
+      providerKind: "nvidia-nim",
+      presetId: "nvidia-nim",
+      endpoint: "https://integrate.api.nvidia.com/v1",
+      config: { endpoint: "https://integrate.api.nvidia.com/v1" },
+      complianceDomain: "GLOBAL",
+      endpointRegion: "global",
+      crossBorderTransfer: false,
+      discoveredModels: ["nvidia/llama-nemotron-embed-1b-v2"],
+      status: "VALIDATED",
+      checks: [],
+      credentialState: "STORED",
+      validationMessage: "Ready",
+      validatedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    }, JSON.stringify({
+      version: 1,
+      provider: "nvidia-nim",
+      config: { endpoint: "https://integrate.api.nvidia.com/v1" },
+      credentials: { apiKey: "nvapi-test" },
+    }));
+    const deploymentId = "11111111-1111-4111-8111-111111111111";
+    await store.saveModelDeployment({
+      id: deploymentId,
+      providerAccountId: "nvidia-provider",
+      modelId: "nvidia/llama-nemotron-embed-1b-v2",
+      displayName: "Llama Nemotron Embed 1B v2",
+      modelType: "text-embedding",
+      capabilities: ["multilingual"],
+      inputModalities: ["text"],
+      outputModalities: ["embedding"],
+      providerPresetId: "nvidia-nim",
+      providerName: "NVIDIA NIM",
+      endpoint: "https://integrate.api.nvidia.com/v1",
+      complianceDomain: "GLOBAL",
+      endpointRegion: "global",
+      crossBorderTransfer: false,
+      litellmModelName: "tali/nvidia/llama-nemotron-embed-1b-v2",
+      status: "VALIDATED",
+      checks: [],
+      validationMessage: "Ready",
+      validatedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    });
+    const service = new ResourceCatalogService(
+      store,
+      new ProjectQuotaService(store, litellm),
+      litellm,
+    );
+
+    const created = await service.createKnowledgeSource({
+      name: "NVIDIA engineering knowledge",
+      description: "Engineering knowledge embedded through an assigned NVIDIA model.",
+      vectorStoreId: "nvidia-engineering-knowledge",
+      provider: "postgresql",
+      embeddingModelDeploymentId: deploymentId,
+      topK: 8,
+      credentialReference: "",
+    });
+
+    expect(created).toMatchObject({
+      embeddingModelDeploymentId: deploymentId,
+      embeddingModel: "tali/nvidia/llama-nemotron-embed-1b-v2",
+      embeddingDimensions: 4,
+      status: "REGISTERED",
+    });
+    expect(createEmbeddings).toHaveBeenCalledWith(
+      "tali/nvidia/llama-nemotron-embed-1b-v2",
+      ["TaskLattice embedding dimension probe."],
+    );
+  });
+
   it("registers Elasticsearch through the authenticated TaskLattice Relay bridge", async () => {
     const store = createTestStore();
     const litellm = adapter();

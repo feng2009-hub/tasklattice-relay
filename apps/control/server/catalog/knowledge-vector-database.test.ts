@@ -120,4 +120,17 @@ describe("KnowledgeVectorDatabase", () => {
     );
     expect(execute).toHaveBeenCalledTimes(2);
   });
+
+  it("removes older revisions of one ingested document without touching the current hash", async () => {
+    const { store, vectors } = await setup();
+    const execute = vi.spyOn(store.database(), "$executeRaw").mockResolvedValue(3);
+
+    await expect(vectors.deleteDocumentRevisions(
+      "engineering-handbook",
+      "pdf-handbook",
+      "sha256:current",
+    )).resolves.toBe(3);
+
+    expect(execute).toHaveBeenCalledOnce();
+  });
 });

@@ -149,6 +149,21 @@ export class KnowledgeVectorDatabase {
     return deleted > 0;
   }
 
+  async deleteDocumentRevisions(
+    sourceId: string,
+    documentId: string,
+    currentContentHash: string,
+  ): Promise<number> {
+    const { source } = await this.databaseForSource(sourceId);
+    return this.db.$executeRaw`
+      DELETE FROM tasklattice.knowledge_vector_chunks
+      WHERE project_id = ${this.store.projectId}
+        AND database_id = ${source.id}
+        AND attributes @> ${JSON.stringify({ document_id: documentId })}::jsonb
+        AND NOT (attributes @> ${JSON.stringify({ content_hash: currentContentHash })}::jsonb)
+    `;
+  }
+
   async search(vectorStoreId: string, input: unknown): Promise<VectorStoreSearchResponse> {
     const request = vectorStoreSearchRequestSchema.parse(input);
     const query = vectorStoreSearchQuery(request);

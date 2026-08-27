@@ -1,5 +1,6 @@
 import type {
   AccessPolicy,
+  AssignDepartmentInferenceResourceInput,
   AccessPolicyVersion,
   Instance as Agent,
   AgentInstanceDetail,
@@ -12,6 +13,7 @@ import type {
   A2aAgentInstance,
   CreateKnowledgeSourceDefinitionInput,
   DepartmentInferenceAvailability,
+  DepartmentInferenceResourceAssignmentView,
   CreateAccessPolicyInput,
   CreateInstanceInput,
   CostQueryParams,
@@ -33,6 +35,7 @@ import type {
   ResourceCatalog,
   ResourceKind,
   KnowledgeSourceDefinition,
+  KnowledgePdfIngestionResult,
   InferenceGateway,
   ModelRouting,
   ModelRoutingAuditEvent,
@@ -91,7 +94,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(projectScopedPath(path, projectId), {
     ...init,
     headers: {
-      "content-type": "application/json",
+      ...(typeof FormData !== "undefined" && init?.body instanceof FormData
+        ? {}
+        : { "content-type": "application/json" }),
       ...init?.headers,
     },
   });
@@ -299,6 +304,14 @@ export const api = {
       `/api/v1/catalog/knowledge-sources/${encodeURIComponent(id)}/chunks`,
       { method: "PUT", body: JSON.stringify(input) },
     ),
+  ingestKnowledgePdf: (id: string, file: File) => {
+    const body = new FormData();
+    body.set("file", file);
+    return request<KnowledgePdfIngestionResult>(
+      `/api/v1/catalog/knowledge-sources/${encodeURIComponent(id)}/documents`,
+      { method: "POST", body },
+    );
+  },
   deleteKnowledgeVectorChunk: (id: string, chunkId: string) =>
     request<{ message: string }>(
       `/api/v1/catalog/knowledge-sources/${encodeURIComponent(id)}/chunks/${encodeURIComponent(chunkId)}`,
@@ -531,5 +544,33 @@ export function departmentInferenceApi(departmentId: string) {
       request<ModelDeployment>(`${base}/models`, { method: "POST", body: JSON.stringify(input) }),
     deleteModelDeployment: (id: string) =>
       request<{ message: string }>(`${base}/models/${encodeURIComponent(id)}`, { method: "DELETE" }),
+    listModelAssignments: (id: string) =>
+      request<DepartmentInferenceResourceAssignmentView>(
+        `${base}/models/${encodeURIComponent(id)}/assignments`,
+      ),
+    assignModel: (id: string, input: AssignDepartmentInferenceResourceInput) =>
+      request<DepartmentInferenceResourceAssignmentView>(
+        `${base}/models/${encodeURIComponent(id)}/assignments`,
+        { method: "POST", body: JSON.stringify(input) },
+      ),
+    removeModelAssignment: (id: string, projectId: string) =>
+      request<{ message: string }>(
+        `${base}/models/${encodeURIComponent(id)}/assignments/${encodeURIComponent(projectId)}`,
+        { method: "DELETE" },
+      ),
+    listRoutingAssignments: (id: string) =>
+      request<DepartmentInferenceResourceAssignmentView>(
+        `${base}/model-routings/${encodeURIComponent(id)}/assignments`,
+      ),
+    assignRouting: (id: string, input: AssignDepartmentInferenceResourceInput) =>
+      request<DepartmentInferenceResourceAssignmentView>(
+        `${base}/model-routings/${encodeURIComponent(id)}/assignments`,
+        { method: "POST", body: JSON.stringify(input) },
+      ),
+    removeRoutingAssignment: (id: string, projectId: string) =>
+      request<{ message: string }>(
+        `${base}/model-routings/${encodeURIComponent(id)}/assignments/${encodeURIComponent(projectId)}`,
+        { method: "DELETE" },
+      ),
   };
 }

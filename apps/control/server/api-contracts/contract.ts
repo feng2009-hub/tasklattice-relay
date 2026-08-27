@@ -18,6 +18,7 @@ export interface RouteContract {
   path: string;
   request?: {
     body?: ZodType;
+    contentType?: string;
     params?: ZodType;
     query?: ZodType;
   };

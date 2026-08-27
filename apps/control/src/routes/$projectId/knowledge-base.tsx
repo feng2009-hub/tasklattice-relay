@@ -6,7 +6,7 @@ import {
   type CreateKnowledgeSourceDefinitionInput,
   type KnowledgeSourceDefinition,
 } from "@tali/contracts";
-import { Database, Pencil, Plus, RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
+import { Database, FileUp, Pencil, Plus, RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import {
   getVectorStoreProvider,
@@ -20,6 +20,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { api } from "@/lib/api";
 import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
 
@@ -48,7 +55,11 @@ function KnowledgeBase() {
   const queryClient = useQueryClient();
   const scope = useProjectQueryScope();
   const catalog = useQuery({ queryKey: scope.key("resource-catalog"), queryFn: api.getResourceCatalog });
+  const models = useQuery({ queryKey: scope.key("model-deployments"), queryFn: api.listModelDeployments });
   const items = catalog.data?.knowledgeSources ?? [];
+  const embeddingModels = (models.data ?? []).filter(
+    (model) => model.status === "VALIDATED" && model.modelType === "text-embedding",
+  );
   const [selectedId, setSelectedId] = useState("");
   const [detailOpen, setDetailOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -57,6 +68,8 @@ function KnowledgeBase() {
   const [draft, setDraft] = useState<CreateKnowledgeSourceDefinitionInput>(emptyDraft);
   const [formError, setFormError] = useState("");
   const [notice, setNotice] = useState("");
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [pdfInputKey, setPdfInputKey] = useState(0);
   const selected = items.find((item) => item.id === selectedId);
 
   const saveSource = useMutation({
@@ -90,6 +103,17 @@ function KnowledgeBase() {
       setSelectedId("");
       setNotice("LiteLLM Vector Store registration and its Project permission were removed.");
       await queryClient.invalidateQueries({ queryKey: scope.key("resource-catalog") });
+    },
+  });
+  const ingestPdf = useMutation({
+    mutationFn: ({ id, file }: { id: string; file: File }) =>
+      api.ingestKnowledgePdf(id, file),
+    onSuccess: (result) => {
+      setPdfFile(null);
+      setPdfInputKey((value) => value + 1);
+      setNotice(
+        `${result.filename} is searchable: ${result.pageCount} pages, ${result.chunks} chunks, ${result.ocrPages} OCR page${result.ocrPages === 1 ? "" : "s"}.`,
+      );
     },
   });
 
@@ -126,7 +150,7 @@ function KnowledgeBase() {
       />
       {catalog.isPending ? <p className="border p-4 text-sm text-muted-foreground">Loading LiteLLM Vector Stores…</p> : null}
       {catalog.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">{catalog.error.message}</p> : null}
-      {saveSource.error || reconcileSource.error || deleteSource.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">{(saveSource.error ?? reconcileSource.error ?? deleteSource.error)?.message}</p> : null}
+      {saveSource.error || reconcileSource.error || deleteSource.error || ingestPdf.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">{(saveSource.error ?? reconcileSource.error ?? deleteSource.error ?? ingestPdf.error)?.message}</p> : null}
       {notice ? <p role="status" className="border-l-2 border-primary bg-muted/40 px-4 py-3 text-sm">{notice}</p> : null}
 
       <Card>
@@ -140,7 +164,13 @@ function KnowledgeBase() {
               key={item.id}
               type="button"
               aria-haspopup="dialog"
-              onClick={() => { setSelectedId(item.id); setDetailOpen(true); setNotice(""); }}
+              onClick={() => {
+                setSelectedId(item.id);
+                setDetailOpen(true);
+                setNotice("");
+                setPdfFile(null);
+                ingestPdf.reset();
+              }}
               className="grid min-h-28 w-full gap-3 border-b px-5 py-4 text-left transition-colors last:border-b-0 hover:bg-muted/45 focus-visible:outline-2 focus-visible:outline-offset-[-2px] sm:grid-cols-[minmax(0,1fr)_120px_auto] sm:items-center"
             >
               <span className="flex min-w-0 items-start gap-3">
@@ -218,6 +248,56 @@ function KnowledgeBase() {
                 <div><strong>Project and Instance scoped</strong><p className="mt-1 text-xs leading-5 text-muted-foreground">The Vector Store is added to this Project Team, then only to Instance Keys that select this Knowledge Base.</p></div>
               </div>
             </div>
+            {selected.provider === "postgresql" ? (
+              <div className="space-y-3 border p-4">
+                <div className="flex items-start gap-3">
+                  <FileUp className="mt-0.5 size-5 text-primary" />
+                  <div>
+                    <strong className="block text-sm">Upload PDF knowledge</strong>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                      Text PDFs are extracted locally. Scanned pages use NVIDIA Nemotron OCR with the selected NVIDIA Provider credential or the Control environment key.
+                    </p>
+                  </div>
+                </div>
+                <Input
+                  key={`${selected.id}-${pdfInputKey}`}
+                  aria-label="PDF document"
+                  accept="application/pdf,.pdf"
+                  className="h-11"
+                  disabled={ingestPdf.isPending}
+                  type="file"
+                  onChange={(event) => {
+                    setPdfFile(event.target.files?.[0] ?? null);
+                    ingestPdf.reset();
+                  }}
+                />
+                {ingestPdf.isPending ? (
+                  <p role="status" className="border-l-2 border-primary bg-muted/40 px-3 py-2 text-xs leading-5">
+                    Extracting pages, running OCR when required, embedding chunks, and updating pgvector. Keep this panel open until processing completes.
+                  </p>
+                ) : null}
+                {ingestPdf.data ? (
+                  <p role="status" className="border-l-2 border-emerald-500 bg-emerald-500/5 px-3 py-2 text-xs leading-5">
+                    {ingestPdf.data.filename} is searchable: {ingestPdf.data.pageCount} pages, {ingestPdf.data.chunks} chunks, {ingestPdf.data.ocrPages} OCR page{ingestPdf.data.ocrPages === 1 ? "" : "s"}.
+                  </p>
+                ) : null}
+                {ingestPdf.error ? (
+                  <p role="alert" className="border-l-2 border-destructive bg-destructive/5 px-3 py-2 text-xs leading-5 text-destructive">
+                    {ingestPdf.error.message}
+                  </p>
+                ) : null}
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs text-muted-foreground">Maximum 25 MiB and 100 pages.</span>
+                  <Button
+                    className="h-11"
+                    disabled={!pdfFile || ingestPdf.isPending || selected.status !== "REGISTERED"}
+                    onClick={() => pdfFile && ingestPdf.mutate({ id: selected.id, file: pdfFile })}
+                  >
+                    <FileUp />{ingestPdf.isPending ? "Processing…" : "Upload & index"}
+                  </Button>
+                </div>
+              </div>
+            ) : null}
             {selected.lastReconciliationError ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-3 text-sm text-destructive">{selected.lastReconciliationError}</p> : null}
           </div>
         ) : null}
@@ -271,7 +351,12 @@ function KnowledgeBase() {
             />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2"><Label htmlFor="kb-provider">Provider</Label><VectorStoreProviderSelect id="kb-provider" value={draft.provider} disabled={saveSource.isPending} onValueChange={(provider) => setDraft({ ...draft, provider })} /></div>
+            <div className="space-y-2"><Label htmlFor="kb-provider">Provider</Label><VectorStoreProviderSelect id="kb-provider" value={draft.provider} disabled={saveSource.isPending} onValueChange={(provider) => setDraft({
+              ...draft,
+              provider,
+              embeddingModelDeploymentId: provider === "postgresql" ? draft.embeddingModelDeploymentId : undefined,
+              embeddingDimensions: provider === "postgresql" ? draft.embeddingDimensions : undefined,
+            })} /></div>
             <div className="space-y-2"><Label htmlFor="kb-topk">Default Top K</Label><Input id="kb-topk" className="h-11" type="number" min={1} max={50} value={draft.topK} onChange={(event) => setDraft({ ...draft, topK: Number(event.target.value) })} /></div>
           </div>
           {draft.provider === "pg_vector" ? (
@@ -314,12 +399,56 @@ function KnowledgeBase() {
             </div>
           ) : null}
           {draft.provider !== "elasticsearch" && draft.provider !== "pg_vector" ? (
-            <div className={draft.provider === "postgresql" ? "grid gap-4 sm:grid-cols-2" : ""}>
-              <div className="space-y-2"><Label htmlFor="kb-embedding">LiteLLM embedding model{draft.provider === "postgresql" ? "" : " (optional)"}</Label><Input id="kb-embedding" className="h-11 font-mono" value={draft.embeddingModel ?? ""} onChange={(event) => setDraft({ ...draft, embeddingModel: event.target.value })} placeholder="tali/openai/text-embedding-3-small" /></div>
-              {draft.provider === "postgresql" ? (
-                <div className="space-y-2"><Label htmlFor="kb-embedding-dimensions">Embedding dimensions</Label><Input id="kb-embedding-dimensions" className="h-11 font-mono" type="number" min={1} max={16000} value={draft.embeddingDimensions ?? ""} onChange={(event) => setDraft({ ...draft, embeddingDimensions: event.target.value ? Number(event.target.value) : undefined })} placeholder="1536" /></div>
-              ) : null}
-            </div>
+            draft.provider === "postgresql" ? (
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor="kb-embedding-deployment">Project embedding model</Label>
+                  <Select
+                    value={draft.embeddingModelDeploymentId ?? ""}
+                    onValueChange={(id) => {
+                      const model = embeddingModels.find((candidate) => candidate.id === id);
+                      setDraft({
+                        ...draft,
+                        embeddingModelDeploymentId: id,
+                        embeddingModel: model?.litellmModelName,
+                        embeddingDimensions: undefined,
+                      });
+                    }}
+                  >
+                    <SelectTrigger id="kb-embedding-deployment" size="lg" className="w-full">
+                      <SelectValue placeholder="Select a validated embedding model" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {embeddingModels.map((model) => (
+                        <SelectItem key={model.id} value={model.id}>
+                          {model.displayName} · {model.providerName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    Includes Project models and Department-assigned or inherited models. Vector dimensions are detected when the Knowledge Base is registered.
+                  </p>
+                </div>
+                {!draft.embeddingModelDeploymentId ? (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2"><Label htmlFor="kb-embedding">Legacy LiteLLM model alias</Label><Input id="kb-embedding" className="h-11 font-mono" value={draft.embeddingModel ?? ""} onChange={(event) => setDraft({ ...draft, embeddingModel: event.target.value || undefined })} placeholder="tali/openai/text-embedding-3-small" /></div>
+                    <div className="space-y-2"><Label htmlFor="kb-embedding-dimensions">Legacy dimensions</Label><Input id="kb-embedding-dimensions" className="h-11 font-mono" type="number" min={1} max={16000} value={draft.embeddingDimensions ?? ""} onChange={(event) => setDraft({ ...draft, embeddingDimensions: event.target.value ? Number(event.target.value) : undefined })} placeholder="1536" /></div>
+                  </div>
+                ) : null}
+                {models.error ? (
+                  <p role="alert" className="border-l-2 border-destructive bg-destructive/5 px-3 py-2 text-xs leading-5 text-destructive">
+                    Embedding models could not be loaded: {models.error.message}
+                  </p>
+                ) : !models.isPending && !embeddingModels.length ? (
+                  <p role="status" className="border-l-2 border-amber-500 bg-amber-500/5 px-3 py-2 text-xs leading-5 text-muted-foreground">
+                    No validated text-embedding model is available. Add one under Models, or inherit one from the Department.
+                  </p>
+                ) : null}
+              </div>
+            ) : (
+              <div className="space-y-2"><Label htmlFor="kb-embedding">LiteLLM embedding model (optional)</Label><Input id="kb-embedding" className="h-11 font-mono" value={draft.embeddingModel ?? ""} onChange={(event) => setDraft({ ...draft, embeddingModel: event.target.value || undefined })} placeholder="tali/openai/text-embedding-3-small" /></div>
+            )
           ) : null}
           {draft.provider !== "postgresql" ? <div className="space-y-2">
             <Label htmlFor="kb-auth">Credential Secret reference</Label>

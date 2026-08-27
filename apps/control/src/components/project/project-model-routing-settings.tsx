@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   type ModelCapability,
+  type DepartmentInferenceResourceAssignmentView,
   type ModelDeployment,
   type ModelRouting,
   type ModelType,
@@ -116,6 +117,7 @@ export function DepartmentModelRoutingsSettings({
       value={{ client, key, scopeLabel: "Department" }}
     >
       <ModelRoutingsSettingsContent
+        departmentId={departmentId}
         onViewChange={onViewChange}
         view={view}
       />
@@ -124,10 +126,12 @@ export function DepartmentModelRoutingsSettings({
 }
 
 function ModelRoutingsSettingsContent({
+  departmentId,
   onViewChange,
   project,
   view,
 }: {
+  departmentId?: string;
   onViewChange: (view: ManagementView) => void;
   project?: Project;
   view: ManagementView;
@@ -143,6 +147,9 @@ function ModelRoutingsSettingsContent({
   const [successMessage, setSuccessMessage] = useState("");
   const [inheritanceOpen, setInheritanceOpen] = useState(false);
   const [editingRouting, setEditingRouting] = useState<ModelRouting>();
+  const [assigningResource, setAssigningResource] = useState<
+    ModelDeployment | ModelRouting
+  >();
   const [modelSearch, setModelSearch] = useState("");
   const [modelType, setModelType] = useState<ModelTypeFilter>("all");
   const capabilities = new Set(project?.effectiveCapabilities ?? []);
@@ -398,6 +405,7 @@ function ModelRoutingsSettingsContent({
                 models={visibleModels}
                 total={models.length}
                 usage={modelUsage}
+                {...(departmentManaged ? { onAssign: setAssigningResource } : {})}
                 {...(removeModel.isPending && removeModel.variables
                   ? { removingId: removeModel.variables.id }
                   : {})}
@@ -543,6 +551,7 @@ function ModelRoutingsSettingsContent({
                   {...(departmentManaged
                     ? { onConfigure: setEditingRouting }
                     : {})}
+                  {...(departmentManaged ? { onAssign: setAssigningResource } : {})}
                   scopeLabel={scopeLabel}
                   {...(project ? { projectId: project.id } : {})}
                 />
@@ -633,6 +642,16 @@ function ModelRoutingsSettingsContent({
           routing={editingRouting}
           onOpenChange={(open) => {
             if (!open) setEditingRouting(undefined);
+          }}
+        />
+      ) : null}
+      {departmentId && assigningResource ? (
+        <DepartmentResourceAssignmentSheet
+          departmentId={departmentId}
+          open
+          resource={assigningResource}
+          onOpenChange={(open) => {
+            if (!open) setAssigningResource(undefined);
           }}
         />
       ) : null}
@@ -796,6 +815,198 @@ function DepartmentRoutingConfigurationSheet({
   );
 }
 
+function DepartmentResourceAssignmentSheet({
+  departmentId,
+  onOpenChange,
+  open,
+  resource,
+}: {
+  departmentId: string;
+  onOpenChange: (open: boolean) => void;
+  open: boolean;
+  resource: ModelDeployment | ModelRouting;
+}) {
+  const client = useMemo(() => departmentInferenceApi(departmentId), [departmentId]);
+  const queryClient = useQueryClient();
+  const isModel = "modelType" in resource;
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  useEffect(() => setSelected(new Set()), [resource.id]);
+  const queryKey = [
+    "department",
+    departmentId,
+    isModel ? "model-assignments" : "routing-assignments",
+    resource.id,
+  ] as const;
+  const assignments = useQuery({
+    queryKey,
+    queryFn: () => isModel
+      ? client.listModelAssignments(resource.id)
+      : client.listRoutingAssignments(resource.id),
+    enabled: open,
+  });
+  const updateCachedAssignments = (
+    value: DepartmentInferenceResourceAssignmentView,
+  ) => {
+    queryClient.setQueryData(queryKey, value);
+    setSelected(new Set());
+  };
+  const assign = useMutation({
+    mutationFn: (setAsProjectDefault: boolean) => {
+      const input = {
+        projectIds: [...selected],
+        setAsProjectDefault,
+      };
+      return isModel
+        ? client.assignModel(resource.id, input)
+        : client.assignRouting(resource.id, input);
+    },
+    onSuccess: updateCachedAssignments,
+  });
+  const remove = useMutation({
+    mutationFn: (projectId: string) => isModel
+      ? client.removeModelAssignment(resource.id, projectId)
+      : client.removeRoutingAssignment(resource.id, projectId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey });
+    },
+  });
+  const data = assignments.data;
+  const pending = assign.isPending || remove.isPending;
+  const defaultLabel = isModel
+    ? resource.modelType === "text-embedding"
+      ? "Embedding default"
+      : resource.modelType === "speech-to-text"
+        ? "Speech default"
+        : "Chat default"
+    : "Routing default";
+
+  return (
+    <EntitySheet
+      open={open}
+      onOpenChange={(next) => !pending && onOpenChange(next)}
+      eyebrow="Department resource assignment"
+      title={isModel ? resource.displayName : resource.name}
+      description="Assign this live Department resource reference to one or more Projects. Project bindings resolve the Department definition by ID, so later Department changes apply automatically."
+      footer={(
+        <>
+          <Button variant="outline" disabled={pending} onClick={() => onOpenChange(false)}>
+            Close
+          </Button>
+          <Button
+            variant="outline"
+            disabled={!selected.size || pending}
+            onClick={() => assign.mutate(false)}
+          >
+            {assign.isPending && assign.variables === false ? <Spinner /> : <Building2 />}
+            Assign
+          </Button>
+          <Button
+            disabled={!selected.size || pending}
+            onClick={() => assign.mutate(true)}
+          >
+            {assign.isPending && assign.variables === true ? <Spinner /> : <Check />}
+            Assign & set {defaultLabel}
+          </Button>
+        </>
+      )}
+    >
+      {!isModel && data?.dependencies.length ? (
+        <div className="mb-5 border border-sky-500/20 bg-sky-500/5 p-4">
+          <div className="flex gap-3">
+            <Workflow className="mt-0.5 size-4 shrink-0 text-sky-700" />
+            <div>
+              <strong className="text-sm">Model dependencies included</strong>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                Assigning this Routing makes all referenced Department Models available to the same Project automatically.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {data.dependencies.map((dependency) => (
+                  <Badge key={dependency.id} variant="outline">
+                    {dependency.name} · {modelTypeLabels[dependency.modelType]}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {assign.error || remove.error ? (
+        <p className="mb-4 border-l-2 border-destructive bg-destructive/5 p-3 text-sm text-destructive" role="alert">
+          {(assign.error ?? remove.error)?.message}
+        </p>
+      ) : null}
+      {assignments.isPending ? (
+        <LoadingState label="Loading Department Projects…" />
+      ) : assignments.error ? (
+        <ErrorState message={assignments.error.message} onRetry={() => void assignments.refetch()} />
+      ) : data?.projects.length ? (
+        <div className="divide-y border-y">
+          {data.projects.map((project) => {
+            const checked = selected.has(project.projectId);
+            const removing = remove.isPending && remove.variables === project.projectId;
+            return (
+              <article className="flex items-center gap-3 py-4" key={project.projectId}>
+                <input
+                  aria-label={`Select ${project.projectName}`}
+                  checked={checked}
+                  className="size-4 accent-primary"
+                  disabled={pending}
+                  type="checkbox"
+                  onChange={(event) => {
+                    setSelected((current) => {
+                      const next = new Set(current);
+                      if (event.target.checked) next.add(project.projectId);
+                      else next.delete(project.projectId);
+                      return next;
+                    });
+                  }}
+                />
+                <div className="min-w-0 flex-1">
+                  <strong className="block truncate text-sm">{project.projectName}</strong>
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    {project.departmentAssigned ? (
+                      <Badge variant="secondary">Department assigned</Badge>
+                    ) : null}
+                    {project.projectInherited ? (
+                      <Badge variant="outline">Project inherited</Badge>
+                    ) : null}
+                    {project.isProjectDefault ? (
+                      <Badge variant="outline">
+                        {defaultLabel} · {project.defaultManagedBy === "DEPARTMENT" ? "Department managed" : "Project managed"}
+                      </Badge>
+                    ) : null}
+                    {!project.departmentAssigned && !project.projectInherited ? (
+                      <span className="text-xs text-muted-foreground">Not linked</span>
+                    ) : null}
+                  </div>
+                </div>
+                {project.departmentAssigned ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={pending}
+                    onClick={() => remove.mutate(project.projectId)}
+                  >
+                    {removing ? <Spinner /> : <Trash2 />}
+                    Unassign
+                  </Button>
+                ) : null}
+              </article>
+            );
+          })}
+        </div>
+      ) : (
+        <EmptyState
+          action={null}
+          icon={<Building2 className="size-4" />}
+          title="No Projects in this Department"
+          description="Create a Project before assigning Department resources."
+        />
+      )}
+    </EntitySheet>
+  );
+}
+
 function DepartmentInheritanceSheet({
   canAdd,
   canRemove,
@@ -887,7 +1098,12 @@ function DepartmentInheritanceSheet({
       ) : resources.length ? (
         <div className="divide-y border-y">
           {resources.map((resource) => {
-            const inherited = Boolean(resource.origin?.inherited);
+            const sources = resource.origin?.accessSources;
+            const inherited = sources
+              ? sources.includes("PROJECT_INHERITANCE")
+              : Boolean(resource.origin?.inherited);
+            const assigned = sources?.includes("DEPARTMENT_ASSIGNMENT") ?? false;
+            const viaRouting = sources?.includes("ROUTING_DEPENDENCY") ?? false;
             const actionAllowed = inherited ? canRemove : canAdd;
             const isPending = mutation.isPending && mutation.variables?.id === resource.id;
             const isModel = "modelType" in resource;
@@ -904,6 +1120,14 @@ function DepartmentInheritanceSheet({
                     {inherited ? (
                       <Badge className="gap-1" variant="secondary">
                         <Check className="size-3" /> Inherited
+                      </Badge>
+                    ) : assigned ? (
+                      <Badge className="gap-1" variant="secondary">
+                        <Building2 className="size-3" /> Assigned by Department
+                      </Badge>
+                    ) : viaRouting ? (
+                      <Badge className="gap-1" variant="secondary">
+                        <Workflow className="size-3" /> Routing dependency
                       </Badge>
                     ) : (
                       <Badge variant="outline">Available</Badge>
@@ -947,6 +1171,7 @@ function ModelTable({
   accounts,
   canDelete,
   models,
+  onAssign,
   onRemove,
   removingId,
   total,
@@ -955,6 +1180,7 @@ function ModelTable({
   accounts: ProviderAccount[];
   canDelete: boolean;
   models: ModelDeployment[];
+  onAssign?: (model: ModelDeployment) => void;
   onRemove: (model: ModelDeployment) => void;
   removingId?: string;
   total: number;
@@ -988,7 +1214,7 @@ function ModelTable({
               <th className="px-4 py-2.5 font-medium">Status</th>
               <th className="px-4 py-2.5 font-medium">Boundary</th>
               <th className="px-5 py-2.5 text-right font-medium">Used by</th>
-              <th className="w-14">
+              <th className="w-36">
                 <span className="sr-only">Actions</span>
               </th>
             </tr>
@@ -1005,6 +1231,15 @@ function ModelTable({
                         {model.displayName}
                       </strong>
                       <InheritedBadge resource={model} />
+                      {model.origin?.projectDefault ? (
+                        <Badge variant="secondary">
+                          {model.origin.projectDefault.slot === "EMBEDDING"
+                            ? "Embedding"
+                            : model.origin.projectDefault.slot === "SPEECH_TO_TEXT"
+                              ? "Speech"
+                              : "Chat"} default
+                        </Badge>
+                      ) : null}
                     </span>
                     <code className="mt-0.5 block max-w-xs truncate text-[11px] text-muted-foreground">
                       {model.modelId}
@@ -1031,6 +1266,17 @@ function ModelTable({
                     {useCount} Routing{useCount === 1 ? "" : "s"}
                   </td>
                   <td className="px-2 py-3">
+                    <div className="flex items-center justify-end gap-1">
+                    {onAssign ? (
+                      <Button
+                        aria-label={`Assign ${model.displayName} to Projects`}
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onAssign(model)}
+                      >
+                        <Building2 /> Assign
+                      </Button>
+                    ) : null}
                     {canDelete && model.origin?.editable !== false ? (
                       <Button
                         aria-label={`Remove ${model.displayName}`}
@@ -1051,6 +1297,7 @@ function ModelTable({
                           : <Trash2 />}
                       </Button>
                     ) : null}
+                    </div>
                   </td>
                 </tr>
               );
@@ -1070,6 +1317,15 @@ function ModelTable({
                       {model.displayName}
                     </strong>
                     <InheritedBadge resource={model} />
+                    {model.origin?.projectDefault ? (
+                      <Badge variant="secondary">
+                        {model.origin.projectDefault.slot === "EMBEDDING"
+                          ? "Embedding"
+                          : model.origin.projectDefault.slot === "SPEECH_TO_TEXT"
+                            ? "Speech"
+                            : "Chat"} default
+                      </Badge>
+                    ) : null}
                   </span>
                   <code className="mt-0.5 block truncate text-[11px] text-muted-foreground">
                     {model.modelId}
@@ -1105,6 +1361,15 @@ function ModelTable({
                     {removingId === model.id ? <Spinner /> : <Trash2 />}
                   </Button>
                 ) : null}
+                {onAssign ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onAssign(model)}
+                  >
+                    <Building2 /> Assign
+                  </Button>
+                ) : null}
               </div>
             </article>
           );
@@ -1123,6 +1388,7 @@ function RoutingTable({
   onRefresh,
   onSelectDefault,
   onConfigure,
+  onAssign,
   routings,
   refreshingId,
   selectingId,
@@ -1134,6 +1400,7 @@ function RoutingTable({
   onRefresh: (routing: ModelRouting) => void;
   onSelectDefault: (routing: ModelRouting) => void;
   onConfigure?: (routing: ModelRouting) => void;
+  onAssign?: (routing: ModelRouting) => void;
   routings: ModelRouting[];
   refreshingId?: string;
   selectingId?: string;
@@ -1167,6 +1434,7 @@ function RoutingTable({
               onRefresh={() => onRefresh(routing)}
               onSelectDefault={() => onSelectDefault(routing)}
               {...(onConfigure ? { onConfigure: () => onConfigure(routing) } : {})}
+              {...(onAssign ? { onAssign: () => onAssign(routing) } : {})}
             />
           ))}
         </tbody>
@@ -1181,6 +1449,7 @@ function RoutingRow({
   onRefresh,
   onSelectDefault,
   onConfigure,
+  onAssign,
   routing,
   refreshing,
   selecting,
@@ -1192,6 +1461,7 @@ function RoutingRow({
   onRefresh: () => void;
   onSelectDefault: () => void;
   onConfigure?: () => void;
+  onAssign?: () => void;
   routing: ModelRouting;
   refreshing: boolean;
   selecting: boolean;
@@ -1267,6 +1537,11 @@ function RoutingRow({
       </td>
       <td className="px-5 py-3">
         <div className="flex items-center justify-end gap-1">
+          {onAssign ? (
+            <Button size="sm" variant="outline" onClick={onAssign}>
+              <Building2 /> Assign
+            </Button>
+          ) : null}
           {canReconcile && editable ? (
             <Button
               size="icon"
@@ -1351,12 +1626,29 @@ function InheritedBadge({
 }: {
   resource: {
     origin?: {
+      accessSources?: Array<
+        "PROJECT_INHERITANCE" | "DEPARTMENT_ASSIGNMENT" | "ROUTING_DEPENDENCY"
+      >;
       inherited: boolean;
+      routingDependencyIds?: string[];
       scopeName?: string;
     };
   };
 }) {
   if (!resource.origin?.inherited) return null;
+  const sources = resource.origin.accessSources;
+  const assigned = sources?.includes("DEPARTMENT_ASSIGNMENT");
+  const activelyInherited = sources?.includes("PROJECT_INHERITANCE");
+  const viaRouting = sources?.includes("ROUTING_DEPENDENCY");
+  const label = assigned
+    ? activelyInherited
+      ? "Assigned and inherited from Department"
+      : "Assigned by Department"
+    : activelyInherited
+      ? `Inherited from ${resource.origin.scopeName ?? "Department"}`
+      : viaRouting
+        ? "Required by Department Routing"
+        : `Inherited from ${resource.origin.scopeName ?? "Department"}`;
   return (
     <Badge
       className="gap-1 border-sky-500/20 bg-sky-500/8 text-sky-800"
@@ -1364,7 +1656,7 @@ function InheritedBadge({
       variant="outline"
     >
       <Building2 className="size-3" />
-      Inherited from {resource.origin.scopeName ?? "Department"}
+      {label}
     </Badge>
   );
 }

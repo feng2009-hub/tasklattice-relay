@@ -5,6 +5,7 @@ import type {
   CreateSkillDefinitionInput,
   ResourceCatalog,
   ResourceKind,
+  KnowledgePdfIngestionResult,
   KnowledgeSourceDefinition,
   UpsertKnowledgeVectorChunksInput,
   McpServerDefinition,
@@ -24,6 +25,11 @@ import { ProjectQuotaService } from "../quotas/project-quota-service";
 import { createSecretStore, type SecretStore } from "../secrets/secret-store";
 import { mcpServerTemplates } from "./mcp-server-templates";
 import { KnowledgeVectorDatabase } from "./knowledge-vector-database";
+import {
+  KnowledgePdfIngestionService,
+  nvidiaApiKeyFromStoredProviderCredential,
+  type UploadedPdf,
+} from "./knowledge-pdf-ingestion-service";
 import {
   vectorStoreBridgeApiBase,
   vectorStoreBridgeApiKey,
@@ -55,6 +61,7 @@ function liteLLMVectorStoreProvider(
 
 export class ResourceCatalogService {
   readonly vectorDatabase: KnowledgeVectorDatabase;
+  readonly pdfIngestion: KnowledgePdfIngestionService;
 
   constructor(
     readonly store = new ProjectStore(),
@@ -62,11 +69,14 @@ export class ResourceCatalogService {
     readonly litellm: LiteLLMAdminClient = new LiteLLMClient(),
     readonly secrets: SecretStore = createSecretStore(),
     vectorDatabase?: KnowledgeVectorDatabase,
+    pdfIngestion?: KnowledgePdfIngestionService,
   ) {
     this.vectorDatabase = vectorDatabase ?? new KnowledgeVectorDatabase(store, {
       createEmbeddings: (model, input) =>
         this.requireAdapter("createEmbeddings")(model, input),
     });
+    this.pdfIngestion = pdfIngestion
+      ?? new KnowledgePdfIngestionService(store, this.vectorDatabase);
   }
 
   async catalog(): Promise<ResourceCatalog> {
@@ -197,9 +207,10 @@ export class ResourceCatalogService {
 
   async createKnowledgeSource(input: CreateKnowledgeSourceDefinitionInput): Promise<KnowledgeSourceDefinition> {
     await this.quotas.assertCanCreate("knowledge-base");
+    const resolvedInput = await this.resolveKnowledgeSourceEmbedding(input);
     const source = await this.store.saveKnowledgeSourceDefinition({
-      id: resourceId(input.name),
-      ...input,
+      id: resourceId(resolvedInput.name),
+      ...resolvedInput,
       status: "UNAVAILABLE",
       lastReconciliationError: null,
     });
@@ -229,9 +240,10 @@ export class ResourceCatalogService {
     if (current.vectorStoreId !== input.vectorStoreId) {
       throw new Error("The provider Vector Store ID is immutable. Register a new Knowledge Base instead.");
     }
+    const resolvedInput = await this.resolveKnowledgeSourceEmbedding(input, current);
     const candidate: KnowledgeSourceDefinition = {
       ...current,
-      ...input,
+      ...resolvedInput,
       id,
       status: "UNAVAILABLE",
       lastReconciliationError: null,
@@ -303,6 +315,29 @@ export class ResourceCatalogService {
     return this.vectorDatabase.deleteChunk(sourceId, chunkId);
   }
 
+  async ingestKnowledgePdf(
+    sourceId: string,
+    file: UploadedPdf,
+  ): Promise<KnowledgePdfIngestionResult> {
+    const source = await this.store.getKnowledgeSourceDefinition(sourceId);
+    let nvidiaApiKey: string | undefined;
+    if (source?.embeddingModelDeploymentId) {
+      const deployment = await this.store.getModelDeployment(
+        source.embeddingModelDeploymentId,
+      );
+      if (deployment?.providerPresetId === "nvidia-nim") {
+        nvidiaApiKey = nvidiaApiKeyFromStoredProviderCredential(
+          await this.store.getModelProviderAccountCredential(deployment),
+        );
+      }
+    }
+    return this.pdfIngestion.ingest(
+      sourceId,
+      file,
+      nvidiaApiKey ? { nvidiaApiKey } : {},
+    );
+  }
+
   private async syncProjectObjectPermissions(): Promise<void> {
     const teamId = await this.quotas.ensureProjectTeam();
     const [mcpServers, vectorStores] = await Promise.all([
@@ -315,6 +350,50 @@ export class ResourceCatalogService {
       mcpServers,
       vectorStores,
     });
+  }
+
+  private async resolveKnowledgeSourceEmbedding<
+    T extends CreateKnowledgeSourceDefinitionInput,
+  >(
+    input: T,
+    current?: KnowledgeSourceDefinition,
+  ): Promise<T> {
+    if (input.provider !== "postgresql" || !input.embeddingModelDeploymentId) {
+      return input;
+    }
+    const deployment = await this.store.getModelDeployment(
+      input.embeddingModelDeploymentId,
+    );
+    if (!deployment) {
+      throw new Error("The selected Project embedding model was not found.");
+    }
+    if (deployment.modelType !== "text-embedding") {
+      throw new Error("The selected model is not a text embedding model.");
+    }
+    if (deployment.status !== "VALIDATED") {
+      throw new Error("The selected embedding model must pass validation before it can back a Knowledge Base.");
+    }
+    const unchanged = current?.embeddingModelDeploymentId === deployment.id
+      && current.embeddingModel === deployment.litellmModelName
+      && Boolean(current.embeddingDimensions);
+    let embeddingDimensions = unchanged
+      ? current.embeddingDimensions
+      : undefined;
+    if (!embeddingDimensions) {
+      const [probe] = await this.requireAdapter("createEmbeddings")(
+        deployment.litellmModelName,
+        ["TaskLattice embedding dimension probe."],
+      );
+      if (!probe || !probe.length || probe.length > 16_000 || !probe.every(Number.isFinite)) {
+        throw new Error("The selected embedding model returned an invalid probe vector.");
+      }
+      embeddingDimensions = probe.length;
+    }
+    return {
+      ...input,
+      embeddingModel: deployment.litellmModelName,
+      embeddingDimensions,
+    };
   }
 
   private async liteLLMInput(server: McpServerDefinition): Promise<LiteLLMMcpServerInput> {

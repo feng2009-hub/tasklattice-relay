@@ -348,6 +348,23 @@ helm upgrade --install tali-relay charts/tali-relay \
   --set keycloak.service.loadBalancerIP=192.168.139.3
 ```
 
+To enable OCR for scanned PDFs without a Project NVIDIA Provider connection,
+store the NVIDIA API key in a Kubernetes Secret and expose it only to Control:
+
+```yaml
+control:
+  extraEnv:
+    - name: NVIDIA_API_KEY
+      valueFrom:
+        secretKeyRef:
+          name: tali-nvidia-api
+          key: NVIDIA_API_KEY
+```
+
+`NVAPI_API_KEY` is accepted as a compatibility alias. Text-based PDFs do not
+use this key. When the Knowledge Base selects an NVIDIA NIM embedding model,
+Control automatically reuses that model's stored Provider credential for OCR.
+
 For local environments where the browser uses a loopback hostname while the
 Control pod reaches the same endpoint through the node address, map that
 hostname with `control.hostAliases`. For example, OrbStack can use
