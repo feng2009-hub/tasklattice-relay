@@ -7,6 +7,7 @@ import type {
   KnowledgeSourceDefinition,
   InferenceGateway,
   DepartmentInferenceAvailability,
+  InferenceResourceOrigin,
   ModelRouting,
   ModelRoutingAuditEvent,
   ModelRoutingBinding,
@@ -147,6 +148,10 @@ function parseModelRouting(payload: Prisma.JsonValue): ModelRouting {
 function departmentOrigin<T extends object>(
   resource: T,
   department: { id: string; name: string },
+  access: Partial<Pick<
+    InferenceResourceOrigin,
+    "accessSources" | "routingDependencyIds" | "projectDefault"
+  >> = {},
 ): T {
   return {
     ...resource,
@@ -156,7 +161,40 @@ function departmentOrigin<T extends object>(
       scopeName: department.name,
       inherited: true,
       editable: false,
+      ...access,
     },
+  };
+}
+
+function bindingOrigin(
+  binding: {
+    projectInheritedAt: Date | null;
+    departmentAssignedAt: Date | null;
+    defaultFor?: string | null;
+    defaultManagedBy?: string | null;
+  } | undefined,
+  routingDependencyIds: string[] = [],
+): Partial<Pick<
+  InferenceResourceOrigin,
+  "accessSources" | "routingDependencyIds" | "projectDefault"
+>> {
+  const accessSources: NonNullable<InferenceResourceOrigin["accessSources"]> = [];
+  if (binding?.projectInheritedAt) accessSources.push("PROJECT_INHERITANCE");
+  if (binding?.departmentAssignedAt) accessSources.push("DEPARTMENT_ASSIGNMENT");
+  if (routingDependencyIds.length) accessSources.push("ROUTING_DEPENDENCY");
+  const defaultSlot = binding?.defaultFor;
+  const defaultManager = binding?.defaultManagedBy;
+  return {
+    accessSources,
+    ...(routingDependencyIds.length ? { routingDependencyIds } : {}),
+    ...(defaultSlot && defaultManager
+      ? {
+          projectDefault: {
+            slot: defaultSlot as "CHAT" | "EMBEDDING" | "SPEECH_TO_TEXT",
+            managedBy: defaultManager as "PROJECT" | "DEPARTMENT",
+          },
+        }
+      : {}),
   };
 }
 
@@ -165,7 +203,7 @@ function withoutInferenceOrigin<T extends { origin?: unknown }>(resource: T): Om
   return stored;
 }
 
-function routingDeploymentIds(routing: ModelRouting): Set<string> {
+export function routingDeploymentIds(routing: ModelRouting): Set<string> {
   const policy = routing.routingPolicy;
   if (policy.mode === "SINGLE") {
     return new Set([policy.modelDeploymentId, ...policy.fallbackModelDeploymentIds]);
@@ -759,17 +797,23 @@ export class ProjectStore {
     const inherited = await this.db.projectDepartmentModelBinding.findUnique({
       where: { projectId_resourceId: { projectId: this.projectId, resourceId: id } },
       select: {
+        projectInheritedAt: true,
+        departmentAssignedAt: true,
+        defaultFor: true,
+        defaultManagedBy: true,
         resource: { select: { kind: true, payload: true, deletedAt: true } },
         project: { select: { department: { select: { id: true, name: true } } } },
       },
     });
+    const routingDependencies = (await this.departmentRoutingModelSources()).get(id) ?? [];
     if (inherited && inherited.resource.kind === "MODEL" && !inherited.resource.deletedAt) {
       return departmentOrigin(
         parseModelDeployment(inherited.resource.payload),
         inherited.project.department,
+        bindingOrigin(inherited, routingDependencies),
       );
     }
-    if (!(await this.inheritedRoutingModelIds()).has(id)) return undefined;
+    if (!routingDependencies.length) return undefined;
     const project = await this.db.project.findUnique({
       where: { id: this.projectId },
       select: { department: { select: { id: true, name: true } } },
@@ -788,6 +832,7 @@ export class ProjectStore {
       ? departmentOrigin(
         parseModelDeployment(resource.payload),
         project.department,
+        bindingOrigin(undefined, routingDependencies),
       )
       : undefined;
   }
@@ -810,17 +855,26 @@ export class ProjectStore {
       where: { projectId: this.projectId, resource: { kind: "MODEL", deletedAt: null } },
       orderBy: { createdAt: "desc" },
       select: {
+        projectInheritedAt: true,
+        departmentAssignedAt: true,
+        defaultFor: true,
+        defaultManagedBy: true,
         resource: { select: { payload: true } },
         project: { select: { department: { select: { id: true, name: true } } } },
       },
     });
     const localIds = new Set(local.map((model) => model.id));
-    const directlyInherited = inherited.map((binding) => departmentOrigin(
-      parseModelDeployment(binding.resource.payload),
-      binding.project.department,
-    ));
+    const routingModelSources = await this.departmentRoutingModelSources();
+    const directlyInherited = inherited.map((binding) => {
+      const model = parseModelDeployment(binding.resource.payload);
+      return departmentOrigin(
+        model,
+        binding.project.department,
+        bindingOrigin(binding, routingModelSources.get(model.id) ?? []),
+      );
+    });
     const directIds = new Set(directlyInherited.map((model) => model.id));
-    const routingModelIds = await this.inheritedRoutingModelIds();
+    const routingModelIds = new Set(routingModelSources.keys());
     const missingIds = [...routingModelIds].filter(
       (id) => !localIds.has(id) && !directIds.has(id),
     );
@@ -848,27 +902,38 @@ export class ProjectStore {
       ...routedResources.map((resource) => departmentOrigin(
         parseModelDeployment(resource.payload),
         project!.department,
+        bindingOrigin(
+          undefined,
+          routingModelSources.get(parseModelDeployment(resource.payload).id) ?? [],
+        ),
       )),
     ];
   }
-  private async inheritedRoutingModelIds(): Promise<Set<string>> {
+  private async departmentRoutingModelSources(): Promise<Map<string, string[]>> {
     const routings = await this.db.projectDepartmentRoutingBinding.findMany({
       where: {
         projectId: this.projectId,
         resource: { kind: "ROUTING", deletedAt: null },
       },
-      select: { resource: { select: { payload: true } } },
+      select: { resourceId: true, resource: { select: { payload: true } } },
     });
-    return new Set(routings.flatMap((binding) => [
-      ...routingDeploymentIds(parseModelRouting(binding.resource.payload)),
-    ]));
+    const sources = new Map<string, string[]>();
+    for (const binding of routings) {
+      for (const modelId of routingDeploymentIds(parseModelRouting(binding.resource.payload))) {
+        sources.set(modelId, [...(sources.get(modelId) ?? []), binding.resourceId]);
+      }
+    }
+    return sources;
+  }
+  private async inheritedRoutingModelIds(): Promise<Set<string>> {
+    return new Set((await this.departmentRoutingModelSources()).keys());
   }
   async deleteModelDeployment(id: string): Promise<boolean> {
     if (await this.db.projectDepartmentModelBinding.findUnique({
       where: { projectId_resourceId: { projectId: this.projectId, resourceId: id } },
       select: { resourceId: true },
     })) {
-      throw new Error("Inherited Department Models are read-only. Remove the inheritance instead.");
+      throw new Error("Department Models are read-only in a Project. Remove the Project link instead.");
     }
     const result = await this.db.modelDeploymentRecord.updateMany({
       where: { projectId: this.projectId, id, deletedAt: null },
@@ -949,6 +1014,24 @@ export class ProjectStore {
   async saveDefaultModelRouting(routing: ModelRouting): Promise<ModelRouting> {
     const canonicalRouting = canonicalModelRouting(routing);
     const inheritedTarget = await this.isInheritedModelRouting(routing.id);
+    const departmentManagedDefault = await this.db.projectDepartmentRoutingBinding.findFirst({
+      where: {
+        projectId: this.projectId,
+        isDefault: true,
+        defaultManagedBy: "DEPARTMENT",
+      },
+      select: { resourceId: true },
+    });
+    if (departmentManagedDefault) {
+      if (departmentManagedDefault.resourceId !== routing.id) {
+        throw new Error(
+          "This Project default Routing is managed by its Department. Change the Department assignment first.",
+        );
+      }
+      const current = await this.getModelRouting(routing.id);
+      if (!current) throw new Error("Routing not found.");
+      return current;
+    }
     const localRows = await this.db.modelRoutingRecord.findMany({
       where: { projectId: this.projectId, deletedAt: null },
       select: { payload: true },
@@ -984,7 +1067,7 @@ export class ProjectStore {
       }
       await transaction.projectDepartmentRoutingBinding.updateMany({
         where: { projectId: this.projectId },
-        data: { isDefault: false },
+        data: { isDefault: false, defaultManagedBy: null },
       });
       if (inheritedTarget) {
         await transaction.projectDepartmentRoutingBinding.update({
@@ -994,7 +1077,7 @@ export class ProjectStore {
               resourceId: routing.id,
             },
           },
-          data: { isDefault: true },
+          data: { isDefault: true, defaultManagedBy: "PROJECT" },
         });
       }
     });
@@ -1033,7 +1116,10 @@ export class ProjectStore {
     const inherited = await this.db.projectDepartmentRoutingBinding.findUnique({
       where: { projectId_resourceId: { projectId: this.projectId, resourceId: id } },
       select: {
+        projectInheritedAt: true,
+        departmentAssignedAt: true,
         isDefault: true,
+        defaultManagedBy: true,
         liteLLMTeamId: true,
         resource: { select: { kind: true, payload: true, deletedAt: true } },
         project: { select: { department: { select: { id: true, name: true } } } },
@@ -1055,6 +1141,17 @@ export class ProjectStore {
           : {}),
       },
       inherited.project.department,
+      {
+        ...bindingOrigin(inherited),
+        ...(inherited.isDefault && inherited.defaultManagedBy
+          ? {
+              projectDefault: {
+                slot: "ROUTING" as const,
+                managedBy: inherited.defaultManagedBy as "PROJECT" | "DEPARTMENT",
+              },
+            }
+          : {}),
+      },
     );
   }
   async listModelRoutings(): Promise<ModelRouting[]> {
@@ -1067,7 +1164,10 @@ export class ProjectStore {
       where: { projectId: this.projectId, resource: { kind: "ROUTING", deletedAt: null } },
       orderBy: { createdAt: "desc" },
       select: {
+        projectInheritedAt: true,
+        departmentAssignedAt: true,
         isDefault: true,
+        defaultManagedBy: true,
         liteLLMTeamId: true,
         resource: { select: { payload: true } },
         project: { select: { department: { select: { id: true, name: true } } } },
@@ -1089,13 +1189,24 @@ export class ProjectStore {
               : {}),
           },
           binding.project.department,
+          {
+            ...bindingOrigin(binding),
+            ...(binding.isDefault && binding.defaultManagedBy
+              ? {
+                  projectDefault: {
+                    slot: "ROUTING" as const,
+                    managedBy: binding.defaultManagedBy as "PROJECT" | "DEPARTMENT",
+                  },
+                }
+              : {}),
+          },
         );
       }),
     ];
   }
   async deleteModelRouting(id: string): Promise<boolean> {
     if (await this.isInheritedModelRouting(id)) {
-      throw new Error("Inherited Department Routing is read-only. Remove the inheritance instead.");
+      throw new Error("Department Routing is read-only in a Project. Remove the Project link instead.");
     }
     const result = await this.db.modelRoutingRecord.updateMany({
       where: { projectId: this.projectId, id, deletedAt: null },
@@ -1136,8 +1247,24 @@ export class ProjectStore {
       where: { id: this.projectId },
       select: {
         department: { select: { id: true, name: true } },
-        inheritedDepartmentModels: { select: { resourceId: true } },
-        inheritedDepartmentRoutings: { select: { resourceId: true } },
+        inheritedDepartmentModels: {
+          select: {
+            resourceId: true,
+            projectInheritedAt: true,
+            departmentAssignedAt: true,
+            defaultFor: true,
+            defaultManagedBy: true,
+          },
+        },
+        inheritedDepartmentRoutings: {
+          select: {
+            resourceId: true,
+            projectInheritedAt: true,
+            departmentAssignedAt: true,
+            isDefault: true,
+            defaultManagedBy: true,
+          },
+        },
       },
     });
     if (!project) throw new Error("Project not found.");
@@ -1150,27 +1277,31 @@ export class ProjectStore {
       orderBy: [{ kind: "asc" }, { createdAt: "desc" }],
       select: { id: true, kind: true, payload: true },
     });
-    const inheritedModels = new Set(
-      project.inheritedDepartmentModels.map((binding) => binding.resourceId),
+    const modelBindings = new Map(
+      project.inheritedDepartmentModels.map((binding) => [binding.resourceId, binding]),
     );
-    const inheritedRoutings = new Set(
-      project.inheritedDepartmentRoutings.map((binding) => binding.resourceId),
+    const routingBindings = new Map(
+      project.inheritedDepartmentRoutings.map((binding) => [binding.resourceId, binding]),
     );
-    const routedModelIds = new Set(
-      resources
-        .filter(
-          (resource) => resource.kind === "ROUTING" && inheritedRoutings.has(resource.id),
-        )
-        .flatMap((resource) => [
-          ...routingDeploymentIds(parseModelRouting(resource.payload)),
-        ]),
-    );
-    const origin = (inherited: boolean) => ({
+    const routingSources = new Map<string, string[]>();
+    for (const resource of resources) {
+      if (resource.kind !== "ROUTING" || !routingBindings.has(resource.id)) continue;
+      for (const modelId of routingDeploymentIds(parseModelRouting(resource.payload))) {
+        routingSources.set(modelId, [...(routingSources.get(modelId) ?? []), resource.id]);
+      }
+    }
+    const origin = (
+      binding: Parameters<typeof bindingOrigin>[0],
+      dependencyIds: string[] = [],
+      projectDefault?: InferenceResourceOrigin["projectDefault"],
+    ) => ({
       scope: "DEPARTMENT" as const,
       scopeId: project.department.id,
       scopeName: project.department.name,
-      inherited,
+      inherited: Boolean(binding || dependencyIds.length),
       editable: false,
+      ...bindingOrigin(binding, dependencyIds),
+      ...(projectDefault ? { projectDefault } : {}),
     });
     return {
       departmentId: project.department.id,
@@ -1180,19 +1311,36 @@ export class ProjectStore {
         .map((resource) => ({
           ...parseModelDeployment(resource.payload),
           origin: origin(
-            inheritedModels.has(resource.id) || routedModelIds.has(resource.id),
+            modelBindings.get(resource.id),
+            routingSources.get(resource.id) ?? [],
           ),
         })),
       routings: resources
         .filter((resource) => resource.kind === "ROUTING")
-        .map((resource) => ({
-          ...parseModelRouting(resource.payload),
-          origin: origin(inheritedRoutings.has(resource.id)),
-        })),
+        .map((resource) => {
+          const binding = routingBindings.get(resource.id);
+          return {
+            ...parseModelRouting(resource.payload),
+            isDefault: binding?.isDefault ?? false,
+            origin: origin(
+              binding,
+              [],
+              binding?.isDefault && binding.defaultManagedBy
+                ? {
+                    slot: "ROUTING",
+                    managedBy: binding.defaultManagedBy as "PROJECT" | "DEPARTMENT",
+                  }
+                : undefined,
+            ),
+          };
+        }),
     };
   }
 
-  async inheritDepartmentModel(id: string): Promise<ModelDeployment> {
+  async inheritDepartmentModel(
+    id: string,
+    actor = "project-api",
+  ): Promise<ModelDeployment> {
     if (await this.db.modelDeploymentRecord.findFirst({
       where: { projectId: this.projectId, id, deletedAt: null },
       select: { id: true },
@@ -1220,27 +1368,54 @@ export class ProjectStore {
         projectId: this.projectId,
         departmentId: project.departmentId,
         resourceId: id,
+        projectInheritedAt: new Date(),
+        projectInheritedBy: actor,
       },
-      update: {},
+      update: {
+        projectInheritedAt: new Date(),
+        projectInheritedBy: actor,
+      },
     });
     return (await this.getModelDeployment(id))!;
   }
 
   async removeDepartmentModelInheritance(id: string): Promise<void> {
-    const routings = await this.listModelRoutings();
-    if (routings.some((routing) => routingDeploymentIds(routing).has(id))) {
-      throw new Error("Remove this Model from Project and inherited Routing before removing its inheritance.");
-    }
-    if ((await this.listAgentIdsUsingModelDeployments([id])).length) {
+    const binding = await this.db.projectDepartmentModelBinding.findUnique({
+      where: { projectId_resourceId: { projectId: this.projectId, resourceId: id } },
+      select: {
+        projectInheritedAt: true,
+        departmentAssignedAt: true,
+        defaultManagedBy: true,
+      },
+    });
+    if (!binding?.projectInheritedAt) throw new Error("Project Model inheritance not found.");
+    const remainsAvailable = Boolean(binding.departmentAssignedAt)
+      || (await this.inheritedRoutingModelIds()).has(id);
+    if (!remainsAvailable && (await this.listAgentIdsUsingModelDeployments([id])).length) {
       throw new Error("Reassign Instances using this Model before removing its inheritance.");
     }
-    const removed = await this.db.projectDepartmentModelBinding.deleteMany({
-      where: { projectId: this.projectId, resourceId: id },
-    });
-    if (!removed.count) throw new Error("Inherited Model not found.");
+    if (binding.departmentAssignedAt) {
+      await this.db.projectDepartmentModelBinding.update({
+        where: { projectId_resourceId: { projectId: this.projectId, resourceId: id } },
+        data: {
+          projectInheritedAt: null,
+          projectInheritedBy: null,
+          ...(binding.defaultManagedBy === "PROJECT"
+            ? { defaultFor: null, defaultManagedBy: null }
+            : {}),
+        },
+      });
+    } else {
+      await this.db.projectDepartmentModelBinding.delete({
+        where: { projectId_resourceId: { projectId: this.projectId, resourceId: id } },
+      });
+    }
   }
 
-  async inheritDepartmentRouting(id: string): Promise<ModelRouting> {
+  async inheritDepartmentRouting(
+    id: string,
+    actor = "project-api",
+  ): Promise<ModelRouting> {
     if (await this.db.modelRoutingRecord.findFirst({
       where: { projectId: this.projectId, id, deletedAt: null },
       select: { id: true },
@@ -1295,8 +1470,13 @@ export class ProjectStore {
         projectId: this.projectId,
         departmentId: project.departmentId,
         resourceId: id,
+        projectInheritedAt: new Date(),
+        projectInheritedBy: actor,
       },
-      update: {},
+      update: {
+        projectInheritedAt: new Date(),
+        projectInheritedBy: actor,
+      },
     });
     return (await this.getModelRouting(id))!;
   }
@@ -1304,21 +1484,34 @@ export class ProjectStore {
   async removeDepartmentRoutingInheritance(id: string): Promise<void> {
     const binding = await this.db.projectDepartmentRoutingBinding.findUnique({
       where: { projectId_resourceId: { projectId: this.projectId, resourceId: id } },
-      select: { isDefault: true },
+      select: {
+        projectInheritedAt: true,
+        departmentAssignedAt: true,
+        isDefault: true,
+      },
     });
-    if (!binding) throw new Error("Inherited Routing not found.");
-    if (binding.isDefault) {
+    if (!binding?.projectInheritedAt) throw new Error("Project Routing inheritance not found.");
+    if (!binding.departmentAssignedAt && binding.isDefault) {
       throw new Error("Choose another Project default before removing this inherited Routing.");
     }
-    const consumers = (await this.listModelRoutingBindings(id)).filter(
-      (consumer) => !consumer.revokedAt,
-    );
-    if (consumers.length) {
-      throw new Error("Reassign all Instances before removing this inherited Routing.");
+    if (!binding.departmentAssignedAt) {
+      const consumers = (await this.listModelRoutingBindings(id)).filter(
+        (consumer) => !consumer.revokedAt,
+      );
+      if (consumers.length) {
+        throw new Error("Reassign all Instances before removing this inherited Routing.");
+      }
     }
-    await this.db.projectDepartmentRoutingBinding.delete({
-      where: { projectId_resourceId: { projectId: this.projectId, resourceId: id } },
-    });
+    if (binding.departmentAssignedAt) {
+      await this.db.projectDepartmentRoutingBinding.update({
+        where: { projectId_resourceId: { projectId: this.projectId, resourceId: id } },
+        data: { projectInheritedAt: null, projectInheritedBy: null },
+      });
+    } else {
+      await this.db.projectDepartmentRoutingBinding.delete({
+        where: { projectId_resourceId: { projectId: this.projectId, resourceId: id } },
+      });
+    }
   }
 
   async saveModelRoutingBinding(binding: ModelRoutingBinding): Promise<ModelRoutingBinding> {

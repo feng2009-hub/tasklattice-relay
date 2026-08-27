@@ -239,6 +239,22 @@ function descriptor(method: string, path: string): AuditDescriptor | undefined {
       operation: "update",
     };
   }
+  const departmentAssignmentMatch = path.match(
+    /^\/api\/v1\/departments\/([^/]+)\/(models|model-routings)\/([^/]+)\/assignments(?:\/([^/]+))?$/,
+  );
+  if (
+    departmentAssignmentMatch
+    && (method === "POST" || method === "DELETE")
+  ) {
+    const routing = departmentAssignmentMatch[2] === "model-routings";
+    const operation = method === "POST" ? "assign" : "unassign";
+    return {
+      action: `department_${routing ? "model_routing" : "model"}.${operation}`,
+      objectId: decodeURIComponent(departmentAssignmentMatch[3]!),
+      objectType: routing ? "Department Routing" : "Department Model",
+      operation,
+    };
+  }
   const departmentResourceMatch = path.match(
     /^\/api\/v1\/departments\/([^/]+)\/(.*)$/,
   );

@@ -1,5 +1,6 @@
 import {
   createModelDeploymentSchema,
+  assignDepartmentInferenceResourceSchema,
   createModelRoutingSchema,
   createProviderConnectionSchema,
   createSandboxPolicySchema,
@@ -15,8 +16,10 @@ import { departmentRoute, projectRoute, response } from "./helpers";
 import {
   costQuerySchemas,
   departmentModelParamsSchema,
+  departmentModelAssignmentParamsSchema,
   departmentProviderParamsSchema,
   departmentRoutingParamsSchema,
+  departmentRoutingAssignmentParamsSchema,
   domainCollectionSchema,
   modelParamsSchema,
   openObjectSchema,
@@ -212,6 +215,24 @@ export const inferenceContracts = defineContracts([
     responses: { 200: response("Deleted Department model deployment", openObjectSchema) },
   }),
   departmentRoute({
+    method: "get", path: "/models/{modelId}/assignments", operationId: "listDepartmentModelAssignments",
+    summary: "List Project assignments for a Department model", tags: ["Models"],
+    request: { params: departmentModelParamsSchema },
+    responses: { 200: response("Department model assignment state", openObjectSchema) },
+  }),
+  departmentRoute({
+    method: "post", path: "/models/{modelId}/assignments", operationId: "assignDepartmentModel",
+    summary: "Assign a Department model to Projects", tags: ["Models"],
+    request: { params: departmentModelParamsSchema, body: assignDepartmentInferenceResourceSchema },
+    responses: { 200: response("Updated Department model assignments", openObjectSchema) },
+  }),
+  departmentRoute({
+    method: "delete", path: "/models/{modelId}/assignments/{projectId}", operationId: "removeDepartmentModelAssignment",
+    summary: "Remove a Department model assignment from a Project", tags: ["Models"],
+    request: { params: departmentModelAssignmentParamsSchema },
+    responses: { 200: response("Removed Department model assignment", openObjectSchema) },
+  }),
+  departmentRoute({
     method: "get", path: "/inference-gateways", operationId: "listDepartmentInferenceGateways",
     summary: "List Department inference gateways", tags: ["Inference gateways"],
     responses: { 200: response("Department inference gateway list", z.object({ data: domainCollectionSchema })) },
@@ -240,6 +261,24 @@ export const inferenceContracts = defineContracts([
     method: "delete", path: "/model-routings/{routingId}", operationId: "deleteDepartmentModelRouting",
     summary: "Delete Department model routing", tags: ["Model routing"], request: { params: departmentRoutingParamsSchema },
     responses: { 200: response("Deleted Department model routing", openObjectSchema) },
+  }),
+  departmentRoute({
+    method: "get", path: "/model-routings/{routingId}/assignments", operationId: "listDepartmentRoutingAssignments",
+    summary: "List Project assignments for Department routing", tags: ["Model routing"],
+    request: { params: departmentRoutingParamsSchema },
+    responses: { 200: response("Department routing assignment state", openObjectSchema) },
+  }),
+  departmentRoute({
+    method: "post", path: "/model-routings/{routingId}/assignments", operationId: "assignDepartmentRouting",
+    summary: "Assign Department routing to Projects", tags: ["Model routing"],
+    request: { params: departmentRoutingParamsSchema, body: assignDepartmentInferenceResourceSchema },
+    responses: { 200: response("Updated Department routing assignments", openObjectSchema) },
+  }),
+  departmentRoute({
+    method: "delete", path: "/model-routings/{routingId}/assignments/{projectId}", operationId: "removeDepartmentRoutingAssignment",
+    summary: "Remove a Department routing assignment from a Project", tags: ["Model routing"],
+    request: { params: departmentRoutingAssignmentParamsSchema },
+    responses: { 200: response("Removed Department routing assignment", openObjectSchema) },
   }),
   departmentRoute({
     method: "post", path: "/model-routings/{routingId}/refresh", operationId: "refreshDepartmentModelRouting",

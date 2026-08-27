@@ -857,10 +857,16 @@ model DepartmentModelRoutingAuditRecord {
 }
 
 model ProjectDepartmentModelBinding {
-  projectId    String   @map("project_id")
-  departmentId String   @map("department_id")
-  resourceId   String   @map("resource_id")
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  projectId             String    @map("project_id")
+  departmentId          String    @map("department_id")
+  resourceId            String    @map("resource_id")
+  projectInheritedAt    DateTime? @map("project_inherited_at") @db.Timestamptz(6)
+  projectInheritedBy    String?   @map("project_inherited_by")
+  departmentAssignedAt  DateTime? @map("department_assigned_at") @db.Timestamptz(6)
+  departmentAssignedBy  String?   @map("department_assigned_by")
+  defaultFor             String?   @map("default_for")
+  defaultManagedBy       String?   @map("default_managed_by")
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
   project  Project                           @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   resource DepartmentInferenceResourceRecord @relation(fields: [departmentId, resourceId], references: [departmentId, id], onDelete: Restrict, onUpdate: Cascade)
@@ -872,12 +878,17 @@ model ProjectDepartmentModelBinding {
 }
 
 model ProjectDepartmentRoutingBinding {
-  projectId    String   @map("project_id")
-  departmentId String   @map("department_id")
-  resourceId   String   @map("resource_id")
-  isDefault    Boolean  @default(false) @map("is_default")
-  liteLLMTeamId String? @map("litellm_team_id")
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  projectId             String    @map("project_id")
+  departmentId          String    @map("department_id")
+  resourceId            String    @map("resource_id")
+  projectInheritedAt    DateTime? @map("project_inherited_at") @db.Timestamptz(6)
+  projectInheritedBy    String?   @map("project_inherited_by")
+  departmentAssignedAt  DateTime? @map("department_assigned_at") @db.Timestamptz(6)
+  departmentAssignedBy  String?   @map("department_assigned_by")
+  isDefault             Boolean   @default(false) @map("is_default")
+  defaultManagedBy      String?   @map("default_managed_by")
+  liteLLMTeamId         String?   @map("litellm_team_id")
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
   project  Project                           @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   resource DepartmentInferenceResourceRecord @relation(fields: [departmentId, resourceId], references: [departmentId, id], onDelete: Restrict, onUpdate: Cascade)

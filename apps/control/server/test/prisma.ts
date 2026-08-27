@@ -52,6 +52,7 @@ import departmentInferenceResourcesMigration from "../../prisma/migrations/20260
 import controlWorkerQueueMigration from "../../prisma/migrations/20260827000000_control_worker_queue/migration.sql?raw";
 import accessContextSessionsMigration from "../../prisma/migrations/20260827010000_access_context_sessions/migration.sql?raw";
 import knowledgeVectorDatabaseMigration from "../../prisma/migrations/20260827020000_knowledge_vector_database/migration.sql?raw";
+import departmentResourceAssignmentsMigration from "../../prisma/migrations/20260827030000_department_resource_assignments/migration.sql?raw";
 import { developmentResourceCatalog } from "../catalog/development-resource-catalog";
 import { PrismaClient } from "../generated/prisma/client";
 
@@ -533,6 +534,7 @@ export function createTestPrisma(): PrismaClient {
         "",
       ),
   );
+  memory.public.none(departmentResourceAssignmentsMigration);
   const pg = memory.adapters.createPg();
   const query = pg.Client.prototype.query;
   pg.Client.prototype.query = function (

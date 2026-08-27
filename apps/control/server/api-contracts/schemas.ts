@@ -26,6 +26,12 @@ export const routingParamsSchema = projectParamsSchema.extend({ routingId: uuid 
 export const departmentProviderParamsSchema = departmentParamsSchema.extend({ providerId: uuid });
 export const departmentModelParamsSchema = departmentParamsSchema.extend({ modelId: uuid });
 export const departmentRoutingParamsSchema = departmentParamsSchema.extend({ routingId: uuid });
+export const departmentModelAssignmentParamsSchema = departmentModelParamsSchema.extend({
+  projectId: id,
+});
+export const departmentRoutingAssignmentParamsSchema = departmentRoutingParamsSchema.extend({
+  projectId: id,
+});
 export const runtimePolicyParamsSchema = projectParamsSchema.extend({ policyId: id });
 export const accessPolicyParamsSchema = projectParamsSchema.extend({ policyId: uuid });
 export const notificationParamsSchema = z.object({ notificationId: uuid });

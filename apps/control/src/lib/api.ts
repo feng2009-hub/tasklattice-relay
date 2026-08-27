@@ -1,5 +1,6 @@
 import type {
   AccessPolicy,
+  AssignDepartmentInferenceResourceInput,
   AccessPolicyVersion,
   Instance as Agent,
   AgentInstanceDetail,
@@ -12,6 +13,7 @@ import type {
   AgentGardenSnapshot,
   CreateKnowledgeSourceDefinitionInput,
   DepartmentInferenceAvailability,
+  DepartmentInferenceResourceAssignmentView,
   CreateAccessPolicyInput,
   CreateAgentConnectionInput,
   CreateInstanceInput,
@@ -532,5 +534,33 @@ export function departmentInferenceApi(departmentId: string) {
       request<ModelDeployment>(`${base}/models`, { method: "POST", body: JSON.stringify(input) }),
     deleteModelDeployment: (id: string) =>
       request<{ message: string }>(`${base}/models/${encodeURIComponent(id)}`, { method: "DELETE" }),
+    listModelAssignments: (id: string) =>
+      request<DepartmentInferenceResourceAssignmentView>(
+        `${base}/models/${encodeURIComponent(id)}/assignments`,
+      ),
+    assignModel: (id: string, input: AssignDepartmentInferenceResourceInput) =>
+      request<DepartmentInferenceResourceAssignmentView>(
+        `${base}/models/${encodeURIComponent(id)}/assignments`,
+        { method: "POST", body: JSON.stringify(input) },
+      ),
+    removeModelAssignment: (id: string, projectId: string) =>
+      request<{ message: string }>(
+        `${base}/models/${encodeURIComponent(id)}/assignments/${encodeURIComponent(projectId)}`,
+        { method: "DELETE" },
+      ),
+    listRoutingAssignments: (id: string) =>
+      request<DepartmentInferenceResourceAssignmentView>(
+        `${base}/model-routings/${encodeURIComponent(id)}/assignments`,
+      ),
+    assignRouting: (id: string, input: AssignDepartmentInferenceResourceInput) =>
+      request<DepartmentInferenceResourceAssignmentView>(
+        `${base}/model-routings/${encodeURIComponent(id)}/assignments`,
+        { method: "POST", body: JSON.stringify(input) },
+      ),
+    removeRoutingAssignment: (id: string, projectId: string) =>
+      request<{ message: string }>(
+        `${base}/model-routings/${encodeURIComponent(id)}/assignments/${encodeURIComponent(projectId)}`,
+        { method: "DELETE" },
+      ),
   };
 }

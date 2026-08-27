@@ -8,7 +8,7 @@ import type {
 } from "@tali/contracts";
 import { prisma } from "../db/prisma";
 import type { Prisma, PrismaClient } from "../generated/prisma/client";
-import { ProjectStore } from "../projects/project-store";
+import { ProjectStore, routingDeploymentIds } from "../projects/project-store";
 
 type ResourceKind = "PROVIDER" | "MODEL" | "GATEWAY" | "ROUTING";
 
@@ -173,7 +173,7 @@ export class DepartmentInferenceStore extends ProjectStore {
       where: { departmentId: this.departmentId, resourceId: id },
     });
     if (references) {
-      throw new Error(`Remove this inherited Model from ${references} Project${references === 1 ? "" : "s"} first.`);
+      throw new Error(`Remove this assigned or inherited Model from ${references} Project${references === 1 ? "" : "s"} first.`);
     }
     const result = await this.departmentDb.departmentInferenceResourceRecord.updateMany({
       where: { departmentId: this.departmentId, id, kind: "MODEL", deletedAt: null },
@@ -240,6 +240,37 @@ export class DepartmentInferenceStore extends ProjectStore {
       ...routing,
       publicModelAlias: `tali-routing-${routing.id}`,
     });
+    const dependencyIds = [...routingDeploymentIds(routing)];
+    const dependencies = await this.departmentDb.departmentInferenceResourceRecord.count({
+      where: {
+        departmentId: this.departmentId,
+        id: { in: dependencyIds },
+        kind: "MODEL",
+        deletedAt: null,
+      },
+    });
+    if (dependencies !== dependencyIds.length) {
+      throw new Error("Department Routing references a Model that is unavailable.");
+    }
+    const boundProjects = await this.departmentDb.projectDepartmentRoutingBinding.findMany({
+      where: { departmentId: this.departmentId, resourceId: routing.id },
+      select: { projectId: true },
+    });
+    if (boundProjects.length) {
+      const collision = await this.departmentDb.modelDeploymentRecord.findFirst({
+        where: {
+          projectId: { in: boundProjects.map(({ projectId }) => projectId) },
+          id: { in: dependencyIds },
+          deletedAt: null,
+        },
+        select: { projectId: true, id: true },
+      });
+      if (collision) {
+        throw new Error(
+          `Project ${collision.projectId} has a local Model (${collision.id}) that conflicts with this Routing update.`,
+        );
+      }
+    }
     await this.departmentDb.departmentInferenceResourceRecord.upsert({
       where: { departmentId_id: { departmentId: this.departmentId, id: routing.id } },
       create: {
@@ -285,7 +316,7 @@ export class DepartmentInferenceStore extends ProjectStore {
       where: { departmentId: this.departmentId, resourceId: id },
     });
     if (references) {
-      throw new Error(`Remove this inherited Routing from ${references} Project${references === 1 ? "" : "s"} first.`);
+      throw new Error(`Remove this assigned or inherited Routing from ${references} Project${references === 1 ? "" : "s"} first.`);
     }
     const result = await this.departmentDb.departmentInferenceResourceRecord.updateMany({
       where: { departmentId: this.departmentId, id, kind: "ROUTING", deletedAt: null },

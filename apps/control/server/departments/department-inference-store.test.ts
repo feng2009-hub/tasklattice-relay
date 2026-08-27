@@ -7,6 +7,7 @@ import type {
 import { ProjectStore } from "../projects/project-store";
 import { createTestPrisma } from "../test/prisma";
 import { DepartmentInferenceStore } from "./department-inference-store";
+import { DepartmentResourceAssignmentService } from "./department-resource-assignment-service";
 
 const modelId = "11111111-1111-4111-8111-111111111111";
 const routingId = "22222222-2222-4222-8222-222222222222";
@@ -204,5 +205,150 @@ describe("Department inference inheritance", () => {
     );
     expect((await department.getModelRouting(routingId))?.isDefault).toBe(false);
     expect((await department.getModelRouting(routingId))?.liteLLMTeamId).toBeUndefined();
+  });
+});
+
+describe("Department inference assignment", () => {
+  it("assigns a live Routing reference and automatically exposes its current Model dependencies", async () => {
+    const db = createTestPrisma();
+    const department = new DepartmentInferenceStore("dep1", db);
+    const assignments = new DepartmentResourceAssignmentService("dep1", db);
+    const project = new ProjectStore("individual", db);
+    const now = new Date().toISOString();
+
+    await department.saveProviderAccount(provider(now), "department-secret");
+    await department.saveModelDeployment(model(now));
+    await department.saveModelRouting(routing(now));
+    const result = await assignments.assign(
+      "ROUTING",
+      routingId,
+      { projectIds: ["individual"], setAsProjectDefault: true },
+      "department-admin",
+    );
+
+    expect(result.dependencies).toEqual([{
+      id: modelId,
+      name: "Department Chat",
+      modelType: "llm",
+    }]);
+    expect(result.projects.find(({ projectId }) => projectId === "individual"))
+      .toMatchObject({
+        departmentAssigned: true,
+        projectInherited: false,
+        isProjectDefault: true,
+        defaultManagedBy: "DEPARTMENT",
+      });
+    expect(await project.getModelRouting(routingId)).toMatchObject({
+      isDefault: true,
+      origin: {
+        accessSources: ["DEPARTMENT_ASSIGNMENT"],
+        projectDefault: { slot: "ROUTING", managedBy: "DEPARTMENT" },
+      },
+    });
+    expect(await project.getModelDeployment(modelId)).toMatchObject({
+      origin: {
+        accessSources: ["ROUTING_DEPENDENCY"],
+        routingDependencyIds: [routingId],
+      },
+    });
+
+    await department.saveModelDeployment({
+      ...model(now, "Department Chat Next"),
+      id: replacementModelId,
+      modelId: "department-chat-next",
+      litellmModelName: "department-chat-next",
+    });
+    await department.saveModelRouting({
+      ...routing(now, "Changed centrally"),
+      routingPolicy: {
+        version: 1,
+        mode: "SINGLE",
+        modelDeploymentId: replacementModelId,
+        fallbackModelDeploymentIds: [],
+        retries: 2,
+      },
+    });
+
+    expect((await project.getModelRouting(routingId))?.description).toBe("Changed centrally");
+    expect(await project.getModelDeployment(modelId)).toBeUndefined();
+    expect(await project.getModelDeployment(replacementModelId)).toMatchObject({
+      displayName: "Department Chat Next",
+      origin: { routingDependencyIds: [routingId] },
+    });
+  });
+
+  it("keeps Department assignment and Project inheritance as independent access sources", async () => {
+    const db = createTestPrisma();
+    const department = new DepartmentInferenceStore("dep1", db);
+    const assignments = new DepartmentResourceAssignmentService("dep1", db);
+    const project = new ProjectStore("individual", db);
+    const now = new Date().toISOString();
+
+    await department.saveProviderAccount(provider(now), "department-secret");
+    await department.saveModelDeployment(model(now));
+    await assignments.assign(
+      "MODEL",
+      modelId,
+      { projectIds: ["individual"], setAsProjectDefault: true },
+      "department-admin",
+    );
+    await department.saveModelDeployment(model(now, "Department Chat live update"));
+    expect((await project.getModelDeployment(modelId))?.displayName).toBe(
+      "Department Chat live update",
+    );
+    await project.inheritDepartmentModel(modelId, "project-admin");
+    expect((await project.getModelDeployment(modelId))?.origin?.accessSources).toEqual([
+      "PROJECT_INHERITANCE",
+      "DEPARTMENT_ASSIGNMENT",
+    ]);
+
+    await assignments.unassign("MODEL", modelId, "individual");
+    expect((await project.getModelDeployment(modelId))?.origin?.accessSources).toEqual([
+      "PROJECT_INHERITANCE",
+    ]);
+
+    await assignments.assign(
+      "MODEL",
+      modelId,
+      { projectIds: ["individual"], setAsProjectDefault: false },
+      "department-admin",
+    );
+    await project.removeDepartmentModelInheritance(modelId);
+    expect((await project.getModelDeployment(modelId))?.origin?.accessSources).toEqual([
+      "DEPARTMENT_ASSIGNMENT",
+    ]);
+  });
+
+  it("does not let a Project override a Department-managed Routing default", async () => {
+    const db = createTestPrisma();
+    const department = new DepartmentInferenceStore("dep1", db);
+    const assignments = new DepartmentResourceAssignmentService("dep1", db);
+    const project = new ProjectStore("individual", db);
+    const now = new Date().toISOString();
+    const otherRoutingId = "55555555-5555-4555-8555-555555555555";
+
+    await department.saveProviderAccount(provider(now), "department-secret");
+    await department.saveModelDeployment(model(now));
+    await department.saveModelRouting(routing(now));
+    await department.saveModelRouting({
+      ...routing(now, "Other route"),
+      id: otherRoutingId,
+      name: "Other Department route",
+    });
+    await assignments.assign(
+      "ROUTING",
+      routingId,
+      { projectIds: ["individual"], setAsProjectDefault: true },
+      "department-admin",
+    );
+    const inherited = await project.inheritDepartmentRouting(
+      otherRoutingId,
+      "project-admin",
+    );
+
+    await expect(project.saveDefaultModelRouting({ ...inherited, isDefault: true }))
+      .rejects.toThrow("managed by its Department");
+    await expect(assignments.unassign("ROUTING", routingId, "individual"))
+      .rejects.toThrow("Choose another Department-managed Project default");
   });
 });

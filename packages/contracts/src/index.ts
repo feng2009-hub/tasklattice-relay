@@ -2079,6 +2079,16 @@ export interface InferenceResourceOrigin {
   scopeName?: string;
   inherited: boolean;
   editable: boolean;
+  accessSources?: Array<
+    | "PROJECT_INHERITANCE"
+    | "DEPARTMENT_ASSIGNMENT"
+    | "ROUTING_DEPENDENCY"
+  >;
+  routingDependencyIds?: string[];
+  projectDefault?: {
+    slot: "CHAT" | "EMBEDDING" | "SPEECH_TO_TEXT" | "ROUTING";
+    managedBy: "PROJECT" | "DEPARTMENT";
+  };
 }
 
 export interface ModelRouting {
@@ -2253,6 +2263,39 @@ export interface DepartmentInferenceAvailability {
   departmentName: string;
   models: ModelDeployment[];
   routings: ModelRouting[];
+}
+
+export const assignDepartmentInferenceResourceSchema = z.object({
+  projectIds: z.array(z.string().trim().min(1).max(160))
+    .min(1)
+    .max(100)
+    .refine((ids) => new Set(ids).size === ids.length, "Project IDs must be unique."),
+  setAsProjectDefault: z.boolean().default(false),
+}).strict();
+
+export type AssignDepartmentInferenceResourceInput = z.infer<
+  typeof assignDepartmentInferenceResourceSchema
+>;
+
+export interface DepartmentInferenceResourceProjectAssignment {
+  projectId: string;
+  projectName: string;
+  projectInherited: boolean;
+  departmentAssigned: boolean;
+  isProjectDefault: boolean;
+  defaultManagedBy?: "PROJECT" | "DEPARTMENT";
+}
+
+export interface DepartmentInferenceResourceAssignmentView {
+  departmentId: string;
+  resourceId: string;
+  resourceKind: "MODEL" | "ROUTING";
+  dependencies: Array<{
+    id: string;
+    name: string;
+    modelType: ModelType;
+  }>;
+  projects: DepartmentInferenceResourceProjectAssignment[];
 }
 
 export type CostGroupBy =
