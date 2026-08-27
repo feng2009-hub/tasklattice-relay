@@ -59,8 +59,24 @@ Content-Type: application/json
 
 Batches contain at most 128 chunks. Reusing a chunk ID replaces its content,
 attributes, and embedding. Delete one chunk with
-`DELETE .../chunks/{chunkId}`. Document parsing and chunk-boundary selection
-remain caller responsibilities in this first implementation.
+`DELETE .../chunks/{chunkId}`.
+
+Project Administrators can also upload a PDF directly from the Knowledge Base
+page or through `POST .../knowledge-sources/{sourceId}/documents` using a
+multipart `file` field. Control validates a 25 MiB and 100-page limit, extracts
+embedded text with Poppler, chunks each page, calls the selected Project-visible
+LiteLLM embedding model, and writes the vectors. Scanned pages are rendered to
+PNG and sent to NVIDIA Nemotron OCR v2. The OCR credential is resolved in this
+order:
+
+1. the stored credential behind a selected NVIDIA NIM embedding model,
+2. `NVIDIA_API_KEY`,
+3. the compatibility alias `NVAPI_API_KEY`.
+
+Text PDFs require no NVIDIA credential. `NVIDIA_OCR_ENDPOINT` can point at a
+self-hosted OCR NIM; hosted `*.nvidia.com` endpoints require a key. Re-uploading
+the same filename replaces older content-hash revisions after the new vectors
+have been written successfully.
 
 The default Chart image includes pgvector. A custom PostgreSQL image must also
 install the extension files before `prisma migrate deploy` runs; merely setting

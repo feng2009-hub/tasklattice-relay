@@ -63,7 +63,7 @@ ENV NODE_ENV=production \
     HELM_DATA_HOME=/tmp/helm/data
 WORKDIR /app
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates openssl \
+    && apt-get install -y --no-install-recommends ca-certificates openssl poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=production-dependencies /app/node_modules ./node_modules
 COPY --from=helm-cli /usr/local/bin/helm /usr/local/bin/helm

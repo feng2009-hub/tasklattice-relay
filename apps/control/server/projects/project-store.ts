@@ -754,6 +754,24 @@ export class ProjectStore {
     return row?.credentialPayload;
   }
 
+  async getModelProviderAccountCredential(
+    deployment: ModelDeployment,
+  ): Promise<string | undefined> {
+    if (deployment.origin?.scope !== "DEPARTMENT") {
+      return this.getProviderAccountCredential(deployment.providerAccountId);
+    }
+    const row = await this.db.departmentInferenceResourceRecord.findFirst({
+      where: {
+        departmentId: deployment.origin.scopeId,
+        id: deployment.providerAccountId,
+        kind: "PROVIDER",
+        deletedAt: null,
+      },
+      select: { credentialPayload: true },
+    });
+    return row?.credentialPayload ?? undefined;
+  }
+
   async saveModelDeployment(deployment: ModelDeployment): Promise<ModelDeployment> {
     if (deployment.origin?.scope === "DEPARTMENT") {
       throw new Error("Inherited Department Models are read-only in this Project.");

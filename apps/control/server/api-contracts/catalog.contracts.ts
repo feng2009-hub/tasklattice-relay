@@ -7,6 +7,8 @@ import {
   createMcpServerDefinitionSchema,
   createSkillDefinitionSchema,
   knowledgeSourceDefinitionSchema,
+  knowledgePdfIngestionResultSchema,
+  knowledgePdfUploadFormSchema,
   knowledgeVectorChunkMutationResultSchema,
   mcpServerDefinitionSchema,
   onboardAgentSchema,
@@ -85,6 +87,16 @@ export const catalogContracts = defineContracts([
     summary: "Embed and upsert PostgreSQL knowledge chunks", tags: ["Resource catalog"],
     request: { params: catalogNamedResourceParamsSchema, body: upsertKnowledgeVectorChunksSchema },
     responses: { 200: response("Upserted knowledge chunks", knowledgeVectorChunkMutationResultSchema) },
+  }),
+  projectRoute({
+    method: "post", path: "/catalog/knowledge-sources/{id}/documents", operationId: "ingestKnowledgePdf",
+    summary: "Ingest a PDF into a PostgreSQL knowledge source", tags: ["Resource catalog"],
+    request: {
+      params: catalogNamedResourceParamsSchema,
+      body: knowledgePdfUploadFormSchema,
+      contentType: "multipart/form-data",
+    },
+    responses: { 201: response("Ingested PDF", knowledgePdfIngestionResultSchema) },
   }),
   projectRoute({
     method: "delete", path: "/catalog/knowledge-sources/{id}/chunks/{chunkId}", operationId: "deleteKnowledgeVectorChunk",

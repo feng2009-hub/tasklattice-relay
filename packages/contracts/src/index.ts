@@ -917,6 +917,11 @@ export const providerPresets = [
     modelTypes: ["llm", "text-embedding"],
     defaultModels: [
       { modelId: "meta/llama-3.3-70b-instruct", displayName: "Llama 3.3 70B Instruct", modelType: "llm" },
+      {
+        modelId: "nvidia/llama-nemotron-embed-1b-v2",
+        displayName: "Llama Nemotron Embed 1B v2",
+        modelType: "text-embedding",
+      },
     ],
   },
   {
@@ -1347,6 +1352,7 @@ const knowledgeSourceDefinitionBaseSchema = z.object({
   vectorStoreId: z.string().trim().min(1).max(240),
   provider: z.enum(["openai", "azure", "bedrock", "vertex_ai", "pg_vector", "postgresql", "elasticsearch"]),
   apiBase: z.string().trim().url().optional(),
+  embeddingModelDeploymentId: z.string().uuid().optional(),
   embeddingModel: z.string().trim().min(1).max(240).optional(),
   embeddingDimensions: z.number().int().min(1).max(16_000).optional(),
   semanticField: z.string().trim().min(1).max(240).optional(),
@@ -1361,6 +1367,7 @@ function validateKnowledgeSourceProvider(
   source: {
     provider: "openai" | "azure" | "bedrock" | "vertex_ai" | "pg_vector" | "postgresql" | "elasticsearch";
     apiBase?: string | undefined;
+    embeddingModelDeploymentId?: string | undefined;
     embeddingModel?: string | undefined;
     embeddingDimensions?: number | undefined;
     semanticField?: string | undefined;
@@ -1386,20 +1393,26 @@ function validateKnowledgeSourceProvider(
     }
   }
   if (source.provider === "postgresql") {
-    if (!source.embeddingModel) {
+    if (!source.embeddingModelDeploymentId && !source.embeddingModel) {
       context.addIssue({
         code: "custom",
-        path: ["embeddingModel"],
-        message: "A LiteLLM embedding model is required for PostgreSQL vector storage.",
+        path: ["embeddingModelDeploymentId"],
+        message: "A validated embedding model is required for PostgreSQL vector storage.",
       });
     }
-    if (!source.embeddingDimensions) {
+    if (!source.embeddingModelDeploymentId && !source.embeddingDimensions) {
       context.addIssue({
         code: "custom",
         path: ["embeddingDimensions"],
         message: "Embedding dimensions are required for PostgreSQL vector storage.",
       });
     }
+  } else if (source.embeddingModelDeploymentId) {
+    context.addIssue({
+      code: "custom",
+      path: ["embeddingModelDeploymentId"],
+      message: "Project embedding model selection is available only for built-in PostgreSQL storage.",
+    });
   }
   if (source.provider === "elasticsearch") {
     for (const [path, value, message] of [
@@ -1437,6 +1450,23 @@ export const upsertKnowledgeVectorChunksSchema = z.object({
 export const knowledgeVectorChunkMutationResultSchema = z.object({
   upserted: z.number().int().min(0),
 }).strict().meta({ id: "KnowledgeVectorChunkMutationResult" });
+
+export const knowledgePdfUploadFormSchema = z.object({
+  file: z.string().meta({
+    contentEncoding: "binary",
+    contentMediaType: "application/pdf",
+  }),
+}).strict().meta({ id: "KnowledgePdfUploadForm" });
+
+export const knowledgePdfIngestionResultSchema = z.object({
+  documentId: z.string().trim().min(1).max(160),
+  filename: z.string().trim().min(1).max(500),
+  bytes: z.number().int().min(1),
+  pageCount: z.number().int().min(1),
+  extractedPages: z.number().int().min(0),
+  ocrPages: z.number().int().min(0),
+  chunks: z.number().int().min(1),
+}).strict().meta({ id: "KnowledgePdfIngestionResult" });
 
 export const agentSpecializationDefinitionSchema = z.object({
   id: z.string().trim().min(1).max(64),
@@ -2015,6 +2045,7 @@ export type CreateKnowledgeSourceDefinitionInput = z.infer<typeof createKnowledg
 export type UpdateKnowledgeSourceDefinitionInput = z.infer<typeof updateKnowledgeSourceDefinitionSchema>;
 export type KnowledgeVectorChunkInput = z.infer<typeof knowledgeVectorChunkInputSchema>;
 export type UpsertKnowledgeVectorChunksInput = z.infer<typeof upsertKnowledgeVectorChunksSchema>;
+export type KnowledgePdfIngestionResult = z.infer<typeof knowledgePdfIngestionResultSchema>;
 export type AgentSpecializationDefinition = z.infer<typeof agentSpecializationDefinitionSchema>;
 export type ResourceKind = z.infer<typeof resourceKindSchema>;
 export type ProviderConnectionDraft = z.infer<typeof providerConnectionDraftSchema>;

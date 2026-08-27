@@ -266,6 +266,18 @@ export function projectRouteAdmissionPolicy(
       );
     }
     if (
+      tail.length === 4
+      && tail[1] === "knowledge-sources"
+      && tail[3] === "documents"
+      && method === "POST"
+    ) {
+      return policy(
+        "PROJECT",
+        [requirement("CAP_KNOWLEDGE_SOURCE_UPDATE", "KnowledgeDocument")],
+        tail[2],
+      );
+    }
+    if (
       tail.length === 5
       && tail[1] === "knowledge-sources"
       && tail[3] === "chunks"

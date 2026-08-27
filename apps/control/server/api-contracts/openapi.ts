@@ -208,7 +208,9 @@ function operation(contract: (typeof apiContracts)[number]) {
       requestBody: {
         required: true,
         content: {
-          "application/json": { schema: jsonSchema(contract.request.body, "input") },
+          [contract.request.contentType ?? "application/json"]: {
+            schema: jsonSchema(contract.request.body, "input"),
+          },
         },
       },
     } : {}),

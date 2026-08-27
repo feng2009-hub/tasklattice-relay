@@ -121,7 +121,8 @@ describe("Department inference inheritance", () => {
 
     await project.inheritDepartmentRouting(routingId);
 
-    expect(await project.getModelDeployment(modelId)).toMatchObject({
+    const inheritedModel = await project.getModelDeployment(modelId);
+    expect(inheritedModel).toMatchObject({
       displayName: "Department Chat",
       origin: {
         scope: "DEPARTMENT",
@@ -129,6 +130,8 @@ describe("Department inference inheritance", () => {
         editable: false,
       },
     });
+    await expect(project.getModelProviderAccountCredential(inheritedModel!))
+      .resolves.toBe("department-secret");
     expect(await project.getModelRouting(routingId)).toMatchObject({
       description: "Shared Department route",
       origin: {
