@@ -455,6 +455,38 @@ describe("LiteLLM Router capability inspection", () => {
   });
 });
 
+describe("LiteLLM Virtual Key lifecycle", () => {
+  it("blocks retained keys instead of deleting their billing identity", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      token: "hashed-instance-key",
+      blocked: true,
+    }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await new LiteLLMClient("http://litellm:4000", "master-secret")
+      .blockKey("hashed-instance-key");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://litellm:4000/key/block",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ key: "hashed-instance-key" }),
+      }),
+    );
+  });
+
+  it("treats an already removed legacy key as completed cleanup", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      error: { message: "Key not found." },
+    }), { status: 404 })));
+
+    await expect(
+      new LiteLLMClient("http://litellm:4000", "master-secret")
+        .blockKey("legacy-deleted-key"),
+    ).resolves.toBeUndefined();
+  });
+});
+
 describe("LiteLLM spend logs", () => {
   it("uses the paginated Team-scoped spend endpoint and includes the requested end day", async () => {
     const fetchMock = vi.fn(async (_input: string | URL | Request) => new Response(JSON.stringify({

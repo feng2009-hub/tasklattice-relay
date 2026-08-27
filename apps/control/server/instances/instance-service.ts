@@ -23,6 +23,7 @@ import {
   LiteLLMClient,
   type LiteLLMAdminClient,
   type LiteLLMInstanceServiceAccountInput,
+  type LiteLLMVirtualKey,
 } from "../providers/litellm-client";
 import { RuntimePolicyService } from "../runtime-policies/runtime-policy-service";
 import { ModelRoutingService } from "../model-routings/model-routing-service";
@@ -32,6 +33,10 @@ import { PlatformSettingsService } from "../platform/platform-settings-service";
 import { loadPlatformRuntimeConfiguration } from "../platform/platform-runtime-config";
 import { signProjectRuntimeCoordinatorToken } from "../runtime-bridge/project-runtime-bridge-token";
 import { getControlConfig } from "../config/control-config";
+import {
+  controlJobQueue,
+  type ControlJobPublisher,
+} from "../jobs/control-job-queue";
 
 export function agentSandboxName(id: string): string {
   const compactId = BigInt(`0x${id.replaceAll("-", "")}`)
@@ -54,14 +59,20 @@ export function applyObservedState(
   agent: Agent,
   observed: RunnerSandbox,
 ): Agent {
+  const transientNotFound =
+    observed.phase === "NOT_FOUND" && agent.status === "PROVISIONING";
   const status: Agent["status"] =
     observed.phase === "READY"
       ? "READY"
-      : observed.phase === "FAILED" || observed.phase === "NOT_FOUND"
+      : observed.phase === "FAILED"
         ? "FAILED"
-        : observed.phase === "DESTROYING"
-          ? "DESTROYING"
-          : "PROVISIONING";
+        : transientNotFound
+          ? "PROVISIONING"
+          : observed.phase === "NOT_FOUND"
+            ? "FAILED"
+            : observed.phase === "DESTROYING"
+              ? "DESTROYING"
+              : "PROVISIONING";
   const {
     error: _previousError,
     httpEndpoint: _previousHttpEndpoint,
@@ -80,7 +91,7 @@ export function applyObservedState(
     ...(observed.operationId ? { operationId: observed.operationId } : {}),
     ...(observed.error
       ? { error: observed.error }
-      : observed.phase === "NOT_FOUND"
+      : observed.phase === "NOT_FOUND" && !transientNotFound
         ? {
             error:
               "The OpenShell Sandbox was not found while reconciling the Instance lifecycle.",
@@ -90,9 +101,6 @@ export function applyObservedState(
 }
 
 export class InstanceService {
-  private readonly destroyTasks = new Map<string, Promise<void>>();
-  private readonly destroyRetryAttempts = new Map<string, number>();
-
   constructor(
     readonly store = new ProjectStore(),
     readonly runner: RunnerClient = new NemoClawRunnerClient(),
@@ -106,6 +114,7 @@ export class InstanceService {
       store,
       litellm,
     ),
+    readonly jobs: ControlJobPublisher = controlJobQueue(),
   ) {}
 
   async list(ownerUserId?: string): Promise<Agent[]> {
@@ -203,40 +212,14 @@ export class InstanceService {
         !== "none"
         ? (input.memory ?? defaultNativeAgentMemoryConfiguration)
         : input.memory;
-    const memory = await this.resolveMemory(
+    await this.resolveMemory(
       input.agentPlatform,
       memoryConfiguration,
       routing,
     );
     const costKeyAlias = `tali-instance-${id}`;
     const serviceAccountId = `tali-instance-${id}`;
-    const runtimeConfiguration = await loadPlatformRuntimeConfiguration(
-      this.store.database(),
-    );
-    const controlOrigin = runtimeConfiguration.controlInternalUrl;
-    if (!controlOrigin) {
-      throw new Error("Control server URL is required for Instance Run telemetry.");
-    }
-    const objectPermissions = await this.accessPolicies.permissionsForAgent({
-      accessPolicyIds: input.accessPolicyIds,
-      mcpServerIds: input.mcpServerIds,
-      knowledgeSourceIds: input.knowledgeSourceIds,
-    });
     const modelKeyRouting = await this.modelKeyRouting(routing);
-    const { teamId, key: instanceKey } = await this.quotas.createInstanceKey({
-      alias: costKeyAlias,
-      models: memory.keyModel
-        ? [...new Set([...modelKeyRouting.models, memory.keyModel])]
-        : modelKeyRouting.models,
-      ...modelKeyRouting.keyConfiguration,
-      metadata: {
-        managed_by: "tali",
-        tali_project_id: this.store.projectId,
-        tali_instance_id: id,
-        service_account_id: serviceAccountId,
-      },
-      objectPermissions,
-    });
     let agent: Agent = {
       schemaVersion: 2,
       id,
@@ -254,43 +237,160 @@ export class InstanceService {
       modelRoutingStatus: routing.status,
       modelRoutingComplianceDomain: routing.complianceDomain,
       modelRoutingCapabilities: routing.capabilities,
-      modelRoutingKeyFingerprint: `token:${instanceKey.tokenId.slice(-12)}`,
+      modelRoutingKeyFingerprint: `pending:${id.slice(-12)}`,
       costKeyAlias,
-      liteLLMTokenId: instanceKey.tokenId,
-      liteLLMTeamId: teamId,
       serviceAccountId,
       sandboxName,
       status: "PROVISIONING",
       provisioningStage: "QUEUED",
       createdAt: now,
       updatedAt: now,
-      logs: ["Agent request accepted. Waiting for the NemoClaw Runtime Host."],
+      logs: ["Agent request accepted. Waiting for the Control Worker."],
     };
     try {
       await this.store.save(agent, ownerUserId);
       await this.store.replaceAgentAccessPolicies(id, input.accessPolicyIds);
+      if (!this.jobs.enqueueInstanceLifecycle) {
+        throw new Error(
+          "The Control Worker queue does not support Instance lifecycle jobs.",
+        );
+      }
+      const operationId = await this.jobs.enqueueInstanceLifecycle({
+        projectId: this.store.projectId,
+        instanceId: id,
+        action: "provision",
+      });
+      if (!operationId) {
+        throw new Error("Unable to enqueue Instance provisioning.");
+      }
+      agent = await this.store.save({
+        ...agent,
+        operationId,
+        logs: [...agent.logs, "Instance provisioning queued in the Control Worker."],
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      await this.store.hardDelete(id).catch(() => undefined);
+      throw error;
+    }
+    return agent;
+  }
+
+  async provision(id: string): Promise<Agent | undefined> {
+    let agent = await this.store.get(id);
+    if (!agent || agent.status === "DESTROYING") return agent;
+    if (agent.status === "READY") return agent;
+
+    const {
+      error: _previousError,
+      httpEndpoint: _previousHttpEndpoint,
+      ...pendingAgent
+    } = agent;
+    agent = await this.store.save({
+      ...pendingAgent,
+      status: "PROVISIONING",
+      logs: [
+        ...pendingAgent.logs.filter(
+          (line) => !line.startsWith("Provisioning retry pending:"),
+        ),
+        "Control Worker started Instance provisioning.",
+      ].slice(-100),
+      updatedAt: new Date().toISOString(),
+    });
+
+    let observed = await this.getRunnerSandbox(agent);
+    if (agent.liteLLMTokenId && observed.phase === "READY") {
+      return this.store.save(applyObservedState(agent, observed));
+    }
+    if (agent.liteLLMTokenId && observed.phase === "PROVISIONING") {
+      observed = await this.waitForRunnerProvisioning(agent);
+      agent = await this.store.save(applyObservedState(agent, observed));
+      if (observed.phase === "READY") return agent;
+    }
+    if (observed.phase !== "NOT_FOUND") {
+      await this.destroyRunnerSandbox(agent);
+    }
+    if (agent.liteLLMTokenId) {
+      await this.litellm.revokeKey(agent.liteLLMTokenId);
+      await this.closeInstanceAttributions(id);
+      const {
+        liteLLMTokenId: _tokenId,
+        liteLLMTeamId: _teamId,
+        ...withoutPreviousKey
+      } = agent;
+      agent = await this.store.save({
+        ...withoutPreviousKey,
+        modelRoutingKeyFingerprint: `pending:${id.slice(-12)}`,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    const policy = await this.runtimePolicies.resolve(agent.policyId);
+    const routing = await this.modelRoutings.resolver.resolve(
+      agent.modelRoutingId,
+    );
+    const gateway = await this.store.getInferenceGateway(routing.gatewayId);
+    if (!gateway) {
+      throw new Error("The selected Routing LiteLLM Gateway is unavailable.");
+    }
+    const memory = await this.resolveMemory(
+      agent.agentPlatform,
+      agent.memory,
+      routing,
+    );
+    const modelKeyRouting = await this.modelKeyRouting(routing);
+    const objectPermissions = await this.accessPolicies.permissionsForAgent(
+      agent,
+    );
+    let instanceKey: LiteLLMVirtualKey | undefined;
+    try {
+      const created = await this.quotas.createInstanceKey({
+        alias: agent.costKeyAlias,
+        models: memory.keyModel
+          ? [...new Set([...modelKeyRouting.models, memory.keyModel])]
+          : modelKeyRouting.models,
+        ...modelKeyRouting.keyConfiguration,
+        metadata: {
+          managed_by: "tali",
+          tali_project_id: this.store.projectId,
+          tali_instance_id: id,
+          service_account_id: agent.serviceAccountId ?? `tali-instance-${id}`,
+        },
+        objectPermissions,
+      });
+      instanceKey = created.key;
+      const keyedAt = new Date().toISOString();
+      agent = await this.store.save({
+        ...agent,
+        model: modelKeyRouting.runtimeModel,
+        modelRoutingKeyFingerprint: `token:${instanceKey.tokenId.slice(-12)}`,
+        liteLLMTokenId: instanceKey.tokenId,
+        liteLLMTeamId: created.teamId,
+        updatedAt: keyedAt,
+      });
       await this.store.costAnalytics().saveAttribution({
         id: `instance-key:${id}:${instanceKey.tokenId.slice(-12)}`,
         projectId: this.store.projectId,
         instanceId: id,
-        instanceName: input.name,
+        instanceName: agent.name,
         liteLLMVirtualKeyId: instanceKey.tokenId,
         hashedToken: instanceKey.tokenId,
-        virtualKeyAlias: costKeyAlias,
-        liteLLMTeamId: teamId,
+        virtualKeyAlias: agent.costKeyAlias,
+        liteLLMTeamId: created.teamId,
         providerAccountId: gateway.id,
-        validFrom: now,
-        createdAt: now,
-        updatedAt: now,
+        validFrom: keyedAt,
+        createdAt: keyedAt,
+        updatedAt: keyedAt,
       });
-    } catch (error) {
-      await this.litellm.revokeKey(instanceKey.tokenId).catch(() => undefined);
-      await this.closeInstanceAttributions(id).catch(() => undefined);
-      // Creation never completed, so there is no business record to retain.
-      await this.store.hardDelete(id).catch(() => undefined);
-      throw error;
-    }
-    try {
+      const runtimeConfiguration = await loadPlatformRuntimeConfiguration(
+        this.store.database(),
+      );
+      const controlOrigin = runtimeConfiguration.controlInternalUrl;
+      if (!controlOrigin) {
+        throw new Error(
+          "Control server URL is required for Instance Run telemetry.",
+        );
+      }
       const platformSettings = new PlatformSettingsService(this.store.database());
       const [sandboxImage, sandboxResources] = await Promise.all([
         platformSettings.runtimeImageOverride(agent.agentPlatform),
@@ -299,47 +399,82 @@ export class InstanceService {
       const litellmBaseUrl = this.litellm.connectionBaseUrl
         ? await this.litellm.connectionBaseUrl()
         : this.litellm.baseUrl;
-      agent = await this.store.save(
-        applyObservedState(
-          agent,
-          await this.createRunnerSandbox({
-            name: agent.sandboxName,
-            agentPlatform: agent.agentPlatform,
-            providerName: "LiteLLM",
-            model: modelKeyRouting.runtimeModel,
-            inferenceEndpoint: `${litellmBaseUrl}/v1`,
-            policyYaml: policy.policyYaml,
-            systemPrompt: input.systemPrompt,
-            apiKey: instanceKey.secret,
+      let runnerState = await this.createRunnerSandbox({
+        name: agent.sandboxName,
+        agentPlatform: agent.agentPlatform,
+        providerName: "LiteLLM",
+        model: modelKeyRouting.runtimeModel,
+        inferenceEndpoint: `${litellmBaseUrl}/v1`,
+        policyYaml: policy.policyYaml,
+        systemPrompt: agent.systemPrompt,
+        apiKey: instanceKey.secret,
+        instanceId: id,
+        ...(sandboxImage ? { sandboxImage } : {}),
+        ...(sandboxResources ? { sandboxResources } : {}),
+        runTelemetry: {
+          endpoint: `${controlOrigin.replace(/\/$/, "")}/api/internal/run-events`,
+          token: signRunTelemetryToken({
+            projectId: this.store.projectId,
             instanceId: id,
-            ...(sandboxImage ? { sandboxImage } : {}),
-            ...(sandboxResources ? { sandboxResources } : {}),
-            runTelemetry: {
-              endpoint: `${controlOrigin.replace(/\/$/, "")}/api/internal/run-events`,
-              token: signRunTelemetryToken({
-                projectId: this.store.projectId,
-                instanceId: id,
-                agentPlatform: agent.agentPlatform,
-              }),
-            },
-            ...(memory.runtime ? { memory: memory.runtime } : {}),
+            agentPlatform: agent.agentPlatform,
           }),
-        ),
-      );
-    } catch (error) {
-      await this.litellm.revokeKey(instanceKey.tokenId).catch(() => undefined);
-      await this.closeInstanceAttributions(id);
-      agent = await this.store.save({
-        ...agent,
-        status: "FAILED",
-        updatedAt: new Date().toISOString(),
-        error:
-          error instanceof Error
-            ? error.message
-            : "Runtime runner rejected the request.",
+        },
+        ...(memory.runtime ? { memory: memory.runtime } : {}),
       });
+      agent = await this.store.save(applyObservedState(agent, runnerState));
+      if (runnerState.phase === "PROVISIONING") {
+        runnerState = await this.waitForRunnerProvisioning(agent);
+        agent = await this.store.save(applyObservedState(agent, runnerState));
+      }
+      if (runnerState.phase !== "READY") {
+        throw new Error(
+          runnerState.error
+            ?? `Instance provisioning ended in ${runnerState.phase}.`,
+        );
+      }
+    } catch (error) {
+      if (instanceKey) {
+        await this.litellm.revokeKey(instanceKey.tokenId).catch(() => undefined);
+        await this.closeInstanceAttributions(id).catch(() => undefined);
+      }
+      const {
+        liteLLMTokenId: _tokenId,
+        liteLLMTeamId: _teamId,
+        ...withoutFailedKey
+      } = agent;
+      await this.store.save({
+        ...withoutFailedKey,
+        modelRoutingKeyFingerprint: `pending:${id.slice(-12)}`,
+        updatedAt: new Date().toISOString(),
+      }).catch(() => undefined);
+      throw error;
     }
     return agent;
+  }
+
+  async recordProvisioningFailure(
+    id: string,
+    error: unknown,
+    terminal: boolean,
+  ): Promise<void> {
+    const current = await this.store.get(id);
+    if (!current || current.status === "DESTROYING") return;
+    const message = error instanceof Error ? error.message : String(error);
+    const logs = current.logs.filter(
+      (line) => !line.startsWith("Provisioning retry pending:"),
+    );
+    await this.store.save({
+      ...current,
+      status: terminal ? "FAILED" : "PROVISIONING",
+      error: terminal ? message : `Provisioning retry pending: ${message}`,
+      logs: [
+        ...logs,
+        terminal
+          ? `Instance provisioning failed: ${message}`
+          : `Provisioning retry pending: ${message}`,
+      ].slice(-100),
+      updatedAt: new Date().toISOString(),
+    });
   }
 
   async destroy(id: string): Promise<boolean> {
@@ -357,63 +492,99 @@ export class InstanceService {
         updatedAt: new Date().toISOString(),
       });
     }
-    await this.store.softDelete(id);
-    this.queueDestroy(id);
-    return true;
-  }
-
-  private queueDestroy(id: string): void {
-    if (this.destroyTasks.has(id)) return;
-    const task = this.completeDestroy(id)
-      .then(() => {
-        this.destroyRetryAttempts.delete(id);
-      })
-      .catch(async (error) => {
-        const message = error instanceof Error ? error.message : "unknown error";
-        const attempt = (this.destroyRetryAttempts.get(id) ?? 0) + 1;
-        this.destroyRetryAttempts.set(id, attempt);
-        const current = await this.store.getIncludingDeleted(id).catch(() => undefined);
-        if (current) {
-          const logs = current.logs.filter(
-            (line) => !line.startsWith("Deletion retry pending:"),
-          );
-          await this.store.save({
-            ...current,
-            status: "DESTROYING",
-            error: `Runtime cleanup is retrying: ${message}`,
-            logs: [
-              ...logs,
-              `Deletion retry pending: ${message}`,
-            ].slice(-100),
-            updatedAt: new Date().toISOString(),
-          }).catch(() => undefined);
-        }
-        const delayMs = Math.min(1_000 * 2 ** Math.min(attempt - 1, 5), 30_000);
-        const retry = setTimeout(() => this.queueDestroy(id), delayMs);
-        retry.unref();
-      })
-      .finally(() => {
-        this.destroyTasks.delete(id);
+    try {
+      await this.store.softDelete(id);
+      if (!this.jobs.enqueueInstanceLifecycle) {
+        throw new Error(
+          "The Control Worker queue does not support Instance lifecycle jobs.",
+        );
+      }
+      const operationId = await this.jobs.enqueueInstanceLifecycle({
+        projectId: this.store.projectId,
+        instanceId: id,
+        action: "delete",
       });
-    this.destroyTasks.set(id, task);
+      if (!operationId) {
+        throw new Error("Unable to enqueue Instance deletion.");
+      }
+      const queued = await this.store.getIncludingDeleted(id);
+      if (queued) {
+        await this.store.save({
+          ...queued,
+          operationId,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+      return true;
+    } catch (error) {
+      await this.store.restore(id).catch(() => undefined);
+      await this.store.save(agent).catch(() => undefined);
+      throw error;
+    }
   }
 
-  private async completeDestroy(id: string): Promise<void> {
+  async deleteRuntime(id: string): Promise<void> {
     const agent = await this.store.getIncludingDeleted(id);
     if (!agent) return;
-    const target = await this.runnerRuntimeTarget();
-    if (target) {
-      await this.runner.destroySandbox(
-        agent.sandboxName,
-        agent.agentPlatform,
-        target,
-      );
-    } else {
-      await this.runner.destroySandbox(agent.sandboxName, agent.agentPlatform);
+    if (agent.deletionCompletedAt && agent.modelRoutingBindingRevokedAt) return;
+    if (!agent.deletionCompletedAt) await this.destroyRunnerSandbox(agent);
+    const binding = await this.store.getModelRoutingBindingForAgent(id);
+    const tokensToBlock = new Set<string>();
+    if (binding?.status === "ACTIVE") {
+      tokensToBlock.add(binding.liteLLMTokenId);
     }
-    if (agent.liteLLMTokenId)
-      await this.litellm.revokeKey(agent.liteLLMTokenId);
+    if (
+      agent.liteLLMTokenId
+      && (!binding || binding.liteLLMTokenId !== agent.liteLLMTokenId)
+    ) {
+      tokensToBlock.add(agent.liteLLMTokenId);
+    }
+    await Promise.all(
+      [...tokensToBlock].map((tokenId) => this.litellm.blockKey(tokenId)),
+    );
+    const finalizedAt = new Date().toISOString();
+    if (binding?.status === "ACTIVE") {
+      await this.store.saveModelRoutingBinding({
+        ...binding,
+        status: "REVOKED",
+        revokedAt: finalizedAt,
+      });
+    }
     await this.closeInstanceAttributions(id);
+    const completedAt = agent.deletionCompletedAt ?? finalizedAt;
+    const { error: _previousError, ...completed } = agent;
+    await this.store.save({
+      ...completed,
+      ...(agent.liteLLMTokenId
+        ? { liteLLMKeyBlockedAt: agent.liteLLMKeyBlockedAt ?? finalizedAt }
+        : {}),
+      modelRoutingBindingRevokedAt: finalizedAt,
+      deletionCompletedAt: completedAt,
+      logs: [
+        ...completed.logs,
+        ...(agent.liteLLMTokenId
+          ? ["LiteLLM Virtual Key blocked and retained for billing reconciliation."]
+          : []),
+        "Instance deletion completed.",
+      ].slice(-100),
+      updatedAt: finalizedAt,
+    });
+  }
+
+  async recordDeletionFailure(id: string, error: unknown): Promise<void> {
+    const current = await this.store.getIncludingDeleted(id);
+    if (!current) return;
+    const message = error instanceof Error ? error.message : String(error);
+    const logs = current.logs.filter(
+      (line) => !line.startsWith("Deletion retry pending:"),
+    );
+    await this.store.save({
+      ...current,
+      status: "DESTROYING",
+      error: `Runtime cleanup is retrying: ${message}`,
+      logs: [...logs, `Deletion retry pending: ${message}`].slice(-100),
+      updatedAt: new Date().toISOString(),
+    });
   }
 
   async updateAccessPolicies(
@@ -513,15 +684,11 @@ export class InstanceService {
       (deployment) => deployment.litellmModelName,
     );
     return {
-      models: [
-        routing.publicModelAlias,
-        primary.litellmModelName,
-        ...fallbackModels,
-      ],
-      // A SINGLE Routing has no LiteLLM Auto Router deployment of its own.
-      // Use the resolved deployment for runtime identity and requests while
-      // retaining the stable public alias on the isolated key for API clients.
-      runtimeModel: primary.litellmModelName,
+      // Keep the Instance permission boundary on the stable Routing identity.
+      // LiteLLM resolves this key-scoped alias to the physical deployment, so
+      // neither the Runner nor the key allow-list needs direct deployment access.
+      models: [routing.publicModelAlias],
+      runtimeModel: routing.publicModelAlias,
       keyConfiguration: {
         aliases: {
           [routing.publicModelAlias]: primary.litellmModelName,
@@ -589,11 +756,10 @@ export class InstanceService {
   }
 
   private async refresh(agent: Agent): Promise<Agent> {
-    if (agent.status === "DESTROYING") {
-      this.queueDestroy(agent.id);
+    if (agent.status === "DESTROYING") return agent;
+    if (agent.status === "FAILED" && agent.runtimePhase !== "NOT_FOUND") {
       return agent;
     }
-    if (agent.status === "FAILED") return agent;
     try {
       return await this.store.save(
         applyObservedState(
@@ -654,5 +820,39 @@ export class InstanceService {
     return target
       ? this.runner.getSandbox(agent.sandboxName, agent.agentPlatform, target)
       : this.runner.getSandbox(agent.sandboxName, agent.agentPlatform);
+  }
+
+  private async destroyRunnerSandbox(agent: Agent): Promise<RunnerSandbox> {
+    const target = await this.runnerRuntimeTarget();
+    return target
+      ? this.runner.destroySandbox(
+          agent.sandboxName,
+          agent.agentPlatform,
+          target,
+        )
+      : this.runner.destroySandbox(agent.sandboxName, agent.agentPlatform);
+  }
+
+  private async waitForRunnerProvisioning(agent: Agent): Promise<RunnerSandbox> {
+    const timeoutMs = Number(
+      process.env.INSTANCE_PROVISION_TIMEOUT_MS ?? "600000",
+    );
+    const deadline = Date.now() + timeoutMs;
+    let observed: RunnerSandbox = {
+      name: agent.sandboxName,
+      agentPlatform: agent.agentPlatform,
+      phase: "PROVISIONING",
+      logs: [],
+    };
+    while (Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 2_000));
+      observed = await this.getRunnerSandbox(agent);
+      if (observed.phase === "READY" || observed.phase === "FAILED") {
+        return observed;
+      }
+    }
+    throw new Error(
+      `Instance provisioning did not become ready within ${Math.round(timeoutMs / 1_000)} seconds.`,
+    );
   }
 }

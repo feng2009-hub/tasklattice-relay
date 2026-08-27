@@ -1,6 +1,7 @@
 import type {
   KnowledgeSourceDefinition,
   UpsertKnowledgeVectorChunksInput,
+  VectorCustomMetadata,
 } from "@tali/contracts";
 import { z } from "zod";
 import { Prisma, type PrismaClient } from "../generated/prisma/client";
@@ -145,7 +146,10 @@ export class KnowledgeVectorDatabase {
     input: {
       contentHash: string;
       documentId: string;
+      directoryPath: string;
+      folderId: string | null;
       filename: string;
+      customMetadata: VectorCustomMetadata;
       revision: number;
       chunks: DoclingParsedChunk[];
     },
@@ -188,8 +192,18 @@ export class KnowledgeVectorDatabase {
           content_hash: input.contentHash,
           document_id: input.documentId,
           document_revision: input.revision,
+          folder_id: input.folderId ?? "root",
+          file_name: input.filename,
+          file_path: input.directoryPath === "/"
+            ? `/${input.filename}`
+            : `${input.directoryPath}/${input.filename}`,
           page_number: chunk.pageNumber,
+          chunk_index: index,
           section_path: chunk.sectionPath,
+          ...Object.fromEntries(
+            Object.entries(input.customMetadata)
+              .map(([key, metadata]) => [`tali_metadata_${key}`, metadata.value]),
+          ),
         };
         await transaction.$executeRaw(Prisma.sql`
           INSERT INTO tasklattice.knowledge_vector_chunks (
@@ -293,7 +307,7 @@ export class KnowledgeVectorDatabase {
         chunk.id,
         chunk.content,
         chunk.filename,
-        chunk.attributes,
+        chunk.attributes || jsonb_build_object('chunk_index', chunk.chunk_index),
         1 - (chunk.embedding <=> ${encoded}::public.vector) AS score
       FROM tasklattice.knowledge_vector_chunks AS chunk
       WHERE chunk.project_id = ${this.store.projectId}

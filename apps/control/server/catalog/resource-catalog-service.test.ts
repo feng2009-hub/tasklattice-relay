@@ -4,6 +4,7 @@ import type { LiteLLMAdminClient } from "../providers/litellm-client";
 import { ProjectQuotaService } from "../quotas/project-quota-service";
 import { createTestStore } from "../test/store";
 import type { SecretStore } from "../secrets/secret-store";
+import { KnowledgeVectorDatabase } from "./knowledge-vector-database";
 import { ResourceCatalogService } from "./resource-catalog-service";
 
 function adapter(
@@ -15,6 +16,7 @@ function adapter(
     deleteModel: vi.fn(),
     probeModel: vi.fn(),
     createInstanceKey: vi.fn(),
+    blockKey: vi.fn(),
     revokeKey: vi.fn(),
     listSpendLogs: vi.fn(async () => []),
     ensureProjectTeam: vi.fn(async () => "team-project"),
@@ -570,5 +572,92 @@ describe("ResourceCatalogService", () => {
       }),
     );
     expect(secrets.get).not.toHaveBeenCalled();
+  });
+
+  it("builds real scoped retrieval filters from the persisted metadata schema", async () => {
+    const store = createTestStore();
+    const litellm = adapter();
+    const source = await store.saveKnowledgeSourceDefinition({
+      id: "research-vectors",
+      name: "Research vectors",
+      description: "Research documents with typed metadata.",
+      vectorStoreId: "research-vectors",
+      provider: "postgresql",
+      embeddingModel: "tali/openai/text-embedding-3-small",
+      embeddingDimensions: 3,
+      credentialReference: "",
+      status: "REGISTERED",
+      lastReconciliationError: null,
+      topK: 8,
+    });
+    const vectors = new KnowledgeVectorDatabase(store, {
+      createEmbeddings: vi.fn(async (_model, input) => input.map(() => [0.1, 0.2, 0.3])),
+    });
+    await vectors.provision(source);
+    await store.database().vectorDocument.create({
+      data: {
+        projectId: store.projectId,
+        databaseId: source.id,
+        id: "paper-1",
+        filename: "paper.pdf",
+        directoryPath: "/Research",
+        mediaType: "application/pdf",
+        byteSize: 1_024,
+        contentHash: "sha256:paper",
+        status: "READY",
+        customMetadata: {
+          department: { type: "string", value: "research" },
+        },
+      },
+    });
+    const search = vi.spyOn(vectors, "search").mockResolvedValue({
+      object: "vector_store.search_results.page",
+      search_query: "coordination",
+      data: [{
+        score: 0.92,
+        content: [{ type: "text", text: "Coordination costs can dominate." }],
+        file_id: "chunk-3",
+        filename: "paper.pdf",
+        attributes: {
+          document_id: "paper-1",
+          file_path: "/Research/paper.pdf",
+          page_number: 4,
+          chunk_index: 2,
+          tali_metadata_department: "research",
+        },
+      }],
+    });
+    const secrets: SecretStore = { put: vi.fn(), get: vi.fn(), delete: vi.fn() };
+    const service = new ResourceCatalogService(
+      store,
+      new ProjectQuotaService(store, litellm),
+      litellm,
+      secrets,
+      vectors,
+    );
+
+    await expect(service.searchVectorDatabase(source.id, {
+      query: "coordination",
+      topK: 6,
+      folderId: null,
+      metadataFilters: [{
+        key: "department",
+        operator: "eq",
+        value: { type: "string", value: "research" },
+      }],
+    })).resolves.toMatchObject({
+      results: [{ documentId: "paper-1", chunkId: "chunk-3", chunkIndex: 2 }],
+    });
+    expect(search).toHaveBeenCalledWith("research-vectors", {
+      query: "coordination",
+      max_num_results: 6,
+      filters: {
+        type: "and",
+        filters: [
+          { type: "eq", key: "folder_id", value: "root" },
+          { type: "eq", key: "tali_metadata_department", value: "research" },
+        ],
+      },
+    });
   });
 });

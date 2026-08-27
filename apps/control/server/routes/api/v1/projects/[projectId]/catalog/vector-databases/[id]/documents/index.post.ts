@@ -17,6 +17,7 @@ export default defineHandler(async (event) => {
     const form = await event.req.formData();
     const file = form.get("file");
     const directoryPath = form.get("directoryPath");
+    const folderId = form.get("folderId");
     if (!isUploadedDocument(file)) {
       throw new Error("A Vector Document is required in the multipart file field.");
     }
@@ -28,6 +29,9 @@ export default defineHandler(async (event) => {
           file,
           actorId,
           typeof directoryPath === "string" ? directoryPath : "/",
+          typeof folderId === "string"
+            ? folderId || null
+            : undefined,
         ),
       { status: 202 },
     );

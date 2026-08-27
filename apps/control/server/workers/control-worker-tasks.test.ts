@@ -7,10 +7,14 @@ import type {
 } from "../jobs/control-job-queue";
 import { CONTROL_JOB_QUEUES } from "../jobs/control-job-queue";
 import type { StructuredLogger } from "../observability/structured-logger";
+import type { PrismaClient } from "../generated/prisma/client";
 import type { ProjectDeletionService } from "../projects/project-deletion-service";
 import type { ProjectRuntimeTargetService } from "../projects/project-runtime-target-service";
 import { createTestPrisma } from "../test/prisma";
-import { ControlWorkerTasks } from "./control-worker-tasks";
+import {
+  ControlWorkerTasks,
+  type InstanceLifecycleService,
+} from "./control-worker-tasks";
 
 function metadata<T extends object>(
   name: string,
@@ -51,6 +55,70 @@ describe("ControlWorkerTasks", () => {
       ([name]) => name === CONTROL_JOB_QUEUES.projectRuntimeReconcile,
     );
     expect(registration?.[1]).toMatchObject({ localConcurrency: 1 });
+    const lifecycleRegistration = work.mock.calls.find(
+      ([name]) => name === CONTROL_JOB_QUEUES.instanceLifecycle,
+    );
+    expect(lifecycleRegistration?.[1]).toMatchObject({
+      groupConcurrency: 1,
+      localConcurrency: 2,
+    });
+  });
+
+  it("runs Instance provisioning in the Worker and records retry state", async () => {
+    const failure = new Error("OpenShell temporarily unavailable");
+    const service = {
+      provision: vi.fn(async () => { throw failure; }),
+      recordProvisioningFailure: vi.fn(async () => undefined),
+      deleteRuntime: vi.fn(async () => undefined),
+      recordDeletionFailure: vi.fn(async () => undefined),
+    } satisfies InstanceLifecycleService;
+    const tasks = new ControlWorkerTasks({
+      db: createTestPrisma(),
+      deletionService: {} as ProjectDeletionService,
+      jobs: {} as PgBossControlJobQueue,
+      logger: quietLogger(),
+      runtimeTargets: {} as ProjectRuntimeTargetService,
+      instances: () => service,
+    });
+    const instanceId = "00000000-0000-4000-8000-000000000401";
+
+    await expect(tasks.instanceLifecycle(metadata(
+      CONTROL_JOB_QUEUES.instanceLifecycle,
+      { projectId: "individual", instanceId, action: "provision" },
+      { retryCount: 2, retryLimit: 25 },
+    ))).rejects.toThrow(failure);
+    expect(service.provision).toHaveBeenCalledWith(instanceId);
+    expect(service.recordProvisioningFailure).toHaveBeenCalledWith(
+      instanceId,
+      failure,
+      false,
+    );
+    expect(service.deleteRuntime).not.toHaveBeenCalled();
+  });
+
+  it("runs Instance deletion in the Worker", async () => {
+    const service = {
+      provision: vi.fn(async () => undefined),
+      recordProvisioningFailure: vi.fn(async () => undefined),
+      deleteRuntime: vi.fn(async () => undefined),
+      recordDeletionFailure: vi.fn(async () => undefined),
+    } satisfies InstanceLifecycleService;
+    const tasks = new ControlWorkerTasks({
+      db: createTestPrisma(),
+      deletionService: {} as ProjectDeletionService,
+      jobs: {} as PgBossControlJobQueue,
+      logger: quietLogger(),
+      runtimeTargets: {} as ProjectRuntimeTargetService,
+      instances: () => service,
+    });
+    const instanceId = "00000000-0000-4000-8000-000000000402";
+
+    await expect(tasks.instanceLifecycle(metadata(
+      CONTROL_JOB_QUEUES.instanceLifecycle,
+      { projectId: "individual", instanceId, action: "delete" },
+    ))).resolves.toBeUndefined();
+    expect(service.deleteRuntime).toHaveBeenCalledWith(instanceId);
+    expect(service.provision).not.toHaveBeenCalled();
   });
 
   it("records retry and terminal failure state around Project deletion", async () => {
@@ -144,6 +212,79 @@ describe("ControlWorkerTasks", () => {
     })).resolves.toMatchObject({
       queueJobId: "00000000-0000-4000-8000-000000000102",
       status: "scheduled",
+    });
+  });
+
+  it("reattaches orphaned Instance provisioning and deletion work", async () => {
+    const now = new Date();
+    const provisioningId = "00000000-0000-4000-8000-000000000411";
+    const deletingId = "00000000-0000-4000-8000-000000000412";
+    const completedId = "00000000-0000-4000-8000-000000000413";
+    const legacyCompletedId = "00000000-0000-4000-8000-000000000414";
+    const findMany = vi.fn(async () => [
+        {
+          projectId: "individual",
+          id: provisioningId,
+          deletedAt: null,
+          payload: { id: provisioningId, status: "PROVISIONING" },
+        },
+        {
+          projectId: "individual",
+          id: deletingId,
+          deletedAt: now,
+          payload: { id: deletingId, status: "DESTROYING" },
+        },
+        {
+          projectId: "individual",
+          id: completedId,
+          deletedAt: now,
+          payload: {
+            id: completedId,
+            status: "DESTROYING",
+            deletionCompletedAt: now.toISOString(),
+            modelRoutingBindingRevokedAt: now.toISOString(),
+          },
+        },
+        {
+          projectId: "individual",
+          id: legacyCompletedId,
+          deletedAt: now,
+          payload: {
+            id: legacyCompletedId,
+            status: "DESTROYING",
+            deletionCompletedAt: now.toISOString(),
+          },
+        },
+      ]);
+    const db = {
+      agentRecord: { findMany },
+    } as unknown as PrismaClient;
+    const enqueueInstanceLifecycle = vi.fn(async () =>
+      "00000000-0000-4000-8000-000000000499"
+    );
+    const tasks = new ControlWorkerTasks({
+      db,
+      deletionService: {} as ProjectDeletionService,
+      jobs: { enqueueInstanceLifecycle } as unknown as PgBossControlJobQueue,
+      logger: quietLogger(),
+      runtimeTargets: {} as ProjectRuntimeTargetService,
+    });
+
+    await expect(tasks.attachInstanceLifecycleJobs()).resolves.toBe(3);
+    expect(enqueueInstanceLifecycle).toHaveBeenCalledWith({
+      projectId: "individual",
+      instanceId: provisioningId,
+      action: "provision",
+    });
+    expect(enqueueInstanceLifecycle).toHaveBeenCalledWith({
+      projectId: "individual",
+      instanceId: deletingId,
+      action: "delete",
+    });
+    expect(enqueueInstanceLifecycle).toHaveBeenCalledWith({
+      projectId: "individual",
+      instanceId: legacyCompletedId,
+      action: "delete",
     });
   });
 

@@ -705,6 +705,19 @@ export class ProjectStore {
     return result.count > 0;
   }
 
+  async restore(id: string): Promise<boolean> {
+    const result = await this.db.agentRecord.updateMany({
+      where: {
+        projectId: this.projectId,
+        id,
+        kind: "SUPERVISOR",
+        deletedAt: { not: null },
+      },
+      data: { deletedAt: null },
+    });
+    return result.count > 0;
+  }
+
   async hardDelete(id: string): Promise<void> {
     await this.db.agentRecord.deleteMany({
       where: { projectId: this.projectId, id, kind: "SUPERVISOR" },
@@ -1553,7 +1566,10 @@ export class ProjectStore {
       },
       update: { payload: jsonInput(binding) },
     });
-    await this.saveBindingAttribution(binding, await this.get(binding.agentId));
+    await this.saveBindingAttribution(
+      binding,
+      await this.getIncludingDeleted(binding.agentId),
+    );
     return binding;
   }
   private async saveBindingAttribution(binding: ModelRoutingBinding, agent?: Agent): Promise<void> {

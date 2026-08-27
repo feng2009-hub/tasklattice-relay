@@ -352,7 +352,7 @@ describe("platform audit request capture", () => {
     }
 
     expect(uncovered).toEqual([]);
-    expect(routeFiles).toHaveLength(83);
+    expect(routeFiles).toHaveLength(87);
   });
 
   it("records direct Project role switches", async () => {

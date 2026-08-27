@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import type {
+  CreateVectorFolderInput,
   CreateKnowledgeSourceDefinitionInput,
   CreateMcpServerDefinitionInput,
   CreateSkillDefinitionInput,
@@ -13,11 +14,15 @@ import type {
   UpdateMcpServerDefinitionInput,
   UpdateSkillDefinitionInput,
   VectorDatabaseOverview,
+  VectorDeletionImpact,
   VectorDocument,
   VectorDocumentDetail,
+  VectorFolder,
   VectorIngestionJob,
   VectorDatabaseSearchInput,
   VectorDatabaseSearchResult,
+  UpdateVectorDocumentInput,
+  UpdateVectorFolderInput,
 } from "@tali/contracts";
 import { controlJobQueue } from "../jobs/control-job-queue";
 import {
@@ -333,12 +338,49 @@ export class ResourceCatalogService {
     file: UploadedVectorDocument,
     uploadedBy: string,
     directoryPath = "/",
+    folderId?: string | null,
   ): Promise<{ document: VectorDocument; job: VectorIngestionJob }> {
-    return this.vectorDocuments.queue(id, file, uploadedBy, controlJobQueue(), { directoryPath });
+    return this.vectorDocuments.queue(
+      id,
+      file,
+      uploadedBy,
+      controlJobQueue(),
+      folderId === undefined ? { directoryPath } : { folderId },
+    );
   }
 
   async deleteVectorDocument(id: string, documentId: string): Promise<boolean> {
     return this.vectorDocuments.delete(id, documentId);
+  }
+
+  async createVectorFolder(
+    id: string,
+    input: CreateVectorFolderInput,
+  ): Promise<VectorFolder> {
+    return this.vectorDocuments.createFolder(id, input);
+  }
+
+  async updateVectorFolder(
+    id: string,
+    folderId: string,
+    input: UpdateVectorFolderInput,
+  ): Promise<VectorFolder> {
+    return this.vectorDocuments.updateFolder(id, folderId, input);
+  }
+
+  async deleteVectorFolder(
+    id: string,
+    folderId: string,
+  ): Promise<VectorDeletionImpact | undefined> {
+    return this.vectorDocuments.deleteFolder(id, folderId);
+  }
+
+  async updateVectorDocument(
+    id: string,
+    documentId: string,
+    input: UpdateVectorDocumentInput,
+  ): Promise<VectorDocument> {
+    return this.vectorDocuments.updateDocument(id, documentId, input);
   }
 
   async searchVectorDatabase(
@@ -348,7 +390,39 @@ export class ResourceCatalogService {
     const database = await this.store.getKnowledgeSourceDefinition(id);
     if (!database) throw new Error("Vector Database was not found.");
     const startedAt = Date.now();
-    const request = { query: input.query, max_num_results: input.topK };
+    const filters: Array<Record<string, unknown>> = [];
+    if (input.folderId !== undefined) {
+      filters.push({ type: "eq", key: "folder_id", value: input.folderId ?? "root" });
+    }
+    if (input.metadataFilters?.length) {
+      const metadataSchema = database.provider === "postgresql"
+        ? await this.vectorDocuments.metadataFields(id)
+        : [];
+      const fields = new Map(metadataSchema.map((field) => [field.key, field]));
+      for (const filter of input.metadataFilters) {
+        const field = fields.get(filter.key);
+        if (!field) {
+          throw new Error(`Metadata field “${filter.key}” is not present in this Vector Database schema.`);
+        }
+        if (field.type !== filter.value.type) {
+          throw new Error(`Metadata field “${filter.key}” requires a ${field.type} value.`);
+        }
+        filters.push({
+          type: filter.operator,
+          key: `tali_metadata_${filter.key}`,
+          value: filter.value.value,
+        });
+      }
+    }
+    const request = {
+      query: input.query,
+      max_num_results: input.topK,
+      ...(filters.length === 1
+        ? { filters: filters[0] }
+        : filters.length > 1
+          ? { filters: { type: "and", filters } }
+          : {}),
+    };
     const response = database.provider === "postgresql"
       ? await this.vectorDatabase.search(database.vectorStoreId, request)
       : (await this.requireAdapter("searchVectorStore")(database.vectorStoreId, request)) as VectorStoreSearchResponse;
@@ -363,15 +437,26 @@ export class ResourceCatalogService {
         const pageNumber = typeof attributes.page_number === "number"
           ? attributes.page_number
           : null;
+        const chunkIndex = typeof attributes.chunk_index === "number"
+          ? attributes.chunk_index
+          : null;
         const sectionPath = Array.isArray(attributes.section_path)
           ? attributes.section_path.filter((value): value is string => typeof value === "string")
           : [];
         return {
           id: item.file_id,
+          chunkId: item.file_id,
+          documentId: typeof attributes.document_id === "string"
+            ? attributes.document_id
+            : null,
           content: item.content.map((part) => part.text).join("\n"),
           filename: item.filename,
+          directoryPath: typeof attributes.file_path === "string"
+            ? parentDirectory(attributes.file_path)
+            : "/",
           score: item.score,
           pageNumber,
+          chunkIndex,
           sectionPath,
           attributes,
         };
@@ -554,6 +639,12 @@ export class ResourceCatalogService {
       ? "PERMISSION_REQUIRED"
       : "UNAVAILABLE";
   }
+}
+
+function parentDirectory(path: string): string {
+  const segments = path.split("/").filter(Boolean);
+  if (segments.length <= 1) return "/";
+  return `/${segments.slice(0, -1).join("/")}`;
 }
 
 function safeError(error: unknown): string {

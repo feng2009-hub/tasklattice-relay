@@ -3,12 +3,15 @@ import {
   agentGardenSnapshotSchema,
   a2aAgentInstanceSchema,
   createVectorDatabaseDefinitionSchema,
+  createVectorFolderSchema,
   createMcpServerDefinitionSchema,
   createSkillDefinitionSchema,
   mcpServerDefinitionSchema,
   onboardAgentSchema,
   skillDefinitionSchema,
   updateVectorDatabaseDefinitionSchema,
+  updateVectorDocumentSchema,
+  updateVectorFolderSchema,
   updateMcpServerDefinitionSchema,
   updateSkillDefinitionSchema,
   upsertVectorChunksSchema,
@@ -19,6 +22,8 @@ import {
   vectorChunkMutationResultSchema,
   vectorDocumentDetailSchema,
   vectorDocumentSchema,
+  vectorFolderSchema,
+  vectorDeletionImpactSchema,
   vectorIngestionJobSchema,
 } from "@tali/contracts";
 import { z } from "zod";
@@ -38,6 +43,7 @@ import {
   runtimeBridgeCoordinatorParamsSchema,
   runtimeBridgeVectorDatabaseParamsSchema,
   vectorDocumentParamsSchema,
+  vectorFolderParamsSchema,
 } from "./schemas";
 
 const catalogSchema = z.object({
@@ -63,6 +69,8 @@ const catalogResourceSchema = z.union([
 ]);
 const vectorDocumentUploadSchema = z.object({
   file: z.string().meta({ contentEncoding: "binary" }),
+  folderId: z.string().uuid().nullable().optional(),
+  directoryPath: z.string().startsWith("/").optional(),
 }).strict().meta({ id: "VectorDocumentUploadForm" });
 const queuedVectorDocumentSchema = z.object({
   document: vectorDocumentSchema,
@@ -116,10 +124,34 @@ export const catalogContracts = defineContracts([
     responses: { 202: response("Queued Vector Document", queuedVectorDocumentSchema) },
   }),
   projectRoute({
+    method: "post", path: "/catalog/vector-databases/{id}/folders", operationId: "createVectorFolder",
+    summary: "Create a logical folder in a Vector Database", tags: ["Vector Databases"],
+    request: { params: catalogNamedResourceParamsSchema, body: createVectorFolderSchema },
+    responses: { 201: response("Created Vector Folder", vectorFolderSchema) },
+  }),
+  projectRoute({
+    method: "patch", path: "/catalog/vector-databases/{id}/folders/{folderId}", operationId: "updateVectorFolder",
+    summary: "Rename or move a logical Vector Database folder", tags: ["Vector Databases"],
+    request: { params: vectorFolderParamsSchema, body: updateVectorFolderSchema },
+    responses: { 200: response("Updated Vector Folder", vectorFolderSchema) },
+  }),
+  projectRoute({
+    method: "delete", path: "/catalog/vector-databases/{id}/folders/{folderId}", operationId: "deleteVectorFolder",
+    summary: "Recursively delete a Vector Database folder", tags: ["Vector Databases"],
+    request: { params: vectorFolderParamsSchema },
+    responses: { 200: response("Deleted Vector Folder impact", vectorDeletionImpactSchema) },
+  }),
+  projectRoute({
     method: "get", path: "/catalog/vector-databases/{id}/documents/{documentId}", operationId: "getVectorDocument",
     summary: "Read a Vector Document and its active chunks", tags: ["Vector Databases"],
     request: { params: vectorDocumentParamsSchema },
     responses: { 200: response("Vector Document", vectorDocumentDetailSchema) },
+  }),
+  projectRoute({
+    method: "patch", path: "/catalog/vector-databases/{id}/documents/{documentId}", operationId: "updateVectorDocument",
+    summary: "Update a Vector Database file and propagate metadata without re-embedding", tags: ["Vector Databases"],
+    request: { params: vectorDocumentParamsSchema, body: updateVectorDocumentSchema },
+    responses: { 200: response("Updated Vector Document", vectorDocumentSchema) },
   }),
   projectRoute({
     method: "delete", path: "/catalog/vector-databases/{id}/documents/{documentId}", operationId: "deleteVectorDocument",

@@ -7,6 +7,7 @@ import {
 import { describe, expect, it, vi } from "vitest";
 
 import type { LiteLLMAdminClient } from "../providers/litellm-client";
+import type { ControlJobPublisher } from "../jobs/control-job-queue";
 import type { RunnerClient } from "../runtime/nemoclaw-runner-client";
 import { RuntimePolicyService } from "../runtime-policies/runtime-policy-service";
 import { ProjectAgentRuntimeService } from "../runtime-bridge/project-agent-runtime-service";
@@ -118,7 +119,7 @@ describe("Instance lifecycle reconciliation", () => {
     });
   });
 
-  it("records a useful failure when the Sandbox disappears", () => {
+  it("keeps a newly queued Instance provisioning while the Sandbox is not visible yet", () => {
     expect(
       applyObservedState(agent, {
         name: agent.sandboxName,
@@ -126,6 +127,23 @@ describe("Instance lifecycle reconciliation", () => {
         phase: "NOT_FOUND",
         logs: [],
       }),
+    ).toMatchObject({
+      status: "PROVISIONING",
+      runtimePhase: "NOT_FOUND",
+    });
+  });
+
+  it("records NOT_FOUND as a failure after an Instance was already ready", () => {
+    expect(
+      applyObservedState(
+        { ...agent, status: "READY" },
+        {
+          name: agent.sandboxName,
+          agentPlatform: "openclaw",
+          phase: "NOT_FOUND",
+          logs: [],
+        },
+      ),
     ).toMatchObject({
       status: "FAILED",
       runtimePhase: "NOT_FOUND",
@@ -249,7 +267,12 @@ function runnerAdapter(): RunnerClient {
       phase: "READY" as const,
       logs: [],
     })),
-    getSandbox: vi.fn(),
+    getSandbox: vi.fn(async (name, agentPlatform) => ({
+      name,
+      agentPlatform,
+      phase: "NOT_FOUND" as const,
+      logs: [],
+    })),
     getSandboxInteraction: vi.fn(),
     getSandboxAudit: vi.fn(),
     destroySandbox: vi.fn(async (name, agentPlatform) => ({
@@ -281,6 +304,7 @@ function liteLLMAdapter(): LiteLLMAdminClient {
       tokenId: "instance-hashed-token",
     })),
     updateInstanceObjectPermissions: vi.fn(async () => undefined),
+    blockKey: vi.fn(async () => undefined),
     revokeKey: vi.fn(async () => undefined),
     listSpendLogs: vi.fn(async () => []),
   };
@@ -409,19 +433,34 @@ async function configuredService() {
   });
   const runner = runnerAdapter();
   const litellm = liteLLMAdapter();
-  const service = new InstanceService(store, runner, litellm);
+  const jobs = {
+    enqueueInstanceLifecycle: vi.fn(async () =>
+      "00000000-0000-4000-8000-000000000401"
+    ),
+  } as unknown as ControlJobPublisher;
+  const service = new InstanceService(
+    store,
+    runner,
+    litellm,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    jobs,
+  );
   const policy = await service.accessPolicies.create(
     { name: "Default Instance access", status: "ACTIVE", serverRules: [] },
     "test",
   );
-  return { store, runner, litellm, service, policy };
+  return { store, runner, litellm, service, policy, jobs };
 }
 
 async function createConfiguredInstance(
   setup: Awaited<ReturnType<typeof configuredService>>,
   overrides: Partial<CreateInstanceInput> = {},
 ) {
-  return setup.service.create(
+  const queued = await setup.service.create(
     {
       name: "Research Assistant",
       description: "",
@@ -436,6 +475,8 @@ async function createConfiguredInstance(
     },
     "local-admin",
   );
+  await setup.service.provision(queued.id);
+  return (await setup.store.get(queued.id))!;
 }
 
 async function instantiateAsExternalRegistryFixture(
@@ -463,6 +504,65 @@ async function instantiateAsExternalRegistryFixture(
 }
 
 describe("Instance Access Policy lifecycle", () => {
+  it("returns a queued Instance before LiteLLM and OpenShell provisioning starts", async () => {
+    const setup = await configuredService();
+    const queued = await setup.service.create(
+      {
+        name: "Asynchronous Research Assistant",
+        description: "",
+        runtime: "openshell",
+        accessPolicyIds: [setup.policy.id],
+        modelRoutingId: "routing-a",
+        agentPlatform: "openclaw",
+        policyId: "restricted",
+        systemPrompt: "Research the request and report the resulting evidence.",
+        knowledgeSourceIds: ["engineering-handbook"],
+      },
+      "local-admin",
+    );
+
+    expect(queued).toMatchObject({
+      status: "PROVISIONING",
+      provisioningStage: "QUEUED",
+      operationId: "00000000-0000-4000-8000-000000000401",
+    });
+    expect(setup.jobs.enqueueInstanceLifecycle).toHaveBeenCalledWith({
+      projectId: setup.store.projectId,
+      instanceId: queued.id,
+      action: "provision",
+    });
+    expect(setup.litellm.createInstanceServiceAccountKey).not.toHaveBeenCalled();
+    expect(setup.runner.createSandbox).not.toHaveBeenCalled();
+
+    await setup.service.provision(queued.id);
+    expect(setup.litellm.createInstanceServiceAccountKey).toHaveBeenCalledOnce();
+    expect(setup.runner.createSandbox).toHaveBeenCalledOnce();
+  });
+
+  it("recovers a false NOT_FOUND failure after the Sandbox becomes ready", async () => {
+    const setup = await configuredService();
+    const agent = await createConfiguredInstance(setup);
+    await setup.store.save({
+      ...agent,
+      status: "FAILED",
+      runtimePhase: "NOT_FOUND",
+      error: "The OpenShell Sandbox was not found.",
+    });
+    vi.mocked(setup.runner.getSandbox).mockResolvedValueOnce({
+      name: agent.sandboxName,
+      agentPlatform: agent.agentPlatform,
+      phase: "READY",
+      logs: ["Sandbox ready."],
+    });
+
+    const recovered = await setup.service.get(agent.id);
+    expect(recovered).toMatchObject({
+      status: "READY",
+      runtimePhase: "READY",
+    });
+    expect(recovered).not.toHaveProperty("error");
+  });
+
   it("discovers READY callable A2A Instances from the Project registry", async () => {
     const setup = await configuredService();
     const garden = new AgentGardenService(
@@ -767,7 +867,7 @@ describe("Instance Access Policy lifecycle", () => {
     expect(setup.litellm.createInstanceServiceAccountKey).toHaveBeenCalledWith(
       expect.objectContaining({
         teamId: "team-a",
-        models: ["tali-routing-routing-a", "tali/provider-a/deepseek-chat"],
+        models: ["tali-routing-routing-a"],
         aliases: {
           "tali-routing-routing-a": "tali/provider-a/deepseek-chat",
         },
@@ -795,7 +895,7 @@ describe("Instance Access Policy lifecycle", () => {
       expect.objectContaining({
         apiKey: "sk-instance-service-account",
         inferenceEndpoint: "http://litellm:4000/v1",
-        model: "tali/provider-a/deepseek-chat",
+        model: "tali-routing-routing-a",
       }),
     );
     expect(setup.runner.createSandbox).toHaveBeenCalledWith(
@@ -814,11 +914,30 @@ describe("Instance Access Policy lifecycle", () => {
     expect(attribution?.instanceId).toBe(agent.id);
 
     await setup.service.destroy(agent.id);
-    await vi.waitFor(() =>
-      expect(setup.litellm.revokeKey).toHaveBeenCalledWith(
-        "instance-hashed-token",
-      ),
+    expect(setup.litellm.blockKey).not.toHaveBeenCalled();
+    await setup.service.deleteRuntime(agent.id);
+    expect(setup.litellm.blockKey).toHaveBeenCalledWith(
+      "instance-hashed-token",
     );
+    expect(setup.litellm.revokeKey).not.toHaveBeenCalled();
+    expect(await setup.store.getIncludingDeleted(agent.id)).toMatchObject({
+      liteLLMKeyBlockedAt: expect.any(String),
+      modelRoutingBindingRevokedAt: expect.any(String),
+      deletionCompletedAt: expect.any(String),
+      logs: expect.arrayContaining([
+        "LiteLLM Virtual Key blocked and retained for billing reconciliation.",
+        "Instance deletion completed.",
+      ]),
+    });
+    await expect(setup.store.database().costAttributionMappingRecord.findFirst({
+      where: { projectId: setup.store.projectId, instanceId: agent.id },
+    })).resolves.toMatchObject({
+      liteLLMVirtualKeyId: "instance-hashed-token",
+      validTo: expect.any(Date),
+    });
+    await setup.service.deleteRuntime(agent.id);
+    expect(setup.runner.destroySandbox).toHaveBeenCalledOnce();
+    expect(setup.litellm.blockKey).toHaveBeenCalledOnce();
   });
 
   it("accepts deletion before background runtime cleanup completes", async () => {
@@ -836,17 +955,27 @@ describe("Instance Access Policy lifecycle", () => {
     expect((await setup.store.getIncludingDeleted(agent.id))?.status).toBe(
       "DESTROYING",
     );
-    expect(setup.litellm.revokeKey).not.toHaveBeenCalled();
+    expect(setup.litellm.blockKey).not.toHaveBeenCalled();
 
+    const cleanup = setup.service.deleteRuntime(agent.id);
     finishRuntimeCleanup({
       name: agent.sandboxName,
       agentPlatform: agent.agentPlatform,
       phase: "NOT_FOUND",
       logs: [],
     });
+    await cleanup;
+    expect(setup.litellm.blockKey).toHaveBeenCalledWith(
+      "instance-hashed-token",
+    );
+    expect(setup.litellm.revokeKey).not.toHaveBeenCalled();
     await vi.waitFor(async () => {
       expect(await setup.store.get(agent.id)).toBeUndefined();
-      expect(await setup.store.getIncludingDeleted(agent.id)).toBeDefined();
+      expect(await setup.store.getIncludingDeleted(agent.id)).toMatchObject({
+        liteLLMKeyBlockedAt: expect.any(String),
+        modelRoutingBindingRevokedAt: expect.any(String),
+        deletionCompletedAt: expect.any(String),
+      });
     });
     await expect(setup.store.database().agentRecord.findUnique({
       where: {
@@ -889,7 +1018,7 @@ describe("Instance Access Policy lifecycle", () => {
     expect(setup.runner.destroySandbox).not.toHaveBeenCalled();
   });
 
-  it("revokes the LiteLLM key and removes the partial Instance when binding persistence fails", async () => {
+  it("removes a queued Instance without creating a key when binding persistence fails", async () => {
     const setup = await configuredService();
     vi.spyOn(setup.store, "replaceAgentAccessPolicies").mockRejectedValueOnce(
       new Error("binding write failed"),
@@ -898,9 +1027,7 @@ describe("Instance Access Policy lifecycle", () => {
     await expect(createConfiguredInstance(setup)).rejects.toThrow(
       "binding write failed",
     );
-    expect(setup.litellm.revokeKey).toHaveBeenCalledWith(
-      "instance-hashed-token",
-    );
+    expect(setup.litellm.revokeKey).not.toHaveBeenCalled();
     expect(await setup.store.list()).toEqual([]);
     expect(setup.runner.createSandbox).not.toHaveBeenCalled();
   });
@@ -924,7 +1051,7 @@ describe("Instance Access Policy lifecycle", () => {
     });
 
     expect(agent.modelRoutingId).toBe("routing-selected");
-    expect(agent.model).toBe("tali/provider-a/deepseek-chat");
+    expect(agent.model).toBe("tali-routing-routing-selected");
     expect(agent.modelRoutingBindingId).toBe(
       "instance-selected:routing-selected",
     );
@@ -933,7 +1060,7 @@ describe("Instance Access Policy lifecycle", () => {
         .models,
     ).toContain("tali-routing-routing-selected");
     expect(setup.runner.createSandbox).toHaveBeenCalledWith(
-      expect.objectContaining({ model: "tali/provider-a/deepseek-chat" }),
+      expect.objectContaining({ model: "tali-routing-routing-selected" }),
     );
   });
 

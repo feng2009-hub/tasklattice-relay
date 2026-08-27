@@ -1477,9 +1477,39 @@ export const vectorDocumentStatuses = [
   "FAILED",
 ] as const;
 
+export const vectorMetadataTypes = ["string", "number", "boolean", "date"] as const;
+export const vectorMetadataKeySchema = z.string()
+  .trim()
+  .min(1)
+  .max(64)
+  .regex(/^[a-z][a-z0-9_]*$/, "Use lowercase letters, numbers, and underscores; start with a letter.");
+export const vectorMetadataValueSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("string"), value: z.string().max(2_000) }).strict(),
+  z.object({ type: z.literal("number"), value: z.number().finite() }).strict(),
+  z.object({ type: z.literal("boolean"), value: z.boolean() }).strict(),
+  z.object({ type: z.literal("date"), value: z.iso.date() }).strict(),
+]);
+export const vectorCustomMetadataSchema = z.record(
+  vectorMetadataKeySchema,
+  vectorMetadataValueSchema,
+).superRefine((metadata, context) => {
+  if (Object.keys(metadata).length > 32) {
+    context.addIssue({
+      code: "custom",
+      message: "A Vector Document supports at most 32 custom metadata fields.",
+    });
+  }
+}).meta({ id: "VectorCustomMetadata" });
+export const vectorMetadataFieldSchema = z.object({
+  key: vectorMetadataKeySchema,
+  type: z.enum(vectorMetadataTypes),
+  documentCount: z.number().int().min(1),
+}).strict().meta({ id: "VectorMetadataField" });
+
 export const vectorDocumentSchema = z.object({
   id: z.string().trim().min(1).max(160),
   databaseId: z.string().trim().min(1).max(160),
+  folderId: z.string().uuid().nullable(),
   filename: z.string().trim().min(1).max(500),
   directoryPath: z.string().trim().startsWith("/").max(2_000),
   mediaType: z.string().trim().min(1).max(160),
@@ -1492,10 +1522,53 @@ export const vectorDocumentSchema = z.object({
   ocrPageCount: z.number().int().min(0),
   parser: z.literal("docling"),
   uploadedBy: z.string().trim().min(1).nullable(),
+  customMetadata: vectorCustomMetadataSchema,
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
   error: z.string().max(4_000).nullable(),
 }).strict().meta({ id: "VectorDocument" });
+
+export const vectorFolderSchema = z.object({
+  id: z.string().uuid(),
+  databaseId: z.string().trim().min(1).max(160),
+  parentId: z.string().uuid().nullable(),
+  name: z.string().trim().min(1).max(240),
+  path: z.string().trim().startsWith("/").max(2_000),
+  directChildCount: z.number().int().min(0),
+  totalFileCount: z.number().int().min(0),
+  totalVectorCount: z.number().int().min(0),
+  processingFileCount: z.number().int().min(0),
+  failedFileCount: z.number().int().min(0),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+}).strict().meta({ id: "VectorFolder" });
+
+export const createVectorFolderSchema = z.object({
+  name: z.string().trim().min(1).max(240),
+  parentId: z.string().uuid().nullable().default(null),
+}).strict().meta({ id: "CreateVectorFolder" });
+
+export const updateVectorFolderSchema = z.object({
+  name: z.string().trim().min(1).max(240).optional(),
+  parentId: z.string().uuid().nullable().optional(),
+}).strict().refine((input) => input.name !== undefined || input.parentId !== undefined, {
+  message: "Rename or move information is required.",
+}).meta({ id: "UpdateVectorFolder" });
+
+export const updateVectorDocumentSchema = z.object({
+  filename: z.string().trim().min(1).max(500).optional(),
+  folderId: z.string().uuid().nullable().optional(),
+  customMetadata: vectorCustomMetadataSchema.optional(),
+}).strict().refine((input) => input.filename !== undefined || input.folderId !== undefined || input.customMetadata !== undefined, {
+  message: "File metadata or location information is required.",
+}).meta({ id: "UpdateVectorDocument" });
+
+export const vectorDeletionImpactSchema = z.object({
+  fileCount: z.number().int().min(0),
+  vectorCount: z.number().int().min(0),
+  processingFileCount: z.number().int().min(0),
+  failedFileCount: z.number().int().min(0),
+}).strict().meta({ id: "VectorDeletionImpact" });
 
 export const vectorDocumentChunkSchema = z.object({
   id: z.string().trim().min(1).max(240),
@@ -1538,7 +1611,11 @@ export const vectorDatabaseStatsSchema = z.object({
 
 export const vectorDatabaseOverviewSchema = z.object({
   database: vectorDatabaseDefinitionSchema,
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
   stats: vectorDatabaseStatsSchema,
+  metadataSchema: z.array(vectorMetadataFieldSchema),
+  folders: z.array(vectorFolderSchema),
   documents: z.array(vectorDocumentSchema),
   jobs: z.array(vectorIngestionJobSchema),
 }).strict().meta({ id: "VectorDatabaseOverview" });
@@ -1546,6 +1623,21 @@ export const vectorDatabaseOverviewSchema = z.object({
 export const vectorDatabaseSearchInputSchema = z.object({
   query: z.string().trim().min(1).max(8_000),
   topK: z.number().int().min(1).max(50).default(8),
+  folderId: z.string().uuid().nullable().optional(),
+  metadataFilters: z.array(z.object({
+    key: vectorMetadataKeySchema,
+    operator: z.enum(["eq", "ne", "gt", "gte", "lt", "lte"]),
+    value: vectorMetadataValueSchema,
+  }).strict().superRefine((filter, context) => {
+    if ((filter.value.type === "string" || filter.value.type === "boolean")
+      && filter.operator !== "eq" && filter.operator !== "ne") {
+      context.addIssue({
+        code: "custom",
+        path: ["operator"],
+        message: `${filter.value.type} metadata supports only equals and does not equal.`,
+      });
+    }
+  })).max(8).optional(),
 }).strict().meta({ id: "VectorDatabaseSearchInput" });
 
 export const vectorDatabaseSearchResultSchema = z.object({
@@ -1553,10 +1645,14 @@ export const vectorDatabaseSearchResultSchema = z.object({
   durationMs: z.number().int().min(0),
   results: z.array(z.object({
     id: z.string(),
+    chunkId: z.string(),
+    documentId: z.string().nullable(),
     content: z.string(),
     filename: z.string(),
+    directoryPath: z.string().startsWith("/"),
     score: z.number(),
     pageNumber: z.number().int().min(1).nullable(),
+    chunkIndex: z.number().int().min(0).nullable(),
     sectionPath: z.array(z.string()),
     attributes: z.record(z.string(), z.unknown()),
   }).strict()),
@@ -2122,7 +2218,16 @@ export type CreateVectorDatabaseDefinitionInput = z.infer<typeof createVectorDat
 export type UpdateVectorDatabaseDefinitionInput = z.infer<typeof updateVectorDatabaseDefinitionSchema>;
 export type VectorChunkInput = z.infer<typeof vectorChunkInputSchema>;
 export type UpsertVectorChunksInput = z.infer<typeof upsertVectorChunksSchema>;
+export type VectorMetadataType = z.infer<typeof vectorMetadataValueSchema>["type"];
+export type VectorMetadataValue = z.infer<typeof vectorMetadataValueSchema>;
+export type VectorCustomMetadata = z.infer<typeof vectorCustomMetadataSchema>;
+export type VectorMetadataField = z.infer<typeof vectorMetadataFieldSchema>;
 export type VectorDocument = z.infer<typeof vectorDocumentSchema>;
+export type VectorFolder = z.infer<typeof vectorFolderSchema>;
+export type CreateVectorFolderInput = z.infer<typeof createVectorFolderSchema>;
+export type UpdateVectorFolderInput = z.infer<typeof updateVectorFolderSchema>;
+export type UpdateVectorDocumentInput = z.infer<typeof updateVectorDocumentSchema>;
+export type VectorDeletionImpact = z.infer<typeof vectorDeletionImpactSchema>;
 export type VectorDocumentChunk = z.infer<typeof vectorDocumentChunkSchema>;
 export type VectorDocumentDetail = z.infer<typeof vectorDocumentDetailSchema>;
 export type VectorIngestionJob = z.infer<typeof vectorIngestionJobSchema>;
@@ -2753,13 +2858,16 @@ export interface Instance extends Omit<CreateInstanceInput, "policyId"> {
   modelRoutingLastSynchronizedAt?: string;
   costKeyAlias: string;
   liteLLMTokenId?: string;
+  liteLLMKeyBlockedAt?: string;
   liteLLMTeamId?: string;
+  modelRoutingBindingRevokedAt?: string;
   serviceAccountId?: string;
   sandboxName: string;
   status: InstanceStatus;
   createdBy?: InstanceCreator;
   createdAt: string;
   updatedAt: string;
+  deletionCompletedAt?: string;
   operationId?: string;
   runtimePhase?: string;
   provisioningStage?: ProvisioningStage;

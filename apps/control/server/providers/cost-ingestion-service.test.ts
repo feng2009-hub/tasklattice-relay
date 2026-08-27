@@ -10,6 +10,7 @@ function client(): LiteLLMAdminClient {
     deleteModel: vi.fn(),
     probeModel: vi.fn(),
     createInstanceKey: vi.fn(),
+    blockKey: vi.fn(),
     revokeKey: vi.fn(),
     listSpendLogs: vi.fn(async (_from, _to, teamId) => [{
       request_id: "request-1",

@@ -277,6 +277,18 @@ export function projectRouteAdmissionPolicy(
       );
     }
     if (
+      tail[1] === "vector-databases"
+      && tail[3] === "folders"
+      && ((tail.length === 4 && method === "POST")
+        || (tail.length === 5 && (method === "PATCH" || method === "DELETE")))
+    ) {
+      return policy(
+        "PROJECT",
+        [requirement("CAP_VECTOR_DATABASE_UPDATE", "VectorFolder")],
+        tail[2],
+      );
+    }
+    if (
       tail.length === 5
       && tail[1] === "vector-databases"
       && tail[3] === "chunks"
@@ -307,7 +319,7 @@ export function projectRouteAdmissionPolicy(
       tail[1] === "vector-databases"
       && tail.length === 5
       && tail[3] === "documents"
-      && (method === "GET" || method === "DELETE")
+      && (method === "GET" || method === "PATCH" || method === "DELETE")
     ) {
       return policy(
         "PROJECT",

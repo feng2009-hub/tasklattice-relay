@@ -92,4 +92,27 @@ describe("PgBossControlJobQueue", () => {
       }),
     );
   });
+
+  it("serializes Instance lifecycle work per Instance and prioritizes deletion", async () => {
+    const fake = bossClient();
+    const queue = new PgBossControlJobQueue(fake.boss);
+    const payload = {
+      projectId: "project-a",
+      instanceId: "00000000-0000-4000-8000-000000000401",
+      action: "delete" as const,
+    };
+
+    await expect(queue.enqueueInstanceLifecycle(payload))
+      .resolves.toBe("00000000-0000-4000-8000-000000000201");
+    expect(fake.send).toHaveBeenCalledWith(
+      CONTROL_JOB_QUEUES.instanceLifecycle,
+      payload,
+      expect.objectContaining({
+        group: { id: `${payload.projectId}:${payload.instanceId}` },
+        priority: 90,
+        singletonKey:
+          `${payload.projectId}:${payload.instanceId}:${payload.action}`,
+      }),
+    );
+  });
 });

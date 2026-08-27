@@ -5,6 +5,7 @@ import {
   CONTROL_JOB_QUEUES,
   type ControlJobMetadata,
   type ControlMaintenanceJobPayload,
+  type InstanceLifecycleJobPayload,
   type PgBossControlJobQueue,
   type ProjectDeletionJobPayload,
   type ProjectRuntimeReconcileJobPayload,
@@ -19,6 +20,7 @@ import { ProjectDeletionService } from "../projects/project-deletion-service";
 import { ProjectRuntimeTargetService } from "../projects/project-runtime-target-service";
 import { ResourceCatalogService } from "../catalog/resource-catalog-service";
 import { ProjectStore } from "../projects/project-store";
+import { InstanceService } from "../instances/instance-service";
 
 const projectIdPayloadSchema = z.object({ projectId: z.string().trim().min(1) });
 const runtimeReconcilePayloadSchema = projectIdPayloadSchema.extend({
@@ -32,6 +34,22 @@ const vectorDocumentIngestionPayloadSchema = z.object({
   databaseId: z.string().trim().min(1),
   ingestionJobId: z.string().uuid(),
 });
+const instanceLifecyclePayloadSchema = z.object({
+  projectId: z.string().trim().min(1),
+  instanceId: z.string().uuid(),
+  action: z.enum(["provision", "delete"]),
+});
+
+export interface InstanceLifecycleService {
+  provision(id: string): Promise<unknown>;
+  recordProvisioningFailure(
+    id: string,
+    error: unknown,
+    terminal: boolean,
+  ): Promise<void>;
+  deleteRuntime(id: string): Promise<void>;
+  recordDeletionFailure(id: string, error: unknown): Promise<void>;
+}
 
 export interface ControlWorkerTaskDependencies {
   db?: PrismaClient;
@@ -39,6 +57,7 @@ export interface ControlWorkerTaskDependencies {
   jobs: PgBossControlJobQueue;
   logger?: StructuredLogger;
   runtimeTargets?: ProjectRuntimeTargetService;
+  instances?: (projectId: string) => InstanceLifecycleService;
 }
 
 export class ControlWorkerTasks {
@@ -153,12 +172,50 @@ export class ControlWorkerTasks {
     }
   }
 
+  async instanceLifecycle(
+    job: ControlJobMetadata<InstanceLifecycleJobPayload>,
+  ): Promise<void> {
+    const payload = instanceLifecyclePayloadSchema.parse(job.data);
+    const startedAt = Date.now();
+    const service = this.dependencies.instances?.(payload.projectId)
+      ?? new InstanceService(new ProjectStore(payload.projectId, this.db));
+    this.logJob("info", "job.started", job, payload);
+    try {
+      if (payload.action === "provision") {
+        await service.provision(payload.instanceId);
+      } else {
+        await service.deleteRuntime(payload.instanceId);
+      }
+      this.logJob("info", "job.completed", job, {
+        ...payload,
+        durationMs: Date.now() - startedAt,
+      });
+    } catch (error) {
+      if (payload.action === "provision") {
+        await service.recordProvisioningFailure(
+          payload.instanceId,
+          error,
+          job.retryCount >= job.retryLimit,
+        );
+      } else {
+        await service.recordDeletionFailure(payload.instanceId, error);
+      }
+      this.logJob("error", "job.retry", job, {
+        ...payload,
+        durationMs: Date.now() - startedAt,
+        ...serializeError(error),
+      });
+      throw error;
+    }
+  }
+
   async maintenance(
     job: ControlJobMetadata<ControlMaintenanceJobPayload>,
   ): Promise<void> {
     const { reason } = maintenancePayloadSchema.parse(job.data);
     const startedAt = Date.now();
     const deletionJobsAttached = await this.attachHistoricalDeletionJobs();
+    const instanceJobsAttached = await this.attachInstanceLifecycleJobs();
     const projectIds = await this.runtimeTargets.reconciliationCandidateIds();
     let runtimeJobsEnqueued = 0;
     for (const projectId of projectIds) {
@@ -170,6 +227,7 @@ export class ControlWorkerTasks {
     }
     const queueStatus = (await this.dependencies.jobs.boss.getQueues([
       CONTROL_JOB_QUEUES.projectDeletion,
+      CONTROL_JOB_QUEUES.instanceLifecycle,
       CONTROL_JOB_QUEUES.projectRuntimeReconcile,
       CONTROL_JOB_QUEUES.vectorDocumentIngestion,
       CONTROL_JOB_QUEUES.deadLetter,
@@ -182,6 +240,7 @@ export class ControlWorkerTasks {
     }));
     this.logJob("info", "maintenance.completed", job, {
       deletionJobsAttached,
+      instanceJobsAttached,
       durationMs: Date.now() - startedAt,
       queueStatus,
       reason,
@@ -274,9 +333,72 @@ export class ControlWorkerTasks {
     return attached;
   }
 
+  async attachInstanceLifecycleJobs(): Promise<number> {
+    if (!this.dependencies.jobs.enqueueInstanceLifecycle) return 0;
+    const records = await this.db.agentRecord.findMany({
+      where: {
+        kind: "SUPERVISOR",
+        OR: [
+          {
+            deletedAt: null,
+            payload: { path: ["status"], equals: "PROVISIONING" },
+          },
+          {
+            deletedAt: null,
+            AND: [
+              { payload: { path: ["status"], equals: "FAILED" } },
+              { payload: { path: ["runtimePhase"], equals: "NOT_FOUND" } },
+            ],
+          },
+          {
+            deletedAt: { not: null },
+            payload: { path: ["status"], equals: "DESTROYING" },
+          },
+        ],
+      },
+      select: { deletedAt: true, id: true, payload: true, projectId: true },
+    });
+    let attached = 0;
+    for (const record of records) {
+      const lifecycle = record.payload as {
+        deletionCompletedAt?: string;
+        modelRoutingBindingRevokedAt?: string;
+        status?: string;
+      };
+      const status = lifecycle.status;
+      const action = record.deletedAt || status === "DESTROYING"
+        ? "delete"
+        : "provision";
+      if (
+        action === "delete"
+        && lifecycle.deletionCompletedAt
+        && lifecycle.modelRoutingBindingRevokedAt
+      ) continue;
+      const id = await this.dependencies.jobs.enqueueInstanceLifecycle({
+        projectId: record.projectId,
+        instanceId: record.id,
+        action,
+      });
+      if (id) attached += 1;
+    }
+    return attached;
+  }
+
   register(): Promise<string[]> {
     const { boss } = this.dependencies.jobs;
     return Promise.all([
+      boss.work<InstanceLifecycleJobPayload>(
+        CONTROL_JOB_QUEUES.instanceLifecycle,
+        {
+          groupConcurrency: 1,
+          includeMetadata: true,
+          localConcurrency: 2,
+          pollingIntervalSeconds: 2,
+        },
+        async ([job]) => this.instanceLifecycle(
+          job! as ControlJobMetadata<InstanceLifecycleJobPayload>,
+        ),
+      ),
       boss.work<ProjectDeletionJobPayload>(
         CONTROL_JOB_QUEUES.projectDeletion,
         {

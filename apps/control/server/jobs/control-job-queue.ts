@@ -5,6 +5,7 @@ import type { Prisma } from "../generated/prisma/client";
 export const CONTROL_JOB_SCHEMA = "tali_control_jobs";
 export const CONTROL_JOB_QUEUES = {
   deadLetter: "control-dead-letter",
+  instanceLifecycle: "control-instance-lifecycle",
   maintenance: "control-maintenance",
   projectDeletion: "control-project-delete",
   projectRuntimeReconcile: "control-project-runtime-reconcile",
@@ -33,9 +34,19 @@ export interface VectorDocumentIngestionJobPayload {
   ingestionJobId: string;
 }
 
+export interface InstanceLifecycleJobPayload {
+  projectId: string;
+  instanceId: string;
+  action: "provision" | "delete";
+}
+
 export type ControlJobMetadata<T extends object> = JobWithMetadata<T>;
 
 export interface ControlJobPublisher {
+  enqueueInstanceLifecycle?(
+    payload: InstanceLifecycleJobPayload,
+    transaction?: Prisma.TransactionClient,
+  ): Promise<string | undefined>;
   enqueueProjectDeletion(
     projectId: string,
     scheduledFor: Date,
@@ -111,6 +122,25 @@ export class PgBossControlJobQueue implements ControlJobPublisher {
       throw new Error(`Unable to enqueue Project deletion for ${projectId}.`);
     }
     return id;
+  }
+
+  async enqueueInstanceLifecycle(
+    payload: InstanceLifecycleJobPayload,
+    transaction?: Prisma.TransactionClient,
+  ): Promise<string | undefined> {
+    await this.start();
+    const id = await this.boss.send(
+      CONTROL_JOB_QUEUES.instanceLifecycle,
+      payload,
+      {
+        group: { id: `${payload.projectId}:${payload.instanceId}` },
+        priority: payload.action === "delete" ? 90 : 60,
+        singletonKey:
+          `${payload.projectId}:${payload.instanceId}:${payload.action}`,
+        ...(transaction ? { db: fromPrisma(transaction) } : {}),
+      },
+    );
+    return id ?? undefined;
   }
 
   async enqueueProjectRuntimeReconcile(
@@ -199,6 +229,7 @@ export class PgBossControlJobQueue implements ControlJobPublisher {
       retryLimit: 25,
     } as const;
     for (const name of [
+      CONTROL_JOB_QUEUES.instanceLifecycle,
       CONTROL_JOB_QUEUES.projectDeletion,
       CONTROL_JOB_QUEUES.projectRuntimeReconcile,
       CONTROL_JOB_QUEUES.vectorDocumentIngestion,

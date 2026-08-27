@@ -22,12 +22,20 @@ adopting or deleting an unrelated Namespace.
 
 The initial queues are:
 
+- `control-instance-lifecycle`: durable Instance provisioning and deletion.
+  Jobs are serialized per Instance; retries reload desired state, reconcile any
+  existing Sandbox, and clean up partial LiteLLM credentials before retrying.
+  Normal Instance deletion blocks its LiteLLM Virtual Key and closes the local
+  attribution window without deleting the key record, preserving Key, Team,
+  Alias, and spend identity for billing reconciliation. Only unused credentials
+  created by a failed provisioning attempt are permanently deleted.
 - `control-project-delete`: delayed Project cleanup, including external
   resources and final Namespace deletion.
 - `control-project-runtime-reconcile`: one Project Runtime Namespace and
   compatibility OpenShell Gateway repair.
-- `control-maintenance`: a short periodic scan that attaches pre-migration
-  deletion tasks and fans out stale Runtime Targets.
+- `control-maintenance`: a short periodic scan that reattaches orphaned
+  Instance lifecycle and pre-migration Project deletion tasks, then fans out
+  stale Runtime Targets.
 - `control-dead-letter`: terminal failures after the configured retry limit.
 
 ## Status and logs

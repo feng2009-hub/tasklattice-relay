@@ -11,6 +11,7 @@ function adapter(): LiteLLMAdminClient {
     deleteModel: vi.fn(),
     probeModel: vi.fn(),
     createInstanceKey: vi.fn(),
+    blockKey: vi.fn(),
     revokeKey: vi.fn(),
     listSpendLogs: vi.fn(),
     ensureProjectTeam: vi.fn(async () => "team-project"),

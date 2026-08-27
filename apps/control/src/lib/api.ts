@@ -12,6 +12,7 @@ import type {
   AgentGardenSnapshot,
   A2aAgentInstance,
   CreateVectorDatabaseDefinitionInput,
+  CreateVectorFolderInput,
   DepartmentInferenceAvailability,
   DepartmentInferenceResourceAssignmentView,
   CreateAccessPolicyInput,
@@ -40,6 +41,8 @@ import type {
   VectorDatabaseSearchResult,
   VectorDocumentDetail,
   VectorDocument,
+  VectorFolder,
+  VectorDeletionImpact,
   VectorIngestionJob,
   InferenceGateway,
   ModelRouting,
@@ -68,6 +71,8 @@ import type {
   TraceListResponse,
   SkillDefinition,
   UpdateVectorDatabaseDefinitionInput,
+  UpdateVectorDocumentInput,
+  UpdateVectorFolderInput,
   UpdateAccessPolicyInput,
   UpdateMcpServerDefinitionInput,
   UpdateSkillDefinitionInput,
@@ -311,10 +316,10 @@ export const api = {
       `/api/v1/catalog/vector-databases/${encodeURIComponent(id)}/chunks`,
       { method: "PUT", body: JSON.stringify(input) },
     ),
-  queueVectorDocument: (id: string, file: File, directoryPath = "/") => {
+  queueVectorDocument: (id: string, file: File, folderId: string | null) => {
     const body = new FormData();
     body.set("file", file);
-    body.set("directoryPath", directoryPath);
+    body.set("folderId", folderId ?? "");
     return request<{ document: VectorDocument; job: VectorIngestionJob }>(
       `/api/v1/catalog/vector-databases/${encodeURIComponent(id)}/documents`,
       { method: "POST", body },
@@ -327,6 +332,26 @@ export const api = {
   deleteVectorDocument: (id: string, documentId: string) =>
     request<{ message: string }>(
       `/api/v1/catalog/vector-databases/${encodeURIComponent(id)}/documents/${encodeURIComponent(documentId)}`,
+      { method: "DELETE" },
+    ),
+  updateVectorDocument: (id: string, documentId: string, input: UpdateVectorDocumentInput) =>
+    request<VectorDocument>(
+      `/api/v1/catalog/vector-databases/${encodeURIComponent(id)}/documents/${encodeURIComponent(documentId)}`,
+      { method: "PATCH", body: JSON.stringify(input) },
+    ),
+  createVectorFolder: (id: string, input: CreateVectorFolderInput) =>
+    request<VectorFolder>(
+      `/api/v1/catalog/vector-databases/${encodeURIComponent(id)}/folders`,
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+  updateVectorFolder: (id: string, folderId: string, input: UpdateVectorFolderInput) =>
+    request<VectorFolder>(
+      `/api/v1/catalog/vector-databases/${encodeURIComponent(id)}/folders/${encodeURIComponent(folderId)}`,
+      { method: "PATCH", body: JSON.stringify(input) },
+    ),
+  deleteVectorFolder: (id: string, folderId: string) =>
+    request<VectorDeletionImpact>(
+      `/api/v1/catalog/vector-databases/${encodeURIComponent(id)}/folders/${encodeURIComponent(folderId)}`,
       { method: "DELETE" },
     ),
   searchVectorDatabase: (id: string, input: VectorDatabaseSearchInput) =>

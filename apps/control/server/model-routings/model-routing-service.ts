@@ -374,10 +374,10 @@ export class ModelRoutingService {
     const binding = await this.store.getModelRoutingBindingForAgent(agentId);
     if (!binding || binding.status === "REVOKED") return;
     const routing = await this.require(binding.modelRoutingId);
-    await this.litellm.revokeKey(binding.liteLLMTokenId);
+    await this.litellm.blockKey(binding.liteLLMTokenId);
     await this.store.saveModelRoutingBinding({ ...binding, status: "REVOKED", revokedAt: new Date().toISOString() });
     await this.audit(routing, "model_routing_binding.revoked", "agent-service", "SUCCESS", "Instance binding revoked.", agentId);
-    await this.audit(routing, "virtual_key.revoked", "agent-service", "SUCCESS", `Virtual Key fingerprint ${binding.keyFingerprint}.`, agentId);
+    await this.audit(routing, "virtual_key.blocked", "agent-service", "SUCCESS", `Virtual Key fingerprint ${binding.keyFingerprint} blocked and retained for billing reconciliation.`, agentId);
   }
 
   async consumers(id: string): Promise<ModelRoutingBinding[]> {

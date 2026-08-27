@@ -70,6 +70,7 @@ function adapter(): LiteLLMAdminClient {
     deleteModel: vi.fn(),
     probeModel: vi.fn(),
     createInstanceKey: vi.fn(),
+    blockKey: vi.fn(),
     revokeKey: vi.fn(),
     listSpendLogs: vi.fn(async () => []),
     updateInstanceObjectPermissions: vi.fn(async () => undefined),

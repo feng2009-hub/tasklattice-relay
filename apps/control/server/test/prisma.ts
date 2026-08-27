@@ -55,6 +55,8 @@ import knowledgeVectorDatabaseMigration from "../../prisma/migrations/2026082702
 import departmentResourceAssignmentsMigration from "../../prisma/migrations/20260827030000_department_resource_assignments/migration.sql?raw";
 import vectorDatabaseDocumentsMigration from "../../prisma/migrations/20260827120000_vector_database_documents/migration.sql?raw";
 import vectorDocumentDirectoriesMigration from "../../prisma/migrations/20260827130000_vector_document_directories/migration.sql?raw";
+import vectorDatabaseFoldersMigration from "../../prisma/migrations/20260827140000_vector_database_folders/migration.sql?raw";
+import vectorDocumentMetadataMigration from "../../prisma/migrations/20260827200000_vector_document_metadata/migration.sql?raw";
 import { developmentResourceCatalog } from "../catalog/development-resource-catalog";
 import { PrismaClient } from "../generated/prisma/client";
 
@@ -86,6 +88,22 @@ export function createTestPrisma(): PrismaClient {
     args: [DataType.text],
     returns: DataType.integer,
     implementation: (value: string) => value.length,
+  });
+  memory.public.registerFunction({
+    name: "btrim",
+    args: [DataType.text],
+    returns: DataType.text,
+    implementation: (value: string) => value.trim(),
+  });
+  memory.public.registerFunction({
+    name: "jsonb_typeof",
+    args: [DataType.jsonb],
+    returns: DataType.text,
+    implementation: (value: unknown) => {
+      if (value === null) return "null";
+      if (Array.isArray(value)) return "array";
+      return typeof value;
+    },
   });
   // pg-mem models NUMERIC values but does not parse PostgreSQL precision
   // metadata. Production migrations retain Prisma's DECIMAL(65,30).
@@ -545,6 +563,16 @@ export function createTestPrisma(): PrismaClient {
   memory.public.none(departmentResourceAssignmentsMigration);
   memory.public.none(vectorDatabaseDocumentsMigration);
   memory.public.none(vectorDocumentDirectoriesMigration);
+  memory.public.none(
+    vectorDatabaseFoldersMigration
+      // Test databases start without Vector Documents. pg-mem does not support
+      // the recursive backfill or PostgreSQL JSONB concatenation used in production.
+      .replace(/-- Preserve the logical directories[\s\S]*?ON CONFLICT DO NOTHING;\s*/, "")
+      .replace(/UPDATE tasklattice\.vector_documents AS document[\s\S]*?WHERE document\.directory_path <> '\/';\s*/, "")
+      .replace(/UPDATE tasklattice\.knowledge_vector_chunks AS chunk[\s\S]*?AND document\.id = chunk\.document_id;\s*/, "")
+      .replaceAll(" DEFAULT gen_random_uuid()", ""),
+  );
+  memory.public.none(vectorDocumentMetadataMigration);
   const pg = memory.adapters.createPg();
   const query = pg.Client.prototype.query;
   pg.Client.prototype.query = function (

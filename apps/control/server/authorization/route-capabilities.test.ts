@@ -30,7 +30,7 @@ describe("Project route capability declarations", () => {
       const pathname = `/api/v1/projects/individual${route ? `/${route}` : ""}`;
       if (!projectRouteAdmissionPolicy(method, pathname)) uncovered.push(file);
     }
-    expect(files).toHaveLength(91);
+    expect(files).toHaveLength(95);
     expect(uncovered).toEqual([]);
   });
 
@@ -77,6 +77,17 @@ describe("Project route capability declarations", () => {
     expect(projectRouteAdmissionPolicy(
       "DELETE",
       "/api/v1/projects/individual/catalog/vector-databases/knowledge-1/chunks/chunk-1",
+    )?.requirements[0]?.capability).toBe("CAP_VECTOR_DATABASE_UPDATE");
+    expect(projectRouteAdmissionPolicy(
+      "POST",
+      "/api/v1/projects/individual/catalog/vector-databases/knowledge-1/folders",
+    )?.requirements[0]).toEqual({
+      capability: "CAP_VECTOR_DATABASE_UPDATE",
+      resourceType: "VectorFolder",
+    });
+    expect(projectRouteAdmissionPolicy(
+      "PATCH",
+      "/api/v1/projects/individual/catalog/vector-databases/knowledge-1/documents/file-1",
     )?.requirements[0]?.capability).toBe("CAP_VECTOR_DATABASE_UPDATE");
   });
 

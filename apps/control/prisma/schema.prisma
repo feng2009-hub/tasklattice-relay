@@ -99,20 +99,20 @@ enum McpDiscoveryStatus {
 }
 
 model User {
-  id            String     @id
-  username      String?    @unique
-  email         String     @unique
-  emailVerified Boolean    @default(false) @map("email_verified")
-  displayName   String     @map("display_name")
-  image         String?
-  language      String     @default("en-US")
-  timezone      String     @default("UTC")
-  theme         String     @default("system")
-  systemRole    SystemRole @default(user) @map("system_role")
-  externalPlatformAdministrator Boolean @default(false) @map("external_platform_administrator")
-  status        UserStatus @default(active)
-  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                            String     @id
+  username                      String?    @unique
+  email                         String     @unique
+  emailVerified                 Boolean    @default(false) @map("email_verified")
+  displayName                   String     @map("display_name")
+  image                         String?
+  language                      String     @default("en-US")
+  timezone                      String     @default("UTC")
+  theme                         String     @default("system")
+  systemRole                    SystemRole @default(user) @map("system_role")
+  externalPlatformAdministrator Boolean    @default(false) @map("external_platform_administrator")
+  status                        UserStatus @default(active)
+  createdAt                     DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                     DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   createdProjects       Project[]           @relation("ProjectCreator")
   createdDepartments    Department[]        @relation("DepartmentCreator")
@@ -129,39 +129,39 @@ model User {
 }
 
 model PlatformSettingsRecord {
-  id                        String   @id @default("platform")
-  controlInternalUrl        String?  @map("control_internal_url")
-  runnerUrl                 String?  @map("runner_url")
-  runnerTokenEncrypted      String?  @map("runner_token_encrypted")
-  litellmUrl                String?  @map("litellm_url")
-  litellmMasterKeyEncrypted String?  @map("litellm_master_key_encrypted")
-  runtimeNamespacesEnabled  Boolean? @map("runtime_namespaces_enabled")
-  runtimeClusterId          String?  @map("runtime_cluster_id")
-  localAuthenticationEnabled Boolean? @map("local_authentication_enabled")
-  runtimeImages             Json?    @map("runtime_images")
-  sandboxCpu                String?  @map("sandbox_cpu")
-  sandboxMemory             String?  @map("sandbox_memory")
-  enabledProviderKinds      Json?    @map("enabled_provider_kinds")
-  oidcEnabled               Boolean  @default(false) @map("oidc_enabled")
-  oidcDisplayName           String   @default("SSO") @map("oidc_display_name")
-  oidcIssuer                String   @default("") @map("oidc_issuer")
-  oidcClientId              String   @default("") @map("oidc_client_id")
-  oidcGroupClaim            String   @default("groups") @map("oidc_group_claim")
-  oidcClientSecretEncrypted String?  @map("oidc_client_secret_encrypted")
-  smtpEnabled               Boolean  @default(false) @map("smtp_enabled")
-  smtpHost                  String   @default("") @map("smtp_host")
-  smtpPort                  Int      @default(587) @map("smtp_port")
-  smtpSecure                Boolean  @default(false) @map("smtp_secure")
-  smtpUsername              String   @default("") @map("smtp_username")
-  smtpPasswordEncrypted     String?  @map("smtp_password_encrypted")
-  smtpFromAddress           String   @default("") @map("smtp_from_address")
-  smtpFromName              String   @default("TaskLattice Relay") @map("smtp_from_name")
-  smtpReplyTo               String   @default("") @map("smtp_reply_to")
-  runtimeNamespaceDeletionTimeoutSeconds Int @default(120) @map("runtime_namespace_deletion_timeout_seconds")
-  revision                  Int      @default(1)
-  updatedBy                 String?  @map("updated_by")
-  createdAt                 DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt                 DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                                     String   @id @default("platform")
+  controlInternalUrl                     String?  @map("control_internal_url")
+  runnerUrl                              String?  @map("runner_url")
+  runnerTokenEncrypted                   String?  @map("runner_token_encrypted")
+  litellmUrl                             String?  @map("litellm_url")
+  litellmMasterKeyEncrypted              String?  @map("litellm_master_key_encrypted")
+  runtimeNamespacesEnabled               Boolean? @map("runtime_namespaces_enabled")
+  runtimeClusterId                       String?  @map("runtime_cluster_id")
+  localAuthenticationEnabled             Boolean? @map("local_authentication_enabled")
+  runtimeImages                          Json?    @map("runtime_images")
+  sandboxCpu                             String?  @map("sandbox_cpu")
+  sandboxMemory                          String?  @map("sandbox_memory")
+  enabledProviderKinds                   Json?    @map("enabled_provider_kinds")
+  oidcEnabled                            Boolean  @default(false) @map("oidc_enabled")
+  oidcDisplayName                        String   @default("SSO") @map("oidc_display_name")
+  oidcIssuer                             String   @default("") @map("oidc_issuer")
+  oidcClientId                           String   @default("") @map("oidc_client_id")
+  oidcGroupClaim                         String   @default("groups") @map("oidc_group_claim")
+  oidcClientSecretEncrypted              String?  @map("oidc_client_secret_encrypted")
+  smtpEnabled                            Boolean  @default(false) @map("smtp_enabled")
+  smtpHost                               String   @default("") @map("smtp_host")
+  smtpPort                               Int      @default(587) @map("smtp_port")
+  smtpSecure                             Boolean  @default(false) @map("smtp_secure")
+  smtpUsername                           String   @default("") @map("smtp_username")
+  smtpPasswordEncrypted                  String?  @map("smtp_password_encrypted")
+  smtpFromAddress                        String   @default("") @map("smtp_from_address")
+  smtpFromName                           String   @default("TaskLattice Relay") @map("smtp_from_name")
+  smtpReplyTo                            String   @default("") @map("smtp_reply_to")
+  runtimeNamespaceDeletionTimeoutSeconds Int      @default(120) @map("runtime_namespace_deletion_timeout_seconds")
+  revision                               Int      @default(1)
+  updatedBy                              String?  @map("updated_by")
+  createdAt                              DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                              DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@map("platform_settings")
   @@schema("tasklattice")
@@ -181,8 +181,8 @@ model ExternalRoleBinding {
   createdAt    DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime                    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  department Department?        @relation(fields: [departmentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  project    Project?           @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  department Department?         @relation(fields: [departmentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  project    Project?            @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   grants     ExternalRoleGrant[]
 
   @@index([providerId, subjectType, subjectValue, enabled])
@@ -192,10 +192,10 @@ model ExternalRoleBinding {
 }
 
 model ExternalRoleGrant {
-  bindingId String   @map("binding_id")
-  userId    String   @map("user_id")
+  bindingId  String   @map("binding_id")
+  userId     String   @map("user_id")
   lastSeenAt DateTime @default(now()) @map("last_seen_at") @db.Timestamptz(6)
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   binding ExternalRoleBinding @relation(fields: [bindingId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   user    User                @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
@@ -207,9 +207,9 @@ model ExternalRoleGrant {
 }
 
 model RoleCatalogState {
-  id        String   @id @default("builtin")
-  revision  Int
-  syncedAt  DateTime @default(now()) @map("synced_at") @db.Timestamptz(6)
+  id       String   @id @default("builtin")
+  revision Int
+  syncedAt DateTime @default(now()) @map("synced_at") @db.Timestamptz(6)
 
   @@map("role_catalog_state")
   @@schema("tasklattice")
@@ -233,18 +233,18 @@ model CapabilityDefinition {
 }
 
 model RoleDefinition {
-  id            String             @id
+  id            String                  @id
   scope         AuthorizationScope
   family        AuthorizationRoleFamily
   name          String
   description   String
-  builtin       Boolean            @default(true)
-  assignable    Boolean            @default(true)
-  systemManaged Boolean            @default(true) @map("system_managed")
-  sortOrder     Int                @default(0) @map("sort_order")
-  revision      Int                @default(1)
-  createdAt     DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  builtin       Boolean                 @default(true)
+  assignable    Boolean                 @default(true)
+  systemManaged Boolean                 @default(true) @map("system_managed")
+  sortOrder     Int                     @default(0) @map("sort_order")
+  revision      Int                     @default(1)
+  createdAt     DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   grants RoleCapabilityGrant[]
 
@@ -269,38 +269,38 @@ model RoleCapabilityGrant {
 }
 
 model Department {
-  id                                 String   @id
-  name                               String   @unique
-  description                        String?
-  defaultChatModel                   String?  @map("default_chat_model")
-  defaultEmbeddingModel              String?  @map("default_embedding_model")
-  defaultRoutingMode                 String   @default("PROJECT_MANAGED") @map("default_routing_mode")
-  defaultFallbackModel               String?  @map("default_fallback_model")
-  softBudgetUsd                      Decimal? @map("soft_budget_usd") @db.Decimal(18, 6)
-  hardBudgetUsd                      Decimal? @map("hard_budget_usd") @db.Decimal(18, 6)
-  softMaxInstances                   Int?     @map("soft_max_instances")
-  hardMaxInstances                   Int?     @map("hard_max_instances")
-  softMaxMcpIntegrations             Int?     @map("soft_max_mcp_integrations")
-  hardMaxMcpIntegrations             Int?     @map("hard_max_mcp_integrations")
-  softMaxKnowledgeBaseIntegrations   Int?     @map("soft_max_knowledge_base_integrations")
-  hardMaxKnowledgeBaseIntegrations   Int?     @map("hard_max_knowledge_base_integrations")
-  defaultProjectHardBudgetUsd        Decimal? @map("default_project_hard_budget_usd") @db.Decimal(18, 6)
-  defaultProjectBudgetDuration       String?  @map("default_project_budget_duration")
-  defaultProjectTpmLimit             BigInt?  @map("default_project_tpm_limit")
-  defaultProjectMaxInstances         Int?     @map("default_project_max_instances")
-  defaultProjectMaxMcpIntegrations   Int?     @map("default_project_max_mcp_integrations")
-  defaultProjectMaxKnowledgeBaseIntegrations Int? @map("default_project_max_knowledge_base_integrations")
-  settingsRevision                   Int      @default(1) @map("settings_revision")
-  status                             String   @default("active")
-  createdBy                          String   @map("created_by")
-  createdAt                          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt                          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                                         String   @id
+  name                                       String   @unique
+  description                                String?
+  defaultChatModel                           String?  @map("default_chat_model")
+  defaultEmbeddingModel                      String?  @map("default_embedding_model")
+  defaultRoutingMode                         String   @default("PROJECT_MANAGED") @map("default_routing_mode")
+  defaultFallbackModel                       String?  @map("default_fallback_model")
+  softBudgetUsd                              Decimal? @map("soft_budget_usd") @db.Decimal(18, 6)
+  hardBudgetUsd                              Decimal? @map("hard_budget_usd") @db.Decimal(18, 6)
+  softMaxInstances                           Int?     @map("soft_max_instances")
+  hardMaxInstances                           Int?     @map("hard_max_instances")
+  softMaxMcpIntegrations                     Int?     @map("soft_max_mcp_integrations")
+  hardMaxMcpIntegrations                     Int?     @map("hard_max_mcp_integrations")
+  softMaxKnowledgeBaseIntegrations           Int?     @map("soft_max_knowledge_base_integrations")
+  hardMaxKnowledgeBaseIntegrations           Int?     @map("hard_max_knowledge_base_integrations")
+  defaultProjectHardBudgetUsd                Decimal? @map("default_project_hard_budget_usd") @db.Decimal(18, 6)
+  defaultProjectBudgetDuration               String?  @map("default_project_budget_duration")
+  defaultProjectTpmLimit                     BigInt?  @map("default_project_tpm_limit")
+  defaultProjectMaxInstances                 Int?     @map("default_project_max_instances")
+  defaultProjectMaxMcpIntegrations           Int?     @map("default_project_max_mcp_integrations")
+  defaultProjectMaxKnowledgeBaseIntegrations Int?     @map("default_project_max_knowledge_base_integrations")
+  settingsRevision                           Int      @default(1) @map("settings_revision")
+  status                                     String   @default("active")
+  createdBy                                  String   @map("created_by")
+  createdAt                                  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                                  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  creator  User               @relation("DepartmentCreator", fields: [createdBy], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  members  DepartmentMember[]
-  projects Project[]
-  inferenceResources DepartmentInferenceResourceRecord[]
-  modelRoutingAudit  DepartmentModelRoutingAuditRecord[]
+  creator              User                                @relation("DepartmentCreator", fields: [createdBy], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  members              DepartmentMember[]
+  projects             Project[]
+  inferenceResources   DepartmentInferenceResourceRecord[]
+  modelRoutingAudit    DepartmentModelRoutingAuditRecord[]
   externalRoleBindings ExternalRoleBinding[]
 
   @@map("departments")
@@ -308,13 +308,13 @@ model Department {
 }
 
 model DepartmentMember {
-  departmentId String         @map("department_id")
-  userId       String         @map("user_id")
-  role         DepartmentRole @default(member)
-  status       String         @default("active")
-  manualAccess Boolean        @default(true) @map("manual_access")
-  externalAccessActive Boolean @default(false) @map("external_access_active")
-  joinedAt     DateTime       @default(now()) @map("joined_at") @db.Timestamptz(6)
+  departmentId         String         @map("department_id")
+  userId               String         @map("user_id")
+  role                 DepartmentRole @default(member)
+  status               String         @default("active")
+  manualAccess         Boolean        @default(true) @map("manual_access")
+  externalAccessActive Boolean        @default(false) @map("external_access_active")
+  joinedAt             DateTime       @default(now()) @map("joined_at") @db.Timestamptz(6)
 
   department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   user       User       @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
@@ -414,17 +414,17 @@ model AuthVerification {
 }
 
 model Project {
-  id           String    @id
-  name         String
-  avatar       String?
-  departmentId String    @map("department_id")
-  createdBy    String    @map("created_by")
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(6)
-  deletedBy    String?   @map("deleted_by")
-  inheritedDepartmentDefaults Json? @map("inherited_department_defaults")
-  inheritedDepartmentSettingsRevision Int? @map("inherited_department_settings_revision")
+  id                                  String    @id
+  name                                String
+  avatar                              String?
+  departmentId                        String    @map("department_id")
+  createdBy                           String    @map("created_by")
+  createdAt                           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                           DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt                           DateTime? @map("deleted_at") @db.Timestamptz(6)
+  deletedBy                           String?   @map("deleted_by")
+  inheritedDepartmentDefaults         Json?     @map("inherited_department_defaults")
+  inheritedDepartmentSettingsRevision Int?      @map("inherited_department_settings_revision")
 
   department                   Department                               @relation(fields: [departmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   creator                      User                                     @relation("ProjectCreator", fields: [createdBy], references: [id])
@@ -615,18 +615,18 @@ model AuditLogRecord {
 }
 
 model ProjectMember {
-  projectId String      @map("project_id")
-  userId    String      @map("user_id")
-  role      ProjectRole
-  manualAccess Boolean @default(true) @map("manual_access")
-  externalAccessActive Boolean @default(false) @map("external_access_active")
-  joinedAt  DateTime    @default(now()) @map("joined_at") @db.Timestamptz(6)
+  projectId            String      @map("project_id")
+  userId               String      @map("user_id")
+  role                 ProjectRole
+  manualAccess         Boolean     @default(true) @map("manual_access")
+  externalAccessActive Boolean     @default(false) @map("external_access_active")
+  joinedAt             DateTime    @default(now()) @map("joined_at") @db.Timestamptz(6)
 
-  project                  Project                       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  user                     User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  ownedAgents              AgentRecord[]                 @relation("AgentRecordOwnerMembership")
-  ownedCatalogAgents       AgentCatalogRecord[]          @relation("AgentCatalogRecordOwnerMembership")
-  roleAssignments          ProjectMemberRoleAssignment[]
+  project            Project                       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user               User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ownedAgents        AgentRecord[]                 @relation("AgentRecordOwnerMembership")
+  ownedCatalogAgents AgentCatalogRecord[]          @relation("AgentCatalogRecordOwnerMembership")
+  roleAssignments    ProjectMemberRoleAssignment[]
 
   @@id([projectId, userId])
   @@map("project_members")
@@ -634,12 +634,12 @@ model ProjectMember {
 }
 
 model ProjectMemberRoleAssignment {
-  projectId  String      @map("project_id")
-  userId     String      @map("user_id")
-  role       ProjectRole
-  manualAssignment Boolean @default(true) @map("manual_assignment")
-  externalAssignmentActive Boolean @default(false) @map("external_assignment_active")
-  assignedAt DateTime    @default(now()) @map("assigned_at") @db.Timestamptz(6)
+  projectId                String      @map("project_id")
+  userId                   String      @map("user_id")
+  role                     ProjectRole
+  manualAssignment         Boolean     @default(true) @map("manual_assignment")
+  externalAssignmentActive Boolean     @default(false) @map("external_assignment_active")
+  assignedAt               DateTime    @default(now()) @map("assigned_at") @db.Timestamptz(6)
 
   member ProjectMember @relation(fields: [projectId, userId], references: [projectId, userId], onDelete: Cascade, onUpdate: Cascade)
 
@@ -668,19 +668,19 @@ model ProjectInvitation {
 }
 
 model AgentRecord {
-  projectId                String                                   @map("project_id")
-  id                       String
-  kind                     String                                   @default("SUPERVISOR")
-  catalogAgentId           String?                                  @map("catalog_agent_id")
-  payload                  Json
-  ownerUserId              String                                   @map("owner_user_id")
-  createdAt                DateTime                                 @map("created_at") @db.Timestamptz(6)
-  updatedAt                DateTime                                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  deletedAt                DateTime?                                @map("deleted_at") @db.Timestamptz(6)
-  project                  Project                                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  ownerMembership          ProjectMember                            @relation("AgentRecordOwnerMembership", fields: [projectId, ownerUserId], references: [projectId, userId], onDelete: Restrict, map: "agents_owner_membership_fkey")
-  catalogAgent             AgentCatalogRecord?                      @relation("CatalogAgentRuntimeInstances", fields: [projectId, catalogAgentId], references: [projectId, id], onDelete: Cascade, map: "agents_catalog_agent_fkey")
-  accessPolicyBindings     AgentInstanceAccessPolicyBindingRecord[]
+  projectId            String                                   @map("project_id")
+  id                   String
+  kind                 String                                   @default("SUPERVISOR")
+  catalogAgentId       String?                                  @map("catalog_agent_id")
+  payload              Json
+  ownerUserId          String                                   @map("owner_user_id")
+  createdAt            DateTime                                 @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime                                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt            DateTime?                                @map("deleted_at") @db.Timestamptz(6)
+  project              Project                                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  ownerMembership      ProjectMember                            @relation("AgentRecordOwnerMembership", fields: [projectId, ownerUserId], references: [projectId, userId], onDelete: Restrict, map: "agents_owner_membership_fkey")
+  catalogAgent         AgentCatalogRecord?                      @relation("CatalogAgentRuntimeInstances", fields: [projectId, catalogAgentId], references: [projectId, id], onDelete: Cascade, map: "agents_catalog_agent_fkey")
+  accessPolicyBindings AgentInstanceAccessPolicyBindingRecord[]
 
   @@id([projectId, id])
   @@index([projectId, ownerUserId], map: "agents_project_owner_idx")
@@ -691,19 +691,19 @@ model AgentRecord {
 }
 
 model AgentCatalogRecord {
-  projectId   String   @map("project_id")
+  projectId   String    @map("project_id")
   id          String
   payload     Json
   // BUILT_IN catalog entries are platform-owned; PROJECT_REGISTERED entries
   // must have a same-Project member owner (enforced by a database CHECK + FK).
-  ownerUserId String?  @map("owner_user_id")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  ownerUserId String?   @map("owner_user_id")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
 
-  project          Project                    @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  ownerMembership  ProjectMember?             @relation("AgentCatalogRecordOwnerMembership", fields: [projectId, ownerUserId], references: [projectId, userId], onDelete: Restrict, map: "agent_catalog_owner_membership_fkey")
-  runtimeInstances AgentRecord[]       @relation("CatalogAgentRuntimeInstances")
+  project          Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  ownerMembership  ProjectMember? @relation("AgentCatalogRecordOwnerMembership", fields: [projectId, ownerUserId], references: [projectId, userId], onDelete: Restrict, map: "agent_catalog_owner_membership_fkey")
+  runtimeInstances AgentRecord[]  @relation("CatalogAgentRuntimeInstances")
 
   @@id([projectId, id])
   @@index([projectId, ownerUserId], map: "agent_catalog_project_owner_idx")
@@ -755,12 +755,12 @@ model InferenceGatewayRecord {
 }
 
 model ModelRoutingRecord {
-  projectId String                      @map("project_id")
+  projectId String    @map("project_id")
   id        String
   payload   Json
-  createdAt DateTime                    @map("created_at") @db.Timestamptz(6)
-  deletedAt DateTime?                   @map("deleted_at") @db.Timestamptz(6)
-  project   Project                     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @map("created_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@id([projectId, id])
   @@map("model_routings")
@@ -768,13 +768,13 @@ model ModelRoutingRecord {
 }
 
 model ModelRoutingBindingRecord {
-  projectId      String             @map("project_id")
+  projectId      String   @map("project_id")
   id             String
-  modelRoutingId String             @map("model_routing_id")
-  agentId        String             @map("agent_id")
+  modelRoutingId String   @map("model_routing_id")
+  agentId        String   @map("agent_id")
   payload        Json
-  createdAt      DateTime           @map("created_at") @db.Timestamptz(6)
-  project        Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @map("created_at") @db.Timestamptz(6)
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@id([projectId, id])
   @@index([projectId, agentId, createdAt(sort: Desc)], map: "model_routing_bindings_agent_idx")
@@ -807,7 +807,7 @@ model DepartmentInferenceResourceRecord {
   createdAt         DateTime  @map("created_at") @db.Timestamptz(6)
   deletedAt         DateTime? @map("deleted_at") @db.Timestamptz(6)
 
-  department      Department                      @relation(fields: [departmentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  department      Department                        @relation(fields: [departmentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   projectModels   ProjectDepartmentModelBinding[]
   projectRoutings ProjectDepartmentRoutingBinding[]
 
@@ -834,16 +834,16 @@ model DepartmentModelRoutingAuditRecord {
 }
 
 model ProjectDepartmentModelBinding {
-  projectId             String    @map("project_id")
-  departmentId          String    @map("department_id")
-  resourceId            String    @map("resource_id")
-  projectInheritedAt    DateTime? @map("project_inherited_at") @db.Timestamptz(6)
-  projectInheritedBy    String?   @map("project_inherited_by")
-  departmentAssignedAt  DateTime? @map("department_assigned_at") @db.Timestamptz(6)
-  departmentAssignedBy  String?   @map("department_assigned_by")
-  defaultFor             String?   @map("default_for")
-  defaultManagedBy       String?   @map("default_managed_by")
-  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  projectId            String    @map("project_id")
+  departmentId         String    @map("department_id")
+  resourceId           String    @map("resource_id")
+  projectInheritedAt   DateTime? @map("project_inherited_at") @db.Timestamptz(6)
+  projectInheritedBy   String?   @map("project_inherited_by")
+  departmentAssignedAt DateTime? @map("department_assigned_at") @db.Timestamptz(6)
+  departmentAssignedBy String?   @map("department_assigned_by")
+  defaultFor           String?   @map("default_for")
+  defaultManagedBy     String?   @map("default_managed_by")
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
   project  Project                           @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   resource DepartmentInferenceResourceRecord @relation(fields: [departmentId, resourceId], references: [departmentId, id], onDelete: Restrict, onUpdate: Cascade)
@@ -855,17 +855,17 @@ model ProjectDepartmentModelBinding {
 }
 
 model ProjectDepartmentRoutingBinding {
-  projectId             String    @map("project_id")
-  departmentId          String    @map("department_id")
-  resourceId            String    @map("resource_id")
-  projectInheritedAt    DateTime? @map("project_inherited_at") @db.Timestamptz(6)
-  projectInheritedBy    String?   @map("project_inherited_by")
-  departmentAssignedAt  DateTime? @map("department_assigned_at") @db.Timestamptz(6)
-  departmentAssignedBy  String?   @map("department_assigned_by")
-  isDefault             Boolean   @default(false) @map("is_default")
-  defaultManagedBy      String?   @map("default_managed_by")
-  liteLLMTeamId         String?   @map("litellm_team_id")
-  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  projectId            String    @map("project_id")
+  departmentId         String    @map("department_id")
+  resourceId           String    @map("resource_id")
+  projectInheritedAt   DateTime? @map("project_inherited_at") @db.Timestamptz(6)
+  projectInheritedBy   String?   @map("project_inherited_by")
+  departmentAssignedAt DateTime? @map("department_assigned_at") @db.Timestamptz(6)
+  departmentAssignedBy String?   @map("department_assigned_by")
+  isDefault            Boolean   @default(false) @map("is_default")
+  defaultManagedBy     String?   @map("default_managed_by")
+  liteLLMTeamId        String?   @map("litellm_team_id")
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
   project  Project                           @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   resource DepartmentInferenceResourceRecord @relation(fields: [departmentId, resourceId], references: [departmentId, id], onDelete: Restrict, onUpdate: Cascade)
@@ -878,12 +878,12 @@ model ProjectDepartmentRoutingBinding {
 }
 
 model SandboxPolicyRecord {
-  projectId String   @map("project_id")
+  projectId String    @map("project_id")
   id        String
   payload   Json
-  createdAt DateTime @map("created_at") @db.Timestamptz(6)
+  createdAt DateTime  @map("created_at") @db.Timestamptz(6)
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@id([projectId, id])
   @@map("sandbox_policies")
@@ -891,11 +891,11 @@ model SandboxPolicyRecord {
 }
 
 model AccessPolicyRecord {
-  projectId String   @map("project_id")
+  projectId String    @map("project_id")
   id        String
   payload   Json
-  createdAt DateTime @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @map("updated_at") @db.Timestamptz(6)
+  createdAt DateTime  @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @map("updated_at") @db.Timestamptz(6)
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
 
   project          Project                                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -963,14 +963,14 @@ model SkillArtifactRecord {
 }
 
 model SkillRecord {
-  projectId String   @map("project_id")
+  projectId String    @map("project_id")
   id        String
   payload   Json
-  sortOrder Int      @default(1000) @map("sort_order")
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  sortOrder Int       @default(1000) @map("sort_order")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@id([projectId, id])
   @@map("skills")
@@ -1018,14 +1018,14 @@ model McpToolRecord {
 }
 
 model KnowledgeSourceRecord {
-  projectId String   @map("project_id")
-  id        String
-  payload   Json
-  sortOrder Int      @default(1000) @map("sort_order")
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId      String                   @map("project_id")
+  id             String
+  payload        Json
+  sortOrder      Int                      @default(1000) @map("sort_order")
+  createdAt      DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?                @map("deleted_at") @db.Timestamptz(6)
+  project        Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   vectorDatabase KnowledgeVectorDatabase?
 
   @@id([projectId, id])
@@ -1034,18 +1034,19 @@ model KnowledgeSourceRecord {
 }
 
 model KnowledgeVectorDatabase {
-  projectId            String   @map("project_id")
-  id                   String
-  vectorStoreId        String   @map("vector_store_id")
-  embeddingModel       String   @map("embedding_model")
-  embeddingDimensions  Int      @map("embedding_dimensions")
-  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  projectId           String   @map("project_id")
+  id                  String
+  vectorStoreId       String   @map("vector_store_id")
+  embeddingModel      String   @map("embedding_model")
+  embeddingDimensions Int      @map("embedding_dimensions")
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  project Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  source  KnowledgeSourceRecord  @relation(fields: [projectId, id], references: [projectId, id], onDelete: Cascade)
-  chunks  KnowledgeVectorChunk[]
-  documents VectorDocument[]
+  project       Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  source        KnowledgeSourceRecord  @relation(fields: [projectId, id], references: [projectId, id], onDelete: Cascade)
+  chunks        KnowledgeVectorChunk[]
+  documents     VectorDocument[]
+  folders       VectorFolder[]
   ingestionJobs VectorIngestionJob[]
 
   @@id([projectId, id])
@@ -1056,23 +1057,23 @@ model KnowledgeVectorDatabase {
 }
 
 model KnowledgeVectorChunk {
-  projectId            String   @map("project_id")
-  databaseId           String   @map("database_id")
-  id                   String
-  content              String
-  filename             String
-  attributes           Json     @default("{}")
-  documentId           String?  @map("document_id")
-  documentRevision     Int?     @map("document_revision")
-  pageNumber           Int?     @map("page_number")
-  chunkIndex           Int?     @map("chunk_index")
-  tokenCount           Int?     @map("token_count")
-  sectionPath          String[] @default([]) @map("section_path")
-  label                String?
-  embeddingDimensions  Int      @map("embedding_dimensions")
-  embedding            Unsupported("vector")
-  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  projectId           String                @map("project_id")
+  databaseId          String                @map("database_id")
+  id                  String
+  content             String
+  filename            String
+  attributes          Json                  @default("{}")
+  documentId          String?               @map("document_id")
+  documentRevision    Int?                  @map("document_revision")
+  pageNumber          Int?                  @map("page_number")
+  chunkIndex          Int?                  @map("chunk_index")
+  tokenCount          Int?                  @map("token_count")
+  sectionPath         String[]              @default([]) @map("section_path")
+  label               String?
+  embeddingDimensions Int                   @map("embedding_dimensions")
+  embedding           Unsupported("vector")
+  createdAt           DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   database KnowledgeVectorDatabase @relation(fields: [projectId, databaseId, embeddingDimensions], references: [projectId, id, embeddingDimensions], onDelete: Cascade)
   revision VectorDocumentRevision? @relation(fields: [projectId, databaseId, documentId, documentRevision], references: [projectId, databaseId, documentId, revision], onDelete: Cascade)
@@ -1085,49 +1086,73 @@ model KnowledgeVectorChunk {
 }
 
 model VectorDocument {
-  projectId       String   @map("project_id")
-  databaseId      String   @map("database_id")
-  id              String
-  filename        String
-  directoryPath   String   @default("/") @map("directory_path")
-  mediaType       String   @map("media_type")
-  byteSize        Int      @map("byte_size")
-  contentHash     String   @map("content_hash")
-  status          String   @default("QUEUED")
-  activeRevision  Int      @default(1) @map("active_revision")
-  pageCount       Int      @default(0) @map("page_count")
-  chunkCount      Int      @default(0) @map("chunk_count")
-  ocrPageCount    Int      @default(0) @map("ocr_page_count")
-  parser          String   @default("docling")
-  uploadedBy      String?  @map("uploaded_by")
-  error           String?
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  projectId      String   @map("project_id")
+  databaseId     String   @map("database_id")
+  id             String
+  folderId       String?  @map("folder_id") @db.Uuid
+  filename       String
+  directoryPath  String   @default("/") @map("directory_path")
+  mediaType      String   @map("media_type")
+  byteSize       Int      @map("byte_size")
+  contentHash    String   @map("content_hash")
+  status         String   @default("QUEUED")
+  activeRevision Int      @default(1) @map("active_revision")
+  pageCount      Int      @default(0) @map("page_count")
+  chunkCount     Int      @default(0) @map("chunk_count")
+  ocrPageCount   Int      @default(0) @map("ocr_page_count")
+  parser         String   @default("docling")
+  uploadedBy     String?  @map("uploaded_by")
+  customMetadata Json     @default("{}") @map("custom_metadata")
+  error          String?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   project   Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   database  KnowledgeVectorDatabase  @relation(fields: [projectId, databaseId], references: [projectId, id], onDelete: Cascade)
+  folder    VectorFolder?            @relation(fields: [projectId, databaseId, folderId], references: [projectId, databaseId, id], onDelete: Restrict, onUpdate: Cascade)
   revisions VectorDocumentRevision[]
   jobs      VectorIngestionJob[]
 
   @@id([projectId, databaseId, id])
   @@index([projectId, databaseId, status, updatedAt], map: "vector_documents_database_status_idx")
   @@index([projectId, databaseId, directoryPath], map: "vector_documents_directory_idx")
+  @@index([projectId, databaseId, folderId, updatedAt(sort: Desc)], map: "vector_documents_folder_idx")
   @@map("vector_documents")
   @@schema("tasklattice")
 }
 
-model VectorDocumentRevision {
-  projectId        String    @map("project_id")
-  databaseId       String    @map("database_id")
-  documentId       String    @map("document_id")
-  revision         Int
-  contentHash      String    @map("content_hash")
-  sourceBytes      Bytes?    @map("source_bytes") @db.ByteA
-  doclingDocument  Json?     @map("docling_document")
-  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  completedAt      DateTime? @map("completed_at") @db.Timestamptz(6)
+model VectorFolder {
+  projectId  String   @map("project_id")
+  databaseId String   @map("database_id")
+  id         String   @default(uuid()) @db.Uuid
+  parentId   String?  @map("parent_id") @db.Uuid
+  name       String
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  document VectorDocument       @relation(fields: [projectId, databaseId, documentId], references: [projectId, databaseId, id], onDelete: Cascade)
+  database  KnowledgeVectorDatabase @relation(fields: [projectId, databaseId], references: [projectId, id], onDelete: Cascade, onUpdate: Cascade)
+  parent    VectorFolder?           @relation("VectorFolderHierarchy", fields: [projectId, databaseId, parentId], references: [projectId, databaseId, id], onDelete: Cascade, onUpdate: Cascade)
+  children  VectorFolder[]          @relation("VectorFolderHierarchy")
+  documents VectorDocument[]
+
+  @@id([projectId, databaseId, id])
+  @@index([projectId, databaseId, parentId, updatedAt(sort: Desc)], map: "vector_folders_parent_idx")
+  @@map("vector_folders")
+  @@schema("tasklattice")
+}
+
+model VectorDocumentRevision {
+  projectId       String    @map("project_id")
+  databaseId      String    @map("database_id")
+  documentId      String    @map("document_id")
+  revision        Int
+  contentHash     String    @map("content_hash")
+  sourceBytes     Bytes?    @map("source_bytes") @db.ByteA
+  doclingDocument Json?     @map("docling_document")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt     DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  document VectorDocument         @relation(fields: [projectId, databaseId, documentId], references: [projectId, databaseId, id], onDelete: Cascade)
   chunks   KnowledgeVectorChunk[]
   jobs     VectorIngestionJob[]
 
@@ -1138,26 +1163,26 @@ model VectorDocumentRevision {
 }
 
 model VectorIngestionJob {
-  id             String    @id @default(uuid()) @db.Uuid
-  projectId      String    @map("project_id")
-  databaseId     String    @map("database_id")
-  documentId     String    @map("document_id")
-  revision       Int
-  queueJobId     String?   @map("queue_job_id") @db.Uuid
-  status         String    @default("QUEUED")
-  phase          String    @default("QUEUED")
-  progress       Int       @default(0)
-  attempts       Int       @default(0)
-  error          String?
-  startedAt      DateTime? @map("started_at") @db.Timestamptz(6)
-  completedAt    DateTime? @map("completed_at") @db.Timestamptz(6)
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id          String    @id @default(uuid()) @db.Uuid
+  projectId   String    @map("project_id")
+  databaseId  String    @map("database_id")
+  documentId  String    @map("document_id")
+  revision    Int
+  queueJobId  String?   @map("queue_job_id") @db.Uuid
+  status      String    @default("QUEUED")
+  phase       String    @default("QUEUED")
+  progress    Int       @default(0)
+  attempts    Int       @default(0)
+  error       String?
+  startedAt   DateTime? @map("started_at") @db.Timestamptz(6)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  project  Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  database KnowledgeVectorDatabase @relation(fields: [projectId, databaseId], references: [projectId, id], onDelete: Cascade)
-  document VectorDocument          @relation(fields: [projectId, databaseId, documentId], references: [projectId, databaseId, id], onDelete: Cascade)
-  revisionRecord VectorDocumentRevision @relation(fields: [projectId, databaseId, documentId, revision], references: [projectId, databaseId, documentId, revision], onDelete: Cascade)
+  project        Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  database       KnowledgeVectorDatabase @relation(fields: [projectId, databaseId], references: [projectId, id], onDelete: Cascade)
+  document       VectorDocument          @relation(fields: [projectId, databaseId, documentId], references: [projectId, databaseId, id], onDelete: Cascade)
+  revisionRecord VectorDocumentRevision  @relation(fields: [projectId, databaseId, documentId, revision], references: [projectId, databaseId, documentId, revision], onDelete: Cascade)
 
   @@index([projectId, databaseId, createdAt], map: "vector_ingestion_jobs_database_idx")
   @@index([projectId, status, updatedAt], map: "vector_ingestion_jobs_status_idx")
@@ -1166,14 +1191,14 @@ model VectorIngestionJob {
 }
 
 model AgentSpecializationRecord {
-  projectId String   @map("project_id")
+  projectId String    @map("project_id")
   id        String
   payload   Json
-  sortOrder Int      @default(1000) @map("sort_order")
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  sortOrder Int       @default(1000) @map("sort_order")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@id([projectId, id])
   @@map("agent_specializations")

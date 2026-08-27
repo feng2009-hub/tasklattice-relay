@@ -40,6 +40,7 @@ function adapter(
     deleteModel: vi.fn(),
     probeModel: vi.fn(),
     createInstanceKey: vi.fn(),
+    blockKey: vi.fn(),
     revokeKey: vi.fn(),
     listSpendLogs: vi.fn(),
     inspectModelRouting: vi.fn(async () => ({
@@ -754,6 +755,8 @@ describe("Model Routing deletion", () => {
     expect(await service.get(routing.id)).toBeDefined();
 
     await service.unbindAgent("agent-consumer");
+    expect(client.blockKey).toHaveBeenCalledWith("token-hash");
+    expect(client.revokeKey).not.toHaveBeenCalled();
     await service.delete(routing.id);
 
     expect(await service.get(routing.id)).toBeUndefined();

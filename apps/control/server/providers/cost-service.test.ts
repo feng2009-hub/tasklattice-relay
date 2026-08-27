@@ -25,6 +25,7 @@ function client(logs: LiteLLMSpendLog[]): LiteLLMAdminClient {
     deleteModel: vi.fn(),
     probeModel: vi.fn(),
     createInstanceKey: vi.fn(),
+    blockKey: vi.fn(),
     revokeKey: vi.fn(),
     listSpendLogs: vi.fn(async () => logs),
   };

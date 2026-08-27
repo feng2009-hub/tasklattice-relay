@@ -30,6 +30,7 @@ function liteLLM(): LiteLLMAdminClient {
     deleteModel: vi.fn(async () => undefined),
     probeModel: vi.fn(async () => undefined),
     createInstanceKey: vi.fn(async () => ({ secret: "sk-instance", tokenId: "hashed-token" })),
+    blockKey: vi.fn(async () => undefined),
     revokeKey: vi.fn(async () => undefined),
     listSpendLogs: vi.fn(async () => []),
   };

@@ -51,6 +51,9 @@ export const vectorChunkParamsSchema = catalogNamedResourceParamsSchema.extend({
 export const vectorDocumentParamsSchema = catalogNamedResourceParamsSchema.extend({
   documentId: id,
 });
+export const vectorFolderParamsSchema = catalogNamedResourceParamsSchema.extend({
+  folderId: uuid,
+});
 export const demoAgentParamsSchema = z.object({ id });
 export const runtimeBridgeCoordinatorParamsSchema = z.object({
   coordinatorInstanceId: id,

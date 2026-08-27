@@ -206,6 +206,7 @@ export interface LiteLLMAdminClient {
   deleteModel(modelName: string): Promise<void>;
   probeModel(modelName: string, modelType: ModelType): Promise<void>;
   createInstanceKey(input: { agentId: string; alias: string; modelName: string }): Promise<LiteLLMVirtualKey>;
+  blockKey(tokenId: string): Promise<void>;
   revokeKey(tokenId: string): Promise<void>;
   listSpendLogs(from: string, to: string, teamId?: string): Promise<LiteLLMSpendLog[]>;
   inspectModelRouting?(modelAlias: string): Promise<LiteLLMModelRoutingInspection>;
@@ -878,10 +879,33 @@ export class LiteLLMClient implements LiteLLMAdminClient {
 
   async revokeKey(tokenId: string): Promise<void> {
     this.assertConfigured();
-    await this.request("/key/delete", {
-      method: "POST",
-      body: JSON.stringify({ keys: [tokenId] }),
-    });
+    try {
+      await this.request("/key/delete", {
+        method: "POST",
+        body: JSON.stringify({ keys: [tokenId] }),
+      });
+    } catch (error) {
+      // Lifecycle jobs are delivered at least once. A missing key means a
+      // previous attempt already completed this external side effect.
+      if (error instanceof LiteLLMRequestError && error.status === 404) return;
+      throw error;
+    }
+  }
+
+  async blockKey(tokenId: string): Promise<void> {
+    this.assertConfigured();
+    try {
+      await this.request("/key/block", {
+        method: "POST",
+        body: JSON.stringify({ key: tokenId }),
+      });
+    } catch (error) {
+      // Lifecycle jobs are delivered at least once. Older deployments may
+      // already have hard-deleted the key, which is also non-callable and
+      // must not leave the cleanup job retrying forever.
+      if (error instanceof LiteLLMRequestError && error.status === 404) return;
+      throw error;
+    }
   }
 
   async listSpendLogs(from: string, to: string, teamId?: string): Promise<LiteLLMSpendLog[]> {
