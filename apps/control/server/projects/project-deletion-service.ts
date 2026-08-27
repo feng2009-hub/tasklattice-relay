@@ -219,7 +219,6 @@ export class ProjectDeletionService {
       });
       await Promise.all([
         transaction.agentCatalogRecord.updateMany({ where: { projectId, deletedAt: null }, data: { deletedAt: project.deletedAt } }),
-        transaction.agentConnectionRecord.updateMany({ where: { projectId, deletedAt: null }, data: { deletedAt: project.deletedAt } }),
         transaction.providerAccountRecord.updateMany({ where: { projectId, deletedAt: null }, data: { deletedAt: project.deletedAt } }),
         transaction.modelDeploymentRecord.updateMany({ where: { projectId, deletedAt: null }, data: { deletedAt: project.deletedAt } }),
         transaction.modelRoutingRecord.updateMany({ where: { projectId, deletedAt: null }, data: { deletedAt: project.deletedAt } }),

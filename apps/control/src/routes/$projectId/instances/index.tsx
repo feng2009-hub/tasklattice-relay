@@ -270,12 +270,24 @@ function ManagedA2aInstanceRow({
         <span className="min-w-0">
           <Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: instance.id }} className="pointer-events-auto block truncate font-medium text-foreground hover:text-primary hover:underline">{instance.name}</Link>
           <span className="mt-1 block truncate font-mono text-xs text-muted-foreground">{instance.id.slice(0, 8)} · A2A Standard</span>
-          <span className="mt-1 block truncate text-xs text-muted-foreground xl:hidden">Pod {instance.podName ?? "pending"}</span>
+          <span className="mt-1 block truncate text-xs text-muted-foreground xl:hidden">
+            {instance.runtime === "kubernetes"
+              ? `Pod ${instance.podName ?? "pending"}`
+              : "External A2A runtime"}
+          </span>
         </span>
       </span>
       {!hidden.has("runtime") ? <span className="pointer-events-none relative z-10 hidden min-w-0 xl:block">
-        <strong className="block truncate text-xs font-medium">Kubernetes · Project Main Space</strong>
-        <span className="mt-1 block truncate font-mono text-xs text-muted-foreground">{instance.podName ?? instance.deploymentName ?? "Pod pending"}</span>
+        <strong className="block truncate text-xs font-medium">
+          {instance.runtime === "kubernetes"
+            ? "Kubernetes · Project Main Space"
+            : "External · Runtime Bridge"}
+        </strong>
+        <span className="mt-1 block truncate font-mono text-xs text-muted-foreground">
+          {instance.runtime === "kubernetes"
+            ? instance.podName ?? instance.deploymentName ?? "Pod pending"
+            : instance.endpoint ?? "Endpoint unavailable"}
+        </span>
       </span> : null}
       {!hidden.has("createdBy") ? <span className="pointer-events-none relative z-10 hidden min-w-0 items-center gap-2 xl:flex">
         <AccountAvatar identity={instance.createdBy} className="size-7" />
@@ -318,7 +330,7 @@ function Instances() {
     return matchesQuery && (status === "ALL" || agent.status === status);
   }), [agents.data, query, status]);
   const managed = useMemo(() => (garden.data?.instances ?? []).filter((instance) => {
-    const searchable = `${instance.name} ${instance.id} ${instance.agentId} ${instance.runtimeNamespace} ${instance.deploymentName ?? ""} ${instance.podName ?? ""} ${instance.imageReference} A2A Kubernetes`;
+    const searchable = `${instance.name} ${instance.id} ${instance.agentId} ${instance.runtimeNamespace ?? ""} ${instance.deploymentName ?? ""} ${instance.podName ?? ""} ${instance.imageReference ?? ""} ${instance.endpoint ?? ""} A2A ${instance.runtime}`;
     return searchable.toLowerCase().includes(query.trim().toLowerCase())
       && (status === "ALL" || instance.status === status);
   }), [garden.data?.instances, query, status]);
@@ -362,7 +374,7 @@ function Instances() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Instances" description="Monitor workbench Agents and managed A2A container Instances running in this Project." actions={permissions.canCreateAgents ? <Button asChild className="h-11"><Link to="/$projectId/instances" params={{ projectId }} search={{ create: "instance" }}><Plus />Create Instance</Link></Button> : undefined} />
+      <PageHeader title="Instances" description="Monitor workbench Agents and callable A2A Instances available in this Project." actions={permissions.canCreateAgents ? <Button asChild className="h-11"><Link to="/$projectId/instances" params={{ projectId }} search={{ create: "instance" }}><Plus />Create Instance</Link></Button> : undefined} />
 
       {search.created ? <CreationNotice onClose={() => void navigate({ to: "/$projectId/instances", params: { projectId }, search: {}, replace: true })} /> : null}
 

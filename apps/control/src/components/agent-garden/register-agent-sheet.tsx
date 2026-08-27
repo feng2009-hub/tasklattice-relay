@@ -249,7 +249,7 @@ export function RegisterAgentSheet({
       }}
       eyebrow="Agent Garden"
       title="Onboard Agent"
-      description="Add an Agent that publishes an A2A 1.0 Agent Card. Relay can deploy its container image or connect to an Agent that already runs elsewhere."
+      description="Add an Agent that publishes an A2A 1.0 Agent Card. Relay can deploy its container image or register an Agent that already runs elsewhere."
       width="xl"
       bodyClassName="p-0 sm:p-0"
       footer={(
@@ -278,10 +278,10 @@ export function RegisterAgentSheet({
               {mutation.isPending
                 ? sourceType === "container-image"
                   ? "Deploying & validating…"
-                  : "Connecting & validating…"
+                  : "Registering & validating…"
                 : sourceType === "container-image"
                   ? "Deploy image & onboard"
-                  : "Connect & onboard"}
+                  : "Register & onboard"}
             </Button>
           )}
         </div>
@@ -422,7 +422,7 @@ function SourceStep({
 
       <TabsContent value="existing-agent" className="mt-4 space-y-6">
         <p className="border-l-2 border-primary bg-primary/5 px-4 py-3 text-sm leading-6">
-          Connect an Agent that already runs elsewhere. Relay discovers its callable endpoint and skills from the published Agent Card.
+          Register an Agent that already runs elsewhere. Relay discovers its callable endpoint and skills from the published Agent Card.
         </p>
         <FormSection icon={Network} title="Published Agent Card" description="Provide the canonical card URL; the implementation framework does not change the onboarding contract.">
           <Field id="onboard-existing-card" label="A2A Agent Card URL">
@@ -578,12 +578,12 @@ function ReviewStep({
       <p className="border-l-2 border-primary bg-primary/5 px-4 py-3 text-sm leading-6">
         {isImage
           ? "Relay saves the Garden record, deploys the image, pins its immutable digest, and validates the Agent Card. A failure remains visible for diagnosis and retry."
-          : "Relay saves the Project-owned connection, validates its A2A 1.0 Agent Card, and records the selected interface and skills. A failed connection remains visible for diagnosis and retry."}
+          : "Relay saves the Project-owned Agent definition, validates its A2A 1.0 Agent Card, and records the selected interface and skills. A failed validation remains visible for diagnosis and retry."}
       </p>
       {pending ? (
         <div role="status" className="flex items-start gap-3 border px-4 py-3 text-sm">
           <LoaderCircle className="mt-0.5 size-4 shrink-0 animate-spin text-primary" />
-          <span><strong className="block">{isImage ? "Deploying Agent container" : "Validating Agent connection"}</strong><span className="mt-1 block text-xs leading-5 text-muted-foreground">{slowProvision ? "The cluster is still pulling the image or waiting for readiness. You can keep this panel open." : isImage ? "Waiting for Kubernetes readiness and A2A discovery…" : "Reading the remote Agent metadata…"}</span></span>
+          <span><strong className="block">{isImage ? "Deploying Agent container" : "Validating external Agent"}</strong><span className="mt-1 block text-xs leading-5 text-muted-foreground">{slowProvision ? "The cluster is still pulling the image or waiting for readiness. You can keep this panel open." : isImage ? "Waiting for Kubernetes readiness and A2A discovery…" : "Reading the remote Agent metadata…"}</span></span>
         </div>
       ) : null}
       {error ? <ErrorNotice>{error}</ErrorNotice> : null}

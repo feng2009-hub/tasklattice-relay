@@ -154,11 +154,14 @@ def configure_a2a(
             or not peer_url.path.startswith("/v1/a2a/")
         ):
             raise RuntimeError("Hermes A2A registry returned an out-of-bound peer URL")
-        peer["auth"] = {
+    validated["a2a_registry"] = {
+        "url": registry_url_value,
+        "timeout": 10,
+        "auth": {
             "type": "bearer",
             "token": registry_token,
-        }
-    validated["a2a_agents"] = peers
+        },
+    }
     toolsets = validated.get("toolsets")
     if not isinstance(toolsets, list):
         toolsets = ["hermes-cli"]

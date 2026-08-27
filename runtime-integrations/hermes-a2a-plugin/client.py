@@ -146,6 +146,43 @@ def public_peer(peer: Peer) -> dict[str, Any]:
     }
 
 
+def fetch_peer_registry(
+    url: Any,
+    auth: Any,
+    timeout_seconds: int = 10,
+) -> dict[str, Any]:
+    """Load the current Project-scoped peer map from the Runtime Bridge."""
+    registry_url = _validated_http_url(url, "registry.url")
+    if not 1 <= timeout_seconds <= DEFAULT_TIMEOUT_SECONDS:
+        raise A2AClientError(
+            f"A2A registry timeout must be between 1 and {DEFAULT_TIMEOUT_SECONDS} seconds"
+        )
+    payload = _request_json(
+        registry_url,
+        method="GET",
+        headers=_auth_headers(auth),
+        timeout_seconds=timeout_seconds,
+    )
+    peers = payload.get("a2a_agents") if isinstance(payload, dict) else None
+    if not isinstance(peers, dict):
+        raise A2AClientError("A2A registry returned an invalid peer map")
+    validated: dict[str, Any] = {}
+    for name, raw in peers.items():
+        if not isinstance(name, str) or not name.strip() or not isinstance(raw, dict):
+            raise A2AClientError("A2A registry returned an invalid peer")
+        peer_url = _validated_http_url(raw.get("url"), "url")
+        parsed_peer_url = urllib.parse.urlparse(peer_url)
+        if not _same_origin(registry_url, peer_url) or not parsed_peer_url.path.startswith(
+            "/v1/a2a/"
+        ):
+            raise A2AClientError("A2A registry returned an out-of-bound peer URL")
+        candidate = dict(raw)
+        candidate["auth"] = auth
+        parse_peer(name, candidate)
+        validated[name] = candidate
+    return validated
+
+
 def _read_json(response: Any) -> Any:
     content_type = str(response.headers.get("content-type", "")).lower()
     if "json" not in content_type:

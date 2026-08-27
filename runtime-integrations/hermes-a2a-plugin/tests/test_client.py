@@ -11,7 +11,14 @@ import unittest
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PLUGIN_ROOT))
 
-from client import A2AClientError, discover_agent, parse_peer, public_peer, send_message  # noqa: E402
+from client import (  # noqa: E402
+    A2AClientError,
+    discover_agent,
+    fetch_peer_registry,
+    parse_peer,
+    public_peer,
+    send_message,
+)
 
 
 class _AgentHandler(BaseHTTPRequestHandler):
@@ -23,6 +30,17 @@ class _AgentHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):  # noqa: N802
         type(self).authorization = self.headers.get("authorization", "")
+        if self.path == "/registry":
+            self._json(200, {
+                "a2a_agents": {
+                    "specialist-instance": {
+                        "url": self.server.endpoint,
+                        "timeout": 5,
+                        "capabilities": ["test-skill"],
+                    },
+                },
+            })
+            return
         if self.path.endswith("/.well-known/agent-card.json"):
             body = {
                 "name": "Test Specialist",
@@ -68,7 +86,11 @@ class ClientTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.server = ThreadingHTTPServer(("127.0.0.1", 0), _AgentHandler)
-        cls.server.endpoint = f"http://127.0.0.1:{cls.server.server_port}/agent"
+        cls.server.endpoint = (
+            f"http://127.0.0.1:{cls.server.server_port}"
+            "/v1/a2a/coordinators/test/agents/specialist-instance"
+        )
+        cls.server.registry = f"http://127.0.0.1:{cls.server.server_port}/registry"
         cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
         cls.thread.start()
 
@@ -93,6 +115,17 @@ class ClientTest(unittest.TestCase):
         self.assertEqual(_AgentHandler.authorization, "Bearer project-token")
         self.assertNotIn("headers", public_peer(peer))
         self.assertEqual(public_peer(peer)["capabilities"], ["test-skill"])
+
+    def test_refreshes_project_instances_from_the_runtime_bridge_registry(self):
+        peers = fetch_peer_registry(
+            self.server.registry,
+            {"type": "bearer", "token": "project-token"},
+            5,
+        )
+        peer = parse_peer("specialist-instance", peers["specialist-instance"])
+        self.assertEqual(peer.url, self.server.endpoint)
+        self.assertEqual(peer.capabilities, ("test-skill",))
+        self.assertEqual(_AgentHandler.authorization, "Bearer project-token")
 
     def test_sends_a2a_v1_jsonrpc_message(self):
         result = send_message(self.peer(), "Review this change", "existing-context")

@@ -1,6 +1,5 @@
 import type { AgentInstanceDetail } from "@tali/contracts";
-import { Activity, CheckCircle2, Link2 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Activity, CheckCircle2, Radio } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { DetailCardHeader, RelativeTime } from "./instance-detail-shared";
 
@@ -47,38 +46,22 @@ export function AgentInstanceActivityTab({
 
       <Card>
         <DetailCardHeader
-          title="Connections"
-          description="Coordinator relationships that can produce A2A invocations."
+          title="Registry discovery"
+          description="How compatible Supervisors find this Instance through the Project Runtime Bridge."
         />
         <CardContent>
-          {detail.connections.length ? (
-            <div className="space-y-3">
-              {detail.connections.map((connection) => (
-                <div key={connection.id} className="border bg-muted/15 p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="flex min-w-0 items-center gap-2 font-mono text-xs">
-                      <Link2 className="size-3.5 shrink-0 text-primary" />
-                      <span className="truncate">{connection.coordinatorInstanceId}</span>
-                    </span>
-                    <Badge variant="outline">
-                      {connection.approvalMode === "AUTO_READ_ONLY" ? "Auto read-only" : "Always ask"}
-                    </Badge>
-                  </div>
-                  <p className="mt-2 text-[11px] text-muted-foreground">
-                    Connected <RelativeTime value={connection.createdAt} />
-                  </p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="flex min-h-36 flex-col items-center justify-center text-center">
-              <Link2 className="size-5 text-muted-foreground" />
-              <strong className="mt-3 text-sm">No Coordinator connection</strong>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                The Agent is registered, but no Supervisor is authorized to delegate to it.
-              </p>
-            </div>
-          )}
+          <div className="flex min-h-36 flex-col items-center justify-center text-center">
+            <Radio className="size-5 text-primary" />
+            <strong className="mt-3 text-sm">
+              {detail.status === "READY" && detail.capabilities.acceptsDelegation
+                ? "Discoverable in this Project"
+                : "Filtered from discovery"}
+            </strong>
+            <p className="mt-1 max-w-md text-xs leading-5 text-muted-foreground">
+              Discovery requires a READY Instance, a validated A2A Agent Card,
+              and the accepts-delegation capability.
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>

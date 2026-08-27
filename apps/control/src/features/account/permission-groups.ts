@@ -31,10 +31,9 @@ const definitions = [
     id: "agents",
     title: "Agents & runtime",
     description:
-      "Agent registration, Instances, connections, assignments, and sessions.",
+      "Agent registration, Instances, assignments, and sessions.",
     prefixes: [
       "CAP_AGENT_REGISTRATION_",
-      "CAP_AGENT_CONNECTION_",
       "CAP_AGENT_INSTANCE_",
       "CAP_AGENT_ASSIGNMENT_",
       "CAP_AGENT_SESSION_",

@@ -7,11 +7,11 @@ Supervisor and Deep Agents Code remains last. A Project owns exactly one Agent
 Runtime Bridge in its Runtime Namespace. The Bridge is runtime-neutral; Hermes
 is its first adapter.
 
-The MVP publishes only connected A2A 1.0 Agents. New Hermes Instances are
-connected to two deterministic examples so planning and dispatch can be tested
-without external credentials: GitHub Daily Triage and Pull Request Risk
-Scanner. Hermes owns the plan and Kanban lifecycle. The Bridge does not
-generate a plan or maintain Supervisor conversation memory.
+The Bridge publishes only eligible A2A 1.0 Instances from the Project Instance
+Registry. Eligibility requires `READY`, `CALLABLE` or `HYBRID`,
+`acceptsDelegation`, a validated Agent Card, and a reachable endpoint. Hermes
+owns the plan and Kanban lifecycle. The Bridge does not generate a plan or
+maintain Supervisor conversation memory.
 
 ## Runtime swimlane
 
@@ -29,14 +29,14 @@ sequenceDiagram
     Hermes->>Hermes: Create Kanban plan and dependency cards
     Hermes->>Bridge: Discover peers with Coordinator-scoped bearer token
     Bridge->>Control: Project identity + forwarded Coordinator identity
-    Control->>Garden: Resolve active Coordinator connections
-    Garden-->>Control: READY Agents + allowed skills + approval mode
+    Control->>Garden: Query the Project Instance Registry
+    Garden-->>Control: Eligible READY callable A2A Instances
     Control-->>Bridge: Filtered neutral capability descriptors
     Bridge-->>Hermes: a2a_agents map with Bridge proxy URLs
     Hermes->>Hermes: Create running specialist card
     Hermes->>Bridge: a2a_call(task_id) sends authenticated A2A SendMessage
     Bridge->>Control: Project + Coordinator authenticated proxy request
-    Control->>Control: Enforce connection, skill visibility, approval, credentials
+    Control->>Control: Re-check Instance eligibility and resolve credentials
     Control->>Expert: A2A 1.0 JSON-RPC SendMessage
     Expert-->>Control: Message or Task result
     Control-->>Bridge: Standard A2A response
@@ -50,8 +50,8 @@ sequenceDiagram
 The Project Runtime Bridge owns:
 
 - a stable Project-local discovery and delegation endpoint;
-- Project/Coordinator-filtered capability projection;
-- per-Agent A2A proxy URLs and Agent Card URL rewriting;
+- Project-filtered Instance capability projection;
+- per-Instance A2A proxy URLs and Agent Card URL rewriting;
 - JSON-RPC `SendMessage` pass-through plus HTTP+JSON `/message:send`
   translation for A2A 1.0 provider interfaces;
 - transport isolation between a Supervisor container and provider endpoints;
@@ -60,12 +60,11 @@ The Project Runtime Bridge owns:
   discovery, Agent Card, and delegation request;
 - a mounted `/project-capabilities` PVC as the future packaged-asset boundary.
 
-The Control Plane continues to own Agent Garden registration, Agent
-credentials, active Coordinator connections, allowed-skill projection,
-approval-mode enforcement, Project ownership checks, and audit
-integration. A2A `SendMessage` does not carry a mandatory skill identifier, so
-the MVP filters discovery and Agent Cards but does not claim cryptographic
-per-skill enforcement inside a free-form delegated prompt.
+The Control Plane continues to own Agent Garden registration, the Instance
+Registry, Agent credentials, capability filtering, Project ownership checks,
+and audit integration. A2A `SendMessage` does not carry a mandatory skill
+identifier, so the MVP advertises the validated Agent Card but does not claim
+cryptographic per-skill enforcement inside a free-form delegated prompt.
 
 The Bridge explicitly does not own LLM planning, task-graph generation, Hermes
 Kanban state, global session memory, or cross-Project routing.
@@ -81,7 +80,8 @@ Instance separately receives a Coordinator HMAC token fixing `projectId`,
 Namespace, and `coordinatorInstanceId`; the Bridge can forward but cannot forge
 that identity. Control verifies both signatures and the current Runtime Target
 before serving a request. A deleted Coordinator also loses access because the
-active Supervisor record and connection are resolved on every call.
+active Supervisor record and its `canDelegate` capability are resolved on every
+call.
 
 The PVC is intentionally present in the MVP although A2A discovery remains API
 backed. Later reconcilers can materialize Project-approved MCP configuration,
@@ -93,10 +93,10 @@ there without changing the Bridge Service contract.
 At sandbox bootstrap, Relay:
 
 1. adds an OpenShell network rule for the Project-local Bridge only;
-2. fetches connected peers for that exact Hermes Instance;
+2. fetches the current eligible Project A2A Instances;
 3. validates every peer URL remains under the Bridge origin;
-4. writes peers and their Coordinator-scoped bearer auth under Hermes
-   `a2a_agents`;
+4. writes only the authenticated dynamic Registry endpoint into Hermes
+   configuration;
 5. enables Relay's bundled `tali-a2a` outbound plugin plus the `a2a` and
    `kanban` toolsets;
 6. instructs the Supervisor to create a `blocked` Kanban card assigned to the
@@ -116,10 +116,10 @@ synthesis, and final complete/block state. The image build runs the plugin again
 manager, performs a real loopback A2A call, and verifies the two Kanban audit
 events.
 
-The current peer projection is a bootstrap snapshot. Adding or removing a
-connection requires restarting/reconciling the Hermes Instance for its local
-`a2a_agents` map to change. Live config refresh is a follow-up adapter feature;
-the Bridge directory itself is already dynamic. The MVP surfaces an immediate
+The Relay A2A plugin refreshes the Project Registry whenever `a2a_list`,
+`a2a_discover`, or `a2a_call` resolves a peer. Creating, removing, or changing
+the readiness of an A2A Instance therefore does not require a Hermes restart.
+The MVP surfaces an immediate
 A2A Message or Task state from `SendMessage`; it does not yet poll a remote
 long-running Task, consume streaming responses, or register push
 notifications. Hermes should leave or block the corresponding Kanban card when

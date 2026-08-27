@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createFileRoute,
   Link,
@@ -19,7 +19,6 @@ import {
   Code2,
   FileInput,
   FileOutput,
-  Link2,
   Play,
   ShieldCheck,
   Sparkles,
@@ -37,7 +36,6 @@ import {
   previewAgentLabel,
   usageModeLabel,
 } from "@/components/agent-garden/agent-garden-presentation";
-import { ConnectAgentSheet } from "@/components/agent-garden/connect-agent-sheet";
 import { TryDemoAgentSheet } from "@/components/agent-garden/try-demo-agent-sheet";
 import { EmptyState } from "@/components/shared/empty-state";
 import { StatusDot } from "@/components/shared/status-dot";
@@ -81,20 +79,13 @@ function AgentMarketplaceDetail() {
     queryKey: scope.key("agent-garden"),
     queryFn: api.getAgentGarden,
   });
-  const instances = useQuery({
-    queryKey: scope.key("agents"),
-    queryFn: api.listInstances,
-  });
-  const [connectOpen, setConnectOpen] = useState(false);
   const [tryOpen, setTryOpen] = useState(false);
-  const [notice, setNotice] = useState("");
   const agent = garden.data?.agents.find(
     (candidate) => candidate.id === agentId,
   );
-  const connections = garden.data?.connections ?? [];
-  const connectionCount = connections.filter(
-    (connection) => connection.connectedAgentId === agentId,
-  ).length;
+  const instance = garden.data?.instances.find(
+    (candidate) => candidate.agentId === agentId,
+  );
   const brief = agent ? agentMarketplaceBrief(agent) : undefined;
   const preview = agent ? isPreviewAgent(agent) : false;
   const workflow = parseStringArray(agent?.configuration.workflow);
@@ -119,8 +110,33 @@ function AgentMarketplaceDetail() {
     [agent, brief?.useCases],
   );
 
+  const instantiate = useMutation({
+    mutationFn: api.instantiateGardenAgent,
+    onSuccess: async (created) => {
+      await queryClient.invalidateQueries({
+        queryKey: scope.key("agent-garden"),
+      });
+      await navigate({
+        to: "/$projectId/instances/$instanceId",
+        params: { projectId, instanceId: created.id },
+      });
+    },
+  });
+
   const createInstance = () => {
-    if (!agent || !isAgentPlatformId(agent.integrationType)) return;
+    if (!agent) return;
+    if (agent.integrationType === "a2a") {
+      if (instance) {
+        void navigate({
+          to: "/$projectId/instances/$instanceId",
+          params: { projectId, instanceId: instance.id },
+        });
+        return;
+      }
+      instantiate.mutate(agent.id);
+      return;
+    }
+    if (!isAgentPlatformId(agent.integrationType)) return;
     if (!getAgentPlatformDefinition(agent.integrationType).capabilities.interactive)
       return;
     void navigate({
@@ -177,12 +193,12 @@ function AgentMarketplaceDetail() {
         Back to Agent Garden
       </Link>
 
-      {notice ? (
+      {instantiate.error ? (
         <p
-          role="status"
-          className="border-l-2 border-emerald-500 bg-emerald-500/5 px-4 py-3 text-sm"
+          role="alert"
+          className="border-l-2 border-destructive bg-destructive/5 px-4 py-3 text-sm text-destructive"
         >
-          {notice}
+          {instantiate.error.message}
         </p>
       ) : null}
 
@@ -238,8 +254,7 @@ function AgentMarketplaceDetail() {
         <MarketplaceActions
           agent={agent}
           canManage={permissions.canManageResources}
-          connectionCount={connectionCount}
-          onConnect={() => setConnectOpen(true)}
+          instanceId={instance?.id}
           onCreateInstance={createInstance}
           onTry={() => setTryOpen(true)}
         />
@@ -257,8 +272,8 @@ function AgentMarketplaceDetail() {
                 <strong className="block text-foreground">
                   Interaction-ready blueprint
                 </strong>
-                Discovery, preview requests, trace rendering, and Coordinator
-                connection are implemented. The result uses deterministic
+                Discovery, preview requests, trace rendering, and Instance
+                Registry integration are implemented. The result uses deterministic
                 sample data and does not call the named external systems.
               </div>
             ) : null}
@@ -322,7 +337,7 @@ function AgentMarketplaceDetail() {
           <MarketplaceSection
             icon={Waypoints}
             title="Published capabilities"
-            description="Skills advertised through the Agent Card and available for connection-level allowlisting."
+            description="Skills advertised through the Agent Card and exposed when a callable Instance is discovered."
           >
             <div className="mt-5 divide-y border">
               {agent.skills.length ? (
@@ -384,7 +399,7 @@ function AgentMarketplaceDetail() {
           <MarketplaceFactCard agent={agent} />
           <MarketplaceList
             icon={ShieldCheck}
-            title="Before you connect"
+            title="Before you instantiate"
             items={brief.requirements}
           />
           <div className="border bg-muted/15 p-4">
@@ -410,19 +425,6 @@ function AgentMarketplaceDetail() {
         </aside>
       </div>
 
-      <ConnectAgentSheet
-        open={connectOpen}
-        onOpenChange={setConnectOpen}
-        agent={agent}
-        connections={connections}
-        instances={instances.data ?? []}
-        onChanged={(message) => {
-          setNotice(message);
-          void queryClient.invalidateQueries({
-            queryKey: scope.key("agent-garden"),
-          });
-        }}
-      />
       <TryDemoAgentSheet
         open={tryOpen}
         onOpenChange={setTryOpen}
@@ -435,15 +437,13 @@ function AgentMarketplaceDetail() {
 function MarketplaceActions({
   agent,
   canManage,
-  connectionCount,
-  onConnect,
+  instanceId,
   onCreateInstance,
   onTry,
 }: {
   agent: AgentGardenEntry;
   canManage: boolean;
-  connectionCount: number;
-  onConnect: () => void;
+  instanceId: string | undefined;
   onCreateInstance: () => void;
   onTry: () => void;
 }) {
@@ -452,34 +452,33 @@ function MarketplaceActions({
     <div className="border bg-muted/15 p-4">
       <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
         <span>{usageModeLabel(agent.usageMode)} Agent</span>
-        {connectionCount ? (
+        {instanceId ? (
           <span className="font-medium text-primary">
-            {connectionCount} connected
+            Instantiated
           </span>
         ) : (
-          <span>Not connected</span>
+          <span>Not instantiated</span>
         )}
       </div>
       <div className="mt-4 grid gap-2">
-        {agent.configuration.managedInstanceId ? (
+        {instanceId ? (
           <Button asChild variant="outline" className="h-11 w-full">
             <Link
               to="/$projectId/instances/$instanceId"
-              params={{ projectId, instanceId: agent.configuration.managedInstanceId }}
+              params={{ projectId, instanceId }}
             >
               <Boxes /> View managed Instance
             </Link>
           </Button>
         ) : null}
-        {agent.usageCapabilities.acceptsDelegation ? (
+        {agent.usageCapabilities.acceptsDelegation && !instanceId ? (
           <Button
             type="button"
             className="h-11 w-full"
             disabled={!canManage || agent.status !== "READY"}
-            onClick={onConnect}
+            onClick={onCreateInstance}
           >
-            <Link2 />
-            Connect Agent
+            Create Instance <ArrowRight />
           </Button>
         ) : null}
         {isPreviewAgent(agent) ? (
@@ -494,6 +493,7 @@ function MarketplaceActions({
           </Button>
         ) : null}
         {agent.source === "BUILT_IN" &&
+        !instanceId &&
         agent.usageCapabilities.interactive ? (
           <Button
             type="button"
@@ -507,8 +507,8 @@ function MarketplaceActions({
         ) : null}
       </div>
       <p className="mt-3 text-xs leading-5 text-muted-foreground">
-        Connecting authorizes a Coordinator. It does not immediately run a
-        task or bypass Project policies.
+        READY callable Instances are automatically discoverable by compatible
+        Supervisors in this Project through the Runtime Bridge.
       </p>
     </div>
   );

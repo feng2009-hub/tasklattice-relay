@@ -22,9 +22,18 @@ export default defineHandler(async (event) => {
   try {
     await requireProjectRole(event.req, ["admin"]);
     const id = decodeURIComponent(event.context.params?.id ?? "");
-    return jsonResponse(
-      await (await getAgentGardenService(event.req)).discover(id, actorId),
-    );
+    const instance = await (
+      await getAgentGardenService(event.req)
+    ).instantiate(id, actorId);
+    return jsonResponse(instance, {
+      status: 201,
+      headers: {
+        location:
+          `/api/v1/projects/${encodeURIComponent(
+            event.context.params?.projectId ?? "",
+          )}/instances/${encodeURIComponent(instance.id)}`,
+      },
+    });
   } catch (error) {
     return errorResponse(error);
   }

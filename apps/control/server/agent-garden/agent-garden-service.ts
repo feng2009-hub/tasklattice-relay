@@ -1,16 +1,12 @@
 import { randomUUID } from "node:crypto";
 import {
-  agentConnectionSchema,
   agentGardenEntrySchema,
   a2aAgentInstanceSchema,
-  createAgentConnectionSchema,
   onboardAgentSchema,
   onboardContainerImageAgentSchema,
-  type AgentConnection,
   type A2aAgentInstance,
   type AgentGardenEntry,
   type AgentGardenSnapshot,
-  type CreateAgentConnectionInput,
   type OnboardAgentInput,
   type OnboardContainerImageAgentInput,
   type OnboardExistingAgentInput,
@@ -180,6 +176,50 @@ function managedInstance(
   });
 }
 
+function externalInstance(
+  agent: AgentGardenEntry,
+  instanceId: string,
+  previous?: A2aAgentInstance,
+  failure?: string,
+): A2aAgentInstance {
+  const now = new Date().toISOString();
+  const ready = !failure
+    && agent.status === "READY"
+    && Boolean(agent.endpoint)
+    && Boolean(agent.agentCardUrl)
+    && Boolean(agent.a2a);
+  return a2aAgentInstanceSchema.parse({
+    id: instanceId,
+    agentId: agent.id,
+    kind: "A2A",
+    name: agent.name,
+    description: agent.description,
+    runtime: "external",
+    status: failure || !ready ? "FAILED" : "READY",
+    provisioningStage: ready ? "READY" : "ENDPOINT",
+    runtimeNamespace: null,
+    deploymentName: null,
+    serviceName: null,
+    podName: null,
+    labelSelector: null,
+    imageReference: null,
+    imageDigest: null,
+    endpoint: agent.endpoint ?? previous?.endpoint ?? null,
+    agentCardUrl: agent.agentCardUrl ?? previous?.agentCardUrl ?? null,
+    a2a: agent.a2a ?? previous?.a2a ?? null,
+    skills: agent.skills.length ? agent.skills : previous?.skills ?? [],
+    createdAt: previous?.createdAt ?? now,
+    updatedAt: now,
+    logs: appendLifecycleLog(
+      previous?.logs,
+      failure
+        ? `External A2A Instance discovery failed: ${failure}`
+        : "A2A Agent Card validated. The external runtime is available through the Project Runtime Bridge.",
+    ),
+    error: failure ?? null,
+  });
+}
+
 export class AgentGardenService {
   constructor(
     readonly store = new AgentGardenStore(),
@@ -193,9 +233,8 @@ export class AgentGardenService {
   ) {}
 
   async snapshot(ownerUserId?: string): Promise<AgentGardenSnapshot> {
-    const [, connections, instances] = await Promise.all([
+    const [, instances] = await Promise.all([
       this.store.ensureAgents(databaseAgentCatalog),
-      this.store.listConnections(ownerUserId),
       this.store.listManagedInstances(ownerUserId),
     ]);
     const persistedAgents = await this.store.listAgents(ownerUserId);
@@ -220,7 +259,6 @@ export class AgentGardenService {
             !databaseIds.has(agent.id),
         ),
       ],
-      connections,
       instances,
     };
   }
@@ -258,7 +296,32 @@ export class AgentGardenService {
       lastDiscoveryError: null,
     });
     await this.store.saveAgent(agent, ownerUserId);
-    return this.discover(agent.id);
+    return this.discover(agent.id, ownerUserId);
+  }
+
+  async instantiate(
+    id: string,
+    ownerUserId?: string,
+  ): Promise<A2aAgentInstance> {
+    if (!ownerUserId) {
+      throw new Error("An owner user is required when creating an A2A Instance.");
+    }
+    const agent = await this.requireCallableAgent(id);
+    if (agent.status !== "READY") {
+      throw new Error("Only a READY Agent can be instantiated.");
+    }
+    if (!agent.usageCapabilities.acceptsDelegation) {
+      throw new Error("This Agent does not accept delegated tasks.");
+    }
+    if (!agent.endpoint || !agent.agentCardUrl || !agent.a2a) {
+      throw new Error("A validated A2A Agent Card is required before creating an Instance.");
+    }
+    const existing = await this.store.getManagedInstanceForAgent(agent.id);
+    if (existing) return existing;
+    return this.store.saveManagedInstance(
+      externalInstance(agent, randomUUID()),
+      ownerUserId,
+    );
   }
 
   async onboard(
@@ -308,7 +371,10 @@ export class AgentGardenService {
     return this.discover(agent.id);
   }
 
-  async discover(id: string): Promise<AgentGardenEntry> {
+  async discover(
+    id: string,
+    ownerUserId?: string,
+  ): Promise<AgentGardenEntry> {
     const current = await this.requireProjectRegisteredAgent(id);
     let checking = await this.store.saveAgent({
       ...current,
@@ -409,12 +475,23 @@ export class AgentGardenService {
           runtimeResult,
           result,
         ));
+      } else if (checking.configuration.onboardingSource === EXISTING_AGENT_SOURCE) {
+        const previous = await this.store.getManagedInstanceForAgent(ready.id);
+        if (previous || ownerUserId) {
+          await this.store.saveManagedInstance(
+            externalInstance(ready, previous?.id ?? randomUUID(), previous),
+            previous ? undefined : ownerUserId,
+          );
+        }
       }
       return ready;
     } catch (error) {
       const message = safeError(error);
       if (runtimeInstance) {
         const input = containerInputFromAgent(checking);
+        if (!runtimeInstance.runtimeNamespace) {
+          throw new Error("Managed A2A Instance Runtime Namespace is missing.");
+        }
         await this.store.saveManagedInstance(managedInstance(
           checking,
           input,
@@ -425,6 +502,13 @@ export class AgentGardenService {
           undefined,
           message,
         ));
+      } else if (checking.configuration.onboardingSource === EXISTING_AGENT_SOURCE) {
+        const previous = await this.store.getManagedInstanceForAgent(checking.id);
+        if (previous) {
+          await this.store.saveManagedInstance(
+            externalInstance(checking, previous.id, previous, message),
+          );
+        }
       }
       return this.store.saveAgent({
         ...checking,
@@ -437,11 +521,6 @@ export class AgentGardenService {
 
   async remove(id: string): Promise<boolean> {
     const agent = await this.requireProjectRegisteredAgent(id);
-    if (await this.store.countConnectionsForAgent(id)) {
-      throw new Error(
-        "This Agent is connected to a Coordinator. Disconnect it before removal.",
-      );
-    }
     if (agent.configuration.onboardingSource === CONTAINER_IMAGE_SOURCE) {
       const target = await this.requireRuntimeTarget();
       const instance = await this.store.getManagedInstanceForAgent(agent.id);
@@ -458,61 +537,21 @@ export class AgentGardenService {
         projectId: this.store.projectId,
       });
       await this.store.deleteManagedInstanceForAgent(agent.id);
+    } else {
+      await this.store.deleteManagedInstanceForAgent(agent.id);
     }
     return this.store.deleteAgent(id);
   }
 
-  async connect(
-    rawInput: CreateAgentConnectionInput,
-  ): Promise<AgentConnection> {
-    const input = createAgentConnectionSchema.parse(rawInput);
-    const [coordinatorCapabilities, connectedAgent] = await Promise.all([
-      this.store.instanceCapabilities(input.coordinatorInstanceId),
-      this.requireConnectableAgent(input.connectedAgentId),
-    ]);
-    if (!coordinatorCapabilities) {
-      throw new Error("Coordinator Instance was not found.");
-    }
-    if (!coordinatorCapabilities.canDelegate) {
+  async removeInstance(id: string): Promise<boolean> {
+    const instance = await this.store.getManagedInstance(id);
+    if (!instance) return false;
+    if (instance.runtime !== "external") {
       throw new Error(
-        "This Instance runtime cannot delegate tasks to connected Agents.",
+        "Remove the managed Agent definition to delete its Kubernetes runtime.",
       );
     }
-    if (!connectedAgent.usageCapabilities.acceptsDelegation) {
-      throw new Error("This Agent does not accept delegated tasks.");
-    }
-    if (connectedAgent.status !== "READY") {
-      throw new Error("Only a READY Agent can be connected to a Coordinator.");
-    }
-    const knownSkills = new Set(
-      connectedAgent.skills.map((skill) => skill.id),
-    );
-    const unknownSkills = input.allowedSkillIds.filter(
-      (skillId) => !knownSkills.has(skillId),
-    );
-    if (unknownSkills.length) {
-      throw new Error(
-        `Agent skills were not discovered: ${unknownSkills.join(", ")}.`,
-      );
-    }
-    const existing = await this.store.findConnection(
-      input.coordinatorInstanceId,
-      input.connectedAgentId,
-    );
-    if (existing) throw new Error("This Agent is already connected.");
-    const now = new Date().toISOString();
-    return this.store.saveConnection(
-      agentConnectionSchema.parse({
-        id: randomUUID(),
-        ...input,
-        createdAt: now,
-        updatedAt: now,
-      }),
-    );
-  }
-
-  async disconnect(id: string): Promise<boolean> {
-    return this.store.deleteConnection(id);
+    return this.store.deleteManagedInstance(id);
   }
 
   private async requireProjectRegisteredAgent(
@@ -544,22 +583,11 @@ export class AgentGardenService {
     return target;
   }
 
-  private async requireConnectableAgent(
-    id: string,
-  ): Promise<AgentGardenEntry> {
-    const builtIn = builtInAgentCatalog.find((agent) => agent.id === id);
-    if (builtIn) {
-      if (!builtIn.usageCapabilities.acceptsDelegation) {
-        return builtIn;
-      }
-      return this.store.saveAgent(builtIn);
-    }
-    const agent = await this.store.getAgent(id);
-    if (agent) return agent;
-    const seeded = databaseAgentCatalog.find(
-      (candidate) => candidate.id === id,
-    );
-    if (seeded) return this.store.saveAgent(seeded);
-    throw new Error("Registered Agent was not found.");
+  private async requireCallableAgent(id: string): Promise<AgentGardenEntry> {
+    const existing = await this.store.getAgent(id);
+    if (existing) return existing;
+    const seeded = databaseAgentCatalog.find((candidate) => candidate.id === id);
+    if (!seeded) throw new Error("Agent Garden entry was not found.");
+    return this.store.saveAgent(seeded);
   }
 }

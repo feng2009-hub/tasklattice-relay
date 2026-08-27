@@ -198,7 +198,7 @@ describe("AgentGardenService", () => {
     ).resolves.toBeUndefined();
   });
 
-  it("connects a callable built-in demo without duplicating its card", async () => {
+  it("instantiates a callable built-in demo without duplicating its card", async () => {
     const projectStore = createTestStore();
     await projectStore.save(
       coordinator("deepagents-coordinator", "deepagents"),
@@ -209,13 +209,15 @@ describe("AgentGardenService", () => {
       projectStore,
     );
 
-    const connection = await service.connect({
-      coordinatorInstanceId: "deepagents-coordinator",
-      connectedAgentId: "a2a-github-daily-triage",
-      allowedSkillIds: ["daily-repository-triage"],
-      approvalMode: "AUTO_READ_ONLY",
+    const instance = await service.instantiate(
+      "a2a-github-daily-triage",
+      "local-admin",
+    );
+    expect(instance).toMatchObject({
+      agentId: "a2a-github-daily-triage",
+      runtime: "external",
+      status: "READY",
     });
-    expect(connection.connectedAgentId).toBe("a2a-github-daily-triage");
     await expect(
       projectStore.database().agentRecord.findUniqueOrThrow({
         where: {
@@ -237,7 +239,7 @@ describe("AgentGardenService", () => {
     );
   });
 
-  it("connects a database-seeded example blueprint", async () => {
+  it("instantiates a database-seeded example blueprint", async () => {
     const projectStore = createTestStore();
     await projectStore.save(coordinator(), "local-admin");
     const service = new AgentGardenService(
@@ -245,17 +247,15 @@ describe("AgentGardenService", () => {
       projectStore,
     );
 
-    const connection = await service.connect({
-      coordinatorInstanceId: "coordinator-a",
-      connectedAgentId: "adk-customer-service",
-      allowedSkillIds: ["recommend-customer-resolution"],
-      approvalMode: "ALWAYS_ASK",
-    });
+    const instance = await service.instantiate(
+      "adk-customer-service",
+      "local-admin",
+    );
 
-    expect(connection).toMatchObject({
-      connectedAgentId: "adk-customer-service",
-      allowedSkillIds: ["recommend-customer-resolution"],
-      approvalMode: "ALWAYS_ASK",
+    expect(instance).toMatchObject({
+      agentId: "adk-customer-service",
+      runtime: "external",
+      status: "READY",
     });
     await expect(
       service.store.getAgent("adk-customer-service"),
@@ -266,7 +266,7 @@ describe("AgentGardenService", () => {
     });
   });
 
-  it("registers, discovers, connects, and disconnects an A2A Agent", async () => {
+  it("registers, discovers, and instantiates an external A2A Agent", async () => {
     const projectStore = createTestStore();
     await projectStore.save(coordinator(), "local-admin");
     const discovery: AgentDiscoveryClient = {
@@ -338,19 +338,16 @@ describe("AgentGardenService", () => {
       "local-admin",
     );
 
-    const connection = await service.connect({
-      coordinatorInstanceId: "coordinator-a",
-      connectedAgentId: agent.id,
-      allowedSkillIds: ["daily-repository-triage"],
-      approvalMode: "AUTO_READ_ONLY",
-    });
-    expect(connection.connectedAgentId).toBe(agent.id);
-    await expect(service.remove(agent.id)).rejects.toThrow(
-      "Disconnect it before removal",
-    );
-
-    expect(await service.disconnect(connection.id)).toBe(true);
+    await expect(service.store.listManagedInstances()).resolves.toEqual([
+      expect.objectContaining({
+        agentId: agent.id,
+        runtime: "external",
+        status: "READY",
+        endpoint: "https://agents.example.com/a2a",
+      }),
+    ]);
     expect(await service.remove(agent.id)).toBe(true);
+    await expect(service.store.listManagedInstances()).resolves.toEqual([]);
   });
 
   it("deploys, discovers, and removes a Container Image Agent", async () => {

@@ -64,9 +64,11 @@ print(json.dumps(document))
     expect(document.plugins.enabled).toEqual(["existing", "tali-a2a"]);
     expect(document.plugins.disabled).toEqual(["other"]);
     expect(document.gateway?.platforms?.a2a).toBeUndefined();
-    expect(document.a2a_agents.reviewer.auth).toEqual({
-      type: "bearer",
-      token: "coordinator-token",
+    expect(document.a2a_agents).toBeUndefined();
+    expect(document.a2a_registry).toEqual({
+      url: "http://runtime-bridge.project.svc.cluster.local/v1/hermes/a2a-agents",
+      timeout: 10,
+      auth: { type: "bearer", token: "coordinator-token" },
     });
   });
 

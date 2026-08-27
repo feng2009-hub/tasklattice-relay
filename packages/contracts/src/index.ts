@@ -1641,39 +1641,21 @@ export const onboardAgentSchema = z.discriminatedUnion("sourceType", [
   onboardExistingAgentSchema,
 ]).meta({ id: "OnboardAgentInput" });
 
-export const agentConnectionApprovalModeIds = [
-  "AUTO_READ_ONLY",
-  "ALWAYS_ASK",
-] as const;
-
-export const createAgentConnectionSchema = z.object({
-  coordinatorInstanceId: z.string().trim().min(1).max(160),
-  connectedAgentId: z.string().trim().min(1).max(160),
-  allowedSkillIds: z.array(z.string().trim().min(1).max(200)).max(1_000).default([]),
-  approvalMode: z.enum(agentConnectionApprovalModeIds).default("AUTO_READ_ONLY"),
-}).strict();
-
-export const agentConnectionSchema = createAgentConnectionSchema.extend({
-  id: z.string().uuid(),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
-}).strict();
-
 export const a2aAgentInstanceSchema = z.object({
   id: z.string().uuid(),
   agentId: z.string().trim().min(1).max(160),
   kind: z.literal("A2A"),
   name: z.string().trim().min(2).max(160),
   description: z.string().trim().max(2_000),
-  runtime: z.literal("kubernetes"),
+  runtime: z.enum(["kubernetes", "external"]),
   status: z.enum(instanceStatuses),
   provisioningStage: z.enum(provisioningStages).optional(),
-  runtimeNamespace: z.string().trim().min(1).max(253),
+  runtimeNamespace: z.string().trim().min(1).max(253).nullable(),
   deploymentName: z.string().trim().min(1).max(253).nullable(),
   serviceName: z.string().trim().min(1).max(253).nullable(),
   podName: z.string().trim().min(1).max(253).nullable(),
-  labelSelector: z.string().trim().min(1).max(500),
-  imageReference: z.string().trim().min(1).max(500),
+  labelSelector: z.string().trim().min(1).max(500).nullable(),
+  imageReference: z.string().trim().min(1).max(500).nullable(),
   imageDigest: z.string().trim().min(1).max(500).nullable(),
   endpoint: z.string().trim().url().nullable(),
   agentCardUrl: z.string().trim().url().nullable(),
@@ -1695,7 +1677,6 @@ export const managedA2aInstanceSchema = a2aAgentInstanceSchema;
 
 export const agentGardenSnapshotSchema = z.object({
   agents: z.array(agentGardenEntrySchema),
-  connections: z.array(agentConnectionSchema),
   instances: z.array(a2aAgentInstanceSchema),
 }).strict();
 
@@ -2001,9 +1982,6 @@ export interface AgentMarketplaceBrief {
   outputs: string[];
   requirements: string[];
 }
-export type AgentConnectionApprovalMode = (typeof agentConnectionApprovalModeIds)[number];
-export type AgentConnection = z.infer<typeof agentConnectionSchema>;
-export type CreateAgentConnectionInput = z.infer<typeof createAgentConnectionSchema>;
 export type AgentGardenSnapshot = z.infer<typeof agentGardenSnapshotSchema>;
 export type A2aAgentInstance = z.infer<typeof a2aAgentInstanceSchema>;
 /** @deprecated Use A2aAgentInstance. */
@@ -2675,7 +2653,6 @@ interface AgentInstanceDetailBase {
   protocols: AgentProtocolView[];
   capabilities: AgentInstanceCapabilityView;
   observability: AgentInstanceObservabilityView;
-  connections: AgentConnection[];
   createdBy?: InstanceCreator;
   createdAt: string;
   updatedAt: string;

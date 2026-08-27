@@ -24,11 +24,11 @@ export default defineHandler(async (event) => {
     const id = decodeURIComponent(event.context.params?.id ?? "");
     const removed = await (
       await getAgentGardenService(event.req)
-    ).disconnect(id);
+    ).removeInstance(id);
     if (!removed) {
-      return problemResponse(404, "Agent connection was not found.");
+      return problemResponse(404, "A2A Instance was not found.");
     }
-    return jsonResponse({ message: "Agent disconnected." });
+    return jsonResponse({ message: "A2A Instance removed." });
   } catch (error) {
     return errorResponse(error);
   }

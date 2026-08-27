@@ -1,13 +1,8 @@
 import {
-  agentConnectionSchema,
   agentGardenEntrySchema,
   a2aAgentInstanceSchema,
-  getAgentPlatformDefinition,
-  isAgentPlatformId,
-  type AgentConnection,
   type A2aAgentInstance,
   type AgentGardenEntry,
-  type AgentGardenUsageCapabilities,
 } from "@tali/contracts";
 import { prisma } from "../db/prisma";
 import type { Prisma, PrismaClient } from "../generated/prisma/client";
@@ -312,106 +307,19 @@ export class AgentGardenStore {
     return result.count > 0;
   }
 
-  async instanceCapabilities(
-    id: string,
-  ): Promise<AgentGardenUsageCapabilities | undefined> {
-    const row = await this.db.agentRecord.findFirst({
-      where: { projectId: this.projectId, id, deletedAt: null },
-      select: {
-        kind: true,
-        payload: true,
-        catalogAgent: { select: { payload: true } },
-      },
-    });
-    if (!row) return undefined;
-    if (row.kind === "A2A") {
-      return row.catalogAgent
-        ? agentGardenEntrySchema.parse(row.catalogAgent.payload)
-          .usageCapabilities
-        : undefined;
-    }
-    if (row.kind !== "SUPERVISOR") return undefined;
-    const payload = row.payload && typeof row.payload === "object"
-      && !Array.isArray(row.payload)
-      ? row.payload as Record<string, unknown>
-      : {};
-    const agentPlatform = payload.agentPlatform;
-    if (typeof agentPlatform !== "string" || !isAgentPlatformId(agentPlatform)) {
-      return undefined;
-    }
-    const capabilities = getAgentPlatformDefinition(agentPlatform).capabilities;
-    return {
-      interactive: capabilities.interactive,
-      canDelegate: capabilities.canDelegate,
-      acceptsDelegation: capabilities.acceptsDelegation,
-    };
-  }
-
-  async saveConnection(
-    connection: AgentConnection,
-  ): Promise<AgentConnection> {
-    const parsed = agentConnectionSchema.parse(connection);
-    await this.db.agentConnectionRecord.create({
-      data: {
-        projectId: this.projectId,
-        deletedAt: null,
-        id: parsed.id,
-        coordinatorInstanceId: parsed.coordinatorInstanceId,
-        connectedAgentId: parsed.connectedAgentId,
-        payload: jsonInput(parsed),
-        createdAt: new Date(parsed.createdAt),
-        updatedAt: new Date(parsed.updatedAt),
-      },
-    });
-    return parsed;
-  }
-
-  async listConnections(ownerUserId?: string): Promise<AgentConnection[]> {
-    const rows = await this.db.agentConnectionRecord.findMany({
+  async deleteManagedInstance(id: string): Promise<boolean> {
+    const result = await this.db.agentRecord.updateMany({
       where: {
         projectId: this.projectId,
-        deletedAt: null,
-        ...(ownerUserId ? { coordinator: { ownerUserId } } : {}),
-      },
-      orderBy: [{ createdAt: "desc" }, { id: "asc" }],
-      select: { payload: true },
-    });
-    return rows.map((row) => agentConnectionSchema.parse(row.payload));
-  }
-
-  async findConnection(
-    coordinatorInstanceId: string,
-    connectedAgentId: string,
-  ): Promise<AgentConnection | undefined> {
-    const row = await this.db.agentConnectionRecord.findFirst({
-      where: {
-        projectId: this.projectId,
-        coordinatorInstanceId,
-        connectedAgentId,
+        id,
+        kind: "A2A",
         deletedAt: null,
       },
-      select: { payload: true },
-    });
-    return row ? agentConnectionSchema.parse(row.payload) : undefined;
-  }
-
-  async countConnectionsForAgent(connectedAgentId: string): Promise<number> {
-    return this.db.agentConnectionRecord.count({
-      where: {
-        projectId: this.projectId,
-        connectedAgentId,
-        deletedAt: null,
-      },
-    });
-  }
-
-  async deleteConnection(id: string): Promise<boolean> {
-    const result = await this.db.agentConnectionRecord.updateMany({
-      where: { projectId: this.projectId, id, deletedAt: null },
       data: { deletedAt: new Date() },
     });
     return result.count > 0;
   }
+
 }
 
 function catalogVersion(payload: unknown): string | undefined {

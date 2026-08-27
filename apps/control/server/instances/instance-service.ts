@@ -30,9 +30,6 @@ import { ProjectQuotaService } from "../quotas/project-quota-service";
 import { signRunTelemetryToken } from "../runs/run-telemetry-token";
 import { PlatformSettingsService } from "../platform/platform-settings-service";
 import { loadPlatformRuntimeConfiguration } from "../platform/platform-runtime-config";
-import { AgentGardenService } from "../agent-garden/agent-garden-service";
-import { AgentGardenStore } from "../agent-garden/agent-garden-store";
-import { hermesMvpA2aAgentIds } from "../agent-garden/demo-agent-runtime";
 import { signProjectRuntimeCoordinatorToken } from "../runtime-bridge/project-runtime-bridge-token";
 import { getControlConfig } from "../config/control-config";
 
@@ -272,9 +269,6 @@ export class InstanceService {
     try {
       await this.store.save(agent, ownerUserId);
       await this.store.replaceAgentAccessPolicies(id, input.accessPolicyIds);
-      if (agent.agentPlatform === "hermes") {
-        await this.enableHermesMvpA2aAgents(id);
-      }
       await this.store.costAnalytics().saveAttribution({
         id: `instance-key:${id}:${instanceKey.tokenId.slice(-12)}`,
         projectId: this.store.projectId,
@@ -346,29 +340,6 @@ export class InstanceService {
       });
     }
     return agent;
-  }
-
-  private async enableHermesMvpA2aAgents(
-    coordinatorInstanceId: string,
-  ): Promise<void> {
-    const garden = new AgentGardenService(
-      new AgentGardenStore(this.store.projectId, this.store.database()),
-    );
-    await garden.snapshot();
-    for (const connectedAgentId of hermesMvpA2aAgentIds) {
-      if (
-        await garden.store.findConnection(
-          coordinatorInstanceId,
-          connectedAgentId,
-        )
-      ) continue;
-      await garden.connect({
-        coordinatorInstanceId,
-        connectedAgentId,
-        allowedSkillIds: [],
-        approvalMode: "AUTO_READ_ONLY",
-      });
-    }
   }
 
   async destroy(id: string): Promise<boolean> {

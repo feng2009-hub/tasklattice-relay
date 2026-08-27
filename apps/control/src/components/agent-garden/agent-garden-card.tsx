@@ -4,7 +4,6 @@ import type {
 import {
   ArrowRight,
   ExternalLink,
-  Link2,
   Play,
 } from "lucide-react";
 import { AgentGardenIcon } from "./agent-garden-icon";
@@ -21,16 +20,14 @@ import { cn } from "@/lib/utils";
 export function AgentGardenCard({
   agent,
   canManage,
-  connectionCount,
-  onConnect,
+  instanceCount,
   onCreateInstance,
   onDetails,
   onTry,
 }: {
   agent: AgentGardenEntry;
   canManage: boolean;
-  connectionCount: number;
-  onConnect: () => void;
+  instanceCount: number;
   onCreateInstance: () => void;
   onDetails: () => void;
   onTry: () => void;
@@ -38,7 +35,7 @@ export function AgentGardenCard({
   const ready = agent.status === "READY";
   const interactiveAction =
     agent.usageCapabilities.interactive && ready;
-  const connectAction =
+  const callableAction =
     agent.usageCapabilities.acceptsDelegation && ready;
   const preview = isPreviewAgent(agent);
   const language = agent.configuration.language;
@@ -70,9 +67,9 @@ export function AgentGardenCard({
               {previewAgentLabel(agent)}
             </span>
           ) : null}
-          {connectionCount ? (
+          {instanceCount ? (
             <span className="mt-1 block text-[10px] text-primary">
-              {connectionCount} connected
+              {instanceCount} instantiated
             </span>
           ) : null}
         </div>
@@ -179,14 +176,14 @@ export function AgentGardenCard({
               Create Instance <ArrowRight />
             </Button>
           ) : null}
-          {connectAction ? (
+          {callableAction ? (
             <Button
               type="button"
               className="h-11"
               disabled={!canManage}
-              onClick={onConnect}
+              onClick={onCreateInstance}
             >
-              <Link2 /> Connect to…
+              {instanceCount ? "View Instance" : "Create Instance"} <ArrowRight />
             </Button>
           ) : null}
           {!ready && agent.status === "COMING_SOON" ? (

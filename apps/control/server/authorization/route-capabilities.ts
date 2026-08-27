@@ -11,8 +11,7 @@ export type RelationResolver =
   | "NEW_OWNER"
   | "INSTANCE"
   | "INSTANCE_COLLECTION"
-  | "REGISTERED_AGENT"
-  | "AGENT_CONNECTION";
+  | "REGISTERED_AGENT";
 
 export interface RouteCapabilityRequirement {
   capability: ProjectCapability;
@@ -192,7 +191,6 @@ export function projectRouteAdmissionPolicy(
     if (tail.length === 1 && method === "GET") {
       return policy("INSTANCE_COLLECTION", [
         requirement("CAP_AGENT_REGISTRATION_VIEW", "AgentRegistration"),
-        requirement("CAP_AGENT_CONNECTION_VIEW", "AgentConnection"),
       ]);
     }
     if (tail.length === 2 && tail[1] === "onboard" && method === "POST") {
@@ -206,17 +204,18 @@ export function projectRouteAdmissionPolicy(
       if (id && tail.length === 4 && tail[3] === "discover" && method === "POST") {
         return policy("REGISTERED_AGENT", [requirement("CAP_AGENT_REGISTRATION_DISCOVER", "AgentRegistration")], id);
       }
+      if (id && tail.length === 4 && tail[3] === "instances" && method === "POST") {
+        return policy(
+          "NEW_OWNER",
+          [requirement("CAP_AGENT_INSTANCE_CREATE", "AgentInstance")],
+        );
+      }
       if (id && tail.length === 3 && method === "DELETE") {
         return policy("REGISTERED_AGENT", [requirement("CAP_AGENT_REGISTRATION_DELETE", "AgentRegistration")], id);
       }
     }
-    if (tail[1] === "connections") {
-      if (tail.length === 2 && method === "POST") {
-        return policy("AGENT_CONNECTION", [requirement("CAP_AGENT_CONNECTION_GRANT", "AgentConnection")]);
-      }
-      if (tail.length === 3 && tail[2] && method === "DELETE") {
-        return policy("AGENT_CONNECTION", [requirement("CAP_AGENT_CONNECTION_REVOKE", "AgentConnection")], tail[2]);
-      }
+    if (tail[1] === "instances" && tail.length === 3 && tail[2] && method === "DELETE") {
+      return policy("INSTANCE", [requirement("CAP_AGENT_INSTANCE_DELETE", "AgentInstance")], tail[2]);
     }
   }
 
@@ -432,7 +431,7 @@ export function concreteRelation(
     if (collectionRole === "developer") return "OWNER";
     return "PROJECT_ANY";
   }
-  if (resolver === "INSTANCE" || resolver === "REGISTERED_AGENT" || resolver === "AGENT_CONNECTION") {
+  if (resolver === "INSTANCE" || resolver === "REGISTERED_AGENT") {
     return ownedByActor ? "OWNER" : "PROJECT_ANY";
   }
   return "PROJECT_ANY";

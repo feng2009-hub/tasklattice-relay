@@ -3,7 +3,7 @@
 ## Outcome
 
 Agent Garden is the Project-scoped catalog for discovering, onboarding, and
-connecting Agents. A2A 1.0 is the only Project onboarding contract in the
+instantiating Agents. A2A 1.0 is the only Project onboarding contract in the
 current phase. LangGraph, Google ADK, LangChain, or another SDK may implement
 an Agent internally, but the framework does not select a Relay adapter and is
 not part of the onboarding API. It deliberately separates three concepts:
@@ -15,23 +15,22 @@ not part of the onboarding API. It deliberately separates three concepts:
   dimensions. Hermes, OpenClaw, and Deep Agents are normally `SUPERVISOR`;
   a Project-managed callable service is normally `SPECIALIST` and advertises
   an A2A server protocol.
-- **Agent connection** — an explicit authorization for one Coordinator
-  Instance to delegate tasks to one callable built-in or Project-registered
-  Agent.
+- **Instance Registry eligibility** — a READY `CALLABLE` or `HYBRID` Instance
+  with `acceptsDelegation`, a validated Agent Card, and a reachable endpoint is
+  discoverable by compatible Supervisors in the same Project.
 
-“Primary Agent” and “Sub Agent” are not permanent Agent types. They are roles
-inside a connection. A runtime whose manifest declares `canDelegate` is shown
-as the **Coordinator** for that relationship; the target is shown as a
-**Connected Agent**.
+“Primary Agent” and “Sub Agent” are not permanent Agent types. A runtime whose
+manifest declares `canDelegate` is a Supervisor; a Registry Instance whose
+capabilities declare `acceptsDelegation` is a callable service.
 
 ```mermaid
 flowchart LR
-  G["Agent Garden definition"] -->|"Create Instance"| C["Supervisor Instance"]
+  G["Agent Garden definition"] -->|"Create Instance"| REG["Project Instance Registry"]
   I["A2A container image"] -->|"Onboard"| MI["A2A Instance"]
   MI --> K["Deployment + Service + Pod"]
   K -->|"Ready + discover"| D["A2A 1.0 Agent Card snapshot"]
-  R["Callable built-in or Project-registered Agent"] -->|"Publish capabilities"| D
-  C -->|"Explicit connection + policy"| D
+  R["Existing or built-in A2A Agent"] -->|"Instantiate validated card"| REG
+  REG -->|"READY + CALLABLE + acceptsDelegation"| D
   D -->|"Project Runtime Bridge: delegate task"| A["A2A Agent runtime"]
 ```
 
@@ -46,14 +45,15 @@ single “main/sub” enum.
 | `canDelegate` | It may coordinate other Agents | Yes | No | No |
 | `acceptsDelegation` | Another Agent may call it | No | No | Yes |
 
-The connection service enforces the same rules as the UI:
+The Instance Registry discovery service enforces the same rules as the UI:
 
-- only READY Instances whose runtime capability declares `canDelegate` can be
-  Coordinators;
-- only READY catalog Agents with `acceptsDelegation` can be connected;
-- built-in Supervisor definitions and Claude Code cannot be selected as
-  Connected Agents;
-- a registration cannot be removed while a connection still references it.
+- only READY Supervisor Instances whose runtime declares `canDelegate` can
+  query the callable directory;
+- only READY `CALLABLE` or `HYBRID` A2A Instances with
+  `acceptsDelegation` and a validated Agent Card are returned;
+- every query is fixed to the Bridge's signed Project identity;
+- interactive-only Instances and failed runtimes remain visible in the
+  Instance list but are filtered out of service discovery.
 
 ## Catalog and registration
 
@@ -78,8 +78,9 @@ The examples support two separate interactions:
 
 - **Try demo** sends a real A2A 1.0 JSON-RPC `SendMessage` request to a lightweight
   in-process endpoint and renders its execution trace and response;
-- **Connect to…** authorizes a capable Supervisor to delegate one or more
-  advertised skills.
+- **Create Instance** materializes the validated Agent Card in the Project
+  Instance Registry. Built-in demos reuse their existing Control endpoint;
+  they do not create a separate Pod.
 
 The outputs are deterministic sample data and have no external side effects.
 The cards are explicitly labeled **Blueprint** or **Demo** so the interaction
@@ -109,7 +110,7 @@ in one decision path:
 - advertised skills, example tasks, and participation capabilities;
 - publisher, version, framework, language, protocol, support, and license;
 - requirements and an explicit prototype/runtime boundary;
-- **Try preview**, **Connect Agent**, or **Create Instance** according to the
+- **Try preview** or **Create Instance** according to the
   Agent's actual capabilities and status.
 
 The richer brief is stored as versioned catalog metadata rather than embedded
@@ -130,7 +131,8 @@ Project onboarding has three source tabs:
   supplied. Private registries reference an existing Secret by name.
 - **Existing Agent** accepts only the canonical URL of a published A2A 1.0
   Agent Card. Relay selects a supported interface from that card and does not
-  ask for a framework, adapter, usage mode, or separate runtime endpoint.
+  ask for a framework, adapter, usage mode, or separate runtime endpoint. A
+  successful discovery automatically creates an external A2A Instance record.
 - **Git Repository** documents the intended input contract but is not yet
   submit-enabled. Its future builder must produce a provenance-attested OCI
   image and then enter the same immutable Container Image and A2A validation
@@ -187,8 +189,8 @@ Discovery applies these controls:
 - requests time out after seven seconds;
 - Agent Card payloads are limited to one megabyte;
 - only interfaces declaring protocol version `1.0` are selected;
-- discovered skills are copied into the Project snapshot and can be narrowed
-  per connection.
+- discovered skills are copied into the Project Instance Registry and exposed
+  only while the Instance remains eligible for delegation.
 
 ## Persistence
 
@@ -198,8 +200,6 @@ the first Garden read also performs the same check so newly created Projects
 are covered. Both paths upsert only missing or version-changed seed records,
 making the operation idempotent while allowing future catalog revisions. The
 non-callable Supervisor platform definitions remain application-owned.
-`agent_connections` stores Coordinator-to-Agent authorization, approval
-behavior, and an optional skill allowlist.
 `agents` stores both Supervisor and onboarded A2A runtime Instances. The `kind`
 discriminator selects the persistence/runtime adapter; it is not the user-facing
 role or protocol type. The unified detail view derives `SUPERVISOR`,
@@ -208,26 +208,25 @@ role or protocol type. The unified detail view derives `SUPERVISOR`,
 contains lifecycle state, namespace, Deployment, Service, Pod, pinned image,
 discovered endpoint/card, skills, creator, and logs.
 
-All three tables are Project-scoped. Database foreign keys cascade when a Project
-or Coordinator Instance is deleted and restrict deletion of a connected
-catalog Agent.
+Both tables are Project-scoped. Database foreign keys cascade when a Project is
+deleted. A catalog Agent owns its materialized A2A runtime Instances.
 
 ## API surface
 
 | Method | Path suffix | Purpose |
 | --- | --- | --- |
-| `GET` | `/agent-garden` | Read built-in definitions, Project registrations, managed A2A Instances, and connections |
-| `POST` | `/agent-garden/onboard` | Deploy an A2A container image or connect through an existing A2A 1.0 Agent Card |
+| `GET` | `/agent-garden` | Read built-in definitions, Project registrations, and A2A Instances |
+| `POST` | `/agent-garden/onboard` | Deploy an A2A container image or register an existing A2A 1.0 Agent Card |
 | `POST` | `/agent-garden/agents/:id/discover` | Refresh its discovery snapshot |
+| `POST` | `/agent-garden/agents/:id/instances` | Materialize a callable Agent Card as an A2A Instance |
 | `DELETE` | `/agent-garden/agents/:id` | Remove a Project registration |
-| `POST` | `/agent-garden/connections` | Authorize a Coordinator connection |
-| `DELETE` | `/agent-garden/connections/:id` | Revoke a connection |
+| `DELETE` | `/agent-garden/instances/:id` | Remove a materialized external A2A Instance |
 
 All deployed workloads use the same detail route and normalized response:
 
 | Method | Path suffix | Purpose |
 | --- | --- | --- |
-| `GET` | `/instances/:id` | Read normalized identity, role, platform, runtime, protocols, capabilities, observability, and connections |
+| `GET` | `/instances/:id` | Read normalized identity, role, platform, runtime, protocols, capabilities, and observability |
 | `GET` | `/instances/:id/logs` | Read redacted stored lifecycle diagnostics under `CAP_AGENT_INSTANCE_LOG_VIEW` |
 | `POST` | `/instances/:id/log-sessions` | Mint a short-lived, single-use capability for a read-only live Pod log WebSocket |
 
@@ -249,10 +248,9 @@ The short-lived log token is minted only after
 `CAP_AGENT_INSTANCE_TERMINAL_EXEC`.
 
 All Project-scoped Agent Garden routes pass through Capability admission. The
-snapshot read requires both `CAP_AGENT_REGISTRATION_VIEW` and
-`CAP_AGENT_CONNECTION_VIEW`. Registration, discovery, deletion, connection
-grant, and connection revoke require their corresponding `CAP_AGENT_*`
-capabilities and a relation proved from the registered Agent or Coordinator
+snapshot read requires `CAP_AGENT_REGISTRATION_VIEW`. Registration, discovery,
+deletion, and Instance lifecycle operations require their corresponding
+`CAP_AGENT_*` capabilities and a relation proved from the registered Agent or
 Instance. In the current builtin presets these Agent Garden mutation
 capabilities belong to Agent Developer and are limited to
 `OWNER`/`MAINTAINER`; `OWNER` is implemented and `MAINTAINER` is not yet
@@ -277,9 +275,9 @@ endpoints:
 
 The Project Agent Runtime Bridge now implements the first runtime gateway
 slice. See [`project-agent-runtime-bridge.md`](project-agent-runtime-bridge.md).
-It authenticates a Project/Namespace-scoped Bridge identity, loads only the
-calling Coordinator's active connections, filters advertised skills, enforces
-approval mode, resolves credentials in Control, and proxies A2A 1.0 messages.
+It authenticates a Project/Namespace-scoped Bridge identity, verifies the
+calling Coordinator, loads eligible Instances from that Project's Instance
+Registry, resolves credentials in Control, and proxies A2A 1.0 messages.
 
 Hermes owns plan and scheduling state in its Kanban database. Normalized
 cross-runtime delegation/event persistence remains a later neutral Bridge API

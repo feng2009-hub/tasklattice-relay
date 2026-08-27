@@ -17,6 +17,17 @@ class _A2AHandler(BaseHTTPRequestHandler):
         pass
 
     def do_GET(self):  # noqa: N802
+        if self.path == "/registry":
+            self._send(200, {
+                "a2a_agents": {
+                    "probe": {
+                        "url": self.server.endpoint,
+                        "timeout": 5,
+                        "capabilities": ["probe"],
+                    },
+                },
+            })
+            return
         if not self.path.endswith("/.well-known/agent-card.json"):
             self._send(404, {"error": "not found"})
             return
@@ -60,7 +71,11 @@ class _A2AHandler(BaseHTTPRequestHandler):
 
 def main() -> None:
     server = ThreadingHTTPServer(("127.0.0.1", 0), _A2AHandler)
-    server.endpoint = f"http://127.0.0.1:{server.server_port}/agent"
+    server.endpoint = (
+        f"http://127.0.0.1:{server.server_port}"
+        "/v1/a2a/coordinators/build/agents/probe"
+    )
+    server.registry = f"http://127.0.0.1:{server.server_port}/registry"
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
@@ -74,12 +89,11 @@ def main() -> None:
                 "toolsets:\n"
                 "  - kanban\n"
                 "  - a2a\n"
-                "a2a_agents:\n"
-                "  probe:\n"
-                f"    url: {server.endpoint}\n"
-                "    timeout: 5\n"
-                "    capabilities:\n"
-                "      - probe\n",
+                "a2a_registry:\n"
+                f"  url: {server.registry}\n"
+                "  timeout: 5\n"
+                "  auth:\n"
+                "    type: none\n",
                 encoding="utf-8",
             )
             (home / "config.yaml").chmod(0o600)

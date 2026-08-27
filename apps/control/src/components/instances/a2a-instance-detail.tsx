@@ -6,9 +6,7 @@ import {
   Check,
   ExternalLink,
   FileJson,
-  Link2,
   MoreHorizontal,
-  Network,
   RefreshCw,
   ServerCog,
   ShieldCheck,
@@ -87,7 +85,7 @@ function A2aHeader({
             </div>
             <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
               <span>{detail.platform.name}</span><span aria-hidden="true">·</span>
-              <span>Kubernetes managed Agent</span><span aria-hidden="true">·</span>
+              <span>{detail.instance.runtime === "kubernetes" ? "Kubernetes managed Agent" : "External A2A Agent"}</span><span aria-hidden="true">·</span>
               <span>Updated <RelativeTime value={detail.updatedAt} /></span>
             </p>
           </div>
@@ -104,8 +102,8 @@ function A2aHeader({
                 <Link to="/$projectId/agent-garden/$agentId" params={{ projectId, agentId: detail.definition.id }}><FileJson />View definition</Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-destructive focus:text-destructive" disabled={!canManage || detail.connections.length > 0} onSelect={onDelete}>
-                <Trash2 /> Remove managed Instance
+              <DropdownMenuItem className="text-destructive focus:text-destructive" disabled={!canManage} onSelect={onDelete}>
+                <Trash2 /> Remove Instance
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -116,16 +114,15 @@ function A2aHeader({
 }
 
 function A2aOverview({ detail }: { detail: A2aStandardAgentInstanceDetail }) {
-  const projectId = useCurrentProjectId();
   const protocol = detail.protocols[0];
   return (
     <div className="mt-6 space-y-6">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[
-          ["Runtime", detail.status === "READY" ? "Healthy" : detail.status, detail.runtimeView.podName ?? "Pod pending"],
+          ["Runtime", detail.status === "READY" ? "Healthy" : detail.status, detail.instance.runtime === "kubernetes" ? detail.runtimeView.podName ?? "Pod pending" : "External endpoint"],
           ["Agent Card", protocol?.agentCardStatus ?? "UNCHECKED", protocol?.lastDiscoveredAt ? `Checked ${formatPlatformDateTime(protocol.lastDiscoveredAt)}` : "Discovery evidence unavailable"],
           ["A2A skills", String(protocol?.skills.length ?? 0), protocol?.binding ?? "Protocol binding unavailable"],
-          ["Connections", String(detail.connections.length), detail.connections.length ? "Coordinator access granted" : "Not connected"],
+          ["Discovery", detail.capabilities.acceptsDelegation ? "Enabled" : "Disabled", "Project Runtime Bridge"],
         ].map(([label, value, description]) => (
           <Card key={label} size="sm">
             <CardContent>
@@ -153,15 +150,14 @@ function A2aOverview({ detail }: { detail: A2aStandardAgentInstanceDetail }) {
           </CardContent>
         </Card>
         <Card>
-          <DetailCardHeader title="Coordinator connections" description="Supervisors permitted to discover and invoke this A2A Agent." />
+          <DetailCardHeader title="Runtime Bridge discovery" description="Eligibility is derived directly from the Project Instance Registry." />
           <CardContent>
-            {detail.connections.length ? <div className="space-y-3">{detail.connections.map((connection) => (
-              <Link key={connection.id} to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: connection.coordinatorInstanceId }} className="flex items-center gap-3 border bg-muted/15 p-3 transition-colors hover:border-primary/30 hover:bg-primary/5">
-                <Network className="size-4 shrink-0 text-primary" />
-                <span className="min-w-0 flex-1"><strong className="block truncate text-xs">{connection.coordinatorInstanceId}</strong><span className="mt-1 block text-[11px] text-muted-foreground">{connection.approvalMode === "AUTO_READ_ONLY" ? "Auto read-only" : "Human approval required"}</span></span>
-                <Link2 className="size-3.5 text-muted-foreground" />
-              </Link>
-            ))}</div> : <div className="flex min-h-40 flex-col items-center justify-center text-center"><Link2 className="size-5 text-muted-foreground" /><strong className="mt-3 text-sm">Not connected</strong><p className="mt-1 text-xs text-muted-foreground">Connect this Agent to Hermes or OpenClaw from Agent Garden.</p></div>}
+            <DefinitionList items={[
+              { label: "Scope", value: "Current Project only" },
+              { label: "Instance status", value: detail.status },
+              { label: "Accepts delegation", value: detail.capabilities.acceptsDelegation ? "Yes" : "No" },
+              { label: "Registry visibility", value: detail.status === "READY" && detail.capabilities.acceptsDelegation ? "Discoverable" : "Filtered out" },
+            ]} />
           </CardContent>
         </Card>
       </div>
@@ -176,7 +172,7 @@ function A2aConfiguration({ detail }: { detail: A2aStandardAgentInstanceDetail }
       <Card>
         <DetailCardHeader title="Runtime configuration" description="Immutable deployment evidence captured during managed onboarding." />
         <CardContent><DefinitionList items={[
-          { label: "Runtime", value: "Kubernetes · Project Main Space" },
+          { label: "Runtime", value: detail.instance.runtime === "kubernetes" ? "Kubernetes · Project Main Space" : "External · Runtime Bridge" },
           { label: "Image", value: <CopyableValue value={detail.runtimeView.imageReference} /> },
           { label: "Image digest", value: <CopyableValue value={detail.runtimeView.imageDigest} /> },
           { label: "Namespace", value: <CopyableValue value={detail.runtimeView.namespace} /> },
@@ -293,7 +289,7 @@ function DisabledTerminal({ reason }: { reason: string }) {
         <span className="grid size-12 place-items-center rounded-full bg-muted"><SquareTerminal className="size-5 text-muted-foreground" /></span>
         <strong className="mt-4 text-base">Executable terminal is not exposed</strong>
         <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">{reason}</p>
-        <p className="mt-3 max-w-xl text-xs leading-5 text-muted-foreground">A2A, Hermes, OpenClaw, and Deep Coding still share the same AgentInstance type. Terminal is a runtime capability; use the Logs tab for this Kubernetes-managed service.</p>
+        <p className="mt-3 max-w-xl text-xs leading-5 text-muted-foreground">A2A, Hermes, OpenClaw, and Deep Coding still share the same AgentInstance type. Terminal access depends on the selected runtime.</p>
       </CardContent>
     </Card>
   );
@@ -342,7 +338,9 @@ export function A2aInstanceDetail({
     },
   });
   const remove = useMutation({
-    mutationFn: () => api.removeGardenAgent(detail.definition.id),
+    mutationFn: () => detail.definition.source === "BUILT_IN"
+      ? api.removeGardenInstance(detail.id)
+      : api.removeGardenAgent(detail.definition.id),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: scope.key("agent-garden") });
       await navigate({ to: "/$projectId/instances", params: { projectId }, replace: true });

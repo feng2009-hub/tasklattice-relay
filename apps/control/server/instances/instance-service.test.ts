@@ -11,7 +11,9 @@ import type { RunnerClient } from "../runtime/nemoclaw-runner-client";
 import { RuntimePolicyService } from "../runtime-policies/runtime-policy-service";
 import { ProjectAgentRuntimeService } from "../runtime-bridge/project-agent-runtime-service";
 import { AgentGardenStore } from "../agent-garden/agent-garden-store";
+import { AgentGardenService } from "../agent-garden/agent-garden-service";
 import { demoAgentEndpoint } from "../agent-garden/demo-agent-runtime";
+import { databaseAgentCatalog } from "../agent-garden/database-agent-catalog";
 import { createTestStore } from "../test/store";
 import {
   InstanceService,
@@ -437,42 +439,48 @@ async function createConfiguredInstance(
 }
 
 describe("Instance Access Policy lifecycle", () => {
-  it("connects the two MVP A2A specialists to a new Hermes Supervisor", async () => {
+  it("discovers READY callable A2A Instances from the Project registry", async () => {
     const setup = await configuredService();
+    const garden = new AgentGardenService(
+      new AgentGardenStore(setup.store.projectId, setup.store.database()),
+    );
+    await garden.snapshot();
+    const github = await garden.instantiate(
+      "a2a-github-daily-triage",
+      "local-admin",
+    );
+    const risk = await garden.instantiate(
+      "a2a-pull-request-risk-scanner",
+      "local-admin",
+    );
+    const release = await garden.instantiate(
+      "a2a-release-notes-composer",
+      "local-admin",
+    );
+    await garden.store.saveManagedInstance({
+      ...release,
+      status: "FAILED",
+      error: "Endpoint health check failed.",
+    });
     const agent = await createConfiguredInstance(setup, {
       agentPlatform: "hermes",
     });
 
-    const connections = await setup.store.database().agentConnectionRecord
-      .findMany({
-        where: {
-          projectId: setup.store.projectId,
-          coordinatorInstanceId: agent.id,
-          deletedAt: null,
-        },
-        orderBy: { createdAt: "asc" },
-        select: { connectedAgentId: true },
-      });
-    expect(connections.map(({ connectedAgentId }) => connectedAgentId))
-      .toEqual([
-        "a2a-github-daily-triage",
-        "a2a-pull-request-risk-scanner",
-      ]);
     const runtime = new ProjectAgentRuntimeService(
       setup.store.projectId,
       setup.store.database(),
     );
-    await expect(runtime.listPeers(agent.id)).resolves.toMatchObject([
-      {
-        id: "a2a-github-daily-triage",
-        approvalMode: "AUTO_READ_ONLY",
+    await expect(runtime.listPeers(agent.id)).resolves.toEqual([
+      expect.objectContaining({
+        id: github.id,
+        name: "GitHub Daily Triage",
         protocolVersion: "1.0",
-      },
-      {
-        id: "a2a-pull-request-risk-scanner",
-        approvalMode: "AUTO_READ_ONLY",
+      }),
+      expect.objectContaining({
+        id: risk.id,
+        name: "Pull Request Risk Scanner",
         protocolVersion: "1.0",
-      },
+      }),
     ]);
     const fetchRequest = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       new Response(JSON.stringify({
@@ -488,7 +496,7 @@ describe("Instance Access Policy lifecycle", () => {
     );
     await expect(runtime.sendMessage(
       agent.id,
-      "a2a-github-daily-triage",
+      github.id,
       {
         jsonrpc: "2.0",
         id: "dispatch-1",
@@ -521,13 +529,18 @@ describe("Instance Access Policy lifecycle", () => {
       setup.store.projectId,
       setup.store.database(),
     );
+    await garden.ensureAgents(databaseAgentCatalog);
     const peer = await garden.getAgent("a2a-github-daily-triage");
     expect(peer?.a2a).toBeDefined();
-    await garden.saveAgent({
+    const updatedPeer = await garden.saveAgent({
       ...peer!,
       endpoint: "https://expert.example/a2a",
       a2a: { ...peer!.a2a!, protocolBinding: "HTTP+JSON" },
     });
+    const callable = await new AgentGardenService(garden).instantiate(
+      updatedPeer.id,
+      "local-admin",
+    );
     const fetchRequest = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       new Response(JSON.stringify({
         message: {
@@ -555,7 +568,7 @@ describe("Instance Access Policy lifecycle", () => {
       setup.store.database(),
     ).sendMessage(
       coordinator.id,
-      "a2a-github-daily-triage",
+      callable.id,
       request,
     )).resolves.toEqual({
       status: 200,
@@ -582,6 +595,14 @@ describe("Instance Access Policy lifecycle", () => {
     const coordinator = await createConfiguredInstance(setup, {
       agentPlatform: "hermes",
     });
+    const garden = new AgentGardenService(
+      new AgentGardenStore(setup.store.projectId, setup.store.database()),
+    );
+    await garden.snapshot();
+    const callable = await garden.instantiate(
+      "a2a-github-daily-triage",
+      "local-admin",
+    );
     const fetchRequest = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       new Response("x".repeat(1024 * 1024 + 1), {
         status: 200,
@@ -594,7 +615,7 @@ describe("Instance Access Policy lifecycle", () => {
       setup.store.database(),
     ).sendMessage(
       coordinator.id,
-      "a2a-github-daily-triage",
+      callable.id,
       {
         jsonrpc: "2.0",
         id: "oversized",

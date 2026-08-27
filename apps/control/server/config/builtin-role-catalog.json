@@ -263,30 +263,6 @@
           ]
         },
         {
-          "capability": "CAP_AGENT_CONNECTION_VIEW",
-          "relations": [
-            "PROJECT_ANY"
-          ]
-        },
-        {
-          "capability": "CAP_AGENT_CONNECTION_GRANT",
-          "relations": [
-            "PROJECT_ANY"
-          ]
-        },
-        {
-          "capability": "CAP_AGENT_CONNECTION_UPDATE",
-          "relations": [
-            "PROJECT_ANY"
-          ]
-        },
-        {
-          "capability": "CAP_AGENT_CONNECTION_REVOKE",
-          "relations": [
-            "PROJECT_ANY"
-          ]
-        },
-        {
           "capability": "CAP_AGENT_INSTANCE_VIEW",
           "relations": [
             "PROJECT_ANY"
@@ -1233,34 +1209,6 @@
           ]
         },
         {
-          "capability": "CAP_AGENT_CONNECTION_VIEW",
-          "relations": [
-            "OWNER",
-            "MAINTAINER"
-          ]
-        },
-        {
-          "capability": "CAP_AGENT_CONNECTION_GRANT",
-          "relations": [
-            "OWNER",
-            "MAINTAINER"
-          ]
-        },
-        {
-          "capability": "CAP_AGENT_CONNECTION_UPDATE",
-          "relations": [
-            "OWNER",
-            "MAINTAINER"
-          ]
-        },
-        {
-          "capability": "CAP_AGENT_CONNECTION_REVOKE",
-          "relations": [
-            "OWNER",
-            "MAINTAINER"
-          ]
-        },
-        {
           "capability": "CAP_AGENT_INSTANCE_VIEW",
           "relations": [
             "OWNER",
@@ -1751,12 +1699,6 @@
         },
         {
           "capability": "CAP_AGENT_REGISTRATION_VIEW",
-          "relations": [
-            "PROJECT_ANY"
-          ]
-        },
-        {
-          "capability": "CAP_AGENT_CONNECTION_VIEW",
           "relations": [
             "PROJECT_ANY"
           ]

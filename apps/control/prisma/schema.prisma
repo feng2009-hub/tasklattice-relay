@@ -432,7 +432,6 @@ model Project {
   invitations                  ProjectInvitation[]
   agents                       AgentRecord[]
   agentCatalogEntries          AgentCatalogRecord[]
-  agentConnections             AgentConnectionRecord[]
   providerAccounts             ProviderAccountRecord[]
   modelDeployments             ModelDeploymentRecord[]
   inferenceGateways            InferenceGatewayRecord[]
@@ -679,7 +678,6 @@ model AgentRecord {
   project                  Project                                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   ownerMembership          ProjectMember                            @relation("AgentRecordOwnerMembership", fields: [projectId, ownerUserId], references: [projectId, userId], onDelete: Restrict, map: "agents_owner_membership_fkey")
   catalogAgent             AgentCatalogRecord?                      @relation("CatalogAgentRuntimeInstances", fields: [projectId, catalogAgentId], references: [projectId, id], onDelete: Cascade, map: "agents_catalog_agent_fkey")
-  outboundAgentConnections AgentConnectionRecord[]                  @relation("CoordinatorAgentConnections")
   accessPolicyBindings     AgentInstanceAccessPolicyBindingRecord[]
 
   @@id([projectId, id])
@@ -703,35 +701,12 @@ model AgentCatalogRecord {
 
   project          Project                    @relation(fields: [projectId], references: [id], onDelete: Cascade)
   ownerMembership  ProjectMember?             @relation("AgentCatalogRecordOwnerMembership", fields: [projectId, ownerUserId], references: [projectId, userId], onDelete: Restrict, map: "agent_catalog_owner_membership_fkey")
-  connections      AgentConnectionRecord[]
   runtimeInstances AgentRecord[]       @relation("CatalogAgentRuntimeInstances")
 
   @@id([projectId, id])
   @@index([projectId, ownerUserId], map: "agent_catalog_project_owner_idx")
   @@index([projectId, updatedAt(sort: Desc)], map: "agent_catalog_updated_idx")
   @@map("agent_catalog")
-  @@schema("tasklattice")
-}
-
-model AgentConnectionRecord {
-  projectId             String   @map("project_id")
-  id                    String
-  coordinatorInstanceId String   @map("coordinator_instance_id")
-  connectedAgentId      String   @map("connected_agent_id")
-  payload               Json
-  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt             DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  deletedAt             DateTime? @map("deleted_at") @db.Timestamptz(6)
-
-  project        Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  coordinator    AgentRecord        @relation("CoordinatorAgentConnections", fields: [projectId, coordinatorInstanceId], references: [projectId, id], onDelete: Cascade)
-  connectedAgent AgentCatalogRecord @relation(fields: [projectId, connectedAgentId], references: [projectId, id], onDelete: Restrict)
-
-  @@id([projectId, id])
-  // Active binding uniqueness is enforced by a partial database index so a
-  // disconnected tombstone does not block a future reconnect.
-  @@index([projectId, connectedAgentId], map: "agent_connections_connected_idx")
-  @@map("agent_connections")
   @@schema("tasklattice")
 }
 

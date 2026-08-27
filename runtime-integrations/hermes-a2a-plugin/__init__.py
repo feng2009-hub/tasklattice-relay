@@ -5,14 +5,21 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from .client import A2AClientError, discover_agent, parse_peer, public_peer, send_message
+from .client import (
+    A2AClientError,
+    discover_agent,
+    fetch_peer_registry,
+    parse_peer,
+    public_peer,
+    send_message,
+)
 
 
 LIST_SCHEMA = {
     "name": "a2a_list",
     "description": (
-        "List A2A specialists connected to this Project. Returns only agents "
-        "approved for the current Hermes Coordinator and never exposes credentials."
+        "List callable A2A Instances dynamically discovered in this Project. Returns "
+        "only READY Instances that accept delegation and never exposes credentials."
     ),
     "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
 }
@@ -20,7 +27,7 @@ LIST_SCHEMA = {
 DISCOVER_SCHEMA = {
     "name": "a2a_discover",
     "description": (
-        "Fetch the A2A Agent Card for one Project-approved specialist before delegation."
+        "Fetch the A2A Agent Card for one callable Project Instance before delegation."
     ),
     "parameters": {
         "type": "object",
@@ -35,7 +42,7 @@ DISCOVER_SCHEMA = {
 CALL_SCHEMA = {
     "name": "a2a_call",
     "description": (
-        "Delegate a bounded task to one Project-approved A2A specialist. First create "
+        "Delegate a bounded task to one callable Project A2A Instance. First create "
         "a blocked Hermes Kanban task assigned to 'tali-a2a'; this tool atomically "
         "claims it as running and writes dispatch start/success/failure to the card."
     ),
@@ -74,10 +81,20 @@ def _agent_config() -> dict[str, Any]:
     from hermes_cli.config import load_config
 
     config = load_config()
-    raw_agents = config.get("a2a_agents") if isinstance(config, dict) else None
-    if not isinstance(raw_agents, dict):
-        return {}
-    return raw_agents
+    if not isinstance(config, dict):
+        raise A2AClientError("Hermes configuration is invalid")
+    registry = config.get("a2a_registry")
+    if not isinstance(registry, dict):
+        raise A2AClientError("A2A registry is not configured")
+    try:
+        timeout = int(registry.get("timeout", 10))
+    except (TypeError, ValueError) as exc:
+        raise A2AClientError("A2A registry timeout must be an integer") from exc
+    return fetch_peer_registry(
+        registry.get("url"),
+        registry.get("auth"),
+        timeout,
+    )
 
 
 def _peer(agent: Any):
@@ -87,7 +104,7 @@ def _peer(agent: Any):
     raw = _agent_config().get(name)
     if raw is None:
         raise A2AClientError(
-            f"Unknown A2A agent {name!r}; use a2a_list to inspect Project-approved peers"
+            f"Unknown A2A Instance {name!r}; use a2a_list to inspect callable Project Instances"
         )
     return parse_peer(name, raw)
 

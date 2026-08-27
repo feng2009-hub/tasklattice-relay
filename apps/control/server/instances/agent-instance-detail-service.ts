@@ -1,7 +1,6 @@
 import {
   getAgentPlatformDefinition,
   type A2aStandardAgentInstanceDetail,
-  type AgentConnection,
   type AgentGardenUsageCapabilities,
   type AgentInstanceDetail,
   type AgentInstanceRole,
@@ -28,9 +27,6 @@ export class AgentInstanceDetailService {
     const supervisor = await this.supervisors.get(id);
     if (supervisor) {
       const platform = getAgentPlatformDefinition(supervisor.agentPlatform);
-      const connections = (await this.garden.listConnections()).filter(
-        (connection) => connection.coordinatorInstanceId === supervisor.id,
-      );
       const detail: SupervisorAgentInstanceDetail = {
         resourceType: "AGENT_INSTANCE",
         kind: "SUPERVISOR",
@@ -73,7 +69,6 @@ export class AgentInstanceDetailService {
           logSources: ["LIFECYCLE", "AUDIT"],
           terminal: { supported: true },
         },
-        connections,
         ...(supervisor.createdBy ? { createdBy: supervisor.createdBy } : {}),
         createdAt: supervisor.createdAt,
         updatedAt: supervisor.updatedAt,
@@ -87,16 +82,12 @@ export class AgentInstanceDetailService {
     if (!instance) return undefined;
     const definition = await this.garden.getAgent(instance.agentId);
     if (!definition) return undefined;
-    const connections = (await this.garden.listConnections()).filter(
-      (connection) => connection.connectedAgentId === definition.id,
-    );
-    return this.a2aDetail(instance, definition, connections);
+    return this.a2aDetail(instance, definition);
   }
 
   private a2aDetail(
     instance: A2aStandardAgentInstanceDetail["instance"],
     definition: A2aStandardAgentInstanceDetail["definition"],
-    connections: AgentConnection[],
   ): A2aStandardAgentInstanceDetail {
     const a2a = definition.a2a ?? instance.a2a;
     const validAgentCard = definition.status === "READY" && Boolean(a2a);
@@ -111,15 +102,19 @@ export class AgentInstanceDetailService {
       status: instance.status,
       platform: { id: "custom", name: definition.platformLabel },
       runtimeView: {
-        type: "KUBERNETES",
-        managed: true,
-        namespace: instance.runtimeNamespace,
+        type: instance.runtime === "kubernetes" ? "KUBERNETES" : "EXTERNAL",
+        managed: instance.runtime === "kubernetes",
+        ...(instance.runtimeNamespace
+          ? { namespace: instance.runtimeNamespace }
+          : {}),
         ...(instance.deploymentName
           ? { workloadName: instance.deploymentName }
           : {}),
         ...(instance.serviceName ? { serviceName: instance.serviceName } : {}),
         ...(instance.podName ? { podName: instance.podName } : {}),
-        imageReference: instance.imageReference,
+        ...(instance.imageReference
+          ? { imageReference: instance.imageReference }
+          : {}),
         ...(instance.imageDigest ? { imageDigest: instance.imageDigest } : {}),
       },
       protocols: [{
@@ -155,17 +150,20 @@ export class AgentInstanceDetailService {
         canDelegate: definition.usageCapabilities.canDelegate,
         acceptsDelegation: definition.usageCapabilities.acceptsDelegation,
         terminal: false,
-        liveLogs: true,
+        liveLogs: instance.runtime === "kubernetes",
       },
       observability: {
-        logSources: ["RUNTIME", "LIFECYCLE", "PROTOCOL", "AUDIT"],
+        logSources: instance.runtime === "kubernetes"
+          ? ["RUNTIME", "LIFECYCLE", "PROTOCOL", "AUDIT"]
+          : ["LIFECYCLE", "PROTOCOL", "AUDIT"],
         terminal: {
           supported: false,
           reason:
-            "This managed A2A Instance exposes read-only runtime logs, not an executable terminal.",
+            instance.runtime === "kubernetes"
+              ? "This managed A2A Instance exposes read-only runtime logs, not an executable terminal."
+              : "This external A2A Instance does not expose an executable terminal through Relay.",
         },
       },
-      connections,
       ...(instance.createdBy ? { createdBy: instance.createdBy } : {}),
       createdAt: instance.createdAt,
       updatedAt: instance.updatedAt,

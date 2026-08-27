@@ -32,7 +32,7 @@ import {
   InstanceStatusBadge,
   RelativeTime,
 } from "./instance-detail-shared";
-import { InstanceConnectedAgentsCard } from "./instance-connected-agents-card";
+import { InstanceCallableAgentsCard } from "./instance-callable-agents-card";
 
 function ProvisioningSummary({ agent }: { agent: Agent }) {
   const projectId = useCurrentProjectId();
@@ -515,7 +515,7 @@ export function InstanceOverviewTab({ access, agent, modelRoutingName, platform 
         </div>
       </div>
 
-      <InstanceConnectedAgentsCard agent={agent} />
+      <InstanceCallableAgentsCard agent={agent} />
 
       <div className="flex flex-col gap-3 border-t py-4 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
         <span className="flex items-center gap-2">

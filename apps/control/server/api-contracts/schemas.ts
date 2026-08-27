@@ -31,7 +31,6 @@ export const accessPolicyParamsSchema = projectParamsSchema.extend({ policyId: u
 export const notificationParamsSchema = z.object({ notificationId: uuid });
 export const memberParamsSchema = projectParamsSchema.extend({ memberId: id });
 export const gardenAgentParamsSchema = projectParamsSchema.extend({ id });
-export const gardenConnectionParamsSchema = projectParamsSchema.extend({ id: uuid });
 export const traceParamsSchema = projectParamsSchema.extend({
   traceId: z.string().regex(/^[0-9a-f]{32}$/),
 });

@@ -9,7 +9,7 @@ function fallbackBrief(agent: AgentGardenEntry): AgentMarketplaceBrief {
     overview:
       `${agent.name} is a ${agent.platformLabel} Agent for ` +
       `${agent.category.toLowerCase()} workflows. Review its advertised ` +
-      "skills, participation model, and connection requirements before making it available to a Coordinator.",
+      "skills, participation model, and runtime requirements before making it available to a Coordinator.",
     useCases: agent.skills.map((skill) => skill.name),
     inputs: [
       "Natural-language task and scope",

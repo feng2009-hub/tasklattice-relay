@@ -1,7 +1,9 @@
 import {
-  agentConnectionSchema,
   agentGardenEntrySchema,
-  type AgentConnection,
+  a2aAgentInstanceSchema,
+  getAgentPlatformDefinition,
+  isAgentPlatformId,
+  type A2aAgentInstance,
   type AgentGardenEntry,
   type AgentGardenSkill,
 } from "@tali/contracts";
@@ -12,7 +14,6 @@ import { AgentGardenStore } from "../agent-garden/agent-garden-store";
 import { databaseAgentCatalog } from "../agent-garden/database-agent-catalog";
 
 export interface ProjectA2aPeer {
-  approvalMode: AgentConnection["approvalMode"];
   description: string;
   id: string;
   name: string;
@@ -21,9 +22,9 @@ export interface ProjectA2aPeer {
   timeoutSeconds: number;
 }
 
-interface ResolvedConnection {
+interface ResolvedInstance {
   agent: AgentGardenEntry;
-  connection: AgentConnection;
+  instance: A2aAgentInstance;
 }
 
 const MAX_A2A_RESPONSE_BYTES = 1024 * 1024;
@@ -34,7 +35,7 @@ async function limitedResponseText(response: Response): Promise<string> {
     Number.isFinite(declaredLength)
     && declaredLength > MAX_A2A_RESPONSE_BYTES
   ) {
-    throw new Error("The connected A2A Agent response exceeded the 1 MiB limit.");
+    throw new Error("The callable A2A Instance response exceeded the 1 MiB limit.");
   }
   if (!response.body) return "";
   const reader = response.body.getReader();
@@ -46,7 +47,7 @@ async function limitedResponseText(response: Response): Promise<string> {
     total += value.byteLength;
     if (total > MAX_A2A_RESPONSE_BYTES) {
       await reader.cancel().catch(() => undefined);
-      throw new Error("The connected A2A Agent response exceeded the 1 MiB limit.");
+      throw new Error("The callable A2A Instance response exceeded the 1 MiB limit.");
     }
     chunks.push(value);
   }
@@ -88,19 +89,15 @@ export class ProjectAgentRuntimeService {
   ) {}
 
   async listPeers(coordinatorInstanceId: string): Promise<ProjectA2aPeer[]> {
-    const connections = await this.connections(coordinatorInstanceId);
-    return connections.map(({ agent, connection }) => {
-      const allowed = new Set(connection.allowedSkillIds);
+    const instances = await this.instances(coordinatorInstanceId);
+    return instances.map(({ agent, instance }) => {
       return {
-        id: agent.id,
-        name: agent.name,
-        description: agent.description,
+        id: instance.id,
+        name: instance.name,
+        description: instance.description,
         protocolVersion: "1.0" as const,
-        approvalMode: connection.approvalMode,
         timeoutSeconds: 120,
-        skills: allowed.size
-          ? agent.skills.filter((skill) => allowed.has(skill.id))
-          : agent.skills,
+        skills: instance.skills.length ? instance.skills : agent.skills,
       };
     });
   }
@@ -110,31 +107,29 @@ export class ProjectAgentRuntimeService {
     agentId: string,
     publicEndpoint: string,
   ): Promise<unknown> {
-    const { agent, connection } = await this.connection(
+    const { agent, instance } = await this.instance(
       coordinatorInstanceId,
       agentId,
     );
-    const allowed = new Set(connection.allowedSkillIds);
+    const skills = instance.skills.length ? instance.skills : agent.skills;
     return {
-      name: agent.name,
-      description: agent.description,
+      name: instance.name,
+      description: instance.description,
       version: agent.configuration.catalogVersion ?? "1.0.0",
       supportedInterfaces: [{
         url: publicEndpoint,
         protocolBinding: "JSONRPC",
         protocolVersion: "1.0",
-        ...(agent.a2a?.tenant ? { tenant: agent.a2a.tenant } : {}),
+        ...(instance.a2a?.tenant ? { tenant: instance.a2a.tenant } : {}),
       }],
       capabilities: {
         streaming: false,
         pushNotifications: false,
         extendedAgentCard: false,
       },
-      defaultInputModes: agent.a2a?.defaultInputModes ?? ["text/plain"],
-      defaultOutputModes: agent.a2a?.defaultOutputModes ?? ["text/plain"],
-      skills: allowed.size
-        ? agent.skills.filter((skill) => allowed.has(skill.id))
-        : agent.skills,
+      defaultInputModes: instance.a2a?.defaultInputModes ?? ["text/plain"],
+      defaultOutputModes: instance.a2a?.defaultOutputModes ?? ["text/plain"],
+      skills,
     };
   }
 
@@ -143,22 +138,12 @@ export class ProjectAgentRuntimeService {
     agentId: string,
     payload: unknown,
   ): Promise<{ body: unknown; status: number }> {
-    const { agent, connection } = await this.connection(
+    const { agent, instance } = await this.instance(
       coordinatorInstanceId,
       agentId,
     );
-    if (connection.approvalMode === "ALWAYS_ASK") {
-      return {
-        status: 200,
-        body: jsonRpcError(
-          requestId(payload),
-          -32001,
-          "Human approval is required for this Agent connection.",
-        ),
-      };
-    }
-    if (!agent.endpoint) {
-      throw new Error("Connected A2A Agent endpoint is unavailable.");
+    if (!instance.endpoint) {
+      throw new Error("Callable A2A Instance endpoint is unavailable.");
     }
     const headers = new Headers({
       accept: "application/a2a+json, application/json",
@@ -173,22 +158,22 @@ export class ProjectAgentRuntimeService {
         headers.set("x-api-key", credential);
       }
     }
-    const httpJsonParams = agent.a2a?.protocolBinding === "HTTP+JSON"
+    const httpJsonParams = instance.a2a?.protocolBinding === "HTTP+JSON"
       ? jsonRpcSendMessageParams(payload)
       : undefined;
-    if (agent.a2a?.protocolBinding === "HTTP+JSON" && !httpJsonParams) {
+    if (instance.a2a?.protocolBinding === "HTTP+JSON" && !httpJsonParams) {
       return {
         status: 200,
         body: jsonRpcError(
           requestId(payload),
           -32601,
-          "The connected HTTP+JSON Agent supports SendMessage only.",
+          "The callable HTTP+JSON Instance supports SendMessage only.",
         ),
       };
     }
     const endpoint = httpJsonParams
-      ? httpJsonSendMessageEndpoint(agent.endpoint)
-      : agent.endpoint;
+      ? httpJsonSendMessageEndpoint(instance.endpoint)
+      : instance.endpoint;
     if (httpJsonParams) headers.set("content-type", "application/a2a+json");
     const response = await fetch(endpoint, {
       method: "POST",
@@ -208,7 +193,7 @@ export class ProjectAgentRuntimeService {
           body: jsonRpcError(
             requestId(payload),
             -32002,
-            "The connected A2A Agent returned a non-JSON response.",
+            "The callable A2A Instance returned a non-JSON response.",
           ),
         };
       }
@@ -228,16 +213,16 @@ export class ProjectAgentRuntimeService {
             body: jsonRpcError(
               requestId(payload),
               -32002,
-              `The connected HTTP+JSON Agent returned HTTP ${response.status}.`,
+              `The callable HTTP+JSON Instance returned HTTP ${response.status}.`,
             ),
           };
     }
     return { status: response.status, body };
   }
 
-  private async connections(
+  private async instances(
     coordinatorInstanceId: string,
-  ): Promise<ResolvedConnection[]> {
+  ): Promise<ResolvedInstance[]> {
     await new AgentGardenStore(this.projectId, this.db).ensureAgents(
       databaseAgentCatalog,
     );
@@ -248,42 +233,60 @@ export class ProjectAgentRuntimeService {
         kind: "SUPERVISOR",
         deletedAt: null,
       },
-      select: { id: true },
+      select: { payload: true },
     });
     if (!coordinator) throw new Error("Coordinator Instance was not found.");
-    const rows = await this.db.agentConnectionRecord.findMany({
+    const coordinatorPayload = coordinator.payload
+      && typeof coordinator.payload === "object"
+      && !Array.isArray(coordinator.payload)
+      ? coordinator.payload as Record<string, unknown>
+      : {};
+    const platformId = coordinatorPayload.agentPlatform;
+    if (
+      typeof platformId !== "string"
+      || !isAgentPlatformId(platformId)
+      || !getAgentPlatformDefinition(platformId).capabilities.canDelegate
+    ) {
+      throw new Error("This Instance runtime cannot delegate A2A tasks.");
+    }
+    const rows = await this.db.agentRecord.findMany({
       where: {
         projectId: this.projectId,
-        coordinatorInstanceId,
+        kind: "A2A",
         deletedAt: null,
-        connectedAgent: { deletedAt: null },
+        catalogAgent: { deletedAt: null },
       },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       select: {
         payload: true,
-        connectedAgent: { select: { payload: true } },
+        catalogAgent: { select: { payload: true } },
       },
     });
     return rows
       .map((row) => ({
-        connection: agentConnectionSchema.parse(row.payload),
-        agent: agentGardenEntrySchema.parse(row.connectedAgent.payload),
+        instance: a2aAgentInstanceSchema.parse(row.payload),
+        agent: agentGardenEntrySchema.parse(row.catalogAgent!.payload),
       }))
-      .filter(({ agent }) =>
-        agent.status === "READY"
+      .filter(({ agent, instance }) =>
+        instance.status === "READY"
+        && Boolean(instance.endpoint)
+        && Boolean(instance.agentCardUrl)
+        && Boolean(instance.a2a)
+        && agent.status === "READY"
         && agent.integrationType === "a2a"
-        && Boolean(agent.endpoint)
+        && (agent.usageMode === "CALLABLE" || agent.usageMode === "HYBRID")
+        && agent.usageCapabilities.acceptsDelegation
       );
   }
 
-  private async connection(
+  private async instance(
     coordinatorInstanceId: string,
     agentId: string,
-  ): Promise<ResolvedConnection> {
-    const found = (await this.connections(coordinatorInstanceId)).find(
-      ({ agent }) => agent.id === agentId,
+  ): Promise<ResolvedInstance> {
+    const found = (await this.instances(coordinatorInstanceId)).find(
+      ({ instance }) => instance.id === agentId,
     );
-    if (!found) throw new Error("Connected A2A Agent was not found.");
+    if (!found) throw new Error("Callable A2A Instance was not found.");
     return found;
   }
 }

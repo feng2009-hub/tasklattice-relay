@@ -1,6 +1,5 @@
 import type {
-  Instance as Agent,
-  AgentConnection,
+  A2aAgentInstance,
   AgentGardenEntry,
 } from "@tali/contracts";
 import { Link } from "@tanstack/react-router";
@@ -10,7 +9,6 @@ import {
   Boxes,
   Check,
   ExternalLink,
-  Link2,
   Play,
   Trash2,
   X,
@@ -35,9 +33,7 @@ import {
 export function AgentDetailSheet({
   agent,
   canManage,
-  connections,
-  instances,
-  onConnect,
+  instance,
   onCreateInstance,
   onOpenChange,
   onRefresh,
@@ -48,9 +44,7 @@ export function AgentDetailSheet({
 }: {
   agent: AgentGardenEntry | undefined;
   canManage: boolean;
-  connections: AgentConnection[];
-  instances: Agent[];
-  onConnect: () => void;
+  instance: A2aAgentInstance | undefined;
   onCreateInstance: () => void;
   onOpenChange: (open: boolean) => void;
   onRefresh: () => void;
@@ -63,9 +57,6 @@ export function AgentDetailSheet({
   const preview = agent ? isPreviewAgent(agent) : false;
   const managedContainer =
     agent?.configuration.onboardingSource === "CONTAINER_IMAGE";
-  const agentConnections = connections.filter(
-    (connection) => connection.connectedAgentId === agent?.id,
-  );
   const statusTone =
     agent?.status === "READY"
       ? "success"
@@ -87,7 +78,7 @@ export function AgentDetailSheet({
           : "Project-registered Agent"
       }
       title={agent?.name ?? "Agent details"}
-      description="Usage capabilities, discovery evidence, and Coordinator connections."
+      description="Usage capabilities, discovery evidence, and runtime availability."
       width="lg"
       footer={(
         <>
@@ -117,11 +108,11 @@ export function AgentDetailSheet({
                   : "Refresh discovery"}
             </Button>
           ) : null}
-          {managedContainer && agent?.configuration.managedInstanceId ? (
+          {instance ? (
             <Button asChild variant="outline">
               <Link
                 to="/$projectId/instances/$instanceId"
-                params={{ projectId, instanceId: agent.configuration.managedInstanceId }}
+                params={{ projectId, instanceId: instance.id }}
               >
                 <Boxes /> View Instance
               </Link>
@@ -144,16 +135,16 @@ export function AgentDetailSheet({
               Create Instance <ArrowRight />
             </Button>
           ) : null}
-          {agent?.usageCapabilities.acceptsDelegation ? (
+          {agent?.usageCapabilities.acceptsDelegation && !instance ? (
             <Button
               type="button"
               disabled={
                 !canManage ||
                 agent.status !== "READY"
               }
-              onClick={onConnect}
+              onClick={onCreateInstance}
             >
-              <Link2 /> Connect to…
+              Create Instance <ArrowRight />
             </Button>
           ) : null}
           {agent && preview ? (
@@ -221,7 +212,7 @@ export function AgentDetailSheet({
                       : "TaskLattice Relay built-in"
                     : managedContainer
                       ? "Project-managed container image"
-                      : "Existing Agent connection",
+                      : "Existing external Agent",
               },
               {
                 label: "Owner",
@@ -338,7 +329,7 @@ export function AgentDetailSheet({
                 enabled={agent.usageCapabilities.interactive}
               />
               <CapabilityRow
-                label="Can delegate to connected Agents"
+                label="Can delegate to callable Instances"
                 enabled={agent.usageCapabilities.canDelegate}
               />
               <CapabilityRow
@@ -390,48 +381,6 @@ export function AgentDetailSheet({
             )}
           </section>
 
-          {agentConnections.length ? (
-            <section className="space-y-3">
-              <div className="flex items-end justify-between gap-3">
-                <div>
-                  <h3 className="text-sm font-semibold">Connected Agents</h3>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Coordinators that may delegate tasks to this Agent.
-                  </p>
-                </div>
-                <span className="text-xs tabular-nums text-muted-foreground">
-                  {agentConnections.length}
-                </span>
-              </div>
-              <div className="divide-y border">
-                {agentConnections.map((connection) => {
-                  const coordinator = instances.find(
-                    (instance) =>
-                      instance.id === connection.coordinatorInstanceId,
-                  );
-                  return (
-                    <div
-                      key={connection.id}
-                      className="flex min-h-16 items-center gap-3 px-4 py-3"
-                    >
-                      <Link2 className="size-4 text-primary" />
-                      <span className="min-w-0">
-                        <strong className="block truncate text-sm">
-                          {coordinator?.name ??
-                            connection.coordinatorInstanceId}
-                        </strong>
-                        <span className="mt-1 block text-xs text-muted-foreground">
-                          {connection.approvalMode === "AUTO_READ_ONLY"
-                            ? "Provider-declared read-only delegation"
-                            : "Approval before every task"}
-                        </span>
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          ) : null}
         </div>
       ) : null}
     </EntitySheet>

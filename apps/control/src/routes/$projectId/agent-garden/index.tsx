@@ -23,7 +23,6 @@ import {
 import { AgentDetailSheet } from "@/components/agent-garden/agent-detail-sheet";
 import { AgentGardenCard } from "@/components/agent-garden/agent-garden-card";
 import { agentGardenFacetGroups } from "@/components/agent-garden/agent-garden-facets";
-import { ConnectAgentSheet } from "@/components/agent-garden/connect-agent-sheet";
 import { RegisterAgentSheet } from "@/components/agent-garden/register-agent-sheet";
 import { TryDemoAgentSheet } from "@/components/agent-garden/try-demo-agent-sheet";
 import { PageHeader } from "@/components/layout/page-header";
@@ -45,7 +44,7 @@ import { useCurrentProjectId } from "@/hooks/use-project";
 import { useProjectPermissions } from "@/hooks/use-project-permissions";
 
 export const Route = createFileRoute("/$projectId/agent-garden/")({
-  validateSearch: z.object({ coordinator: z.string().optional() }),
+  validateSearch: z.object({}),
   component: AgentGarden,
 });
 
@@ -61,7 +60,6 @@ function toggleCapability(
 }
 
 function AgentGarden() {
-  const routeSearch = Route.useSearch();
   const projectId = useCurrentProjectId();
   const permissions = useProjectPermissions();
   const navigate = useNavigate();
@@ -71,10 +69,6 @@ function AgentGarden() {
     queryKey: scope.key("agent-garden"),
     queryFn: api.getAgentGarden,
   });
-  const instances = useQuery({
-    queryKey: scope.key("agents"),
-    queryFn: api.listInstances,
-  });
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortMode>("recommended");
   const [capabilities, setCapabilities] = useState<string[]>([]);
@@ -82,17 +76,12 @@ function AgentGarden() {
     useState(false);
   const [registrationOpen, setRegistrationOpen] = useState(false);
   const [detailId, setDetailId] = useState("");
-  const [connectId, setConnectId] = useState("");
   const [tryId, setTryId] = useState("");
   const [removingId, setRemovingId] = useState("");
   const [notice, setNotice] = useState("");
   const allAgents = garden.data?.agents ?? [];
-  const connections = garden.data?.connections ?? [];
   const selectedAgent = allAgents.find(
     (agent) => agent.id === detailId,
-  );
-  const connectAgent = allAgents.find(
-    (agent) => agent.id === connectId,
   );
   const tryAgent = allAgents.find((agent) => agent.id === tryId);
   const removingAgent = allAgents.find(
@@ -179,6 +168,18 @@ function AgentGarden() {
       });
     },
   });
+  const instantiate = useMutation({
+    mutationFn: api.instantiateGardenAgent,
+    onSuccess: async (instance) => {
+      await queryClient.invalidateQueries({
+        queryKey: scope.key("agent-garden"),
+      });
+      await navigate({
+        to: "/$projectId/instances/$instanceId",
+        params: { projectId, instanceId: instance.id },
+      });
+    },
+  });
 
   const refreshGarden = async (message: string) => {
     setNotice(message);
@@ -188,6 +189,20 @@ function AgentGarden() {
   };
 
   const createInstance = (agent: AgentGardenEntry) => {
+    if (agent.integrationType === "a2a") {
+      const existing = (garden.data?.instances ?? []).find(
+        (instance) => instance.agentId === agent.id,
+      );
+      if (existing) {
+        void navigate({
+          to: "/$projectId/instances/$instanceId",
+          params: { projectId, instanceId: existing.id },
+        });
+        return;
+      }
+      instantiate.mutate(agent.id);
+      return;
+    }
     if (!isAgentPlatformId(agent.integrationType)) return;
     if (!getAgentPlatformDefinition(agent.integrationType).capabilities.interactive)
       return;
@@ -217,7 +232,7 @@ function AgentGarden() {
     <div className="space-y-6">
       <PageHeader
         title="Agent Garden"
-        description="Discover callable A2A Agents, deploy a compatible container image, or connect an Agent through its published A2A 1.0 Agent Card."
+        description="Discover callable A2A Agents, deploy a compatible container image, or register an Agent through its published A2A 1.0 Agent Card."
         actions={(
           <Button
             className="h-11"
@@ -229,12 +244,12 @@ function AgentGarden() {
         )}
       />
 
-      {garden.error || instances.error ? (
+      {garden.error ? (
         <p
           role="alert"
           className="border-l-2 border-destructive bg-destructive/5 px-4 py-3 text-sm text-destructive"
         >
-          {(garden.error ?? instances.error)?.message}
+          {garden.error.message}
         </p>
       ) : null}
       {notice ? (
@@ -245,12 +260,12 @@ function AgentGarden() {
           {notice}
         </p>
       ) : null}
-      {refresh.error || remove.error ? (
+      {refresh.error || remove.error || instantiate.error ? (
         <p
           role="alert"
           className="border-l-2 border-destructive bg-destructive/5 px-4 py-3 text-sm text-destructive"
         >
-          {(refresh.error ?? remove.error)?.message}
+          {(refresh.error ?? remove.error ?? instantiate.error)?.message}
         </p>
       ) : null}
 
@@ -368,14 +383,12 @@ function AgentGarden() {
                   key={agent.id}
                   agent={agent}
                   canManage={permissions.canManageResources}
-                  connectionCount={
-                    connections.filter(
-                      (connection) =>
-                        connection.connectedAgentId === agent.id,
+                  instanceCount={
+                    (garden.data?.instances ?? []).filter(
+                      (instance) => instance.agentId === agent.id,
                     ).length
                   }
                   onDetails={() => openDetails(agent)}
-                  onConnect={() => setConnectId(agent.id)}
                   onCreateInstance={() => createInstance(agent)}
                   onTry={() => setTryId(agent.id)}
                 />
@@ -411,8 +424,9 @@ function AgentGarden() {
         }}
         agent={selectedAgent}
         canManage={permissions.canManageResources}
-        connections={connections}
-        instances={instances.data ?? []}
+        instance={(garden.data?.instances ?? []).find(
+          (instance) => instance.agentId === selectedAgent?.id,
+        )}
         refreshing={refresh.isPending}
         onRefresh={() =>
           selectedAgent && refresh.mutate(selectedAgent.id)
@@ -420,11 +434,6 @@ function AgentGarden() {
         onRemove={() =>
           selectedAgent && setRemovingId(selectedAgent.id)
         }
-        onConnect={() => {
-          if (!selectedAgent) return;
-          setDetailId("");
-          setConnectId(selectedAgent.id);
-        }}
         onCreateInstance={() =>
           selectedAgent && createInstance(selectedAgent)
         }
@@ -432,22 +441,6 @@ function AgentGarden() {
           if (!selectedAgent) return;
           setDetailId("");
           setTryId(selectedAgent.id);
-        }}
-      />
-
-      <ConnectAgentSheet
-        open={Boolean(connectId)}
-        onOpenChange={(open) => {
-          if (!open) setConnectId("");
-        }}
-        agent={connectAgent}
-        connections={connections}
-        {...(routeSearch.coordinator
-          ? { initialCoordinatorId: routeSearch.coordinator }
-          : {})}
-        instances={instances.data ?? []}
-        onChanged={(message) => {
-          void refreshGarden(message);
         }}
       />
 
@@ -466,7 +459,7 @@ function AgentGarden() {
           if (!open && !remove.isPending) setRemovingId("");
         }}
         title="Delete registered Agent"
-        description={<>Remove <strong>{removingAgent.name}</strong> from this Project. Existing connections must be disconnected first.</>}
+        description={<>Remove <strong>{removingAgent.name}</strong> and its A2A Instance from this Project.</>}
         entityName={removingAgent.name}
         confirmLabel="Delete registration"
         pendingLabel="Deleting…"

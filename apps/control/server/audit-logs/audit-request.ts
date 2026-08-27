@@ -58,7 +58,6 @@ const resources: Array<{
   { segment: "model-routings", prefix: "model_routing", type: "Routing" },
   { segment: "mcp-servers", prefix: "mcp_server", type: "MCP Server" },
   { segment: "knowledge-sources", prefix: "knowledge_source", type: "Knowledge Source" },
-  { segment: "connections", prefix: "agent_connection", type: "Agent Connection" },
   { segment: "invitations", prefix: "project_member", type: "Project Member" },
   { segment: "providers", prefix: "provider", type: "Provider" },
   { segment: "instances", prefix: "instance", type: "Instance" },

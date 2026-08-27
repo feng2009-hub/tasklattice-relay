@@ -327,7 +327,7 @@ export function marketplaceMetadataFor(
     overview:
       `${definition.name} is a ${definition.platformLabel} sample for ` +
       `${definition.category.toLowerCase()} workflows. It publishes bounded ` +
-      "skills through an Agent Card and is designed to demonstrate discovery, preview, and Coordinator connection interactions.",
+      "skills through an Agent Card and is designed to demonstrate discovery, Instance materialization, and delegation.",
     useCases: definition.examplePrompts.slice(0, 3),
     inputs: [
       "Natural-language task and scope",

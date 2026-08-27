@@ -7,13 +7,12 @@ import type {
   CreateInstanceLogSessionInput,
   InstanceInteractionAccess,
   InstanceRuntimeLogView,
-  AgentConnection,
   AgentGardenEntry,
   AgentGardenSnapshot,
+  A2aAgentInstance,
   CreateKnowledgeSourceDefinitionInput,
   DepartmentInferenceAvailability,
   CreateAccessPolicyInput,
-  CreateAgentConnectionInput,
   CreateInstanceInput,
   CostQueryParams,
   ModelCostActivityResponse,
@@ -232,19 +231,19 @@ export const api = {
         body: "{}",
       },
     ),
+  instantiateGardenAgent: (id: string) =>
+    request<A2aAgentInstance>(
+      `/api/v1/agent-garden/agents/${encodeURIComponent(id)}/instances`,
+      { method: "POST", body: "{}" },
+    ),
+  removeGardenInstance: (id: string) =>
+    request<{ message: string }>(
+      `/api/v1/agent-garden/instances/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+    ),
   removeGardenAgent: (id: string) =>
     request<{ message: string }>(
       `/api/v1/agent-garden/agents/${encodeURIComponent(id)}`,
-      { method: "DELETE" },
-    ),
-  connectGardenAgent: (input: CreateAgentConnectionInput) =>
-    request<AgentConnection>("/api/v1/agent-garden/connections", {
-      method: "POST",
-      body: JSON.stringify(input),
-    }),
-  disconnectGardenAgent: (id: string) =>
-    request<{ message: string }>(
-      `/api/v1/agent-garden/connections/${encodeURIComponent(id)}`,
       { method: "DELETE" },
     ),
   createSkill: (input: CreateSkillDefinitionInput) =>

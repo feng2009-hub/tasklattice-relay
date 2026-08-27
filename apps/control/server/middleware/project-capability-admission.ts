@@ -78,32 +78,6 @@ async function ownership(
       : undefined;
     return { ownedByActor: row?.ownerUserId === actorId };
   }
-  if (resolver === "AGENT_CONNECTION") {
-    let coordinatorInstanceId: string | undefined;
-    if (request.method.toUpperCase() === "POST") {
-      const body = await jsonBody(request);
-      coordinatorInstanceId = typeof body.coordinatorInstanceId === "string"
-        ? body.coordinatorInstanceId
-        : undefined;
-    } else if (resourceId) {
-      const connection = await prisma().agentConnectionRecord.findFirst({
-        where: { projectId: scopedProjectId, id: resourceId, deletedAt: null },
-        select: { coordinatorInstanceId: true },
-      });
-      coordinatorInstanceId = connection?.coordinatorInstanceId;
-    }
-    const instance = coordinatorInstanceId
-      ? await prisma().agentRecord.findFirst({
-          where: {
-            projectId: scopedProjectId,
-            id: coordinatorInstanceId,
-            deletedAt: null,
-          },
-          select: { ownerUserId: true },
-        })
-      : undefined;
-    return { ownedByActor: instance?.ownerUserId === actorId };
-  }
   return { ownedByActor: resolver === "NEW_OWNER" };
 }
 
