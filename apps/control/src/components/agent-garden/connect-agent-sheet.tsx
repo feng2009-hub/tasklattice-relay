@@ -174,7 +174,7 @@ export function ConnectAgentSheet({
             <div>
               <h3 className="text-sm font-semibold">Coordinator Instance</h3>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                Only READY OpenClaw and Hermes Instances can create outbound
+                Only READY Hermes and OpenClaw Instances can create outbound
                 Agent delegations.
               </p>
             </div>
@@ -214,7 +214,7 @@ export function ConnectAgentSheet({
                   No READY Coordinator Instances
                 </strong>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  Create an OpenClaw or Hermes Instance before connecting a
+                  Create a Hermes or OpenClaw Instance before connecting a
                   callable Agent.
                 </p>
                 <Button asChild variant="outline" className="mt-4">
@@ -311,8 +311,9 @@ export function ConnectAgentSheet({
             <div>
               <h3 className="text-sm font-semibold">Approval behavior</h3>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                Defines the default Coordinator behavior. Destructive actions
-                still require their governing Access Policy.
+                Defines the default Coordinator behavior. Use automatic mode
+                only for provider-declared read-only skills; Relay cannot
+                inspect side effects inside a remote Agent service.
               </p>
             </div>
             <Select
@@ -326,7 +327,7 @@ export function ConnectAgentSheet({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="AUTO_READ_ONLY">
-                  Allow read-only delegation automatically
+                  Trust declared read-only delegation
                 </SelectItem>
                 <SelectItem value="ALWAYS_ASK">
                   Ask before every delegated task
@@ -365,7 +366,7 @@ export function ConnectAgentSheet({
                         </strong>
                         <span className="mt-1 block text-xs text-muted-foreground">
                           {connection.approvalMode === "AUTO_READ_ONLY"
-                            ? "Read-only automatic"
+                            ? "Provider-declared read-only"
                             : "Always ask"}
                         </span>
                       </span>

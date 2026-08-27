@@ -85,6 +85,37 @@ describe("platform audit request capture", () => {
     ))).toBeUndefined();
   });
 
+  it("classifies PostgreSQL knowledge chunk mutations independently from source metadata", async () => {
+    await expect(captureAuditRequest(new Request(
+      "http://tali.local/api/v1/projects/individual/catalog/knowledge-sources/engineering/chunks",
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ chunks: [] }),
+      },
+    ))).resolves.toMatchObject({
+      descriptor: {
+        action: "knowledge_vector_chunk.batch_upsert",
+        objectId: "engineering",
+        objectType: "Knowledge Vector Chunk",
+        operation: "update",
+        projectId: "individual",
+      },
+    });
+    await expect(captureAuditRequest(new Request(
+      "http://tali.local/api/v1/projects/individual/catalog/knowledge-sources/engineering/chunks/chunk-1",
+      { method: "DELETE" },
+    ))).resolves.toMatchObject({
+      descriptor: {
+        action: "knowledge_vector_chunk.delete",
+        objectId: "chunk-1",
+        objectType: "Knowledge Vector Chunk",
+        operation: "delete",
+        projectId: "individual",
+      },
+    });
+  });
+
   it("records platform changes without inventing a Project relation", async () => {
     database = createTestPrisma();
     const captured = await captureAuditRequest(new Request(
@@ -321,7 +352,7 @@ describe("platform audit request capture", () => {
     }
 
     expect(uncovered).toEqual([]);
-    expect(routeFiles).toHaveLength(70);
+    expect(routeFiles).toHaveLength(75);
   });
 
   it("records direct Project role switches", async () => {

@@ -7,12 +7,14 @@ import {
   createMcpServerDefinitionSchema,
   createSkillDefinitionSchema,
   knowledgeSourceDefinitionSchema,
+  knowledgeVectorChunkMutationResultSchema,
   mcpServerDefinitionSchema,
   onboardAgentSchema,
   skillDefinitionSchema,
   updateKnowledgeSourceDefinitionSchema,
   updateMcpServerDefinitionSchema,
   updateSkillDefinitionSchema,
+  upsertKnowledgeVectorChunksSchema,
 } from "@tali/contracts";
 import { z } from "zod";
 import { defineContracts } from "./contract";
@@ -26,7 +28,10 @@ import {
   domainObjectSchema,
   gardenAgentParamsSchema,
   gardenConnectionParamsSchema,
+  knowledgeVectorChunkParamsSchema,
   messageSchema,
+  runtimeBridgeAgentParamsSchema,
+  runtimeBridgeCoordinatorParamsSchema,
 } from "./schemas";
 
 const catalogSchema = z.object({
@@ -74,6 +79,18 @@ export const catalogContracts = defineContracts([
     summary: "Delete a catalog resource", tags: ["Resource catalog"],
     request: { params: catalogResourceParamsSchema },
     responses: { 200: response("Deleted catalog resource", messageSchema) },
+  }),
+  projectRoute({
+    method: "put", path: "/catalog/knowledge-sources/{id}/chunks", operationId: "upsertKnowledgeVectorChunks",
+    summary: "Embed and upsert PostgreSQL knowledge chunks", tags: ["Resource catalog"],
+    request: { params: catalogNamedResourceParamsSchema, body: upsertKnowledgeVectorChunksSchema },
+    responses: { 200: response("Upserted knowledge chunks", knowledgeVectorChunkMutationResultSchema) },
+  }),
+  projectRoute({
+    method: "delete", path: "/catalog/knowledge-sources/{id}/chunks/{chunkId}", operationId: "deleteKnowledgeVectorChunk",
+    summary: "Delete a PostgreSQL knowledge chunk", tags: ["Resource catalog"],
+    request: { params: knowledgeVectorChunkParamsSchema },
+    responses: { 200: response("Deleted knowledge chunk", messageSchema) },
   }),
   projectRoute({
     method: "post", path: "/catalog/mcp-servers/{id}/discover", operationId: "discoverMcpServerTools",
@@ -141,5 +158,32 @@ export const catalogContracts = defineContracts([
     operationId: "sendDemoAgentMessage", summary: "Send a message to a demo Agent", tags: ["Demo Agents"],
     request: { params: demoAgentParamsSchema, body: demoAgentMessageInputSchema },
     responses: { 200: response("Demo Agent response", domainObjectSchema) },
+  }),
+  route({
+    auth: "runtime-bridge", method: "get",
+    path: "/runtime-bridge/coordinators/{coordinatorInstanceId}/agents",
+    operationId: "listRuntimeBridgeAgents",
+    summary: "List Project-enabled A2A Agents for a Coordinator",
+    tags: ["Runtime Bridge"],
+    request: { params: runtimeBridgeCoordinatorParamsSchema },
+    responses: { 200: response("Project A2A peer directory", domainObjectSchema) },
+  }),
+  route({
+    auth: "runtime-bridge", method: "get",
+    path: "/runtime-bridge/coordinators/{coordinatorInstanceId}/agents/{agentId}/agent-card",
+    operationId: "getRuntimeBridgeAgentCard",
+    summary: "Read a connected Agent Card through the Project Runtime Bridge",
+    tags: ["Runtime Bridge"],
+    request: { params: runtimeBridgeAgentParamsSchema },
+    responses: { 200: response("Proxied A2A Agent Card", domainObjectSchema) },
+  }),
+  route({
+    auth: "runtime-bridge", method: "post",
+    path: "/runtime-bridge/coordinators/{coordinatorInstanceId}/agents/{agentId}",
+    operationId: "sendRuntimeBridgeAgentMessage",
+    summary: "Send an A2A message through the Project Runtime Bridge",
+    tags: ["Runtime Bridge"],
+    request: { params: runtimeBridgeAgentParamsSchema, body: domainObjectSchema },
+    responses: { 200: response("Proxied A2A response", domainObjectSchema) },
   }),
 ]);

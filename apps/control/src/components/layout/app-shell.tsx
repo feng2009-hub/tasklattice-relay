@@ -5,15 +5,12 @@ import {
   Bot,
   Boxes,
   BrainCircuit,
-  Building2,
   CheckCircle2,
   CircleDollarSign,
-  CircleHelp,
   FileLock2,
   FileClock,
   Network,
   ServerCog,
-  Settings2,
   ShieldCheck,
   Sparkles,
   Waypoints,
@@ -22,12 +19,13 @@ import {
 import { useTranslation } from "react-i18next";
 import type { AuthUser } from "@/components/auth/auth-provider";
 import { useAuth } from "@/components/auth/auth-provider";
-import { AccountMenu } from "@/components/account/account-menu";
-import { BrandLogo } from "@/components/brand/brand-logo";
+import {
+  AppSidebarBrandLink,
+  AppSidebarUtilityFooter,
+} from "@/components/layout/app-sidebar-chrome";
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -50,7 +48,6 @@ import {
   getPersonalProfile,
   personalProfileQueryKey,
 } from "@/services/personal-profile";
-import { getDepartments } from "@/services/department";
 import { WorkspaceHeader } from "@/components/layout/workspace-header";
 import { CreateProjectSheet } from "@/components/project/create-project-sheet";
 import { ProjectSwitcher } from "@/components/project/project-switcher";
@@ -156,6 +153,19 @@ export function routeUsesFullBleedLayout(pathname: string): boolean {
     || /^\/[^/]+\/help$/.test(normalizedPathname);
 }
 
+export function routeUsesStandaloneContextSidebar(pathname: string): boolean {
+  const normalizedPathname = pathname.replace(/\/$/, "");
+  return normalizedPathname === "/platform/settings"
+    || /^\/departments\/[^/]+$/.test(normalizedPathname);
+}
+
+export function routeIsGlobal(pathname: string): boolean {
+  const normalizedPathname = pathname.replace(/\/$/, "");
+  return normalizedPathname === "/account"
+    || normalizedPathname.startsWith("/departments/")
+    || normalizedPathname.startsWith("/platform/");
+}
+
 function NavigationItem({ item, pathname, projectId }: {
   item: NavItemDefinition;
   pathname: string;
@@ -201,17 +211,6 @@ function ProjectSidebar({ createProjectOpen, logout, onCreateProjectOpenChange, 
   const [toastProject, setToastProject] = useState("");
   const projectId = currentProject?.id ?? "proj1";
   const permissions = useProjectPermissions();
-  const administeredDepartments = useQuery({
-    queryKey: ["departments"],
-    queryFn: getDepartments,
-    staleTime: 30_000,
-  });
-  const helpActive = pathname.replace(/\/$/, "") === `/${encodeURIComponent(projectId)}/help`;
-  const platformSettingsActive = pathname.replace(/\/$/, "") === "/platform/settings";
-  const departmentSettingsActive = pathname.startsWith("/departments/");
-  const departmentSettingsTarget = administeredDepartments.data?.find(
-    (department) => department.id === currentProject?.department.id,
-  ) ?? administeredDepartments.data?.[0];
   return (
     <ToastProvider duration={3_000} swipeDirection="right">
       <Sidebar
@@ -220,9 +219,10 @@ function ProjectSidebar({ createProjectOpen, logout, onCreateProjectOpenChange, 
         mobileTitle={t("navigation.title")}
       >
         <SidebarHeader className="gap-1.5 border-b border-sidebar-border p-2">
-          <Link to="/$projectId" params={{ projectId }} onClick={() => setOpenMobile(false)} className="flex min-h-11 min-w-0 items-center gap-3 px-2 focus-visible:outline-2 group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:size-11 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0" aria-label={t("brandHome")}>
-            <BrandLogo compact={!isMobile && state === "collapsed"} />
-          </Link>
+          <AppSidebarBrandLink
+            compact={!isMobile && state === "collapsed"}
+            projectId={projectId}
+          />
           <ProjectSwitcher
             collapsed={!isMobile && state === "collapsed"}
             onProjectSettingsOpen={() => setOpenMobile(false)}
@@ -259,79 +259,13 @@ function ProjectSidebar({ createProjectOpen, logout, onCreateProjectOpenChange, 
             )) : null}
           </nav>
         </SidebarContent>
-        <SidebarFooter className="border-t border-sidebar-border p-2">
-          {user?.systemRole === "platform_administrator" || departmentSettingsTarget ? (
-            <SidebarMenu className="border-b border-sidebar-border pb-2">
-              {user?.systemRole === "platform_administrator" ? (
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={platformSettingsActive}
-                    tooltip={t("platformSetting")}
-                  >
-                    <Link
-                      to="/platform/settings"
-                      onClick={() => setOpenMobile(false)}
-                      aria-current={platformSettingsActive ? "page" : undefined}
-                      aria-label={t("platformSetting")}
-                    >
-                      <Settings2 />
-                      <span>{t("platformSetting")}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ) : null}
-              {departmentSettingsTarget ? (
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={departmentSettingsActive}
-                    tooltip={t("departmentSetting")}
-                  >
-                    <Link
-                      to="/departments/$departmentId"
-                      params={{ departmentId: departmentSettingsTarget.id }}
-                      onClick={() => setOpenMobile(false)}
-                      aria-current={departmentSettingsActive ? "page" : undefined}
-                      aria-label={t("departmentSetting")}
-                    >
-                      <Building2 />
-                      <span>{t("departmentSetting")}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ) : null}
-            </SidebarMenu>
-          ) : null}
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                isActive={helpActive}
-                tooltip={t("help.label")}
-              >
-                <Link
-                  to="/$projectId/help"
-                  params={{ projectId }}
-                  onClick={() => setOpenMobile(false)}
-                  aria-current={helpActive ? "page" : undefined}
-                  aria-label={t("help.label")}
-                >
-                  <CircleHelp />
-                  <span>{t("help.label")}</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-          <div className="mt-1 border-t border-sidebar-border pt-2">
-            <AccountMenu
-              collapsed={!isMobile && state === "collapsed"}
-              onLogout={logout}
-              projectId={projectId}
-              user={user}
-            />
-          </div>
-        </SidebarFooter>
+        <AppSidebarUtilityFooter
+          collapsed={!isMobile && state === "collapsed"}
+          logout={logout}
+          pathname={pathname}
+          projectId={projectId}
+          user={user}
+        />
         <SidebarRail label={t("navigation.toggle")} />
       </Sidebar>
 
@@ -389,10 +323,9 @@ export function AppShell() {
     refreshProjects,
   } = useProject();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const platformRoute = pathname.startsWith("/platform/");
-  const departmentRoute = pathname.startsWith("/departments/");
-  const globalRoute = departmentRoute || platformRoute;
+  const globalRoute = routeIsGlobal(pathname);
   const fullBleedRoute = routeUsesFullBleedLayout(pathname);
+  const standaloneContextSidebar = routeUsesStandaloneContextSidebar(pathname);
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [nestedSidebarOpen, setNestedSidebarOpen] = useState(false);
@@ -437,13 +370,15 @@ export function AppShell() {
   return (
     <TooltipProvider delayDuration={250}>
       <SidebarProvider open={activeSidebarOpen} onOpenChange={handleSidebarOpenChange}>
-        <ProjectSidebar
-          createProjectOpen={createProjectOpen}
-          logout={logout}
-          onCreateProjectOpenChange={setCreateProjectOpen}
-          pathname={pathname}
-          user={user}
-        />
+        {standaloneContextSidebar ? null : (
+          <ProjectSidebar
+            createProjectOpen={createProjectOpen}
+            logout={logout}
+            onCreateProjectOpenChange={setCreateProjectOpen}
+            pathname={pathname}
+            user={user}
+          />
+        )}
         <SidebarInset>
           {!fullBleedRoute ? <WorkspaceHeader /> : null}
           <main

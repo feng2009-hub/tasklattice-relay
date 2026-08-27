@@ -18,6 +18,7 @@ export interface CreateSandboxInput {
   systemPrompt: string;
   apiKey?: string;
   instanceId: string;
+  projectRuntimeBridgeToken?: string;
   sandboxImage?: string;
   sandboxResources?: {
     cpu?: string;

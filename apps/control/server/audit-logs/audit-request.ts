@@ -118,6 +118,13 @@ async function captureBody(request: Request): Promise<unknown> {
 }
 
 function descriptor(method: string, path: string): AuditDescriptor | undefined {
+  if (method === "PUT" && path === "/api/v1/access-context") {
+    return {
+      action: "user.access_context_select",
+      objectType: "Access Context",
+      operation: "switch",
+    };
+  }
   if (method === "GET" && path === "/api/v1/projects") {
     return {
       action: "user.project_context_sync",
@@ -307,6 +314,17 @@ function descriptor(method: string, path: string): AuditDescriptor | undefined {
       operation: "execute",
     };
   }
+  const runtimeBridgeDispatch = path.match(
+    /^\/api\/v1\/runtime-bridge\/coordinators\/([^/]+)\/agents\/([^/]+)$/,
+  );
+  if (runtimeBridgeDispatch && method === "POST") {
+    return {
+      action: "agent_delegation.execute",
+      objectId: decodeURIComponent(runtimeBridgeDispatch[2]!),
+      objectType: "A2A Agent",
+      operation: "execute",
+    };
+  }
 
   const projectMatch = path.match(/^\/api\/v1\/projects\/([^/]+)(?:\/(.*))?$/);
   if (!projectMatch) return undefined;
@@ -348,6 +366,31 @@ function descriptor(method: string, path: string): AuditDescriptor | undefined {
       operation: "switch",
       projectId,
     };
+  }
+
+  if (
+    tail[0] === "catalog"
+    && tail[1] === "knowledge-sources"
+    && tail[3] === "chunks"
+  ) {
+    if (tail.length === 4 && method === "PUT") {
+      return {
+        action: "knowledge_vector_chunk.batch_upsert",
+        ...(tail[2] ? { objectId: tail[2] } : {}),
+        objectType: "Knowledge Vector Chunk",
+        operation: "update",
+        projectId,
+      };
+    }
+    if (tail.length === 5 && method === "DELETE") {
+      return {
+        action: "knowledge_vector_chunk.delete",
+        ...(tail[4] ? { objectId: tail[4] } : {}),
+        objectType: "Knowledge Vector Chunk",
+        operation: "delete",
+        projectId,
+      };
+    }
   }
 
   const resource = resources.find((candidate) => tail.includes(candidate.segment));

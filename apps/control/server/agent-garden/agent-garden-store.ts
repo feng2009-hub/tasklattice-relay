@@ -242,6 +242,35 @@ export class AgentGardenStore {
       : undefined;
   }
 
+  async getManagedInstance(
+    id: string,
+  ): Promise<A2aAgentInstance | undefined> {
+    const row = await this.db.agentRecord.findFirst({
+      where: {
+        projectId: this.projectId,
+        id,
+        kind: "A2A",
+        deletedAt: null,
+      },
+      select: {
+        payload: true,
+        ownerMembership: {
+          select: {
+            user: {
+              select: { id: true, displayName: true, username: true },
+            },
+          },
+        },
+      },
+    });
+    return row
+      ? a2aAgentInstanceSchema.parse({
+          ...(row.payload as object),
+          createdBy: managedInstanceCreator(row.ownerMembership.user),
+        })
+      : undefined;
+  }
+
   async listManagedInstances(
     ownerUserId?: string,
   ): Promise<A2aAgentInstance[]> {

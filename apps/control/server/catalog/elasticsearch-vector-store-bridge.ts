@@ -4,14 +4,11 @@ import {
   createSecretStore,
   type SecretStore,
 } from "../secrets/secret-store";
-
-const searchRequestSchema = z.object({
-  query: z.union([z.string().trim().min(1), z.array(z.string().trim().min(1)).min(1)]),
-  filters: z.record(z.string(), z.unknown()).optional(),
-  max_num_results: z.number().int().min(1).max(50).optional(),
-  ranking_options: z.record(z.string(), z.unknown()).optional(),
-  rewrite_query: z.boolean().optional(),
-}).strict();
+import {
+  type VectorStoreSearchResponse,
+  vectorStoreSearchQuery,
+  vectorStoreSearchRequestSchema,
+} from "./vector-store-protocol";
 
 interface ElasticsearchHit {
   _id?: string;
@@ -26,18 +23,6 @@ interface ElasticsearchSearchResponse {
   };
 }
 
-export interface VectorStoreSearchResponse {
-  object: "vector_store.search_results.page";
-  search_query: string;
-  data: Array<{
-    score: number;
-    content: Array<{ type: "text"; text: string }>;
-    file_id: string;
-    filename: string;
-    attributes: Record<string, unknown>;
-  }>;
-}
-
 export class ElasticsearchVectorStoreBridge {
   constructor(
     readonly store: ProjectStore,
@@ -46,7 +31,7 @@ export class ElasticsearchVectorStoreBridge {
   ) {}
 
   async search(vectorStoreId: string, input: unknown): Promise<VectorStoreSearchResponse> {
-    const request = searchRequestSchema.parse(input);
+    const request = vectorStoreSearchRequestSchema.parse(input);
     const source = (await this.store.listKnowledgeSourceDefinitions())
       .find((candidate) => candidate.vectorStoreId === vectorStoreId);
     if (!source || source.provider !== "elasticsearch") {
@@ -59,9 +44,7 @@ export class ElasticsearchVectorStoreBridge {
     const semanticField = source.semanticField;
     const contentField = source.contentField;
 
-    const query = Array.isArray(request.query)
-      ? request.query.join("\n")
-      : request.query;
+    const query = vectorStoreSearchQuery(request);
     const credential = await this.secrets.get(source.credentialReference);
     const filter = request.filters
       ? translateOpenAIFilter(request.filters)

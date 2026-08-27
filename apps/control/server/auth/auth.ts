@@ -1,5 +1,5 @@
 import { prisma } from "../db/prisma";
-import type { PlatformCapability } from "@tali/contracts";
+import type { BuiltinRoleId, PlatformCapability } from "@tali/contracts";
 import { RoleCatalogService } from "../authorization/role-catalog";
 import { jsonResponse, problemResponse } from "../http/responses";
 import { PlatformSettingsService } from "../platform/platform-settings-service";
@@ -17,6 +17,12 @@ export interface AuthUser {
 }
 
 export interface PlatformPrincipal {
+  accessContext?: {
+    level: "platform" | "department" | "project";
+    resourceId: string | null;
+    roleId: BuiltinRoleId;
+  };
+  sessionId?: string;
   user: AuthUser;
 }
 
@@ -44,20 +50,36 @@ async function resolveAuth(
   const session = result.response;
   if (!session) throw new Error("Authentication required.");
 
-  const user = await prisma().user.findUnique({
-    where: { id: session.user.id },
-    include: {
-      authAccounts: {
-        where: { providerId: "credential" },
-        select: { id: true },
-        take: 1,
+  const [user, accessContext] = await Promise.all([
+    prisma().user.findUnique({
+      where: { id: session.user.id },
+      include: {
+        authAccounts: {
+          where: { providerId: "credential" },
+          select: { id: true },
+          take: 1,
+        },
       },
-    },
-  });
+    }),
+    prisma().accessContextSession.findUnique({
+      where: { sessionId: session.session.id },
+    }),
+  ]);
   if (!user || user.status !== "active") {
     throw new Error("The TaskLattice Relay account is disabled or unavailable.");
   }
   return {
+    ...(accessContext ? {
+      accessContext: {
+        level: accessContext.level.toLowerCase() as
+          | "platform"
+          | "department"
+          | "project",
+        resourceId: accessContext.resourceId,
+        roleId: accessContext.roleId as BuiltinRoleId,
+      },
+    } : {}),
+    sessionId: session.session.id,
     user: {
       displayName: user.displayName,
       email: user.email,
@@ -83,6 +105,14 @@ export async function requirePlatformAdministrator(
   capability: PlatformCapability = "CAP_PLATFORM_VIEW",
 ): Promise<PlatformPrincipal> {
   const principal = await requireAuth(request);
+  if (
+    principal.sessionId
+    && principal.accessContext?.level !== "platform"
+  ) {
+    throw new Error(
+      "Access denied: select Platform Administrator access for this session.",
+    );
+  }
   if (principal.user.systemRole !== "platform_administrator") {
     throw new Error(
       "You do not have permission to administer the TaskLattice Relay platform.",

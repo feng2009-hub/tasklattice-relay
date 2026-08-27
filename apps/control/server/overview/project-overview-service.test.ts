@@ -200,8 +200,8 @@ describe("ProjectOverviewService", () => {
     });
     expect(overview.budget.forecastUsd).toBeCloseTo(46.67, 1);
     expect(overview.workload).toEqual([
-      { runtimeType: "openclaw", runs: 4, percentage: 4 / 6 },
       { runtimeType: "hermes", runs: 2, percentage: 2 / 6 },
+      { runtimeType: "openclaw", runs: 4, percentage: 4 / 6 },
     ]);
     expect(overview.attention.map((item) => item.code)).toEqual([
       "BUDGET_THRESHOLD",

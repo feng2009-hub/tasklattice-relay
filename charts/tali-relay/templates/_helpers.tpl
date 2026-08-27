@@ -163,6 +163,22 @@ initial_platform_administrator_password = {{ required "secrets.initialPlatformAd
 - name: PROJECT_OPENSHELL_WORKSPACE_STORAGE_CLASS
   value: {{ . | quote }}
 {{- end }}
+- name: PROJECT_RUNTIME_BRIDGES_ENABLED
+  value: {{ and .Values.projectRuntimeNamespaces.enabled .Values.projectRuntimeBridge.enabled | quote }}
+- name: PROJECT_RUNTIME_BRIDGE_IMAGE
+  value: {{ include "tali.image" (dict "root" . "image" .Values.images.control) | quote }}
+- name: PROJECT_RUNTIME_BRIDGE_IMAGE_PULL_POLICY
+  value: {{ .Values.images.control.pullPolicy | quote }}
+- name: PROJECT_RUNTIME_BRIDGE_IMAGE_PULL_SECRETS_JSON
+  value: {{ .Values.global.imagePullSecrets | toJson | quote }}
+- name: PROJECT_RUNTIME_BRIDGE_RESOURCES_JSON
+  value: {{ .Values.projectRuntimeBridge.resources | toJson | quote }}
+- name: PROJECT_RUNTIME_BRIDGE_STORAGE_SIZE
+  value: {{ .Values.projectRuntimeBridge.storageSize | quote }}
+{{- with .Values.projectRuntimeBridge.storageClass }}
+- name: PROJECT_RUNTIME_BRIDGE_STORAGE_CLASS
+  value: {{ . | quote }}
+{{- end }}
 {{- end -}}
 
 {{/* Exact resource APIs required to install the pinned official OpenShell chart. */}}
@@ -183,13 +199,13 @@ initial_platform_administrator_password = {{ required "secrets.initialPlatformAd
   resources: ["sandboxes", "sandboxes/status"]
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 - apiGroups: ["apps"]
-  resources: ["statefulsets"]
-  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-- apiGroups: ["batch"]
-  resources: ["jobs"]
+  resources: ["deployments", "replicasets", "statefulsets"]
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 - apiGroups: ["networking.k8s.io"]
   resources: ["networkpolicies"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["batch"]
+  resources: ["jobs"]
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 - apiGroups: ["rbac.authorization.k8s.io"]
   resources: ["roles", "rolebindings", "clusterroles", "clusterrolebindings"]

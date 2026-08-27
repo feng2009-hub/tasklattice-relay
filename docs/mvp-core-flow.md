@@ -14,7 +14,7 @@ Everything else in the historical marketplace design is later scope. The UI keep
 
 ## Agent resource and runtime boundary
 
-The Agent is a first-class TaskLattice Relay resource. It is not the sandbox itself: TaskLattice Relay persists the desired Agent identity, platform, and configuration, then projects that resource into one NemoClaw sandbox containing the selected OpenClaw, Hermes, or Deep Agents Code process.
+The Agent is a first-class TaskLattice Relay resource. It is not the sandbox itself: TaskLattice Relay persists the desired Agent identity, platform, and configuration, then projects that resource into one NemoClaw sandbox containing the selected Hermes, OpenClaw, or Deep Agents Code process.
 
 ```mermaid
 flowchart TD
@@ -25,7 +25,7 @@ flowchart TD
     ADAPTER --> CONTROL["NemoClaw Control"]
     CONTROL --> GATEWAY["OpenShell Gateway"]
     GATEWAY --> SANDBOX["NemoClaw Sandbox"]
-    SANDBOX --> AGENT["Selected Agent Process<br/>OpenClaw, Hermes, or Deep Agents Code"]
+    SANDBOX --> AGENT["Selected Agent Process<br/>Hermes, OpenClaw, or Deep Agents Code"]
     GATEWAY --> INFERENCE["DeepSeek compatible API"]
 ```
 
@@ -108,8 +108,8 @@ Disabled actions use native `disabled` behavior, reduced contrast, a not-allowed
 
 The API rejects any runtime other than `nemoclaw` and any Agent platform outside
 `openclaw`, `hermes`, and `deepagents`. Agent creation accepts only a validated LLM deployment
-registered under a validated Provider Account. OpenClaw remains the default
-when older clients omit `agentPlatform`.
+registered under a validated Provider Account. Hermes is the default when
+clients omit `agentPlatform`; OpenClaw is second and Deep Agents Code is last.
 
 The REST response is the durable Agent resource, not raw NemoClaw CLI output. Desired configuration and observed runtime fields are separate.
 

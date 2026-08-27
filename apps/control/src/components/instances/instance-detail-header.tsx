@@ -64,7 +64,7 @@ export function InstanceHeader({ access, agent, canDelete, onDelete, platform }:
             <DropdownMenuContent align="end" className="w-64">
               <DropdownMenuItem disabled className="items-start"><Pencil className="mt-0.5" /><span><span className="block">Edit configuration</span><span className="block text-[10px] font-normal text-muted-foreground">Runtime reconciliation is not available.</span></span></DropdownMenuItem>
               <DropdownMenuItem disabled className="items-start"><RefreshCw className="mt-0.5" /><span><span className="block">Restart Instance</span><span className="block text-[10px] font-normal text-muted-foreground">No restart API is configured.</span></span></DropdownMenuItem>
-              <DropdownMenuItem asChild><Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: agent.id }} search={{ tab: "auditor-log" }} hash="provisioning-logs"><FileText />View provisioning logs</Link></DropdownMenuItem>
+              <DropdownMenuItem asChild><Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: agent.id }} search={{ tab: "logs" }} hash="provisioning-logs"><FileText />View provisioning logs</Link></DropdownMenuItem>
               {canDelete ? <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem

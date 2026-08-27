@@ -75,6 +75,9 @@ describe("business API contracts", () => {
     expect(document.components.securitySchemes.sessionCookie.name).toBe(
       betterAuthSessionCookieName,
     );
+    expect(
+      document.components.securitySchemes.projectRuntimeCoordinatorToken.name,
+    ).toBe("x-tali-coordinator-token");
     expect(Object.keys(document.components.schemas).length).toBeGreaterThan(10);
     const references = localReferences(document);
     expect(references.length).toBeGreaterThan(0);

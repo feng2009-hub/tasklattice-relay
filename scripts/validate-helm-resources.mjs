@@ -392,6 +392,11 @@ if (
       verbs: ["get", "list"],
     },
     {
+      apiGroups: [""],
+      resources: ["pods/log"],
+      verbs: ["get"],
+    },
+    {
       apiGroups: ["apps"],
       resources: ["deployments"],
       verbs: ["get", "create", "patch", "delete"],
@@ -399,7 +404,7 @@ if (
   ])
 ) {
   throw new Error(
-    "The Control Plane must be limited to Project Namespace metadata and managed Agent workloads.",
+    "The Control Plane must be limited to Project Namespace metadata, managed Agent workloads, and read-only Pod logs.",
   );
 }
 

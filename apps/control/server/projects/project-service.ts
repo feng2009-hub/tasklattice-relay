@@ -35,6 +35,7 @@ import {
   activeRoleForMembership,
   membershipHasAccess,
   membershipAccessInclude,
+  projectRoleFromBuiltinRole,
   projectAccessForMember,
   type ProjectAccessView,
 } from "./project-access";
@@ -421,7 +422,16 @@ export class ProjectService {
     ) {
       throw new Error("Project not found or access denied.");
     }
-    const access = await accessForMembership(membership, this.db);
+    const selectedRole = auth.accessContext?.level === "project"
+      && auth.accessContext.resourceId === projectId
+      ? projectRoleFromBuiltinRole(auth.accessContext.roleId)
+      : undefined;
+    if (auth.sessionId && !selectedRole) {
+      throw new Error(
+        "Access denied: select access for this Project and Role for the session.",
+      );
+    }
+    const access = await accessForMembership(membership, this.db, selectedRole);
     return {
       auth,
       userId: currentUserId,

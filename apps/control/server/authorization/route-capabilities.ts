@@ -76,7 +76,7 @@ export function projectRouteAdmissionPolicy(
   if (
     method === "GET"
     && tail.length === 3
-    && tail[0] === "terminal-sessions"
+    && (tail[0] === "terminal-sessions" || tail[0] === "agent-log-sessions")
     && tail[2] === "ws"
   ) {
     return {
@@ -168,6 +168,9 @@ export function projectRouteAdmissionPolicy(
     if (tail.length === 3 && tail[2] === "logs" && method === "GET") {
       return policy("INSTANCE", [requirement("CAP_AGENT_INSTANCE_LOG_VIEW", "AgentInstance")], instanceId);
     }
+    if (tail.length === 3 && tail[2] === "log-sessions" && method === "POST") {
+      return policy("INSTANCE", [requirement("CAP_AGENT_INSTANCE_LOG_VIEW", "AgentInstance")], instanceId);
+    }
     if (tail.length === 3 && tail[2] === "access-policies" && method === "PUT") {
       return policy("INSTANCE", [requirement("CAP_AGENT_INSTANCE_ACCESS_POLICY_ASSIGN", "AgentInstance")], instanceId);
     }
@@ -249,6 +252,30 @@ export function projectRouteAdmissionPolicy(
     }
     if (tail.length === 4 && tail[1] === "skills" && tail[3] === "verify" && method === "POST") {
       return policy("PROJECT", [requirement("CAP_SKILL_VERIFY", "Skill")], tail[2]);
+    }
+    if (
+      tail.length === 4
+      && tail[1] === "knowledge-sources"
+      && tail[3] === "chunks"
+      && method === "PUT"
+    ) {
+      return policy(
+        "PROJECT",
+        [requirement("CAP_KNOWLEDGE_SOURCE_UPDATE", "KnowledgeVectorChunk")],
+        tail[2],
+      );
+    }
+    if (
+      tail.length === 5
+      && tail[1] === "knowledge-sources"
+      && tail[3] === "chunks"
+      && method === "DELETE"
+    ) {
+      return policy(
+        "PROJECT",
+        [requirement("CAP_KNOWLEDGE_SOURCE_UPDATE", "KnowledgeVectorChunk")],
+        tail[2],
+      );
     }
     const action = method === "POST" && tail.length === 2
       ? "CREATE"

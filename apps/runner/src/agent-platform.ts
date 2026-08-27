@@ -34,6 +34,9 @@ export interface AgentPlatformRuntime {
     inferenceEndpoint: string,
     model: string,
     memory?: RuntimeMemoryConfiguration,
+    projectRuntimeBridgeUrl?: string,
+    coordinatorInstanceId?: string,
+    projectRuntimeBridgeToken?: string,
   ) => string;
   healthProbe: (dashboardPort: string) => string;
   startupLogs: readonly string[];
@@ -163,9 +166,19 @@ const hermesBootstrapScript = (
   inferenceEndpoint: string,
   model: string,
   _memory?: RuntimeMemoryConfiguration,
+  projectRuntimeBridgeUrl?: string,
+  coordinatorInstanceId?: string,
+  projectRuntimeBridgeToken?: string,
 ) => {
   const upstreamDashboardPort = dashboardPort === "18790" ? "18791" : "18790";
   const secureCookie = new URL(dashboardOrigin).protocol === "https:";
+  const a2aRegistryArgument =
+    projectRuntimeBridgeUrl && coordinatorInstanceId && projectRuntimeBridgeToken
+      ? ` \\\n  --a2a-registry-url "${projectRuntimeBridgeUrl.replace(/\/$/, "")}/v1/hermes/a2a-agents?coordinatorInstanceId=${encodeURIComponent(coordinatorInstanceId)}"`
+      : "";
+  const a2aRegistryTokenArgument = projectRuntimeBridgeToken
+    ? ` --a2a-registry-token "${projectRuntimeBridgeToken}"`
+    : "";
   return `#!/usr/bin/env bash
 set -euo pipefail
 
@@ -213,7 +226,7 @@ printf '[bootstrap] Hermes identity current=%s account=%s workspace=%s state=%s\
   --endpoint "${inferenceEndpoint}" \
   --model "${model}" \
   --template-endpoint https://inference.local/v1 \
-  --template-model deepseek-chat
+  --template-model deepseek-chat${a2aRegistryArgument}${a2aRegistryTokenArgument}
 
 if [ ! -x "$webui_auth_proxy" ]; then
   echo "Hermes Web UI authentication proxy is unavailable" >&2
@@ -308,6 +321,7 @@ const agentPlatformRuntimeRegistry = {
       "/usr/local/bin/hermes",
       "/usr/local/bin/python",
       "/usr/local/bin/python3",
+      "/opt/hermes/.venv/bin/python3",
       "/usr/bin/python3.*",
     ],
     endpointKind: "hermes-dashboard",
@@ -321,6 +335,7 @@ const agentPlatformRuntimeRegistry = {
     },
     startupLogs: [
       "Hermes Agent instructions uploaded to the sandbox state directory.",
+      "Hermes Kanban and Project-scoped A2A peers enabled through the Runtime Bridge.",
       "NemoClaw supervisor started the Hermes gateway.",
       "Hermes API health check: Ready",
     ],

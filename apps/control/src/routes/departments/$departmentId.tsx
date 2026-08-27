@@ -55,12 +55,11 @@ import {
   departmentQueryKey,
   departmentSettingsQueryKey,
   getDepartment,
-  getDepartments,
   getDepartmentSettings,
   updateDepartment,
   updateDepartmentSettings,
 } from "@/services/department";
-import type { DepartmentDetail, DepartmentSummary } from "@/types/department";
+import type { DepartmentDetail } from "@/types/department";
 import { projectRoleLabels } from "@/types/project";
 
 export const Route = createFileRoute("/departments/$departmentId")({
@@ -101,11 +100,6 @@ function DepartmentSettingsPage() {
   const { departmentId } = Route.useParams();
   const { section = "general" } = Route.useSearch();
   const navigate = Route.useNavigate();
-  const departments = useQuery({
-    queryKey: ["departments"],
-    queryFn: getDepartments,
-    staleTime: 30_000,
-  });
   const department = useQuery({
     queryKey: departmentQueryKey(departmentId),
     queryFn: () => getDepartment(departmentId),
@@ -118,16 +112,10 @@ function DepartmentSettingsPage() {
   const changeSection = (next: DepartmentSettingsSection) => {
     void navigate({ replace: true, search: { section: next } });
   };
-  const changeDepartment = (nextDepartmentId: string) => {
-    void navigate({
-      to: "/departments/$departmentId",
-      params: { departmentId: nextDepartmentId },
-      search: { section },
-    });
-  };
   const renderLayout = (content: ReactNode) => (
     <ContextSidebarLayout
       sidebarWidth="15rem"
+      standaloneSidebar
       sidebar={(
         <ContextSettingsSidebar
           ariaLabel="Department settings sections"
@@ -135,8 +123,9 @@ function DepartmentSettingsPage() {
           header={(
             <DepartmentSettingsHeader
               departmentId={departmentId}
-              departments={departments.data ?? []}
-              onDepartmentChange={changeDepartment}
+              {...(department.data?.name
+                ? { departmentName: department.data.name }
+                : {})}
             />
           )}
           section={section}
@@ -147,13 +136,6 @@ function DepartmentSettingsPage() {
         <ContextSettingsMobileNavigation
           ariaLabel="Department settings section"
           groups={sectionGroups}
-          leading={departments.data && departments.data.length > 1 ? (
-            <DepartmentSelect
-              departmentId={departmentId}
-              departments={departments.data}
-              onDepartmentChange={changeDepartment}
-            />
-          ) : undefined}
           section={section}
           onSectionChange={changeSection}
         />
@@ -224,62 +206,18 @@ function DepartmentSettingsPage() {
 
 function DepartmentSettingsHeader({
   departmentId,
-  departments,
-  onDepartmentChange,
+  departmentName,
 }: {
   departmentId: string;
-  departments: DepartmentSummary[];
-  onDepartmentChange: (departmentId: string) => void;
+  departmentName?: string;
 }) {
-  const current = departments.find((department) => department.id === departmentId);
   return (
     <>
-      {departments.length > 1 ? (
-        <DepartmentSelect
-          departmentId={departmentId}
-          departments={departments}
-          onDepartmentChange={onDepartmentChange}
-          borderless
-        />
-      ) : (
-        <strong className="truncate font-display text-xl font-medium">
-          {current?.name ?? departmentId}
-        </strong>
-      )}
+      <strong className="truncate font-display text-xl font-medium">
+        {departmentName ?? departmentId}
+      </strong>
       <span className="text-xs text-muted-foreground">Department Administrator</span>
     </>
-  );
-}
-
-function DepartmentSelect({
-  borderless = false,
-  departmentId,
-  departments,
-  onDepartmentChange,
-}: {
-  borderless?: boolean;
-  departmentId: string;
-  departments: DepartmentSummary[];
-  onDepartmentChange: (departmentId: string) => void;
-}) {
-  return (
-    <Select value={departmentId} onValueChange={onDepartmentChange}>
-      <SelectTrigger
-        size="lg"
-        className={borderless ? "w-full border-0 bg-transparent px-1 shadow-none" : "w-full"}
-        aria-label="Administered Department"
-      >
-        <Building2 />
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {departments.map((department) => (
-          <SelectItem key={department.id} value={department.id}>
-            {department.name}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
   );
 }
 

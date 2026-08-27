@@ -1,4 +1,5 @@
 import { InstanceService } from "./instances/instance-service";
+import { AgentInstanceDetailService } from "./instances/agent-instance-detail-service";
 import { AgentGardenService } from "./agent-garden/agent-garden-service";
 import { AgentGardenStore } from "./agent-garden/agent-garden-store";
 import { AccessPolicyService } from "./access-policies/access-policy-service";
@@ -14,6 +15,7 @@ import { CostService } from "./providers/cost-service";
 import { LiteLLMClient } from "./providers/litellm-client";
 import { ProviderService } from "./providers/provider-service";
 import { ProjectService, type ProjectRole } from "./projects/project-service";
+import { projectRoleFromBuiltinRole } from "./projects/project-access";
 import { ProjectQuotaService } from "./quotas/project-quota-service";
 import { AuditLogService } from "./audit-logs/audit-log-service";
 import { ProjectOverviewService } from "./overview/project-overview-service";
@@ -34,6 +36,7 @@ import { requireDepartmentAdministrator } from "./departments/department-access"
 interface ProjectServices {
   store: ProjectStore;
   instances: InstanceService;
+  agentInstanceDetails: AgentInstanceDetailService;
   agentGarden: AgentGardenService;
   accessPolicies: AccessPolicyService;
   cost: CostService;
@@ -79,6 +82,10 @@ function createServices(projectId: string): ProjectServices {
     store,
     auditLogs: new AuditLogService(projectId, store.database()),
     instances,
+    agentInstanceDetails: new AgentInstanceDetailService(
+      instances,
+      new AgentGardenStore(projectId, store.database()),
+    ),
     overview: new ProjectOverviewService(store, instances),
     agentGarden: new AgentGardenService(
       new AgentGardenStore(projectId, store.database()),
@@ -132,7 +139,17 @@ export async function requireProjectCapability(
   capability: ProjectCapability,
   options: ProjectCapabilityOptions,
 ): Promise<AdmissionResult> {
-  const { userId } = await projectService.authenticate(request);
+  const { auth, userId } = await projectService.authenticate(request);
+  const match = new URL(request.url).pathname.match(
+    /^\/api\/v1\/projects\/([^/]+)(?:\/|$)/,
+  );
+  const projectId = match ? decodeURIComponent(match[1]!) : "";
+  const preferredRole = auth.accessContext?.level === "project"
+    && auth.accessContext.resourceId === projectId
+    ? projectRoleFromBuiltinRole(auth.accessContext.roleId)
+    : auth.sessionId
+      ? null
+      : undefined;
   return projectAdmissionService.authorize(
     request,
     userId,
@@ -140,6 +157,7 @@ export async function requireProjectCapability(
     {
       ...options,
     },
+    preferredRole,
   );
 }
 
@@ -169,6 +187,18 @@ export async function requireProjectCreateCapability(
 
 export async function getInstanceService(request?: Request): Promise<InstanceService> {
   return (await forRequest(request)).instances;
+}
+
+export async function getAgentInstanceDetailService(
+  request?: Request,
+): Promise<AgentInstanceDetailService> {
+  return (await forRequest(request)).agentInstanceDetails;
+}
+
+export function getAgentInstanceDetailServiceForProject(
+  projectId: string,
+): AgentInstanceDetailService {
+  return forProject(projectId).agentInstanceDetails;
 }
 
 export function getInstanceServiceForProject(projectId: string): InstanceService {

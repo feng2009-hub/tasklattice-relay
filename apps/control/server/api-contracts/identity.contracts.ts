@@ -4,6 +4,8 @@ import { defineContracts } from "./contract";
 import { projectRoute, response, route } from "./helpers";
 import {
   authConfigSchema,
+  accessContextInputSchema,
+  accessContextStateSchema,
   changePasswordInputSchema,
   createProjectInputSchema,
   currentUserSchema,
@@ -43,6 +45,17 @@ export const identityContracts = defineContracts([
     method: "get", path: "/auth/me", operationId: "getCurrentUser",
     summary: "Read the current user", tags: ["Authentication"],
     responses: { 200: response("Current user", currentUserSchema) },
+  }),
+  route({
+    method: "get", path: "/access-context", operationId: "getAccessContext",
+    summary: "List and read the current session access context", tags: ["Authentication"],
+    responses: { 200: response("Access context", accessContextStateSchema) },
+  }),
+  route({
+    method: "put", path: "/access-context", operationId: "selectAccessContext",
+    summary: "Select the current session access context", tags: ["Authentication"],
+    request: { body: accessContextInputSchema },
+    responses: { 200: response("Selected access context", accessContextStateSchema) },
   }),
   route({
     method: "get", path: "/profile", operationId: "getProfile",

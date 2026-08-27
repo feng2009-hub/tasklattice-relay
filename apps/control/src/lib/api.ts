@@ -2,6 +2,9 @@ import type {
   AccessPolicy,
   AccessPolicyVersion,
   Instance as Agent,
+  AgentInstanceDetail,
+  AgentInstanceLogSessionResponse,
+  CreateInstanceLogSessionInput,
   InstanceInteractionAccess,
   InstanceRuntimeLogView,
   AgentConnection,
@@ -61,6 +64,7 @@ import type {
   UpdateAccessPolicyInput,
   UpdateMcpServerDefinitionInput,
   UpdateSkillDefinitionInput,
+  UpsertKnowledgeVectorChunksInput,
 } from "@tali/contracts";
 import { projectIdFromPathname } from "./project-storage";
 
@@ -291,6 +295,16 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(input),
     }),
+  upsertKnowledgeVectorChunks: (id: string, input: UpsertKnowledgeVectorChunksInput) =>
+    request<{ upserted: number }>(
+      `/api/v1/catalog/knowledge-sources/${encodeURIComponent(id)}/chunks`,
+      { method: "PUT", body: JSON.stringify(input) },
+    ),
+  deleteKnowledgeVectorChunk: (id: string, chunkId: string) =>
+    request<{ message: string }>(
+      `/api/v1/catalog/knowledge-sources/${encodeURIComponent(id)}/chunks/${encodeURIComponent(chunkId)}`,
+      { method: "DELETE" },
+    ),
   deleteResource: (kind: ResourceKind, id: string) =>
     request<{ message: string }>(`/api/v1/catalog/${kind}/${encodeURIComponent(id)}`, {
       method: "DELETE",
@@ -429,7 +443,8 @@ export const api = {
     }),
   listInstances: async () =>
     (await request<{ data: Agent[] }>("/api/v1/instances")).data,
-  getInstance: (id: string) => request<Agent>(`/api/v1/instances/${id}`),
+  getInstance: (id: string) =>
+    request<AgentInstanceDetail>(`/api/v1/instances/${id}`),
   getInstanceInteraction: (id: string) =>
     request<InstanceInteractionAccess>(
       `/api/v1/instances/${encodeURIComponent(id)}/interaction`,
@@ -467,6 +482,14 @@ export const api = {
     request<TerminalSessionResponse>(
       `/api/v1/instances/${id}/terminal-sessions`,
       { method: "POST", body: JSON.stringify({ targetId }) },
+    ),
+  createInstanceLogSession: (
+    id: string,
+    input: CreateInstanceLogSessionInput,
+  ) =>
+    request<AgentInstanceLogSessionResponse>(
+      `/api/v1/instances/${encodeURIComponent(id)}/log-sessions`,
+      { method: "POST", body: JSON.stringify(input) },
     ),
 };
 

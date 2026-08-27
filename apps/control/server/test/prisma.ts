@@ -50,6 +50,8 @@ import businessRecordSoftDeleteMigration from "../../prisma/migrations/202608260
 import unifiedAgentInstancesMigration from "../../prisma/migrations/20260826010000_unify_agent_instances_and_runtime_settings/migration.sql?raw";
 import departmentInferenceResourcesMigration from "../../prisma/migrations/20260826030000_department_inference_resources/migration.sql?raw";
 import controlWorkerQueueMigration from "../../prisma/migrations/20260827000000_control_worker_queue/migration.sql?raw";
+import accessContextSessionsMigration from "../../prisma/migrations/20260827010000_access_context_sessions/migration.sql?raw";
+import knowledgeVectorDatabaseMigration from "../../prisma/migrations/20260827020000_knowledge_vector_database/migration.sql?raw";
 import { developmentResourceCatalog } from "../catalog/development-resource-catalog";
 import { PrismaClient } from "../generated/prisma/client";
 
@@ -507,6 +509,30 @@ export function createTestPrisma(): PrismaClient {
     throw new Error("Control Worker queue migration structure is incomplete.");
   }
   memory.public.none(controlWorkerQueueMigration);
+  memory.public.none(accessContextSessionsMigration);
+  if (
+    !knowledgeVectorDatabaseMigration.includes("CREATE EXTENSION IF NOT EXISTS vector")
+    || !knowledgeVectorDatabaseMigration.includes("embedding public.vector NOT NULL")
+    || !knowledgeVectorDatabaseMigration.includes("public.vector_dims(embedding)")
+  ) {
+    throw new Error("Knowledge Vector Database migration is incomplete.");
+  }
+  // pg-mem does not implement extensions or custom vector types. Preserve the
+  // relational shape for service tests and cover vector SQL separately with a
+  // mocked Prisma raw-query boundary.
+  memory.public.none(
+    knowledgeVectorDatabaseMigration
+      .replace(/CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public;\s*/, "")
+      .replace("embedding public.vector NOT NULL", "embedding TEXT NOT NULL")
+      .replace(
+        /  CONSTRAINT knowledge_vector_chunks_embedding_dimensions_check\s+CHECK \(public\.vector_dims\(embedding\) = embedding_dimensions\),\s*/,
+        "",
+      )
+      .replace(
+        /CREATE INDEX knowledge_vector_chunks_attributes_idx\s+ON tasklattice\.knowledge_vector_chunks USING gin\(attributes\);\s*/,
+        "",
+      ),
+  );
   const pg = memory.adapters.createPg();
   const query = pg.Client.prototype.query;
   pg.Client.prototype.query = function (

@@ -3,7 +3,13 @@ import type { AgentGardenEntry } from "@tali/contracts";
 import { demoAgentMessageInputSchema } from "../api-contracts/schemas";
 import { exampleStoreAgentDefinitions } from "./example-store-agent-definitions";
 
-const demoServiceOrigin = "http://tali-control:38080";
+export function demoServiceOrigin(): string {
+  return (
+    process.env.TALI_BOOTSTRAP_INTERNAL_URL?.trim()
+    || process.env.TALI_CONTROL_INTERNAL_URL?.trim()
+    || `http://127.0.0.1:${process.env.PORT?.trim() || "38080"}`
+  ).replace(/\/$/, "");
+}
 
 export interface DemoAgentDefinition {
   id: string;
@@ -197,8 +203,14 @@ export const demoAgentDefinitions: DemoAgentDefinition[] = [
   },
 ];
 
+/** Deterministic, side-effect-free A2A peers enabled for new Hermes MVPs. */
+export const hermesMvpA2aAgentIds = [
+  "a2a-github-daily-triage",
+  "a2a-pull-request-risk-scanner",
+] as const;
+
 export function demoAgentEndpoint(id: string): string {
-  return `${demoServiceOrigin}/api/v1/demo-agents/${encodeURIComponent(id)}`;
+  return `${demoServiceOrigin()}/api/v1/demo-agents/${encodeURIComponent(id)}`;
 }
 
 export function demoAgentCardUrl(id: string): string {

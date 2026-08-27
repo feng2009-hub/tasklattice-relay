@@ -27,6 +27,7 @@ const tagDescriptions: Record<string, string> = {
   Quota: "Project budget and resource quotas.",
   "Resource catalog": "Skills, MCP servers, and knowledge sources available to a Project.",
   Runtime: "Runtime and runner health.",
+  "Runtime Bridge": "Project-isolated capability discovery and A2A delegation proxy.",
   "Runtime policies": "Sandbox execution constraints used by runtime Instances.",
   Traces: "Project runtime trace inspection.",
   Authorization: "Project Capability and built-in role definitions.",
@@ -159,7 +160,7 @@ function errorResponses(contract: (typeof apiContracts)[number]) {
   const errors: Record<string, unknown> = {};
   const problem = { $ref: "#/components/responses/Problem" };
   if (contract.request?.body || contract.request?.params || contract.request?.query) errors["400"] = problem;
-  if ((contract.auth ?? "session") === "session") errors["401"] = problem;
+  if ((contract.auth ?? "session") !== "public") errors["401"] = problem;
   if (
     contract.path.startsWith("/projects/{projectId}")
     || contract.path.startsWith("/platform/")
@@ -192,7 +193,14 @@ function operation(contract: (typeof apiContracts)[number]) {
     summary: contract.summary,
     description: contract.description,
     tags: [...contract.tags],
-    security: (contract.auth ?? "session") === "public" ? [] : [{ sessionCookie: [] }],
+    security: (contract.auth ?? "session") === "public"
+      ? []
+      : contract.auth === "runtime-bridge"
+        ? [{
+            projectRuntimeBridgeBearer: [],
+            projectRuntimeCoordinatorToken: [],
+          }]
+        : [{ sessionCookie: [] }],
     ...(pathParameters.length || queryParameters.length
       ? { parameters: [...pathParameters, ...queryParameters] }
       : {}),
@@ -243,6 +251,17 @@ export function createOpenApiDocument() {
           in: "cookie",
           name: betterAuthSessionCookieName,
           description: "HttpOnly Better Auth session cookie. The cookie name may be prefixed in secure deployments.",
+        },
+        projectRuntimeBridgeBearer: {
+          type: "http",
+          scheme: "bearer",
+          description: "Project and Runtime Namespace scoped HMAC token provisioned only to that Project's Runtime Bridge.",
+        },
+        projectRuntimeCoordinatorToken: {
+          type: "apiKey",
+          in: "header",
+          name: "x-tali-coordinator-token",
+          description: "Project, Runtime Namespace, and Coordinator Instance scoped HMAC token provisioned only to that Supervisor.",
         },
       },
       schemas: componentSchemas(),

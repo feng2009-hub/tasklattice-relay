@@ -9,6 +9,8 @@ import {
 } from "@tanstack/react-router";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { AuthProvider } from "@/components/auth/auth-provider";
+import { AccessContextGuard } from "@/components/auth/access-context-guard";
+import { AccessContextProvider } from "@/components/auth/access-context-provider";
 import { AppShell } from "@/components/layout/app-shell";
 import { ProjectProvider } from "@/components/project/project-provider";
 import { PlatformI18nProvider } from "@/components/providers/platform-i18n-provider";
@@ -45,6 +47,7 @@ function RootApplication() {
   const { i18n: instance } = Route.useRouteContext();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const isPublic = pathname === "/" || pathname === "/login";
+  const isAccessSelection = pathname === "/access";
   return (
     <PlatformI18nProvider instance={instance}>
       <AuthProvider>
@@ -52,9 +55,17 @@ function RootApplication() {
           <Outlet />
         ) : (
           <AuthGuard>
-            <ProjectProvider>
-              <AppShell />
-            </ProjectProvider>
+            <AccessContextProvider>
+              <ProjectProvider>
+                {isAccessSelection ? (
+                  <Outlet />
+                ) : (
+                  <AccessContextGuard>
+                    <AppShell />
+                  </AccessContextGuard>
+                )}
+              </ProjectProvider>
+            </AccessContextProvider>
           </AuthGuard>
         )}
       </AuthProvider>

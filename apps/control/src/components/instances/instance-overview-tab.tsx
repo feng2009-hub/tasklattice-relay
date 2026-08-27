@@ -56,7 +56,7 @@ function ProvisioningSummary({ agent }: { agent: Agent }) {
             <Link
               to="/$projectId/instances/$instanceId"
               params={{ projectId, instanceId: agent.id }}
-              search={{ tab: "auditor-log" }}
+              search={{ tab: "logs" }}
               hash="provisioning-logs"
             >
               Review startup evidence
@@ -87,7 +87,7 @@ function ProvisioningSummary({ agent }: { agent: Agent }) {
           <Link
             to="/$projectId/instances/$instanceId"
             params={{ projectId, instanceId: agent.id }}
-            search={{ tab: "auditor-log" }}
+            search={{ tab: "logs" }}
           >
             Follow preparation evidence
           </Link>
@@ -526,7 +526,7 @@ export function InstanceOverviewTab({ access, agent, modelRoutingName, platform 
           <Link
             to="/$projectId/instances/$instanceId"
             params={{ projectId, instanceId: agent.id }}
-            search={{ tab: "auditor-log" }}
+            search={{ tab: "logs" }}
           >
             View execution evidence <ArrowRight />
           </Link>

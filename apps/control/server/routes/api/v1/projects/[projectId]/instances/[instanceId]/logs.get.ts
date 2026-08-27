@@ -1,9 +1,9 @@
 import { defineHandler } from "nitro";
 import { instanceParamsSchema } from "../../../../../../../api-contracts/schemas";
 import { requireAuth, unauthorizedResponse } from "../../../../../../../auth/auth";
-import { instanceRuntimeLogView } from "../../../../../../../instances/instance-http-view";
+import { a2aInstanceRuntimeLogView, instanceRuntimeLogView } from "../../../../../../../instances/instance-http-view";
 import { errorResponse, jsonResponse, problemResponse } from "../../../../../../../http/responses";
-import { getInstanceService } from "../../../../../../../services";
+import { getAgentInstanceDetailService } from "../../../../../../../services";
 
 export default defineHandler(async (event) => {
   try {
@@ -13,9 +13,14 @@ export default defineHandler(async (event) => {
   }
   try {
     const { instanceId } = instanceParamsSchema.parse(event.context.params);
-    const instance = await (await getInstanceService(event.req)).get(instanceId);
-    return instance
-      ? jsonResponse(instanceRuntimeLogView(instance), {
+    const detail = await (await getAgentInstanceDetailService(event.req)).get(instanceId);
+    const logs = detail?.kind === "SUPERVISOR"
+      ? instanceRuntimeLogView(detail.instance)
+      : detail?.kind === "A2A"
+        ? a2aInstanceRuntimeLogView(detail.instance)
+        : undefined;
+    return logs
+      ? jsonResponse(logs, {
           headers: { "cache-control": "no-store" },
         })
       : problemResponse(404, "Instance not found.");

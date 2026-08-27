@@ -11,6 +11,9 @@ The control plane and LiteLLM use the same PostgreSQL instance and database:
 - TaskLattice Relay keeps its tables and Prisma migration history in the
   compatibility `tasklattice` schema. The stable schema name is intentionally
   not shortened because existing deployments already persist data there.
+- The `vector` extension is installed in `public`. Built-in Knowledge Vector
+  Databases keep their metadata and chunks in `tasklattice`, alongside the
+  Project boundary that owns them.
 - Every Project-owned control record includes `project_id`.
 - Project-scoped API routes use `/api/v1/projects/{projectId}/...`; stores apply
   that Project scope internally instead of accepting ad hoc page-level filters.
@@ -19,6 +22,54 @@ The shared instance reduces deployment and backup overhead. Separate schemas
 prevent table and migration-name collisions, but do not isolate CPU, memory,
 connections, storage, or failure domains. Production deployments should set
 connection limits, monitor both workloads, and back up the whole database.
+
+## Built-in knowledge vectors
+
+The `postgresql` Knowledge Base provider stores text chunks, JSON attributes,
+and pgvector embeddings in `tasklattice.knowledge_vector_chunks`. The parent
+`KnowledgeVectorDatabase` record fixes the LiteLLM embedding model and vector
+dimensions for one Project-scoped Knowledge Base. Changing either setting is
+rejected after the first chunk is stored, preventing mixed-dimensional data.
+
+Search uses exact cosine distance initially. This gives deterministic recall
+for small and medium knowledge collections and permits different embedding
+dimensions across Knowledge Bases. Add per-database partial HNSW indexes only
+after production cardinality and latency measurements justify the additional
+memory, build time, and recall trade-off.
+
+Administrators can ingest already chunked text through the Project API. Relay
+calls the configured LiteLLM embedding model and upserts the resulting vectors
+atomically for the batch:
+
+```http
+PUT /api/v1/projects/{projectId}/catalog/knowledge-sources/{sourceId}/chunks
+Content-Type: application/json
+
+{
+  "chunks": [
+    {
+      "id": "runbook-42#rotation",
+      "content": "Restart the service after rotating credentials.",
+      "filename": "runbooks/credentials.md",
+      "attributes": { "environment": "production" }
+    }
+  ]
+}
+```
+
+Batches contain at most 128 chunks. Reusing a chunk ID replaces its content,
+attributes, and embedding. Delete one chunk with
+`DELETE .../chunks/{chunkId}`. Document parsing and chunk-boundary selection
+remain caller responsibilities in this first implementation.
+
+The default Chart image includes pgvector. A custom PostgreSQL image must also
+install the extension files before `prisma migrate deploy` runs; merely setting
+`shared_preload_libraries` is neither necessary nor sufficient.
+
+The default image change from PostgreSQL Alpine to the pgvector Debian image
+also changes the container UID/GID from `70` to `999`. Existing persistent
+volumes require a backed-up, rehearsed ownership migration during an explicit
+maintenance window before the upgraded StatefulSet starts.
 
 ## Initialization
 

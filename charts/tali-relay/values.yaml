@@ -75,8 +75,8 @@ images:
     repository: tali-nemoclaw-deepagents-sandbox
     tag: ""
   postgres:
-    repository: postgres
-    tag: 17-alpine
+    repository: pgvector/pgvector
+    tag: 0.8.6-pg17
     pullPolicy: IfNotPresent
     useGlobalRegistry: false
   keycloak:
@@ -176,6 +176,21 @@ projectOpenShell:
   workspace:
     storageSize: 1Gi
     storageClass: ""
+
+# One lightweight capability proxy is reconciled into every Project Runtime
+# Namespace. The MVP exports connected A2A Agents; the mounted claim is the
+# stable extension boundary for packaged MCP, Knowledge Base, and Skill assets.
+projectRuntimeBridge:
+  enabled: true
+  storageSize: 1Gi
+  storageClass: ""
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
 
 litellm:
   replicaCount: 1

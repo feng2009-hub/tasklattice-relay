@@ -24,7 +24,8 @@ export const vectorStoreProviders = [
   { id: "azure", label: "Azure OpenAI", presetId: "azure-openai", description: "Azure-hosted OpenAI Vector Store" },
   { id: "bedrock", label: "Amazon Bedrock", presetId: "aws-bedrock", description: "Bedrock Knowledge Base" },
   { id: "vertex_ai", label: "Google Vertex AI", presetId: "vertex-ai", description: "Vertex AI RAG Engine" },
-  { id: "pg_vector", label: "PostgreSQL / pgvector", icon: siPostgresql, description: "LiteLLM PGVector connector" },
+  { id: "postgresql", label: "TaskLattice PostgreSQL", icon: siPostgresql, description: "Built-in Knowledge Vector Database" },
+  { id: "pg_vector", label: "External PGVector", icon: siPostgresql, description: "LiteLLM PGVector connector service" },
   { id: "elasticsearch", label: "Elasticsearch", icon: siElasticsearch, description: "Native semantic_text vector search" },
 ] as const satisfies ReadonlyArray<{
   id: VectorStoreProvider;

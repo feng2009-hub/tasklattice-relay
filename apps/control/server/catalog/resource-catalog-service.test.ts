@@ -406,6 +406,45 @@ describe("ResourceCatalogService", () => {
     );
   });
 
+  it("provisions a built-in PostgreSQL Knowledge Vector Database behind the Control bridge", async () => {
+    const store = createTestStore();
+    const litellm = adapter();
+    const service = new ResourceCatalogService(
+      store,
+      new ProjectQuotaService(store, litellm),
+      litellm,
+    );
+
+    const created = await service.createKnowledgeSource({
+      name: "Engineering knowledge",
+      description: "Engineering knowledge stored inside the shared PostgreSQL database.",
+      vectorStoreId: "engineering-knowledge",
+      provider: "postgresql",
+      embeddingModel: "tali/openai/text-embedding-3-small",
+      embeddingDimensions: 1536,
+      topK: 8,
+      credentialReference: "",
+    });
+
+    expect(created.status).toBe("REGISTERED");
+    await expect(store.database().knowledgeVectorDatabase.findUnique({
+      where: { projectId_id: { projectId: store.projectId, id: created.id } },
+    })).resolves.toMatchObject({
+      vectorStoreId: "engineering-knowledge",
+      embeddingDimensions: 1536,
+    });
+    expect(litellm.registerVectorStore).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: "pg_vector",
+        metadata: expect.objectContaining({ tali_provider: "postgresql" }),
+        litellmParams: expect.objectContaining({
+          api_base: "http://127.0.0.1:8080/api/internal/vector-stores/individual",
+          api_key: expect.any(String),
+        }),
+      }),
+    );
+  });
+
   it("registers Elasticsearch through the authenticated TaskLattice Relay bridge", async () => {
     const store = createTestStore();
     const litellm = adapter();

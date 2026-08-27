@@ -35,7 +35,7 @@ const marketplaceBriefs: Record<string, AgentMarketplaceBrief> = {
       "Explicit human-approval and escalation checklist",
     ],
     requirements: [
-      "A READY OpenClaw or Hermes Coordinator for delegation",
+      "A READY Hermes or OpenClaw Coordinator for delegation",
       "Approved access to customer and order context",
       "Human approval policy for credits, refunds, or account changes",
     ],
@@ -336,7 +336,7 @@ export function marketplaceMetadataFor(
     ],
     outputs: definition.skills.map((skill) => skill.description),
     requirements: [
-      "A READY OpenClaw or Hermes Coordinator for delegation",
+      "A READY Hermes or OpenClaw Coordinator for delegation",
       "Network access to the advertised A2A endpoint",
       "Applicable Project access and approval policies",
     ],

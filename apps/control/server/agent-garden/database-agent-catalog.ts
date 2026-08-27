@@ -9,7 +9,7 @@ import {
 } from "./demo-agent-runtime";
 import { marketplaceMetadataFor } from "./marketplace-agent-metadata";
 
-export const agentCatalogSeedVersion = "2026-08-23.1";
+export const agentCatalogSeedVersion = "2026-08-26.1";
 const seededAt = "2026-08-23T00:00:00.000Z";
 
 export const databaseAgentCatalog: AgentGardenEntry[] =

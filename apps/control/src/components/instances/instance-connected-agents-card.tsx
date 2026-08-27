@@ -101,7 +101,7 @@ export function InstanceConnectedAgentsCard({ agent }: { agent: Agent }) {
                       </Badge>
                       <Badge variant="outline">
                         {connection.approvalMode === "AUTO_READ_ONLY"
-                          ? "Auto read-only"
+                          ? "Declared read-only"
                           : "Always ask"}
                       </Badge>
                     </span>

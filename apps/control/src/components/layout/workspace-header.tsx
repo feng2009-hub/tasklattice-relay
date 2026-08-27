@@ -4,14 +4,18 @@ import { useTranslation } from "react-i18next";
 import { HeaderBreadcrumb } from "@/components/layout/header-breadcrumb";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 
-export function WorkspaceHeader() {
+export function WorkspaceHeader({ showSidebarTrigger = true }: {
+  showSidebarTrigger?: boolean;
+}) {
   const { t } = useTranslation("sidebar");
   const pathname = useRouterState({ select: (state) => state.location.pathname });
 
   return (
     <div className="sticky top-0 z-30 bg-background/94 backdrop-blur-md">
       <header className="flex h-16 items-center gap-3 border-b px-4 sm:px-6 lg:px-8">
-        <SidebarTrigger label={t("navigation.toggle")} />
+        {showSidebarTrigger ? (
+          <SidebarTrigger label={t("navigation.toggle")} />
+        ) : null}
         <HeaderBreadcrumb pathname={pathname} />
         <button
           disabled

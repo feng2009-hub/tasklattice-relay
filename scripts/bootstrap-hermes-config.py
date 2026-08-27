@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 from pathlib import Path
 import re
@@ -12,15 +13,28 @@ import stat
 import subprocess
 import sys
 import tempfile
+import urllib.parse
+import urllib.request
 
 import yaml
 
 
 HASH_LINE = re.compile(r"^([0-9a-f]{64})  (.+)$")
-MANAGED_CREDENTIAL_SENTINEL = "sk-OPENSHELL-PROXY-REWRITE"
 MCP_LINE = re.compile(
     r"^# nemoclaw-hermes-mcp-state-v1 intended=([0-9a-f]{64}) applied=([0-9a-f]{64})$"
 )
+OPENSHELL_CREDENTIAL_PLACEHOLDER = re.compile(
+    r"^openshell:resolve:env:v[0-9]+_OPENAI_API_KEY$"
+)
+MAX_A2A_REGISTRY_BYTES = 1024 * 1024
+
+
+class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise RuntimeError("Hermes A2A registry redirects are disabled")
+
+
+A2A_REGISTRY_OPENER = urllib.request.build_opener(NoRedirectHandler())
 
 
 def digest(data: bytes) -> str:
@@ -98,6 +112,72 @@ def parse_anchor(anchor: bytes, config: Path, env: Path) -> tuple[str, str, str]
     return config_match.group(1), env_match.group(1), mcp_match.group(1)
 
 
+def validate_a2a_registry_url(value: str) -> urllib.parse.ParseResult:
+    registry_url = urllib.parse.urlparse(value)
+    if (
+        registry_url.scheme != "http"
+        or not registry_url.hostname
+        or not registry_url.hostname.endswith(".svc.cluster.local")
+    ):
+        raise RuntimeError("Hermes A2A registry must be an in-cluster HTTP Service URL")
+    return registry_url
+
+
+def openshell_model_credential() -> str:
+    credential = os.environ.get("OPENAI_API_KEY", "")
+    if not OPENSHELL_CREDENTIAL_PLACEHOLDER.fullmatch(credential):
+        raise RuntimeError(
+            "Hermes requires an OpenShell-managed OPENAI_API_KEY placeholder"
+        )
+    return credential
+
+
+def configure_a2a(
+    validated: dict,
+    registry_url_value: str,
+    registry_token: str,
+    registry: object,
+) -> None:
+    """Apply a trusted Project Runtime Bridge snapshot to Hermes config."""
+    registry_url = validate_a2a_registry_url(registry_url_value)
+    peers = registry.get("a2a_agents") if isinstance(registry, dict) else None
+    if not isinstance(peers, dict):
+        raise RuntimeError("Hermes A2A registry returned an invalid peer map")
+    for name, peer in peers.items():
+        if not isinstance(name, str) or not name or not isinstance(peer, dict):
+            raise RuntimeError("Hermes A2A registry returned an invalid peer")
+        peer_url = urllib.parse.urlparse(str(peer.get("url", "")))
+        if (
+            peer_url.scheme != registry_url.scheme
+            or peer_url.hostname != registry_url.hostname
+            or peer_url.port != registry_url.port
+            or not peer_url.path.startswith("/v1/a2a/")
+        ):
+            raise RuntimeError("Hermes A2A registry returned an out-of-bound peer URL")
+        peer["auth"] = {
+            "type": "bearer",
+            "token": registry_token,
+        }
+    validated["a2a_agents"] = peers
+    toolsets = validated.get("toolsets")
+    if not isinstance(toolsets, list):
+        toolsets = ["hermes-cli"]
+    validated["toolsets"] = list(dict.fromkeys([*toolsets, "kanban", "a2a"]))
+    plugins = validated.get("plugins")
+    if not isinstance(plugins, dict):
+        plugins = {}
+        validated["plugins"] = plugins
+    enabled_plugins = plugins.get("enabled")
+    if not isinstance(enabled_plugins, list):
+        enabled_plugins = []
+    plugins["enabled"] = list(dict.fromkeys([*enabled_plugins, "tali-a2a"]))
+    disabled_plugins = plugins.get("disabled")
+    if isinstance(disabled_plugins, list):
+        plugins["disabled"] = [
+            plugin for plugin in disabled_plugins if plugin != "tali-a2a"
+        ]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=Path, required=True)
@@ -106,6 +186,8 @@ def main() -> None:
     parser.add_argument("--model", required=True)
     parser.add_argument("--template-endpoint", required=True)
     parser.add_argument("--template-model", required=True)
+    parser.add_argument("--a2a-registry-url")
+    parser.add_argument("--a2a-registry-token")
     parser.add_argument(
         "--mcp-digest-builder",
         type=Path,
@@ -157,48 +239,62 @@ def main() -> None:
         args.template_model, args.model
     )
     document = yaml.safe_load(updated)
+    if not isinstance(document, dict):
+        raise RuntimeError("Hermes config must be a YAML object")
     upstream = document.get("_nemoclaw_upstream", {}).get("provider")
     if not isinstance(upstream, str) or not upstream:
         raise RuntimeError("Hermes config does not declare its upstream provider")
-    model_section = re.search(r"(?m)^model:\n(?P<body>(?:^[ \t].*\n)+)", updated)
-    if not model_section:
-        raise RuntimeError("Hermes config does not contain a model section")
-    model_body = model_section.group("body")
-    model_body, provider_count = re.subn(
-        r"(?m)^  provider: (?:custom|" + re.escape(upstream) + r")$",
-        "  provider: custom",
-        model_body,
-        count=1,
-    )
-    model_body, model_key_count = re.subn(
-        rf"(?m)^  api_key: {re.escape(MANAGED_CREDENTIAL_SENTINEL)}$",
-        f"  api_key: {MANAGED_CREDENTIAL_SENTINEL}",
-        model_body,
-        count=1,
-    )
-    if provider_count != 1 or model_key_count != 1:
-        raise RuntimeError("Hermes model credential fields have an unexpected shape")
-    updated = (
-        updated[: model_section.start("body")]
-        + model_body
-        + updated[model_section.end("body") :]
-    )
-
-    validated = yaml.safe_load(updated)
+    model = document.get("model")
+    providers = document.get("providers")
+    custom = document.get("custom_providers")
     if (
-        validated.get("model", {}).get("provider") != "custom"
-        or validated.get("model", {}).get("api_key") != MANAGED_CREDENTIAL_SENTINEL
+        not isinstance(model, dict)
+        or not isinstance(providers, dict)
+        or not isinstance(custom, list)
     ):
-        raise RuntimeError("Hermes model provider migration did not apply")
-    providers = validated.get("providers", {})
-    custom = validated.get("custom_providers", [])
-    credential_routes = [validated.get("model"), *providers.values(), *custom]
-    if any(
-        not isinstance(route, dict)
-        or route.get("api_key") != MANAGED_CREDENTIAL_SENTINEL
-        for route in credential_routes
+        raise RuntimeError("Hermes model credential fields have an unexpected shape")
+    credential_routes = [model, *providers.values(), *custom]
+    if not credential_routes or any(
+        not isinstance(route, dict) for route in credential_routes
     ):
-        raise RuntimeError("Hermes provider credential sentinel is not managed")
+        raise RuntimeError("Hermes provider credential routes are invalid")
+    managed_credential = openshell_model_credential()
+    model["provider"] = "custom"
+    for route in credential_routes:
+        route["api_key"] = managed_credential
+    validated = document
+    if bool(args.a2a_registry_url) != bool(args.a2a_registry_token):
+        raise RuntimeError("Hermes A2A registry URL and token must be configured together")
+    if args.a2a_registry_url:
+        validate_a2a_registry_url(args.a2a_registry_url)
+        request = urllib.request.Request(
+            args.a2a_registry_url,
+            headers={
+                "Accept": "application/json",
+                "Authorization": f"Bearer {args.a2a_registry_token}",
+            },
+            method="GET",
+        )
+        with A2A_REGISTRY_OPENER.open(request, timeout=15) as response:
+            declared_length = response.headers.get("content-length")
+            if declared_length and int(declared_length) > MAX_A2A_REGISTRY_BYTES:
+                raise RuntimeError("Hermes A2A registry exceeded the 1 MiB limit")
+            raw_registry = response.read(MAX_A2A_REGISTRY_BYTES + 1)
+        if len(raw_registry) > MAX_A2A_REGISTRY_BYTES:
+            raise RuntimeError("Hermes A2A registry exceeded the 1 MiB limit")
+        registry = json.loads(raw_registry.decode("utf-8"))
+        configure_a2a(
+            validated,
+            args.a2a_registry_url,
+            args.a2a_registry_token,
+            registry,
+        )
+    updated = yaml.safe_dump(
+        validated,
+        allow_unicode=True,
+        sort_keys=False,
+        width=1000,
+    )
     updated_config = updated.encode("utf-8")
     config_mode = config.stat().st_mode & 0o7777
     anchor_mode = hash_file.stat().st_mode & 0o7777

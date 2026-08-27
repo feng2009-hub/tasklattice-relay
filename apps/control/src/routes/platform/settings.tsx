@@ -180,6 +180,7 @@ function PlatformSettingsPage() {
   const renderLayout = (content: ReactNode) => (
     <ContextSidebarLayout
       sidebarWidth="15rem"
+      standaloneSidebar
       sidebar={(
         <ContextSettingsSidebar
           ariaLabel="Platform settings sections"
