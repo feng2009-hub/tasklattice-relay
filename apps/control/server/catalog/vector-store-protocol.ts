@@ -5,10 +5,10 @@ export const vectorStoreSearchRequestSchema = z.object({
     z.string().trim().min(1),
     z.array(z.string().trim().min(1)).min(1),
   ]),
-  filters: z.record(z.string(), z.unknown()).optional(),
-  max_num_results: z.number().int().min(1).max(50).optional(),
-  ranking_options: z.record(z.string(), z.unknown()).optional(),
-  rewrite_query: z.boolean().optional(),
+  filters: z.record(z.string(), z.unknown()).nullish(),
+  max_num_results: z.number().int().min(1).max(50).nullish(),
+  ranking_options: z.record(z.string(), z.unknown()).nullish(),
+  rewrite_query: z.boolean().nullish(),
 }).strict();
 
 export type VectorStoreSearchRequest = z.infer<typeof vectorStoreSearchRequestSchema>;

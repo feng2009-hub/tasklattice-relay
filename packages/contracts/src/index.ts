@@ -918,8 +918,8 @@ export const providerPresets = [
     defaultModels: [
       { modelId: "meta/llama-3.3-70b-instruct", displayName: "Llama 3.3 70B Instruct", modelType: "llm" },
       {
-        modelId: "nvidia/llama-nemotron-embed-1b-v2",
-        displayName: "Llama Nemotron Embed 1B v2",
+        modelId: "nvidia/llama-nemotron-embed-vl-1b-v2",
+        displayName: "Llama Nemotron Embed VL 1B v2",
         modelType: "text-embedding",
       },
     ],

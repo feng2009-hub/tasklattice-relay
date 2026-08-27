@@ -229,7 +229,11 @@ export interface LiteLLMAdminClient {
   registerVectorStore?(input: LiteLLMVectorStoreInput): Promise<void>;
   updateVectorStore?(input: LiteLLMVectorStoreInput): Promise<void>;
   deleteVectorStore?(vectorStoreId: string): Promise<void>;
-  createEmbeddings?(model: string, input: string[]): Promise<number[][]>;
+  createEmbeddings?(
+    model: string,
+    input: string[],
+    inputType?: "query" | "passage",
+  ): Promise<number[][]>;
   testConnection?(): Promise<{ ok: boolean; version?: string }>;
 }
 
@@ -316,13 +320,22 @@ export class LiteLLMClient implements LiteLLMAdminClient {
     });
   }
 
-  async createEmbeddings(model: string, input: string[]): Promise<number[][]> {
+  async createEmbeddings(
+    model: string,
+    input: string[],
+    inputType: "query" | "passage" = "passage",
+  ): Promise<number[][]> {
     if (!input.length) return [];
     const response = await this.request<{
       data?: Array<{ index?: number; embedding?: unknown }>;
     }>("/embeddings", {
       method: "POST",
-      body: JSON.stringify({ model, input, encoding_format: "float" }),
+      body: JSON.stringify({
+        model,
+        input,
+        input_type: inputType,
+        encoding_format: "float",
+      }),
     });
     const data = response.data ?? [];
     const ordered = [...data].sort((left, right) =>
@@ -980,7 +993,12 @@ export class LiteLLMClient implements LiteLLMAdminClient {
     if (modelType === "text-embedding") {
       await this.request("/embeddings", {
         method: "POST",
-        body: JSON.stringify({ model: modelName, input: "TaskLattice Relay validation" }),
+        body: JSON.stringify({
+          model: modelName,
+          input: "TaskLattice Relay validation",
+          input_type: "passage",
+          encoding_format: "float",
+        }),
       });
       return;
     }

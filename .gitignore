@@ -5,6 +5,7 @@ dist/
 .tanstack/
 .DS_Store
 coverage/
+/artifacts/kb/
 apps/control/server/generated/
 /charts/*/charts/*.tgz
 /.helm-dependencies/

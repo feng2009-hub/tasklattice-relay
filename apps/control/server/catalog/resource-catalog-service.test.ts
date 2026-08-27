@@ -523,6 +523,7 @@ describe("ResourceCatalogService", () => {
     expect(createEmbeddings).toHaveBeenCalledWith(
       "tali/nvidia/llama-nemotron-embed-1b-v2",
       ["TaskLattice embedding dimension probe."],
+      "passage",
     );
   });
 

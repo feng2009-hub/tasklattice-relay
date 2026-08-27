@@ -56,11 +56,14 @@ describe("KnowledgeVectorDatabase", () => {
       query: "How do I rotate credentials?",
       max_num_results: 4,
       filters: { type: "eq", key: "environment", value: "production" },
+      ranking_options: null,
+      rewrite_query: null,
     });
 
     expect(embeddings.createEmbeddings).toHaveBeenCalledWith(
       "tali/openai/text-embedding-3-small",
       ["How do I rotate credentials?"],
+      "query",
     );
     expect(query).toHaveBeenCalledOnce();
     expect(result).toEqual({
@@ -75,6 +78,22 @@ describe("KnowledgeVectorDatabase", () => {
           attributes: { environment: "production" },
         },
       ],
+    });
+  });
+
+  it("accepts null optional fields forwarded by the LiteLLM Vector Store API", async () => {
+    const { store, vectors } = await setup();
+    vi.spyOn(store.database(), "$queryRaw").mockResolvedValue([]);
+
+    await expect(vectors.search("engineering-handbook", {
+      query: "How do I rotate credentials?",
+      filters: null,
+      max_num_results: null,
+      ranking_options: null,
+      rewrite_query: null,
+    })).resolves.toMatchObject({
+      object: "vector_store.search_results.page",
+      data: [],
     });
   });
 
@@ -117,6 +136,7 @@ describe("KnowledgeVectorDatabase", () => {
         "Rotate the credential, then restart the service.",
         "Verify the new credential before closing the change.",
       ],
+      "passage",
     );
     expect(execute).toHaveBeenCalledTimes(2);
   });

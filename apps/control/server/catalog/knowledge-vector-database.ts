@@ -89,6 +89,7 @@ export class KnowledgeVectorDatabase {
     const vectors = await this.embeddings.createEmbeddings(
       database.embeddingModel,
       input.chunks.map((chunk) => chunk.content),
+      "passage",
     );
     if (vectors.length !== input.chunks.length) {
       throw new Error(
@@ -183,6 +184,7 @@ export class KnowledgeVectorDatabase {
     const [embedding] = await this.embeddings.createEmbeddings(
       database.embeddingModel,
       [query],
+      "query",
     );
     if (!embedding) throw new Error("The embedding model returned no query vector.");
     const encoded = vectorLiteral(embedding, database.embeddingDimensions);

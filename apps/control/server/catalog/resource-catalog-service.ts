@@ -72,8 +72,8 @@ export class ResourceCatalogService {
     pdfIngestion?: KnowledgePdfIngestionService,
   ) {
     this.vectorDatabase = vectorDatabase ?? new KnowledgeVectorDatabase(store, {
-      createEmbeddings: (model, input) =>
-        this.requireAdapter("createEmbeddings")(model, input),
+      createEmbeddings: (model, input, inputType) =>
+        this.requireAdapter("createEmbeddings")(model, input, inputType),
     });
     this.pdfIngestion = pdfIngestion
       ?? new KnowledgePdfIngestionService(store, this.vectorDatabase);
@@ -383,6 +383,7 @@ export class ResourceCatalogService {
       const [probe] = await this.requireAdapter("createEmbeddings")(
         deployment.litellmModelName,
         ["TaskLattice embedding dimension probe."],
+        "passage",
       );
       if (!probe || !probe.length || probe.length > 16_000 || !probe.every(Number.isFinite)) {
         throw new Error("The selected embedding model returned an invalid probe vector.");

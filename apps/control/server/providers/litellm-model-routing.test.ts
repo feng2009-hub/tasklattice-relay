@@ -7,6 +7,27 @@ afterEach(() => {
 });
 
 describe("LiteLLM model validation", () => {
+  it("labels embedding validation and runtime inputs for asymmetric embedding models", async () => {
+    const requests: unknown[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+      requests.push(JSON.parse(String(init?.body)));
+      return new Response(JSON.stringify({
+        data: [{ index: 0, embedding: [0.1, 0.2] }],
+      }), { status: 200 });
+    }));
+    const client = new LiteLLMClient("http://litellm:4000", "master-secret");
+
+    await client.probeModel("tali/nvidia/embed", "text-embedding");
+    await client.createEmbeddings("tali/nvidia/embed", ["document"], "passage");
+    await client.createEmbeddings("tali/nvidia/embed", ["question"], "query");
+
+    expect(requests).toEqual([
+      expect.objectContaining({ input_type: "passage", encoding_format: "float" }),
+      expect.objectContaining({ input_type: "passage", encoding_format: "float" }),
+      expect.objectContaining({ input_type: "query", encoding_format: "float" }),
+    ]);
+  });
+
   it("waits for a newly registered model to propagate across LiteLLM workers", async () => {
     vi.useFakeTimers();
     const modelName = "tali/account/deepseek-v4-flash";
