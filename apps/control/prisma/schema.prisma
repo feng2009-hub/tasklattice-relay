@@ -1089,6 +1089,7 @@ model VectorDocument {
   databaseId      String   @map("database_id")
   id              String
   filename        String
+  directoryPath   String   @default("/") @map("directory_path")
   mediaType       String   @map("media_type")
   byteSize        Int      @map("byte_size")
   contentHash     String   @map("content_hash")
@@ -1110,6 +1111,7 @@ model VectorDocument {
 
   @@id([projectId, databaseId, id])
   @@index([projectId, databaseId, status, updatedAt], map: "vector_documents_database_status_idx")
+  @@index([projectId, databaseId, directoryPath], map: "vector_documents_directory_idx")
   @@map("vector_documents")
   @@schema("tasklattice")
 }

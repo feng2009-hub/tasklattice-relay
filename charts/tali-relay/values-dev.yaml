@@ -36,6 +36,12 @@ control:
       cpu: 500m
       memory: 1Gi
 
+# Local Vector Database acceptance depends on the bundled parser. Keep this
+# explicit so a source-Chart deployment cannot silently omit Docling when chart
+# defaults evolve.
+docling:
+  enabled: true
+
 litellm:
   service:
     type: LoadBalancer

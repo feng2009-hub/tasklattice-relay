@@ -51,6 +51,11 @@ const projectRoleDescriptions: Record<ProjectMembershipRole, string> = {
   user: "Use the Project within its assigned permissions.",
 };
 
+function projectRoleTarget(projectId: string, role: ProjectMembershipRole): string {
+  const projectRoot = `/${encodeURIComponent(projectId)}`;
+  return role === "admin" ? projectRoot : `${projectRoot}/instances`;
+}
+
 const membershipByBuiltinRole = Object.fromEntries(
   Object.entries(membershipRoleToBuiltinRole).map(([membership, builtin]) => [
     builtin,
@@ -123,7 +128,7 @@ export class AccessContextService {
           resourceName: project.name,
           roleId,
           roleLabel: projectRoleLabels[role],
-          target: `/${encodeURIComponent(project.id)}/instances`,
+          target: projectRoleTarget(project.id, role),
         });
       }
     }

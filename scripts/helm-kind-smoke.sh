@@ -11,7 +11,7 @@ image_registry="${IMAGE_REGISTRY:-ghcr.io/tasklattice}"
 image_tag="${IMAGE_TAG:-latest}"
 control_image_tag="${CONTROL_IMAGE_TAG:-$image_tag}"
 control_image_pull_policy="${CONTROL_IMAGE_PULL_POLICY:-Always}"
-helm_timeout="${HELM_TIMEOUT:-15m}"
+helm_timeout="${HELM_TIMEOUT:-30m}"
 chart_path="${HELM_CHART_PATH:-$repository_root/charts/tali-relay}"
 
 for command_name in helm kind kubectl; do

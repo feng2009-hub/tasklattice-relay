@@ -9,7 +9,7 @@ TaskLattice Relay publishes **seven first-party images**:
 | `tali-control` | `infra/docker/Dockerfile`, target `control` | Web UI, REST/WebSocket API, and PostgreSQL control data | amd64, arm64 |
 | `tali-openshell-runner` | `infra/docker/Dockerfile`, target `runner` | Invokes OpenShell to create, observe, connect to, and destroy Sandboxes | amd64, arm64 |
 | `tali-litellm` | `infra/docker/Dockerfile.litellm` | Model gateway, virtual keys, and cost attribution | amd64, arm64 |
-| `tali-example-mcp` | `infra/docker/Dockerfile`, target `example-mcp` | Reference MCP integration used by examples | amd64, arm64 |
+| `demo-test` | `infra/docker/Dockerfile`, target `demo-test` | Multi-mode MCP and managed A2A example runtime | amd64, arm64 |
 | `tali-nemoclaw-sandbox` | `scripts/build-nemoclaw-sandbox.sh` (`openclaw`) + `Dockerfile.nemoclaw-openclaw` | Dynamic Sandbox for the OpenClaw Agent | amd64, arm64 |
 | `tali-nemoclaw-hermes-sandbox` | The same script (`hermes`) + `Dockerfile.nemoclaw-hermes` | Dynamic Sandbox for the Hermes Agent | amd64, arm64 |
 | `tali-nemoclaw-deepagents-sandbox` | The same script (`deepagents`) + `Dockerfile.nemoclaw-deepagents` | Dynamic terminal Sandbox for Deep Agents Code | amd64, arm64 |
@@ -120,7 +120,7 @@ helm upgrade --install tali-relay "./tali-relay-${VERSION}.tgz" \
   --namespace tali \
   --create-namespace \
   --wait \
-  --timeout 10m
+  --timeout 30m
 ```
 
 The chart can also be installed directly from GHCR OCI:
@@ -133,7 +133,7 @@ helm upgrade --install tali-relay \
   --namespace tali \
   --create-namespace \
   --wait \
-  --timeout 10m
+  --timeout 30m
 ```
 
 The default values match the current local validation path: control and

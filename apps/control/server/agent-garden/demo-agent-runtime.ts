@@ -209,6 +209,11 @@ export const hermesMvpA2aAgentIds = [
   "a2a-pull-request-risk-scanner",
 ] as const;
 
+export function demoTestImageReference(): string {
+  return process.env.TALI_DEMO_TEST_IMAGE?.trim()
+    || "ghcr.io/tasklattice/demo-test:dev";
+}
+
 export function demoAgentEndpoint(id: string): string {
   return `${demoServiceOrigin()}/api/v1/demo-agents/${encodeURIComponent(id)}`;
 }

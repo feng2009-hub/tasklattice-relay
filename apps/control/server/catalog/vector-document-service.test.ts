@@ -60,10 +60,10 @@ async function setup() {
   };
 }
 
-function upload(content: string) {
+function upload(content: string, name = "handbook.pdf") {
   const bytes = new TextEncoder().encode(content);
   return {
-    name: "handbook.pdf",
+    name,
     size: bytes.byteLength,
     type: "application/pdf",
     arrayBuffer: async () => bytes.buffer,
@@ -114,5 +114,27 @@ describe("VectorDocumentService", () => {
       where: { documentId: first.document.id },
       orderBy: { revision: "asc" },
     })).resolves.toMatchObject([{ revision: 1 }, { revision: 2 }]);
+  });
+
+  it("keeps the same filename in separate persistent directories", async () => {
+    const { publisher, service } = await setup();
+    const research = await service.queue(
+      "built-in-vectors",
+      upload("research"),
+      "account-1",
+      publisher,
+      { directoryPath: "/Research/Agents" },
+    );
+    const reports = await service.queue(
+      "built-in-vectors",
+      upload("reports"),
+      "account-1",
+      publisher,
+      { directoryPath: "/Reports" },
+    );
+
+    expect(research.document.id).not.toBe(reports.document.id);
+    expect(research.document.directoryPath).toBe("/Research/Agents");
+    expect(reports.document.directoryPath).toBe("/Reports");
   });
 });

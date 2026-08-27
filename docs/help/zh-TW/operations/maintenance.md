@@ -41,7 +41,7 @@
 
   ~~~shell
   helm upgrade --install <release> <chart> \
-    -n <namespace> -f <private-values.yaml> --wait --timeout 10m
+    -n <namespace> -f <private-values.yaml> --wait --timeout 30m
   kubectl -n <namespace> rollout status deployment/<release>-control --timeout=300s
   ~~~
 

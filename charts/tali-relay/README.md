@@ -1,7 +1,8 @@
 # TaskLattice Relay Helm Chart
 
-This chart installs the complete TaskLattice Relay stack: control/UI, OpenShell
-runner, LiteLLM, PostgreSQL, OpenShell, and the Agent Sandbox controller.
+This chart installs the complete TaskLattice Relay stack: control/UI, Control
+Worker, Docling Serve, OpenShell runner, LiteLLM, PostgreSQL with pgvector,
+OpenShell, and the Agent Sandbox controller.
 Its Chart, package, and default Helm release name is `tali-relay`; the examples
 use the product-level `tali` Kubernetes namespace.
 The Release Workflow selects OpenShell 0.0.106, NemoClaw v0.0.114, and Agent
@@ -43,7 +44,7 @@ helm upgrade --install tali-relay "./tali-relay-${VERSION}.tgz" \
   --namespace tali \
   --create-namespace \
   --wait \
-  --timeout 10m
+  --timeout 30m
 ```
 
 The same chart is published as an OCI artifact:
@@ -56,7 +57,7 @@ helm upgrade --install tali-relay \
   --namespace tali \
   --create-namespace \
   --wait \
-  --timeout 10m
+  --timeout 30m
 ```
 
 Defaults preserve the repository's trusted local-cluster setup and use
@@ -304,7 +305,7 @@ helm upgrade --install tali-relay charts/tali-relay \
   --set-string "openshift.routes.control.host=${CONTROL_HOST}" \
   --wait \
   --wait-for-jobs \
-  --timeout 15m
+  --timeout 30m
 ```
 
 The Control Route is intended for browser and HTTP/WebSocket traffic. The
@@ -325,6 +326,36 @@ context matches it. Releases created with the former Alpine image used UID/GID
 `70`. Before upgrading an existing PVC, take a tested backup and arrange a
 maintenance-window ownership migration for the data volume. Do not weaken the
 Pod to run as root as an upgrade shortcut.
+
+## Built-in Vector Database document ingestion
+
+The Chart deploys Docling Serve as an independent Deployment and ClusterIP
+Service for built-in Vector Database document parsing. It is not a Control Pod
+sidecar or an in-process TypeScript dependency. The Control Worker calls its
+cluster-local HTTP API through `DOCLING_BASE_URL`:
+
+```text
+document upload -> PostgreSQL job -> Control Worker -> Docling Serve
+                                      |                 layout/OCR/chunks
+                                      +-> LiteLLM embedding -> pgvector
+```
+
+Docling performs layout extraction, table understanding, and OCR independently
+of the selected embedding Provider; `NVIDIA_API_KEY` and `NVAPI_API_KEY` are not
+required. Its model cache uses the `<release>-docling-models` PVC by default.
+The large initial image pull and CPU model initialization can make the first
+Pod readiness transition take several minutes.
+
+Disable the bundled parser with `docling.enabled=false` only when document
+upload is intentionally unavailable or `control.worker.extraEnv` supplies
+`DOCLING_BASE_URL` for a separately managed Docling Serve endpoint. Verify a
+bundled deployment with:
+
+```bash
+kubectl -n <namespace> rollout status deployment/<release>-docling --timeout=1800s
+kubectl -n <namespace> get deployment,service,pvc \
+  -l app.kubernetes.io/instance=<release>,app.kubernetes.io/component=docling
+```
 
 ## Embedded Keycloak for end-to-end tests
 
@@ -347,13 +378,6 @@ helm upgrade --install tali-relay charts/tali-relay \
   --set keycloak.publicUrl=http://192.168.139.3:8080 \
   --set keycloak.service.loadBalancerIP=192.168.139.3
 ```
-
-The Chart deploys Docling Serve for built-in Vector Database document parsing.
-It performs layout extraction, table understanding, and OCR independently of
-the selected embedding Provider; `NVIDIA_API_KEY` and `NVAPI_API_KEY` are not
-required. Disable the bundled parser with `docling.enabled=false` only when
-document upload is intentionally unavailable or the Control Worker is pointed
-at a separately managed Docling Serve endpoint through `DOCLING_BASE_URL`.
 
 For local environments where the browser uses a loopback hostname while the
 Control pod reaches the same endpoint through the node address, map that
@@ -450,7 +474,7 @@ Secret reference: k8s://<namespace>/tali-relay-example-mcp-auth#auth-value
 Build and deploy the local example together with Keycloak:
 
 ```bash
-npm run images:build:dev:example-mcp
+npm run images:build:dev:demo-test
 npm run helm:deploy:dev:keycloak:example-mcp
 ```
 

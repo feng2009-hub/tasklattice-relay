@@ -429,6 +429,11 @@ describe("OpenShell Kubernetes command contract", () => {
     expect(bootstrap).toContain(
       `coordinatorInstanceId=${hermesInput.instanceId}`,
     );
+    expect(bootstrap).toContain("--vector-database-registry-url");
+    expect(bootstrap).toContain(
+      '--vector-database-registry-token "tali_prc_v1.test-payload.test-signature"',
+    );
+    expect(bootstrap).not.toContain("\n+");
   });
 
   it("uses the Deep Agents image, managed state path, TUI, and headless contract", () => {

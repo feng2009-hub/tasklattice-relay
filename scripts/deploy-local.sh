@@ -9,7 +9,7 @@ enable_keycloak=false
 enable_example_mcp=false
 release_name="${HELM_RELEASE_NAME:-tali-relay}"
 namespace="${HELM_NAMESPACE:-tali}"
-helm_timeout="${HELM_TIMEOUT:-15m}"
+helm_timeout="${HELM_TIMEOUT:-30m}"
 image_registry="ghcr.io/tasklattice"
 image_tag="dev"
 control_service_port="${CONTROL_SERVICE_PORT:-38080}"
@@ -115,14 +115,11 @@ images=(
   "$image_registry/tali-control:$image_tag"
   "$image_registry/tali-openshell-runner:$image_tag"
   "$image_registry/tali-litellm:$image_tag"
+  "$image_registry/demo-test:$image_tag"
   "$image_registry/tali-nemoclaw-sandbox:$image_tag"
   "$image_registry/tali-nemoclaw-hermes-sandbox:$image_tag"
   "$image_registry/tali-nemoclaw-deepagents-sandbox:$image_tag"
 )
-if [[ "$enable_example_mcp" == "true" ]]; then
-  images+=("$image_registry/tali-example-mcp:$image_tag")
-fi
-
 missing_images=()
 for image_name in "${images[@]}"; do
   if ! docker image inspect "$image_name" >/dev/null 2>&1; then
@@ -214,6 +211,20 @@ helm upgrade --install "$release_name" "$repository_root/charts/tali-relay" \
   --wait \
   --wait-for-jobs \
   --timeout "$helm_timeout"
+
+docling_selector="app.kubernetes.io/instance=$release_name,app.kubernetes.io/component=docling"
+docling_deployments="$(
+  kubectl --context "$kube_context" --namespace "$namespace" \
+    get deployment --selector "$docling_selector" --output name
+)"
+if [[ -z "$docling_deployments" ]]; then
+  echo "The local release did not create the required Docling Deployment." >&2
+  exit 1
+fi
+kubectl --context "$kube_context" --namespace "$namespace" \
+  rollout status deployment --selector "$docling_selector" --timeout "$helm_timeout"
+kubectl --context "$kube_context" --namespace "$namespace" \
+  get deployment,service,pvc --selector "$docling_selector"
 
 case "${CONTROL_DEVELOPMENT_PROJECTS_ENABLED:-true}" in
   true)

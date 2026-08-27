@@ -104,14 +104,14 @@ jobs:
             target: ""
             architecture: arm64
             runner: ubuntu-24.04-arm
-          - image: tali-example-mcp
+          - image: demo-test
             dockerfile: infra/docker/Dockerfile
-            target: example-mcp
+            target: demo-test
             architecture: amd64
             runner: ubuntu-24.04
-          - image: tali-example-mcp
+          - image: demo-test
             dockerfile: infra/docker/Dockerfile
-            target: example-mcp
+            target: demo-test
             architecture: arm64
             runner: ubuntu-24.04-arm
     steps:
@@ -178,7 +178,7 @@ jobs:
           - tali-control
           - tali-openshell-runner
           - tali-litellm
-          - tali-example-mcp
+          - demo-test
     steps:
       - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -327,7 +327,7 @@ jobs:
             tali-control
             tali-openshell-runner
             tali-litellm
-            tali-example-mcp
+            demo-test
             tali-nemoclaw-sandbox
             tali-nemoclaw-hermes-sandbox
             tali-nemoclaw-deepagents-sandbox

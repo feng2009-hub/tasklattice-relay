@@ -60,7 +60,7 @@ function catalogCapability(
   return ({
     skills: `CAP_SKILL_${action}`,
     "mcp-servers": `CAP_MCP_SERVER_${action}`,
-    "vector-databases": `CAP_KNOWLEDGE_SOURCE_${action}`,
+    "vector-databases": `CAP_VECTOR_DATABASE_${action}`,
   } as Record<string, ProjectCapability>)[kind];
 }
 
@@ -239,7 +239,7 @@ export function projectRouteAdmissionPolicy(
       return policy("PROJECT", [
         requirement("CAP_SKILL_VIEW", "Skill"),
         requirement("CAP_MCP_SERVER_VIEW", "McpServer"),
-        requirement("CAP_KNOWLEDGE_SOURCE_VIEW", "VectorDatabase"),
+        requirement("CAP_VECTOR_DATABASE_VIEW", "VectorDatabase"),
         requirement("CAP_AGENT_SPECIALIZATION_VIEW", "AgentSpecialization"),
       ]);
     }
@@ -260,7 +260,7 @@ export function projectRouteAdmissionPolicy(
     ) {
       return policy(
         "PROJECT",
-        [requirement("CAP_KNOWLEDGE_SOURCE_UPDATE", "VectorChunk")],
+        [requirement("CAP_VECTOR_DATABASE_UPDATE", "VectorChunk")],
         tail[2],
       );
     }
@@ -272,7 +272,7 @@ export function projectRouteAdmissionPolicy(
     ) {
       return policy(
         "PROJECT",
-        [requirement("CAP_KNOWLEDGE_SOURCE_UPDATE", "VectorDocument")],
+        [requirement("CAP_VECTOR_DATABASE_UPDATE", "VectorDocument")],
         tail[2],
       );
     }
@@ -284,7 +284,7 @@ export function projectRouteAdmissionPolicy(
     ) {
       return policy(
         "PROJECT",
-        [requirement("CAP_KNOWLEDGE_SOURCE_UPDATE", "VectorChunk")],
+        [requirement("CAP_VECTOR_DATABASE_UPDATE", "VectorChunk")],
         tail[2],
       );
     }
@@ -293,7 +293,7 @@ export function projectRouteAdmissionPolicy(
       && tail.length === 3
       && method === "GET"
     ) {
-      return policy("PROJECT", [requirement("CAP_KNOWLEDGE_SOURCE_VIEW", "VectorDatabase")], tail[2]);
+      return policy("PROJECT", [requirement("CAP_VECTOR_DATABASE_VIEW", "VectorDatabase")], tail[2]);
     }
     if (
       tail[1] === "vector-databases"
@@ -301,7 +301,7 @@ export function projectRouteAdmissionPolicy(
       && tail[3] === "search"
       && method === "POST"
     ) {
-      return policy("PROJECT", [requirement("CAP_KNOWLEDGE_SOURCE_CONTENT_VIEW", "VectorDatabase")], tail[2]);
+      return policy("PROJECT", [requirement("CAP_VECTOR_DATABASE_CONTENT_VIEW", "VectorDatabase")], tail[2]);
     }
     if (
       tail[1] === "vector-databases"
@@ -311,7 +311,7 @@ export function projectRouteAdmissionPolicy(
     ) {
       return policy(
         "PROJECT",
-        [requirement(method === "GET" ? "CAP_KNOWLEDGE_SOURCE_CONTENT_VIEW" : "CAP_KNOWLEDGE_SOURCE_UPDATE", "VectorDocument")],
+        [requirement(method === "GET" ? "CAP_VECTOR_DATABASE_CONTENT_VIEW" : "CAP_VECTOR_DATABASE_UPDATE", "VectorDocument")],
         tail[2],
       );
     }

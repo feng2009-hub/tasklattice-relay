@@ -35,6 +35,7 @@ class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
 
 
 A2A_REGISTRY_OPENER = urllib.request.build_opener(NoRedirectHandler())
+VECTOR_DATABASE_REGISTRY_OPENER = urllib.request.build_opener(NoRedirectHandler())
 
 
 def digest(data: bytes) -> str:
@@ -123,6 +124,20 @@ def validate_a2a_registry_url(value: str) -> urllib.parse.ParseResult:
     return registry_url
 
 
+def validate_vector_database_registry_url(value: str) -> urllib.parse.ParseResult:
+    registry_url = urllib.parse.urlparse(value)
+    if (
+        registry_url.scheme != "http"
+        or not registry_url.hostname
+        or not registry_url.hostname.endswith(".svc.cluster.local")
+        or registry_url.path != "/v1/hermes/vector-databases"
+    ):
+        raise RuntimeError(
+            "Hermes Vector Database registry must be an in-cluster HTTP Service URL"
+        )
+    return registry_url
+
+
 def openshell_model_credential() -> str:
     credential = os.environ.get("OPENAI_API_KEY", "")
     if not OPENSHELL_CREDENTIAL_PLACEHOLDER.fullmatch(credential):
@@ -181,6 +196,72 @@ def configure_a2a(
         ]
 
 
+def configure_vector_databases(
+    validated: dict,
+    registry_url_value: str,
+    registry_token: str,
+    registry: object,
+) -> None:
+    """Apply the dynamic Project Vector Database registry to Hermes config."""
+    registry_url = validate_vector_database_registry_url(registry_url_value)
+    databases = registry.get("vector_databases") if isinstance(registry, dict) else None
+    if not isinstance(databases, dict):
+        raise RuntimeError(
+            "Hermes Vector Database registry returned an invalid database map"
+        )
+    for database_id, database in databases.items():
+        if (
+            not isinstance(database_id, str)
+            or not database_id
+            or not isinstance(database, dict)
+        ):
+            raise RuntimeError(
+                "Hermes Vector Database registry returned an invalid database"
+            )
+        search_url = urllib.parse.urlparse(str(database.get("url", "")))
+        if (
+            search_url.scheme != registry_url.scheme
+            or search_url.hostname != registry_url.hostname
+            or search_url.port != registry_url.port
+            or not search_url.path.startswith("/v1/hermes/vector-databases/")
+            or not search_url.path.endswith("/search")
+        ):
+            raise RuntimeError(
+                "Hermes Vector Database registry returned an out-of-bound search URL"
+            )
+    validated["vector_database_registry"] = {
+        "url": registry_url_value,
+        "timeout": 10,
+        "auth": {
+            "type": "bearer",
+            "token": registry_token,
+        },
+    }
+    toolsets = validated.get("toolsets")
+    if not isinstance(toolsets, list):
+        toolsets = ["hermes-cli"]
+    validated["toolsets"] = list(
+        dict.fromkeys([*toolsets, "vector-database"])
+    )
+    plugins = validated.get("plugins")
+    if not isinstance(plugins, dict):
+        plugins = {}
+        validated["plugins"] = plugins
+    enabled_plugins = plugins.get("enabled")
+    if not isinstance(enabled_plugins, list):
+        enabled_plugins = []
+    plugins["enabled"] = list(
+        dict.fromkeys([*enabled_plugins, "tali-vector-database"])
+    )
+    disabled_plugins = plugins.get("disabled")
+    if isinstance(disabled_plugins, list):
+        plugins["disabled"] = [
+            plugin
+            for plugin in disabled_plugins
+            if plugin != "tali-vector-database"
+        ]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=Path, required=True)
@@ -191,6 +272,8 @@ def main() -> None:
     parser.add_argument("--template-model", required=True)
     parser.add_argument("--a2a-registry-url")
     parser.add_argument("--a2a-registry-token")
+    parser.add_argument("--vector-database-registry-url")
+    parser.add_argument("--vector-database-registry-token")
     parser.add_argument(
         "--mcp-digest-builder",
         type=Path,
@@ -290,6 +373,40 @@ def main() -> None:
             validated,
             args.a2a_registry_url,
             args.a2a_registry_token,
+            registry,
+        )
+    if bool(args.vector_database_registry_url) != bool(
+        args.vector_database_registry_token
+    ):
+        raise RuntimeError(
+            "Hermes Vector Database registry URL and token must be configured together"
+        )
+    if args.vector_database_registry_url:
+        validate_vector_database_registry_url(args.vector_database_registry_url)
+        request = urllib.request.Request(
+            args.vector_database_registry_url,
+            headers={
+                "Accept": "application/json",
+                "Authorization": f"Bearer {args.vector_database_registry_token}",
+            },
+            method="GET",
+        )
+        with VECTOR_DATABASE_REGISTRY_OPENER.open(request, timeout=15) as response:
+            declared_length = response.headers.get("content-length")
+            if declared_length and int(declared_length) > MAX_A2A_REGISTRY_BYTES:
+                raise RuntimeError(
+                    "Hermes Vector Database registry exceeded the 1 MiB limit"
+                )
+            raw_registry = response.read(MAX_A2A_REGISTRY_BYTES + 1)
+        if len(raw_registry) > MAX_A2A_REGISTRY_BYTES:
+            raise RuntimeError(
+                "Hermes Vector Database registry exceeded the 1 MiB limit"
+            )
+        registry = json.loads(raw_registry.decode("utf-8"))
+        configure_vector_databases(
+            validated,
+            args.vector_database_registry_url,
+            args.vector_database_registry_token,
             registry,
         )
     updated = yaml.safe_dump(

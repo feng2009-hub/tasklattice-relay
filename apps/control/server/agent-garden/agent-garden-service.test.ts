@@ -198,26 +198,94 @@ describe("AgentGardenService", () => {
     ).resolves.toBeUndefined();
   });
 
-  it("instantiates a callable built-in demo without duplicating its card", async () => {
+  it("instantiates a callable built-in demo in an observable Kubernetes runtime", async () => {
     const projectStore = createTestStore();
     await projectStore.save(
       coordinator("deepagents-coordinator", "deepagents"),
       "local-admin",
     );
+    await projectStore.database().projectRuntimeTarget.create({
+      data: {
+        projectId: projectStore.projectId,
+        clusterId: "in-cluster",
+        namespace: "tp-abcdefghijklmnop",
+        status: "ready",
+      },
+    });
+    const runtime: ManagedAgentRuntimeClient = {
+      onboard: vi.fn(async (input) => ({
+        endpoint: `http://managed.${input.namespace}.svc.cluster.local:3000`,
+        agentCardUrl: `http://managed.${input.namespace}.svc.cluster.local:3000/.well-known/agent-card.json`,
+        deploymentName: "tali-a2a-managed",
+        serviceName: "tali-a2a-managed",
+        podName: "tali-a2a-managed-76d8d9f4d9-h7k2p",
+        namespace: input.namespace,
+        imageReference: input.image,
+        imageDigest: "ghcr.io/tasklattice/demo-test@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      })),
+      remove: vi.fn(async () => undefined),
+    };
+    let discoveryAttempts = 0;
+    const discovery: AgentDiscoveryClient = {
+      discover: vi.fn(async (agent) => {
+        discoveryAttempts += 1;
+        if (discoveryAttempts === 1) {
+          throw new Error("The operation was aborted due to timeout");
+        }
+        return {
+          endpoint: agent.endpoint!,
+          agentCardUrl: agent.agentCardUrl!,
+          a2a: a2aProfile,
+          skills: agent.skills,
+        };
+      }),
+    };
     const service = new AgentGardenService(
       new AgentGardenStore(projectStore.projectId, projectStore.database()),
       projectStore,
+      discovery,
+      undefined,
+      runtime,
     );
+
+    await service.snapshot();
+    const managedCatalogAgent = await service.store.getAgent(
+      "a2a-github-daily-triage",
+    );
+    if (!managedCatalogAgent) throw new Error("Managed catalog Agent was not seeded.");
+    const externalConfiguration = { ...managedCatalogAgent.configuration };
+    delete externalConfiguration.onboardingSource;
+    await service.store.saveAgent({
+      ...managedCatalogAgent,
+      configuration: externalConfiguration,
+    });
+    const previousExternal = await service.instantiate(
+      "a2a-github-daily-triage",
+      "local-admin",
+    );
+    expect(previousExternal.runtime).toBe("external");
+    await service.store.saveAgent(managedCatalogAgent);
 
     const instance = await service.instantiate(
       "a2a-github-daily-triage",
       "local-admin",
     );
+    expect(instance.id).toBe(previousExternal.id);
     expect(instance).toMatchObject({
       agentId: "a2a-github-daily-triage",
-      runtime: "external",
+      runtime: "kubernetes",
       status: "READY",
+      runtimeNamespace: "tp-abcdefghijklmnop",
+      deploymentName: "tali-a2a-managed",
+      podName: "tali-a2a-managed-76d8d9f4d9-h7k2p",
+      imageDigest: expect.stringContaining("demo-test@sha256:"),
     });
+    expect(runtime.onboard).toHaveBeenCalledWith(expect.objectContaining({
+      agentId: "a2a-github-daily-triage",
+      image: "ghcr.io/tasklattice/demo-test:dev",
+      args: ["a2a", "a2a-github-daily-triage"],
+    }));
+    expect(discovery.discover).toHaveBeenCalledTimes(2);
     await expect(
       projectStore.database().agentRecord.findUniqueOrThrow({
         where: {
@@ -234,6 +302,12 @@ describe("AgentGardenService", () => {
     expect(
       snapshot.agents.filter((agent) => agent.id === "a2a-github-daily-triage"),
     ).toHaveLength(1);
+    await expect(service.removeInstance(instance.id)).resolves.toBe(true);
+    expect(runtime.remove).toHaveBeenCalledWith(expect.objectContaining({
+      agentId: "a2a-github-daily-triage",
+      instanceId: instance.id,
+      namespace: "tp-abcdefghijklmnop",
+    }));
     await expect(service.remove("a2a-github-daily-triage")).rejects.toThrow(
       "managed by TaskLattice Relay",
     );

@@ -18,8 +18,18 @@ const app = express();
 app.disable("x-powered-by");
 app.use(express.json({ limit: "256kb", type: ["application/json", "application/a2a+json"] }));
 
-function controlPath(coordinatorInstanceId: string, suffix = ""): string {
+function agentControlPath(coordinatorInstanceId: string, suffix = ""): string {
   return `/api/v1/runtime-bridge/coordinators/${encodeURIComponent(coordinatorInstanceId)}/agents${suffix}`;
+}
+
+function vectorDatabaseControlPath(
+  coordinatorInstanceId: string,
+  databaseId?: string,
+): string {
+  const base = `/api/v1/runtime-bridge/coordinators/${encodeURIComponent(coordinatorInstanceId)}/vector-databases`;
+  return databaseId
+    ? `${base}/${encodeURIComponent(databaseId)}/search`
+    : base;
 }
 
 async function controlRequest(
@@ -67,10 +77,21 @@ function bridgeAgentUrl(
   return `${origin}/v1/a2a/coordinators/${encodeURIComponent(coordinatorInstanceId)}/agents/${encodeURIComponent(agentId)}`;
 }
 
+function bridgeVectorDatabaseSearchUrl(
+  request: express.Request,
+  coordinatorInstanceId: string,
+  databaseId: string,
+): string {
+  const configured = process.env.TALI_PROJECT_RUNTIME_BRIDGE_URL?.replace(/\/$/, "");
+  const origin = configured ?? `${request.protocol}://${request.get("host")}`;
+  const query = new URLSearchParams({ coordinatorInstanceId });
+  return `${origin}/v1/hermes/vector-databases/${encodeURIComponent(databaseId)}/search?${query}`;
+}
+
 app.get("/healthz", (_request, response) => response.json({
   ok: true,
   projectId: configuration.projectId,
-  capabilityKinds: ["A2A_AGENT"],
+  capabilityKinds: ["A2A_AGENT", "VECTOR_DATABASE"],
 }));
 
 app.get("/v1/agents", async (request, response, next) => {
@@ -80,7 +101,7 @@ app.get("/v1/agents", async (request, response, next) => {
     );
     await relay(
       await controlRequest(
-        controlPath(coordinatorInstanceId),
+        agentControlPath(coordinatorInstanceId),
         coordinatorToken(request),
       ),
       response,
@@ -96,7 +117,7 @@ app.get("/v1/hermes/a2a-agents", async (request, response, next) => {
       request.query.coordinatorInstanceId,
     );
     const token = coordinatorToken(request);
-    const upstream = await controlRequest(controlPath(coordinatorInstanceId), token);
+    const upstream = await controlRequest(agentControlPath(coordinatorInstanceId), token);
     const payload = await upstream.json() as {
       data?: Array<{
         id: string;
@@ -121,6 +142,68 @@ app.get("/v1/hermes/a2a-agents", async (request, response, next) => {
   }
 });
 
+app.get("/v1/hermes/vector-databases", async (request, response, next) => {
+  try {
+    const coordinatorInstanceId = z.string().min(1).max(160).parse(
+      request.query.coordinatorInstanceId,
+    );
+    const token = coordinatorToken(request);
+    const upstream = await controlRequest(
+      vectorDatabaseControlPath(coordinatorInstanceId),
+      token,
+    );
+    const payload = await upstream.json() as {
+      data?: Array<{
+        description: string;
+        id: string;
+        name: string;
+        topK: number;
+      }>;
+    };
+    if (!upstream.ok) return void response.status(upstream.status).json(payload);
+    response.json({
+      vector_databases: Object.fromEntries((payload.data ?? []).map((database) => [
+        database.id,
+        {
+          name: database.name,
+          description: database.description,
+          top_k: database.topK,
+          url: bridgeVectorDatabaseSearchUrl(
+            request,
+            coordinatorInstanceId,
+            database.id,
+          ),
+        },
+      ])),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/v1/hermes/vector-databases/:databaseId/search", async (request, response, next) => {
+  try {
+    const coordinatorInstanceId = z.string().min(1).max(160).parse(
+      request.query.coordinatorInstanceId,
+    );
+    const databaseId = z.string().min(1).max(160).parse(request.params.databaseId);
+    await relay(
+      await controlRequest(
+        vectorDatabaseControlPath(coordinatorInstanceId, databaseId),
+        coordinatorToken(request),
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(request.body),
+        },
+      ),
+      response,
+    );
+  } catch (error) {
+    next(error);
+  }
+});
+
 const agentBase = "/v1/a2a/coordinators/:coordinatorInstanceId/agents/:agentId";
 for (const cardPath of [
   `${agentBase}/.well-known/agent-card.json`,
@@ -137,7 +220,7 @@ for (const cardPath of [
       );
       await relay(
         await controlRequest(
-          `${controlPath(coordinatorInstanceId, `/${encodeURIComponent(agentId)}`)}/agent-card`,
+          `${agentControlPath(coordinatorInstanceId, `/${encodeURIComponent(agentId)}`)}/agent-card`,
           coordinatorToken(request),
           { headers: { "x-tali-bridge-agent-url": publicEndpoint } },
         ),
@@ -155,7 +238,7 @@ app.post(agentBase, async (request, response, next) => {
     const agentId = z.string().parse(request.params.agentId);
     await relay(
       await controlRequest(
-        controlPath(coordinatorInstanceId, `/${encodeURIComponent(agentId)}`),
+        agentControlPath(coordinatorInstanceId, `/${encodeURIComponent(agentId)}`),
         coordinatorToken(request),
         {
           method: "POST",

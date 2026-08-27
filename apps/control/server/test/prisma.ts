@@ -54,6 +54,7 @@ import accessContextSessionsMigration from "../../prisma/migrations/202608270100
 import knowledgeVectorDatabaseMigration from "../../prisma/migrations/20260827020000_knowledge_vector_database/migration.sql?raw";
 import departmentResourceAssignmentsMigration from "../../prisma/migrations/20260827030000_department_resource_assignments/migration.sql?raw";
 import vectorDatabaseDocumentsMigration from "../../prisma/migrations/20260827120000_vector_database_documents/migration.sql?raw";
+import vectorDocumentDirectoriesMigration from "../../prisma/migrations/20260827130000_vector_document_directories/migration.sql?raw";
 import { developmentResourceCatalog } from "../catalog/development-resource-catalog";
 import { PrismaClient } from "../generated/prisma/client";
 
@@ -79,6 +80,12 @@ export function createTestPrisma(): PrismaClient {
     returns: DataType.text,
     implementation: (value: string) =>
       createHash("md5").update(value).digest("hex"),
+  });
+  memory.public.registerFunction({
+    name: "char_length",
+    args: [DataType.text],
+    returns: DataType.integer,
+    implementation: (value: string) => value.length,
   });
   // pg-mem models NUMERIC values but does not parse PostgreSQL precision
   // metadata. Production migrations retain Prisma's DECIMAL(65,30).
@@ -537,6 +544,7 @@ export function createTestPrisma(): PrismaClient {
   );
   memory.public.none(departmentResourceAssignmentsMigration);
   memory.public.none(vectorDatabaseDocumentsMigration);
+  memory.public.none(vectorDocumentDirectoriesMigration);
   const pg = memory.adapters.createPg();
   const query = pg.Client.prototype.query;
   pg.Client.prototype.query = function (

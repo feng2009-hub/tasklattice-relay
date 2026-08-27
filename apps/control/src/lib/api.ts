@@ -311,9 +311,10 @@ export const api = {
       `/api/v1/catalog/vector-databases/${encodeURIComponent(id)}/chunks`,
       { method: "PUT", body: JSON.stringify(input) },
     ),
-  queueVectorDocument: (id: string, file: File) => {
+  queueVectorDocument: (id: string, file: File, directoryPath = "/") => {
     const body = new FormData();
     body.set("file", file);
+    body.set("directoryPath", directoryPath);
     return request<{ document: VectorDocument; job: VectorIngestionJob }>(
       `/api/v1/catalog/vector-databases/${encodeURIComponent(id)}/documents`,
       { method: "POST", body },

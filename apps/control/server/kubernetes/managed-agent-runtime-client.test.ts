@@ -153,6 +153,13 @@ describe("KubernetesManagedAgentRuntimeClient", () => {
       containers: [{
         image: input.image,
         imagePullPolicy: "Always",
+        readinessProbe: {
+          httpGet: {
+            path: "/.well-known/agent-card.json",
+            port: "http",
+            scheme: "HTTP",
+          },
+        },
         securityContext: {
           allowPrivilegeEscalation: false,
           capabilities: { drop: ["ALL"] },

@@ -23,6 +23,7 @@ const input = {
 const configuration = {
   image: "ghcr.io/tasklattice/tali-control:dev",
   imagePullPolicy: "IfNotPresent",
+  revision: "test-revision-1",
   imagePullSecrets: [{ name: "registry" }],
   resources: { requests: { cpu: "25m", memory: "64Mi" } },
   storageSize: "1Gi",
@@ -63,6 +64,11 @@ describe("Project Runtime Bridge resources", () => {
         "tali.io/project-runtime-token-checksum"
       ],
     ).toMatch(/^[0-9a-f]{64}$/);
+    expect(
+      deployment.spec?.template.metadata?.annotations?.[
+        "tali.io/project-runtime-bridge-revision"
+      ],
+    ).toBe("test-revision-1");
     expect(deployment.spec?.template.spec).toMatchObject({
       automountServiceAccountToken: false,
       containers: [{

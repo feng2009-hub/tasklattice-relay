@@ -340,6 +340,17 @@ function descriptor(method: string, path: string): AuditDescriptor | undefined {
       operation: "execute",
     };
   }
+  const runtimeBridgeVectorSearch = path.match(
+    /^\/api\/v1\/runtime-bridge\/coordinators\/[^/]+\/vector-databases\/([^/]+)\/search$/,
+  );
+  if (runtimeBridgeVectorSearch && method === "POST") {
+    return {
+      action: "vector_database.search",
+      objectId: decodeURIComponent(runtimeBridgeVectorSearch[1]!),
+      objectType: "Vector Database",
+      operation: "search",
+    };
+  }
 
   const projectMatch = path.match(/^\/api\/v1\/projects\/([^/]+)(?:\/(.*))?$/);
   if (!projectMatch) return undefined;

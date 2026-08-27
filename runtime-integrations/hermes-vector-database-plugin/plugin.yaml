@@ -1,0 +1,8 @@
+name: tali-vector-database
+version: 0.1.0
+description: "TaskLattice Project-scoped Vector Database discovery and semantic search tools."
+author: TaskLattice
+kind: standalone
+provides_tools:
+  - vector_database_list
+  - vector_database_search

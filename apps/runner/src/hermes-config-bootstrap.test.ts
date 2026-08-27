@@ -72,6 +72,53 @@ print(json.dumps(document))
     });
   });
 
+  it("enables dynamic Project Vector Database tools without storing a catalog snapshot", () => {
+    const program = `
+import importlib.util
+import json
+import sys
+spec = importlib.util.spec_from_file_location("tali_bootstrap", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+document = {
+  "toolsets": ["hermes-cli"],
+  "plugins": {"enabled": ["existing"], "disabled": ["tali-vector-database", "other"]},
+}
+registry = {"vector_databases": {
+  "papers": {
+    "name": "Research Papers",
+    "description": "Project-scoped research papers.",
+    "top_k": 8,
+    "url": "http://runtime-bridge.project.svc.cluster.local/v1/hermes/vector-databases/papers/search?coordinatorInstanceId=hermes",
+  },
+}}
+module.configure_vector_databases(
+  document,
+  "http://runtime-bridge.project.svc.cluster.local/v1/hermes/vector-databases?coordinatorInstanceId=hermes",
+  "coordinator-token",
+  registry,
+)
+print(json.dumps(document))
+`;
+    const result = spawnSync("python3", ["-c", program, bootstrap], {
+      encoding: "utf8",
+    });
+    expect(result.status, result.stderr).toBe(0);
+    const document = JSON.parse(result.stdout) as Record<string, any>;
+    expect(document.toolsets).toEqual(["hermes-cli", "vector-database"]);
+    expect(document.plugins.enabled).toEqual([
+      "existing",
+      "tali-vector-database",
+    ]);
+    expect(document.plugins.disabled).toEqual(["other"]);
+    expect(document.vector_databases).toBeUndefined();
+    expect(document.vector_database_registry).toEqual({
+      url: "http://runtime-bridge.project.svc.cluster.local/v1/hermes/vector-databases?coordinatorInstanceId=hermes",
+      timeout: 10,
+      auth: { type: "bearer", token: "coordinator-token" },
+    });
+  });
+
   it("routes through the custom provider with OpenShell's runtime credential placeholder", async () => {
     const root = await mkdtemp(join(tmpdir(), "tali-hermes-config-"));
     temporaryDirectories.push(root);

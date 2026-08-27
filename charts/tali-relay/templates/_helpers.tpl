@@ -169,6 +169,8 @@ initial_platform_administrator_password = {{ required "secrets.initialPlatformAd
   value: {{ include "tali.image" (dict "root" . "image" .Values.images.control) | quote }}
 - name: PROJECT_RUNTIME_BRIDGE_IMAGE_PULL_POLICY
   value: {{ .Values.images.control.pullPolicy | quote }}
+- name: PROJECT_RUNTIME_BRIDGE_REVISION
+  value: {{ default .Chart.AppVersion .Values.global.rolloutRevision | quote }}
 - name: PROJECT_RUNTIME_BRIDGE_IMAGE_PULL_SECRETS_JSON
   value: {{ .Values.global.imagePullSecrets | toJson | quote }}
 - name: PROJECT_RUNTIME_BRIDGE_RESOURCES_JSON

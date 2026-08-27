@@ -69,7 +69,7 @@ spec:
             - name: DOCLING_SERVE_ENG_LOC_NUM_WORKERS
               value: "1"
             - name: DOCLING_SERVE_MAX_FILE_SIZE
-              value: {{ .Values.docling.maxFileSize | quote }}
+              value: {{ printf "%d" (int64 .Values.docling.maxFileSize) | quote }}
             - name: DOCLING_SERVE_MAX_NUM_PAGES
               value: {{ .Values.docling.maxNumPages | quote }}
             - name: DOCLING_SERVE_MAX_SYNC_WAIT

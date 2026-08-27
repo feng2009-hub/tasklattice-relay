@@ -52,11 +52,13 @@ describe("AccessContextService", () => {
         level: "project",
         resourceId: "individual",
         roleId: "ROLE_PROJECT_ADMIN",
+        target: "/individual",
       }),
       expect.objectContaining({
         level: "project",
         resourceId: "individual",
         roleId: "ROLE_AGENT_DEVELOPER",
+        target: "/individual/instances",
       }),
     ]));
   });

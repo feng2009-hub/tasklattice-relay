@@ -57,6 +57,8 @@ export const runtimeBridgeCoordinatorParamsSchema = z.object({
 });
 export const runtimeBridgeAgentParamsSchema = runtimeBridgeCoordinatorParamsSchema
   .extend({ agentId: id });
+export const runtimeBridgeVectorDatabaseParamsSchema = runtimeBridgeCoordinatorParamsSchema
+  .extend({ databaseId: id });
 export const demoAgentMessageInputSchema = z.object({
   jsonrpc: z.literal("2.0"),
   id: z.union([z.string(), z.number(), z.null()]),

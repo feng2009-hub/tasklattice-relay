@@ -55,6 +55,16 @@ function usageCapabilities(
 
 const CONTAINER_IMAGE_SOURCE = "CONTAINER_IMAGE";
 const EXISTING_AGENT_SOURCE = "EXISTING_AGENT";
+const MANAGED_DISCOVERY_ATTEMPTS = 3;
+const MANAGED_DISCOVERY_RETRY_DELAY_MS = 250;
+
+function transientDiscoveryFailure(error: unknown): boolean {
+  const message = safeError(error).toLowerCase();
+  return error instanceof TypeError
+    || message.includes("timeout")
+    || message.includes("fetch failed")
+    || /http (408|429|502|503|504)\b/.test(message);
+}
 
 function configurationList(value: string | undefined): string[] {
   if (!value) return [];
@@ -316,7 +326,13 @@ export class AgentGardenService {
     if (!agent.endpoint || !agent.agentCardUrl || !agent.a2a) {
       throw new Error("A validated A2A Agent Card is required before creating an Instance.");
     }
+    const managedCatalogAgent =
+      agent.source === "BUILT_IN"
+      && agent.configuration.onboardingSource === CONTAINER_IMAGE_SOURCE;
     const existing = await this.store.getManagedInstanceForAgent(agent.id);
+    if (managedCatalogAgent) {
+      return this.instantiateManagedCatalogAgent(agent, ownerUserId, existing);
+    }
     if (existing) return existing;
     return this.store.saveManagedInstance(
       externalInstance(agent, randomUUID()),
@@ -447,7 +463,9 @@ export class AgentGardenService {
       const credential = checking.authReference
         ? await this.secrets.get(checking.authReference)
         : undefined;
-      const result = await this.discovery.discover(checking, credential);
+      const result = runtimeResult
+        ? await this.discoverManagedAgent(checking, credential)
+        : await this.discovery.discover(checking, credential);
       const ready = await this.store.saveAgent({
         ...checking,
         endpoint: result.endpoint,
@@ -547,11 +565,87 @@ export class AgentGardenService {
     const instance = await this.store.getManagedInstance(id);
     if (!instance) return false;
     if (instance.runtime !== "external") {
-      throw new Error(
-        "Remove the managed Agent definition to delete its Kubernetes runtime.",
-      );
+      const agent = await this.store.getAgent(instance.agentId);
+      if (agent?.source !== "BUILT_IN") {
+        throw new Error(
+          "Remove the managed Agent definition to delete its Kubernetes runtime.",
+        );
+      }
+      if (!instance.runtimeNamespace) {
+        throw new Error("Managed A2A Instance Runtime Namespace is missing.");
+      }
+      await this.runtime.remove({
+        agentId: instance.agentId,
+        instanceId: instance.id,
+        namespace: instance.runtimeNamespace,
+        projectId: this.store.projectId,
+      });
     }
     return this.store.deleteManagedInstance(id);
+  }
+
+  private async instantiateManagedCatalogAgent(
+    agent: AgentGardenEntry,
+    ownerUserId: string,
+    previous?: A2aAgentInstance,
+  ): Promise<A2aAgentInstance> {
+    const input = containerInputFromAgent(agent);
+    const target = await this.requireRuntimeTarget();
+    const instanceId = previous?.id ?? randomUUID();
+    let instance = managedInstance(
+      agent,
+      input,
+      instanceId,
+      target.namespace,
+      previous,
+    );
+    await this.store.saveManagedInstance(
+      instance,
+      previous ? undefined : ownerUserId,
+    );
+    try {
+      const runtime = await this.runtime.onboard({
+        ...input,
+        agentId: agent.id,
+        instanceId,
+        namespace: target.namespace,
+        projectId: this.store.projectId,
+      });
+      instance = managedInstance(
+        agent,
+        input,
+        instanceId,
+        target.namespace,
+        instance,
+        runtime,
+      );
+      await this.store.saveManagedInstance(instance);
+      const discovery = await this.discoverManagedAgent({
+        ...agent,
+        endpoint: runtime.endpoint,
+        agentCardUrl: runtime.agentCardUrl,
+      });
+      return this.store.saveManagedInstance(managedInstance(
+        agent,
+        input,
+        instanceId,
+        target.namespace,
+        instance,
+        runtime,
+        discovery,
+      ));
+    } catch (error) {
+      return this.store.saveManagedInstance(managedInstance(
+        agent,
+        input,
+        instanceId,
+        target.namespace,
+        instance,
+        undefined,
+        undefined,
+        safeError(error),
+      ));
+    }
   }
 
   private async requireProjectRegisteredAgent(
@@ -563,6 +657,26 @@ export class AgentGardenService {
       throw new Error("Built-in Agents are managed by TaskLattice Relay.");
     }
     return agent;
+  }
+
+  private async discoverManagedAgent(
+    agent: AgentGardenEntry,
+    credential?: string,
+  ) {
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        return await this.discovery.discover(agent, credential);
+      } catch (error) {
+        if (
+          attempt >= MANAGED_DISCOVERY_ATTEMPTS
+          || !transientDiscoveryFailure(error)
+        ) throw error;
+        await new Promise((resolve) => setTimeout(
+          resolve,
+          MANAGED_DISCOVERY_RETRY_DELAY_MS * attempt,
+        ));
+      }
+    }
   }
 
   private async requireRuntimeTarget(): Promise<{ namespace: string }> {

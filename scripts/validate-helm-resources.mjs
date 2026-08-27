@@ -373,6 +373,29 @@ if (
   );
 }
 
+const controlWorkerEnv = controlWorker.spec?.template?.spec?.containers
+  ?.find((container) => container.name === "control-worker")?.env ?? [];
+if (
+  controlWorkerEnv.find((entry) => entry.name === "DOCLING_BASE_URL")?.value
+  !== `http://${releaseName}-docling:5001`
+) {
+  throw new Error(
+    "The Control Worker must use the bundled Docling Service when Docling is enabled.",
+  );
+}
+
+const docling = requireObject("Deployment", `${releaseName}-docling`);
+const doclingEnv = docling.spec?.template?.spec?.containers
+  ?.find((container) => container.name === "docling")?.env ?? [];
+if (
+  doclingEnv.find((entry) => entry.name === "DOCLING_SERVE_MAX_FILE_SIZE")
+    ?.value !== "26214400"
+) {
+  throw new Error(
+    "The Docling file-size limit must render as a decimal integer string.",
+  );
+}
+
 const runtimeControlRole = requireObject(
   "ClusterRole",
   runtimeControlClusterRoleName,

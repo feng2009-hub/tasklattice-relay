@@ -116,6 +116,8 @@ spec:
                   fieldPath: metadata.namespace
             - name: TALI_BOOTSTRAP_INTERNAL_URL
               value: {{ printf "http://%s.%s.svc.cluster.local:%v" $name .Release.Namespace .Values.control.service.port | quote }}
+            - name: TALI_DEMO_TEST_IMAGE
+              value: {{ include "tali.image" (dict "root" . "image" .Values.images.exampleMcp) | quote }}
             - name: TALI_BOOTSTRAP_RUNNER_URL
               value: {{ printf "http://%s:9090" (include "tali.componentName" (dict "root" . "component" "runner")) | quote }}
             - name: TALI_BOOTSTRAP_RUNNER_TOKEN

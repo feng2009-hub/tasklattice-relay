@@ -62,7 +62,7 @@ images:
     tag: ""
     pullPolicy: IfNotPresent
   exampleMcp:
-    repository: tali-example-mcp
+    repository: demo-test
     tag: ""
     pullPolicy: IfNotPresent
   openclawSandbox:

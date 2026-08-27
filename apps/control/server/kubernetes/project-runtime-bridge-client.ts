@@ -29,6 +29,7 @@ interface ProjectRuntimeBridgeConfiguration {
   enabled: boolean;
   image: string;
   imagePullPolicy: string;
+  revision: string;
   imagePullSecrets: Array<{ name: string }>;
   resources: Record<string, unknown>;
   storageClass?: string;
@@ -58,6 +59,7 @@ function configurationFromEnvironment(): ProjectRuntimeBridgeConfiguration {
     enabled,
     image,
     imagePullPolicy: process.env.PROJECT_RUNTIME_BRIDGE_IMAGE_PULL_POLICY ?? "IfNotPresent",
+    revision: process.env.PROJECT_RUNTIME_BRIDGE_REVISION ?? image,
     imagePullSecrets: imagePullSecrets(),
     resources: JSON.parse(process.env.PROJECT_RUNTIME_BRIDGE_RESOURCES_JSON ?? "{}") as Record<string, unknown>,
     storageSize: process.env.PROJECT_RUNTIME_BRIDGE_STORAGE_SIZE ?? "1Gi",
@@ -168,6 +170,7 @@ export function projectRuntimeBridgeResources(
             "tali.io/project-runtime-token-checksum": createHash("sha256")
               .update(input.token)
               .digest("hex"),
+            "tali.io/project-runtime-bridge-revision": configuration.revision,
           },
           labels: labels(),
         },

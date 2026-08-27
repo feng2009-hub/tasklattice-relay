@@ -332,8 +332,9 @@ export class ResourceCatalogService {
     id: string,
     file: UploadedVectorDocument,
     uploadedBy: string,
+    directoryPath = "/",
   ): Promise<{ document: VectorDocument; job: VectorIngestionJob }> {
-    return this.vectorDocuments.queue(id, file, uploadedBy, controlJobQueue());
+    return this.vectorDocuments.queue(id, file, uploadedBy, controlJobQueue(), { directoryPath });
   }
 
   async deleteVectorDocument(id: string, documentId: string): Promise<boolean> {

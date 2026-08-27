@@ -79,8 +79,10 @@ The examples support two separate interactions:
 - **Try demo** sends a real A2A 1.0 JSON-RPC `SendMessage` request to a lightweight
   in-process endpoint and renders its execution trace and response;
 - **Create Instance** materializes the validated Agent Card in the Project
-  Instance Registry. Built-in demos reuse their existing Control endpoint;
-  they do not create a separate Pod.
+  Instance Registry. GitHub Daily Triage and Pull Request Risk Scanner launch
+  the shared `demo-test` image with different A2A startup arguments, creating
+  a dedicated Deployment, Service, and Pod for each Project Instance. Other
+  blueprint previews continue to reuse the lightweight Control endpoint.
 
 The outputs are deterministic sample data and have no external side effects.
 The cards are explicitly labeled **Blueprint** or **Demo** so the interaction

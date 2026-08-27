@@ -24,16 +24,21 @@ export function permissionsForCapabilities(
     canManageResources: [
       "CAP_SKILL_CREATE",
       "CAP_MCP_SERVER_CREATE",
-      "CAP_KNOWLEDGE_SOURCE_CREATE",
+      "CAP_VECTOR_DATABASE_CREATE",
       "CAP_PROVIDER_CREATE",
     ].some((capability) => granted.has(capability as ProjectCapability)),
+    canViewVectorDatabases: granted.has("CAP_VECTOR_DATABASE_VIEW"),
+    canViewVectorDatabaseContent: granted.has("CAP_VECTOR_DATABASE_CONTENT_VIEW"),
+    canCreateVectorDatabases: granted.has("CAP_VECTOR_DATABASE_CREATE"),
+    canUpdateVectorDatabases: granted.has("CAP_VECTOR_DATABASE_UPDATE"),
+    canDeleteVectorDatabases: granted.has("CAP_VECTOR_DATABASE_DELETE"),
     canManageProject: granted.has("CAP_PROJECT_SETTINGS_UPDATE"),
     canViewAuditLogs:
       granted.has("CAP_AUDIT_VIEW") || granted.has("CAP_AUDIT_DETAIL_VIEW"),
     canViewResources: [
       "CAP_SKILL_VIEW",
       "CAP_MCP_SERVER_VIEW",
-      "CAP_KNOWLEDGE_SOURCE_VIEW",
+      "CAP_VECTOR_DATABASE_VIEW",
     ].some((capability) => granted.has(capability as ProjectCapability)),
   };
 }

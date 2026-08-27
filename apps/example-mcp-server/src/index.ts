@@ -3,6 +3,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { createMcpExpressApp } from "@modelcontextprotocol/sdk/server/express.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
+import { startA2aServer } from "./a2a.js";
 import { requireBasicAuthentication } from "./basic-auth.js";
 
 const host = process.env.HOST?.trim() || "0.0.0.0";
@@ -87,71 +88,73 @@ function createExampleServer(): McpServer {
   return server;
 }
 
-const app = createMcpExpressApp({ host, allowedHosts });
+function startMcpServer(): void {
+  const app = createMcpExpressApp({ host, allowedHosts });
 
-app.get("/healthz", (_request, response) => {
-  response.status(200).json({
-    service: "tali-example-mcp",
-    status: "ok",
+  app.get("/healthz", (_request, response) => {
+    response.status(200).json({
+      service: "tali-example-mcp",
+      status: "ok",
+    });
   });
-});
 
-app.use("/mcp", requireBasicAuthentication);
+  app.use("/mcp", requireBasicAuthentication);
 
-app.post("/mcp", async (request: Request, response: Response) => {
-  const server = createExampleServer();
-  const transport = new StreamableHTTPServerTransport();
+  app.post("/mcp", async (request: Request, response: Response) => {
+    const server = createExampleServer();
+    const transport = new StreamableHTTPServerTransport();
 
-  try {
-    await server.connect(transport);
-    await transport.handleRequest(request, response, request.body);
-  } catch (error) {
-    console.error("Failed to handle MCP request.", error);
-    if (!response.headersSent) {
-      response.status(500).json({
-        jsonrpc: "2.0",
-        error: { code: -32603, message: "Internal server error" },
-        id: null,
-      });
+    try {
+      await server.connect(transport);
+      await transport.handleRequest(request, response, request.body);
+    } catch (error) {
+      console.error("Failed to handle MCP request.", error);
+      if (!response.headersSent) {
+        response.status(500).json({
+          jsonrpc: "2.0",
+          error: { code: -32603, message: "Internal server error" },
+          id: null,
+        });
+      }
+    } finally {
+      await transport.close();
+      await server.close();
     }
-  } finally {
-    await transport.close();
-    await server.close();
+  });
+
+  app.get("/mcp", (_request, response) => {
+    response.status(405).json({
+      jsonrpc: "2.0",
+      error: { code: -32000, message: "Method not allowed for stateless transport." },
+      id: null,
+    });
+  });
+
+  app.delete("/mcp", (_request, response) => {
+    response.status(405).json({
+      jsonrpc: "2.0",
+      error: { code: -32000, message: "Method not allowed for stateless transport." },
+      id: null,
+    });
+  });
+
+  const httpServer = app.listen(port, host, () => {
+    console.log(`TaskLattice Relay example MCP Server listening on http://${host}:${port}/mcp`);
+  });
+
+  function shutdown(signal: string): void {
+    console.log(`Received ${signal}; shutting down.`);
+    httpServer.close((error) => {
+      if (error) {
+        console.error("Failed to stop HTTP server cleanly.", error);
+        process.exitCode = 1;
+      }
+    });
   }
-});
 
-app.get("/mcp", (_request, response) => {
-  response.status(405).json({
-    jsonrpc: "2.0",
-    error: { code: -32000, message: "Method not allowed for stateless transport." },
-    id: null,
-  });
-});
-
-app.delete("/mcp", (_request, response) => {
-  response.status(405).json({
-    jsonrpc: "2.0",
-    error: { code: -32000, message: "Method not allowed for stateless transport." },
-    id: null,
-  });
-});
-
-const httpServer = app.listen(port, host, () => {
-  console.log(`TaskLattice Relay example MCP Server listening on http://${host}:${port}/mcp`);
-});
-
-function shutdown(signal: string): void {
-  console.log(`Received ${signal}; shutting down.`);
-  httpServer.close((error) => {
-    if (error) {
-      console.error("Failed to stop HTTP server cleanly.", error);
-      process.exitCode = 1;
-    }
-  });
+  process.on("SIGINT", () => shutdown("SIGINT"));
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
 }
-
-process.on("SIGINT", () => shutdown("SIGINT"));
-process.on("SIGTERM", () => shutdown("SIGTERM"));
 
 function parsePort(value: string | undefined): number {
   const parsed = Number(value ?? "3000");
@@ -159,4 +162,17 @@ function parsePort(value: string | undefined): number {
     throw new Error(`PORT must be an integer between 1 and 65535; received ${value ?? ""}.`);
   }
   return parsed;
+}
+
+const [runtimeMode = "mcp", runtimeAgentId] = process.argv.slice(2);
+
+if (runtimeMode === "a2a") {
+  if (!runtimeAgentId) {
+    throw new Error("The a2a runtime mode requires an Agent id argument.");
+  }
+  startA2aServer(runtimeAgentId);
+} else if (runtimeMode === "mcp") {
+  startMcpServer();
+} else {
+  throw new Error(`Unknown demo-test runtime mode: ${runtimeMode}`);
 }

@@ -25,12 +25,12 @@ Browser (TanStack Start + shadcn/ui)
                   | REST + WebSocket
                   v
 TaskLattice Relay Control API ---- LiteLLM ---- Provider API
-          |                    |
-          `------.      .------'
-                 v      v
-          shared PostgreSQL instance
-          (`tasklattice` + `public` schemas)
-          |
+          |        |                    ^
+          |        | metadata           | embedding requests
+          |        v                    |
+          |  shared PostgreSQL <---- Control Worker ---- Docling Serve
+          |  (control data, jobs,       durable ingestion   layout/OCR/chunking
+          |   LiteLLM, and pgvector)
           v
 TaskLattice Relay OpenShell Runner
           |
@@ -83,7 +83,7 @@ helm upgrade --install tali-relay "./tali-relay-${VERSION}.tgz" \
   --namespace tali \
   --create-namespace \
   --wait \
-  --timeout 10m
+  --timeout 30m
 ```
 
 The same Chart is published to GHCR as an OCI artifact:
@@ -96,7 +96,7 @@ helm upgrade --install tali-relay \
   --namespace tali \
   --create-namespace \
   --wait \
-  --timeout 10m
+  --timeout 30m
 ```
 
 The Chart defaults the Control and OpenShell Services to `LoadBalancer`. On a
@@ -113,7 +113,7 @@ helm upgrade --install tali-relay \
   --set control.service.type=ClusterIP \
   --set openshell.service.type=ClusterIP \
   --wait \
-  --timeout 10m
+  --timeout 30m
 ```
 
 Requirements:
@@ -132,8 +132,10 @@ Verify the installation:
 
 ```sh
 kubectl -n tali rollout status deployment/tali-relay-control --timeout=300s
+kubectl -n tali rollout status deployment/tali-relay-control-worker --timeout=300s
 kubectl -n tali rollout status deployment/tali-relay-runner --timeout=300s
 kubectl -n tali rollout status deployment/tali-relay-litellm --timeout=300s
+kubectl -n tali rollout status deployment/tali-relay-docling --timeout=1800s
 kubectl -n tali rollout status statefulset/tali-relay-postgresql --timeout=300s
 kubectl -n tali rollout status statefulset/tali-relay-openshell --timeout=300s
 kubectl -n tali rollout status deployment/agent-sandbox-controller --timeout=300s
@@ -151,11 +153,12 @@ resolves to that exact value.
 | TaskLattice Relay control      | `ghcr.io/tasklattice/tali-control:<release>`                   | UI, REST/WebSocket API, and PostgreSQL control data |
 | Runtime runner           | `ghcr.io/tasklattice/tali-openshell-runner:<release>`          | OpenShell sandbox lifecycle and terminal relay     |
 | LiteLLM                  | `ghcr.io/tasklattice/tali-litellm:<release>`                   | Model gateway, virtual keys, and spend attribution |
-| Example MCP server       | `ghcr.io/tasklattice/tali-example-mcp:<release>`               | Reference MCP integration used by examples         |
+| Demo test runtime        | `ghcr.io/tasklattice/demo-test:<release>`                       | Multi-mode MCP and managed A2A example runtime      |
 | OpenClaw sandbox         | `ghcr.io/tasklattice/tali-nemoclaw-sandbox:<release>`          | OpenClaw Agent sandbox                             |
 | Hermes sandbox           | `ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:<release>`   | Default Supervisor sandbox                         |
 | Deep Agents sandbox      | `ghcr.io/tasklattice/tali-nemoclaw-deepagents-sandbox:<release>` | Deep Agents Code terminal sandbox                |
 | PostgreSQL + pgvector    | `pgvector/pgvector:0.8.6-pg17`                                  | Control data, LiteLLM data, and knowledge vectors  |
+| Docling Serve            | `ghcr.io/docling-project/docling-serve-cpu:v1.29.0`              | Layout-aware parsing, table extraction, and OCR    |
 | OpenShell gateway        | `ghcr.io/nvidia/openshell/gateway:0.0.106`                      | Policy enforcement, audit, exec, and HTTP routing  |
 | OpenShell supervisor     | `ghcr.io/nvidia/openshell/supervisor:0.0.106`                   | Supervisor injected into Agent sandboxes           |
 | Agent Sandbox controller | `registry.k8s.io/agent-sandbox/agent-sandbox-controller:v0.5.1` | Sandbox CR, Pod, and workspace PVC lifecycle       |

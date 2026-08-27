@@ -2,8 +2,14 @@ TaskLattice Relay {{ .Chart.AppVersion }} has been installed in {{ .Release.Name
 
 Wait for the core workloads:
   kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "tali.componentName" (dict "root" . "component" "control") }} --timeout=5m
+{{- if .Values.control.worker.enabled }}
+  kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "tali.componentName" (dict "root" . "component" "control-worker") }} --timeout=5m
+{{- end }}
   kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "tali.componentName" (dict "root" . "component" "runner") }} --timeout=5m
   kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "tali.componentName" (dict "root" . "component" "litellm") }} --timeout=5m
+{{- if .Values.docling.enabled }}
+  kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "tali.componentName" (dict "root" . "component" "docling") }} --timeout=30m
+{{- end }}
 
 Control service:
   kubectl -n {{ .Release.Namespace }} get service {{ include "tali.componentName" (dict "root" . "component" "control") }}

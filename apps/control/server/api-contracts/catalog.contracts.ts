@@ -36,6 +36,7 @@ import {
   messageSchema,
   runtimeBridgeAgentParamsSchema,
   runtimeBridgeCoordinatorParamsSchema,
+  runtimeBridgeVectorDatabaseParamsSchema,
   vectorDocumentParamsSchema,
 } from "./schemas";
 
@@ -231,5 +232,26 @@ export const catalogContracts = defineContracts([
     tags: ["Runtime Bridge"],
     request: { params: runtimeBridgeAgentParamsSchema, body: domainObjectSchema },
     responses: { 200: response("Proxied A2A response", domainObjectSchema) },
+  }),
+  route({
+    auth: "runtime-bridge", method: "get",
+    path: "/runtime-bridge/coordinators/{coordinatorInstanceId}/vector-databases",
+    operationId: "listRuntimeBridgeVectorDatabases",
+    summary: "List the current Project Vector Databases for a Hermes Coordinator",
+    tags: ["Runtime Bridge"],
+    request: { params: runtimeBridgeCoordinatorParamsSchema },
+    responses: { 200: response("Project Vector Database directory", domainObjectSchema) },
+  }),
+  route({
+    auth: "runtime-bridge", method: "post",
+    path: "/runtime-bridge/coordinators/{coordinatorInstanceId}/vector-databases/{databaseId}/search",
+    operationId: "searchRuntimeBridgeVectorDatabase",
+    summary: "Search a Project Vector Database for a Hermes Coordinator",
+    tags: ["Runtime Bridge"],
+    request: {
+      params: runtimeBridgeVectorDatabaseParamsSchema,
+      body: vectorDatabaseSearchInputSchema,
+    },
+    responses: { 200: response("Project Vector Database search results", domainObjectSchema) },
   }),
 ]);

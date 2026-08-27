@@ -27,6 +27,10 @@ export interface UploadedVectorDocument {
   arrayBuffer(): Promise<ArrayBuffer>;
 }
 
+export interface QueueVectorDocumentOptions {
+  readonly directoryPath?: string;
+}
+
 export class VectorDocumentService {
   constructor(
     readonly store: ProjectStore,
@@ -117,9 +121,11 @@ export class VectorDocumentService {
     file: UploadedVectorDocument,
     uploadedBy: string,
     jobs: ControlJobPublisher,
+    options: QueueVectorDocumentOptions = {},
   ): Promise<{ document: VectorDocument; job: VectorIngestionJob }> {
     await this.requireBuiltInDatabase(databaseId);
     const filename = safeFilename(file.name);
+    const directoryPath = safeDirectoryPath(options.directoryPath);
     validateUpload(filename, file.type, file.size);
     const bytes = new Uint8Array(await file.arrayBuffer());
     validateUpload(filename, file.type, bytes.byteLength);
@@ -135,12 +141,12 @@ export class VectorDocumentService {
         FROM (
           SELECT pg_advisory_xact_lock(
             ${advisoryKey(this.store.projectId)},
-            ${advisoryKey(`${databaseId}:${filename}`)}
+            ${advisoryKey(`${databaseId}:${directoryPath}:${filename}`)}
           )
         ) AS acquired
       `;
       const current = await transaction.vectorDocument.findFirst({
-        where: { projectId: this.store.projectId, databaseId, filename },
+        where: { projectId: this.store.projectId, databaseId, directoryPath, filename },
         orderBy: { createdAt: "desc" },
         include: {
           revisions: {
@@ -150,7 +156,7 @@ export class VectorDocumentService {
           },
         },
       });
-      const documentId = current?.id ?? documentIdentifier(filename);
+      const documentId = current?.id ?? documentIdentifier(`${directoryPath}/${filename}`);
       // A failed or still-pending revision does not advance activeRevision.
       const revision = (current?.revisions[0]?.revision ?? 0) + 1;
       if (current) {
@@ -166,6 +172,7 @@ export class VectorDocumentService {
             byteSize: bytes.byteLength,
             error: null,
             filename,
+            directoryPath,
             mediaType: file.type || mediaTypeFromFilename(filename),
             status: "QUEUED",
             uploadedBy,
@@ -178,6 +185,7 @@ export class VectorDocumentService {
             databaseId,
             id: documentId,
             filename,
+            directoryPath,
             mediaType: file.type || mediaTypeFromFilename(filename),
             byteSize: bytes.byteLength,
             contentHash,
@@ -384,6 +392,7 @@ function vectorDocument(document: {
   id: string;
   databaseId: string;
   filename: string;
+  directoryPath: string;
   mediaType: string;
   byteSize: number;
   contentHash: string;
@@ -402,6 +411,7 @@ function vectorDocument(document: {
     id: document.id,
     databaseId: document.databaseId,
     filename: document.filename,
+    directoryPath: document.directoryPath,
     mediaType: document.mediaType,
     byteSize: document.byteSize,
     contentHash: document.contentHash,
@@ -464,6 +474,21 @@ function safeFilename(raw: string): string {
   const value = raw.normalize("NFKC").replace(/[\\/\0]/g, "_").trim();
   if (!value) throw new Error("The uploaded Vector Document needs a filename.");
   return value.slice(0, 500);
+}
+
+function safeDirectoryPath(raw = "/"): string {
+  const segments = raw
+    .normalize("NFKC")
+    .replace(/\\/g, "/")
+    .split("/")
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+  if (segments.some((segment) => segment === "." || segment === ".." || segment.includes("\0"))) {
+    throw new Error("The Vector Document directory path is invalid.");
+  }
+  const path = segments.length ? `/${segments.join("/")}` : "/";
+  if (path.length > 2_000) throw new Error("The Vector Document directory path is too long.");
+  return path;
 }
 
 function validateUpload(filename: string, mediaType: string, size: number): void {

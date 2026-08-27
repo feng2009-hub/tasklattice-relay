@@ -58,6 +58,7 @@
     "prisma": "^7.9.0",
     "radix-ui": "^1.6.2",
     "react": "^19.2.7",
+    "react-arborist": "^3.16.0",
     "react-dom": "^19.2.7",
     "react-i18next": "^17.0.12",
     "react-markdown": "^10.1.0",

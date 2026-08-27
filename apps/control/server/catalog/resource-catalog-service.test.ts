@@ -341,7 +341,7 @@ describe("ResourceCatalogService", () => {
     expect(litellm.registerMcpServer).not.toHaveBeenCalled();
   });
 
-  it("registers a Knowledge Base as a LiteLLM Vector Store and adds it to the Project Team", async () => {
+  it("registers a Vector Database as a LiteLLM Vector Store and adds it to the Project Team", async () => {
     const { service, litellm } = serviceWithAdapter();
     const created = await service.createKnowledgeSource({
       name: "Engineering Handbook",

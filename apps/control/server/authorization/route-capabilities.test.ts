@@ -71,13 +71,13 @@ describe("Project route capability declarations", () => {
       "PUT",
       "/api/v1/projects/individual/catalog/vector-databases/knowledge-1/chunks",
     )?.requirements[0]).toEqual({
-      capability: "CAP_KNOWLEDGE_SOURCE_UPDATE",
+      capability: "CAP_VECTOR_DATABASE_UPDATE",
       resourceType: "VectorChunk",
     });
     expect(projectRouteAdmissionPolicy(
       "DELETE",
       "/api/v1/projects/individual/catalog/vector-databases/knowledge-1/chunks/chunk-1",
-    )?.requirements[0]?.capability).toBe("CAP_KNOWLEDGE_SOURCE_UPDATE");
+    )?.requirements[0]?.capability).toBe("CAP_VECTOR_DATABASE_UPDATE");
   });
 
   it("preserves conditional route semantics with a trailing slash", () => {

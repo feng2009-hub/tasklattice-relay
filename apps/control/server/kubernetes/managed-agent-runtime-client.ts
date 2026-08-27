@@ -15,6 +15,7 @@ import { loadPlatformRuntimeConfiguration } from "../platform/platform-runtime-c
 const FIELD_MANAGER = "tali-control-managed-agent";
 const DEFAULT_ONBOARD_TIMEOUT_MS = 120_000;
 const DEFAULT_POLL_INTERVAL_MS = 1_000;
+const MANAGED_AGENT_TEMPLATE_VERSION = "2";
 
 type ManagedAgentAppsApi = Pick<
   AppsV1Api,
@@ -94,6 +95,7 @@ export function managedAgentRevisionKey(
 ): string {
   return createHash("sha256")
     .update(JSON.stringify([
+      MANAGED_AGENT_TEMPLATE_VERSION,
       input.agentId,
       input.instanceId,
       input.projectId,
@@ -217,9 +219,7 @@ function deploymentResource(
             {
               name: "agent",
               image,
-              imagePullPolicy: image.includes("@sha256:")
-                ? "IfNotPresent"
-                : "Always",
+              imagePullPolicy: managedImagePullPolicy(image),
               ...(input.command.length ? { command: input.command } : {}),
               ...(input.args.length ? { args: input.args } : {}),
               env: [
@@ -237,7 +237,11 @@ function deploymentResource(
                 },
               ],
               readinessProbe: {
-                tcpSocket: { port: "http" },
+                httpGet: {
+                  path: input.agentCardPath,
+                  port: "http",
+                  scheme: "HTTP",
+                },
                 initialDelaySeconds: 1,
                 periodSeconds: 2,
                 timeoutSeconds: 1,
@@ -305,6 +309,16 @@ function imageRepository(image: string): string {
   return lastColon > lastSlash
     ? withoutDigest.slice(0, lastColon)
     : withoutDigest;
+}
+
+function isDevelopmentImage(image: string): boolean {
+  return image.split("@", 1)[0]!.endsWith(":dev");
+}
+
+function managedImagePullPolicy(image: string): "Always" | "IfNotPresent" {
+  return image.includes("@sha256:") || isDevelopmentImage(image)
+    ? "IfNotPresent"
+    : "Always";
 }
 
 export function pinnedImageReference(
@@ -420,10 +434,12 @@ export class KubernetesManagedAgentRuntimeClient
     await this.apply(serviceResource(input));
     await this.apply(deploymentResource(input, input.image));
     let readyPod = await this.waitUntilReady(input, input.image);
-    const pinnedImage = pinnedImageReference(
-      input.image,
-      imageIdFromPod(readyPod),
-    );
+    const imageId = imageIdFromPod(readyPod);
+    const localDevelopmentImage = isDevelopmentImage(input.image)
+      && imageId?.startsWith("docker://");
+    const pinnedImage = localDevelopmentImage
+      ? input.image
+      : pinnedImageReference(input.image, imageId);
     if (!pinnedImage) {
       throw new Error(
         "The Agent container started, but Kubernetes did not report an immutable image digest.",

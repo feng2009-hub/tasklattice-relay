@@ -1481,6 +1481,7 @@ export const vectorDocumentSchema = z.object({
   id: z.string().trim().min(1).max(160),
   databaseId: z.string().trim().min(1).max(160),
   filename: z.string().trim().min(1).max(500),
+  directoryPath: z.string().trim().startsWith("/").max(2_000),
   mediaType: z.string().trim().min(1).max(160),
   byteSize: z.number().int().min(1),
   contentHash: z.string().trim().min(1).max(160),

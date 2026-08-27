@@ -1239,6 +1239,11 @@ export async function provisionOpenShellSandbox(
         "Use a2a_list and a2a_discover to inspect Project-enabled remote specialists.",
         "Before every a2a_call, create a Kanban card with assignee 'tali-a2a' and initial_status 'blocked'; pass that card's task_id to a2a_call.",
         "The A2A tool claims that reserved card as running and records dispatch events. Add returned evidence, then complete or block the card explicitly.",
+        "",
+        "## Project Vector Databases",
+        "Project Vector Databases are shared, live Project resources rather than Instance memory.",
+        "Use vector_database_list to discover the current Project databases and vector_database_search for questions about uploaded documents or Project-specific knowledge.",
+        "Ground answers in the returned chunks and cite filename, page, and section when available. Never claim that a document says something when the search results do not support it.",
       ].join("\n")
     : "";
   try {

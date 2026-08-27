@@ -80,7 +80,7 @@ USER 10001
 EXPOSE 8080
 CMD ["node", "apps/control/.output/server/index.mjs"]
 
-FROM node:22-bookworm-slim AS example-mcp
+FROM node:22-bookworm-slim AS demo-test
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=3000
@@ -91,7 +91,8 @@ COPY apps/example-mcp-server/package.json apps/example-mcp-server/package.json
 COPY --from=build /app/apps/example-mcp-server/dist ./apps/example-mcp-server/dist
 USER node
 EXPOSE 3000
-CMD ["node", "apps/example-mcp-server/dist/index.js"]
+ENTRYPOINT ["node", "apps/example-mcp-server/dist/index.js"]
+CMD ["mcp"]
 
 FROM node:22-bookworm-slim AS runner
 ENV NODE_ENV=production \

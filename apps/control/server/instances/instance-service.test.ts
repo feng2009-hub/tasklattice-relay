@@ -438,20 +438,43 @@ async function createConfiguredInstance(
   );
 }
 
+async function instantiateAsExternalRegistryFixture(
+  garden: AgentGardenService,
+  agentId: string,
+) {
+  await garden.snapshot();
+  const agent = await garden.store.getAgent(agentId);
+  if (!agent) throw new Error(`Missing Agent Garden fixture: ${agentId}`);
+  const configuration = { ...agent.configuration };
+  for (const key of [
+    "onboardingSource",
+    "imageReference",
+    "containerPort",
+    "agentCardPath",
+    "imagePullSecretName",
+    "command",
+    "args",
+    "runtimeOwnership",
+  ]) {
+    delete configuration[key];
+  }
+  await garden.store.saveAgent({ ...agent, configuration });
+  return garden.instantiate(agentId, "local-admin");
+}
+
 describe("Instance Access Policy lifecycle", () => {
   it("discovers READY callable A2A Instances from the Project registry", async () => {
     const setup = await configuredService();
     const garden = new AgentGardenService(
       new AgentGardenStore(setup.store.projectId, setup.store.database()),
     );
-    await garden.snapshot();
-    const github = await garden.instantiate(
+    const github = await instantiateAsExternalRegistryFixture(
+      garden,
       "a2a-github-daily-triage",
-      "local-admin",
     );
-    const risk = await garden.instantiate(
+    const risk = await instantiateAsExternalRegistryFixture(
+      garden,
       "a2a-pull-request-risk-scanner",
-      "local-admin",
     );
     const release = await garden.instantiate(
       "a2a-release-notes-composer",
@@ -536,6 +559,18 @@ describe("Instance Access Policy lifecycle", () => {
       ...peer!,
       endpoint: "https://expert.example/a2a",
       a2a: { ...peer!.a2a!, protocolBinding: "HTTP+JSON" },
+      configuration: Object.fromEntries(
+        Object.entries(peer!.configuration).filter(([key]) => ![
+          "onboardingSource",
+          "imageReference",
+          "containerPort",
+          "agentCardPath",
+          "imagePullSecretName",
+          "command",
+          "args",
+          "runtimeOwnership",
+        ].includes(key)),
+      ),
     });
     const callable = await new AgentGardenService(garden).instantiate(
       updatedPeer.id,
@@ -598,10 +633,9 @@ describe("Instance Access Policy lifecycle", () => {
     const garden = new AgentGardenService(
       new AgentGardenStore(setup.store.projectId, setup.store.database()),
     );
-    await garden.snapshot();
-    const callable = await garden.instantiate(
+    const callable = await instantiateAsExternalRegistryFixture(
+      garden,
       "a2a-github-daily-triage",
-      "local-admin",
     );
     const fetchRequest = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       new Response("x".repeat(1024 * 1024 + 1), {

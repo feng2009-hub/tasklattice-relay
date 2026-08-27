@@ -16,13 +16,19 @@ export default defineHandler(async (event) => {
     }
     const form = await event.req.formData();
     const file = form.get("file");
+    const directoryPath = form.get("directoryPath");
     if (!isUploadedDocument(file)) {
       throw new Error("A Vector Document is required in the multipart file field.");
     }
     const databaseId = decodeURIComponent(event.context.params?.id ?? "");
     return jsonResponse(
       await (await getResourceCatalogService(event.req))
-        .queueVectorDocument(databaseId, file, actorId),
+        .queueVectorDocument(
+          databaseId,
+          file,
+          actorId,
+          typeof directoryPath === "string" ? directoryPath : "/",
+        ),
       { status: 202 },
     );
   } catch (error) {

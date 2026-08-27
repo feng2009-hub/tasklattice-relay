@@ -6,16 +6,20 @@ import {
   demoAgentCardUrl,
   demoAgentDefinitions,
   demoAgentEndpoint,
+  demoTestImageReference,
+  hermesMvpA2aAgentIds,
 } from "./demo-agent-runtime";
 import { marketplaceMetadataFor } from "./marketplace-agent-metadata";
 
-export const agentCatalogSeedVersion = "2026-08-26.1";
+export const agentCatalogSeedVersion = "2026-08-27.1";
 const seededAt = "2026-08-23T00:00:00.000Z";
+const managedDemoAgentIds = new Set<string>(hermesMvpA2aAgentIds);
 
 export const databaseAgentCatalog: AgentGardenEntry[] =
   demoAgentDefinitions.map((definition, index) => {
     const catalogKind =
       definition.catalogKind ?? "TALI_DEMO";
+    const managedDemo = managedDemoAgentIds.has(definition.id);
     return agentGardenEntrySchema.parse({
       id: definition.id,
       name: definition.name,
@@ -70,6 +74,18 @@ export const databaseAgentCatalog: AgentGardenEntry[] =
         supportLevel: "TaskLattice Relay sample catalog",
         license: "Sample blueprint",
         transport: "A2A 1.0 / JSON-RPC",
+        ...(managedDemo
+          ? {
+              onboardingSource: "CONTAINER_IMAGE",
+              imageReference: demoTestImageReference(),
+              containerPort: "3000",
+              agentCardPath: "/.well-known/agent-card.json",
+              imagePullSecretName: "",
+              command: "[]",
+              args: JSON.stringify(["a2a", definition.id]),
+              runtimeOwnership: "PROJECT_MANAGED_INSTANCE",
+            }
+          : {}),
       },
       skills: definition.skills,
       specializationId: null,

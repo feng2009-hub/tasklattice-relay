@@ -24,6 +24,11 @@ describe("permissionsForCapabilities", () => {
       canRemoveMembers: true,
       canAssignRoles: true,
       canManageResources: false,
+      canViewVectorDatabases: false,
+      canViewVectorDatabaseContent: false,
+      canCreateVectorDatabases: false,
+      canUpdateVectorDatabases: false,
+      canDeleteVectorDatabases: false,
       canManageProject: true,
       canViewAuditLogs: true,
       canViewResources: true,
@@ -44,6 +49,11 @@ describe("permissionsForCapabilities", () => {
       canRemoveMembers: false,
       canAssignRoles: false,
       canManageResources: false,
+      canViewVectorDatabases: false,
+      canViewVectorDatabaseContent: false,
+      canCreateVectorDatabases: false,
+      canUpdateVectorDatabases: false,
+      canDeleteVectorDatabases: false,
       canManageProject: false,
       canViewAuditLogs: false,
       canViewResources: false,
@@ -65,6 +75,20 @@ describe("permissionsForCapabilities", () => {
       permissionsForCapabilities([], { canCreateProject: true })
         .canCreateProject,
     ).toBe(true);
+  });
+
+  it("keeps Vector Database inventory, content, and mutation gates independent", () => {
+    expect(permissionsForCapabilities([
+      "CAP_VECTOR_DATABASE_VIEW",
+      "CAP_VECTOR_DATABASE_CONTENT_VIEW",
+      "CAP_VECTOR_DATABASE_UPDATE",
+    ])).toMatchObject({
+      canViewVectorDatabases: true,
+      canViewVectorDatabaseContent: true,
+      canCreateVectorDatabases: false,
+      canUpdateVectorDatabases: true,
+      canDeleteVectorDatabases: false,
+    });
   });
 
   it("does not conflate configuration, interaction, terminal, and audit access", () => {

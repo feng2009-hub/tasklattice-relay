@@ -85,6 +85,11 @@ export interface ProjectPermissions {
   canRemoveMembers: boolean;
   canAssignRoles: boolean;
   canManageResources: boolean;
+  canViewVectorDatabases: boolean;
+  canViewVectorDatabaseContent: boolean;
+  canCreateVectorDatabases: boolean;
+  canUpdateVectorDatabases: boolean;
+  canDeleteVectorDatabases: boolean;
   canManageProject: boolean;
   canViewAuditLogs: boolean;
   canViewResources: boolean;

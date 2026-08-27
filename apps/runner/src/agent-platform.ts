@@ -179,6 +179,10 @@ const hermesBootstrapScript = (
   const a2aRegistryTokenArgument = projectRuntimeBridgeToken
     ? ` --a2a-registry-token "${projectRuntimeBridgeToken}"`
     : "";
+  const vectorDatabaseRegistryArgument =
+    projectRuntimeBridgeUrl && coordinatorInstanceId && projectRuntimeBridgeToken
+      ? ` \\\n  --vector-database-registry-url "${projectRuntimeBridgeUrl.replace(/\/$/, "")}/v1/hermes/vector-databases?coordinatorInstanceId=${encodeURIComponent(coordinatorInstanceId)}" \\\n  --vector-database-registry-token "${projectRuntimeBridgeToken}"`
+      : "";
   return `#!/usr/bin/env bash
 set -euo pipefail
 
@@ -226,7 +230,7 @@ printf '[bootstrap] Hermes identity current=%s account=%s workspace=%s state=%s\
   --endpoint "${inferenceEndpoint}" \
   --model "${model}" \
   --template-endpoint https://inference.local/v1 \
-  --template-model deepseek-chat${a2aRegistryArgument}${a2aRegistryTokenArgument}
+  --template-model deepseek-chat${a2aRegistryArgument}${a2aRegistryTokenArgument}${vectorDatabaseRegistryArgument}
 
 if [ ! -x "$webui_auth_proxy" ]; then
   echo "Hermes Web UI authentication proxy is unavailable" >&2

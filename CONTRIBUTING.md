@@ -29,14 +29,14 @@ changes the tag to the permanent `dev` value:
 ghcr.io/tasklattice/tali-control:dev
 ghcr.io/tasklattice/tali-openshell-runner:dev
 ghcr.io/tasklattice/tali-litellm:dev
+ghcr.io/tasklattice/demo-test:dev
 ghcr.io/tasklattice/tali-nemoclaw-sandbox:dev
 ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:dev
+ghcr.io/tasklattice/tali-nemoclaw-deepagents-sandbox:dev
 ```
 
 These images are built into the local Docker store. The Release workflow does
-not publish the `dev` tag. Local integration tests can additionally build
-`ghcr.io/tasklattice/tali-example-mcp:dev`; it is test-only and is not one of
-the five released images.
+not publish the `dev` tag; release tags publish the same seven repositories.
 
 ## Prerequisites
 
@@ -111,7 +111,7 @@ docker image inspect ghcr.io/tasklattice/tali-litellm:dev
 docker image inspect ghcr.io/tasklattice/tali-nemoclaw-sandbox:dev
 docker image inspect ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:dev
 docker image inspect ghcr.io/tasklattice/tali-nemoclaw-deepagents-sandbox:dev
-docker image inspect ghcr.io/tasklattice/tali-example-mcp:dev
+docker image inspect ghcr.io/tasklattice/demo-test:dev
 ```
 
 Individual build commands are available for shorter loops:
@@ -120,7 +120,7 @@ Individual build commands are available for shorter loops:
 npm run images:build:dev:control
 npm run images:build:dev:runner
 npm run images:build:dev:litellm
-npm run images:build:dev:example-mcp
+npm run images:build:dev:demo-test
 npm run images:build:dev:sandbox:openclaw
 npm run images:build:dev:sandbox:hermes
 npm run images:build:dev:sandbox:deepagents
